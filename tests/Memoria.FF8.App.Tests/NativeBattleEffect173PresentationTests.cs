@@ -123,7 +123,7 @@ public sealed class NativeBattleEffect173PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -142,7 +142,7 @@ public sealed class NativeBattleEffect173PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT173_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current formation480 original13 component source.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
         Assert.Equal(480, original.Definition.EncounterId);
         Assert.Equal(139, original.Definition.StageId);
         BattleSession restored = BattleSession.Restore(original);

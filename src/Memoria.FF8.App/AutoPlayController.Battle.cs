@@ -2,9 +2,18 @@
 
 namespace Memoria.FF8;
 
+internal enum AutoPlayStopBoundary
+{
+    AfterCurrentBattle,
+    Immediately
+}
+
 internal sealed partial class AutoPlayController
 {
     private readonly bool? requestedBattlePolicy;
+    private bool stopAfterCurrentBattle;
+
+    internal bool WaitingToStopAfterBattle => stopAfterCurrentBattle;
 
     private void ApplyBattlePolicy(GameWorld world)
     {
@@ -13,31 +22,26 @@ internal sealed partial class AutoPlayController
             return;
         }
         bool pendingInteractive = world.Events.PendingInteractiveBattle is not null || world.Events.PendingMenuBattle is not null || session.State.RandomEncounters?.Pending is not null;
-        if ((session.State.FullBattlePlaythrough == true) != fullCombat || !fullCombat && (pendingInteractive || world.Battle?.Outcome == BattleOutcome.Active))
+        if ((session.State.FullBattlePlaythrough == true) != fullCombat || !fullCombat && pendingInteractive && world.Battle is null)
         {
             world.ApplyBattleInput(new(BattleInputKind.ConfigurePlaythrough, FullCombat: fullCombat));
-            ResetIdleDeadline();
-        }
-        if (!fullCombat && world.Battle?.CanReturnToField == true)
-        {
-            world.ApplyBattleInput(new(BattleInputKind.Return));
             ResetIdleDeadline();
         }
     }
 
     private bool TryPlayBattle(GameWorld world, Action<BattleSession>? advanceBattlePresentation)
     {
-        if (world.Battle is null && world.Events.PendingInteractiveBattle is null && world.Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending is null)
-        {
-            return false;
-        }
-        if (session.State.FullBattlePlaythrough != true)
+        if (world.Battle is null && (stopAfterCurrentBattle || world.Events.PendingInteractiveBattle is null && world.Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending is null))
         {
             return false;
         }
         run.SettleFrames = 0;
         if (world.Battle is null)
         {
+            if (session.State.FullBattlePlaythrough != true)
+            {
+                return false;
+            }
             // The exploration seed also makes the submitted encounter seed reproducible.
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: checked((byte)run.Seed)));
             ResetIdleDeadline();
@@ -50,8 +54,14 @@ internal sealed partial class AutoPlayController
             {
                 return true;
             }
-            Status = $"Battle {active.EncounterId} · frame {active.Frame} · {run.Steps} steps";
+            Status = stopAfterCurrentBattle
+                ? $"Finishing current battle {active.EncounterId} before saving and stopping."
+                : $"Battle {active.EncounterId} · frame {active.Frame} · {run.Steps} steps";
             BattleInput input = PlanBattleInput(active);
+            if (!stopAfterCurrentBattle && session.State.FullBattlePlaythrough != true && active.Outcome == BattleOutcome.Active)
+            {
+                input = new(active.CanAdmitDebugOutcome ? BattleInputKind.InstantVictory : BattleInputKind.Tick);
+            }
             var before = BattleProgress(active);
             if (input.Kind == BattleInputKind.Tick && advanceBattlePresentation is not null)
             {

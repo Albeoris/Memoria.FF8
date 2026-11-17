@@ -269,7 +269,7 @@ public sealed class NativeOrdinaryCommandTests
             Assert.Equal(gil, battle.Capture().NativeGil);
             if (cancel)
             {
-                battle.InstantDefeat();
+                Assert.Throws<InvalidOperationException>(battle.InstantDefeat);
                 Assert.Equal(gil, battle.Capture().NativeGil);
                 Assert.DoesNotContain(battle.Events, entry => entry.Kind == "GuardianForceHealing");
                 return;

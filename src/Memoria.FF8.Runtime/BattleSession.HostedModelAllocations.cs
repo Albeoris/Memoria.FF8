@@ -97,7 +97,7 @@ public sealed partial class BattleSession
             }
             else if (allocation.EncounterRole is not null)
             {
-                source = new(BattleSourceGroupId.ForEncounterCopy(allocation.Generation), allocation.SceneSlot, allocation.TemplateSourceOrdinal);
+                source = allocation.TemplateSource ?? throw new InvalidDataException("A staged encounter copy requires its admitted source placement.");
             }
         }
         NativeBattleGraphicsBinding binding = PrepareModelBinding(load.ModelOwner, load.Slot);

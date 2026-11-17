@@ -10,7 +10,7 @@ public sealed class NativeBattleWhiteWind297PresentationTests
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([297], "MEMORIA_FF8_WHITE_WIND297", SelectOriginalFixture);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_WHITE_WIND297_EVIDENCE")!;
-        BattleSnapshot initialized = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "initialized.battle.json"));
+        BattleSnapshot initialized = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "initialized.battle.json"));
         NativeBattleEffectArena arena = initialized.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         int start = NativeBattleWhiteWind297Profile.BindingOffset;
         var pointers = arena.EnumerateResourcePointers().Where(entry => entry.Key >= start && entry.Key < start + 32 && entry.Value?.Cpu is not null).ToArray();

@@ -33,6 +33,12 @@ internal static class NativeBattleHostedTestFixture
         return process;
     }
 
+    internal static void BindProcess(BattleSession logical, NativeBattleGraphicsState graphics)
+    {
+        BattlePresentationProcess process = SeedProcess(logical, graphics);
+        typeof(BattleSession).GetField("expandedPresentationProcess", PrivateInstance)!.SetValue(logical, process);
+    }
+
     internal static void SetField(BattlePresentationProcess process, string name, object? value)
     {
         typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!.SetValue(process, value);

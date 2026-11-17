@@ -78,7 +78,7 @@ internal sealed partial class AutoPlayController
         Memoria.AutoPlay.AutoPlayRecording.AppendRecent(run.RecentActions, new AutoPlayRecentAction(run.Steps, session.State.FieldId, session.State.Scene.ToString(), Memoria.AutoPlay.AutoPlayRecording.LimitActionText(action)));
     }
 
-    private void PreserveFailureCapture(Exception exception)
+    private void PreserveFailureCapture(Exception exception, bool duringBattle)
     {
         if (runDirectory is not string directory)
         {
@@ -86,22 +86,29 @@ internal sealed partial class AutoPlayController
         }
 
         using IDisposable suspended = idleDeadline.Suspend();
-        try
+        if (duringBattle)
         {
-            (string manifest, bool interruptedCallback) = SaveFailureBundle(directory, exception);
-            if (interruptedCallback)
-            {
-                DiagnosticFailurePath = manifest;
-                Status += " The exact snapshot records an interrupted field callback. Resume from the location checkpoint.";
-            }
-            else
-            {
-                ReproductionPath = manifest;
-            }
+            Status += ReproductionPath is null ? " No durable checkpoint is available." : " Resume from the last saved checkpoint before the battle.";
         }
-        catch (Exception captureError)
+        else
         {
-            Status += $" Exact failure snapshot unavailable. Location checkpoint: {ReproductionPath ?? "unavailable"}. Capture error: {captureError.Message}";
+            try
+            {
+                (string manifest, bool interruptedCallback) = SaveFailureBundle(directory, exception);
+                if (interruptedCallback)
+                {
+                    DiagnosticFailurePath = manifest;
+                    Status += " The exact snapshot records an interrupted field callback. Resume from the location checkpoint.";
+                }
+                else
+                {
+                    ReproductionPath = manifest;
+                }
+            }
+            catch (Exception captureError)
+            {
+                Status += $" Exact failure snapshot unavailable. Location checkpoint: {ReproductionPath ?? "unavailable"}. Capture error: {captureError.Message}";
+            }
         }
 
         try

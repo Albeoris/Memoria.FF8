@@ -12,7 +12,7 @@ Open Debug Room (F2) → Automatic play → Start a new game, or run the engine 
 dotnet run --project src/Memoria.FF8.App -c Release -- --auto-play --game-dir "$env:MEMORIA_FF8_GAME_DIR" --output ./autoplay-runs
 ```
 
-The same controller runs both modes. New Game runs start with native cold-process random seed 1 and use automatic battle victories. A loaded standalone retains its random state and combat settings. The controller skips movie presentation while executing movie callbacks, confirms dialogue immediately and teleports the controlled player between discovered event coordinates. Scripted movement retains its normal engine owner. The controller runs independently until an error, an exhausted frontier or the ending. Pause, resume, stop and failure replay are available in Debug Room. `--max-steps <count>` bounds a diagnostic headless run and saves its stopping point.
+The same controller runs both modes. New Game runs start with native cold-process random seed 1 and use automatic battle victories. A loaded standalone retains its random state and combat settings. The controller skips movie presentation while executing movie callbacks, confirms dialogue immediately and teleports the controlled player between discovered event coordinates. Scripted movement retains its normal engine owner. The controller runs independently until an error, an exhausted frontier or the ending. Pause, resume, stop and failure replay are available in Debug Room. A stop requested during battle finishes the current encounter and saves on return before exploration continues. `--max-steps <count>` stops a headless run at the requested step. A step limit or failure reached during battle reports the last durable checkpoint for resuming.
 
 ## Exploration policy
 

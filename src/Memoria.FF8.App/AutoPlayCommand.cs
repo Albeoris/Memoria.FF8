@@ -98,7 +98,7 @@ internal static class AutoPlayCommand
                 }
                 if (controller.Running && maxSteps is long limit && controller.State.Steps >= limit)
                 {
-                    controller.SaveAndStop();
+                    controller.SaveAndStop(AutoPlayStopBoundary.Immediately);
                 }
                 if (Environment.TickCount64 - lastReport >= 1000)
                 {

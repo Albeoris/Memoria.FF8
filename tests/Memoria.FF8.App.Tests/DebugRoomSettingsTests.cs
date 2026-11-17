@@ -56,29 +56,24 @@ public sealed class DebugRoomSettingsTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void DebugOutcomeButtonsFollowActiveGameOrLaboratoryBattleAndApplyImmediately(bool victory)
+    public void Debug_outcome_buttons_request_the_selected_result_when_enabled(bool victory)
     {
-        BattleSession? battle = null;
+        bool active = false;
+        bool? requestedVictory = null;
         MenuController menus = new();
-        menus.ConnectBattleSettings(() => battle?.Outcome == BattleOutcome.Active, won =>
+        menus.ConnectBattleSettings(() => active, won =>
         {
-            if (won)
-            {
-                battle!.InstantVictory();
-            }
-            else
-            {
-                battle!.InstantDefeat();
-            }
+            requestedVictory = won;
+            active = false;
         });
         menus.Open("debug-room", true);
         Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
-        battle = new BattleSession(Scenario(), BattleAtbMode.TurnBased);
+        active = true;
         Assert.Equal(new[] { "instant-victory", "instant-defeat" }, menus.Entries.Take(2).Select(row => row.Id));
         Assert.True(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
         Assert.True(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
         menus.Execute(new MenuAction("battle-debug-outcome", Value: victory ? "Victory" : "Defeat"));
-        Assert.Equal(victory ? BattleOutcome.Victory : BattleOutcome.Defeat, battle.Outcome);
+        Assert.Equal(victory, requestedVictory);
         Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
         menus.Open("debug-battle", true);
         Assert.DoesNotContain(menus.Entries, row => row.Id is "instant-victory" or "instant-defeat");
@@ -105,15 +100,13 @@ public sealed class DebugRoomSettingsTests
     }
 
     [Fact]
-    public void InstantBattleOutcomesRequireAReadyPlayerCommand()
+    public void Instant_battle_outcomes_require_an_entered_process_even_if_a_player_is_ready()
     {
         Assert.False(RecreateGame.CanCompleteBattleInstantly(null));
         BattleDefinition definition = Scenario();
         BattleSession waiting = new(definition, BattleAtbMode.Normal);
         Assert.False(RecreateGame.CanCompleteBattleInstantly(waiting));
         BattleSession ready = new(definition with { Combatants = [definition.Combatants[0] with { InitialAtb = BattleSession.AtbMaximum }, definition.Combatants[1]] }, BattleAtbMode.Normal);
-        Assert.True(RecreateGame.CanCompleteBattleInstantly(ready));
-        ready.InstantVictory();
         Assert.False(RecreateGame.CanCompleteBattleInstantly(ready));
     }
 

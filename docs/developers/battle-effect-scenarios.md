@@ -1,0 +1,9 @@
+# Battle effect scenarios
+
+Run an ordinary battle effect from an authored encounter recipe with the installed game resources and a fixed host build. Discover the applicable native action identities and inspect their prerequisites before adding the recipe to a bounded [execution manifest](battle-effects-validation.md#installed-discovery-and-unattended-scenario-execution). Run the manifest with `dotnet $tool run --input $manifest`. A recipe with `driver.fresh_entry` runs its pinned command once in each of two fresh hosts. The ordinary repeat protocol submits both commands in one battle.
+
+For a component check, use the installed-resource component tests for the selected effect. Their source factories construct the current battle, admit its typed action and capture a private continuation at the action boundary. Each fresh process prepares its own source and passes the continuation to the graphical host in memory. Compare the reached invocation, ordered contacts, completion and presented frames required by the case. An isolated component can demonstrate its presentation without establishing the ordinary command or campaign route.
+
+Archived live-battle JSON requires a scoped fixture migration. Preserve the original external archive. Use the saved facts to prepare a separately named current scenario with authenticated resources and the exact relevant action identity. Validate the smallest meaningful continuation. Current field and world saves still use the [supported save formats](../players/saves.md).
+
+The [catalog runner](battle-effects-validation.md#every-native-effect) chooses the ordinary or component route from the selected cases. Use its full selection for an explicitly requested full effect retest. A targeted check should select the effect and invocation affected by the code change.

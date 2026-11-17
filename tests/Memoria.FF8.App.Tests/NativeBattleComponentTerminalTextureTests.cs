@@ -14,7 +14,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_TERMINAL_SOURCE_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and an independent original101 component source for terminal texture validation.");
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         using GameAssets game = new(directory!);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);

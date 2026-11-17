@@ -23,7 +23,7 @@ public sealed class Holy175CapturePresentationTests
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(gameDirectory);
         NativeBattleHoly175Resources resources = game.ReadNativeHoly175Resources();
-        BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot snapshot = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         BattleSnapshot working = NativeBattleStorageSnapshots.Restore(snapshot);
         NativeBattlePrimitiveProcess retained = working.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         NativeBattleSoftwarePrimitiveState software = retained.Software! with { ViewportInputs = new(640, 480, 0, 0) };
@@ -76,7 +76,7 @@ public sealed class Holy175CapturePresentationTests
             Assert.True(executed.Frame.LastCommands.Any(command => command.Command.Packet.Bank == "holy-capture"));
             Assert.True(executed.Frame.LastCommands.Any(command => command.Pass == 1 && command.DrawMode.NormalViewport is not null));
             Assert.True(changed > 0 && nonzero > 0);
-            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!)));
+            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!)));
             Report("checked", null, pixels);
         }
         catch (Exception error)
@@ -96,7 +96,7 @@ public sealed class Holy175CapturePresentationTests
         void Write<T>(string name, T value) => File.WriteAllText(Path.Combine(output, name), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(value)));
         void Report(string status, string? blocker, byte[]? rgba)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Independent Holy capture component cloned from declared stage snapshot with explicitly selected640x480 native viewport; no Holy175 dispatch or gameplay continuation", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), StagePackets = prepared?.StagePackets, TargetRectangle = new { X = 576, Y = 256, Width = 320, Height = 232 }, ChangedTargetPixels = changed, NonzeroTargetPixels = nonzero, ExecutedCommands = executed?.Frame.LastCommands.Length, NormalCommandsWithViewport = executed?.Frame.LastCommands.Count(command => command.Pass > 0 && command.DrawMode.NormalViewport is not null), SoftwareMode = executed?.State.Process.Software?.Environment.Derived?.Mode, Boundaries = new[] { "Produced complete component cold execution", "Post-capture complete component next-capture JSON/RGBA" }, RgbaSha256 = rgba is null ? null : Convert.ToHexString(SHA256.HashData(rgba)), BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole Holy175 entry/lifecycle", "Original native capture pixel differential", "Other source stages and viewport inputs" } };
+            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Independent Holy capture component cloned from declared stage snapshot with explicitly selected640x480 native viewport; no Holy175 dispatch or gameplay continuation", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), StagePackets = prepared?.StagePackets, TargetRectangle = new { X = 576, Y = 256, Width = 320, Height = 232 }, ChangedTargetPixels = changed, NonzeroTargetPixels = nonzero, ExecutedCommands = executed?.Frame.LastCommands.Length, NormalCommandsWithViewport = executed?.Frame.LastCommands.Count(command => command.Pass > 0 && command.DrawMode.NormalViewport is not null), SoftwareMode = executed?.State.Process.Software?.Environment.Derived?.Mode, Boundaries = new[] { "Produced complete component cold execution", "Post-capture complete component next-capture JSON/RGBA" }, RgbaSha256 = rgba is null ? null : Convert.ToHexString(SHA256.HashData(rgba)), BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole Holy175 entry/lifecycle", "Original native capture pixel differential", "Other source stages and viewport inputs" } };
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }
     }

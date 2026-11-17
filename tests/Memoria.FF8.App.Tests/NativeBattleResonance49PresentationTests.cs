@@ -42,7 +42,7 @@ public sealed class NativeBattleResonance49PresentationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_RESONANCE49_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Resonance component.");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([49])[48];
         Assert.Equal(NativeBattleResonance49Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleResonance49Profile.Initializer, binding.Initializer);

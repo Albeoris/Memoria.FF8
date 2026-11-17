@@ -35,7 +35,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
     private static BattleSnapshot PrepareStandalone(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request)
     {
         string input = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_SOURCE") ?? throw new InvalidDataException("Psycho Blast requires an explicitly selected standalone.");
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(input);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE") ?? throw new InvalidDataException("Select a distinct evidence directory.");
         File.WriteAllText(Path.Combine(output, "standalone-input.json"), JsonSerializer.Serialize(new { Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))), source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics?.Callback, Scenario = "Original activated caster standalone; controlled seven-HP post-formula packet; no ordinary action or formula claim" }));
         return PrepareActivatedSource(game, assets, request, source);

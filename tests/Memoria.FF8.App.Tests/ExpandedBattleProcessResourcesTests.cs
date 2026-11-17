@@ -51,7 +51,7 @@ public sealed class ExpandedBattleProcessResourcesTests
             Assert.Equal(roster.Owners.Select(ActorId).Order(), process.Memory.Textures!.PresentationTextures!.Keys.Order());
             Assert.All(roster.Owners, owner => Assert.NotNull(process.Graphics.ActorModels.Get(owner).OriginalResourceRow104));
 
-            world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+            ExpandedBattleInstalledEntry.AdmitDebugVictory(world);
             for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -35,6 +37,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
         string[] recipients = ["party-0", "party-3"];
+        var original = battle.Combatants.Where(actor => recipients.Contains(actor.Id))
+            .ToDictionary(actor => actor.Id, actor => (actor.CurrentHp, actor.PersistentStatus));
+        List<BattleDiagnosticResolution> resolutions = [];
+        battle.DiagnosticResolution += resolutions.Add;
         foreach (BattleCombatant actor in battle.Combatants.Where(actor => recipients.Contains(actor.Id)))
         {
             actor.NativeStatus1 |= 0x400;
@@ -74,6 +80,29 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         }
         BattleSnapshot completed = battle.Capture();
         Assert.All(completed.Combatants.Where(actor => recipients.Contains(actor.Id)), actor => Assert.Equal(-1111, actor.NativeStatus!.Timers[10]));
+        BattleDiagnosticResolution[] periodic = resolutions.Where(receipt => receipt.PeriodicStatus is not null).ToArray();
+        Assert.Equal(recipients, periodic.Select(receipt => receipt.ActualTargetId));
+        foreach (BattleDiagnosticResolution resolution in periodic)
+        {
+            BattleDiagnosticPeriodicStatus proof = Assert.IsType<BattleDiagnosticPeriodicStatus>(resolution.PeriodicStatus);
+            (int hp, ushort statuses) = original[proof.RecipientId];
+            Assert.Null(resolution.ActorId);
+            Assert.Equal(proof.RecipientId, resolution.OriginalTargetId);
+            Assert.Equal(proof.RecipientId, resolution.ActualTargetId);
+            Assert.Equal(proof.RecipientId == recipients[0] ? (byte?)0 : null, proof.OriginalRecipientOperand);
+            Assert.Equal("damage", resolution.Kind);
+            Assert.Equal(hp, proof.ResolvedAmount);
+            Assert.Equal(statuses, proof.SavedStatuses);
+            Assert.Equal(0x483470u, proof.ProducerAddress);
+            Assert.Equal(10, proof.StatusBit);
+            Assert.Equal(0, proof.TimerBefore);
+            Assert.Equal(-1111, proof.TimerAfter);
+            BattleDiagnosticResolution restored = JsonSerializer.Deserialize<BattleDiagnosticResolution>(JsonSerializer.Serialize(resolution))!;
+            Assert.Equal(proof, restored.PeriodicStatus);
+            JsonObject missing = JsonSerializer.SerializeToNode(proof)!.AsObject();
+            missing.Remove(nameof(BattleDiagnosticPeriodicStatus.TimerBefore));
+            Assert.Throws<JsonException>(() => missing.Deserialize<BattleDiagnosticPeriodicStatus>());
+        }
         return ("native", "Original Doom expiry dispatched command 246/43 and completed with one zero-amount death contact per recipient.");
     }
 }

@@ -124,7 +124,7 @@ public sealed class NativeBattleEffect76PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -141,7 +141,7 @@ public sealed class NativeBattleEffect76PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT76_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the concrete current formation981 source for effect76.");
-        return PrepareFromEntry(game, assets, output, NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+        return PrepareFromEntry(game, assets, output, NativeBattleFixtureInspection.ReadLogicalSnapshot(path));
     }
 
     internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)

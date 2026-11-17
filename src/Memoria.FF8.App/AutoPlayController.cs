@@ -194,6 +194,8 @@ internal sealed partial class AutoPlayController
 
     private void StartRun(GameState initial, string status)
     {
+        RequireDurableAutoPlayState(initial);
+        stopAfterCurrentBattle = false;
         bool? policy = requestedBattlePolicy ?? run.FullBattlePlaythroughOverride;
         run = new() { FullBattlePlaythroughOverride = policy };
         if (policy is bool fullCombat)
@@ -241,14 +243,40 @@ internal sealed partial class AutoPlayController
     {
         Running = false;
         Paused = false;
+        stopAfterCurrentBattle = false;
         Status = "Stopped. " + Status;
     }
 
-    public void SaveAndStop()
+    public void SaveAndStop(AutoPlayStopBoundary boundary = AutoPlayStopBoundary.AfterCurrentBattle)
     {
-        Stop();
+        if (session.HasActiveBattle)
+        {
+            if (boundary == AutoPlayStopBoundary.AfterCurrentBattle && Running)
+            {
+                stopAfterCurrentBattle = true;
+                Paused = false;
+                ResetIdleDeadline();
+                Status = "Finishing current battle before saving and stopping.";
+                return;
+            }
+            StopAtLastDurableCheckpoint("The run stopped during a battle.");
+            return;
+        }
+        SaveCompletedStop();
+    }
+
+    private void SaveCompletedStop()
+    {
         ReproductionPath = SaveBundle($"stopped-{run.Steps:D10}", CaptureState());
+        Stop();
         MaintainCapture();
+    }
+
+    private void StopAtLastDurableCheckpoint(string reason)
+    {
+        ReproductionPath = latestBundleManifest ?? ReproductionPath;
+        Status = reason + (ReproductionPath is null ? " No durable checkpoint is available." : " Resume from the last saved checkpoint before the battle.");
+        Stop();
     }
 
     public void ReplayFailure()
@@ -363,7 +391,10 @@ internal sealed partial class AutoPlayController
         }
         saved.FullBattlePlaythroughOverride = requestedBattlePolicy ?? saved.FullBattlePlaythroughOverride;
         run.FullBattlePlaythroughOverride = saved.FullBattlePlaythroughOverride;
-        restore(ReadCheckpoint(Path.Combine(directory, saved.Snapshot)));
+        GameState restoredState = ReadCheckpoint(Path.Combine(directory, saved.Snapshot));
+        RequireDurableAutoPlayState(restoredState, checkCurrentBattle: false);
+        restore(restoredState);
+        stopAfterCurrentBattle = false;
         run = saved;
         if (!document.RootElement.TryGetProperty(nameof(AutoPlayRunState.SurveyBaseline), out _) && run.ActiveEvent is not null)
         {
@@ -404,6 +435,19 @@ internal sealed partial class AutoPlayController
                     advanceBattlePresentation(active);
                     waitingForDisplay = true;
                 });
+                if (stopAfterCurrentBattle)
+                {
+                    run.Steps++;
+                    if (session.State.NativeGameOver is not null)
+                    {
+                        StopAtLastDurableCheckpoint("The current battle ended in defeat.");
+                    }
+                    else if (!session.HasActiveBattle)
+                    {
+                        SaveCompletedStop();
+                    }
+                    return;
+                }
                 RecoverNativeInputSearchLoss();
                 run.Steps++;
                 if (Running && EnteredLocation(location, session.State))
@@ -496,6 +540,7 @@ internal sealed partial class AutoPlayController
 
     internal GameState CaptureState(GameWorld? currentWorld = null)
     {
+        RequireDurableAutoPlayState(session.State);
         using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Capture");
         GameWorld world = currentWorld ?? getWorld();
@@ -539,8 +584,15 @@ internal sealed partial class AutoPlayController
             }
             world.EnsureField();
         }
-        ApplyBattlePolicy(world);
+        if (!stopAfterCurrentBattle)
+        {
+            ApplyBattlePolicy(world);
+        }
         if (TryPlayBattle(world, advanceBattlePresentation))
+        {
+            return;
+        }
+        if (stopAfterCurrentBattle)
         {
             return;
         }
@@ -2394,12 +2446,22 @@ internal sealed partial class AutoPlayController
 
     private void Fail(Exception exception)
     {
+        bool duringBattle = session.HasActiveBattle || stopAfterCurrentBattle && session.State.NativeGameOver is not null;
         Running = false;
+        stopAfterCurrentBattle = false;
         Error = exception.ToString();
         Status = $"Failed at step {run.Steps}: {exception.Message}";
         run.Error = Error;
         ReproductionPath = latestBundleManifest ?? ReproductionPath;
-        PreserveFailureCapture(exception);
+        PreserveFailureCapture(exception, duringBattle);
+    }
+
+    private void RequireDurableAutoPlayState(GameState state, bool checkCurrentBattle = true)
+    {
+        if (state.Battle is not null || checkCurrentBattle && session.HasActiveBattle)
+        {
+            throw new InvalidOperationException("Automatic exploration checkpoints require a field, movie or world boundary outside battle.");
+        }
     }
 
     private GameState ReadCheckpoint(string path)
@@ -2410,6 +2472,7 @@ internal sealed partial class AutoPlayController
 
     private void SaveGame(string path, GameState state, bool standalone = false)
     {
+        RequireDurableAutoPlayState(state, checkCurrentBattle: false);
         using IDisposable suspended = idleDeadline.Suspend();
         using AutoPlayPerformanceProfile.Scope measurement = performance.Measure("Snapshot.Write");
         captureDirty = true;

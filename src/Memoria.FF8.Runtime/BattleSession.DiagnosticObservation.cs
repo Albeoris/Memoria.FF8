@@ -29,7 +29,7 @@ public sealed record BattleDiagnosticSupportingInvocation([property: JsonRequire
     }
 }
 public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] ImmutableArray<byte> HeaderPayload, [property: JsonRequired] uint HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte> ContactPayload);
-public sealed record BattleDiagnosticPeriodicStatus([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int StatusBit, [property: JsonRequired] short TimerBefore, [property: JsonRequired] int Decrement, [property: JsonRequired] short TimerAfter, [property: JsonRequired] ushort SavedStatuses, [property: JsonRequired] uint BattleStatuses, [property: JsonRequired] int MaximumHp, [property: JsonRequired] int ResolvedAmount, [property: JsonRequired] long Callback);
+public sealed record BattleDiagnosticPeriodicStatus([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte? OriginalRecipientOperand, [property: JsonRequired] int StatusBit, [property: JsonRequired] short TimerBefore, [property: JsonRequired] int Decrement, [property: JsonRequired] short TimerAfter, [property: JsonRequired] ushort SavedStatuses, [property: JsonRequired] uint BattleStatuses, [property: JsonRequired] int MaximumHp, [property: JsonRequired] int ResolvedAmount, [property: JsonRequired] long Callback);
 public sealed record BattleDiagnosticNativeHpWord([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int ScriptIndex, [property: JsonRequired] int ProgramCounter, [property: JsonRequired] ImmutableArray<byte> ScriptBytes, [property: JsonRequired] byte Opcode, [property: JsonRequired] ushort Operand, [property: JsonRequired] short Amount, [property: JsonRequired] ushort BeforeHpWord, [property: JsonRequired] ushort AfterHpWord, [property: JsonRequired] long Callback);
 public sealed record BattleDiagnosticNativeStatusRemoval([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte NativeCommand, [property: JsonRequired] ushort NativeActionId, [property: JsonRequired] uint ActionStatuses1, [property: JsonRequired] uint AppliedBattleStatuses);
 public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner)
@@ -51,7 +51,7 @@ public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int Max
 public sealed partial class BattleSession
 {
     private long diagnosticDispatchSerial;
-    private BattleDiagnosticPeriodicStatus? diagnosticPeriodicStatus;
+    private List<BattleDiagnosticResolution>? preparedResolutionObservations;
     public Guid DiagnosticLifecycleId { get; } = Guid.NewGuid();
     public long DiagnosticRestoreCount { get; private set; }
     public long DiagnosticResetCount { get; private set; }
@@ -193,31 +193,71 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticNativeHpWord(BattleCombatant actor, int scriptIndex, int pc, byte[] script, ushort operand, int before)
     {
-        if (DiagnosticResolution is { } observer)
+        if ((DiagnosticResolution is not null || preparedResolutionObservations is not null) && actor.NativeActorIndex is int index)
         {
             long callback = NativeHostCallbacks ?? Frame;
             short amount = unchecked((short)operand);
-            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)actor.RequireNativeActorIndex()), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
-            observer(new(Frame, callback, "native_ai_hp_word", null, actor.Id, actor.Id, amount, amount, before, actor.CurrentHp, actor.IsPlayer ? "character" : "enemy") { NativeHpWord = proof });
+            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)index), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
+            PublishDiagnosticResolution(new(Frame, callback, "native_ai_hp_word", null, actor.Id, actor.Id, amount, amount, before, actor.CurrentHp, actor.IsPlayer ? "character" : "enemy") { NativeHpWord = proof });
         }
     }
 
     private void ObserveDiagnosticResolution(string kind, BattleCombatant? actor, BattleCombatant target, int amount, int before, int after)
     {
         ObserveDiagnosticCounterResolution(actor, target, before, after);
-        if (DiagnosticResolution is { } observer)
+        if (DiagnosticResolution is null && preparedResolutionObservations is null || nativeContactWorking?.DiagnosticPreliminary == true)
         {
-            BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
-            BattleDiagnosticPeriodicStatus? periodic = diagnosticPeriodicStatus is { } receipt && receipt.RecipientId == target.Id && receipt.ResolvedAmount == amount ? receipt : null;
-            string? actorId = periodic is null ? actor?.Id ?? action?.ActorId : null;
-            BattleDiagnosticNativeStatusRemoval? removal = null;
-            if (periodic is null && kind == "damage" && before > amount && after == 0 && actor is not null && actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
-            {
-                removal = new(0x494410, checked((byte)actor.RequireNativeActorIndex()), checked((byte)target.RequireNativeActorIndex()), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
-            }
-            BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeActorIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null && periodic is null ? projection : null;
-            observer(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, periodic is null ? action?.TargetId ?? target.Id : target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { PeriodicStatus = periodic, NativeStatusRemoval = removal, DiagnosticRepair = repair });
+            return;
         }
+        BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+        if (action?.DiagnosticDoomExpiration?.RecipientId == target.Id)
+        {
+            // The Doom receipt carries the actual graphical death-contact occurrence.
+            return;
+        }
+        string? actorId = actor?.Id ?? action?.ActorId;
+        BattleDiagnosticNativeStatusRemoval? removal = null;
+        if (kind == "damage" && before > amount && after == 0 && actor?.NativeActorIndex is int actorIndex && target.NativeActorIndex is int recipientIndex &&
+            actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
+        {
+            removal = new(0x494410, checked((byte)actorIndex), checked((byte)recipientIndex), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
+        }
+        BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeActorIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null ? projection : null;
+        PublishDiagnosticResolution(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeStatusRemoval = removal, DiagnosticRepair = repair });
+    }
+
+    private void PublishDiagnosticResolution(BattleDiagnosticResolution resolution)
+    {
+        if (preparedResolutionObservations is { } prepared)
+        {
+            prepared.Add(resolution);
+        }
+        else
+        {
+            DiagnosticResolution?.Invoke(resolution);
+        }
+    }
+
+    private BattleDiagnosticPeriodicStatus? CaptureDiagnosticDoomExpiration(BattleCombatant actor)
+    {
+        return DiagnosticResolution is not null
+            ? new(0x483470, actor.Id, actor.NativeActorIndex is int index ? checked((byte)index) : null, 10, actor.NativeStatusTimers[10], 0, -1111, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.MaximumHp, actor.CurrentHp, NativeHostCallbacks ?? Frame)
+            : null;
+    }
+
+    private void ObserveDiagnosticDoomContact(BattleActionPresentation action, string recipient, NativeBattleContactHalf contact)
+    {
+        if (DiagnosticResolution is not { } observer || action.DiagnosticDoomExpiration is not { ResolvedAmount: > 0 } proof ||
+            action.NativeAction is not { Command: 246, ActionId: 43, MagicId: 9 } || recipient != proof.RecipientId ||
+            (contact.SavedStatuses4 & 1) == 0 || GetActor(recipient) is not { CurrentHp: 0 } target)
+        {
+            return;
+        }
+        long callback = NativeHostCallbacks ?? Frame;
+        observer(new(Frame, callback, "damage", null, recipient, recipient, proof.ResolvedAmount, proof.ResolvedAmount, proof.ResolvedAmount, 0, target.IsPlayer ? "character" : "enemy")
+        {
+            PeriodicStatus = proof with { Callback = callback }
+        });
     }
 
     private sealed class DiagnosticBattleEventLog : List<BattleEvent>
@@ -228,6 +268,18 @@ public sealed partial class BattleSession
         {
             base.Add(value);
             Published?.Invoke(value);
+        }
+
+        internal void PublishCommitted(BattleEvent[] suffix)
+        {
+            base.AddRange(suffix);
+            if (Published is { } observer)
+            {
+                foreach (BattleEvent value in suffix)
+                {
+                    observer(value);
+                }
+            }
         }
     }
 

@@ -69,7 +69,7 @@ public sealed class NativeBattleHeroPresentationTests
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-            BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+            BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             Assert.Null(Selected(source));
             NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("The fresh exporter omitted effect memory.");
             memory = memory with { ExecutionStack = stack.ExecutionStack, HeroCrtStack = stack.HeroCrtStackContract };
@@ -299,7 +299,7 @@ public sealed class NativeBattleHeroPresentationTests
             {
                 boundary = "cold-" + name;
                 NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, new BattleScenePresentation(assets, source.Definition).Render(Restore(snapshot), 320, 224).ToArray());
-                BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+                BattleSession cold = Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
                 BattleSession direct = Restore(snapshot);
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 cold.Tick();

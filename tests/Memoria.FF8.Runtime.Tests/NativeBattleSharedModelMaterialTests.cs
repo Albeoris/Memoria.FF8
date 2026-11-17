@@ -130,7 +130,10 @@ public sealed class NativeBattleSharedModelMaterialTests
         NativeBattleGraphicsResource resource = new([0, 0]) { PoseSource = Pose, LinkedPoseSource = Pose, LinkedGeometry = [] };
         ImmutableArray<uint> handlers = new uint[256].ToImmutableArray();
         NativeBattlePrimitiveTables tables = new(Lengths, new byte[256].ToImmutableArray(), handlers, handlers, handlers);
-        SetField(session, "definition", definition with { NativeGraphics = new(rules, [new("first", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = tables } });
+        typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition with { NativeGraphics = new(rules, [new("first", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = tables } });
+        NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model(0))]);
+        graphics = graphics with { ActorModels = graphics.ActorModels.Add(Second, Model(7)), PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
         SetField(session, "presentationNativeTargets", new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> { [Second] = new(Second, Model(7), resource) });
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         process = process with { Software = process.Software! with { EnvironmentBuffers = NativeSoftwareDrawingEnvironmentBuffers.Initialize500400(new byte[92].ToImmutableArray()) } };
@@ -146,11 +149,10 @@ public sealed class NativeBattleSharedModelMaterialTests
             selected = selected with { Lengths = selected.Lengths.SetItem(16, geometry.Length) };
             cpu = cpu with { Rows = cpu.Rows.SetItem(row, selected) };
         }
-        Set(session, nameof(BattleSession.NativeModelCpuResources), cpu with { Cpu = cpu.Cpu.WithBank(0, bank) });
-        Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess()).Write(0x1D969A8, new byte[4]));
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu with { Cpu = cpu.Cpu.WithBank(0, bank) });
+        Set(session, nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.FromColdProcess()).Write(0x1D969A8, new byte[4]));
         Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = Projection, FocalLength = 1000 });
-        NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model(0))]);
-        return (session, graphics with { ActorModels = graphics.ActorModels.Add(Second, Model(7)), PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() });
+        return (session, graphics);
     }
 
     private static NativeBattleGraphicsModel Model(int actor)
@@ -179,7 +181,7 @@ public sealed class NativeBattleSharedModelMaterialTests
             .WriteResourcePointer(StagedRow + 4, typed ? new(new(0, 256), null, geometry.Length) : new(null, source, geometry.Length))
             .WriteResourcePointer(StagedRow + 8, new(null, StagedRow + 0x400, Pose.Animations.Length))
             .WriteResourcePointer(StagedRow + 12, new(null, StagedRow + 0x500, 2));
-        Set(session, nameof(BattleSession.NativeFileStaging), staging);
+        Set(session, nameof(BattlePresentationProcess.NativeFileStaging), staging);
         return graphics with { ActorModels = graphics.ActorModels.Set(First, graphics.ActorModels.Get(First) with { ModelId4 = 0, ActiveStagedResourceRow100 = StagedRow }) };
     }
 
@@ -232,7 +234,7 @@ public sealed class NativeBattleSharedModelMaterialTests
         return data;
     }
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
-    private static void SetField(BattleSession session, string field, object value) => typeof(BattleSession).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, value);
-    private static object Call(BattleSession session, string method, params object?[] args) => typeof(BattleSession).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, args)!;
+    private static void Set(BattleSession session, string property, object value) => NativeBattleHostedTestFixture.SetProperty(session.Presentation!, property, value);
+    private static void SetField(BattleSession session, string field, object value) => NativeBattleHostedTestFixture.SetField(session.Presentation!, field, value);
+    private static object Call(BattleSession session, string method, params object?[] args) => typeof(BattlePresentationProcess).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, args)!;
 }

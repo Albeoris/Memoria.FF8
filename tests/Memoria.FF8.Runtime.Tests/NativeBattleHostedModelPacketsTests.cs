@@ -66,6 +66,59 @@ public sealed class NativeBattleHostedModelPacketsTests
         Assert.True(NativeBattleHostedModelPackets.IsHostedReference(commands[0].Packet));
     }
 
+    [Fact]
+    public void Frozen_payload_pages_preserve_linked_bytes_order_and_retained_commands()
+    {
+        NativeBattleModelPrimitiveBatch.Builder builder = new();
+        NativeBattleGeometryPrimitive[] originals = Enumerable.Range(0, 130).Select(index => Triangle((ushort)(0x80 + index))).ToArray();
+        foreach (NativeBattleGeometryPrimitive primitive in originals)
+        {
+            builder.AddRaw(primitive.Bucket, primitive.Words.AsSpan(), primitive.VertexPayload4.AsSpan(), primitive.ProjectedCoordinates!.Value.AsSpan(),
+                primitive.PhysicalWriteMask!.Value, default, "extended-actor", null);
+        }
+        NativeBattleModelPrimitiveBatch batch = builder.Freeze();
+
+        NativeBattleHostedModelPackets packets = new();
+        NativeBattlePrimitiveProcess process = Process();
+        NativeBattleLogicalOrdering first = packets.Append(process, NativeBattleLogicalOrdering.Clear(), batch);
+        NativeBattleLogicalOrdering fork = NativeBattleStorageSnapshots.Fork(first);
+        ImmutableArray<NativeBattleLogicalCommand> commands = first.Traverse(Lengths());
+        Assert.Equal(originals.Length, commands.Length);
+
+        for (int index = 0; index < commands.Length; index++)
+        {
+            int source = originals.Length - 1 - index;
+            NativeBattleGeometryPrimitive expected = originals[source];
+            NativeBattleLogicalCommand command = commands[index];
+            Assert.Equal(source * expected.Words.Length * sizeof(uint), command.Packet.ByteOffset);
+            Assert.True(expected.Words.AsSpan().Slice(1, command.WordSpan.Length).SequenceEqual(command.WordSpan));
+            Assert.True(expected.VertexPayload4.AsSpan().SequenceEqual(command.VertexPayloadSpan));
+            Assert.True(expected.ProjectedCoordinates!.Value.AsSpan().SequenceEqual(command.ProjectedCoordinateSpan));
+            Assert.Equal("extended-actor", command.PresentationActorId);
+
+            int authoredBytes = expected.Words.Length * sizeof(uint) - sizeof(ushort);
+            byte[] actual = packets.Read(command.Packet, authoredBytes);
+            for (int offset = 3; offset < authoredBytes; offset++)
+            {
+                uint word = expected.Words[offset / sizeof(uint)];
+                Assert.Equal((byte)(word >> (8 * (offset % sizeof(uint)))), actual[offset]);
+            }
+        }
+
+        packets.ResetFrame();
+        _ = packets.Append(process, NativeBattleLogicalOrdering.Clear(), [Triangle(0x40)]);
+        ImmutableArray<NativeBattleLogicalCommand> continued = fork.Traverse(Lengths());
+        Assert.Equal(commands.Length, continued.Length);
+        for (int index = 0; index < commands.Length; index++)
+        {
+            Assert.True(commands[index].WordSpan.SequenceEqual(continued[index].WordSpan));
+            Assert.True(commands[index].VertexPayloadSpan.SequenceEqual(continued[index].VertexPayloadSpan));
+            Assert.True(commands[index].ProjectedCoordinateSpan.SequenceEqual(continued[index].ProjectedCoordinateSpan));
+        }
+        Assert.Equal(originals[^1].Words.Skip(1), commands[0].Words);
+        Assert.True(originals[^1].ProjectedCoordinates!.Value.AsSpan().SequenceEqual(commands[0].ProjectedCoordinates!.Value.AsSpan()));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

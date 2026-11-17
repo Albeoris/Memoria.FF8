@@ -33,6 +33,7 @@ internal sealed partial class RecreateGame
         }
 
         diagnosticIdleBattle = new(declaration, battle);
+        battleGpu.ObserveTriangleBatches = true;
     }
 
     private void ObserveDiagnosticIdlePresent(long presentBegin, long presented, PresentationPacerObservation pacer, DiagnosticHostFramePhases? phases)
@@ -42,12 +43,12 @@ internal sealed partial class RecreateGame
             return;
         }
 
-        if (fieldFaulted || fieldRenderFaulted || world?.Battle != idle.Battle)
+        if (fieldFaulted || fieldRenderFaulted || world?.Battle != idle.Battle || battleGpu is not { ObserveTriangleBatches: true } gpu)
         {
             throw new InvalidOperationException("The idle presentation lost its live host.");
         }
 
-        DiagnosticIdleBattleResult? result = idle.Presented(presentBegin, presented, pacer, phases);
+        DiagnosticIdleBattleResult? result = idle.Presented(presentBegin, presented, pacer, phases, gpu.TriangleBatchMetrics);
         if (result is null)
         {
             return;
@@ -76,6 +77,7 @@ internal sealed partial class RecreateGame
         }
 
         diagnosticIdleBattle = null;
+        gpu.ObserveTriangleBatches = false;
         world.EndDiagnosticBattle();
         ClearBattlePresentation();
         ExitGame();
@@ -84,7 +86,7 @@ internal sealed partial class RecreateGame
 
 internal sealed record DiagnosticIdlePoint(long Presented, long Timestamp, long HostCallback, long GraphicsCallback, long SimulationFrame, NativeBattleCameraPose? Camera, int? Stage, long ThreadCpuTicks, double ProcessCpuMs, long AllocatedBytes, int Gen0, int Gen1, int Gen2);
 internal sealed record DiagnosticIdleWindow(DiagnosticIdlePoint Start, DiagnosticIdlePoint End, DiagnosticPacingSummary Pacing);
-internal sealed record DiagnosticIdleBattleResult(DiagnosticIdleWindow Entry, DiagnosticIdlePoint FirstCamera, DiagnosticIdlePoint FirstShown, string[] ShownPartyActors, DiagnosticIdleWindow Settled, int CameraChangesDuringSettled, uint ThreadId);
+internal sealed record DiagnosticIdleBattleResult(DiagnosticIdleWindow Entry, DiagnosticIdlePoint FirstCamera, DiagnosticIdlePoint FirstShown, string[] ShownPartyActors, DiagnosticIdleWindow Settled, int CameraChangesDuringSettled, uint ThreadId, GpuTriangleBatchMetrics SettledTriangleBatches);
 
 internal sealed class DiagnosticIdleBattleProbe
 {
@@ -102,6 +104,7 @@ internal sealed class DiagnosticIdleBattleProbe
     private long seenVersion;
     private int cameraChanges;
     private NativeBattleCameraPose? lastSettledCamera;
+    private GpuTriangleBatchMetrics settledBatchStart;
 
     internal BattleSession Battle { get; }
 
@@ -118,7 +121,7 @@ internal sealed class DiagnosticIdleBattleProbe
         initial = Capture(0, Stopwatch.GetTimestamp());
     }
 
-    internal DiagnosticIdleBattleResult? Presented(long presentBegin, long timestamp, PresentationPacerObservation pacer, DiagnosticHostFramePhases? phases)
+    internal DiagnosticIdleBattleResult? Presented(long presentBegin, long timestamp, PresentationPacerObservation pacer, DiagnosticHostFramePhases? phases, GpuTriangleBatchMetrics batches)
     {
         presented++;
         if (Stopwatch.GetElapsedTime(initial.Timestamp, timestamp) > TimeSpan.FromSeconds(110) || Battle.Outcome != BattleOutcome.Active || Battle.ActiveAction is not null)
@@ -170,6 +173,7 @@ internal sealed class DiagnosticIdleBattleProbe
             if (presented - ready.Point.Presented >= declaration.SettlePresents)
             {
                 settledStart = Capture(presented, timestamp);
+                settledBatchStart = batches;
                 lastSettledCamera = settledStart.Camera;
                 pacing = new(Stopwatch.Frequency, declaration.SamplePresents, timestamp, pacer);
             }
@@ -188,7 +192,7 @@ internal sealed class DiagnosticIdleBattleProbe
         }
 
         DiagnosticIdlePoint finish = Capture(presented, timestamp);
-        return new(new(initial, ready.Point, ready.Pacing), firstCamera!, firstShown!, party, new(settledStart, finish, pacing.Complete()), cameraChanges, thread);
+        return new(new(initial, ready.Point, ready.Pacing), firstCamera!, firstShown!, party, new(settledStart, finish, pacing.Complete()), cameraChanges, thread, batches.Since(settledBatchStart));
     }
 
     private DiagnosticIdlePoint Capture(long frame, long timestamp)

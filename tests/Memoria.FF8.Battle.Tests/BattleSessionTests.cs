@@ -6,23 +6,14 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class BattleSessionTests
 {
     [Fact]
-    public void InstantDefeatClearsQueuedActionsAndSurvivesLogicalRestore()
+    public void Detached_logical_session_rejects_debug_outcomes_without_mutation()
     {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum)), BattleAtbMode.TurnBased);
-        session.QueueAttack("player", "enemy");
-        Assert.Single(session.QueuedActions);
-        session.InstantDefeat();
-        Assert.Equal(BattleOutcome.Defeat, session.Outcome);
-        Assert.All(session.Combatants.Where(actor => actor.IsPlayer), actor =>
-        {
-            Assert.Equal(0, actor.CurrentHp);
-            Assert.Equal(0, actor.Atb);
-        });
-        Assert.All(session.Combatants, actor => Assert.False(actor.IsBusy));
-        Assert.Empty(session.QueuedActions);
-        Assert.Null(session.ActiveAction);
-        Assert.Equal(BattleOutcome.Defeat, BattleSession.Restore(session.Capture()).Outcome);
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy()), BattleAtbMode.TurnBased);
+        string before = JsonSerializer.Serialize(session.Capture());
+
         Assert.Throws<InvalidOperationException>(session.InstantDefeat);
+        Assert.Throws<InvalidOperationException>(session.InstantVictory);
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
         new BattleInput(BattleInputKind.InstantDefeat).Validate();
     }
 
@@ -113,21 +104,6 @@ public sealed class BattleSessionTests
         snapshot.Definition.Combatants[0] = Player() with { Name = "Mutated again" };
         Assert.Equal("Player", session.Combatants[0].Name);
         Assert.Equal("Player", session.Capture().Definition.Combatants[0].Name);
-    }
-
-    [Fact]
-    public void DebugVictoryClearsActionsPreservesPartyHpAndRestores()
-    {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum) with { CurrentHp = 73 }, Enemy()), BattleAtbMode.TurnBased);
-        session.QueueAttack("player", "enemy");
-        session.InstantVictory();
-        Assert.Equal(BattleOutcome.Victory, session.Outcome);
-        Assert.Equal(73, session.Combatants[0].CurrentHp);
-        Assert.Equal(0, session.Combatants[1].CurrentHp);
-        Assert.Empty(session.QueuedActions);
-        Assert.Null(session.ActiveAction);
-        Assert.Contains(session.Events, item => item.Kind == "debug-victory");
-        AssertEquivalent(session, BattleSession.Restore(session.Capture()));
     }
 
     [Fact]

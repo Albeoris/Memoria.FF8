@@ -16,7 +16,7 @@ public sealed class NativeBattleGilgamesh330ContinuationTests
         Directory.CreateDirectory(output);
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Null(source.ActiveAction);
         Assert.Equal(0u, source.NativeClock!.ActionPause);
         Assert.Equal((ushort)330, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
@@ -24,7 +24,7 @@ public sealed class NativeBattleGilgamesh330ContinuationTests
         Assert.All(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools, pool => Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0));
         Assert.DoesNotContain(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
         BattleSession first = BattleSession.Restore(source);
-        BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path!));
+        BattleSession second = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(path!));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         BattleScenePresentation firstScene = new(assets, source.Definition);
         BattleScenePresentation secondScene = new(assets, source.Definition);

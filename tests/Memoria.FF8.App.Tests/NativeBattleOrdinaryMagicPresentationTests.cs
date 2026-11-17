@@ -16,8 +16,8 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         Assert.False(Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any());
         Directory.CreateDirectory(output);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath!)!, "before-ordinary-input.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath!)!, "before-ordinary-input.battle.json"));
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = graphics.Descriptors.Packets[slot].Argument - 0x1D280C4;
@@ -35,7 +35,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(1, Assert.Single(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks).Count);
         BattleScenePresentation scene = new(assets, source.Definition);
-        BattleSession independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!));
+        BattleSession independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!));
         battle.Tick();
         independent.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
@@ -55,7 +55,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
                 if (restore)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, "mid-before", prior, scene.Render(battle, 320, 224));
-                    independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "mid-before.battle.json")));
+                    independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "mid-before.battle.json")));
                 }
                 battle.Tick();
                 if (restore)
@@ -82,7 +82,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
             Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == 300110);
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "party");
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.Tick();
             independent.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));

@@ -96,6 +96,7 @@ public sealed partial class BattleSession
             void DispatchExpandedCore()
             {
                 DispatchExpandedGuardianBoost(process);
+                DispatchExpandedTrigger(process);
                 if (process.EntryReady && Outcome == BattleOutcome.Active && !HasPendingExpandedTerminal)
                 {
                     DispatchTurnBasedFrameCore();

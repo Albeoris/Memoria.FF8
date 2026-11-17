@@ -179,7 +179,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
         PublishHostedGuardianFormAudio(form);
     }
 
@@ -390,7 +390,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
         PublishHostedGuardianFormAudio(form);
     }
 

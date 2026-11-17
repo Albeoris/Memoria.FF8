@@ -103,7 +103,7 @@ public sealed partial class BattleSession
             }
             return choices.Where(SupportsExpandedLimit).Select(action => ExpandedLimitDefinition(actor, action)).ToArray();
         }
-            return choices.Where(CanInvokeExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
+        return choices.Where(SupportsExpandedOrdinaryCommand).Select(action => ExpandedOrdinaryCommandDefinition(actor, action)).ToArray();
     }
 
     private static BattleActionDefinition CreateNativePlayerActionChoice(BattleAbility ability, BattleNativeAction action, byte targetFlags, string? name)
@@ -114,11 +114,6 @@ public sealed partial class BattleSession
             NativeAction = action,
             NativeAttackFlags = action.AttackFlags
         };
-    }
-
-    private bool CanInvokeExpandedOrdinaryCommand(BattleNativeAction action)
-    {
-        return SupportsExpandedOrdinaryCommand(action) && (action.Command != 28 || OwnsExpandedHostedInvocation);
     }
 
     private bool SupportsExpandedOrdinaryCommand(BattleNativeAction action)
@@ -243,7 +238,7 @@ public sealed partial class BattleSession
                 OnNativePlayerCommandSubmitted(actor, command);
                 return;
             }
-            if (!limit && !CanInvokeExpandedOrdinaryCommand(native))
+            if (!limit && !SupportsExpandedOrdinaryCommand(native))
             {
                 throw new NotSupportedException("The equipped command requires a battle process outside the expanded host.");
             }

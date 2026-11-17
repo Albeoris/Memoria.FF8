@@ -26,7 +26,7 @@ public sealed class NativeBattleChoco99PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         int queued = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, slot => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -106,7 +106,7 @@ public sealed class NativeBattleChoco99PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                 }
                 battle.AdvanceNativeGraphicsPresentation(Callback);
@@ -331,7 +331,7 @@ public sealed class NativeBattleChoco99PresentationTests
             Assert.Equal((ushort)93, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.All(new[] { resources.SoundInitial, resources.SoundModel, resources.SoundHide, resources.SoundRestore }, sound => Assert.Contains(heard, item => item.Sound == sound));
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession restored = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -349,7 +349,7 @@ public sealed class NativeBattleChoco99PresentationTests
 
         void Report(string status, string? blocker)
         {
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, Scenario = "Controlled queued command240/action4/effect99 party sevenHP damage component; formula/admission separate", Callbacks = callbacks, Completions = completions, ContactHpTransitions = contacts, Files = files, FileCompletions = fileCompletions, ReleasedBarriers = barriers.Order(), Modes = modes.Order(), ModelPoses = poses.Order(), CameraObservedPhases = cameraPhases.Order(), SpriteFrames = spriteFrames.Order(), RelocatedNodeBanks = relocatedNodes.Order(), MutatedUNodeBanks = mutatedNodes.Order(), MorphedXYZNodeBanks = morphedNodes.Order(), MutatedVPrograms = mutatedPrograms.Order(), ObservedLoadedPrograms = observedPrograms.Order(), StagePeak = stagePeak, ParticleKinds = particleKinds.Order(), ParticlePeak = particlePeak, SecondaryCallbacks = secondaryKinds.Order(), CameraYDeliveredIndices = cameraYIndices.Order(), SawMode1 = sawMode1, SawInitialProgram = sawInitialProgram, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, VibrationStillPlaying = vibrationHandle is short handle && battle.Capture().NativeVibrationProcess!.IsPlaying(handle), SawStaticOverlayPackets = sawOverlay, SawHiddenEnvironment = sawHiddenEnvironment, SawEnemyCentroidIndependentOfPartyContact = sawEnemyCentroid, SawActualCommonIo = commonIo, ObservedCrtAdvances = observedCrtAdvances, CrtObservation = "Measured shared CRT seed distance including node and actual emitter calls; independent component tests cover trail24/radial13/two-child6 recipes, not a wholecast birth-history proof", CrtStart = crtStart, CrtEnd = crtEnd, Boundaries = boundaries, SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native visual comparison", "Ordinary command admission and original damage formula", "Other targets/headers", "Hardware audibility and vibration" } }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, Scenario = "Controlled queued command240/action4/effect99 party sevenHP damage component; formula/admission separate", Callbacks = callbacks, Completions = completions, ContactHpTransitions = contacts, Files = files, FileCompletions = fileCompletions, ReleasedBarriers = barriers.Order(), Modes = modes.Order(), ModelPoses = poses.Order(), CameraObservedPhases = cameraPhases.Order(), SpriteFrames = spriteFrames.Order(), RelocatedNodeBanks = relocatedNodes.Order(), MutatedUNodeBanks = mutatedNodes.Order(), MorphedXYZNodeBanks = morphedNodes.Order(), MutatedVPrograms = mutatedPrograms.Order(), ObservedLoadedPrograms = observedPrograms.Order(), StagePeak = stagePeak, ParticleKinds = particleKinds.Order(), ParticlePeak = particlePeak, SecondaryCallbacks = secondaryKinds.Order(), CameraYDeliveredIndices = cameraYIndices.Order(), SawMode1 = sawMode1, SawInitialProgram = sawInitialProgram, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, VibrationStillPlaying = vibrationHandle is short handle && battle.Capture().NativeVibrationProcess!.IsPlaying(handle), SawStaticOverlayPackets = sawOverlay, SawHiddenEnvironment = sawHiddenEnvironment, SawEnemyCentroidIndependentOfPartyContact = sawEnemyCentroid, SawActualCommonIo = commonIo, ObservedCrtAdvances = observedCrtAdvances, CrtObservation = "Measured shared CRT seed distance including node and actual emitter calls; independent component tests cover trail24/radial13/two-child6 recipes, not a wholecast birth-history proof", CrtStart = crtStart, CrtEnd = crtEnd, Boundaries = boundaries, SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole-entry native visual comparison", "Ordinary command admission and original damage formula", "Other targets/headers", "Hardware audibility and vibration" } }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

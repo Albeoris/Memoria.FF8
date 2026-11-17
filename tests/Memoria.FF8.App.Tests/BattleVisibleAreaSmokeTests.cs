@@ -24,7 +24,7 @@ public sealed class BattleVisibleAreaSmokeTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "run.json"), JsonSerializer.Serialize(new { width, height, selected, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), AudioOutput = false }));
+        File.WriteAllText(Path.Combine(output!, "run.json"), JsonSerializer.Serialize(new { width, height, selected, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), AudioOutput = false }));
         foreach (ushort effect in selected!.Split(',').Select(ushort.Parse))
         {
             string destination = Path.Combine(output!, effect.ToString());
@@ -37,7 +37,7 @@ public sealed class BattleVisibleAreaSmokeTests
             };
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, destination);
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-            BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(destination, "queued-action104.battle.json"));
+            BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(destination, "queued-action104.battle.json"));
             BattleSession battle = BattleSession.Restore(source);
             battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
             BattleScenePresentation scene = new(assets, source.Definition);

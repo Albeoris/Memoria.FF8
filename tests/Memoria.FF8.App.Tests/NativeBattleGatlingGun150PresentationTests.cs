@@ -36,7 +36,7 @@ public sealed class NativeBattleGatlingGun150PresentationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_GATLINGGUN150_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original GatlingGun150 component.");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([150])[149];
         Assert.Equal(NativeBattleGatlingGun150Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleGatlingGun150Profile.Initializer, binding.Initializer);

@@ -10,7 +10,7 @@ public sealed class NativeBattleLogicalPrimitiveTests
     {
         NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
         ImmutableArray<uint> packet = [0x04000000, 0xE2000401, 0x64000000, 0x01000200, 0, 0x00100010];
-        NativeBattleLogicalCommand command = new(reference, 2, 0x64, packet, 4, 1, [], null);
+        NativeBattleLogicalCommand command = new(reference, 2, 0x64, packet, 4, 1, ImmutableArray<int>.Empty, null);
         NativeBattleLogicalCommand legacy = new(reference, 2, 0x64, packet.Slice(2, 4), 1, [], null);
 
         Assert.True(command.WordSpan.SequenceEqual(legacy.Words.AsSpan()));

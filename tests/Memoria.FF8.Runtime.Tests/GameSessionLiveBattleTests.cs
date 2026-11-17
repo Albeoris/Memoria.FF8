@@ -37,15 +37,15 @@ public sealed class GameSessionLiveBattleTests
         BattleSnapshot published = live.PrepareSnapshot().Battle!;
         string before = JsonSerializer.Serialize(published);
 
-        battle.InstantVictory();
+        battle.SetMode(BattleAtbMode.TurnBased);
 
         Assert.Equal(before, JsonSerializer.Serialize(published));
         live.SetLiveBattle(battle);
         Assert.Equal(BattleOutcome.Active, published.Outcome);
         Assert.Null(live.State.Battle);
-        Assert.Equal((byte)4, live.LiveBattle!.NativeResult);
         BattleSnapshot current = live.PrepareSnapshot().Battle!;
-        Assert.Equal(BattleOutcome.Victory, current.Outcome);
+        Assert.Equal(BattleAtbMode.TurnBased, current.Mode);
+        Assert.Equal(BattleAtbMode.Normal, published.Mode);
         Assert.NotSame(published.Definition.Combatants, current.Definition.Combatants);
     }
 

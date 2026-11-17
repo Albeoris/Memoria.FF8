@@ -25,7 +25,7 @@ public sealed class NativeBattleRush91PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
@@ -87,7 +87,7 @@ public sealed class NativeBattleRush91PresentationTests
                 if (boundary is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
@@ -173,7 +173,7 @@ public sealed class NativeBattleRush91PresentationTests
             Assert.Single(heard, item => item.Sound == resources.SoundAppearance);
             BattleSnapshot completed = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, "completed", completed, scene.Render(battle, 320, 224));
-            BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession restored = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -192,7 +192,7 @@ public sealed class NativeBattleRush91PresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Controlled post-formula seven-point enemy contact; logical HP is already committed and contact flag1 suppresses damage text", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactSequenceObservableTransitions = contacts, ContactObservation = "Target sequence selection coincides with target task stage1-to2; observable transition count, not a contact call counter", Completions = completions, EmissionSequences = emissionSequences, EmissionCrtDraws = emissionSequences * 28, SawModelTim = sawModelTim, SawPrivate = sawPrivate, SawCommonFramePackets = sawCommon, SawFixedOverlay = sawOverlay, Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility", "Other targets/headers", "Formula and ordinary command admission", "Common frame packets include actor/stage output" } };
+            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Controlled post-formula seven-point enemy contact; logical HP is already committed and contact flag1 suppresses damage text", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactSequenceObservableTransitions = contacts, ContactObservation = "Target sequence selection coincides with target task stage1-to2; observable transition count, not a contact call counter", Completions = completions, EmissionSequences = emissionSequences, EmissionCrtDraws = emissionSequences * 28, SawModelTim = sawModelTim, SawPrivate = sawPrivate, SawCommonFramePackets = sawCommon, SawFixedOverlay = sawOverlay, Boundaries = boundaries, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility", "Other targets/headers", "Formula and ordinary command admission", "Common frame packets include actor/stage output" } };
             using FileStream stream = new(Path.Combine(output, "result.json"), FileMode.CreateNew);
             JsonSerializer.Serialize(stream, report, new JsonSerializerOptions { WriteIndented = true });
         }

@@ -17,7 +17,7 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_THUNDAGA105_CAPTURE_DIAGNOSTIC_OUTPUT") ?? throw new InvalidDataException("A distinct diagnostic output directory is required.");
         Assert.False(Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any());
         Directory.CreateDirectory(output);
-        BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot snapshot = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
         NativeBattleOriginalEffectState effect = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;

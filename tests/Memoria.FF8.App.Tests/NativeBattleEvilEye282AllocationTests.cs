@@ -32,7 +32,7 @@ public sealed class NativeBattleEvilEye282AllocationTests
         NativeEffectFixtureRequest request = new("evil-eye282-allocation-baseline", 45, 8, 84, 0, 1200, 240) { EncounterId = 436, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0 };
         Directory.CreateDirectory(output!);
         _ = NativeBattleEffectFixtureExporter.Export(request, directory!, Path.Combine(output!, "baseline"));
-        BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
+        BattleSnapshot baseline = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
         Assert.Equal(436, baseline.Definition.EncounterId);
         Assert.Null(baseline.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         (BattleSnapshot ready, int actualActor) = NativeBattleEvilEye282FixturePreparation.Prepare(game, assets, baseline, output!);
@@ -56,7 +56,7 @@ public sealed class NativeBattleEvilEye282AllocationTests
         Assert.All(selected.Known.Where((_, index) => index is not (18 or 19)), known => Assert.True(known));
         Assert.Equal(prototype.NativePosition, model.Transform!.Position28);
         Assert.Equal(Convert.ToHexString(SHA256.HashData(pose.Skeleton.AsSpan())), model.CurrentBodyBoneMatrices!.SkeletonSha256);
-        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "allocation-ready.battle.json"))).Capture()));
+        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "allocation-ready.battle.json"))).Capture()));
         File.WriteAllText(Path.Combine(output!, "allocation-result.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Controlled original scene-slot3 allocation through the actual native producer; no ordinary three-death gameplay admission or Evil-Eye effect execution", BaselineAction = new { Effect = request.Effect, request.ActionId, request.CasterActorIndex, request.AdmissionProbeMaximumCallbacks }, ActualActor = actualActor, ResourceModel = actualDefinition.ModelId, actualDefinition.SceneSlot, PoseBoneCount = pose.BoneCount, CurrentBone13 = selected, CurrentWorld = model.GeometryWorldMatrix, SkeletonSha256 = model.CurrentBodyBoneMatrices!.SkeletonSha256 }, new JsonSerializerOptions { WriteIndented = true }));
     }
 }

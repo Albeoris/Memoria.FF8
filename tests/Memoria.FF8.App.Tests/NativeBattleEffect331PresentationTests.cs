@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect331PresentationTests
         Assert.Equal("331", Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_ID"));
         Assert.NotNull(Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS"));
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(749, source.Definition.EncounterId);
         Assert.Equal(111, source.Definition.StageId);
         BattleCombatantDefinition caster = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));

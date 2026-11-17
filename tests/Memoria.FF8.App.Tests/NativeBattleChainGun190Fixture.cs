@@ -26,7 +26,7 @@ internal static class NativeBattleChainGun190Fixture
         NativeBattleEffectFixtureExporter.Validate(request);
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         Assert.Equal(new[] { 0, 1, 2 }, source.Definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.ModelId).ToArray());
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([190])[189];
         Assert.Equal(NativeBattleChainGun190Profile.Entry, binding.Entry);

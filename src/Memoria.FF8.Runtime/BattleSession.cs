@@ -355,45 +355,19 @@ public sealed partial class BattleSession
 
     public void InstantVictory()
     {
-        RequireNoPendingSlotsDeal();
-        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal)
-        {
-            throw new InvalidOperationException("Debug victory requires an active battle.");
-        }
-        foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer))
-        {
-            enemy.CurrentHp = 0;
-            enemy.NativeStatus0 |= 1;
-            enemy.Atb = 0;
-        }
-        DebugOutcome = BattleOutcome.Victory;
-        Log("debug-victory", null, null, 0, "Debug shortcut: all enemies defeated.");
-        CompleteBattleIfNeeded();
+        AdmitDebugOutcome(BattleOutcome.Victory);
     }
 
     public void InstantDefeat()
     {
-        RequireNoPendingSlotsDeal();
-        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal)
-        {
-            throw new InvalidOperationException("Debug defeat requires an active battle.");
-        }
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer))
-        {
-            actor.CurrentHp = 0;
-            actor.NativeStatus0 |= 1;
-            actor.Atb = 0;
-        }
-        DebugOutcome = BattleOutcome.Defeat;
-        Log("debug-defeat", null, null, 0, "Debug shortcut: all party members defeated.");
-        CompleteBattleIfNeeded();
+        AdmitDebugOutcome(BattleOutcome.Defeat);
     }
 
     public BattleDefinition ReadDefinition() => CloneDefinition(definition);
 
     public BattleSnapshot Capture()
     {
-        RequireEncounterDamagePublicationBoundary();
+        RequireEncounterAllocationCaptureBoundary();
         return NativeBattleStorageSnapshots.Capture(CaptureState());
     }
 
@@ -438,7 +412,7 @@ public sealed partial class BattleSession
             NativeAllocations = CaptureNativeAllocations(),
             PartyOccupancyChanges = PartyOccupancyChanges,
             PendingPartyReplacements = pendingPartyReplacements,
-            EncounterAllocation = CaptureEncounterAllocation(),
+            EncounterAllocation = encounterAllocation,
             EncounterPolicies = encounterPolicies,
             EncounterNativeEvents = CaptureEncounterNativeEvents(),
             QueuedActions = actions.ToArray(),
@@ -886,7 +860,7 @@ public sealed partial class BattleSession
             return BattleOutcome.Active;
         }
         if (!NativeEntryReady || NativeScriptAllocationPending || HasPendingPartyReplacement || nativeTimedAction is not null || IsNativeSupportInvocation(ActiveAction?.NativePlayerReaction) || IsNativeReturnDamageAction(ActiveAction?.NativeAction) || QueuedActions.Any(command => IsNativeReturnDamageAction(command.NativeAction) || IsNativeSupportInvocation(command.NativePlayerReaction)) ||
-            (expandedHostedEvent is not null || HasQueuedRosterOperations || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(actor => actor.ExpandedAiRemovalPending || HasExpandedEnemyDeathAction(actor)) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
+            (expandedHostedEvent is not null || HasQueuedRosterOperations || actions.Any(command => command.ExpandedAiCallback is not null) || enemies.Any(HasExpandedEnemyDeathAction) || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || IsShotCallback(ActiveAction?.NativeLimitCallback) || actions.Any(command => IsShotCallback(command.NativeLimitCallback))))
         {
             return BattleOutcome.Active;
         }
@@ -919,7 +893,6 @@ public sealed partial class BattleSession
         {
             return;
         }
-            CompleteExpandedAiRemovals();
         CleanupDefeatedEncounterAllocations();
         CleanupEncounterPoliciesAtTerminal();
         if (OwnsExpandedHostedInvocation && HasPendingEncounterRetirements)
@@ -1007,7 +980,6 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants)
         {
             actor.IsBusy = false;
-            actor.ExpandedAiRemovalPending = false;
             actor.NativeStatus1 &= 0x7FFFFFFF;
         }
         Log("Outcome", null, null, 0, outcome.ToString());
@@ -1349,10 +1321,9 @@ public sealed partial class BattleSession
         nativeReactionOrder = snapshot.NativeReactionOrder;
         RestoreNativeTimedAction(snapshot.NativeTimedAction, expandedHostedEvent);
         ActiveAction = snapshot.ActiveAction;
-        ValidateExpandedAiRemovals();
         nativeEscape = snapshot.Escape;
         nativeEscape.Validate();
-        RestoreDebugOutcome(snapshot);
+        RestoreDebugOutcome(snapshot, preparedTerminal);
         Outcome = snapshot.Outcome;
         RestoreDiagnosticTerminalHold(snapshot);
         RestoreEncounterPolicies(snapshot.EncounterPolicies);
@@ -1434,7 +1405,7 @@ public sealed partial class BattleSession
         ValidateGuardianFormOwners();
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
         RestoreScanKnowledge(snapshot.ScanKnowledge);
-        RestoreEncounterAllocation(snapshot.EncounterAllocation);
+        RestoreEncounterAllocation(snapshot.EncounterAllocation, snapshot.LogicalContinuation, snapshot.PresentationContinuation);
         RestoreEncounterNativeEvents(snapshot.EncounterNativeEvents);
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
@@ -1661,8 +1632,11 @@ public sealed partial class BattleSession
         {
             actions.Enqueue(command);
         }
-        events.Clear();
-        events.AddRange(candidate.events);
+        if (!preparedExpandedAction)
+        {
+            events.Clear();
+            events.AddRange(candidate.events);
+        }
         Frame = candidate.Frame;
         NativeHostCallbacks = candidate.NativeHostCallbacks;
         NativeExamTimer = candidate.NativeExamTimer;

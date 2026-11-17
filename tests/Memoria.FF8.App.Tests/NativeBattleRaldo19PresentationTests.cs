@@ -13,8 +13,8 @@ public sealed class NativeBattleRaldo19PresentationTests
     {
         NativeBattleActorDirectorPresentationTests.RunSelected([19], "MEMORIA_FF8_RALDO", SelectOriginalFixture);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_RALDO_EVIDENCE")!;
-        BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "queued.battle.json"));
-        BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
+        BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "queued.battle.json"));
+        BattleSnapshot completed = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json"));
         Assert.Equal(0.8f, queued.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Depth!.BucketMix);
         NativeBattleRaldo19State state = completed.ReadFixturePresentation().NativeEffectMemory!.RequireRaldo19();
         short actor = BinaryPrimitives.ReadInt16LittleEndian(state.BallC4.Read(0xAC, 2));

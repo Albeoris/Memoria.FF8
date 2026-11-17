@@ -86,12 +86,12 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), ioResult);
 
         Queue(session, 77, SecondOriginal);
-        Assert.Equal((byte)0, session.NativeModelLoader!.Task!.Phase);
+        Assert.Equal((byte)0, session.Presentation!.NativeModelLoader!.Task!.Phase);
         Invoke(session, "PumpNativeFileIo482590");
         Assert.Equal(fileState, NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileIo!));
         Poll(session);
 
-        Assert.Null(session.NativeModelLoader!.Task);
+        Assert.Null(session.Presentation!.NativeModelLoader!.Task);
         Assert.Equal(fileState, NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileIo!));
         Assert.Equal(ioResult, session.Presentation!.NativeEffectIoResult);
         Assert.Equal(staging, NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileStaging!));
@@ -149,7 +149,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
         TargetInvocationException queueFailure = Assert.Throws<TargetInvocationException>(() => Queue(session, 77, FirstEnemy));
         Assert.IsType<InvalidDataException>(queueFailure.InnerException);
-        Assert.Null(session.NativeModelLoader);
+        Assert.Null(session.Presentation!.NativeModelLoader);
 
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
         Queue(session, 77, FirstEnemy);
@@ -159,7 +159,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         Assert.IsType<InvalidDataException>(pollFailure.InnerException);
         Assert.Same(file, session.Presentation?.NativeFileIo);
         Assert.Same(staging, session.Presentation?.NativeFileStaging);
-        Assert.Equal((byte)0, session.NativeModelLoader!.Task!.Phase);
+        Assert.Equal((byte)0, session.Presentation!.NativeModelLoader!.Task!.Phase);
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         }
         cache.Validate();
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
-        NativeBattleModelLoader loader = session.NativeModelLoader!;
+        NativeBattleModelLoader loader = session.Presentation!.NativeModelLoader!;
         NativeBattleFileIoState io = session.Presentation!.NativeFileIo!;
         NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
         NativeBattleEffectTextureState textures = session.Presentation!.Memory.Textures!;
@@ -191,7 +191,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
 
         TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Queue(session, 78, FirstEnemy));
         Assert.IsType<NotSupportedException>(failure.InnerException);
-        Assert.Same(loader, session.NativeModelLoader);
+        Assert.Same(loader, session.Presentation!.NativeModelLoader);
         Assert.Same(io, session.Presentation?.NativeFileIo);
         Assert.Same(staging, session.Presentation?.NativeFileStaging);
         Assert.Same(textures, session.Presentation!.Memory.Textures);
@@ -231,12 +231,12 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
                 .WithPresentationTexture("second", new(NativeBattleEffectTextureState.FromColdProcess(), imageCache));
             memory = memory with { Textures = textures };
         }
-        Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics);
-        Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
-        Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.Unknown());
+        Set(session, nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleFileStaging.Unknown());
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), 0);
         return session;
     }
@@ -248,20 +248,20 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
     private static void Load(BattleSession session, ushort request, BattleModelOwner owner, bool restorePending = false)
     {
         Queue(session, request, owner);
-        for (int callback = 0; session.NativeModelLoader!.Task is not null && callback < 24; callback++)
+        for (int callback = 0; session.Presentation!.NativeModelLoader!.Task is not null && callback < 24; callback++)
         {
             Invoke(session, "PumpNativeFileIo482590");
             Poll(session);
             if (restorePending && callback == 0)
             {
-                NativeBattleModelLoader pending = session.NativeModelLoader!;
+                NativeBattleModelLoader pending = session.Presentation!.NativeModelLoader!;
                 Assert.NotNull(pending.Task);
                 NativeBattleModelLoader restored = NativeBattleTestSnapshots.Independent(pending);
                 Assert.Equal(owner, restored.Task!.Owner);
-                Set(session, nameof(BattleSession.NativeModelLoader), restored);
+                typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelLoader))!.SetValue(session.Presentation!, restored);
             }
         }
-        Assert.Null(session.NativeModelLoader!.Task);
+        Assert.Null(session.Presentation!.NativeModelLoader!.Task);
     }
 
     private static void Queue(BattleSession session, ushort request, BattleModelOwner owner) => Invoke(session, "QueueNativeModelResource507080", session.Presentation!.Graphics, request, owner, 0u);
@@ -322,7 +322,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         return bytes.ToImmutableArray();
     }
 
-    private static void Invoke(BattleSession session, string name, params object[] args) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, args);
+    private static void Invoke(BattleSession session, string name, params object[] args) => typeof(BattlePresentationProcess).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, args);
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattleSession session, string property, object value) => NativeBattleHostedTestFixture.SetProperty(session.Presentation!, property, value);
 }

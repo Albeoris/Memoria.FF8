@@ -41,12 +41,12 @@ public sealed class NativeBattleModelLoaderSessionTests
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         }, BattleAtbMode.TurnBased);
-        for (int callback = 0; callback < 200 && session.NativeModelLoader?.Task is not { Callback: 0x5077B0, Phase: 1 }; callback++)
+        for (int callback = 0; callback < 200 && session.Presentation!.NativeModelLoader?.Task is not { Callback: 0x5077B0, Phase: 1 }; callback++)
         {
             session.Tick();
         }
-        Assert.Equal(0x5077B0u, session.NativeModelLoader!.Task!.Callback);
-        Assert.Equal((byte)1, session.NativeModelLoader.Task.Phase);
+        Assert.Equal(0x5077B0u, session.Presentation!.NativeModelLoader!.Task!.Callback);
+        Assert.Equal((byte)1, session.Presentation!.NativeModelLoader.Task.Phase);
         Assert.Equal(-1, session.Presentation!.NativeEffectIoResult);
         Assert.Equal((byte?)1, ReadOriginalModelCell(session.Presentation!.Graphics, 0).EffectCounter97);
         Assert.Equal(0, ReadOriginalModelCell(session.Presentation!.Graphics, 0).Flags0 & 2);

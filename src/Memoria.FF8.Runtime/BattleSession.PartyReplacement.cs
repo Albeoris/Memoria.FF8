@@ -126,7 +126,7 @@ public sealed partial class BattleSession
         PreparedActionPublication publication = new(this, candidate, Restore(before));
         publication.Publish();
         process.CommitDispatch(dispatch);
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
         Log("PartyReplacement", incoming.Id, descriptor.OutgoingActorId, 0, $"{incoming.Name} enters battle.");
     }
 

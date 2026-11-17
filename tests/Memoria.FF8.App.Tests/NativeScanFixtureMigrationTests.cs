@@ -121,9 +121,9 @@ public sealed class NativeScanFixtureMigrationTests
         {
             JsonSerializer.Serialize(stream, migrated);
         }
-        BattleSnapshot disk = NativeBattleEffectFamilyRunner.LoadSnapshot(output!);
+        BattleSnapshot disk = NativeBattleFixtureInspection.ReadLogicalSnapshot(output!);
         BattleSession first = BattleSession.Restore(disk);
-        BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(output!));
+        BattleSession second = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(output!));
         Assert.Equal(JsonSerializer.Serialize(disk), JsonSerializer.Serialize(first.Capture()));
         BattleScenePresentation scene = new(assets, disk.Definition);
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());

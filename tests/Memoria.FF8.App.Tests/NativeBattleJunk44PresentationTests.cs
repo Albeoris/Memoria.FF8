@@ -18,7 +18,7 @@ public sealed class NativeBattleJunk44PresentationTests
             return;
         }
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNK44_EVIDENCE")!;
-        BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
+        BattleSnapshot completed = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json"));
         byte[] vram = completed.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
         foreach (NativeBattleEffectFileAsset file in completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Junk44Resources!.Files)
         {

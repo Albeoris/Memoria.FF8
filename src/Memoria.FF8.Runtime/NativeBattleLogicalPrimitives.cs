@@ -41,33 +41,46 @@ public sealed record NativeBattleLogicalProxy(NativeBattlePrimitiveReference Pac
 }
 public sealed record NativeBattleLogicalCommand(NativeBattlePrimitiveReference Packet, int WordOffset, byte Opcode, ImmutableArray<uint> Words, ushort Flags20, ImmutableArray<int> VertexPayload4, int? ModuleDraw)
 {
-    private readonly ImmutableArray<uint> wordBacking = Words;
-    private readonly int wordStart;
-    private readonly int wordCount = Words.IsDefault ? 0 : Words.Length;
+    private readonly NativeBattleImmutableSlice<uint> wordBacking = Words;
+    private readonly NativeBattleImmutableSlice<int> depthBacking = VertexPayload4;
 
-    internal NativeBattleLogicalCommand(NativeBattlePrimitiveReference packet, int wordOffset, byte opcode, ImmutableArray<uint> packetWords, int count, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw)
-        : this(packet, wordOffset, opcode, packetWords, flags20, vertexPayload4, moduleDraw)
+    internal NativeBattleLogicalCommand(NativeBattlePrimitiveReference packet, int wordOffset, byte opcode, NativeBattleImmutableSlice<uint> packetWords, int count, ushort flags20, NativeBattleImmutableSlice<int> vertexPayload4, int? moduleDraw)
+        : this(packet, wordOffset, opcode, default, flags20, default, moduleDraw)
     {
-        wordStart = wordOffset;
-        wordCount = count;
+        wordBacking = packetWords.Slice(wordOffset, count);
+        depthBacking = vertexPayload4;
     }
 
     public ImmutableArray<uint> Words
     {
-        get => wordBacking.IsDefault || (wordStart == 0 && wordCount == wordBacking.Length) ? wordBacking : ImmutableArray.Create(WordSpan);
-        init
-        {
-            wordBacking = value;
-            wordStart = 0;
-            wordCount = value.IsDefault ? 0 : value.Length;
-        }
+        get => wordBacking.ToImmutableArray();
+        init => wordBacking = value;
     }
 
     [JsonIgnore]
-    public ReadOnlySpan<uint> WordSpan => wordBacking.AsSpan(wordStart, wordCount);
+    public ReadOnlySpan<uint> WordSpan => wordBacking.AsSpan();
+
+    public ImmutableArray<int> VertexPayload4
+    {
+        get => depthBacking.ToImmutableArray();
+        init => depthBacking = value;
+    }
+
+    [JsonIgnore]
+    public ReadOnlySpan<int> VertexPayloadSpan => depthBacking.IsDefault ? throw new InvalidDataException("Native command has no original proxy depth fields.") : depthBacking.AsSpan();
 
     public int? OrderingBucket { get; init; }
-    public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+    internal NativeBattleImmutableSlice<BattleSceneScreenPoint>? ProjectedCoordinateSlice { get; init; }
+    public ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates
+    {
+        get => ProjectedCoordinateSlice?.ToImmutableArray();
+        init => ProjectedCoordinateSlice = value;
+    }
+
+    [JsonIgnore]
+    public ReadOnlySpan<BattleSceneScreenPoint> ProjectedCoordinateSpan => ProjectedCoordinateSlice is { } slice ? slice.AsSpan() : default;
+    [JsonIgnore]
+    public bool HasProjectedCoordinates => ProjectedCoordinateSlice.HasValue;
     [JsonIgnore]
     public NativeBattlePilotGeometryReference Pilot { get; init; }
     [JsonIgnore]
@@ -205,7 +218,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         Owner storage = RequireOwner();
         storage.RequireOperational();
         int index = (int)Math.Min((long)storage.proxyCursor!.Value + ordinal, NativeBattlePrimitiveOrdering.ProxyCapacity);
-        return index < storage.ProxyRowCount ? storage.ReadProxy(index).VertexPayload4 : [];
+        return index < storage.ProxyRowCount ? storage.ReadProxy(index).VertexPayload4.ToImmutableArray() : [];
     }
 
     public NativeBattleLogicalOrdering ResetAfterDraw45D080()
@@ -268,7 +281,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         return (builder.ToImmutable(), index < NativeBattlePrimitiveOrdering.ProxyCapacity ? 0x1C48828u + (uint)(24 * index) : null);
     }
 
-    private static void ValidateInsertion(int tableLength, int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ImmutableArray<int> vertexPayload4)
+    private static void ValidateInsertion(int tableLength, int bucket, NativeBattlePrimitiveReference reference, NativeBattleImmutableSlice<uint> words, NativeBattleImmutableSlice<int> vertexPayload4)
     {
         if ((uint)bucket >= tableLength || string.IsNullOrWhiteSpace(reference.Bank) || reference.Buffer > 1 || reference.ByteOffset < 0 || (reference.ByteOffset & 3) != 0 || words.IsDefaultOrEmpty || words.Length < 1 + (words[0] >> 24) || vertexPayload4.IsDefault || vertexPayload4.Length is not (0 or 4))
         {
@@ -732,7 +745,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             maximumPacketBytes = Math.Max(maximumPacketBytes, checked(packet.Words.Length * 4));
         }
 
-        private void PrependCore(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null)
+        private void PrependCore(int bucket, NativeBattlePrimitiveReference reference, NativeBattleImmutableSlice<uint> words, ushort flags20, NativeBattleImmutableSlice<int> vertexPayload4, int? moduleDraw = null, NativeBattleImmutableSlice<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null)
         {
             (List<NativeBattlePrimitiveLink> roots, int rootIndex, byte rootBuffer) = ResolveInsertionRoot(bucket);
             ValidateInsertion(roots.Count, rootIndex, reference, words, vertexPayload4);
@@ -777,7 +790,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
             AppendProxy(reference, words, flags20, vertexPayload4, moduleDraw, new(false, -1), 0, previousAddress, !retainAuthoredPayload, pilotGeometry: pilotGeometry, screenCoverage: screenCoverage, sceneCapture: sceneCapture, projectedCoordinates: projectedCoordinates, modelTextureOwner: modelTextureOwner, addressedNextAddress: retainAuthoredPayload ? previousAddress : null);
         }
 
-        private void AppendProxy(NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null, uint? addressedNextAddress = null)
+        private void AppendProxy(NativeBattlePrimitiveReference reference, NativeBattleImmutableSlice<uint> words, ushort flags20, NativeBattleImmutableSlice<int> vertexPayload4, int? moduleDraw, NativeBattlePrimitiveLink next, byte nextBuffer, uint previousAddress, bool physicalRead, NativeBattleImmutableSlice<BattleSceneScreenPoint>? projectedCoordinates = null, string? textureSourceOwner = null, NativeBattlePilotGeometryReference pilotGeometry = default, string? presentationActorId = null, NativeBattleScreenCoverage? screenCoverage = null, NativeBattleSceneCapture? sceneCapture = null, NativeBattleModelTextureOwner? modelTextureOwner = null, uint? addressedNextAddress = null)
         {
             InvalidatePacketRange(reference, words.Length * 4);
             lastHeaderLink = previousAddress;
@@ -1297,7 +1310,7 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         return restored.Root ?? new NativeBattleLogicalOrdering(restored);
     }
 
-    private static ImmutableArray<BattleSceneScreenPoint>? MatchingProjectedCoordinates(in PacketSlot packet, int word, int count)
+    private static NativeBattleImmutableSlice<BattleSceneScreenPoint>? MatchingProjectedCoordinates(in PacketSlot packet, int word, int count)
     {
         if (packet.ProjectedCoordinates is not { } coordinates)
         {
@@ -1431,11 +1444,11 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
                 int count = opcode == 0 ? 1 : Math.Max((int)wordLengths[opcode], 1);
                 if (count > remaining || word + count > packet.Words.Length)
                 {
-                    throw new InvalidDataException($"Native logical packet ends inside an original command: bank={packet.Reference.Bank}, buffer={packet.Reference.Buffer}, offset={packet.Reference.ByteOffset:X}, physical={readsPhysicalBytes}, bucket={bucket}, word={word}, opcode={opcode:X2}, count={count}, remaining={remaining}, words={string.Join(" ", packet.Words.Select(value => value.ToString("X8")))}.");
+                    throw new InvalidDataException($"Native logical packet ends inside an original command: bank={packet.Reference.Bank}, buffer={packet.Reference.Buffer}, offset={packet.Reference.ByteOffset:X}, physical={readsPhysicalBytes}, bucket={bucket}, word={word}, opcode={opcode:X2}, count={count}, remaining={remaining}, words={string.Join(" ", packet.Words.ToImmutableArray().Select(value => value.ToString("X8")))}.");
                 }
                 if (opcode != 0)
                 {
-                    commands.Add(new(packet.Reference, word, opcode, packet.Words, count, proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinates = MatchingProjectedCoordinates(packet, word, count), TextureSourceOwner = packet.TextureSourceOwner, ModelTextureOwner = packet.ModelTextureOwner, Pilot = packet.Pilot, PresentationActorId = packet.PresentationActorId, ScreenCoverage = packet.ScreenCoverage, SceneCapture = packet.SceneCapture });
+                    commands.Add(new(packet.Reference, word, opcode, packet.Words, count, proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw) { OrderingBucket = bucket, ProjectedCoordinateSlice = MatchingProjectedCoordinates(packet, word, count), TextureSourceOwner = packet.TextureSourceOwner, ModelTextureOwner = packet.ModelTextureOwner, Pilot = packet.Pilot, PresentationActorId = packet.PresentationActorId, ScreenCoverage = packet.ScreenCoverage, SceneCapture = packet.SceneCapture });
                 }
                 remaining -= count;
                 word += count;

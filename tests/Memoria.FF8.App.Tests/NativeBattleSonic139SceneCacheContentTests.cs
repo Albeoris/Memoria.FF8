@@ -34,7 +34,7 @@ public sealed class NativeBattleSonic139SceneCacheContentTests(ITestOutputHelper
         string fixture = Path.Combine(output, "input");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
         NativeBattleOrdinaryMagicFixtureFlagTests.DeleteFixtureSnapshots(fixture, exported);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);

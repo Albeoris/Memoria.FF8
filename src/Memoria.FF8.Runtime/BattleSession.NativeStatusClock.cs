@@ -2,9 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private bool HasExpandedDoomPresentation => expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
-
-    private bool HasPendingExpandedDoom => HasExpandedDoomPresentation && combatants.Any(IsPendingDoomExpiration);
+    private bool HasPendingExpandedDoom => combatants.Any(IsPendingDoomExpiration);
 
     private static bool IsPendingDoomExpiration(BattleCombatant actor)
     {
@@ -55,21 +53,14 @@ public sealed partial class BattleSession
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
                 }
-                if (bit == 10 && HasExpandedDoomPresentation)
+                if (bit == 10)
                 {
                     // The action lane admits finished countdowns in roster order before its next command.
                     continue;
                 }
-                uint expiringStatuses = NativeBattleStatusBits(actor);
                 actor.NativeStatusTimers[bit] = -1111;
                 actor.NativeStatus1 &= ~mask;
-                if (bit == 10)
-                {
-                    //483470 queues4877F0 callback5 -> command246;48FE20 sets the death bit without a resistance roll.
-                    StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 246, 43, 0, 3);
-                    ApplyDiagnosticPeriodicStatus(actor, bit, timer, 0, -1111, actor.CurrentHp, true, "Doom", expiringStatuses);
-                }
-                else if (bit == 12)
+                if (bit == 12)
                 {
                     actor.NativeStatus0 |= 4;
                     RemoveNativeStatuses(actor, 0x7A, 0x30E77FF);
@@ -80,11 +71,8 @@ public sealed partial class BattleSession
                 {
                     Log("NativeStatusExpired", actor.Id, actor.Id, bit + 16, $"Native status {bit + 16} expired.");
                 }
-                if (bit != 10)
-                {
-                    actor.RefreshNativeHpStatusFlags();
-                    RefreshNativePresentationStatus(actor);
-                }
+                actor.RefreshNativeHpStatusFlags();
+                RefreshNativePresentationStatus(actor);
             }
         }
     }
@@ -107,7 +95,8 @@ public sealed partial class BattleSession
         {
             NativeAction = action,
             NativeQueuedCommand = action.Command,
-            NativeSequence = 0
+            NativeSequence = 0,
+            DiagnosticDoomExpiration = CaptureDiagnosticDoomExpiration(actor)
         };
         PrepareAndPublishExpandedAction(command);
         return true;
@@ -124,30 +113,6 @@ public sealed partial class BattleSession
         StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 246, 43, 0, 3);
         actor.IsBusy = true;
         BeginNativeBattleActionPause();
-    }
-
-    private void ApplyDiagnosticPeriodicStatus(BattleCombatant actor, int bit, short timer, int decrement, short timerAfter, int amount, bool damage, string source, uint? battleStatuses = null)
-    {
-        BattleDiagnosticPeriodicStatus? previous = diagnosticPeriodicStatus;
-        if (DiagnosticResolution is not null && actor.NativeActorIndex is int physicalIndex)
-        {
-            diagnosticPeriodicStatus = new(0x483470, actor.Id, checked((byte)physicalIndex), bit, timer, decrement, timerAfter, NativeSavedStatusBits(actor), battleStatuses ?? NativeBattleStatusBits(actor), actor.MaximumHp, amount, NativeHostCallbacks ?? Frame);
-        }
-        try
-        {
-            if (damage)
-            {
-                ApplyDamage(null, actor, amount, source, cause: bit == 10 ? EncounterHpCause.DeathStatus : EncounterHpCause.Damage);
-            }
-            else
-            {
-                ApplyHealing(actor, amount, source);
-            }
-        }
-        finally
-        {
-            diagnosticPeriodicStatus = previous;
-        }
     }
 
     private void CompleteNativeActionStatuses(BattleCombatant actor)

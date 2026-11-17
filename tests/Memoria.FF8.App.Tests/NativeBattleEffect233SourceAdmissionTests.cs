@@ -17,12 +17,12 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and the current Effect233 source snapshot.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string before = JsonSerializer.Serialize(source);
         ValidateSource(source, assets);
         Assert.Equal(before, JsonSerializer.Serialize(source));
         Assert.Equal(before, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(before)!).Capture()));
-        BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(path!)!, "queued-action104.battle.json"));
+        BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(Path.GetDirectoryName(path!)!, "queued-action104.battle.json"));
         ValidateQueuedAction(source, queued);
         string queuedJson = JsonSerializer.Serialize(queued);
         Assert.Equal(queuedJson, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queuedJson)!).Capture()));

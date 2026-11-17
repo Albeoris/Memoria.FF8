@@ -21,12 +21,12 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(NativeBattleEffect301PresentationTests.CreateOriginalRequest(), directory!, output);
             Assert.NotEqual("blocked", exported.Status);
             string path = Path.Combine(output, "after-entry.battle.json");
-            BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+            BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
             Environment.SetEnvironmentVariable(variable, path);
             using GameAssets game = new(directory!);
             using BattleAssets assets = new(directory!);
             BattleSnapshot source = NativeBattleEffect301PresentationTests.PrepareSource(game, assets, output);
-            original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready-source.battle.json"));
+            original = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "allocation-ready-source.battle.json"));
             NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
             int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));

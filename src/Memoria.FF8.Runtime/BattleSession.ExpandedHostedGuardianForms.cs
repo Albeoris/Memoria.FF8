@@ -107,7 +107,7 @@ public sealed partial class BattleSession
         expandedPartyPresentation = candidate.expandedPartyPresentation;
         expandedHostedEvent = hosted;
         process.CommitDispatch(dispatch);
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
     }
 
     private BattleSession CreateExpandedHostedFormCandidate(BattleSnapshot before)
@@ -115,6 +115,7 @@ public sealed partial class BattleSession
         BattleSession candidate = Restore(before);
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.preparedResolutionObservations = DiagnosticResolution is null ? null : [];
         return candidate;
     }
 
@@ -137,9 +138,9 @@ public sealed partial class BattleSession
         if (visual is not null)
         {
             process.CommitGuardianFormChange(visual);
-            PublishHostedGuardianFormAudio(visual);
         }
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
+        PublishHostedGuardianFormAudio(visual);
     }
 
     private void PublishHostedGuardianFormAudio(PreparedHostedGuardianFormChange? visual)

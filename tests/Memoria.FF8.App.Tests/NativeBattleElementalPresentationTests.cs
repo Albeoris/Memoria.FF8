@@ -22,7 +22,7 @@ public sealed class NativeBattleElementalPresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         NativeBattleGraphicsState initialGraphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks its native graphics owner.");
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks its physical action packets.");
         int descriptorSlot = Assert.Single(initialGraphics.Descriptors.Queue, slot => initialGraphics.Descriptors.Packets[slot].Command == 104);
@@ -89,7 +89,7 @@ public sealed class NativeBattleElementalPresentationTests
                 {
                     string name = "phase-" + phase!.Value;
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(independent.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                 }
@@ -179,7 +179,7 @@ public sealed class NativeBattleElementalPresentationTests
             Assert.Equal(0, battle.Presentation!.Memory.Active);
             BattleSnapshot completed = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, "completed", completed, scene.Render(battle, 320, 224));
-            BattleSession restoredCompleted = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession restoredCompleted = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restoredCompleted.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restoredCompleted.Capture()));
@@ -199,7 +199,7 @@ public sealed class NativeBattleElementalPresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Effect = effectId, SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, PreEntryDiagnosticCallbacks = preEntryCallbacks, UnpausedLocalModuleCallbacks = localCallbacks, ModuleWaitDiagnosticCallbacks = moduleWaitCallbacks, AsyncDiagnosticCallbacks = asynchronousCallbacks, PausedDiagnosticCallbacks = pausedCallbacks, PartyTarget = target, InitialDisplayedHp = initialHp, ExpectedDisplayedHp = expectedHp, ContactObservableTransitions = contactTransitions, Boundaries = boundaries, StageDepths = stageDepths, RoutedSounds = heard.Count(item => item.Sound == spec.Sound), BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Native differential comparison", "Hardware audibility", "Other targets/headers/variants", "Formula and ordinary admission" } };
+            object report = new { Status = status, FirstBlocker = blocker, Effect = effectId, SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, PreEntryDiagnosticCallbacks = preEntryCallbacks, UnpausedLocalModuleCallbacks = localCallbacks, ModuleWaitDiagnosticCallbacks = moduleWaitCallbacks, AsyncDiagnosticCallbacks = asynchronousCallbacks, PausedDiagnosticCallbacks = pausedCallbacks, PartyTarget = target, InitialDisplayedHp = initialHp, ExpectedDisplayedHp = expectedHp, ContactObservableTransitions = contactTransitions, Boundaries = boundaries, StageDepths = stageDepths, RoutedSounds = heard.Count(item => item.Sound == spec.Sound), BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Native differential comparison", "Hardware audibility", "Other targets/headers/variants", "Formula and ordinary admission" } };
             using FileStream stream = new(Path.Combine(output, "result.json"), FileMode.CreateNew);
             JsonSerializer.Serialize(stream, report, new JsonSerializerOptions { WriteIndented = true });
         }

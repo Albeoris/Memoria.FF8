@@ -53,7 +53,7 @@ Request property names are case-insensitive, command names are case-insensitive,
 | `action` | Yes | Yes | Applies `Action`; normally returns `{ActionResult, Status}`. Windowed startup/tutorial handling can return status directly. |
 | `advance` | Yes | Yes | Applies an ordinary `Wait` with `Frames`; same result rules as `action`. |
 | `run` | No | Yes | Repeats `Action` up to positive `Frames` times; saves `before-run-checkpoint.json` in the queue first. |
-| `save` | Yes | Yes | Saves to `Path` or configured checkpoint destination, then returns status. |
+| `save` | Yes | Yes | Saves to `Path` or the configured checkpoint destination outside battle, then returns status. Active encounters, laboratory battles and component previews block this save. |
 | `capture` | Yes | Yes, acknowledgement only | Windowed: requests a PNG on the next draw. Headless: `{Captured:false, Reason:...}`. |
 | `draft` | Yes | No | Changes the currently open prompt's name/selection draft; returns status. |
 | `debug-scene` | Yes | No | Applies a typed presentation override; returns status. |

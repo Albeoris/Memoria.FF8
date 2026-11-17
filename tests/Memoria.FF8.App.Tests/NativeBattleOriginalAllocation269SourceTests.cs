@@ -20,7 +20,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(baselinePath!);
+        BattleSnapshot baseline = NativeBattleFixtureInspection.ReadLogicalSnapshot(baselinePath!);
         Assert.Equal(436, baseline.Definition.EncounterId);
         Assert.Equal(125, baseline.Definition.StageId);
         BattleEncounter formation = assets.LoadEncounter(436);

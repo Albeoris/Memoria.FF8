@@ -29,8 +29,8 @@ public sealed class NativeBattlePain34PresentationTests
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported, new JsonSerializerOptions { WriteIndented = true }));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         }
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         string caster = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
         int queued = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
@@ -149,7 +149,7 @@ public sealed class NativeBattlePain34PresentationTests
         {
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output!, name + "-before", snapshot, scene.Render(battle, 320, 224));
-            BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + "-before.battle.json")));
+            BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             battle.Tick();

@@ -152,15 +152,9 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(humanElements, saved.Combatants[0].NativeParticipant!.ElementDefenses);
         Assert.Equal(Enumerable.Repeat((byte)0, 40), saved.Combatants[0].NativeStatus!.Resistances);
         BattleSession restored = RoundTrip(saved);
-        restored.InstantVictory();
-        Assert.Null(restored.GetGuardianForm("actor"));
-        Assert.Equal(humanElements, Actor(restored).ElementDefenses);
-        Assert.Equal(23, Actor(restored).Attack);
-        Assert.Equal(31, Actor(restored).Magic);
-        AssertCasterStatistics(Actor(restored));
+        Assert.Equal(BattleGuardianFormPhase.Active, restored.GetGuardianForm("actor")!.Phase);
         Assert.Equal(37, Actor(restored).CurrentHp);
-        Assert.Equal(Enumerable.Repeat((byte)0, 40), restored.Capture().Combatants[0].NativeStatus!.Resistances);
-        Assert.Equal(humanElements, Actor(RoundTrip(restored.Capture())).ElementDefenses);
+        Assert.Equal(humanElements, restored.Capture().Definition.Combatants[0].ElementDefenses);
     }
 
     [Theory]
@@ -266,22 +260,20 @@ public sealed class BattleGuardianFormLifecycleTests
     }
 
     [Fact]
-    public void InstantVictoryDropsAdmittedFireAndRestoresHumanWithoutAnotherTransaction()
+    public void Debug_victory_does_not_cancel_the_admitted_fire()
     {
         BattleSession battle = Active(ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
         battle.Tick();
-        Assert.NotNull(battle.Presentation!.NativeActionPackets.ActiveHeader);
-        int damageCount = battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "actor");
-        battle.InstantVictory();
-        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
-        Assert.Null(battle.GetGuardianForm("actor"));
-        Assert.Null(battle.GetGuardianFormVisual("actor"));
-        Assert.Null(battle.Presentation?.Graphics?.GuardianFormPresentation);
-        Assert.Null(battle.ActiveAction);
-        Assert.Empty(battle.QueuedActions);
-        Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(damageCount, battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "actor"));
+        var header = battle.Presentation!.NativeActionPackets.ActiveHeader;
+        Assert.NotNull(header);
+        BattleActionPresentation? action = battle.ActiveAction;
+
+        Assert.Throws<InvalidOperationException>(battle.InstantVictory);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(header, battle.Presentation.NativeActionPackets.ActiveHeader);
+        Assert.Same(action, battle.ActiveAction);
+        Assert.NotNull(battle.GetGuardianForm("actor"));
     }
 
     [Fact]

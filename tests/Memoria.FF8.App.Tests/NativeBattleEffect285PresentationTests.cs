@@ -37,12 +37,12 @@ public sealed class NativeBattleEffect285PresentationTests
             {
                 continue;
             }
-            BattleSnapshot current = NativeBattleEffectFamilyRunner.LoadSnapshot(currentPath);
+            BattleSnapshot current = NativeBattleFixtureInspection.ReadLogicalSnapshot(currentPath);
             if (!callbacks.Add(current.ReadFixturePresentation().NativeGraphics!.Callback))
             {
                 continue;
             }
-            BattleSnapshot prior = NativeBattleEffectFamilyRunner.LoadSnapshot(priorPath);
+            BattleSnapshot prior = NativeBattleFixtureInspection.ReadLogicalSnapshot(priorPath);
             Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
             observer.Observe(prior, current, (_, _) =>
             {
@@ -51,7 +51,7 @@ public sealed class NativeBattleEffect285PresentationTests
         List<object> flashes = [];
         foreach (string snapshotPath in Directory.GetFiles(directory!, "*.battle.json"))
         {
-            BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(snapshotPath);
+            BattleSnapshot snapshot = NativeBattleFixtureInspection.ReadLogicalSnapshot(snapshotPath);
             NativeBattleModulePoolTask? main = snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == MainCallback);
             if (main is null)
             {
@@ -67,7 +67,7 @@ public sealed class NativeBattleEffect285PresentationTests
         observer.Publish(output!);
         File.WriteAllText(Path.Combine(output!, "saved-shared-flash-observations.json"), JsonSerializer.Serialize(new { Scope = "Actual current base or next snapshot, current main age minus one, current CriticalFlash task and current resolved module draw; no Tick or invented prior", Flashes = flashes }));
         Assert.True(observer.SharedFlashObserved || flashes.Count > 0);
-        BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(directory!, "failed-live.battle.json"));
+        BattleSnapshot completed = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(directory!, "failed-live.battle.json"));
         Assert.True(Released(completed));
     }
 
@@ -77,8 +77,8 @@ public sealed class NativeBattleEffect285PresentationTests
         string? priorPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT285_OBSERVATION_PRIOR");
         string? currentPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT285_OBSERVATION_CURRENT");
         Assert.SkipUnless(priorPath is not null && currentPath is not null, "Select standalone effect285 observations with the current main workspace in the second snapshot.");
-        BattleSnapshot prior = NativeBattleEffectFamilyRunner.LoadSnapshot(priorPath!);
-        BattleSnapshot current = NativeBattleEffectFamilyRunner.LoadSnapshot(currentPath!);
+        BattleSnapshot prior = NativeBattleFixtureInspection.ReadLogicalSnapshot(priorPath!);
+        BattleSnapshot current = NativeBattleFixtureInspection.ReadLogicalSnapshot(currentPath!);
         NativeBattleEffect285PresentationObserver observer = new();
         observer.Observe(prior, current, (_, _) =>
         {
@@ -93,7 +93,7 @@ public sealed class NativeBattleEffect285PresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT285_CONTINUATION_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect285 continuation snapshot.");
         using GameAssets game = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(285, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
@@ -216,7 +216,7 @@ public sealed class NativeBattleEffect285PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -235,7 +235,7 @@ public sealed class NativeBattleEffect285PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT285_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original133 component source.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
         Assert.Equal(410, original.Definition.EncounterId);
         Assert.Equal(122, original.Definition.StageId);
         BattleSession restored = BattleSession.Restore(original);

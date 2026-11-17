@@ -17,7 +17,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         string? baselinePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_SOURCE_BASELINE");
         string? outputRoot = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_SOURCE_OUTPUT");
         Assert.SkipUnless(directory is not null && baselinePath is not null && outputRoot is not null, "Select installed resources, the original formation795 baseline and a distinct source output root.");
-        _ = Prepare(directory!, outputRoot!, NativeBattleEffectFamilyRunner.LoadSnapshot(baselinePath!), effect, slot, pc, actionId, sequence);
+        _ = Prepare(directory!, outputRoot!, NativeBattleFixtureInspection.ReadLogicalSnapshot(baselinePath!), effect, slot, pc, actionId, sequence);
     }
 
     internal static BattleSnapshot Prepare(string directory, string outputRoot, BattleSnapshot baseline, int effect, int slot, int pc, int actionId, int sequence)

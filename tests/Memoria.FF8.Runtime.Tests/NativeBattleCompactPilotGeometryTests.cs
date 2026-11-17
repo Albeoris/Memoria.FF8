@@ -79,7 +79,9 @@ public sealed class NativeBattleCompactPilotGeometryTests
     {
         NativeBattleModelPrimitiveBatch.Builder batchBuilder = new();
         NativeBattlePilotGeometryReference pilot = batchBuilder.AddPilot(new(Geometry(0).Identity, new(0, 0, 100), new(10, 0, 100), new(0, 10, 100), default, 3, true, false));
-        batchBuilder.Add(new(20, [0x04000000, 0x200000FF, 0, 80, 80u << 16], [100, 100, 100, 0]) { Pilot = pilot });
+        ImmutableArray<uint> words = [0x04000000, 0x200000FF, 0, 80, 80u << 16];
+        ImmutableArray<int> depths = [100, 100, 100, 0];
+        batchBuilder.Add(new(20, words, depths) { Pilot = pilot });
         NativeBattleModelPrimitiveBatch batch = batchBuilder.Freeze();
         NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();

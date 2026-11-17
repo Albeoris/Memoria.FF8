@@ -51,7 +51,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
             Assert.True(exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(effectId, exported.Selection.ShellEffect);
-            BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+            BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             current = queued;
             Assert.Equal(JsonSerializer.Serialize(originalBinding), JsonSerializer.Serialize(queued.Definition.NativeEffectCatalog[effectId - 1]));
             battle = Restore(queued, game);
@@ -157,7 +157,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
                 Select(Fixtures);
                 byte[] pixels = scene.Render(Restore(snapshot, game), 320, 224).ToArray();
                 NativeBattleRestorationPresentationTests.Publish(input.OutputDirectory, name, snapshot, pixels);
-                BattleSnapshot serialized = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(input.OutputDirectory, name + ".battle.json"));
+                BattleSnapshot serialized = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(input.OutputDirectory, name + ".battle.json"));
                 using GameResourceHost freshHost = input.Open();
                 using GameAssets freshGame = new(input.GameDirectory, resources: freshHost.Resources);
                 using BattleAssets freshAssets = new(input.GameDirectory, freshHost.Resources);

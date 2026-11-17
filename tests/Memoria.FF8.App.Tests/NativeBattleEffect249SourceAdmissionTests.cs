@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect249SourceAdmissionTests
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and the current Effect249 source snapshot.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string before = JsonSerializer.Serialize(source);
         ValidateSource(source, game, assets, true);
         Assert.Equal(before, JsonSerializer.Serialize(source));

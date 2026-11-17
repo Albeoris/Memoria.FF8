@@ -27,7 +27,7 @@ public sealed class NativeBattleThundaga105PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleNativeAction kernel = Assert.Single(assets.NativeActions, action => action.Command == 2 && action.ActionId == 9 && action.MagicId == 105);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         NativeBattleGraphicsState initial = source.ReadFixturePresentation().NativeGraphics!;
         int descriptor = Assert.Single(initial.Descriptors.Queue, slot => initial.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(initial.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
@@ -101,7 +101,7 @@ public sealed class NativeBattleThundaga105PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
@@ -226,7 +226,7 @@ public sealed class NativeBattleThundaga105PresentationTests
             Assert.NotNull(sound.Allocation);
             Assert.Single(heard, sound => sound.Sound == resources.Sound);
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession completed = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession completed = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             completed.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(completed.Capture()));
@@ -246,7 +246,7 @@ public sealed class NativeBattleThundaga105PresentationTests
 
         void Report(string status, string? blocker)
         {
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, Scenario = "Queued declared controlled seven-HP component; command2/action9/effect105; ordinary producer/formula admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, Completions = completions, ContactHpTransitions = contacts, CompletedFragmentFaces = fragmentFaces, DebrisPeak = debrisPeak, MovingSpritePeak = movingPeak, SawF45CapacityFailure = capacityFailure, PrivateParsedCommands = privatePackets, CustomE2Commands = customWindows, SawCaptureStatics = captureStatics, SawCaptureOrder = captureOrder, CaptureChangedPixels = captureChangedPixels, CaptureNonzeroPixels = captureNonzeroPixels, ControllerCrtStart = controllerStart, ControllerCrtEnd = controllerEnd, ControllerCrtDraws = controllerDraws, SawActualCommonIo = commonIo, SoundStopRequests = stops, MusicCommands = music, Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry original native visual differential", "Ordinary command producer and formula admission", "Other targets/headers", "Hardware audibility" } }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, Scenario = "Queued declared controlled seven-HP component; command2/action9/effect105; ordinary producer/formula admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, Completions = completions, ContactHpTransitions = contacts, CompletedFragmentFaces = fragmentFaces, DebrisPeak = debrisPeak, MovingSpritePeak = movingPeak, SawF45CapacityFailure = capacityFailure, PrivateParsedCommands = privatePackets, CustomE2Commands = customWindows, SawCaptureStatics = captureStatics, SawCaptureOrder = captureOrder, CaptureChangedPixels = captureChangedPixels, CaptureNonzeroPixels = captureNonzeroPixels, ControllerCrtStart = controllerStart, ControllerCrtEnd = controllerEnd, ControllerCrtDraws = controllerDraws, SawActualCommonIo = commonIo, SoundStopRequests = stops, MusicCommands = music, Boundaries = boundaries, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole-entry original native visual differential", "Ordinary command producer and formula admission", "Other targets/headers", "Hardware audibility" } }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

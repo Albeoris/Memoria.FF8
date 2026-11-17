@@ -292,6 +292,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, [property: JsonIgnore] BattleTargetRequest TargetRequest, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false)
 {
+    internal BattleDiagnosticPeriodicStatus? DiagnosticDoomExpiration { get; init; }
     [JsonIgnore]
     internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
@@ -610,7 +611,6 @@ public sealed partial class BattleCombatant
 
     internal int? ResolvedNativeLevel { get; set; }
     internal bool NativeLevelReprojected { get; private set; }
-    internal bool ExpandedAiRemovalPending { get; set; }
     internal ExpandedEnemyLevelProfile? ExpandedEnemyLevels { get; }
     internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 

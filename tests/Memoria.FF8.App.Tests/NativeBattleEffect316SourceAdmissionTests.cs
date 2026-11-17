@@ -17,7 +17,7 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         Assert.SkipUnless(directory is not null && path is not null && output is not null, "Select original resources, a fresh standalone and a new source-admission evidence directory.");
         Assert.False(Directory.Exists(output));
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string unchanged = JsonSerializer.Serialize(source);
         BattleSession session = BattleSession.Restore(source);
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));

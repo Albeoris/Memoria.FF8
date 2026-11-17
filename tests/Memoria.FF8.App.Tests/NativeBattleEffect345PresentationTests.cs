@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect345PresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(462, source.Definition.EncounterId);
         Assert.Equal(121, source.Definition.StageId);
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
@@ -218,7 +218,7 @@ public sealed class NativeBattleEffect345PresentationTests
     internal static void VerifyColdNext(string name, BattleSnapshot snapshot, GameAssets game, BattleAssets assets, string output)
     {
         NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-        BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+        BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
         BattleSession cold = Restore(json, game);
         BattleSession direct = Restore(snapshot, game);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));

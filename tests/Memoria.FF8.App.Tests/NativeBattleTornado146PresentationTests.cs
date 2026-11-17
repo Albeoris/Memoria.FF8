@@ -25,8 +25,8 @@ public sealed class NativeBattleTornado146PresentationTests
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory, fixture);
         File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported, new JsonSerializerOptions { WriteIndented = true }));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition);
         string caster = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0)!;
@@ -197,7 +197,7 @@ public sealed class NativeBattleTornado146PresentationTests
         {
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(battle, 320, 224));
-            BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + "-before.battle.json")));
+            BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             battle.Tick();

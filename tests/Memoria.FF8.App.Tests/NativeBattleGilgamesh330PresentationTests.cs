@@ -24,7 +24,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         Assert.Empty(source.QueuedActions);
         Assert.Null(source.ActiveAction);
         Assert.Empty(source.Definition.GuardianForces);
@@ -86,7 +86,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
             RandomIndex = randomIndex, Chance = chance, Selector = selector,
             Kernel = kernel
         }, new JsonSerializerOptions { WriteIndented = true }));
-        BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "prepared-support.battle.json")));
+        BattleSession battle = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "prepared-support.battle.json")));
         BattleScenePresentation scene = new(assets, definition);
         int initialEventCount = battle.Events.Count;
         string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
@@ -148,7 +148,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                     phasePixelHashes.Add(boundary, pixelHash);
                     phaseFrames.Add(new { Boundary = boundary, Callback = before.ReadFixturePresentation().NativeGraphics!.Callback, RgbaSha256 = pixelHash, Commands = before.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Length });
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", before, pixels);
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(cold, 320, 224));
                 }
@@ -238,7 +238,7 @@ public sealed class NativeBattleGilgamesh330PresentationTests
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattleRestorationPresentationTests.Publish(output, "completed-before", after, pixels);
-                    BattleSession independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed-before.battle.json")));
+                    BattleSession independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(independent.Capture()));
                     Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(independent, 320, 224));
                     battle.AdvanceNativeGraphicsPresentation(Callback);

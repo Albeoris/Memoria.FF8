@@ -40,7 +40,7 @@ public sealed class ActiveBattleResourceProfileCompatibilityTests
             world.EnsureField();
             BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter!;
             int results = session.State.AppliedBattleResultIds.Length;
-            world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+            ExpandedBattleInstalledEntry.CompleteDebugVictory(world);
             long frame = world.Events.Frame;
             world.ApplyBattleInput(new(BattleInputKind.Return));
             Assert.Null(world.Events.LastFault);

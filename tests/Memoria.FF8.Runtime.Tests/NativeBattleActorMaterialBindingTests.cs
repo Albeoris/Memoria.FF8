@@ -121,10 +121,6 @@ public sealed class NativeBattleActorMaterialBindingTests
                 textures = textures.WithPresentationTexture("second", new(NativeBattleEffectTextureState.FromColdProcess(), NativeBattlePcTextureWindowCache.Reset4647A0(null)));
             }
         }
-        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
-        Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
-        Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
-        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model())]) with
         {
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
@@ -133,6 +129,11 @@ public sealed class NativeBattleActorMaterialBindingTests
         {
             graphics = graphics with { ActorModels = graphics.ActorModels.Add(Second, Model()) };
         }
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
+        Set(session, nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
         return (session, graphics);
     }
 
@@ -216,10 +217,10 @@ public sealed class NativeBattleActorMaterialBindingTests
 
     private static ImmutableArray<NativeBattleLogicalCommand> Commands(NativeBattleGraphicsState graphics) => graphics.PrimitiveFrame!.Pending.Traverse(Tables().WordLengths);
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattleSession session, string property, object value) => NativeBattleHostedTestFixture.SetProperty(session.Presentation!, property, value);
 
     private static NativeBattleGraphicsState InvokeFrame(BattleSession session, string method, params object?[] args)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, args)!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, args)!;
     }
 }

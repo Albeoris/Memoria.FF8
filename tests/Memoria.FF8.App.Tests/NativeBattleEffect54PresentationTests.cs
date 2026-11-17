@@ -16,7 +16,7 @@ public sealed class NativeBattleEffect54PresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT54_CONTINUATION_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect54 continuation snapshot.");
         using GameAssets game = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(54, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
@@ -143,7 +143,7 @@ public sealed class NativeBattleEffect54PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -162,7 +162,7 @@ public sealed class NativeBattleEffect54PresentationTests
     internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT54_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original56 component source.");
-        return PrepareFromEntry(game, assets, output, NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+        return PrepareFromEntry(game, assets, output, NativeBattleFixtureInspection.ReadLogicalSnapshot(path));
     }
 
     internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)

@@ -38,7 +38,7 @@ public sealed class NativeBattleEnemyMicroMissiles284PresentationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENEMYMICROMISSILES284_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Enemy Micro Missiles component.");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([284])[283];
         Assert.Equal(NativeBattleEnemyMicroMissiles284Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleEnemyMicroMissiles284Profile.Initializer, binding.Initializer);

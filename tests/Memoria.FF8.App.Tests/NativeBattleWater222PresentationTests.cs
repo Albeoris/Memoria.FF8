@@ -28,7 +28,7 @@ public sealed class NativeBattleWater222PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         int descriptor = Assert.Single(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => original.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -108,7 +108,7 @@ public sealed class NativeBattleWater222PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                 }
                 battle.AdvanceNativeGraphicsPresentation(Callback);
@@ -187,7 +187,7 @@ public sealed class NativeBattleWater222PresentationTests
             Assert.Equal(0, battle.Presentation!.Memory.Active);
             Assert.Equal((byte)0, battle.Presentation!.Memory.ScriptedEffects!.Read(0x2798219, 1)[0]);
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession completedCold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession completedCold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             completedCold.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(completedCold.Capture()));
@@ -226,7 +226,7 @@ public sealed class NativeBattleWater222PresentationTests
                 ObservedInitialCrtSeed = source.NativeCrtRandom?.Seed,
                 ObservedFinalCrtSeed = battle.Capture().NativeCrtRandom?.Seed,
                 SourceSha256,
-                BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(),
+                BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(),
                 Pending = new[] { "Whole-entry native visual comparison", "Ordinary command and original formula admission", "Other headers/targets", "Hardware audibility" }
             }, new JsonSerializerOptions { WriteIndented = true }));
         }

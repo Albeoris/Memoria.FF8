@@ -35,7 +35,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
         };
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, gameDirectory!, fixture);
         Assert.NotEqual("blocked", exported.Status);
-        BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+        BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
         foreach (NativeEffectFixtureArtifact artifact in exported.Artifacts)
         {
             string path = Path.GetFullPath(Path.Combine(fixture, artifact.File));

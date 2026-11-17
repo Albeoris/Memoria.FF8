@@ -152,7 +152,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         BattleSnapshot prepared = session.CaptureForContinuation();
         NativeBattleGraphicsState graphics = prepared.ReadFixturePresentation().NativeGraphics!;
         Assert.NotNull(graphics.ActionContext!.Matrices);
-        Assert.Null(session.NativeModelLoader!.Task);
+        Assert.Null(session.Presentation!.NativeModelLoader!.Task);
         int taskSlot = Enumerable.Range(0, 4).Single(index => (graphics.Descriptors.Tasks[index].Flags & 1) != 0 && graphics.Descriptors.Tasks[index].Kind == NativeBattleDescriptorTaskKind.Action104);
         NativeBattleDescriptorTask action = graphics.Descriptors.Tasks[taskSlot];
         descriptors = graphics.Descriptors with { Tasks = graphics.Descriptors.Tasks.SetItem(taskSlot, action with { Payload = action.Payload.SetItem(1, 7) }) };

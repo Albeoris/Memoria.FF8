@@ -6,6 +6,13 @@ public sealed partial class BattlePresentationProcess
 
     internal bool TerminalFinished => HostedTerminalFinished;
 
+    internal bool CanPrepareDebugTerminal => !advancing && HasBattleEntry && hostedTerminal is null && !HasActiveAction && hostedCompletionInvocation is null &&
+        IsControlPrefixRetired && !HasPendingModelLoad && NativeFileIo?.ActiveCount == 0 && HostedGuardianBoost is null &&
+        NativeGraphics is { EntryReady: true, UiServices.PauseDE9: false, PendingContacts.IsEmpty: true, PendingTrigger: null, TriggerWidget: null } graphics &&
+        graphics.Descriptors.Queue.IsEmpty && !graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0) &&
+        graphics.Effects is { Head: null, PublishedCount: 0 } && graphics.Auxiliary.Head is null && graphics.ModuleEffects.Head is null &&
+        !NativeOriginalEffectBusy(graphics);
+
     internal sealed class PreparedTerminal(BattlePresentationProcess owner, HostedBattleTerminal terminal, NativeBattleGraphicsState originalGraphics, NativeBattleGraphicsState graphics, BattlePresentationProcess.PreparedHostedGuardianFormChange? guardianForm)
     {
         internal BattlePresentationProcess Owner { get; } = owner;

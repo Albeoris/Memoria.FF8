@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InstalledPartyReplacementTests
 {
     [Fact]
-    public void Authored_Eject_in_formation_511_binds_and_reveals_the_replacement()
+    public void Authored_Eject_in_formation_511_binds_reveals_and_returns_the_replacement()
     {
         RunReplacement(authoredEject: true);
     }
@@ -22,7 +22,9 @@ public sealed class InstalledPartyReplacementTests
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
-        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, assets.ReadColdProcessNativeBattleMemory()));
+        GameState source = ExpandedBattleEffectMatrixTests.PrepareField(directory, assets.ReadColdProcessNativeBattleMemory());
+        NativeCharacterVitals originalVitals = source.CharacterVitals!.DeepCopy();
+        GameSession session = new(source);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
         using GameWorld world = new(session, directory, sharedAssets: assets);
         ExpandedBattleInstalledEntry.Prepare(world, session, PrepareParty, formation: 511, allies: 4, additionalEnemies: 0);
@@ -83,6 +85,9 @@ public sealed class InstalledPartyReplacementTests
         Assert.Equal(incoming.Atb, Assert.Single(fork.Combatants, actor => actor.Id == incoming.Id).Atb);
         Assert.Equal((byte)4, battle.MagicVitals!.CombatParty[0]);
         Assert.DoesNotContain(process.Graphics.ActorModels.Owners, owner => owner == oldOwner);
+        ReturnToField(world, session, battle);
+        Assert.Equal(originalVitals.CombatParty, source.CharacterVitals!.CombatParty);
+        Assert.Equal(originalVitals.Records, source.CharacterVitals.Records);
 
         static void Observe(BattlePresentationProcess process, List<uint> reached)
         {
@@ -91,6 +96,54 @@ public sealed class InstalledPartyReplacementTests
                 reached.AddRange(frame.ReadOrderedReceipts().OfType<NativeBattlePartyReplacementReached>().Select(receipt => receipt.Descriptor.Callback));
             }
         }
+    }
+
+    private static void ReturnToField(GameWorld world, GameSession session, BattleSession battle)
+    {
+        BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
+        bool escape = !battle.EscapeDisabled;
+        if (escape)
+        {
+            battle.PublishNativeEscapeButtons(3);
+        }
+        else
+        {
+            for (int callback = 0; callback < 1200 && !battle.CanAdmitDebugOutcome; callback++)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick));
+            }
+            Assert.True(battle.CanAdmitDebugOutcome, "Formation 511's replacement did not release the terminal admission boundary.");
+            world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        }
+        for (int callback = 0; callback < 1200 && battle.Outcome == BattleOutcome.Active; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.Equal(escape ? BattleOutcome.Escaped : BattleOutcome.Victory, battle.Outcome);
+        BattleResult result = world.CaptureBattleOutcome(battle, occurrence);
+        Assert.Equal(new(BattleRosterSlot.Ally(0), 0, 4, 1), Assert.Single(result.PartyOccupancyChanges));
+        BattlePartyResult departed = Assert.Single(result.Party, participant => participant.Row == 0);
+        BattlePartyResult replacement = Assert.Single(result.Party, participant => participant.Row == 4);
+        Assert.Equal((ushort)0x21, departed.StatusBefore);
+        Assert.Equal((ushort)1, departed.StatusAfter);
+        Assert.NotNull(result.NativeCrtRandomAfter);
+        Assert.DoesNotContain(occurrence.OccurrenceId, session.State.AppliedBattleResultIds);
+
+        world.ApplyBattleInput(new(BattleInputKind.Return));
+        GameState returned = session.State;
+        Assert.Equal(SceneKind.Field, returned.Scene);
+        Assert.Equal(133, returned.FieldId);
+        Assert.Null(world.Battle);
+        Assert.Null(returned.PendingBattleEncounter);
+        Assert.Null(returned.RandomEncounters!.Pending);
+        Assert.Single(returned.AppliedBattleResultIds, id => id == occurrence.OccurrenceId);
+        Assert.Equal(new byte[] { 4, 1, 2, 3 }, returned.CharacterVitals!.GetBattlePartyRows(4));
+        Assert.Equal(departed.StatusAfter, returned.CharacterVitals.Records[departed.Row].Status);
+        Assert.Equal(departed.HitPointsAfter, returned.CharacterVitals.Records[departed.Row].HitPoints.Minimum);
+        Assert.Equal(replacement.HitPointsAfter, returned.CharacterVitals.Records[replacement.Row].HitPoints.Minimum);
+        Assert.NotNull(returned.CrtRandom);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleInput(new(BattleInputKind.Return)));
+        Assert.Same(returned, session.State);
     }
 
     private static void ReachInstalledEject(GameWorld world, BattleSession battle, BattleCombatant target)
@@ -159,7 +212,7 @@ public sealed class InstalledPartyReplacementTests
         {
             records[row] = records[row] with { MemberFlags = (ushort)((records[row].MemberFlags & ~1) | (row <= 4 ? 1 : 0)) };
         }
-        records[0] = records[0] with { Status = 1, HitPoints = new(0, 0) };
+        records[0] = records[0] with { Status = 0x21, HitPoints = new(0, 0) };
         session.SetCharacterVitals((vitals with { Records = records }).WithBattleParty([0, 1, 2, 3], 4));
     }
 }

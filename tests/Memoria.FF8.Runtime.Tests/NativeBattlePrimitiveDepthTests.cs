@@ -60,7 +60,7 @@ public sealed class NativeBattlePrimitiveDepthTests
         ImmutableArray<NativeBattlePrimitiveDepthVertex> first = state.Project461220(100, true, 4, triangleDepths);
         state.Project461220(100, true, 4, triangleDepths, reusable);
         Assert.Equal(first.ToArray(), reusable.ToArray());
-        state.Project461220(200, false, 0, [], reusable);
+        state.Project461220(200, false, 0, ReadOnlySpan<int>.Empty, reusable);
         Assert.Equal(state.Project461220(200, false, 0, []).ToArray(), reusable.ToArray());
         Assert.Equal(1f / 1024, first[0].ReciprocalW);
         Assert.Equal(float.PositiveInfinity, first[3].ReciprocalW);

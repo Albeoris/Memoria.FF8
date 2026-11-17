@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
         Assert.False(Directory.Exists(output));
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         PrepareOriginalTrio(source, game, assets, output!);
     }
 

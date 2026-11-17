@@ -8,34 +8,18 @@ public sealed class NativeAllocationDescriptorTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ExplicitDebugOutcomeAtFrameZeroSurvivesRestoreWithoutCompletingNativeEntry(bool victory)
+    public void Debug_outcome_rejects_incomplete_entry_without_mutation(bool victory)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, [0]);
-        NativeBattleGraphicsState before = battle.Presentation!.Graphics;
+        NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
+        string before = JsonSerializer.Serialize(battle.Capture());
         Assert.False(battle.NativeEntryReady);
-        if (victory)
-        {
-            battle.InstantVictory();
-        }
-        else
-        {
-            battle.InstantDefeat();
-        }
-        BattleOutcome expected = victory ? BattleOutcome.Victory : BattleOutcome.Defeat;
-        Assert.Equal(expected, battle.Outcome);
-        Assert.Equal(expected, battle.DebugOutcome);
-        Assert.Equal(0, battle.Frame);
-        Assert.False(battle.NativeEntryReady);
-        Assert.Equal(before.EntryLifecycle, battle.Presentation!.Graphics.EntryLifecycle);
-        Assert.Equal(before.Callback, battle.Presentation!.Graphics.Callback);
-        string json = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-        Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
-        Assert.False(restored.NativeEntryReady);
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { DebugOutcome = BattleOutcome.Active }));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { DebugOutcome = null }));
+        Action request = victory ? battle.InstantVictory : battle.InstantDefeat;
+        Assert.Throws<InvalidOperationException>(request);
+        Assert.Same(graphics, battle.Presentation.Graphics);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
     }
 
     [Fact]

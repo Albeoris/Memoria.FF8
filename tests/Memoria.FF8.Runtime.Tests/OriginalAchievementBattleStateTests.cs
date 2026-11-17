@@ -64,8 +64,7 @@ public sealed class OriginalAchievementBattleStateTests
         synthetic.SetLiveBattle(Battle(native: false, guardianForces: [new(3, 10, 10, true)]));
         Assert.Empty(synthetic.State.PendingOriginalAchievementObservations);
         GameSession debug = Session(Vitals());
-        BattleSession shortcut = Battle(guardianForces: [new(3, 10, 10, true)]);
-        shortcut.InstantVictory();
+        BattleSession shortcut = Battle(guardianForces: [new(3, 10, 10, true)], debugVictory: true);
         debug.SetLiveBattle(shortcut);
         Assert.Empty(debug.State.PendingOriginalAchievementObservations);
     }
@@ -85,12 +84,8 @@ public sealed class OriginalAchievementBattleStateTests
     {
         GameSession session = Session(null);
         GameState earlier = session.State;
-        BattleSnapshot snapshot = Battle().Capture();
+        BattleSnapshot snapshot = Battle(debugVictory: debug).Capture();
         BattleSession battle = BattleSession.Restore(snapshot with { NativeScriptState = snapshot.NativeScriptState with { UnlockedTutorials = [127] } });
-        if (debug)
-        {
-            battle.InstantVictory();
-        }
         session.SetLiveBattle(battle);
         if (debug)
         {
@@ -146,10 +141,10 @@ public sealed class OriginalAchievementBattleStateTests
         return new() { Version = 1, Rule = NativeEconomy.InitializationRule, InitOutSha256 = new string('0', 64), Items = items, Gil = 0, PastGil = 0, EventBankGil72 = 0, EventBankPastGil76 = 0 };
     }
 
-    private static BattleSession Battle(bool native = true, BattleGuardianForceVital[]? guardianForces = null, NativeCardInventory? cards = null, NativeItemStock[]? items = null, NativeCharacterVitals? magicVitals = null)
+    private static BattleSession Battle(bool native = true, BattleGuardianForceVital[]? guardianForces = null, NativeCardInventory? cards = null, NativeItemStock[]? items = null, NativeCharacterVitals? magicVitals = null, bool debugVictory = false)
     {
         NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 100, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
             EncounterId = 1,
             NativeEntry = native ? new(0x80, 0) : null,
@@ -160,9 +155,10 @@ public sealed class OriginalAchievementBattleStateTests
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true },
-                new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, NativeTemplate = new(1, Enumerable.Repeat(level, 101).ToArray()) { Information254 = 0 } }
+                new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, CurrentHp = debugVictory ? 0 : 100, NativeStatus0 = debugVictory ? (ushort)1 : (ushort)0, NativeTemplate = new(1, Enumerable.Repeat(level, 101).ToArray()) { Information254 = 0 } }
             ]
         }, BattleAtbMode.TurnBased);
+        return debugVictory ? BattleSession.Restore(battle.Capture() with { DebugOutcome = BattleOutcome.Victory }) : battle;
     }
 
     private sealed class MemoryRepository : IAchievementRepository

@@ -246,7 +246,8 @@ public sealed partial class BattleRenderer
             {
                 throw new InvalidDataException("Scene sampling requires one retained coordinate per original corner.");
             }
-            if (command.ProjectedCoordinates is { } projectedPoints && (projectedPoints.IsDefault || projectedPoints.Length != corners))
+            ReadOnlySpan<BattleSceneScreenPoint> projectedPoints = command.ProjectedCoordinateSpan;
+            if (command.HasProjectedCoordinates && projectedPoints.Length != corners)
             {
                 throw new InvalidDataException("Expanded polygon coordinates require one point per original corner.");
             }
@@ -256,7 +257,8 @@ public sealed partial class BattleRenderer
             {
                 throw new InvalidDataException("Native polygon command does not contain its original packed corner fields.");
             }
-            bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native polygon rendering requires the executed OT descriptor DWORD8; migrate the named snapshot explicitly."));
+            ReadOnlySpan<int> depths = command.VertexPayloadSpan;
+            bool perspective = !depths.IsEmpty && depths[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native polygon rendering requires the executed OT descriptor DWORD8; migrate the named snapshot explicitly."));
             NativeBattleScreenCoverage? coverage = command.ScreenCoverage;
             if (coverage is not null && (!quad || textured))
             {
@@ -264,7 +266,7 @@ public sealed partial class BattleRenderer
             }
             NativeBattlePrimitiveDepthState state = frame.LastDepthState ?? throw new NotSupportedException("Native polygon rendering requires its retained460B60 depth owner.");
             NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native polygon rendering requires its retained PC diffuse-color dispatch owner.");
-            state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4, projected);
+            state.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native polygon lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
             PixelImage? texture = null;
             Vector2 prefixUvScale = Vector2.One;
             if (capturedSurface is not null)
@@ -286,7 +288,7 @@ public sealed partial class BattleRenderer
                     ? ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, resolved, capabilities, colorState);
             }
-            PrimitiveVertex At(int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words)
+            PrimitiveVertex At(int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words, ReadOnlySpan<BattleSceneScreenPoint> points)
             {
                 int coordinateWord = 1 + corner * stride;
                 uint coordinate = words[coordinateWord];
@@ -310,7 +312,7 @@ public sealed partial class BattleRenderer
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                     coordinates *= prefixUvScale;
                 }
-                Vector2 position = command.ProjectedCoordinates is { } points
+                Vector2 position = !points.IsEmpty
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
                     : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
                 if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
@@ -320,8 +322,8 @@ public sealed partial class BattleRenderer
                 }
                 if (command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image)
                 {
-                    position = command.ProjectedCoordinates is { } imagePoints
-                        ? NativeSceneCaptureImagePosition(imagePoints[corner].X, imagePoints[corner].Y, command.Flags20)
+                    position = !points.IsEmpty
+                        ? NativeSceneCaptureImagePosition(points[corner].X, points[corner].Y, command.Flags20)
                         : NativeSceneCaptureImagePosition(unchecked((short)coordinate), unchecked((short)(coordinate >> 16)), command.Flags20);
                 }
                 if (coverage is not null)
@@ -331,9 +333,9 @@ public sealed partial class BattleRenderer
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = (foreignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
-            PrimitiveVertex a = At(0, projected[0], words);
-            PrimitiveVertex b = At(1, projected[1], words);
-            PrimitiveVertex c = At(2, projected[2], words);
+            PrimitiveVertex a = At(0, projected[0], words, projectedPoints);
+            PrimitiveVertex b = At(1, projected[1], words, projectedPoints);
+            PrimitiveVertex c = At(2, projected[2], words, projectedPoints);
             if (capturedSurface is null && foreignSurface is { } foreign)
             {
                 NativeBattleForeignRenderMaterial? hostMaterial = foreign.Material as NativeBattleForeignRenderMaterial ?? ForeignMaterialResolver?.Invoke(foreign.Material);
@@ -357,7 +359,7 @@ public sealed partial class BattleRenderer
                 }
                 if (quad)
                 {
-                    PrimitiveVertex d = At(3, projected[3], words);
+                    PrimitiveVertex d = At(3, projected[3], words, projectedPoints);
                     float secondArea = (d.X - b.X) * (c.Y - b.Y) - (d.Y - b.Y) * (c.X - b.X);
                     if (!hostMaterial.Cull || secondArea >= 0)
                     {
@@ -379,7 +381,7 @@ public sealed partial class BattleRenderer
             }
             if (quad)
             {
-                PrimitiveVertex d = At(3, projected[3], words);
+                PrimitiveVertex d = At(3, projected[3], words, projectedPoints);
                 submitted = DrawnTriangles;
                 QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
                 if (DrawnTriangles > submitted)
@@ -805,8 +807,9 @@ public sealed partial class BattleRenderer
         }
         int blend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native TILE requires its executed ABR.");
         NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native TILE requires its retained PC color owner.")).Untextured(command.WordSpan[0], semi, blend);
-        bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native TILE requires its executed descriptor depth mode."));
-        ImmutableArray<int> depths = command.VertexPayload4.IsEmpty ? [] : Enumerable.Repeat(command.VertexPayload4[0], 4).ToImmutableArray();
+        ReadOnlySpan<int> sourceDepths = command.VertexPayloadSpan;
+        bool perspective = !sourceDepths.IsEmpty && sourceDepths[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native TILE requires its executed descriptor depth mode."));
+        ImmutableArray<int> depths = sourceDepths.IsEmpty ? [] : Enumerable.Repeat(sourceDepths[0], 4).ToImmutableArray();
         ImmutableArray<NativeBattlePrimitiveDepthVertex> vertices = (frame.LastDepthState ?? throw new NotSupportedException("Native TILE requires its retained depth dispatch owner.")).Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native TILE lacks its original bucket."), perspective, command.Flags20, depths);
         int x = unchecked((short)command.WordSpan[1]);
         int y = unchecked((short)(command.WordSpan[1] >> 16));

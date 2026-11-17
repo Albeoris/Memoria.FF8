@@ -11,9 +11,8 @@ public sealed class BattleSnapshotSceneTests
     {
         BattleSession battle = new(new BattleDefinition
         {
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", CurrentHp = 0, NativeStatus0 = 1 }]
         }, BattleAtbMode.Normal);
-        battle.InstantVictory();
         GameSession session = new(new GameState { Scene = scene, WorldArrival = scene == SceneKind.WorldMap ? new WorldTransition(0, 0, 0) : null, FullBattlePlaythrough = null, Battle = battle.Capture() });
         Assert.Equal(BattleOutcome.Victory, session.State.Battle!.Outcome);
         Assert.Throws<InvalidDataException>(() => new GameSession(session.State with { Scene = SceneKind.Movie }));

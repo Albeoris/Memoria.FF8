@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect83PresentationTests
     {
         string sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT83_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select a compatible standalone original-carrier source snapshot for the effect83 component.");
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT83_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the effect83 component.");
-        return PrepareFromCarrier(game, assets, request, output, NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath));
+        return PrepareFromCarrier(game, assets, request, output, NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath));
     }
 
     internal static BattleSnapshot PrepareFromCarrier(GameAssets game, BattleAssets assets, NativeEffectFixtureRequest request, string output, BattleSnapshot original)

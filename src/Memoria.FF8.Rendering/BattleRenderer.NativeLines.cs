@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Numerics;
 using Memoria.FF8.Runtime;
 
@@ -19,13 +18,15 @@ public sealed partial class BattleRenderer
         {
             throw new InvalidDataException("Native LINE2 requires its original endpoint colors and packed XY words.");
         }
-        bool perspective = !command.VertexPayload4.IsEmpty && command.VertexPayload4[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native LINE2 requires its executed descriptor depth mode."));
+        ReadOnlySpan<int> depths = command.VertexPayloadSpan;
+        bool perspective = !depths.IsEmpty && depths[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native LINE2 requires its executed descriptor depth mode."));
         NativeBattlePrimitiveDepthState depthState = frame.LastDepthState ?? throw new NotSupportedException("Native LINE2 requires its retained depth owner.");
-        ImmutableArray<NativeBattlePrimitiveDepthVertex> projected = depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, command.VertexPayload4);
+        Span<NativeBattlePrimitiveDepthVertex> projected = stackalloc NativeBattlePrimitiveDepthVertex[4];
+        depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
         int blendMode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
-        PrimitiveVertex a = Vertex(0);
-        PrimitiveVertex b = Vertex(1);
+        PrimitiveVertex a = Vertex(0, projected[0]);
+        PrimitiveVertex b = Vertex(1, projected[1]);
         int blend = semi ? blendMode : -1;
         if (TriangleRenderer is { } renderer)
         {
@@ -50,13 +51,12 @@ public sealed partial class BattleRenderer
         nativeTriangles.Add(new(a, b, default, null, blend, resolved.Pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
         ObserveLine();
 
-        PrimitiveVertex Vertex(int corner)
+        PrimitiveVertex Vertex(int corner, NativeBattlePrimitiveDepthVertex depth)
         {
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
             NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.WordSpan[colorIndex], semi, blendMode);
             Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, resolved.DrawMode);
-            NativeBattlePrimitiveDepthVertex depth = projected[corner];
             if (TrySamplePilotVertex(command, corner, resolved.DrawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;

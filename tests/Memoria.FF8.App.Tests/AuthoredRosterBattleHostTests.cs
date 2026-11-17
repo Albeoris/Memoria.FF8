@@ -267,7 +267,12 @@ public sealed class AuthoredRosterBattleHostTests
         NativeBattleContactHalf[] reflections = [];
         BattleModelOwner[] reflectors = targets.Where((_, index) => (reflectionMask & (1 << index)) != 0).Select(target => battle.ReadPresentationModelOwner(target.Id)).ToArray();
         HashSet<BattleActionHeaderReference> entered = [];
-        int eventStart = battle.Events.Count;
+        BattleEvent[] committedPrefix = battle.Events.ToArray();
+        List<BattleEvent> observed = [];
+        List<BattleDiagnosticResolution> resolutions = [];
+        battle.DiagnosticEventPublished += observed.Add;
+        battle.DiagnosticResolution += resolutions.Add;
+        int eventStart = committedPrefix.Length;
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: casterId, TargetId: targetIds[0], Ability: BattleAbility.Magic, ActionId: spell) { MagicTargets = targetIds });
         int performedCasts = loseRepeatStatus ? 1 : casts;
         if (loseRepeatStatus)
@@ -347,6 +352,16 @@ public sealed class AuthoredRosterBattleHostTests
         }
         BattleSnapshot snapshot = battle.Capture();
         Assert.All(snapshot.Combatants.Where(actor => targetIds.Take(performedCasts).Contains(actor.Id)), actor => Assert.Equal(0, actor.NativeParticipant!.RemainingHits));
+        for (int index = 0; index < committedPrefix.Length; index++)
+        {
+            Assert.Same(committedPrefix[index], battle.Events[index]);
+        }
+        Assert.Equal(battle.Events.Skip(eventStart), observed);
+        Assert.Single(observed.Where(entry => entry is { Kind: "ActionComplete", ActorId: casterId }));
+        if (spell == 1 && reflectionMask != 0)
+        {
+            Assert.Contains(resolutions, value => value is { Kind: "damage", ActualAmount: > 0 } && value.ActualTargetId.StartsWith("party-", StringComparison.Ordinal));
+        }
         return (contacts, reflections, damage, snapshot.Random!.Indexes.ToArray());
     }
 

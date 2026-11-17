@@ -504,7 +504,7 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 stream.Write(bytes);
             }
-            BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+            BattleSession restored = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(path));
             if (JsonSerializer.Serialize(snapshot) != JsonSerializer.Serialize(restored.Capture()))
             {
                 throw new InvalidDataException("The exported complete standalone changes during its immediate independent load.");

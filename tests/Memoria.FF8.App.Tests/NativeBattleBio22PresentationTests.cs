@@ -26,7 +26,7 @@ public sealed class NativeBattleBio22PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(source.ReadFixturePresentation().NativeActionPackets!);
         int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
@@ -100,7 +100,7 @@ public sealed class NativeBattleBio22PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(independent.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                 }
@@ -171,7 +171,7 @@ public sealed class NativeBattleBio22PresentationTests
             Assert.Equal(receipts.Select(sound => sound.Sound), heard.Select(sound => sound.Sound));
             soundIds.UnionWith(receipts.Select(sound => sound.Sound));
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession completedCold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession completedCold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             completedCold.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(completedCold.Capture()));
@@ -200,7 +200,7 @@ public sealed class NativeBattleBio22PresentationTests
                 Scenario = "Fresh standalone original-resource controlled party contact, seven HP already supplied after formula; no missing-owner hydration or fixture substitution",
                 Source = Path.GetFullPath(sourcePath!),
                 SourceSha256 = sourceSha256,
-                BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(),
+                BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(),
                 Callbacks = callbacks,
                 Completions = completions,
                 ContactHpTransitions = contacts,

@@ -15,7 +15,7 @@ public sealed class NativeBattleEffect233ProjectionResourceTests
         Assert.SkipUnless(directory is not null && source is not null, "Select original resources and the earthquake component fixture.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot initial = NativeBattleEffectFamilyRunner.LoadSnapshot(source!);
+        BattleSnapshot initial = NativeBattleFixtureInspection.ReadLogicalSnapshot(source!);
         NativeBattleEffect233SourceAdmissionTests.ValidateSource(initial, assets);
         BattleSession battle = NativeBattleEffect233PresentationTests.Restore(NativeBattleEffect233PresentationTests.QueueComponent(initial, game, assets), game);
         BattleScenePresentation scene = new(assets, initial.Definition) { SmoothCompatibleMotion = true };

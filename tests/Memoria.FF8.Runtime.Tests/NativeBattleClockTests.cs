@@ -41,26 +41,6 @@ public sealed class NativeBattleClockTests
         }
     }
 
-    [Fact]
-    public void Terminal_logical_candidate_with_the_attached_ui_observation_clears_both_clock_owners()
-    {
-        BattleSession owner = new(new BattleDefinition
-        {
-            NativeBattleSpeed = 0,
-            NativeClockRules = new(1),
-            Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
-        }, BattleAtbMode.TurnBased);
-        BattleSession candidate = BattleSession.Restore(owner.Capture() with { NativeClock = new(1, 1, 1) });
-        typeof(BattleSession).GetField("expandedTurnClockObservation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(candidate, NativeBattleUiServices.Initialize());
-
-        candidate.InstantVictory();
-
-        Assert.Equal(BattleOutcome.Victory, candidate.Outcome);
-        Assert.Equal((byte)0, candidate.Capture().NativeClock!.Active);
-        Assert.Equal(0u, candidate.Capture().NativeClock!.ActionPause);
-        Assert.Equal(BattleOutcome.Active, owner.Outcome);
-    }
-
     [Theory]
     [InlineData((byte)1, 8, false, true)]
     [InlineData((byte)0, 8, false, false)]

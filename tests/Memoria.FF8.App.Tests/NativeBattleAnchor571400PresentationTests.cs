@@ -24,7 +24,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
         Assert.True(File.Exists(snapshotPath));
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(snapshotPath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(snapshotPath!);
         NativeBattleGraphicsState sourceGraphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The selected original snapshot requires its actual graphics owner.");
         NativeBattleOriginalEffectState sourceEffect = sourceGraphics.OriginalEffect ?? throw new InvalidDataException("The selected original snapshot requires its retained Morph172 binding.");
         Assert.Equal((ushort)172, sourceEffect.RequestedEffect);

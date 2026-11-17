@@ -78,7 +78,7 @@ public sealed class NativeBattleMoogle96PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int queued = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
@@ -150,7 +150,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
@@ -321,7 +321,7 @@ public sealed class NativeBattleMoogle96PresentationTests
             });
             Assert.Equal(2, heard.Count(sound => sounds.Contains(sound.Sound)));
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession restored = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -340,7 +340,7 @@ public sealed class NativeBattleMoogle96PresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh controlled post-formula seven-HP party healing; ordinary command admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactHpObservableTransitions = contacts, Completions = completions, FileIds = fileIds, FileCompletionObservableTransitions = fileCompletions, DogModes = modes.Order().ToArray(), ModelPoses = modelPoses.Order().ToArray(), CameraPhases = cameraPhases.Order().ToArray(), CameraStates = cameras.Count, StagePeak = stagePeak, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, SawMusicZero = sawMusicZero, SawMutableUv = sawMutableUv, SawTwoNodeBanks = sawTwoBanks, SawEnemyRestoreWithRetainedOverride = sawEnemyRestoreWithOverride, SawPrivatePackets = sawPrivate, SawCommonNodeSprites = sawCommonNodeSprites, DirectorCommonPhysicalPacket = directorPacket, DirectorPacketCallback = directorPacketCallback, DirectorPacketObservation = "Retained COMMON proxy and12physicalbytes with zero tag length; no parsed E1 command at this reference", Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility and vibration", "Other targets/headers", "Formula and ordinary command admission" } };
+            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh controlled post-formula seven-HP party healing; ordinary command admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, ContactHpObservableTransitions = contacts, Completions = completions, FileIds = fileIds, FileCompletionObservableTransitions = fileCompletions, DogModes = modes.Order().ToArray(), ModelPoses = modelPoses.Order().ToArray(), CameraPhases = cameraPhases.Order().ToArray(), CameraStates = cameras.Count, StagePeak = stagePeak, VibrationHandle = vibrationHandle, SawVibrationOwned = sawVibration, SawMusicZero = sawMusicZero, SawMutableUv = sawMutableUv, SawTwoNodeBanks = sawTwoBanks, SawEnemyRestoreWithRetainedOverride = sawEnemyRestoreWithOverride, SawPrivatePackets = sawPrivate, SawCommonNodeSprites = sawCommonNodeSprites, DirectorCommonPhysicalPacket = directorPacket, DirectorPacketCallback = directorPacketCallback, DirectorPacketObservation = "Retained COMMON proxy and12physicalbytes with zero tag length; no parsed E1 command at this reference", Boundaries = boundaries, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential comparison", "Hardware audibility and vibration", "Other targets/headers", "Formula and ordinary command admission" } };
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }
     }

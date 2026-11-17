@@ -158,7 +158,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
             Assert.Equal(logical, LogicalOwners(completed));
             ColdNext("completed", completed);
             File.WriteAllText(Path.Combine(output, "observations.json"), JsonSerializer.Serialize(observations));
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 190, ContactCount = contactCount, ticks, contactCrossings, glyphs, completions, changedPixels, PacketBanks = packetBanks.Order().ToArray(), ColdBoundaries = boundaries, Scope = "Original Enemy8/action154/sequence14/formation155 and original loaded party0/1/2; explicitly declared counted post-formula contacts, actual cold physical third contact for count2, logical HP/status retained; no ordinary AOE formula or AI admission", BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 190, ContactCount = contactCount, ticks, contactCrossings, glyphs, completions, changedPixels, PacketBanks = packetBanks.Order().ToArray(), ColdBoundaries = boundaries, Scope = "Original Enemy8/action154/sequence14/formation155 and original loaded party0/1/2; explicitly declared counted post-formula contacts, actual cold physical third contact for count2, logical HP/status retained; no ordinary AOE formula or AI admission", BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes() }));
         }
         catch (Exception error)
         {
@@ -180,7 +180,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         {
             boundary = "cold-" + name;
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json")));
+            BattleSession cold = Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json")));
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();

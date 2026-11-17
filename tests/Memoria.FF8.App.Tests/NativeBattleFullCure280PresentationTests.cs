@@ -23,8 +23,8 @@ public sealed class NativeBattleFullCure280PresentationTests
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory, fixture);
         File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         Assert.Equal(100, beforeInput.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Equal(1000, source.Combatants.Single(actor => actor.Id == "party").CurrentHp);
         Assert.Equal(2, Assert.Single(beforeInput.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!, stock => stock.SpellId == action.ActionId).Count);
@@ -120,7 +120,7 @@ public sealed class NativeBattleFullCure280PresentationTests
         {
             BattleSnapshot current = battle.Capture();
             NativeBattleRestorationPresentationTests.Publish(output!, name, current, scene.Render(battle, 320, 224));
-            BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+            BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
             battle.Tick();
             cold.Tick();

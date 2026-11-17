@@ -5,12 +5,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleLogicalOrdering
 {
-    private readonly record struct PacketSlot(NativeBattlePrimitiveReference Reference, ImmutableArray<uint> Words, NativeBattlePrimitiveLink Next, long Generation)
+    private readonly record struct PacketSlot(NativeBattlePrimitiveReference Reference, NativeBattleImmutableSlice<uint> Words, NativeBattlePrimitiveLink Next, long Generation)
     {
         internal byte? NextTableBuffer { get; init; }
         internal bool RequiresPhysicalRead { get; init; }
         internal uint? AddressedNextAddress { get; init; }
-        internal ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+        internal NativeBattleImmutableSlice<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
         internal NativeBattlePilotGeometryReference Pilot { get; init; }
         internal string? PresentationActorId { get; init; }
         internal string? TextureSourceOwner { get; init; }
@@ -41,12 +41,12 @@ public sealed partial record NativeBattleLogicalOrdering
         internal NativeBattleLogicalPacket Capture(long generation)
         {
             bool reset = !RequiresPhysicalRead && Generation != generation;
-            return new(Reference, Words, Next)
+            return new(Reference, Words.ToImmutableArray(), Next)
             {
                 NextTableBuffer = NextTableBuffer,
                 RequiresPhysicalRead = RequiresPhysicalRead || reset,
                 AddressedNextAddress = reset ? null : AddressedNextAddress,
-                ProjectedCoordinates = ProjectedCoordinates,
+                ProjectedCoordinates = ProjectedCoordinates?.ToImmutableArray(),
                 Pilot = Pilot,
                 PresentationActorId = PresentationActorId,
                 TextureSourceOwner = TextureSourceOwner,
@@ -64,7 +64,7 @@ public sealed partial record NativeBattleLogicalOrdering
         internal NativeBattleLogicalPacket? AfterDraw;
     }
 
-    private readonly record struct ProxySlot(NativeBattlePrimitiveReference Packet, ushort Flags20, ImmutableArray<int> VertexPayload4, int? ModuleDraw, byte? NextHigh22)
+    private readonly record struct ProxySlot(NativeBattlePrimitiveReference Packet, ushort Flags20, NativeBattleImmutableSlice<int> VertexPayload4, int? ModuleDraw, byte? NextHigh22)
     {
         internal ProxySlot(NativeBattleLogicalProxy proxy) : this(proxy.Packet, proxy.Flags20, proxy.VertexPayload4, proxy.ModuleDraw, proxy.NextHigh22)
         {
@@ -74,7 +74,7 @@ public sealed partial record NativeBattleLogicalOrdering
 
         internal NativeBattleLogicalProxy Capture()
         {
-            return new(Packet, Flags20, VertexPayload4, ModuleDraw) { NextHigh22 = NextHigh22 };
+            return new(Packet, Flags20, VertexPayload4.ToImmutableArray(), ModuleDraw) { NextHigh22 = NextHigh22 };
         }
     }
 

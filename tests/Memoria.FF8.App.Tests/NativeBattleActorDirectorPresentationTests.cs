@@ -6967,7 +6967,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                         Assert.Equal((byte)8, root.ReadByte(0x29));
                         Assert.Equal((byte)0, root.ReadByte(0x62));
                         ColdNext("texture-load-pending", current);
-                        BattleSnapshot restoredNext = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "texture-load-pending-next.battle.json"));
+                        BattleSnapshot restoredNext = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "texture-load-pending-next.battle.json"));
                         Assert.Equal((byte)255, restoredNext.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[0].Slots[rootIndex].ReadByte(0x62));
                         textureLoadPendingRestored = true;
                     }
@@ -8320,7 +8320,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 BattleSnapshot? previous = prior;
                 prior = snapshot;
                 NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());
-                BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+                BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
                 BattleSession direct = BattleSession.Restore(snapshot);
                 cold.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
                 direct.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
@@ -8435,8 +8435,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        BattleSnapshot expected = NativeBattleEffectFamilyRunner.LoadSnapshot(expectedPath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
+        BattleSnapshot expected = NativeBattleFixtureInspection.ReadLogicalSnapshot(expectedPath!);
         ushort effect = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect;
         Assert.Contains(effect, new ushort[] { 16, 61, 81, 82 });
         BattleSession battle = BattleSession.Restore(source);

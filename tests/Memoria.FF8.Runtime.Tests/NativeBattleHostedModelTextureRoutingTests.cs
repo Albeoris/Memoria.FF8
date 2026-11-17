@@ -17,7 +17,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         BattleSession session = fixture.Session;
         NativeBattleModelCpuBank first = fixture.Cpu.Palettes.Write(0, Palette(0x1F));
         NativeBattleModelCpuBank second = fixture.Cpu.Palettes.Write(0, Palette(0x3E0));
-        Set(session, nameof(BattleSession.NativeModelCpuResources), fixture.Cpu with { PresentationPalettes = ImmutableDictionary<BattlePartyModelOwner, NativeBattleModelCpuBank>.Empty.Add(First, first).Add(Second, second) });
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), fixture.Cpu with { PresentationPalettes = ImmutableDictionary<BattlePartyModelOwner, NativeBattleModelCpuBank>.Empty.Add(First, first).Add(Second, second) });
         NativeBattleEffectTextureState prior = session.Presentation!.Memory.Textures!;
         NativeBattlePcTextureWindowCache firstCache = prior.RequirePresentationTexture("first").Cache;
 
@@ -110,7 +110,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         if (wrongRoster)
         {
             BattleModelRoster other = new(fixture.Roster.Owners.Select(owner => owner == First ? new BattlePartyActorModel(new("wrong")) : owner));
-            Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(other, Aliases(other)));
+            Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(other, Aliases(other)));
         }
         else
         {
@@ -143,9 +143,9 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().BeginLoad(0) with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() with { TextureWindowCache = cache }, Textures = textures };
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, Aliases(roster));
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
-        Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
         return (session, cpu, roster);
     }
 
@@ -179,7 +179,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
 
     private static void Motion(BattleSession session, BattleModelOwner owner, NativeBattleTextureCopy copy) => Invoke(session, "EnqueueNativeTextureMotion", owner, session.Presentation!.Graphics.ActorModels.Get(owner), copy);
 
-    private static void Invoke(BattleSession session, string name, params object[] args) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, args);
+    private static void Invoke(BattleSession session, string name, params object[] args) => typeof(BattlePresentationProcess).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, args);
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattleSession session, string property, object value) => NativeBattleHostedTestFixture.SetProperty(session.Presentation!, property, value);
 }

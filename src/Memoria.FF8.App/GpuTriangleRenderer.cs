@@ -8,9 +8,21 @@ using Vector4N = System.Numerics.Vector4;
 
 namespace Memoria.FF8;
 
+internal readonly record struct GpuTriangleBatchMetrics(long Draws, long Vertices, long VertexUploads, long TextureChanges, long MaterialChanges, long PrimitiveKindChanges, long Capacity, long Capture, long End, long Other)
+{
+    internal GpuTriangleBatchMetrics Since(GpuTriangleBatchMetrics start)
+    {
+        return new(Draws - start.Draws, Vertices - start.Vertices, VertexUploads - start.VertexUploads, TextureChanges - start.TextureChanges, MaterialChanges - start.MaterialChanges, PrimitiveKindChanges - start.PrimitiveKindChanges, Capacity - start.Capacity, Capture - start.Capture, End - start.End, Other - start.Other);
+    }
+}
+
 /// <summary>Ordered hardware triangle rasterizer; scene decoding remains in the shared rendering library.</summary>
 public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IWorldTerrainRenderer, IFieldLightingRenderer, IDisposable
 {
+    internal enum FlushReason { Other, TextureChange, MaterialChange, PrimitiveKindChange, Capacity, Capture, End }
+
+    internal readonly record struct GpuTriangleBatch(int First, int Count, PrimitiveType Kind, TriangleMaterial Material, FlushReason Reason);
+
     private readonly GraphicsDevice device;
     private readonly Effect effect;
     private readonly ConditionalWeakTable<PixelImage, LinkedListNode<CachedTexture>> textures = new();
@@ -26,11 +38,17 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
-    private readonly GpuVertex[] vertices = new GpuVertex[12288];
+    private const int MaximumStreamVertices = 32768;
+    private const int MaximumStreamBatches = 2048;
+    private readonly GpuVertex[] vertices = new GpuVertex[MaximumStreamVertices];
+    private readonly GpuTriangleBatch[] batches = new GpuTriangleBatch[MaximumStreamBatches];
+    private DynamicVertexBuffer? streamBuffer;
     private readonly HashSet<PixelImage> dynamicUploads = new(ReferenceEqualityComparer.Instance);
     private TriangleMaterial pendingMaterial;
     private PrimitiveType pendingPrimitiveType;
     private int vertexCount;
+    private int firstPendingVertex;
+    private int batchCount;
     private RenderTargetBinding[] previousTargets = [];
     private Viewport previousViewport;
     private RenderTarget2D? target;
@@ -69,6 +87,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     internal long PresentationVersion { get; private set; }
     internal int FrameDrawCalls { get; private set; }
     internal int FrameTextureUploads { get; private set; }
+    internal bool ObserveTriangleBatches { get; set; }
+    internal GpuTriangleBatchMetrics TriangleBatchMetrics { get; private set; }
 
     internal void InvalidatePresentation()
     {
@@ -98,7 +118,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         this.width = width;
         this.height = height;
         dynamicUploads.Clear();
-        vertexCount = 0;
+        ClearStream();
         FrameDrawCalls = 0;
         FrameTextureUploads = 0;
         FrameTerrainUploads = 0;
@@ -127,12 +147,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new InvalidOperationException("Begin must precede Draw.");
         }
-        if (vertexCount > 0 && (pendingPrimitiveType != PrimitiveType.TriangleList || pendingMaterial != material || vertexCount + 3 > vertices.Length))
-        {
-            Flush();
-        }
-        pendingMaterial = material;
-        pendingPrimitiveType = PrimitiveType.TriangleList;
+        PrepareBatch(PrimitiveType.TriangleList, material, 3);
         vertices[vertexCount++] = new(a);
         vertices[vertexCount++] = new(b);
         vertices[vertexCount++] = new(c);
@@ -144,12 +159,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new InvalidOperationException("Begin must precede DrawLine.");
         }
-        if (vertexCount > 0 && (pendingPrimitiveType != PrimitiveType.LineList || pendingMaterial != material || vertexCount + 2 > vertices.Length))
-        {
-            Flush();
-        }
-        pendingMaterial = material;
-        pendingPrimitiveType = PrimitiveType.LineList;
+        PrepareBatch(PrimitiveType.LineList, material, 2);
         vertices[vertexCount++] = new(a);
         vertices[vertexCount++] = new(b);
     }
@@ -160,7 +170,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new InvalidOperationException("Active framebuffer capture requires a current triangle scene.");
         }
-        Flush();
+        Flush(FlushReason.Capture);
         int pixelCount = checked(width * height);
         if (captureColors.Length != pixelCount)
         {
@@ -200,7 +210,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new InvalidDataException("Framebuffer centre capture dimensions must identify the active raster target.");
         }
-        Flush();
+        Flush(FlushReason.Capture);
         UnbindTerrain();
         PrepareCentreCapture(destinationWidth, destinationHeight);
         int pixelCount = checked(destinationWidth * destinationHeight);
@@ -308,17 +318,86 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         return pixels;
     }
 
-    private void Flush()
+    private void PrepareBatch(PrimitiveType kind, in TriangleMaterial material, int addedVertices)
+    {
+        bool full = vertexCount + addedVertices > vertices.Length;
+        if (vertexCount > firstPendingVertex && (pendingPrimitiveType != kind || pendingMaterial != material || full))
+        {
+            FlushReason reason = ObserveTriangleBatches ? BatchBreakReason(kind, material) : FlushReason.Other;
+            bool dynamicBoundary = pendingMaterial.DynamicTexture || material.DynamicTexture;
+            CloseBatch(reason);
+            if (full || dynamicBoundary || batchCount == batches.Length)
+            {
+                SubmitStream();
+            }
+        }
+        pendingMaterial = material;
+        pendingPrimitiveType = kind;
+    }
+
+    private FlushReason BatchBreakReason(PrimitiveType kind, in TriangleMaterial material)
+    {
+        if (pendingPrimitiveType != kind)
+        {
+            return FlushReason.PrimitiveKindChange;
+        }
+        if (pendingMaterial != material)
+        {
+            return ReferenceEquals(pendingMaterial.Texture, material.Texture) ? FlushReason.MaterialChange : FlushReason.TextureChange;
+        }
+        return FlushReason.Capacity;
+    }
+
+    private void Flush(FlushReason reason = FlushReason.Other)
+    {
+        CloseBatch(reason);
+        SubmitStream();
+    }
+
+    private void CloseBatch(FlushReason reason)
+    {
+        if (vertexCount > firstPendingVertex)
+        {
+            batches[batchCount++] = new(firstPendingVertex, vertexCount - firstPendingVertex, pendingPrimitiveType, pendingMaterial, reason);
+            firstPendingVertex = vertexCount;
+        }
+    }
+
+    private void SubmitStream()
     {
         if (vertexCount == 0)
         {
             return;
         }
-        UnbindTerrain();
-        effect.CurrentTechnique = effect.Techniques[fieldShadowPass ? "FieldShadowTechnique" : pendingMaterial.FieldLighting != FieldLightingPass.None ? "FieldLightingTechnique" : "TriangleTechnique"];
         try
         {
-            SamplerState sampler = ApplyMaterial(pendingMaterial);
+            UnbindTerrain();
+            streamBuffer ??= new(device, vertices[0].VertexDeclaration, vertices.Length, BufferUsage.WriteOnly);
+            streamBuffer.SetData(vertices, 0, vertexCount, SetDataOptions.Discard);
+            NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
+            if (ObserveTriangleBatches)
+            {
+                TriangleBatchMetrics = TriangleBatchMetrics with { VertexUploads = TriangleBatchMetrics.VertexUploads + 1 };
+            }
+            device.SetVertexBuffer(streamBuffer);
+            for (int index = 0; index < batchCount; index++)
+            {
+                SubmitBatch(batches[index]);
+            }
+        }
+        finally
+        {
+            ClearStream();
+            device.SetVertexBuffer(null);
+        }
+    }
+
+    private void SubmitBatch(in GpuTriangleBatch batch)
+    {
+        try
+        {
+            effect.CurrentTechnique = effect.Techniques[fieldShadowPass ? "FieldShadowTechnique" : batch.Material.FieldLighting != FieldLightingPass.None ? "FieldLightingTechnique" : "TriangleTechnique"];
+            SamplerState sampler = ApplyMaterial(batch.Material);
             foreach (EffectPass pass in effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -327,17 +406,40 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
                 {
                     device.SamplerStates[1] = SamplerState.PointClamp;
                 }
-                device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
-                NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
+                device.DrawPrimitives(batch.Kind, batch.First, batch.Count / (batch.Kind == PrimitiveType.LineList ? 2 : 3));
                 FrameDrawCalls++;
+                if (ObserveTriangleBatches)
+                {
+                    GpuTriangleBatchMetrics metrics = TriangleBatchMetrics;
+                    TriangleBatchMetrics = metrics with
+                    {
+                        Draws = metrics.Draws + 1,
+                        Vertices = metrics.Vertices + batch.Count,
+                        TextureChanges = metrics.TextureChanges + (batch.Reason == FlushReason.TextureChange ? 1 : 0),
+                        MaterialChanges = metrics.MaterialChanges + (batch.Reason == FlushReason.MaterialChange ? 1 : 0),
+                        PrimitiveKindChanges = metrics.PrimitiveKindChanges + (batch.Reason == FlushReason.PrimitiveKindChange ? 1 : 0),
+                        Capacity = metrics.Capacity + (batch.Reason == FlushReason.Capacity ? 1 : 0),
+                        Capture = metrics.Capture + (batch.Reason == FlushReason.Capture ? 1 : 0),
+                        End = metrics.End + (batch.Reason == FlushReason.End ? 1 : 0),
+                        Other = metrics.Other + (batch.Reason == FlushReason.Other ? 1 : 0)
+                    };
+                }
             }
-            vertexCount = 0;
         }
         finally
         {
             // An image larger than the cache budget remains valid for its submitted batch.
             ReleaseTransientTexture();
         }
+    }
+
+    private void ClearStream()
+    {
+        Array.Clear(batches, 0, batchCount);
+        batchCount = 0;
+        vertexCount = 0;
+        firstPendingVertex = 0;
+        pendingMaterial = default;
     }
 
     private void ReleaseTransientTexture()
@@ -410,11 +512,11 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         try
         {
-            Flush();
+            Flush(FlushReason.End);
         }
         finally
         {
-            pendingMaterial = default;
+            ClearStream();
             dynamicUploads.Clear();
             RestoreDevice();
         }
@@ -435,6 +537,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     /// <summary>Invalidate mutable source pixels explicitly before their next use.</summary>
     public void InvalidateTexture(PixelImage image)
     {
+        Flush();
         PresentationVersion++;
         if (textures.TryGetValue(image, out LinkedListNode<CachedTexture>? node))
         {
@@ -555,8 +658,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     public void Abort()
     {
-        vertexCount = 0;
-        pendingMaterial = default;
+        ClearStream();
         dynamicUploads.Clear();
         try
         {
@@ -593,6 +695,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         centreCaptureTarget?.Dispose();
         centreCaptureEffect?.Dispose();
         centreCaptureBatch?.Dispose();
+        streamBuffer?.Dispose();
         DisposeTerrainBuffers();
         foreach (CachedTexture cached in recentTextures)
         {

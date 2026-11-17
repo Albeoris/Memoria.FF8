@@ -497,6 +497,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("The expanded effect repeated a published contact occurrence.");
         }
         CommitExpandedEnemyDraw(recipient, ref progress.EnemyDraw);
+        ObserveDiagnosticDoomContact(progress.Command, recipient, contact);
         PublishExpandedImpact(progress.Command, recipient, contact, "EffectContact", deferredImpact: true);
     }
 

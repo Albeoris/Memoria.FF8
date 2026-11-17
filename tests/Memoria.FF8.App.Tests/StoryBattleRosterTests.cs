@@ -313,7 +313,7 @@ public sealed class StoryBattleRosterTests
         BattleSession battle = Assert.IsType<BattleSession>(original.Battle);
         Assert.NotNull(battle.Presentation);
         Assert.NotNull(battle.Presentation?.Graphics);
-        original.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.CompleteDebugVictory(original);
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
 
         BattleRewardSummary expected = original.PreviewBattleRewards();

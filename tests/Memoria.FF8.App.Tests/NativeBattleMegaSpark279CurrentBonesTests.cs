@@ -107,7 +107,7 @@ public sealed class NativeBattleMegaSpark279CurrentBonesTests
         NativeEffectFixtureRequest request = new("mega-spark279-current-bones", 279, 8, 106, 0, 1200, 240) { EncounterId = encounter.Id, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, ControlledContactValue = 7 };
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, Path.Combine(output!, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot before = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot before = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "fixture", "queued-action104.battle.json"));
         BattleSession original = BattleSession.Restore(before);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original component requires its current graphics owner.");
         const int caster = 3;
@@ -139,12 +139,12 @@ public sealed class NativeBattleMegaSpark279CurrentBonesTests
         Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(ReadOriginalModelCell(restored.ReadFixturePresentation().NativeGraphics!, caster).GeometryWorldMatrix));
         Save("restored", restored);
 
-        BattleSnapshot coldBefore = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "before.battle.json"));
+        BattleSnapshot coldBefore = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "before.battle.json"));
         BattleSnapshot coldComposed = Compose(coldBefore);
         Assert.Equal(JsonSerializer.Serialize(composed), JsonSerializer.Serialize(coldComposed));
-        BattleSnapshot coldAtCompose = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "composed.battle.json"));
+        BattleSnapshot coldAtCompose = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "composed.battle.json"));
         Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(Restore(coldAtCompose)));
-        Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "restored.battle.json"))).Capture()));
+        Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "restored.battle.json"))).Capture()));
         File.WriteAllText(Path.Combine(output!, "current-bones.json"), JsonSerializer.Serialize(new { Status = "passed", Caster = caster, ResourceModel = definition.ModelId, NativeModel = model.ModelId4, SkeletonSha256 = skeletonHash, CurrentWorld = world, Before = Pack(local), Composed = Pack(actual), Restored = Pack(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.ReadFixturePresentation().NativeGraphics!, caster), pose)), SelectedBones = new[] { 10, 17, 18, 21 } }, new JsonSerializerOptions { WriteIndented = true }));
 
         BattleSnapshot Compose(BattleSnapshot snapshot)

@@ -72,12 +72,12 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
         bool pixels = (command.Flags20 & 1) != 0;
         int step = 4 + ((command.Opcode & 4) != 0 ? 4 : 0) + ((command.Opcode & 16) != 0 ? 4 : 0);
         int count = (command.Opcode & 8) != 0 ? 4 : 3;
-        ImmutableArray<BattleSceneScreenPoint>? coordinates = command.ProjectedCoordinates;
+        ReadOnlySpan<BattleSceneScreenPoint> coordinates = command.ProjectedCoordinateSpan;
         for (int corner = 0; corner < count; corner++)
         {
             int offset = 8 + corner * step;
-            double x = coordinates is { } points ? points[corner].X : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset, 2)) * (pixels ? 8d : 1d);
-            double y = coordinates is { } values ? values[corner].Y : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset + 2, 2)) * (pixels ? 8d : 1d);
+            double x = command.HasProjectedCoordinates ? coordinates[corner].X : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset, 2)) * (pixels ? 8d : 1d);
+            double y = command.HasProjectedCoordinates ? coordinates[corner].Y : BinaryPrimitives.ReadInt16LittleEndian(packet.Slice(offset + 2, 2)) * (pixels ? 8d : 1d);
             double scale = pixels ? 8d : 1d;
             short mappedX = checked((short)Math.Clamp(Math.Round((x - Source.Left) * 2560 / (Source.Right - Source.Left) / scale), short.MinValue, short.MaxValue));
             short mappedY = checked((short)Math.Clamp(Math.Round((PaddingTop * 8 + (y - ProjectionOffsetY * 8 - Source.Top) * 1728 / (Source.Bottom - Source.Top)) / scale), short.MinValue, short.MaxValue));

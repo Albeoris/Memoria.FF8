@@ -17,7 +17,7 @@ public sealed class NativeBattleEffect242SourceAdmissionTests
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and the current Effect242 source snapshot.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string before = JsonSerializer.Serialize(source);
         ValidateSource(source, game, assets, true);
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect242SourceAdmissionTests
         BattleSnapshot restored = BattleSession.Restore(decoded).Capture();
         Assert.Equal(before, JsonSerializer.Serialize(restored));
         string queuedPath = Path.Combine(Path.GetDirectoryName(path!)!, "queued-action104.battle.json");
-        BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(queuedPath);
+        BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(queuedPath);
         ValidateQueuedAction(source, queued);
         string queuedJson = JsonSerializer.Serialize(queued);
         BattleSnapshot queuedDecoded = JsonSerializer.Deserialize<BattleSnapshot>(queuedJson) ?? throw new InvalidDataException("The selected queued fixture is null.");

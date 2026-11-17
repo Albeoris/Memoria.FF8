@@ -39,12 +39,22 @@ public sealed partial class BattleSession
         }
     }
 
-    private void DispatchExpandedGunbladeTrigger(BattlePresentationProcess process)
+    private void DispatchExpandedTrigger(BattlePresentationProcess process)
     {
         if (process.PendingTrigger is not { } receipt)
         {
             return;
         }
+        if (expandedHostedEvent?.Renzokuken is not null && CurrentExpandedHostedInvocation?.Header.Command == 5)
+        {
+            DispatchExpandedHostedRenzokukenTrigger(process, receipt);
+            return;
+        }
+        DispatchExpandedGunbladeTrigger(process, receipt);
+    }
+
+    private void DispatchExpandedGunbladeTrigger(BattlePresentationProcess process, NativeBattleTriggerReceipt receipt)
+    {
         BattleModelRoster roster = process.Graphics.ActorModels.Roster;
         receipt.Validate(roster);
         if (expandedHostedActionToken is not long token || process.ActiveActionToken != token ||

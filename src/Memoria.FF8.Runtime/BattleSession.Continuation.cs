@@ -7,7 +7,8 @@ public sealed partial class BattleSession
     internal sealed record BattleLogicalContinuation(ExpandedHostedEvent? Event, ExpandedOperationCursor Operations, long? ActionToken,
         ImmutableArray<int> Contacts, int RoutedContacts, BattlePendingEnemyDraw? EnemyDraw, HostedBattleTerminal? Terminal, bool TerminalEntered,
         ImmutableDictionary<string, NativeBattlePartyPresentedVital>? PartyVitals,
-        ImmutableDictionary<string, NativeBattleStatusMirror>? PartyReadyStatuses, BattleSnapshot? AllocationRollback);
+        ImmutableDictionary<string, NativeBattleStatusMirror>? PartyReadyStatuses, BattleSnapshot? AllocationRollback,
+        ImmutableArray<BattlePresentationProcess.HostedModelLoadAdmission> EncounterLoadAdmissions);
 
     public BattleSnapshot CaptureForContinuation()
     {
@@ -16,8 +17,9 @@ public sealed partial class BattleSession
         ExpandedInvocationProgress? progress = expandedInvocationProgress;
         BattleLogicalContinuation logical = new(expandedHostedEvent, expandedOperationCursor, expandedHostedActionToken,
             progress?.Occurrences.ToImmutableArray() ?? [], progress?.PresentedRoutedContacts ?? 0, progress?.EnemyDraw,
-            expandedHostedTerminal, expandedTerminalEntered, expandedPartyPresentation, expandedPartyReadyStatusMirrors, encounterAllocationRollback);
+            expandedHostedTerminal, expandedTerminalEntered, expandedPartyPresentation, expandedPartyReadyStatusMirrors, encounterAllocationRollback, hostedEncounterLoadAdmissions);
         BattlePresentationSnapshot presentation = process.CaptureSnapshot();
+        ValidateEncounterAllocationContinuation(encounterAllocation, logical, presentation);
         return NativeBattleStorageSnapshots.CapturePrivate(CaptureState() with { PresentationContinuation = presentation, LogicalContinuation = logical });
     }
 
@@ -47,6 +49,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Battle continuation requires its restored logical state and matching presentation callback boundary.");
         }
+        ValidateEncounterAllocationContinuation(encounterAllocation, logical, presentation);
         BattlePresentationProcess process = BattlePresentationProcess.Restore(resources, presentation, CreateBattlePresentationServices(), nativeEffectResourceResolver);
         if (process.EntryReady && process.Graphics.UiServices is null)
         {
@@ -60,6 +63,7 @@ public sealed partial class BattleSession
         expandedPartyPresentation = logical.PartyVitals;
         expandedPartyReadyStatusMirrors = logical.PartyReadyStatuses;
         encounterAllocationRollback = logical.AllocationRollback;
+        hostedEncounterLoadAdmissions = logical.EncounterLoadAdmissions;
         if (CurrentExpandedHostedInvocation is { } invocation)
         {
             BattleModelRoster roster = process.PlannedModelRoster;

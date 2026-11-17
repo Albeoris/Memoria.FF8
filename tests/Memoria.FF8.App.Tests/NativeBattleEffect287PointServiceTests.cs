@@ -83,7 +83,7 @@ public sealed class NativeBattleEffect287PointServiceTests
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and the fresh effect287 current-input standalone.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string unchanged = JsonSerializer.Serialize(source);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);

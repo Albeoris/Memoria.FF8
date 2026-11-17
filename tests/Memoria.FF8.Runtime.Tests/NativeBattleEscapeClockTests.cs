@@ -82,23 +82,16 @@ public sealed class NativeBattleEscapeClockTests
         Assert.Equal(BattleAtbMode.TurnBased, restored.Mode);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Terminal_escape_or_debug_victory_stops_the_held_clock(bool debugVictory)
+    [Fact]
+    public void Completed_escape_stops_the_held_clock()
     {
-        BattleSession battle = Create(flags: debugVictory ? (ushort)1 : (ushort)0);
+        BattleSession battle = Create(flags: 0);
         battle.PublishNativeEscapeButtons(3);
-        if (debugVictory)
+        for (int callback = 0; callback < 1200 && battle.Outcome == BattleOutcome.Active; callback++)
         {
-            Tick(battle, 5);
-            battle.InstantVictory();
+            battle.Tick();
         }
-        else
-        {
-            Tick(battle, 60);
-        }
-        Assert.Equal(debugVictory ? BattleOutcome.Victory : BattleOutcome.Escaped, battle.Outcome);
+        Assert.Equal(BattleOutcome.Escaped, battle.Outcome);
         long frame = battle.Frame;
         int[] gauges = battle.Combatants.Select(actor => actor.Atb).ToArray();
 

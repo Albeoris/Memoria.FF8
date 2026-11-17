@@ -38,7 +38,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         string? configurationSha256 = null;
         byte messageSpeed;
         if (immune)
@@ -48,7 +48,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         else
         {
             string configurationPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_GILGAMESH327_ELIGIBLE_CONFIG_SOURCE") ?? throw new InvalidDataException("Select an explicit external configuration source for the controlled eligible component.");
-            BattleSnapshot configuration = NativeBattleEffectFamilyRunner.LoadSnapshot(configurationPath);
+            BattleSnapshot configuration = NativeBattleFixtureInspection.ReadLogicalSnapshot(configurationPath);
             messageSpeed = configuration.Definition.NativeMessageSpeed ?? throw new InvalidDataException("The explicitly selected configuration requires its known native message-speed BYTE.");
             configurationSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(configurationPath)));
         }
@@ -152,7 +152,7 @@ Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor =>
             RandomIndex = immune ? (byte?)randomIndex : null, Chance = immune ? (byte?)chance : null, Selector = immune ? (byte?)selector : null,
             Kernel = kernel
         }, new JsonSerializerOptions { WriteIndented = true }));
-        BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, preparedBoundary + ".battle.json")));
+        BattleSession battle = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, preparedBoundary + ".battle.json")));
         BattleScenePresentation scene = new(assets, definition);
         int initialEventCount = battle.Events.Count;
         string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
@@ -222,7 +222,7 @@ Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor =>
                 lastTickFirstRandom = nextFormulaRandom;
                 string producerBoundary = $"producer-before-{ticks:D3}";
                 NativeBattleRestorationPresentationTests.Publish(output, producerBoundary, beforeProducer, null);
-                BattleSession independentProducer = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, producerBoundary + ".battle.json")));
+                BattleSession independentProducer = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, producerBoundary + ".battle.json")));
                 battle.Tick();
                 independentProducer.Tick();
                 BattleSnapshot afterProducer = battle.Capture();
@@ -271,7 +271,7 @@ Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor =>
                     phasePixelHashes.Add(boundary, pixelHash);
                     phaseFrames.Add(new { Boundary = boundary, Callback = before.ReadFixturePresentation().NativeGraphics!.Callback, RgbaSha256 = pixelHash, Commands = before.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Length });
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", before, pixels);
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(cold, 320, 224));
                 }
@@ -382,7 +382,7 @@ Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor =>
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattleRestorationPresentationTests.Publish(output, "completed-before", after, pixels);
-                    BattleSession independent = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed-before.battle.json")));
+                    BattleSession independent = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(independent.Capture()));
                     Assert.Equal(pixels, new BattleScenePresentation(assets, definition).Render(independent, 320, 224));
                     battle.AdvanceNativeGraphicsPresentation(Callback);
@@ -493,7 +493,7 @@ Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor =>
                 NativeBattleRestorationPresentationTests.Publish(output, "without-effect", peakWithout, peakPlain);
                 File.WriteAllText(Path.Combine(output, "visible-packet-ownership.json"), JsonSerializer.Serialize(new { Effect = selectedEffect, peakSnapshot.Frame, NativeCallback = peakSnapshot.ReadFixturePresentation().NativeGraphics!.Callback, ChangedRgb = peakEffectRgb, Packets = peakPackets!.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset) }));
                 BattleSession directPeak = BattleSession.Restore(peakSnapshot);
-                BattleSession coldPeak = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "visible.battle.json")));
+                BattleSession coldPeak = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "visible.battle.json")));
                 Assert.Equal(JsonSerializer.Serialize(peakSnapshot), JsonSerializer.Serialize(coldPeak.Capture()));
                 directPeak.AdvanceNativeGraphicsPresentation(Callback);
                 coldPeak.AdvanceNativeGraphicsPresentation(Callback);

@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect249FollowingActionTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.True(NativeBattleEffect249PresentationTests.Released(source));
         BattleSession cooldown = NativeBattleEffect249PresentationTests.Restore(source, game);
         for (int callback = 0; callback < 4 && !cooldown.NativeEntryReady; callback++)

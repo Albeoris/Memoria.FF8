@@ -13,7 +13,11 @@ public sealed partial class BattleSession
         private readonly long frame;
         private readonly BattleActionPresentation? action;
         private readonly ExpandedHostedEvent? hostedEvent;
+        private readonly int previousEventCount;
+        private readonly BattleEvent? previousLastEvent;
+        private readonly BattleEvent[] committedEvents;
         private bool published;
+        private bool observationsPublished;
 
         internal PreparedActionPublication(BattleSession owner, BattleSession candidate, BattleSession preflight)
         {
@@ -23,13 +27,28 @@ public sealed partial class BattleSession
             action = owner.ActiveAction;
             hostedEvent = owner.expandedHostedEvent;
             state = candidate.CaptureState();
+            previousEventCount = owner.events.Count;
+            previousLastEvent = previousEventCount == 0 ? null : owner.events[^1];
+            if (preflight.events.Count != previousEventCount || state.Events.Length < previousEventCount)
+            {
+                throw new InvalidOperationException("A prepared action cannot replace its event history.");
+            }
+            for (int index = 0; index < previousEventCount; index++)
+            {
+                if (state.Events[index] != preflight.events[index])
+                {
+                    throw new InvalidOperationException("A prepared action changed a previously committed event.");
+                }
+            }
+            committedEvents = state.Events.AsSpan(previousEventCount).ToArray();
             preflight.expandedPartyPresentation = owner.expandedPartyPresentation;
             preflight.CopyCandidateState(candidate, state, preparedExpandedAction: true);
         }
 
         internal void Publish()
         {
-            if (published || owner.Frame != frame || !ReferenceEquals(owner.ActiveAction, action) || !ReferenceEquals(owner.expandedHostedEvent, hostedEvent))
+            if (published || owner.Frame != frame || !ReferenceEquals(owner.ActiveAction, action) || !ReferenceEquals(owner.expandedHostedEvent, hostedEvent) ||
+                !HasOriginalEventBoundary())
             {
                 throw new InvalidOperationException("The prepared action was already published or its logical owner changed.");
             }
@@ -37,9 +56,23 @@ public sealed partial class BattleSession
             published = true;
         }
 
-        internal void PublishParticipantCallbackObservations()
+        internal void PublishCommittedObservations()
         {
-            if (published && candidate.participantCallbackObservations is { } observations)
+            if (!published || observationsPublished || !HasOriginalEventBoundary())
+            {
+                throw new InvalidOperationException("Action observations require their once-committed logical event history.");
+            }
+            observationsPublished = true;
+            owner.events.PublishCommitted(committedEvents);
+            if (candidate.preparedResolutionObservations is { } resolutions)
+            {
+                candidate.preparedResolutionObservations = null;
+                foreach (BattleDiagnosticResolution resolution in resolutions)
+                {
+                    owner.PublishDiagnosticResolution(resolution);
+                }
+            }
+            if (candidate.participantCallbackObservations is { } observations)
             {
                 candidate.participantCallbackObservations = null;
                 foreach (BattleParticipantCallbackReceipt observation in observations)
@@ -47,6 +80,11 @@ public sealed partial class BattleSession
                     owner.ObserveDiagnosticParticipantCallback(observation);
                 }
             }
+        }
+
+        private bool HasOriginalEventBoundary()
+        {
+            return owner.events.Count == previousEventCount && (previousEventCount == 0 || ReferenceEquals(owner.events[^1], previousLastEvent));
         }
     }
 
@@ -61,6 +99,7 @@ public sealed partial class BattleSession
         candidate.expandedPartyReadyStatusMirrors = expandedPartyReadyStatusMirrors;
         candidate.nativeAffinityAction = nativeAffinityAction;
         candidate.participantCallbackObservations = ObservingDiagnosticCounter ? [] : null;
+        candidate.preparedResolutionObservations = DiagnosticResolution is null ? null : [];
         candidate.diagnosticCounterTracksContacts = ObservingDiagnosticCounter;
         candidate.trackDiagnosticReflections = DiagnosticEffectDispatched is not null;
         if (expandedPresentationProcess is { } process)
@@ -123,7 +162,7 @@ public sealed partial class BattleSession
         {
             process.CommitGuardianFormChange(form);
         }
-        publication.PublishParticipantCallbackObservations();
+        publication.PublishCommittedObservations();
         PublishHostedGuardianFormAudio(form);
     }
 

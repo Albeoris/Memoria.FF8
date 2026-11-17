@@ -20,7 +20,7 @@ public sealed class NativeBattleEffect227SelfContactSourceTests
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(NativeBattleEffect227PresentationTests.CreateOriginalRequest(), directory!, output);
             Assert.NotEqual("blocked", exported.Status);
             string path = Path.Combine(output, "after-entry.battle.json");
-            BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+            BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
             Environment.SetEnvironmentVariable(variable, path);
             using GameAssets game = new(directory!);
             using BattleAssets assets = new(directory!);

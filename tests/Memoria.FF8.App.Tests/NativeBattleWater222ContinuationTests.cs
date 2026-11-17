@@ -14,10 +14,10 @@ public sealed class NativeBattleWater222ContinuationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_WATER222_OUTPUT") ?? throw new InvalidDataException("A distinct output is required.");
         Assert.False(Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any());
         Directory.CreateDirectory(output);
-        BattleSnapshot saved = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
+        BattleSnapshot saved = NativeBattleFixtureInspection.ReadLogicalSnapshot(input!);
         Assert.Equal((ushort)222, saved.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession first = BattleSession.Restore(saved);
-        BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(input!));
+        BattleSession second = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(input!));
         int callbacks = Environment.GetEnvironmentVariable("MEMORIA_FF8_WATER222_RESUME_CALLBACKS") is { } text ? int.Parse(text) : 1;
         Assert.InRange(callbacks, 1, 256);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);

@@ -3,30 +3,16 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Retained model packet values share immutable pages instead of one intermediate object per polygon.</summary>
-internal readonly record struct NativeBattleModelPrimitive(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4)
+internal readonly record struct NativeBattleModelPrimitive(int Bucket, NativeBattleImmutableSlice<uint> Words, NativeBattleImmutableSlice<int> VertexPayload4)
 {
     internal ImmutableArray<NativeBattleGfPacketByteState>? PhysicalWriteMask { get; init; }
-    internal ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
+    internal NativeBattleImmutableSlice<BattleSceneScreenPoint>? ProjectedCoordinates { get; init; }
     internal NativeBattlePilotGeometryReference Pilot { get; init; }
     internal NativeBattlePilotVisualGeometry? PilotGeometry => Pilot.ToGeometry();
     internal string? PresentationActorId { get; init; }
     internal NativeBattleModelTextureOwner? ModelTextureOwner { get; init; }
     internal NativeBattleScreenCoverage? ScreenCoverage { get; init; }
     internal NativeBattleSceneCapture? SceneCapture { get; init; }
-
-    internal static NativeBattleModelPrimitive FromRaw(NativeBattleGeometryPackets.RawPacket packet, NativeBattlePilotGeometryReference geometry, string? actorId, NativeBattleModelTextureOwner? material)
-    {
-        NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
-        return new(packet.Bucket, packet.Words, packet.VertexPayload4)
-        {
-            PhysicalWriteMask = packet.PhysicalWriteMask,
-            ProjectedCoordinates = packet.ProjectedCoordinates,
-            Pilot = geometry,
-            SceneCapture = sceneCapture,
-            PresentationActorId = actorId,
-            ModelTextureOwner = sceneCapture is null && geometry.ForeignSurface is null ? material : null
-        };
-    }
 
     public static implicit operator NativeBattleModelPrimitive(NativeBattleGeometryPrimitive primitive)
     {
@@ -79,6 +65,24 @@ internal sealed class NativeBattleModelPrimitiveBatch
         private int count;
         private bool frozen;
         private NativeBattleModelPilotPage? pilotPage;
+        private readonly NativeBattleImmutableSlice<uint>.Builder words = new();
+        private readonly NativeBattleImmutableSlice<int>.Builder depths = new();
+        private readonly NativeBattleImmutableSlice<BattleSceneScreenPoint>.Builder positions = new();
+
+        internal void AddRaw(int bucket, ReadOnlySpan<uint> packet, ReadOnlySpan<int> vertexDepths, ReadOnlySpan<BattleSceneScreenPoint> coordinates,
+            ImmutableArray<NativeBattleGfPacketByteState> mask, NativeBattlePilotGeometryReference geometry, string? actorId, NativeBattleModelTextureOwner? material)
+        {
+            NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
+            Add(new(bucket, words.Append(packet), depths.Append(vertexDepths))
+            {
+                PhysicalWriteMask = mask,
+                ProjectedCoordinates = coordinates.IsEmpty ? null : positions.Append(coordinates),
+                Pilot = geometry,
+                SceneCapture = sceneCapture,
+                PresentationActorId = actorId,
+                ModelTextureOwner = sceneCapture is null && geometry.ForeignSurface is null ? material : null
+            });
+        }
 
         internal NativeBattlePilotGeometryReference AddPilot(in NativeBattleModelPilotGeometry geometry)
         {
@@ -110,6 +114,9 @@ internal sealed class NativeBattleModelPrimitiveBatch
         internal NativeBattleModelPrimitiveBatch Freeze()
         {
             frozen = true;
+            words.Freeze();
+            depths.Freeze();
+            positions.Freeze();
             return new(pages.ToImmutableArray(), count);
         }
     }

@@ -22,7 +22,7 @@ public sealed class NativeBattleEffect316PresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT316_CONTINUATION_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect316 continuation.");
         using GameAssets game = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(316, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession session = Restore(source, game);
         session.Tick();
@@ -34,7 +34,7 @@ public sealed class NativeBattleEffect316PresentationTests
         using BattleAssets assets = new(directory);
         using GameAssets game = new(directory);
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT316_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original130 component source.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
         Assert.Equal(441, original.Definition.EncounterId);
         Assert.Equal(124, original.Definition.StageId);
         Assert.True(BattleSession.Restore(original).NativeEntryReady);
@@ -179,7 +179,7 @@ public sealed class NativeBattleEffect316PresentationTests
     internal static void VerifyColdNext(string name, BattleSnapshot snapshot, GameAssets game, BattleAssets assets, string output)
     {
         NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-        BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+        BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
         BattleSession cold = Restore(json, game);
         BattleSession direct = Restore(snapshot, game);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));

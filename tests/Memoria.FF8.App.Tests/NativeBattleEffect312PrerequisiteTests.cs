@@ -19,7 +19,7 @@ public sealed class NativeBattleEffect312PrerequisiteTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;

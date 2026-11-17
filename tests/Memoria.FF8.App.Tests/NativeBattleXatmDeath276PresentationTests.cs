@@ -17,7 +17,7 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.Equal("0", Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EXPECTED_CONTACT_TRANSITIONS"));
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_EVIDENCE") ?? throw new InvalidDataException("Select a fresh evidence directory for the original276 component.");
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(9, source.Definition.EncounterId);
         Assert.Equal(6, source.Definition.StageId);
         BattleEncounter formation = assets.LoadEncounter(9);
@@ -60,7 +60,7 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.NotNull(graphics.UiServices);
         int priorDamageEvents = BattleSession.Restore(source).Events.Count(entry => entry.Kind == "Damage");
         new NativeBattleSelectedEffectPresentationTests().Selected_queued_component_completes_and_restores_its_live_owners();
-        BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
+        BattleSnapshot completed = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json"));
         Assert.Equal(priorDamageEvents, BattleSession.Restore(completed).Events.Count(entry => entry.Kind == "Damage"));
     }
 }

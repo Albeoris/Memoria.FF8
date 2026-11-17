@@ -36,4 +36,26 @@ internal static class ExpandedBattleInstalledEntry
         }
         Assert.True(process.EntryReady);
     }
+
+    public static void AdmitDebugVictory(GameWorld world)
+    {
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        for (int callback = 0; callback < 1200 && !battle.CanAdmitDebugOutcome; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.True(battle.CanAdmitDebugOutcome);
+        world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+    }
+
+    public static void CompleteDebugVictory(GameWorld world)
+    {
+        AdmitDebugVictory(world);
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+        }
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+    }
 }

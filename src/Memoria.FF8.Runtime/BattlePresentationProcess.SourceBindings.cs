@@ -103,8 +103,7 @@ public sealed partial class BattlePresentationProcess
             return;
         }
 
-        NativeBattleEffectBinding selected = NativeBattleOriginalEffects.Select(effect, resources.NativeEffectCatalog).Binding;
-        ImmutableArray<byte> cinematics = resources.ReadCinematicModelOperands?.Invoke(selected).Operands ?? [];
+        (NativeBattleEffectBinding selected, ImmutableArray<byte> cinematics) = ReadAuthoredEffectModelOperands(effect);
         if (selected.AuthoredModelOperands.IsEmpty && selected.CasterRelativeModels.IsEmpty && cinematics.IsEmpty)
         {
             return;
@@ -152,5 +151,16 @@ public sealed partial class BattlePresentationProcess
             }
             throw new NotSupportedException($"Native effect {effect} requires authored model operand {operand} in its admitted source group.");
         }
+    }
+
+    internal (NativeBattleEffectBinding Binding, ImmutableArray<byte> CinematicOperands) ReadAuthoredEffectModelOperands(ushort effect)
+    {
+        NativeBattleEffectBinding selected = NativeBattleOriginalEffects.Select(effect, resources.NativeEffectCatalog).Binding;
+        return (selected, resources.ReadCinematicModelOperands?.Invoke(selected).Operands ?? []);
+    }
+
+    internal NativeBattleGraphicsResource ReadEncounterTemplateModelResource(BattleModelOwner owner)
+    {
+        return ReadStandingPresentationModelResource(RequireNativeGraphics(), owner) ?? throw new InvalidDataException("An encounter template requires its inherited standing model resource.");
     }
 }

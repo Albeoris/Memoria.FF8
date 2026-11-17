@@ -54,6 +54,10 @@ internal sealed partial class RecreateGame
                     break;
                 case "stop":
                     autoPlay.SaveAndStop();
+                    if (autoPlay.WaitingToStopAfterBattle)
+                    {
+                        gameMenus!.Close();
+                    }
                     autoPlayFailureHeld = false;
                     break;
                 case "load-reproduction":

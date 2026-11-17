@@ -10,7 +10,7 @@ public sealed class NativeBattleChoco97PauseOwnerTests
     {
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_CHOCO97_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A complete before-ChocoFire component is required.");
-        BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path!));
+        BattleSession battle = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(path!));
         BattleSnapshot before = battle.CaptureForContinuation();
         NativeBattleModulePoolTask? task = null;
         for (int callback = 0; callback < 64; callback++)

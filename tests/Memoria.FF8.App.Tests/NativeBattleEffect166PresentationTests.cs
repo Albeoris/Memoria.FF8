@@ -123,7 +123,7 @@ public sealed class NativeBattleEffect166PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -150,7 +150,7 @@ public sealed class NativeBattleEffect166PresentationTests
                 string variant = "effect166-before-capture-unknown-old-links";
                 BattleSnapshot changed = snapshot.WithFixturePresentation(facts => facts with { NativeEffectMemory = memory with { Effect166 = state } });
                 NativeBattleRestorationPresentationTests.Publish(output, variant, changed, null);
-                BattleSession unknownLinks = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, variant + ".battle.json")));
+                BattleSession unknownLinks = Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, variant + ".battle.json")));
                 unknownLinks.Tick();
                 Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(unknownLinks.Capture()));
                 byte[] unknownPixels = new BattleScenePresentation(assets, source.Definition).Render(unknownLinks, 320, 224).ToArray();
@@ -168,7 +168,7 @@ public sealed class NativeBattleEffect166PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT166_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current formation462 original114 component source.");
-        BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(path);
+        BattleSnapshot original = NativeBattleFixtureInspection.ReadLogicalSnapshot(path);
         Assert.Equal(462, original.Definition.EncounterId);
         Assert.Equal(121, original.Definition.StageId);
         BattleSession restored = BattleSession.Restore(original);

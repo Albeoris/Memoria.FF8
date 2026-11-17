@@ -149,6 +149,7 @@ public sealed partial class AttachedEncounterMagicTests
         HashSet<string> loaded = [];
         bool originalControl = false;
         bool fullArrival = false;
+        BattleSession? loadingFork = null;
         TickUntil(world, () =>
         {
             NativeBattleActionPacketsState packets = battle.Presentation!.ActionPackets;
@@ -156,6 +157,24 @@ public sealed partial class AttachedEncounterMagicTests
             if (battle.EncounterAllocation is not { } batch)
             {
                 return false;
+            }
+            if (batch.Phase == BattleEncounterAllocationPhase.Loading)
+            {
+                if (loadingFork is null)
+                {
+                    Assert.Throws<InvalidOperationException>(() => battle.Capture());
+                    loadingFork = battle.ForkForContinuation();
+                    BattleSession cancelled = battle.ForkForContinuation();
+                    cancelled.AbortEncounterAllocation();
+                    Assert.Null(cancelled.EncounterAllocation);
+                    Assert.Empty(cancelled.Capture().NativeAllocations);
+                    Assert.All(batch.ActorIds, id => Assert.DoesNotContain(cancelled.Combatants, actor => actor.Id == id));
+                    Assert.Equal(batch, battle.EncounterAllocation);
+                }
+            }
+            if (loadingFork is not null && loadingFork.NativeHostCallbacks < battle.NativeHostCallbacks)
+            {
+                loadingFork.Tick();
             }
             NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
             foreach (string id in batch.ActorIds)
@@ -183,6 +202,19 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.Equal(1ul, battle.EncounterPolicies!.Cursors[caster.Id].CommittedTurns);
         Assert.Null(battle.EncounterPolicies.PendingSummon);
         Assert.Equal(2, Assert.Single(battle.Events.Skip(eventStart), entry => entry.Kind == "EncounterSpawn").Amount);
+        BattleSourcePlacementBinding[] sources = battle.Capture().NativeAllocations.Select(allocation => Assert.IsType<BattleSourcePlacementBinding>(allocation.TemplateSource)).ToArray();
+        Assert.Equal(2, sources.Select(source => source.Group).Distinct().Count());
+        Assert.All(sources, source => Assert.Equal(0, source.OriginalEnemyOrdinal));
+        BattleSession fork = Assert.IsType<BattleSession>(loadingFork);
+        Assert.Equal(BattleEncounterAllocationPhase.Complete, fork.EncounterAllocation!.Phase);
+        BattleSnapshot sourceState = battle.Capture();
+        BattleSnapshot forkState = fork.Capture();
+        Assert.Equal(sources, forkState.NativeAllocations.Select(allocation => allocation.TemplateSource!));
+        Assert.Equal(sourceState.NativeGlobalRandom, forkState.NativeGlobalRandom);
+        Assert.Equal(sourceState.NativeGlobalRandomCalls, forkState.NativeGlobalRandomCalls);
+        Assert.Equal(sourceState.NativeCrtRandom, forkState.NativeCrtRandom);
+        Assert.Equal(battle.EncounterAllocation!.ActorIds.Select(id => battle.Presentation!.Graphics.ActorModels.Get(battle.ReadPresentationModelOwner(id)).ModelId4),
+            fork.EncounterAllocation.ActorIds.Select(id => fork.Presentation!.Graphics.ActorModels.Get(fork.ReadPresentationModelOwner(id)).ModelId4));
         Assert.All(battle.EncounterAllocation!.ActorIds, id =>
         {
             BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == id);
@@ -230,8 +262,47 @@ public sealed partial class AttachedEncounterMagicTests
         Assert.Single(battle.Events.Skip(attackStart), entry => entry.Kind == "NativeModelRemoved" && entry.ActorId == defeatedId);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
 
+        TickUntil(world, () => battle.ActiveAction is null && battle.Presentation!.HasActiveAction == false);
+        NativeBattleEnemyAllocation defeatedAllocation = battle.Capture().NativeAllocations.Single(allocation => allocation.Id == defeatedId);
+        BattleEncounterAllocationState replacement = battle.BeginEncounterAllocation("fixture.reallocation", caster.Id, defeatedAllocation.EncounterRole!);
+        NativeBattleEnemyAllocation latest = battle.CaptureForContinuation().NativeAllocations.Single(allocation => allocation.Id == replacement.ActorIds[0]);
+        Assert.NotEqual(defeatedAllocation.TemplateSource!.Group, latest.TemplateSource!.Group);
+        Assert.Equal(defeatedAllocation.TemplateSource.OriginalEnemyOrdinal, latest.TemplateSource.OriginalEnemyOrdinal);
+        BattleSession reallocatedFork = battle.ForkForContinuation();
+        Assert.Equal(latest.TemplateSource, reallocatedFork.CaptureForContinuation().NativeAllocations.Single(allocation => allocation.Id == latest.Id).TemplateSource);
+
         NativeBattleGraphicsState ReadGraphics() => battle.Presentation!.Graphics;
         NativeBattleModelCpuResources ReadCpu() => battle.Presentation!.ModelCpuResources;
+    }
+
+    [Fact]
+    public void Installed_template_batch_rejects_a_missing_scoped_sibling_before_allocation()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(88);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, game.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: game, applyEncounterMods: (definition, _) =>
+        {
+            BattleDefinition bound = BindSummonPolicy(definition, resource);
+            ushort effect = bound.EncounterMod!.Policies["fire"].Rules.Single().Action.Spells.Single().NativeAction.MagicId;
+            NativeBattleEffectBinding binding = bound.NativeEffectCatalog[effect - 1] with { AuthoredModelOperands = [4] };
+            return bound with { NativeEffectCatalog = bound.NativeEffectCatalog.SetItem(effect - 1, binding) };
+        });
+        ExpandedBattleInstalledEntry.Prepare(world, session, PrepareEdeaParty, 136, allies: 3, additionalEnemies: 0);
+        BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
+        string original = battle.ReadDefinition().EncounterMod!.OriginalActorId;
+        string[] roster = battle.Combatants.Select(actor => actor.Id).ToArray();
+        BattleModelRoster models = battle.Presentation!.PlannedModelRoster;
+
+        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => battle.BeginEncounterAllocation("fixture.invalid-copy", original, "first-copy", "second-copy"));
+        Assert.Contains("unambiguous source sibling", failure.Message);
+        Assert.Null(battle.EncounterAllocation);
+        Assert.Empty(battle.Capture().NativeAllocations);
+        Assert.Equal(roster, battle.Combatants.Select(actor => actor.Id));
+        Assert.Same(models, battle.Presentation.PlannedModelRoster);
     }
 
     private sealed record BattleRun((byte Command, ushort Action, byte Sequence, ushort Effect, int Contacts, byte Repeats)[] Headers,

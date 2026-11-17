@@ -15,7 +15,7 @@ public sealed class NativeBattleComponentHeldScreenBlendTests(ITestOutputHelper 
         string? selected = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_EFFECT_ID");
         Assert.SkipUnless(directory is not null && path is not null && selected is not null, "Select installed resources, one standalone component and its expected native effect.");
         ushort effect = ushort.Parse(selected!, CultureInfo.InvariantCulture);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         using GameAssets game = new(directory!);
         BattleSession battle = BattleSession.Restore(source);
         Attach(battle);

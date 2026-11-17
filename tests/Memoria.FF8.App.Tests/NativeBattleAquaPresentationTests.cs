@@ -52,7 +52,7 @@ public sealed class NativeBattleAquaPresentationTests
             NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-            BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+            BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             prior = source;
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
             int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
@@ -180,7 +180,7 @@ public sealed class NativeBattleAquaPresentationTests
                 BattleSnapshot? previous = prior;
                 prior = snapshot;
                 NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());
-                BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+                BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
                 BattleSession direct = BattleSession.Restore(snapshot);
                 cold.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
                 direct.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);

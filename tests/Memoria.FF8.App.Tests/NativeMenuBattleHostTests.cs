@@ -94,7 +94,7 @@ public sealed class NativeMenuBattleHostTests
         world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
         restored.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(world.Battle.Capture()), JsonSerializer.SerializeToElement(restored.Battle.Capture())));
-        restored.ApplyBattleInput(new BattleInput(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.AdmitDebugVictory(restored);
         for (int callback = 0; callback < 2400 && !restored.Battle.CanReturnToField; callback++)
         {
             restored.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));

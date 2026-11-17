@@ -15,8 +15,8 @@ public sealed class NativeBattleEffect318PresentationTests
         string? priorPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT318_OBSERVATION_PRIOR");
         string? currentPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT318_OBSERVATION_CURRENT");
         Assert.SkipUnless(priorPath is not null && currentPath is not null, "Select two standalone effect318 observations around current bone scaling.");
-        BattleSnapshot prior = NativeBattleEffectFamilyRunner.LoadSnapshot(priorPath!);
-        BattleSnapshot current = NativeBattleEffectFamilyRunner.LoadSnapshot(currentPath!);
+        BattleSnapshot prior = NativeBattleFixtureInspection.ReadLogicalSnapshot(priorPath!);
+        BattleSnapshot current = NativeBattleFixtureInspection.ReadLogicalSnapshot(currentPath!);
         NativeBattleEffect318PresentationObserver observer = new();
         observer.Observe(prior, current, (_, _) =>
         {
@@ -31,7 +31,7 @@ public sealed class NativeBattleEffect318PresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT318_CONTINUATION_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect318 continuation snapshot.");
         using GameAssets game = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         Assert.Equal(318, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
@@ -153,7 +153,7 @@ public sealed class NativeBattleEffect318PresentationTests
         void ColdNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
@@ -172,7 +172,7 @@ public sealed class NativeBattleEffect318PresentationTests
     private static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT318_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original38 component source.");
-        return PrepareFromEntry(game, assets, output, NativeBattleEffectFamilyRunner.LoadSnapshot(path));
+        return PrepareFromEntry(game, assets, output, NativeBattleFixtureInspection.ReadLogicalSnapshot(path));
     }
 
     internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)

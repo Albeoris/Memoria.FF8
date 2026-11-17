@@ -28,11 +28,20 @@ public sealed record NativeBattlePrimitiveDepthState(float BucketMix, float Rema
 
     public void Project461220(int bucket, bool descriptorPerspective, ushort flags20, ImmutableArray<int> vertexDepths, Span<NativeBattlePrimitiveDepthVertex> output)
     {
+        if (vertexDepths.IsDefault)
+        {
+            throw new InvalidDataException("Native461220 requires the original proxy depths.");
+        }
+        Project461220(bucket, descriptorPerspective, flags20, vertexDepths.AsSpan(), output);
+    }
+
+    public void Project461220(int bucket, bool descriptorPerspective, ushort flags20, ReadOnlySpan<int> vertexDepths, Span<NativeBattlePrimitiveDepthVertex> output)
+    {
         if (output.Length != 4)
         {
             throw new ArgumentException("Native461220 requires four output corners.", nameof(output));
         }
-        if ((uint)bucket >= NativeBattlePrimitiveOrdering.BattleTableLength || vertexDepths.IsDefault || vertexDepths.Length is not (0 or 4) || !float.IsFinite(BucketMix) || !float.IsFinite(RemainingWeight))
+        if ((uint)bucket >= NativeBattlePrimitiveOrdering.BattleTableLength || vertexDepths.Length is not (0 or 4) || !float.IsFinite(BucketMix) || !float.IsFinite(RemainingWeight))
         {
             throw new InvalidDataException("Native461220 requires its actual OT bucket, bounded proxy depths and retained depth blend.");
         }

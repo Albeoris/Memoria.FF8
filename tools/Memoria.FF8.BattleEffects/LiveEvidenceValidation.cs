@@ -1141,7 +1141,8 @@ public static partial class LiveEvidenceValidation
     private static bool HasPeriodicStatusProvenance(JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
     {
         BattleDiagnosticPeriodicStatus? proof = resolution.GetProperty("periodic_status").Deserialize<BattleDiagnosticPeriodicStatus>(Json);
-        if (proof is null || proof.ProducerAddress != 0x483470 || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy") || proof.Callback != Number(resolution, "callback") || proof.MaximumHp != Number(before[proof.RecipientId], "maximum_hp") || proof.ResolvedAmount != Number(resolution, "resolved_amount") || (proof.SavedStatuses & 5) != 0 || proof.TimerBefore == -1111)
+        if (proof is null || proof.ProducerAddress != 0x483470 || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") ||
+            !HasPeriodicRecipientIdentity(proof, Text(resolution, "hp_owner"), before, after) || proof.Callback != Number(resolution, "callback") || proof.MaximumHp != Number(before[proof.RecipientId], "maximum_hp") || proof.ResolvedAmount != Number(resolution, "resolved_amount") || (proof.SavedStatuses & 5) != 0 || proof.TimerBefore == -1111)
         {
             return false;
         }
@@ -1160,6 +1161,23 @@ public static partial class LiveEvidenceValidation
             return (proof.BattleStatuses & 0x10) != 0 && proof.TimerBefore > 0 && decrement != 0 && proof.Decrement == decrement && proof.TimerAfter == unchecked((short)(proof.TimerBefore - decrement)) && proof.TimerBefore / decrement % (60 / decrement) == 0 && proof.ResolvedAmount == proof.MaximumHp / 20 && kind == ((proof.SavedStatuses & 0x40) != 0 ? "damage" : "healing") && Number(resolution, "actual_amount") == Math.Min(proof.ResolvedAmount, kind == "damage" ? Number(resolution, "before_hp") : proof.MaximumHp - Number(resolution, "before_hp"));
         }
         return proof.StatusBit == 10 && (proof.BattleStatuses & 0x400) != 0 && proof.TimerBefore <= 0 && proof.Decrement == 0 && proof.TimerAfter == -1111 && kind == "damage" && proof.ResolvedAmount == Number(resolution, "before_hp") && Number(resolution, "after_hp") == 0 && Number(resolution, "actual_amount") == proof.ResolvedAmount;
+    }
+
+    private static bool HasPeriodicRecipientIdentity(BattleDiagnosticPeriodicStatus proof, string hpOwner, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
+    {
+        if (proof.OriginalRecipientOperand is byte operand)
+        {
+            return HasPhysicalIdentity(before, proof.RecipientId, operand) && HasPhysicalIdentity(after, proof.RecipientId, operand) &&
+                hpOwner == (operand < 3 ? "character" : "enemy");
+        }
+        return hpOwner is "character" or "enemy" &&
+            before.TryGetValue(proof.RecipientId, out JsonElement initial) && after.TryGetValue(proof.RecipientId, out JsonElement final) &&
+            HasNoOriginalOperand(initial) && HasNoOriginalOperand(final);
+
+        static bool HasNoOriginalOperand(JsonElement state)
+        {
+            return !state.TryGetProperty("native_index", out JsonElement operand) || operand.ValueKind == JsonValueKind.Null;
+        }
     }
 
     private static bool HasGuardianContactProvenance(JsonElement execution, JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after, string actor, string requestedTarget, string ability, long action, long nativeAction, long effect)

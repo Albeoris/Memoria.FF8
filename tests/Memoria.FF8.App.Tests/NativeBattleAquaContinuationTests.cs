@@ -21,7 +21,7 @@ public sealed class NativeBattleAquaContinuationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         ushort effect = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect;
         Assert.Contains(effect, new ushort[] { 55, 72 });
         Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor > 0);
@@ -100,7 +100,7 @@ public sealed class NativeBattleAquaContinuationTests
         void CompareNext(string name, BattleSnapshot snapshot)
         {
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(Restore(snapshot), 320, 224).ToArray());
-            BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+            BattleSession cold = Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             cold.Tick();

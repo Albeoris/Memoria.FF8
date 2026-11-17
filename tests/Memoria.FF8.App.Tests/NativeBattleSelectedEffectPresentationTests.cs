@@ -22,7 +22,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([effect])[effect - 1];
         source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(effect - 1, binding) } };
         bool livePartyFollowup = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_LIVE_PARTY_FOLLOWUP") == "1";
@@ -34,7 +34,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         else if (Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_EFFECT_INVOCATION") is { } invocation)
         {
             Assert.True(Restore(source).NativeEntryReady);
-            source = QueueFollowing(source, NativeBattleEffectFamilyRunner.LoadSnapshot(invocation), effect);
+            source = QueueFollowing(source, NativeBattleFixtureInspection.ReadLogicalSnapshot(invocation), effect);
         }
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int headerIndex;
@@ -435,7 +435,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                 return;
             }
             restoredBoundaries.Add(name);
-            BattleSnapshot json = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json"));
+            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json"));
             BattleSession cold = Restore(json);
             BattleSession direct = Restore(snapshot);
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));

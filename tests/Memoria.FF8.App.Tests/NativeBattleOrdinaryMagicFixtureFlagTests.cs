@@ -23,7 +23,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         NativeEffectFixtureRequest request = new("ordinary-flags", 223, 2, action.ActionId, 3, 800, 240) { OrdinaryMagicAdmission = true, AdmissionProbeMaximumCallbacks = 800 };
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot queued = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
+        BattleSnapshot queued = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         object report = VerifyBoundaries(fixture, queued, assets, game, action);
         File.WriteAllText(Path.Combine(output, "fixture-flags.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         DeleteFixtureSnapshots(fixture, exported);
@@ -31,8 +31,8 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
 
     internal static object VerifyBoundaries(string fixture, BattleSnapshot queued, BattleAssets assets, GameAssets game, BattleNativeAction action)
     {
-        BattleSnapshot beforeEntry = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-entry.battle.json"));
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
+        BattleSnapshot beforeEntry = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-entry.battle.json"));
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
         BattleCombatantSnapshot initialEnemy = beforeEntry.Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == 3);
         BattleCombatantDefinition enemyDefinition = beforeEntry.Definition.Combatants.Single(actor => actor.Id == initialEnemy.Id);
         uint originalFlags = assets.ReadEnemyNativeCombatantFlags(enemyDefinition.ModelId);

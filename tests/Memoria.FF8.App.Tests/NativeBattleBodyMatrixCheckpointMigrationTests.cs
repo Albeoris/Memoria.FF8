@@ -15,7 +15,7 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_BODY_MATRIX_OUTPUT") ?? throw new InvalidDataException("A separately named output is required.");
         Assert.NotEqual(Path.GetFullPath(input!), Path.GetFullPath(output));
         Assert.False(File.Exists(output));
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(input!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.True(graphics.Callback > 0);
         Assert.Null(graphics.OriginalEffect);
@@ -46,7 +46,7 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(migrated.WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
         File.WriteAllText(output, JsonSerializer.Serialize(migrated));
-        BattleSnapshot saved = NativeBattleEffectFamilyRunner.LoadSnapshot(output);
+        BattleSnapshot saved = NativeBattleFixtureInspection.ReadLogicalSnapshot(output);
         BattleSession battle = BattleSession.Restore(saved);
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(battle.Capture()));
         Assert.Equal(changed, ReadOriginalModelCells(saved.ReadFixturePresentation().NativeGraphics!).Count(model => model.CurrentBodyBoneMatrices is not null));

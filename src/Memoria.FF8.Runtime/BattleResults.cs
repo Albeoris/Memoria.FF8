@@ -38,7 +38,7 @@ public sealed record BattleEncounterTerminalResult(string Encounter, string Gene
 {
     public void Validate(BattleResult result)
     {
-        if (Encounter != EncounterBindingResolver.Disc1Edea || string.IsNullOrWhiteSpace(GenerationIdentity) || string.IsNullOrWhiteSpace(OriginalActorId) || result.Encounter.Formation != EncounterBindingResolver.ResolveEncounterId(Encounter) || result.Encounter.SourceScene != SceneKind.Field || result.Encounter.ScriptedOwner is null || result.Outcome != BattleOutcome.Victory || result.NativeResult != 4 || result.DebugVictory || result.RewardPolicy != BattleRewardPolicy.NativeCombat)
+        if (string.IsNullOrWhiteSpace(GenerationIdentity) || string.IsNullOrWhiteSpace(OriginalActorId) || result.Encounter.Formation != EncounterBindingResolver.ResolveEncounterId(Encounter) || result.Encounter.SourceScene != SceneKind.Field || result.Encounter.ScriptedOwner is null || result.Outcome != BattleOutcome.Victory || result.NativeResult != 4 || result.DebugVictory || result.RewardPolicy != BattleRewardPolicy.NativeCombat)
         {
             throw new InvalidDataException("Encounter terminal result requires the recognized scripted encounter and its completed native victory.");
         }

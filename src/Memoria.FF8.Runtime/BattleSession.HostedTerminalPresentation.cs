@@ -57,7 +57,8 @@ public sealed partial class BattleSession
 
     private void AcknowledgeHostedTerminalFinish(NativeBattleTerminalFinished receipt)
     {
-        if (!ReferenceEquals(expandedHostedTerminal, receipt.Terminal) || !expandedTerminalEntered || Outcome != BattleOutcome.Active)
+        if (!ReferenceEquals(expandedHostedTerminal, receipt.Terminal) || !expandedTerminalEntered || Outcome != BattleOutcome.Active ||
+            DebugOutcome is { } requested && receipt.Terminal.Outcome != requested)
         {
             throw new InvalidDataException("Hosted terminal completion does not match the pending canonical battle.");
         }

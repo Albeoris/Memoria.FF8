@@ -41,7 +41,7 @@ public sealed class NativeFieldBattleReturnPresentationTests
         Assert.NotNull(world.Battle);
         Assert.NotNull(world.Battle.Presentation?.Graphics);
         Assert.Equal(fieldFrame, world.Events.Frame);
-        world.ApplyBattleInput(new BattleInput(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.AdmitDebugVictory(world);
         int callbacks = 0;
         for (; callbacks < 2400 && !world.Battle.CanReturnToField; callbacks++)
         {

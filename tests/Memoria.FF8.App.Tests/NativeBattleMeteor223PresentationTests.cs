@@ -58,8 +58,8 @@ public sealed class NativeBattleMeteor223PresentationTests
             {
                 sourcePath = supplied;
             }
-            BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath);
-            BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
+            BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath);
+            BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
             prior = source;
             NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
@@ -191,7 +191,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             {
                 BattleSession live = advanceLive ? battle! : BattleSession.Restore(snapshot);
                 NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(live, 320, 224));
-                BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
                 Assert.Equal(scene.Render(live, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 live.Tick();
@@ -217,7 +217,7 @@ public sealed class NativeBattleMeteor223PresentationTests
 
         void Report(string status, string? blocker)
         {
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, item.Id, Effect = 223, action.Command, action.ActionId, Ticks = ticks, DiagnosticMaximumTicks = item.MaximumTicks, ProducedContacts = contacts.Select(contact => new { contact.Primary.Recipient, contact.Primary.Amount6, contact.Primary.HitFlags }), DamageTextContacts = textCount, DamageTextCallbacks = textCallbacks, PacingChecks = pacingChecks, Completions = completions, VisibleChangedRgbPixels = peakChanged, MaximumObservedPendingTextures = maximumTextureQueue, RestoredBoundaries = restored, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Whole-entry native pixel differential", "Story-route continuation", "Other spell targets and stocks" } }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = status, FirstBlocker = blocker, item.Id, Effect = 223, action.Command, action.ActionId, Ticks = ticks, DiagnosticMaximumTicks = item.MaximumTicks, ProducedContacts = contacts.Select(contact => new { contact.Primary.Recipient, contact.Primary.Amount6, contact.Primary.HitFlags }), DamageTextContacts = textCount, DamageTextCallbacks = textCallbacks, PacingChecks = pacingChecks, Completions = completions, VisibleChangedRgbPixels = peakChanged, MaximumObservedPendingTextures = maximumTextureQueue, RestoredBoundaries = restored, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), ManifestSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(manifest!))), Pending = new[] { "Whole-entry native pixel differential", "Story-route continuation", "Other spell targets and stocks" } }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

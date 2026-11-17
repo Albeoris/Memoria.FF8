@@ -58,7 +58,6 @@ public sealed class ExpandedEnemyDeathCallbackTests
         BattleCombatant enemy = battle.Combatants.Single(actor => actor.Id == "enemy-0");
         Assert.True(enemy.IsActive);
         Assert.False(enemy.IsAlive);
-        Assert.True(battle.Capture().Combatants.Single(actor => actor.Id == enemy.Id).NativeParticipant!.ExpandedAiRemovalPending);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         BattleSession queued = RoundTrip(battle);
 

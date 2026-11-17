@@ -26,7 +26,7 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
         NativeEffectFixtureRequest request = new("meteor-motion", 223, 2, action.ActionId, 3, 800, 240) { OrdinaryMagicAdmission = true, AdmissionProbeMaximumCallbacks = 800 };
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory!, fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         object fixtureFlags = NativeBattleOrdinaryMagicFixtureFlagTests.VerifyBoundaries(fixture, source, assets, game, action);
         File.WriteAllText(Path.Combine(output, "fixture-flags.json"), JsonSerializer.Serialize(fixtureFlags, new JsonSerializerOptions { WriteIndented = true }));
         NativeBattleOrdinaryMagicFixtureFlagTests.DeleteFixtureSnapshots(fixture, exported);

@@ -60,6 +60,75 @@ public sealed class GpuTriangleRendererTests
     }
 
     [Fact]
+    public void Ordered_material_runs_share_an_upload_and_readback_splits_the_stream()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
+        PixelImage red = new(1, 1, [new Rgba32(128, 0, 0, 255)]);
+        PixelImage green = new(1, 1, [new Rgba32(0, 64, 0, 255)]);
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        Quad(renderer, new(red), Vector4.One);
+        Quad(renderer, new(green, TriangleBlend.Add), Vector4.One);
+        Assert.True(renderer.TryCaptureArgb(out uint[] capture));
+        Assert.All(capture, pixel => Assert.Equal(0xFF804000u, pixel));
+        Assert.Equal(1, renderer.TriangleBatchMetrics.VertexUploads);
+        Assert.Equal(2, renderer.TriangleBatchMetrics.Draws);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.TextureChanges);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.Capture);
+
+        Quad(renderer, new(null, TriangleBlend.Add), new Vector4(0, 0, 32f / 255, 1));
+        renderer.End();
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(new Color(128, 64, 32, 255), pixel));
+        Assert.Equal(2, renderer.TriangleBatchMetrics.VertexUploads);
+        Assert.Equal(3, renderer.TriangleBatchMetrics.Draws);
+        Assert.Equal(1, renderer.TriangleBatchMetrics.End);
+        Assert.Equal(1, renderer.PresentationVersion);
+    }
+
+    [Fact]
+    public void Dynamic_image_is_sampled_before_later_mutation_at_a_material_boundary()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
+        PixelImage image = new(1, 1, [new Rgba32(255, 0, 0, 255)]);
+        TriangleMaterial dynamic = new(image) { DynamicTexture = true };
+        renderer.Begin(16, 16, Vector4.Zero);
+        Quad(renderer, dynamic, Vector4.One, 0.25f);
+        Quad(renderer, new(null), Vector4.One, 0.75f);
+        image.Pixels[0] = new Rgba32(0, 0, 255, 255);
+        renderer.End();
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Red, pixel));
+        Assert.Equal(2, renderer.TriangleBatchMetrics.VertexUploads);
+
+        renderer.Begin(16, 16, Vector4.Zero);
+        Quad(renderer, dynamic, Vector4.One);
+        renderer.End();
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Blue, pixel));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Stream_capacity_drains_without_changing_submission_order(bool changeMaterial)
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
+        TriangleMaterial first = new(null);
+        TriangleMaterial second = first with { Sampler = TriangleSampler.PointClamp };
+        int quadCount = changeMaterial ? 2049 : 5462;
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        for (int index = 0; index < quadCount - 1; index++)
+        {
+            Quad(renderer, changeMaterial && (index & 1) != 0 ? second : first, new Vector4(1, 0, 0, 1));
+        }
+        Quad(renderer, first, new Vector4(0, 1, 0, 1));
+        renderer.End();
+        Assert.Equal(2, renderer.TriangleBatchMetrics.VertexUploads);
+        Assert.Equal(quadCount * 6, renderer.TriangleBatchMetrics.Vertices);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Lime, pixel));
+    }
+
+    [Fact]
     public void Dynamic_texture_refresh_resize_and_abort_restore_the_callers_render_target()
     {
         using GpuTestDevice device = new();

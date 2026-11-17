@@ -31,7 +31,7 @@ public sealed class NativeBattleCactuar199PresentationTests
         Assert.Equal((ushort)77, kernel.ActionId);
         Assert.Equal(2, kernel.KernelSection);
         Assert.Equal(13, kernel.KernelIndex);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath!);
         BattleActionDefinition guardianAction = Assert.Single(source.Definition.ActionDefinitions, action => action.NativeAction?.MagicId == 199);
         Assert.Equal(20, guardianAction.Level);
         Assert.Equal((byte)29, kernel.AttackType);
@@ -119,7 +119,7 @@ public sealed class NativeBattleCactuar199PresentationTests
                 if (name is not null)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-before", prior, scene.Render(battle, 320, 224));
-                    cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+                    cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(prior), JsonSerializer.Serialize(cold.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                 }
@@ -300,7 +300,7 @@ public sealed class NativeBattleCactuar199PresentationTests
             Assert.Equal(battle.Events.Skip(sourceEvents).Count(item => item.NativeStopAllSounds), soundStops);
             Assert.Equal(battle.Events.Skip(sourceEvents).Count(item => item.NativeMusicCommand is not null), musicCommands.Count);
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
-            BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));
+            BattleSession restored = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "completed.battle.json")));
             battle.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -323,7 +323,7 @@ public sealed class NativeBattleCactuar199PresentationTests
 
         void Report(string status, string? blocker)
         {
-            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh 10000-HP enemy component; placeholder seven-HP header followed by actual deferred command254 GF formula; ordinary UI admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, Completions = completions, TimelineMaximum = timelineMaximum, BodyMaximum = bodyMaximum, HitMaximum = hitMaximum, DelayedHitCallbacks = delayedHitCallbacks, FormulaTransitions = formulaTransitions, FormulaBoundary = formulaBoundary, ContactTextTransitions = contactTextTransitions, ContactSchedulerC49Transitions = contactSchedulerTransitions, ContactRequestedSequence = requestedContactSequence, ContactExecutedSequence = executedContactSequence, ContactObservation = "Hit task C49-to50; actual contact selects the original sequence whose A7 immediately switches to the reported executed sequence; native damage-text transition is counted separately", ModelPoses = poses.Order().ToArray(), CameraStates = cameras.Count, StreamSourceTransitions = streams, SoundStopRequests = soundStops, MusicCommandReceipts = musicCommands, StreamPlayback = "Two stream plays at pan128 volume96; no fade/ramp", MaximumParticles = maximumParticles, MaximumNeedles = maximumNeedles, ParsedNeedlePackets = needlePackets, StageFlashPeak = stageFlashPeak, SawFullscreenFlash = sawFullscreenFlash, SawHeapTim = sawHeapTim, SawModelTim = sawModelTim, SawTargetCache = sawCache, SawActualCommonIo = sawCommonIo, SawActualCommonBytes = sawCommonBytes, VibrationHandle = vibrationHandle, Boundaries = boundaries, BinarySha256 = NativeBattleEffectFamilyRunner.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential visual comparison", "Hardware audibility and vibration", "Other targets/headers", "Ordinary command/UI admission and other formula variants", "Common frame packets include actor/stage output" } };
+            object report = new { Status = status, FirstBlocker = blocker, Scenario = "Fresh 10000-HP enemy component; placeholder seven-HP header followed by actual deferred command254 GF formula; ordinary UI admission remains separate", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), Callbacks = callbacks, DiagnosticMaximumCallbacks = maximum, Completions = completions, TimelineMaximum = timelineMaximum, BodyMaximum = bodyMaximum, HitMaximum = hitMaximum, DelayedHitCallbacks = delayedHitCallbacks, FormulaTransitions = formulaTransitions, FormulaBoundary = formulaBoundary, ContactTextTransitions = contactTextTransitions, ContactSchedulerC49Transitions = contactSchedulerTransitions, ContactRequestedSequence = requestedContactSequence, ContactExecutedSequence = executedContactSequence, ContactObservation = "Hit task C49-to50; actual contact selects the original sequence whose A7 immediately switches to the reported executed sequence; native damage-text transition is counted separately", ModelPoses = poses.Order().ToArray(), CameraStates = cameras.Count, StreamSourceTransitions = streams, SoundStopRequests = soundStops, MusicCommandReceipts = musicCommands, StreamPlayback = "Two stream plays at pan128 volume96; no fade/ramp", MaximumParticles = maximumParticles, MaximumNeedles = maximumNeedles, ParsedNeedlePackets = needlePackets, StageFlashPeak = stageFlashPeak, SawFullscreenFlash = sawFullscreenFlash, SawHeapTim = sawHeapTim, SawModelTim = sawModelTim, SawTargetCache = sawCache, SawActualCommonIo = sawCommonIo, SawActualCommonBytes = sawCommonBytes, VibrationHandle = vibrationHandle, Boundaries = boundaries, BinarySha256 = NativeBattleFixtureInspection.CollectBinaryHashes(), Pending = new[] { "Whole-entry native differential visual comparison", "Hardware audibility and vibration", "Other targets/headers", "Ordinary command/UI admission and other formula variants", "Common frame packets include actor/stage output" } };
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }
     }

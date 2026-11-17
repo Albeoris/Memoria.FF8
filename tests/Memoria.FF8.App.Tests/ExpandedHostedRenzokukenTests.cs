@@ -483,6 +483,11 @@ public sealed class ExpandedHostedRenzokukenTests
             NativeBattleActionPacketsState packets = process.ActionPackets;
             NativeBattleDescriptorState descriptors = process.Graphics.Descriptors;
             int[] hp = battle.Combatants.Select(actor => actor.CurrentHp).ToArray();
+            BattleEvent[] committed = battle.Events.ToArray();
+            List<BattleEvent> observations = [];
+            List<BattleDiagnosticResolution> resolutions = [];
+            battle.DiagnosticEventPublished += observations.Add;
+            battle.DiagnosticResolution += resolutions.Add;
             const string reason = "Installed Renzokuken resource could not be opened.";
             battle.AttachNativeEffectResourceResolver(_ => throw new InvalidDataException(reason));
 
@@ -499,6 +504,13 @@ public sealed class ExpandedHostedRenzokukenTests
             Assert.Same(descriptors, process.Graphics.Descriptors);
             Assert.Same(packets, process.ActionPackets);
             Assert.Null(process.ActiveActionToken);
+            Assert.Empty(observations);
+            Assert.Empty(resolutions);
+            Assert.Equal(committed.Length, battle.Events.Count);
+            for (int index = 0; index < committed.Length; index++)
+            {
+                Assert.Same(committed[index], battle.Events[index]);
+            }
         });
     }
 

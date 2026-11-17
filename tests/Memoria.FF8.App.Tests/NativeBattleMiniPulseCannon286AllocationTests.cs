@@ -25,7 +25,7 @@ public sealed class NativeBattleMiniPulseCannon286AllocationTests
         NativeEffectFixtureRequest request = new("mini-pulse286-allocation-baseline", 101, 8, 290, 0, 1200, 240) { EncounterId = 431, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0 };
         Directory.CreateDirectory(output!);
         _ = NativeBattleEffectFixtureExporter.Export(request, directory!, Path.Combine(output!, "baseline"));
-        BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
+        BattleSnapshot baseline = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
         Assert.Equal(431, baseline.Definition.EncounterId);
         Assert.Null(baseline.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         (BattleSnapshot ready, int actualActor) = NativeBattleMiniPulseCannon286FixturePreparation.Prepare(game, assets, baseline, output!);
@@ -46,7 +46,7 @@ public sealed class NativeBattleMiniPulseCannon286AllocationTests
         Assert.False(packed.Known[19]);
         Assert.Equal(new NativeBattleVector(-2000, 0, -4000), model.Transform!.Position28);
         Assert.NotNull(model.GeometryWorldMatrix);
-        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "allocation-ready.battle.json"))).Capture()));
+        Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "allocation-ready.battle.json"))).Capture()));
         File.WriteAllText(Path.Combine(output!, "allocation-result.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Controlled original prototype0 allocation52(false), real descriptor statistics/load, then actual53 native activation; preserves prototype2 and companion109, no ordinary AI/action290 visual or effect286 execution", ActualActor = actualActor, ResourceModel = definition.ModelId, definition.SceneSlot, CurrentBoneCount = pose.BoneCount, SelectedBone = 2, CurrentBone2 = packed, CurrentWorld = model.GeometryWorldMatrix }, new JsonSerializerOptions { WriteIndented = true }));
     }
 }

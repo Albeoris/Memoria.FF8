@@ -952,6 +952,10 @@ internal sealed partial class RecreateGame : Game
 
     private void SaveCheckpoint(string path)
     {
+        if (ActiveBattle is not null || session.HasActiveBattle)
+        {
+            throw new InvalidOperationException("Research checkpoints require a boundary outside battle.");
+        }
         CaptureSession();
         session.Save(path);
     }
@@ -1321,7 +1325,7 @@ internal sealed partial class RecreateGame : Game
             SynchronizeUiMoviePause();
             return saved;
         }
-        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("status" or "capture" or "save" or "battle-status" or "battle-input"))
+        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("status" or "capture" or "battle-status" or "battle-input"))
         {
             throw new InvalidOperationException("The pending Slots card choice owns gameplay input.");
         }

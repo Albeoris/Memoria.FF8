@@ -8,7 +8,7 @@ internal sealed partial class RecreateGame
 
     internal static bool CanCompleteBattleInstantly(BattleSession? battle)
     {
-        return battle is { Outcome: BattleOutcome.Active, PendingSlotsDeal: null } && battle.ReadyPlayerCommandOrder.Count > 0;
+        return battle?.CanAdmitDebugOutcome == true;
     }
 
     private void CompleteInstantOutcome(bool victory)

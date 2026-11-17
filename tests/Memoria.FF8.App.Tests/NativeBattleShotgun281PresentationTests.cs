@@ -38,7 +38,7 @@ public sealed class NativeBattleShotgun281PresentationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_SHOTGUN281_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Shotgun component.");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([281])[280];
         Assert.Equal(NativeBattleShotgun281Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleShotgun281Profile.Initializer, binding.Initializer);

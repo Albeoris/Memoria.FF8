@@ -69,7 +69,7 @@ internal sealed class BattleSourceGrouping
 }
 
 internal sealed record BattleSourceMember(BattleEnemyActorModel Owner, int SceneSlot, byte NativeModel, NativeBattleModelSlot? OriginalSlot);
-internal sealed record BattleSourcePlacementBinding(BattleSourceGroupId Group, int SceneSlot, int? OriginalEnemyOrdinal);
+public sealed record BattleSourcePlacementBinding(BattleSourceGroupId Group, int SceneSlot, int? OriginalEnemyOrdinal);
 
 /// <summary>Authored model operands for one admitted source group at its current roster generation.</summary>
 internal sealed class BattleSourceBindings(ImmutableArray<BattleSourceMember> members, NativeBattleModelAliases aliases)

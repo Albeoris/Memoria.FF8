@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -120,19 +119,28 @@ public static class NativeBattleRawGeometryPackets
         {
             throw new NotSupportedException("Native5099D0 requires its actual four-group polygon records.");
         }
+        Span<byte> relocation = stackalloc byte[24];
+        Span<uint> words = stackalloc uint[10];
+        Span<int> depths = stackalloc int[4];
+        Span<BattleSceneScreenPoint> coordinates = stackalloc BattleSceneScreenPoint[4];
         for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
             NativeBattleRawPolygon polygon = polygons[polygonIndex];
-            ImmutableArray<byte> source = textureBinding is null ? polygon.Bytes : Relocate507550(polygon, textureBinding);
-            NativeBattleGeometryPackets.RawPacket? packet = NativeBattleGeometryPackets.BuildRaw50FDF0(source.AsSpan(), projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates);
-            if (packet is { } accepted)
+            scoped ReadOnlySpan<byte> source = polygon.Bytes.AsSpan();
+            if (textureBinding is not null && TryRelocate507550(polygon, textureBinding, relocation))
             {
+                source = relocation[..source.Length];
+            }
+            if (NativeBattleGeometryPackets.TryBuildRaw50FDF0(source, projected, polygon.Quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates, words, depths, coordinates, out int bucket))
+            {
+                ReadOnlySpan<uint> packet = words[..(polygon.Quad ? 10 : 8)];
+                ReadOnlySpan<BattleSceneScreenPoint> retainedCoordinates = projectedCoordinates is null ? default : coordinates[..(polygon.Quad ? 4 : 3)];
                 NativeBattlePilotGeometryReference pilotGeometry = default;
                 if (pilotIdentity is { } identity && (pilotWorldVertices is not null || pilotScreenSpace))
                 {
                     System.Numerics.Vector3 Corner(int corner)
                     {
-                        ushort selector = BinaryPrimitives.ReadUInt16LittleEndian(source.AsSpan().Slice(corner * 2));
+                        ushort selector = BinaryPrimitives.ReadUInt16LittleEndian(polygon.Bytes.AsSpan()[(corner * 2)..]);
                         int index = corner == 0 ? selector & 0xFFF : selector;
                         if (pilotScreenSpace)
                         {
@@ -153,11 +161,11 @@ public static class NativeBattleRawGeometryPackets
                 }
                 if (modelResult is not null)
                 {
-                    modelResult.Add(NativeBattleModelPrimitive.FromRaw(accepted, pilotGeometry, actorId, material));
+                    modelResult.AddRaw(bucket, packet, depths, retainedCoordinates, NativeBattleGeometryPackets.RawPhysicalWriteMask(polygon.Quad), pilotGeometry, actorId, material);
                 }
                 else
                 {
-                    result!.Add(accepted.ToPrimitive(pilotGeometry.ToGeometry(), actorId, material));
+                    result!.Add(NativeBattleGeometryPackets.CaptureRawPacket(bucket, polygon.Quad, packet, depths, retainedCoordinates).ToPrimitive(pilotGeometry.ToGeometry(), actorId, material));
                 }
             }
         }
@@ -165,11 +173,17 @@ public static class NativeBattleRawGeometryPackets
 
     public static ImmutableArray<byte> Relocate507550(NativeBattleRawPolygon polygon, NativeBattleModelTextureBinding binding)
     {
+        Span<byte> relocated = stackalloc byte[24];
+        return TryRelocate507550(polygon, binding, relocated) ? ImmutableArray.Create(relocated[..polygon.Bytes.Length]) : polygon.Bytes;
+    }
+
+    private static bool TryRelocate507550(NativeBattleRawPolygon polygon, NativeBattleModelTextureBinding binding, Span<byte> relocated)
+    {
         int plainLength = polygon.Quad ? 20 : 16;
         if (polygon.Bytes.Length == plainLength + 4)
         {
             //507550 visits only original plain groups0/1; it never rewrites colored groups2/3.
-            return polygon.Bytes;
+            return false;
         }
         if (polygon.Bytes.Length != plainLength || binding.PaletteRows.IsDefault || binding.PaletteRows.Length != 16)
         {
@@ -180,7 +194,7 @@ public static class NativeBattleRawGeometryPackets
         int row = clut >> 6;
         if ((clut & 63) >= 16 || row is < 224 or >= 240)
         {
-            return polygon.Bytes;
+            return false;
         }
         byte slot = binding.PaletteRows[row - 224] ?? throw new NotSupportedException("Native507550 polygon has no executed507400 palette relocation.");
         if (slot >= 15)
@@ -200,15 +214,15 @@ public static class NativeBattleRawGeometryPackets
         }
         if (!changed)
         {
-            return polygon.Bytes;
+            return false;
         }
-        byte[] bytes = source.ToArray();
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), nextClut);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), nextPage);
+        source.CopyTo(relocated);
+        BinaryPrimitives.WriteUInt16LittleEndian(relocated[10..], nextClut);
+        BinaryPrimitives.WriteUInt16LittleEndian(relocated[14..], nextPage);
         foreach (int position in positions)
         {
-            bytes[position] = (byte)((bytes[position] & 127) | v);
+            relocated[position] = (byte)((relocated[position] & 127) | v);
         }
-        return ImmutableCollectionsMarshal.AsImmutableArray(bytes);
+        return true;
     }
 }

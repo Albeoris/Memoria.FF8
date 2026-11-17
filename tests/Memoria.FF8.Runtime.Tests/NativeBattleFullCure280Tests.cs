@@ -73,12 +73,13 @@ public sealed class NativeBattleFullCure280Tests
         {
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(session, graphics);
         var arena = NativeBattleEffectArena.Clear().Write(320 + 12, [0x81]);
-        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, FullCure280 = NativeBattleFullCure280State.FromColdProcess() });
-        SetProperty(nameof(BattleSession.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()));
-        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, FullCure280 = NativeBattleFullCure280State.FromColdProcess() });
+        SetProperty(nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()));
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
         SetProperty(nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(identity, 100, 160, 108) });
-        Field("nativeActionPackets").SetValue(session, packets);
+        Field("nativeActionPackets").SetValue(process, packets);
         var births = new List<(int Age, BattleModelOwner Owner)>();
         int callback = 0;
         var actors = roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleForeignActor(owner, transform, new(10, 0, 500, 0), (selector, _) =>
@@ -89,14 +90,14 @@ public sealed class NativeBattleFullCure280Tests
             }
             return transform.Position28;
         }) { BoneCount = 32 });
-        Field("presentationForeignActors").SetValue(session, actors);
-        var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;
-        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeFullCure280", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Field("presentationForeignActors").SetValue(process, actors);
+        var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(process)!;
+        MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeFullCure280", BindingFlags.Instance | BindingFlags.NonPublic)!;
         NativeBattleEffectTaskPool? originalTargets = null;
         int peakSparks = 0;
         for (; callback < 100 && graphics.OriginalEffect!.ReturnedDescriptor != 0; callback++)
         {
-            graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(session, [graphics]));
+            graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(process, [graphics]));
             if (graphics.OriginalEffect!.Pools.Length == 4)
             {
                 NativeBattleEffectTaskPool targets = graphics.OriginalEffect.Pools[2];
@@ -132,8 +133,8 @@ public sealed class NativeBattleFullCure280Tests
         Assert.Equal(expanded ? 2 : 4, graphics.OriginalEffect.Pools.Length);
         Assert.Equal(new byte[] { 0x81 }, arena.Read(320 + 12, 1));
 
-        void SetProperty(string name, object value) => typeof(BattleSession).GetProperty(name)!.SetValue(session, value);
-        static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+        void SetProperty(string name, object value) => typeof(BattlePresentationProcess).GetProperty(name)!.SetValue(process, value);
+        static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     }
 
     private static NativeBattleFullCure280Resources Resources()

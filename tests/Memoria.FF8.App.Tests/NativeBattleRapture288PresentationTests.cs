@@ -40,8 +40,8 @@ public sealed class NativeBattleRapture288PresentationTests
         {
             sourcePath = supplied;
         }
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath);
-        BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath)!, "before-ordinary-input.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(sourcePath);
+        BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath)!, "before-ordinary-input.battle.json"));
         NativeBattleGraphicsState sourceGraphics = source.ReadFixturePresentation().NativeGraphics!;
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
@@ -173,7 +173,7 @@ public sealed class NativeBattleRapture288PresentationTests
         {
             BattleSession running = advanceOriginal ? battle : BattleSession.Restore(snapshot);
             NativeBattleRestorationPresentationTests.Publish(output, name + "-before", snapshot, scene.Render(running, 320, 224));
-            BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, name + "-before.battle.json")));
+            BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + "-before.battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             Assert.Equal(scene.Render(running, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
             running.Tick();

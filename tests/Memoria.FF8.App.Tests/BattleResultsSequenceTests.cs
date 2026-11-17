@@ -28,7 +28,7 @@ public sealed class BattleResultsSequenceTests
             CharacterExperience = partyRows.ToDictionary(row => row, row => (ushort)(20 + row)),
             CharacterGrowth = growth
         };
-        BattleSession session = new(definition, BattleAtbMode.Normal);
+        BattleSession session = BattleHudTestPresentation.Victory(definition, BattleAtbMode.Normal);
         int previews = 0;
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () =>
@@ -36,7 +36,6 @@ public sealed class BattleResultsSequenceTests
             previews++;
             return rewards;
         });
-        session.InstantVictory();
         IReadOnlyList<BattleCombatant> party = hud.Party;
         Assert.Equal(partyRows.Select(row => (int?)row), party.Select(actor => actor.MagicRecordId));
         UiView view = hud.BuildView();
@@ -99,7 +98,6 @@ public sealed class BattleResultsSequenceTests
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
-        session.InstantVictory();
 
         Confirm(hud);
         Confirm(hud);
@@ -117,7 +115,6 @@ public sealed class BattleResultsSequenceTests
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -169,7 +166,6 @@ public sealed class BattleResultsSequenceTests
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -203,7 +199,6 @@ public sealed class BattleResultsSequenceTests
             menu.OpenBattleLearning(summary.GuardianForceGrowth.Where(growth => growth.LearnedAbilityIds.Length > 0).ToDictionary(growth => $"gf-{growth.Id}", growth => growth.LearnedAbilityIds[0].ToString()));
             return menu;
         });
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -232,7 +227,6 @@ public sealed class BattleResultsSequenceTests
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, guardianForceName: id => $"Guardian {id}");
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -286,7 +280,6 @@ public sealed class BattleResultsSequenceTests
         BattleSession session = Session();
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards);
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -314,7 +307,6 @@ public sealed class BattleResultsSequenceTests
         };
         BattleSession session = Session();
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards);
-        session.InstantVictory();
         Confirm(hud);
         Confirm(hud);
         Confirm(hud);
@@ -361,7 +353,7 @@ public sealed class BattleResultsSequenceTests
 
     private static BattleSession Session()
     {
-        return new BattleSession(new BattleDefinition { Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true }, new() { Id = "enemy-0", Name = "Bite Bug" }] }, BattleAtbMode.Normal);
+        return BattleHudTestPresentation.Victory(new BattleDefinition { Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true }, new() { Id = "enemy-0", Name = "Bite Bug" }] }, BattleAtbMode.Normal);
     }
 
     private static void Settle(BattleHudController hud)

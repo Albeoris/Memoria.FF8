@@ -36,12 +36,12 @@ public sealed partial class BattleSession
 
     private string? EncounterPolicyOf(BattleCombatant actor)
     {
-        if (definition.EncounterMod is not { } mod)
-        {
-            return null;
-        }
-        string role = EncounterRoleOf(actor.Id);
-        return mod.NormalActionPolicies.GetValueOrDefault(role) ?? mod.Templates.GetValueOrDefault(role)?.NormalActionPolicy;
+        return EncounterPolicyForRole(EncounterRoleOf(actor.Id));
+    }
+
+    private string? EncounterPolicyForRole(string role)
+    {
+        return definition.EncounterMod is { } mod ? mod.NormalActionPolicies.GetValueOrDefault(role) ?? mod.Templates.GetValueOrDefault(role)?.NormalActionPolicy : null;
     }
 
     private bool HasEncounterPolicy(BattleCombatant actor)

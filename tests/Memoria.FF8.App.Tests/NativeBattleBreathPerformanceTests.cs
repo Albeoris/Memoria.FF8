@@ -46,7 +46,7 @@ public sealed class NativeBattleBreathPerformanceTests
         };
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, directory, fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         using GpuTestDevice device = new();

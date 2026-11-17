@@ -101,7 +101,7 @@ public sealed class AdditionalEnemyRosterTests
             Assert.Single(session.State.AppliedBattleResultIds);
             return;
         }
-        world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.CompleteDebugVictory(world);
         Assert.Empty(world.PreviewBattleRewards().Items);
     }
 

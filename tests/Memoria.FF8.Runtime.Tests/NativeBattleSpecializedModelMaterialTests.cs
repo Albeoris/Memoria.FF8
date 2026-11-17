@@ -104,19 +104,6 @@ public sealed class NativeBattleSpecializedModelMaterialTests
 
         int row = ownership == "native" ? 0 : 7;
         BattleModelOwner selected = session.ReadPresentationModelOwner("selected");
-        typeof(BattleSession).GetField("presentationSourceOwner", PrivateInstance)!.SetValue(session, selected);
-        typeof(BattleSession).GetField("presentationSourceResource", PrivateInstance)!.SetValue(session, resource);
-        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
-        if (ownership != "legacy")
-        {
-            string owner = ownership == "missing" ? "other" : "selected";
-            textures = textures.WithPresentationTexture(owner, new(NativeBattleEffectTextureState.FromColdProcess(), NativeBattlePcTextureWindowCache.Reset4647A0(null)));
-        }
-        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
-        Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
-        Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
-        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
-
         NativeBattleGraphicsState graphics = row == 0
             ? OriginalGraphics([(0, selected, Model(row))])
             : OriginalGraphics([(3, session.ReadPresentationModelOwner("other"), new(0))]);
@@ -125,6 +112,20 @@ public sealed class NativeBattleSpecializedModelMaterialTests
             graphics = graphics with { ActorModels = graphics.ActorModels.Add(selected, Model(row)) };
         }
         graphics = graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationSourceOwner", selected);
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationSourceResource", resource);
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
+        if (ownership != "legacy")
+        {
+            string owner = ownership == "missing" ? "other" : "selected";
+            textures = textures.WithPresentationTexture(owner, new(NativeBattleEffectTextureState.FromColdProcess(), NativeBattlePcTextureWindowCache.Reset4647A0(null)));
+        }
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
+        Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
+        Set(session, nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
+        Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });
+
         return (session, graphics, row);
     }
 
@@ -196,7 +197,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
 
     private static ImmutableArray<NativeBattleLogicalCommand> Commands(NativeBattleGraphicsState graphics) => graphics.PrimitiveFrame!.Pending.Traverse(Tables.WordLengths);
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattleSession session, string property, object value) => NativeBattleHostedTestFixture.SetProperty(session.Presentation!, property, value);
 
-    private static object Invoke(string method, BattleSession session, params object?[] args) => typeof(BattleSession).GetMethod(method, PrivateInstance)!.Invoke(session, args)!;
+    private static object Invoke(string method, BattleSession session, params object?[] args) => typeof(BattlePresentationProcess).GetMethod(method, PrivateInstance)!.Invoke(session.Presentation!, args)!;
 }

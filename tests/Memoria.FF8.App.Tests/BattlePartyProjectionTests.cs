@@ -237,8 +237,7 @@ public sealed class BattlePartyProjectionTests
         Assert.Equal((ushort)0x80, party.NativeRetainedStatusBits);
 
         BattleDefinition definition = new() { EncounterId = 512, Combatants = [party, new() { Id = "enemy", Name = "Component enemy", ModelId = 28 }], Items = economy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray() };
-        BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.InstantVictory();
+        BattleSession battle = BattleHudTestPresentation.Victory(definition, BattleAtbMode.Normal);
         BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.Equal((ushort)0x80, restored.Combatants.Single(actor => actor.IsPlayer).NativeRetainedStatusBits);
         using GameWorld world = new(session, directory);

@@ -17,14 +17,14 @@ public sealed class NativeBattleEffect80AllocationTests
         Assert.False(File.Exists(Path.Combine(output!, "allocation-receipt.json")), "Select a new allocation evidence directory.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(source!);
+        BattleSnapshot baseline = NativeBattleFixtureInspection.ReadLogicalSnapshot(source!);
         Assert.Equal(511, baseline.Definition.EncounterId);
         Assert.Equal(new[] { 121, 123 }, baseline.Definition.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.ModelId).Order().ToArray());
         (BattleSnapshot ready, int caster, int target) = NativeBattleEffect80FixturePreparation.Prepare(game, assets, baseline, output!);
         Assert.Equal(4, caster);
         Assert.InRange(target, 3, 6);
         Assert.NotEqual(caster, target);
-        BattleSnapshot saved = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "allocation-ready.battle.json"));
+        BattleSnapshot saved = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, "allocation-ready.battle.json"));
         Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(saved));
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(BattleSession.Restore(saved).Capture()));
         Assert.NotNull(saved.NativeAiVariables);

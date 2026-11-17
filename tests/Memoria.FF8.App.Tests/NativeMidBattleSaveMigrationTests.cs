@@ -82,7 +82,7 @@ public sealed class NativeMidBattleSaveMigrationTests
         GameSession session = new(GameSession.Load(path!));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
-        world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.CompleteDebugVictory(world);
         Assert.Equal(BattleOutcome.Victory, world.Battle!.Outcome);
         world.ApplyBattleInput(new(BattleInputKind.Return));
         Assert.Null(world.Battle);

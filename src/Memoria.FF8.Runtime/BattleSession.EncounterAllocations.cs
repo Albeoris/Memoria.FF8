@@ -59,6 +59,7 @@ public sealed partial class BattleSession
             Presentation ?? throw new InvalidOperationException("Encounter allocation requires its presentation process.");
         BattleSnapshot rollback = Capture();
         var prepared = ImmutableArray.CreateBuilder<BattleRosterAllocationRequest>(roles.Length);
+        var scopeGroups = new (string? TemplateGroup, BattleSourceGroupId? SourceNamespace)[roles.Length];
         for (int index = 0; index < roles.Length; index++)
         {
             int generation = checked(nativeAllocations.Count + index + 1);
@@ -66,17 +67,24 @@ public sealed partial class BattleSession
             string role = roles[index];
             BattleCombatant copySource = ReadEncounterCopySource(source, role);
             BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(copySource, id, role);
+            var inherited = ReadTemplateSourceFacts(copySource);
             NativeBattleEnemyAllocation allocation = new(id, copySource.SceneSlot!.Value, generation)
             {
                 ResolvedDefinition = resolved,
                 EncounterBatchId = batchId,
                 EncounterRole = role,
                 InheritedFromActorId = copySource.Id,
-                TemplateSourceOrdinal = ReadTemplateSourceOrdinal(copySource)
+                TemplateSource = new(BattleSourceGroupId.ForEncounterCopy(generation), inherited.SceneSlot, inherited.OriginalEnemyOrdinal)
             };
+            scopeGroups[index] = (definition.EncounterMod?.Templates.GetValueOrDefault(role)?.Group, inherited.Namespace);
             BattleRosterSlot slot = slots[index];
             NativeBattleModelSlot? original = NativeBattleSlots.TryEncode(slot) is int indexAlias ? NativeBattleModelSlot.Decode(checked((byte)indexAlias)) : null;
             prepared.Add(new(allocation, slot, original, ReplaceOccupant: false));
+        }
+        ApplyEncounterTemplateSourceGroups(prepared, scopeGroups);
+        if (process is not null)
+        {
+            ValidateEncounterTemplateSourceDependencies(process, prepared.Select(request => (request.Allocation, process.ReadEncounterTemplateModelResource(CreatePresentationModelOwner(GetActor(request.Allocation.InheritedFromActorId!))))));
         }
         encounterAllocationRollback = rollback;
         encounterAllocation = new(batchId, sourceActorId, prepared.Select(request => request.Allocation.Id).ToImmutableArray(), roles.ToImmutableArray(), BattleEncounterAllocationPhase.Loading, 0);
@@ -118,6 +126,69 @@ public sealed partial class BattleSession
         {
             AbortEncounterAllocation();
             throw;
+        }
+    }
+
+    internal static void ApplyEncounterTemplateSourceGroups(ImmutableArray<BattleRosterAllocationRequest>.Builder requests, IReadOnlyList<(string? TemplateGroup, BattleSourceGroupId? SourceNamespace)> groups)
+    {
+        foreach (var partition in Enumerable.Range(0, groups.Count).Where(index => groups[index].TemplateGroup is not null && requests[index].Allocation.TemplateSource?.OriginalEnemyOrdinal is not null).GroupBy(index => groups[index]))
+        {
+            int[] siblings = partition.GroupBy(index => requests[index].Allocation.TemplateSource!.OriginalEnemyOrdinal).Where(ordinal => ordinal.Count() == 1).Select(ordinal => ordinal.Single()).ToArray();
+            if (siblings.Length < 2)
+            {
+                continue;
+            }
+            BattleSourceGroupId group = BattleSourceGroupId.ForEncounterCopy(siblings.Min(index => requests[index].Allocation.Generation));
+            foreach (int index in siblings)
+            {
+                BattleRosterAllocationRequest request = requests[index];
+                requests[index] = request with { Allocation = request.Allocation with { TemplateSource = request.Allocation.TemplateSource! with { Group = group } } };
+            }
+        }
+    }
+
+    private void ValidateEncounterTemplateSourceDependencies(BattlePresentationProcess process, IEnumerable<(NativeBattleEnemyAllocation Allocation, NativeBattleGraphicsResource Resource)> staged)
+    {
+        var allocations = staged.ToArray();
+        foreach ((NativeBattleEnemyAllocation allocation, NativeBattleGraphicsResource resource) in allocations)
+        {
+            BattleSourcePlacementBinding source = allocation.TemplateSource!;
+            foreach (NativeBattleSequenceReference reference in NativeBattleSequenceDependencies.Read(resource))
+            {
+                if (reference.Kind == NativeBattleSequenceReferenceKind.OriginalSlot)
+                {
+                    RequireOperand(reference.Operand);
+                }
+            }
+            if (definition.EncounterMod is { } mod && EncounterPolicyForRole(allocation.EncounterRole!) is { } policy)
+            {
+                IEnumerable<EncounterCompiledAction> actions = mod.Policies[policy].Rules.Select(rule => rule.Action);
+                foreach (ushort effect in actions.SelectMany(action => action.Dispel is { } dispel ? action.Spells.Add(dispel) : action.Spells).Select(spell => spell.NativeAction.MagicId).Where(effect => effect != 0).Distinct())
+                {
+                    (NativeBattleEffectBinding binding, ImmutableArray<byte> cinematicOperands) = process.ReadAuthoredEffectModelOperands(effect);
+                    foreach (byte operand in binding.AuthoredModelOperands.Concat(cinematicOperands))
+                    {
+                        RequireOperand(operand);
+                    }
+                    foreach (byte offset in binding.CasterRelativeModels)
+                    {
+                        if (source.OriginalEnemyOrdinal is not int ordinal)
+                        {
+                            throw new NotSupportedException($"Encounter template '{allocation.EncounterRole}' requires its inherited model operand for effect {effect}.");
+                        }
+                        RequireOperand(NativeBattleSlots.AllyCount + ordinal + offset);
+                    }
+                }
+            }
+
+            void RequireOperand(int operand)
+            {
+                if (operand >= NativeBattleSlots.AllyCount && !allocations.Any(candidate => candidate.Allocation.TemplateSource is { OriginalEnemyOrdinal: int ordinal } found &&
+                    found.Group == source.Group && NativeBattleSlots.AllyCount + ordinal == operand))
+                {
+                    throw new NotSupportedException($"Encounter template '{allocation.EncounterRole}' requires an unambiguous source sibling for model operand {operand}.");
+                }
+            }
         }
     }
 
@@ -259,7 +330,9 @@ public sealed partial class BattleSession
             HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(GetActor(id));
             admissions.Add(PrepareHostedModelLoadAdmission(process, load, ImmutableHashSet<BattleModelOwner>.Empty));
         }
-        hostedEncounterLoadAdmissions = admissions.MoveToImmutable();
+        ImmutableArray<HostedModelLoadAdmission> admitted = admissions.MoveToImmutable();
+        ValidateEncounterTemplateSourceDependencies(process, admitted.Select(admission => (nativeAllocations.Single(allocation => allocation.Id == RequireCanonicalGraphicsActorId(admission.Load.ModelOwner)), admission.Binding.Resource)));
+        hostedEncounterLoadAdmissions = admitted;
     }
 
     private void AdvanceHostedEncounterAllocation(BattlePresentationProcess process)
@@ -420,20 +493,45 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleEncounterAllocationState? CaptureEncounterAllocation()
+    private void RequireEncounterAllocationCaptureBoundary()
     {
-        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading } && !preparingExpandedHostedAction)
+        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading })
         {
             throw new InvalidOperationException("Capture must wait for the atomic encounter model allocation to finish loading.");
         }
-        return encounterAllocation;
     }
 
-    private void RestoreEncounterAllocation(BattleEncounterAllocationState? state)
+    private void ValidateEncounterAllocationContinuation(BattleEncounterAllocationState? state, BattleLogicalContinuation? logical, BattlePresentationSnapshot? presentation)
+    {
+        if (state is not { Phase: BattleEncounterAllocationPhase.Loading })
+        {
+            return;
+        }
+        if (logical?.AllocationRollback is not { } rollback || rollback.EncounterAllocation is { Phase: not BattleEncounterAllocationPhase.Complete } ||
+            state.ActorIds.IsDefaultOrEmpty || logical.EncounterLoadAdmissions.IsDefaultOrEmpty || logical.EncounterLoadAdmissions.Length != state.ActorIds.Length ||
+            rollback.NativeAllocations.Length != nativeAllocations.Count - state.ActorIds.Length ||
+            !rollback.NativeAllocations.Select(allocation => allocation.Id).SequenceEqual(nativeAllocations.Take(rollback.NativeAllocations.Length).Select(allocation => allocation.Id)) ||
+            presentation?.LoadCheckpoint?.Batch is not { LoadingIndex: 0, Phase: BattleEncounterAllocationPhase.Loading } original ||
+            original.BatchId != state.BatchId || original.SourceActorId != state.SourceActorId ||
+            !original.ActorIds.SequenceEqual(state.ActorIds) || !original.Roles.SequenceEqual(state.Roles))
+        {
+            throw new InvalidDataException("A loading encounter continuation requires its prepared models and matching rollback owners.");
+        }
+        for (int index = 0; index < state.ActorIds.Length; index++)
+        {
+            if (logical.EncounterLoadAdmissions[index].Load != ReadHostedEncounterAllocationLoad(GetActor(state.ActorIds[index])))
+            {
+                throw new InvalidDataException("Encounter continuation model admission order disagrees with its allocation owners.");
+            }
+        }
+    }
+
+    private void RestoreEncounterAllocation(BattleEncounterAllocationState? state, BattleLogicalContinuation? logical, BattlePresentationSnapshot? presentation)
     {
         if (state is not null)
         {
-            if (string.IsNullOrWhiteSpace(state.BatchId) || !byId.ContainsKey(state.SourceActorId) || state.ActorIds.IsDefaultOrEmpty || state.ActorIds.Length > ExpandedBattleFormation.MaximumEnemies || state.Roles.IsDefault || state.Roles.Length != state.ActorIds.Length || state.ActorIds.Distinct(StringComparer.Ordinal).Count() != state.ActorIds.Length || state.Roles.Any(string.IsNullOrWhiteSpace) || state.Roles.Distinct(StringComparer.Ordinal).Count() != state.Roles.Length || !Enum.IsDefined(state.Phase) || state.Phase == BattleEncounterAllocationPhase.Loading || state.LoadingIndex != state.ActorIds.Length)
+            bool indexValid = !state.ActorIds.IsDefault && (state.Phase == BattleEncounterAllocationPhase.Loading ? state.LoadingIndex >= 0 && state.LoadingIndex < state.ActorIds.Length : state.LoadingIndex == state.ActorIds.Length);
+            if (string.IsNullOrWhiteSpace(state.BatchId) || !byId.ContainsKey(state.SourceActorId) || state.ActorIds.IsDefaultOrEmpty || state.ActorIds.Length > ExpandedBattleFormation.MaximumEnemies || state.Roles.IsDefault || state.Roles.Length != state.ActorIds.Length || state.ActorIds.Distinct(StringComparer.Ordinal).Count() != state.ActorIds.Length || state.Roles.Any(string.IsNullOrWhiteSpace) || state.Roles.Distinct(StringComparer.Ordinal).Count() != state.Roles.Length || !Enum.IsDefined(state.Phase) || !indexValid)
             {
                 throw new InvalidDataException("Invalid encounter allocation publication state.");
             }
@@ -445,6 +543,7 @@ public sealed partial class BattleSession
                     throw new InvalidDataException("Encounter role and resolved allocation ownership disagree.");
                 }
             }
+            ValidateEncounterAllocationContinuation(state, logical, presentation);
         }
         else if (nativeAllocations.Any(allocation => allocation.EncounterBatchId is not null))
         {

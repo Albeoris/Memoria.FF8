@@ -584,7 +584,7 @@ internal sealed partial class GameWorld
                 {
                     ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: input.Mode));
                 }
-                if (battle?.Outcome == BattleOutcome.Active)
+                if (battle?.CanAdmitDebugOutcome == true)
                 {
                     ApplyBattleInput(new(BattleInputKind.InstantVictory));
                 }
@@ -887,21 +887,30 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Battle result disagrees with its admitted encounter and enemy placement authority.");
         }
-        IReadOnlyList<BattleEnemyPlacement> slots = result.AddedEnemySources is { } sources
-            ? ResolveExpandedEnemyPlacements(formation, sources, out _, originalSlots: result.UsesOriginalEnemySlots)
-            : result.UsesOriginalEnemySlots ? formation.Slots
-            : throw new InvalidDataException("Battle rewards require their admitted enemy placement sources.");
-        if (slots.Count != result.EnemySlotCount)
+        Dictionary<int, int> enemyModels;
+        if (admittedBattle is not null)
         {
-            throw new InvalidDataException("Battle result size disagrees with its selected enemy placements.");
+            enemyModels = admittedBattle.Combatants.Where(actor => !actor.IsPlayer && actor.RewardSlot.HasValue).ToDictionary(actor => actor.RewardSlot!.Value, actor => actor.ModelId);
         }
-        if (result.DefeatedEnemySlots.Concat(result.RemainingEnemyExperience.Select(enemy => enemy.Slot)).Any(slot => !slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
+        else if (result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && result.UsesOriginalEnemySlots && result.AddedEnemySources is null && result.EnemySlotCount == formation.Slots.Count)
         {
-            throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");
+            enemyModels = formation.Enemies.Where(enemy => enemy.NativeModelId is >= 16 and < 255).ToDictionary(enemy => enemy.Slot, enemy => enemy.ModelId);
+            if (!enemyModels.Keys.Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
+            {
+                throw new InvalidDataException("Automatic research rewards require every enemy in the authenticated original formation.");
+            }
         }
-        BattleEnemyPlacement[] rewarded = slots.Where(enemy => result.DefeatedEnemySlots.Contains(enemy.Slot) || result.RemainingEnemyExperience.Any(remaining => remaining.Slot == enemy.Slot)).ToArray();
-        Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
-        Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
+        else
+        {
+            throw new InvalidDataException("Battle rewards require their admitted encounter authority.");
+        }
+        int[] rewarded = result.DefeatedEnemySlots.Concat(result.RemainingEnemyExperience.Select(enemy => enemy.Slot)).Distinct().ToArray();
+        if (rewarded.Any(slot => !enemyModels.ContainsKey(slot)))
+        {
+            throw new InvalidDataException("Battle reward facts name an enemy without an admitted reward slot.");
+        }
+        Dictionary<int, int> currentAp = rewarded.ToDictionary(slot => slot, slot => BattleResources.ReadEnemyAbilityPoints(enemyModels[slot]));
+        Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(slot => slot, slot => BattleResources.ReadEnemyRewards(enemyModels[slot]));
         bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(result.Encounter.ScriptedOwner?.Flags ?? 0)), formation.Flags);
         return BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience, NativeItemOrderAliases.From(session.State), admittedBattle);
     }

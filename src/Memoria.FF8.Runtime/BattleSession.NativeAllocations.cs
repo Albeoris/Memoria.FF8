@@ -8,7 +8,7 @@ public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int G
     public string? EncounterRole { get; init; }
     public string? InheritedFromActorId { get; init; }
     public BattleEnemyRosterSource? DonorSource { get; init; }
-    public int? TemplateSourceOrdinal { get; init; }
+    public BattleSourcePlacementBinding? TemplateSource { get; init; }
     public EncounterAllocationRetirement? Retirement { get; init; }
 }
 
@@ -95,13 +95,18 @@ public sealed partial class BattleSession
         return allocation is null ? source.Group.HasValue ? source : source with { Group = source.GroupForSlot(slot) } : allocation.DonorSource;
     }
 
-    private int? ReadTemplateSourceOrdinal(BattleCombatant source)
+    private (BattleSourceGroupId? Namespace, int SceneSlot, int? OriginalEnemyOrdinal) ReadTemplateSourceFacts(BattleCombatant source)
     {
-        if (nativeAllocations.FirstOrDefault(allocation => allocation.Id == source.Id) is { ResolvedDefinition: not null } copy)
+        if (nativeAllocations.FirstOrDefault(allocation => allocation.Id == source.Id)?.TemplateSource is { } copy)
         {
-            return copy.TemplateSourceOrdinal;
+            return (copy.Group, copy.SceneSlot, copy.OriginalEnemyOrdinal);
         }
-        return ReadDonorSource(source)?.OriginalEnemyOrdinal ?? (source.NativeActorIndex is int operand ? operand - NativeBattleSlots.AllyCount : null);
+        if (ReadDonorSource(source) is { } donor)
+        {
+            return (donor.Group, donor.SceneSlot, donor.OriginalEnemyOrdinal);
+        }
+        int sceneSlot = source.SceneSlot ?? throw new InvalidDataException("An encounter template requires its inherited scene placement.");
+        return (null, sceneSlot, source.NativeActorIndex is int operand ? operand - NativeBattleSlots.AllyCount : null);
     }
 
     private (int Slot, BattleEnemyRosterSource Source) FindDonorPrototype(BattleEnemyRosterSource source, int sceneSlot)
@@ -239,12 +244,25 @@ public sealed partial class BattleSession
             NativeBattleEnemyAllocation owned = CloneNativeAllocation(allocation);
             if (owned is { ResolvedDefinition: not null, InheritedFromActorId: { } source })
             {
-                int? ordinal = ReadTemplateSourceOrdinal(GetActor(source));
-                if (owned.TemplateSourceOrdinal is int entered && entered != ordinal)
+                var inherited = ReadTemplateSourceFacts(GetActor(source));
+                if (owned.TemplateSource is not { Group.Kind: BattleSourceGroupKind.EncounterCopy } binding ||
+                    binding.Group.Slot < 1 || binding.Group.Slot > owned.Generation || binding.SceneSlot != inherited.SceneSlot ||
+                    binding.OriginalEnemyOrdinal is < 0 or >= NativeBattleSlots.EnemyCount || inherited.OriginalEnemyOrdinal.HasValue && binding.OriginalEnemyOrdinal != inherited.OriginalEnemyOrdinal)
                 {
-                    throw new InvalidDataException("An encounter copy changed its inherited source model operand.");
+                    throw new InvalidDataException("An encounter copy lost its admitted source placement or inherited model operand.");
                 }
-                owned = owned with { TemplateSourceOrdinal = ordinal };
+                if (binding.Group.Slot != owned.Generation)
+                {
+                    NativeBattleEnemyAllocation? root = nativeAllocations.FirstOrDefault(candidate => candidate.Generation == binding.Group.Slot);
+                    string? templateGroup = definition.EncounterMod?.Templates.GetValueOrDefault(owned.EncounterRole!)?.Group;
+                    if (root is null || root.TemplateSource?.Group != binding.Group || root.EncounterBatchId != owned.EncounterBatchId || templateGroup is null ||
+                        definition.EncounterMod!.Templates.GetValueOrDefault(root.EncounterRole!)?.Group != templateGroup ||
+                        ReadTemplateSourceFacts(GetActor(root.InheritedFromActorId!)).Namespace != inherited.Namespace || binding.OriginalEnemyOrdinal is null ||
+                        nativeAllocations.Any(candidate => candidate.TemplateSource is { } previous && previous.Group == binding.Group && previous.OriginalEnemyOrdinal == binding.OriginalEnemyOrdinal))
+                    {
+                        throw new InvalidDataException("Encounter copies share a source group only within their admitted batch and distinct inherited operands.");
+                    }
+                }
             }
             CreateNativeAllocation(owned);
             nativeAllocations.Add(owned);

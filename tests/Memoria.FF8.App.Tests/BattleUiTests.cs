@@ -420,12 +420,14 @@ public sealed class BattleUiTests
     [Fact]
     public void Terminal_confirm_and_pointer_advance_results_before_single_completion()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.Normal);
         int completions = 0;
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
-        hud.Complete();
+        BattleSession active = new(Definition(), BattleAtbMode.Normal);
+        BattleHudController activeHud = new(active, (_, _) => { }, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
+        activeHud.Complete();
         Assert.Equal(0, completions);
-        session.InstantVictory();
+
+        BattleSession session = BattleHudTestPresentation.Victory(Definition(), BattleAtbMode.Normal);
+        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
         long frame = session.Frame;
         hud.Navigate(MenuInput.Confirm);
         Assert.False(hud.ExperienceCounting);
@@ -452,7 +454,7 @@ public sealed class BattleUiTests
     [Fact]
     public void Victory_rewards_preview_is_cached_and_confirmed_in_native_result_order()
     {
-        BattleSession session = new(Definition(magicRecordId: 0), BattleAtbMode.TurnBased);
+        BattleSession session = BattleHudTestPresentation.Victory(Definition(magicRecordId: 0), BattleAtbMode.TurnBased);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, Enumerable.Range(0, 9).ToDictionary(id => (byte)id, id => (ushort)(id + 10)), Enumerable.Range(0, 9).ToDictionary(id => id, _ => (ushort)3), [new BattleStock(7, 2)], [4])
         {
             AbilityPointsNotice = 3,
@@ -467,7 +469,6 @@ public sealed class BattleUiTests
             return rewards;
         }, guardianForceName: id => $"Guardian {id}", itemName: _ => "Potion", cardName: _ => "Bite Bug");
         Assert.Equal(0, previews);
-        session.InstantVictory();
         string before = JsonSerializer.Serialize(session.Capture());
         TestCanvas canvas = new();
         UiView view = hud.BuildView();
@@ -542,10 +543,9 @@ public sealed class BattleUiTests
     [Fact]
     public void Standalone_victory_explains_unsaved_rewards_and_requires_no_items_acknowledgment()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleSession session = BattleHudTestPresentation.Victory(Definition(), BattleAtbMode.Normal);
         int completions = 0;
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, () => completions++, readPresentationUi: BattleHudTestPresentation.Visible);
-        session.InstantVictory();
         TestCanvas canvas = new();
         SettleResultFade(hud);
         hud.BuildView().Draw(canvas, new UiTheme());
@@ -673,11 +673,10 @@ public sealed class BattleUiTests
     [Fact]
     public void AcknowledgedItemsAutomaticallyAdvanceAfterTheirNativeWaits()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleSession session = BattleHudTestPresentation.Victory(Definition(), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 2), new BattleStock(2, 1)], []);
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
-        session.InstantVictory();
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);
@@ -696,13 +695,11 @@ public sealed class BattleUiTests
     [Fact]
     public void ExperienceCountdownUsesElapsedTimeAtThirtyAndSixtyUpdatesPerSecond()
     {
-        BattleSession slowSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
-        BattleSession fastSession = new(Definition(magicRecordId: 0), BattleAtbMode.Normal);
+        BattleSession slowSession = BattleHudTestPresentation.Victory(Definition(magicRecordId: 0), BattleAtbMode.Normal);
+        BattleSession fastSession = BattleHudTestPresentation.Victory(Definition(magicRecordId: 0), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 1000 }, new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [], []);
         BattleHudController slow = new(slowSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
         BattleHudController fast = new(fastSession, (_, _) => { }, () => { }, () => { }, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
-        slowSession.InstantVictory();
-        fastSession.InstantVictory();
         ConfirmSettledResult(slow);
         ConfirmSettledResult(fast);
         foreach ((BattleHudController hud, int rate) in new[] { (slow, 30), (fast, 60) })
@@ -722,11 +719,10 @@ public sealed class BattleUiTests
     [Fact]
     public void FinalAcknowledgedItemWaitCannotBeSkippedByConfirm()
     {
-        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleSession session = BattleHudTestPresentation.Victory(Definition(), BattleAtbMode.Normal);
         BattleRewardSummary rewards = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>(), new Dictionary<int, ushort>(), [new BattleStock(1, 1)], []);
         int completions = 0;
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { }, () => completions++, previewRewards: () => rewards, readPresentationUi: BattleHudTestPresentation.Visible);
-        session.InstantVictory();
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);

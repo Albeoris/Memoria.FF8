@@ -134,7 +134,7 @@ public sealed class WorldBattleProfileHandoffTests
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(world.Battle!.NativeEntryReady);
-        world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.AdmitDebugVictory(world);
         for (int tick = 0; tick < 600 && !world.Battle!.CanReturnToField; tick++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));

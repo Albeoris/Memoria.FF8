@@ -43,6 +43,19 @@ public static class NativeBattleGeometryPackets
 
     internal static RawPacket? BuildRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates)
     {
+        Span<uint> words = stackalloc uint[quad ? 10 : 8];
+        Span<int> depths = stackalloc int[4];
+        Span<BattleSceneScreenPoint> coordinates = stackalloc BattleSceneScreenPoint[quad ? 4 : 3];
+        if (!TryBuildRaw50FDF0(polygon, vertices, quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules, projectedCoordinates, words, depths, coordinates, out int bucket))
+        {
+            return null;
+        }
+        return CaptureRawPacket(bucket, quad, words, depths, projectedCoordinates is null ? default : coordinates);
+    }
+
+    internal static bool TryBuildRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36, NativeBattleSummonColors? colorRules, IReadOnlyList<BattleSceneScreenPoint>? projectedCoordinates, Span<uint> words, Span<int> depths, Span<BattleSceneScreenPoint> coordinates, out int bucket)
+    {
+        bucket = 0;
         int baseLength = quad ? 20 : 16;
         bool perPolygonColor = polygon.Length == baseLength + 4;
         if (polygon.Length != baseLength && !perPolygonColor || depthShift > 31)
@@ -53,7 +66,7 @@ public static class NativeBattleGeometryPackets
         int bias = (first >> 12) - 8;
         int count = quad ? 4 : 3;
         Span<NativeBattleProjectedVertex> corners = stackalloc NativeBattleProjectedVertex[4];
-        Span<BattleSceneScreenPoint> coordinates = stackalloc BattleSceneScreenPoint[count];
+        coordinates = coordinates[..count];
         if (projectedCoordinates is not null && projectedCoordinates.Count != vertices.Count)
         {
             throw new InvalidDataException("Expanded geometry requires a full coordinate for every projected vertex.");
@@ -84,13 +97,13 @@ public static class NativeBattleGeometryPackets
         uint screenMask = sceneViewport ? 0 : projectedCoordinates is null ? 0x3F00000u : 0xF00000u;
         if ((anyClip & 0x60000) != 0 || (sharedClip & screenMask) != 0)
         {
-            return null;
+            return false;
         }
         if (projectedCoordinates is null)
         {
             if (!Accept510680(corners[0].Screen, corners[1].Screen, corners[2].Screen))
             {
-                return null;
+                return false;
             }
             if (sceneViewport)
             {
@@ -101,13 +114,13 @@ public static class NativeBattleGeometryPackets
                 }
                 if (visibleArea.RejectPolygon(coordinates, nativeClip: false))
                 {
-                    return null;
+                    return false;
                 }
             }
         }
         else if (!AcceptExpanded(coordinates[0], coordinates[1], coordinates[2]) || visibleArea.RejectPolygon(coordinates, nativeClip: true))
         {
-            return null;
+            return false;
         }
         uint uv1Page = BinaryPrimitives.ReadUInt32LittleEndian(polygon[12..]);
         uint command;
@@ -130,8 +143,7 @@ public static class NativeBattleGeometryPackets
                 command |= 0x2000000;
             }
         }
-        uint[] words = new uint[quad ? 10 : 8];
-        words[0] = (uint)(words.Length - 1) << 24;
+        words[0] = (quad ? 9u : 7u) << 24;
         words[1] = command;
         words[2] = corners[0].Screen;
         words[3] = BinaryPrimitives.ReadUInt32LittleEndian(polygon[8..]);
@@ -144,12 +156,23 @@ public static class NativeBattleGeometryPackets
             words[8] = corners[3].Screen;
             words[9] = BinaryPrimitives.ReadUInt16LittleEndian(polygon[18..]);
         }
-        int[] depths = new int[4];
+        depths[3] = 0;
         for (int corner = 0; corner < count; corner++)
         {
             depths[corner] = bias + corners[corner].Depth;
         }
-        return new(checked(tableBaseBucket + (minDepth >> depthShift)), ImmutableCollectionsMarshal.AsImmutableArray(words), ImmutableCollectionsMarshal.AsImmutableArray(depths), quad ? QuadMask : TriangleMask, projectedCoordinates is null ? null : ImmutableArray.Create(coordinates));
+        bucket = checked(tableBaseBucket + (minDepth >> depthShift));
+        return true;
+    }
+
+    internal static ImmutableArray<NativeBattleGfPacketByteState> RawPhysicalWriteMask(bool quad)
+    {
+        return quad ? QuadMask : TriangleMask;
+    }
+
+    internal static RawPacket CaptureRawPacket(int bucket, bool quad, ReadOnlySpan<uint> words, ReadOnlySpan<int> depths, ReadOnlySpan<BattleSceneScreenPoint> coordinates)
+    {
+        return new(bucket, ImmutableArray.Create(words), ImmutableArray.Create(depths), RawPhysicalWriteMask(quad), coordinates.IsEmpty ? null : ImmutableArray.Create(coordinates));
     }
 
     internal readonly record struct RawPacket(int Bucket, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4, ImmutableArray<NativeBattleGfPacketByteState> PhysicalWriteMask, ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates)

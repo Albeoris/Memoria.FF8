@@ -54,7 +54,7 @@ public sealed class NativeBattleLevelDeath74PresentationTests
         string fixture = Path.Combine(output, "fixture");
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select the installed original resources."), fixture);
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);

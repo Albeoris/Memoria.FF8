@@ -136,8 +136,8 @@ public sealed class CrossEditionBattleReturnTests
         using GameWorld target = new(targetSession, targetDirectory!, sharedAssets: targetAssets);
         target.EnsureField();
         BattleEncounterOccurrence occurrence = targetSession.State.PendingBattleEncounter!;
-        source.ApplyBattleInput(new(BattleInputKind.InstantVictory));
-        target.ApplyBattleInput(new(BattleInputKind.InstantVictory));
+        ExpandedBattleInstalledEntry.CompleteDebugVictory(source);
+        ExpandedBattleInstalledEntry.CompleteDebugVictory(target);
         Assert.True(source.Battle!.CanReturnToField);
         Assert.True(target.Battle!.CanReturnToField);
         source.ApplyBattleInput(new(BattleInputKind.Return));

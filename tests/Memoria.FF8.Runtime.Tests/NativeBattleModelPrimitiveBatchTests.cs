@@ -30,9 +30,9 @@ public sealed class NativeBattleModelPrimitiveBatchTests
             NativeBattleGeometryPrimitive primitive = expected[index];
             NativeBattleModelPrimitive value = actual[index];
             Assert.Equal(primitive.Bucket, value.Bucket);
-            Assert.Equal(primitive.Words.ToArray(), value.Words.ToArray());
-            Assert.Equal(primitive.VertexPayload4.ToArray(), value.VertexPayload4.ToArray());
-            Assert.Equal(primitive.ProjectedCoordinates!.Value.ToArray(), value.ProjectedCoordinates!.Value.ToArray());
+            Assert.True(primitive.Words.AsSpan().SequenceEqual(value.Words.AsSpan()));
+            Assert.True(primitive.VertexPayload4.AsSpan().SequenceEqual(value.VertexPayload4.AsSpan()));
+            Assert.True(primitive.ProjectedCoordinates!.Value.AsSpan().SequenceEqual(value.ProjectedCoordinates!.Value.AsSpan()));
             Assert.Equal(primitive.PhysicalWriteMask, value.PhysicalWriteMask);
             Assert.Equal(primitive.PilotGeometry, value.PilotGeometry);
             Assert.Same(primitive.ModelTextureOwner, value.ModelTextureOwner);
@@ -68,7 +68,7 @@ public sealed class NativeBattleModelPrimitiveBatchTests
         {
             Assert.Equal(before[index].Pilot, replayed[index].Pilot);
             Assert.True(replayed[index].Pilot.IsModel);
-            Assert.Equal(first[first.Count - index - 1].Words.Skip(1), replayed[index].Words);
+            Assert.True(first[first.Count - index - 1].Words.AsSpan()[1..].SequenceEqual(replayed[index].WordSpan));
         }
         NativeBattleLogicalOrdering detached = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(ordering)))!;
         Assert.Equal(JsonSerializer.Serialize(replayed), JsonSerializer.Serialize(detached.Traverse(Lengths())));

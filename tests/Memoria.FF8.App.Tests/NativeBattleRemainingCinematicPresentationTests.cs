@@ -251,7 +251,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 boundary = "cold-" + name;
                 prior = snapshot;
                 NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, savedPixels ?? scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());
-                BattleSession cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+                BattleSession cold = BattleSession.Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
                 BattleSession direct = BattleSession.Restore(snapshot);
                 cold.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
                 direct.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
@@ -296,7 +296,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(input!);
         ushort effect = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect;
         Assert.True(NativeBattleCinematicProfile.IsSupported(effect));
         Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor > 0);
@@ -348,7 +348,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             byte[] originalPixels = new BattleScenePresentation(assets, snapshot.Definition).Render(Restore(snapshot), 320, 224).ToArray();
             NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, originalPixels);
             BattleSession direct = Restore(snapshot);
-            BattleSession cold = Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, name + ".battle.json")));
+            BattleSession cold = Restore(NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output!, name + ".battle.json")));
             Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
             direct.Tick();
             cold.Tick();

@@ -65,8 +65,7 @@ public sealed class BattleHudNativeLimitTests
     [Fact]
     public void Terminal_HUD_does_not_select_or_reroll_a_ready_native_character()
     {
-        BattleSession battle = Create();
-        battle.InstantVictory();
+        BattleSession battle = Create(terminal: true);
         string before = JsonSerializer.Serialize(battle.Capture());
         BattleHudController hud = Hud(battle);
         hud.BuildView();
@@ -246,7 +245,7 @@ public sealed class BattleHudNativeLimitTests
         return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute);
     }
 
-    private static BattleSession Create(bool twoPlayers = false, byte crisis = 4)
+    private static BattleSession Create(bool twoPlayers = false, byte crisis = 4, bool terminal = false)
     {
         ImmutableArray<byte> weights = Enumerable.Repeat((byte)0, 32).ToImmutableArray();
         BattleNativeLimitDefinition limit = new(0, 5, 0, 250, weights) { InvocationChoices = [new(5, "Renzokuken", 0x50, 0)] };
@@ -256,7 +255,8 @@ public sealed class BattleHudNativeLimitTests
             actors.Add(new() { Id = "quistis", Name = "Quistis", IsPlayer = true, ModelId = 3, MaximumHp = 100, CurrentHp = 10, InitialAtb = BattleSession.AtbMaximum, NativeLimit = new(3, 15, 0, 250, weights) });
         }
         actors.Add(new() { Id = "enemy", Name = "Enemy" });
-        BattleSession battle = new(new BattleDefinition { NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        BattleDefinition definition = new() { NativeLimitsDisabled = false, Combatants = actors.ToArray() };
+        BattleSession battle = terminal ? BattleHudTestPresentation.Victory(definition, BattleAtbMode.TurnBased) : new(definition, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("squall", crisis)] });
     }
 }

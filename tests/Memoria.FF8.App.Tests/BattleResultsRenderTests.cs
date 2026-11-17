@@ -34,11 +34,10 @@ public sealed class BattleResultsRenderTests
         }
         foreach ((int width, int height) in new[] { (640, 448), (1280, 896) })
         {
-            BattleSession session = new(definition, BattleAtbMode.Normal);
+            BattleSession session = BattleHudTestPresentation.Victory(definition, BattleAtbMode.Normal);
             int completions = 0;
             BattleHudController controller = new(session, session.QueueAttack, () => { }, () => { }, () => completions++, previewRewards: () => rewards, guardianForceName: id => catalog.GuardianForceName(id)!, itemName: id => catalog.ItemName(id)!, cardName: id => catalog.CardName(id)!);
             controller.ConfigureResults(battles.ReadNativeGlobalBattleMessages(), id => catalog.ItemDescription(id) ?? "", id => catalog.AbilityName(id) ?? "");
-            session.InstantVictory();
             Draw("experience");
             controller.ConfirmResult();
             controller.AdvancePresentation(TimeSpan.FromSeconds(1));

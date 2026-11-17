@@ -19,7 +19,7 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         Assert.False(Directory.Exists(output));
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
+        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
         string unchanged = JsonSerializer.Serialize(source);
         BattleSession session = BattleSession.Restore(source);
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
