@@ -16,7 +16,7 @@ public enum WorldHostDependencyKind
 
 public sealed record WorldHostDependency(WorldHostDependencyKind Kind, int Model, int Selector, int? FreeModelIndex = null);
 public sealed record WorldHostReadValue(WorldHostDependency Dependency, int? Value);
-public sealed record WorldTransitionObservation(int ProgramCounter, WorldOperation Operation, ushort? Selector);
+public sealed record WorldTransitionObservation(int ProgramCounter, WorldOperation Operation, ushort? Selector, [property: global::System.Text.Json.Serialization.JsonIgnore(Condition = global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? Model = null);
 public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Header, int Entry, WorldVariableRead[] Reads, WorldHostDependency[] HostReads, WorldTransitionObservation[] Transitions, int[] ProgramCounters)
 {
     public WorldHostReadValue[] HostValues { get; init; } = [];
@@ -244,7 +244,8 @@ public sealed partial class WorldMachine
                 reason ??= observation.Reason;
                 foreach (WorldHostRequest command in observation.Commands.Where(command => command.Command.Operation is WorldOperation.BoardTransport or WorldOperation.SetPlayer or WorldOperation.RestoreAttachedRider))
                 {
-                    transitions.Add(new(command.ProgramCounter, command.Command.Operation, null));
+                    int? model = command.Command.Operation is WorldOperation.BoardTransport or WorldOperation.SetPlayer && command.FreeModelIndex is null && command.ActiveModel >= 0 ? command.ActiveModel : null;
+                    transitions.Add(new(command.ProgramCounter, command.Command.Operation, null, model));
                 }
                 bool handoff = false;
                 foreach (WorldHostRequest command in observation.Commands.Where(command => command.Command.Operation is WorldOperation.FieldTransition or WorldOperation.FieldTransitionSelector))

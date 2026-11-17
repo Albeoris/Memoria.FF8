@@ -17,6 +17,7 @@ internal static class WorldScriptAnalysisTests
         PureFieldTransferProof();
         BoundsAndSourcePreservation();
         ModelDispatchOwnershipAndAdmission();
+        ControlledModelTransitionReceivers();
         ModelScriptTailOrdering();
         AdmittedScriptDispatchReceipts();
         Console.WriteLine("PASS read-only native world mesh CFG, selectors, typed guards, request closure and explicit incomplete dependencies");
@@ -242,6 +243,24 @@ internal static class WorldScriptAnalysisTests
         Check(!pure.AnalyzeMeshDispatch(0, 0, 3, instructionBudget: 1).IsPureFieldTransfer, "A truncated CFG inspection fabricated a pure transfer proof.");
         Check(!pure.AnalyzeMeshDispatch(1, 0, 3).IsPureFieldTransfer, "An absent native handler fabricated a pure transfer proof.");
         Check(before == JsonSerializer.Serialize(assignment.Capture()) && bytes.SequenceEqual(persistent) && host.Calls == 0, "Pure-transfer proof inspection changed live execution, variables or host state.");
+    }
+
+    private static void ControlledModelTransitionReceivers()
+    {
+        ushort[] code = [0, 0x110, 5, 0x330, 0x30C, 0x302, 0x335, 0x203, 0x110, 5, 0x207, 0x203, 0x30C, 0x203];
+        PcWorldEvents events = new([new(0x4603, 1), new(0x4604, 8), new(0x4503, 12)], code);
+        byte[] persistent = new byte[1280];
+        RejectHost host = new();
+        WorldMachine machine = new(new(events), persistent, host);
+        machine.Restore(machine.Capture() with { Models = [new(6, 0, 0, 0, false, 0, []), new(5, 0, 0, 0, false, 0, [])] });
+        string before = JsonSerializer.Serialize(machine.Capture());
+        WorldScriptAnalysis selected = machine.AnalyzeModelDispatch(6, 3);
+        Check(selected.Complete && selected.Transitions.Single(transition => transition.Operation == WorldOperation.BoardTransport).Model == 5 && selected.Transitions.Single(transition => transition.Operation == WorldOperation.SetPlayer).Model == 5, "Controlled-model transition metadata used the executing callback owner instead of the selected native receiver.");
+        Check(selected.Transitions.Single(transition => transition.Operation == WorldOperation.RestoreAttachedRider).Model is null, "Dynamic attached-rider restoration invented a controlled model receiver.");
+        WorldScriptAnalysis requested = machine.AnalyzeModelDispatch(6, 4);
+        Check(requested.Complete && requested.Transitions.Single().Model == 5 && requested.Transitions.Single().ProgramCounter == 12, "A nested native request lost its child boarding receiver.");
+        Check(JsonSerializer.Serialize(new WorldTransitionObservation(7, WorldOperation.FieldTransition, 0x800)) == "{\"ProgramCounter\":7,\"Operation\":792,\"Selector\":2048}", "Absent receiver metadata changed existing field transition serialization.");
+        Check(before == JsonSerializer.Serialize(machine.Capture()) && persistent.All(value => value == 0) && host.Calls == 0, "Receiver analysis changed source VM, canonical storage or live host state.");
     }
 
     private static void ModelDispatchOwnershipAndAdmission()
