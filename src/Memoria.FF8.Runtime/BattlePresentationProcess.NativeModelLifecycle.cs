@@ -99,7 +99,10 @@ public sealed partial class BattlePresentationProcess
                 {
                     model = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, drawResource.PoseSource ?? throw new NotSupportedException("Native5086F0 requires its actual posed body skeleton."));
                 }
-                graphics = SubmitNativeModelPackets502D40(graphics with { ActorModels = models.Set(owner, model) }, owner, model, drawResource);
+                using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelSubmission))
+                {
+                    graphics = SubmitNativeModelPackets502D40(graphics with { ActorModels = models.Set(owner, model) }, owner, model, drawResource);
+                }
                 models = graphics.ActorModels;
                 model = models.Get(owner);
             }
@@ -107,124 +110,128 @@ public sealed partial class BattlePresentationProcess
             {
                 NativeBattleGraphicsResource originalResource = ReadStandingPresentationModelResource(graphics, owner) ?? throw new InvalidDataException("Native graphics callback lost its standing resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, owner);
-                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(owner, model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
+                NativeBattleSequenceStep step;
+                using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelSequence))
                 {
-                    OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), originalResource) : originalResource,
-                    GlobalRandom = NextNativeGlobalRandom,
-                    BindModelRing90 = (current, selector) =>
+                    step = NativeBattleSequenceMachine.Advance(owner, model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
                     {
-                        models = NativeBattleModelRings.Bind90(models.Set(owner, current), owner, selector, graphics.NativeBindings, ReadSourceBindings(graphics, owner));
-                        graphics = graphics with { ActorModels = models };
-                        return models.Get(owner);
-                    },
-                    ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = models.Set(owner, current) }, owner, variable),
-                    WriteExternal = WriteNativeGraphicsSequenceVariable,
-                    ScheduleContactEffect = (current, program) =>
-                    {
-                        graphics = graphics with { ActorModels = models.Set(owner, current) };
-                        (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, owner, program, true);
-                        models = graphics.ActorModels;
-                        return (models.Get(owner), offset);
-                    },
-                    ScheduleModelParticle = (current, program) =>
-                    {
-                        graphics = graphics with { ActorModels = models.Set(owner, current) };
-                        (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, owner, program, false);
-                        models = graphics.ActorModels;
-                        return (models.Get(owner), offset);
-                    },
-                    WriteModelExternal = (current, variable, value) =>
-                    {
-                        BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).ResolveTarget(models, graphics.NativeBindings) ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
-                        models = models.Set(owner, current);
-                        models = models.Set(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models.Get(target), variable, value));
-                        graphics = graphics with { ActorModels = models };
-                        return models.Get(owner);
-                    },
-                    ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, owner, program, soundTwo, bone),
-                    ScheduleCameraShake = (start, end, duration) => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendCameraShake50F680(start, end, duration) },
-                    ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(owner, group, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) },
-                    ScheduleModelDeformation = (current, group, velocity, angle) =>
-                    {
-                        graphics = ScheduleNativeModelDeformation50F250(graphics with { ActorModels = models.Set(owner, current) }, owner, group, velocity, angle);
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    ScheduleStageFade = duration =>
-                    {
-                        NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native501F50 requires its four retained stage rows.");
-                        NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorFlags = group.ColorFlags & 0xFF000000u }).ToImmutableArray() };
-                        graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendStageFade501F50(duration) };
-                    },
-                    StageControl = command =>
-                    {
-                        graphics = DispatchNativeStageControl(graphics with { ActorModels = models }, command);
-                        models = graphics.ActorModels;
-                    },
-                    PlaySound = (current, cue) =>
-                    {
-                        NativeBattleGraphicsState sounding = graphics with { ActorModels = models.Set(owner, current) };
-                        PublishNativeSequenceSound(sounding, owner, current, actorFacts.ActorId, cue);
-                    },
-                    ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, owner, program, sequence),
-                    ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, owner, effect),
-                    ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, owner, selector, variant),
-                    AdvanceTexture = (current, selector) => AdvanceNativeTextureMotion(owner, current, selector),
-                    RebindActionGeometry = (current, selector) =>
-                    {
-                        graphics = RebindNativeSequenceGeometry92(graphics with { ActorModels = models.Set(owner, current) }, owner, selector);
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
-                    {
-                        graphics = graphics with { ActorModels = models.Set(owner, current) };
-                        BattleModelOwner target = opcode == 0x9E ? ResolveSourceModelOperand(graphics, owner, first) : (graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
-                        (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
-                        graphics = graphics with { Auxiliary = auxiliary };
-                        if (allocated && opcode != 0x9E)
+                        OriginalResource = model.ModelId4 >= 16 ? model.OriginalResourceRow104 == model.ActiveResourceRow100 && model.ResourceMagicId is null ? resource : ResolveNativeEnemyResource(model.OriginalResourceRow104 ?? throw new NotSupportedException("Native enemy original resource row remains unknown."), originalResource) : originalResource,
+                        GlobalRandom = NextNativeGlobalRandom,
+                        BindModelRing90 = (current, selector) =>
                         {
-                            NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(target);
-                            ushort targetFlags = targetModel.Flags2 ?? throw new NotSupportedException("Native AD/AE requires its target flagsWORD2.");
-                            graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, targetModel with { Flags2 = (ushort)(targetFlags | 0x20) }) };
+                            models = NativeBattleModelRings.Bind90(models.Set(owner, current), owner, selector, graphics.NativeBindings, ReadSourceBindings(graphics, owner));
+                            graphics = graphics with { ActorModels = models };
+                            return models.Get(owner);
+                        },
+                        ReadModelExternal = (current, variable) => ReadNativeGraphicsSequenceVariable(graphics with { ActorModels = models.Set(owner, current) }, owner, variable),
+                        WriteExternal = WriteNativeGraphicsSequenceVariable,
+                        ScheduleContactEffect = (current, program) =>
+                        {
+                            graphics = graphics with { ActorModels = models.Set(owner, current) };
+                            (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, owner, program, true);
+                            models = graphics.ActorModels;
+                            return (models.Get(owner), offset);
+                        },
+                        ScheduleModelParticle = (current, program) =>
+                        {
+                            graphics = graphics with { ActorModels = models.Set(owner, current) };
+                            (graphics, int offset) = ScheduleNativeSequenceParticle(graphics, owner, program, false);
+                            models = graphics.ActorModels;
+                            return (models.Get(owner), offset);
+                        },
+                        WriteModelExternal = (current, variable, value) =>
+                        {
+                            BattleModelOwner target = (graphics.ActionContext ?? throw new NotSupportedException("Native sequence target write requires its50D300 target identity.")).ResolveTarget(models, graphics.NativeBindings) ?? throw new NotSupportedException("Native sequence target write requires its physical target identity.");
+                            models = models.Set(owner, current);
+                            models = models.Set(target, NativeBattleActionGraphics.WriteSequenceTarget5048E0(models.Get(target), variable, value));
+                            graphics = graphics with { ActorModels = models };
+                            return models.Get(owner);
+                        },
+                        ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, owner, program, soundTwo, bone),
+                        ScheduleCameraShake = (start, end, duration) => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendCameraShake50F680(start, end, duration) },
+                        ScheduleModelGroupFade = group => graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendModelGroupFade50F0B0(owner, group, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)) },
+                        ScheduleModelDeformation = (current, group, velocity, angle) =>
+                        {
+                            graphics = ScheduleNativeModelDeformation50F250(graphics with { ActorModels = models.Set(owner, current) }, owner, group, velocity, angle);
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        ScheduleStageFade = duration =>
+                        {
+                            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native501F50 requires its four retained stage rows.");
+                            NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorFlags = group.ColorFlags & 0xFF000000u }).ToImmutableArray() };
+                            graphics = graphics with { Auxiliary = graphics.Auxiliary.AppendStageFade501F50(duration) };
+                        },
+                        StageControl = command =>
+                        {
+                            graphics = DispatchNativeStageControl(graphics with { ActorModels = models }, command);
+                            models = graphics.ActorModels;
+                        },
+                        PlaySound = (current, cue) =>
+                        {
+                            NativeBattleGraphicsState sounding = graphics with { ActorModels = models.Set(owner, current) };
+                            PublishNativeSequenceSound(sounding, owner, current, actorFacts.ActorId, cue);
+                        },
+                        ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, owner, program, sequence),
+                        ScheduleModelEffect = effect => graphics = ScheduleNativeModelEffect(graphics, owner, effect),
+                        ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, owner, selector, variant),
+                        AdvanceTexture = (current, selector) => AdvanceNativeTextureMotion(owner, current, selector),
+                        RebindActionGeometry = (current, selector) =>
+                        {
+                            graphics = RebindNativeSequenceGeometry92(graphics with { ActorModels = models.Set(owner, current) }, owner, selector);
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
+                        {
+                            graphics = graphics with { ActorModels = models.Set(owner, current) };
+                            BattleModelOwner target = opcode == 0x9E ? ResolveSourceModelOperand(graphics, owner, first) : (graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
+                            (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+                            graphics = graphics with { Auxiliary = auxiliary };
+                            if (allocated && opcode != 0x9E)
+                            {
+                                NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(target);
+                                ushort targetFlags = targetModel.Flags2 ?? throw new NotSupportedException("Native AD/AE requires its target flagsWORD2.");
+                                graphics = graphics with { ActorModels = graphics.ActorModels.Set(target, targetModel with { Flags2 = (ushort)(targetFlags | 0x20) }) };
+                            }
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        ApplyCurrentContact = current =>
+                        {
+                            graphics = ApplyNativeCurrentSequenceContact(graphics with { ActorModels = models.Set(owner, current) });
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        SelectModelSequence = (current, opcode, selector, selected) =>
+                        {
+                            graphics = SelectNativeSequenceModels(graphics with { ActorModels = models.Set(owner, current) }, owner, opcode, selector, selected);
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        SchedulePendingSequence = (current, selected) =>
+                        {
+                            graphics = ScheduleNativeRingSequence505C00(graphics with { ActorModels = models.Set(owner, current) }, owner, selected);
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        ApplyNextContact = current =>
+                        {
+                            graphics = ApplyNativeNextSequenceContact(graphics with { ActorModels = models.Set(owner, current) });
+                            models = graphics.ActorModels;
+                            return models.Get(owner);
+                        },
+                        ApplyActionContacts = current =>
+                        {
+                            models = models.Set(owner, current);
+                            graphics = ApplyNativeActiveHeaderContacts(graphics with { ActorModels = models }, owner);
+                            models = graphics.ActorModels;
+                            //TODO(TD-009): the component presentation phase observes the original AA publication while104 owns native completion.
+                            graphics = graphics with { ActionCallbackReady = true };
+                            return models.Get(owner);
                         }
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    ApplyCurrentContact = current =>
-                    {
-                        graphics = ApplyNativeCurrentSequenceContact(graphics with { ActorModels = models.Set(owner, current) });
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    SelectModelSequence = (current, opcode, selector, selected) =>
-                    {
-                        graphics = SelectNativeSequenceModels(graphics with { ActorModels = models.Set(owner, current) }, owner, opcode, selector, selected);
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    SchedulePendingSequence = (current, selected) =>
-                    {
-                        graphics = ScheduleNativeRingSequence505C00(graphics with { ActorModels = models.Set(owner, current) }, owner, selected);
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    ApplyNextContact = current =>
-                    {
-                        graphics = ApplyNativeNextSequenceContact(graphics with { ActorModels = models.Set(owner, current) });
-                        models = graphics.ActorModels;
-                        return models.Get(owner);
-                    },
-                    ApplyActionContacts = current =>
-                    {
-                        models = models.Set(owner, current);
-                        graphics = ApplyNativeActiveHeaderContacts(graphics with { ActorModels = models }, owner);
-                        models = graphics.ActorModels;
-                        //TODO(TD-009): the component presentation phase observes the original AA publication while104 owns native completion.
-                        graphics = graphics with { ActionCallbackReady = true };
-                        return models.Get(owner);
-                    }
-                });
+                    });
+                }
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {

@@ -160,7 +160,7 @@ public sealed partial class BattlePresentationProcess
         if (bodyDraw)
         {
             bool selected = Enumerable.Range(0, geometry.Length).Any(index => (mask & (1u << (index & 31))) != 0);
-            graphics = AppendNativeModelRendererPackets(graphics, bodyPrimitives, selected);
+            graphics = AppendNativeModelRendererPackets(graphics, bodyPrimitives, selected, measureModelPlacement: true);
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {
@@ -168,7 +168,7 @@ public sealed partial class BattlePresentationProcess
             if (ResetAndEnterNativeModelRenderer5099D0(color))
             {
                 NativeBattleModelPrimitiveBatch linkedPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(linked, linkedMatrices, projection, color, uint.MaxValue, null, 17, 4, model.LinkedTextureSlots ?? throw new NotSupportedException("Native linked geometry requires its executed507400 material relocation."), publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x507BF0, owner), actorId: actorId, material: material);
-                graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true);
+                graphics = AppendNativeModelRendererPackets(graphics, linkedPrimitives, true, measureModelPlacement: true);
             }
         }
         return graphics;
@@ -219,14 +219,18 @@ public sealed partial class BattlePresentationProcess
         return draw;
     }
 
-    private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, NativeBattleModelPrimitiveBatch primitives, bool renderedObject, string? textureSourceOwner = null)
+    private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, NativeBattleModelPrimitiveBatch primitives, bool renderedObject, string? textureSourceOwner = null, bool measureModelPlacement = false)
     {
         if (hostedModelPackets is { } hosted)
         {
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Hosted model packet publication requires its initialized ordering table.");
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model packet publication requires its process owner.");
             NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Hosted model packet publication requires its selected draw bank.");
-            NativeBattleLogicalOrdering ordering = hosted.Append(process, frame.Pending, primitives, textureSourceOwner: textureSourceOwner);
+            NativeBattleLogicalOrdering ordering;
+            using (measureModelPlacement ? NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelPacketPlacement) : default)
+            {
+                ordering = hosted.Append(process, frame.Pending, primitives, textureSourceOwner: textureSourceOwner);
+            }
             if (renderedObject)
             {
                 NativeEffectMemory = memory with { PrimitiveProcess = process.Publish50FDF0(checked((uint)hosted.GetCursor(process)), null) };

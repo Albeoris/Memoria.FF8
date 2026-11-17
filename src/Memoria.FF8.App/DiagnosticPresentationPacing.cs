@@ -182,6 +182,7 @@ internal sealed class DiagnosticPresentationPacing
         uint? thread = null;
         DiagnosticNativeFramePhases cycles = default;
         DiagnosticNativeFramePhases wall = default;
+        DiagnosticNativeTimingDetail[]? details = null;
         foreach (DiagnosticPacingSample sample in observed)
         {
             if (sample.HostPhases is not { NativeCpuCycles: { } observation } phases)
@@ -197,7 +198,8 @@ internal sealed class DiagnosticPresentationPacing
             }
             if (!phases.FitsInterval(sample.TimerWaitTicks, NonPresentTicks(sample)) || paired.Total > phases.BattlePresentationUpdate || observation.ThreadId is null ||
                 (thread is not null && thread != observation.ThreadId) ||
-                timed.Total > long.MaxValue - cycles.Total || paired.Total > long.MaxValue - wall.Total)
+                timed.Total > long.MaxValue - cycles.Total || paired.Total > long.MaxValue - wall.Total ||
+                timed.Callbacks > long.MaxValue - cycles.Callbacks || !TryAccumulateDetails(observation))
             {
                 invalid += timed.Callbacks;
                 continue;
@@ -206,7 +208,34 @@ internal sealed class DiagnosticPresentationPacing
             cycles = cycles.Add(timed);
             wall = wall.Add(paired);
         }
-        return requested ? new(available, invalid, thread, cycles.Callbacks > 0 ? cycles : null, cycles.Callbacks > 0 ? wall : null) : null;
+        return requested
+            ? new(available, invalid, thread, cycles.Callbacks > 0 ? cycles : null, cycles.Callbacks > 0 ? wall : null)
+            {
+                Details = DiagnosticNativeTimingDetail.ToReport(details)
+            }
+            : null;
+
+        bool TryAccumulateDetails(DiagnosticNativeCpuCycles observation)
+        {
+            if (observation.Details is not { } observedDetails)
+            {
+                return true;
+            }
+            details ??= new DiagnosticNativeTimingDetail[DiagnosticNativeTimingDetail.Count];
+            foreach (var (name, measured) in observedDetails)
+            {
+                if (!details[(int)name].CanAdd(measured))
+                {
+                    return false;
+                }
+            }
+            foreach (var (name, measured) in observedDetails)
+            {
+                int index = (int)name;
+                details[index] = details[index].Add(measured);
+            }
+            return true;
+        }
     }
 
     private DiagnosticHostPhaseSummary? SummarizeHostPhases(DiagnosticPacingSample[] observed)

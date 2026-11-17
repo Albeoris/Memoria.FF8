@@ -259,7 +259,10 @@ public sealed class DiagnosticPresentationPacingTests
         int reads = 0;
         DiagnosticHostPhaseTiming timing = new(pacing, requested, Read);
         INativeBattlePhaseTimingSink sink = timing;
+        Assert.Equal(pacing && requested, sink.DetailEnabled);
         sink.BeginCallback();
+        sink.BeginDetail(NativeBattleTimedDetail.ModelSequence);
+        sink.RecordDetail(NativeBattleTimedDetail.ModelSequence, 1);
         sink.Record(NativeBattleTimedPhase.Setup, 3);
         sink.CompleteCallback();
         DiagnosticNativeCpuCycles? observation = timing.CompleteInterval().NativeCpuCycles;
@@ -284,6 +287,135 @@ public sealed class DiagnosticPresentationPacingTests
             thread = 0;
             cycles = 0;
             return false;
+        }
+    }
+
+    [Fact]
+    public void Native_cpu_details_preserve_nested_measurements_and_aggregate_only_aligned_intervals()
+    {
+        ulong stamp = 100;
+        DiagnosticHostPhaseTiming timing = new(true, true, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+
+        DiagnosticHostFramePhases first = MeasureInterval();
+        DiagnosticHostFramePhases second = MeasureInterval();
+        Assert.Null(timing.CompleteInterval().NativeCpuCycles!.Details);
+        DiagnosticNativeCpuCycles native = Assert.IsType<DiagnosticNativeCpuCycles>(first.NativeCpuCycles);
+        Assert.Equal(15, native.TotalCycles);
+        Assert.Equal(15, native.Cycles!.Value.Models);
+        Assert.Equal(9, native.TotalPairedWallTicks);
+        var firstDetails = native.Details!;
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 10, 7), firstDetails[NativeBattleTimedDetail.ModelSubmission]);
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 3, 2), firstDetails[NativeBattleTimedDetail.ModelPacketPlacement]);
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 0, 0), firstDetails[NativeBattleTimedDetail.ModelSequence]);
+        Assert.False(firstDetails.ContainsKey(NativeBattleTimedDetail.OrderingPass2));
+
+        DiagnosticPresentationPacing report = new(1000, 3, 100, new(true, 0, 0, 0, 0, 60, 0));
+        report.Record(1, 150, 140, 148, new(true, 1, 0, 0, 0, 60, 0), first);
+        report.Record(2, 195, 182, 193, new(true, 2, 0, 0, 0, 60, 0), second);
+        report.Record(3, 240, 230, 238, new(true, 3, 0, 0, 0, 60, 0), second with { Update = 50 });
+        DiagnosticPacingSummary summary = report.Complete();
+        DiagnosticNativeCpuCycles aggregate = Assert.IsType<DiagnosticNativeCpuCycles>(summary.NativeCpuCycles);
+        Assert.Equal(30, aggregate.TotalCycles);
+        Assert.Equal(1, aggregate.InvalidObservations);
+        var aggregateDetails = aggregate.Details!;
+        Assert.Equal(new DiagnosticNativeTimingDetail(2, 20, 14), aggregateDetails[NativeBattleTimedDetail.ModelSubmission]);
+        Assert.Equal(new DiagnosticNativeTimingDetail(2, 6, 4), aggregateDetails[NativeBattleTimedDetail.ModelPacketPlacement]);
+        Assert.Same(native, summary.SlowestPresents[0].NativeCpuCycles);
+
+        DiagnosticHostFramePhases MeasureInterval()
+        {
+            sink.BeginCallback();
+            sink.BeginDetail(NativeBattleTimedDetail.ModelSequence);
+            sink.RecordDetail(NativeBattleTimedDetail.ModelSequence, 0);
+            stamp += 2;
+            sink.BeginDetail(NativeBattleTimedDetail.ModelSubmission);
+            stamp += 3;
+            sink.BeginDetail(NativeBattleTimedDetail.ModelPacketPlacement);
+            stamp += 3;
+            sink.RecordDetail(NativeBattleTimedDetail.ModelPacketPlacement, 2);
+            stamp += 4;
+            sink.RecordDetail(NativeBattleTimedDetail.ModelSubmission, 7);
+            stamp += 3;
+            sink.Record(NativeBattleTimedPhase.Models, 9);
+            sink.CompleteCallback();
+            return timing.CompleteInterval() with { Update = 15, BattlePresentationUpdate = 12 };
+        }
+
+        bool Read(out uint thread, out ulong cycles)
+        {
+            thread = 42;
+            cycles = stamp;
+            return true;
+        }
+    }
+
+    [Theory]
+    [InlineData("unbalanced")]
+    [InlineData("out of order")]
+    [InlineData("reentrant")]
+    [InlineData("read failure")]
+    [InlineData("thread change")]
+    [InlineData("backwards")]
+    [InlineData("overflow")]
+    public void Invalid_native_cpu_detail_discards_its_callback_and_preserves_the_next_observation(string fault)
+    {
+        ulong stamp = 100;
+        uint thread = 42;
+        bool readSucceeds = true;
+        DiagnosticHostPhaseTiming timing = new(true, true, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+
+        sink.BeginCallback();
+        sink.BeginDetail(NativeBattleTimedDetail.ModelSubmission);
+        stamp += 10;
+        switch (fault)
+        {
+            case "unbalanced":
+                break;
+            case "out of order":
+                sink.BeginDetail(NativeBattleTimedDetail.ModelPacketPlacement);
+                sink.RecordDetail(NativeBattleTimedDetail.ModelSubmission, 1);
+                break;
+            case "reentrant":
+                sink.BeginDetail(NativeBattleTimedDetail.ModelSubmission);
+                break;
+            default:
+                stamp = fault == "backwards" ? 99 : fault == "overflow" ? ulong.MaxValue : stamp;
+                thread = fault == "thread change" ? 43u : 42u;
+                readSucceeds = fault != "read failure";
+                sink.RecordDetail(NativeBattleTimedDetail.ModelSubmission, 1);
+                break;
+        }
+        sink.Record(NativeBattleTimedPhase.Models, 8);
+        sink.CompleteCallback();
+
+        stamp = 200;
+        thread = 42;
+        readSucceeds = true;
+        sink.BeginCallback();
+        sink.BeginDetail(NativeBattleTimedDetail.OrderingTraversal);
+        stamp += 5;
+        sink.RecordDetail(NativeBattleTimedDetail.OrderingTraversal, 4);
+        stamp += 2;
+        sink.Record(NativeBattleTimedPhase.OrderingExecution, 6);
+        sink.CompleteCallback();
+
+        DiagnosticHostFramePhases frame = timing.CompleteInterval();
+        DiagnosticNativeCpuCycles received = Assert.IsType<DiagnosticNativeCpuCycles>(frame.NativeCpuCycles);
+        Assert.Equal(1, received.InvalidObservations);
+        Assert.Equal(1, received.Cycles!.Value.Callbacks);
+        Assert.Equal(7, received.TotalCycles);
+        Assert.Equal(14, frame.Native.Total);
+        var detail = Assert.Single(received.Details!);
+        Assert.Equal(NativeBattleTimedDetail.OrderingTraversal, detail.Key);
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 5, 4), detail.Value);
+
+        bool Read(out uint threadId, out ulong cycles)
+        {
+            threadId = thread;
+            cycles = stamp;
+            return readSucceeds;
         }
     }
 

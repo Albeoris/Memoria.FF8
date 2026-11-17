@@ -1604,21 +1604,31 @@ public static class NativeBattleLogicalPasses
     {
         if (ordering.ProxyCursor >= NativeBattlePrimitiveOrdering.ProxyCapacity)
         {
-            context?.EndBatch();
-            return (initial, [], context is null ? cache : context.Cache);
+            using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.OrderingPublication))
+            {
+                context?.EndBatch();
+                return (initial, [], context is null ? cache : context.Cache);
+            }
         }
         context?.BeginOrdering();
-        NativeBattleCommandPages<NativeBattleLogicalCommandReference> commands = ordering.TraverseReferences(tables.WordLengths, readPhysical);
-        foreach (ref readonly NativeBattleLogicalCommandReference command in commands)
+        NativeBattleCommandPages<NativeBattleLogicalCommandReference> commands;
+        using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.OrderingTraversal))
         {
-            if (command.ModelTextureOwner is { } owner)
+            commands = ordering.TraverseReferences(tables.WordLengths, readPhysical);
+        }
+        using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.OrderingOwnerValidation))
+        {
+            foreach (ref readonly NativeBattleLogicalCommandReference command in commands)
             {
-                owner.RequireActorId();
-                if (context is null)
+                if (command.ModelTextureOwner is { } owner)
                 {
-                    throw new NotSupportedException("Model-owned battle primitives require a material-aware execution context.");
+                    owner.RequireActorId();
+                    if (context is null)
+                    {
+                        throw new NotSupportedException("Model-owned battle primitives require a material-aware execution context.");
+                    }
+                    context.ValidateModelTextureOwner(command);
                 }
-                context.ValidateModelTextureOwner(command);
             }
         }
         NativeBattlePrimitiveDrawMode mode = context?.SynchronizeDrawMode(initial) ?? initial;
@@ -1630,6 +1640,7 @@ public static class NativeBattleLogicalPasses
             {
                 break;
             }
+            using NativeBattlePhaseTiming.DetailScope passTiming = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.OrderingPass0 + pass);
             context?.BeginPass(pass);
             SetCache(BeginTexturePass(GetCache(), pass));
             foreach (ref readonly NativeBattleLogicalCommandReference command in commands)
@@ -1702,8 +1713,11 @@ public static class NativeBattleLogicalPasses
             SetCache(EndTexturePass(GetCache(), pass));
             context?.EndPass(pass);
         }
-        context?.EndBatch();
-        return (mode, new(executed.Freeze()), GetCache());
+        using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.OrderingPublication))
+        {
+            context?.EndBatch();
+            return (mode, new(executed.Freeze()), GetCache());
+        }
 
         NativeBattlePcTextureWindowCache? GetCache() => context is null ? cache : context.Cache;
         void SetCache(NativeBattlePcTextureWindowCache? value)

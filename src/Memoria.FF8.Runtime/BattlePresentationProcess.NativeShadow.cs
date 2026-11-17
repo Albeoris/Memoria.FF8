@@ -45,7 +45,12 @@ public sealed partial class BattlePresentationProcess
         batch = batch with { Attempts = batch.Attempts.Select(attempt => attempt.Primitive is { } primitive ? attempt with { Primitive = primitive with { PresentationActorId = actorId } } : attempt).ToImmutableArray() };
         if (hosted is not null)
         {
-            NativeBattleLogicalOrdering ordering = hosted.Append(packets, frame.Pending, batch);
+            NativeBattleLogicalOrdering ordering;
+            // The hosted branch is gated by ordinaryModel and runs inside ModelSubmission.
+            using (NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.ModelPacketPlacement))
+            {
+                ordering = hosted.Append(packets, frame.Pending, batch);
+            }
             return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
         }
         if (privateOrderingAddress is uint table)

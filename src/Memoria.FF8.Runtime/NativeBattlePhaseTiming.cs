@@ -16,8 +16,32 @@ public enum NativeBattleTimedPhase
     Completion
 }
 
+/// <summary>Optional detail measurements within a phase. Model submission includes packet placement.</summary>
+public enum NativeBattleTimedDetail
+{
+    ModelSequence,
+    ModelSubmission,
+    ModelPacketPlacement,
+    OrderingTraversal,
+    OrderingOwnerValidation,
+    OrderingPass0,
+    OrderingPass1,
+    OrderingPass2,
+    OrderingPublication
+}
+
 public interface INativeBattlePhaseTimingSink
 {
+    bool DetailEnabled => false;
+
+    void BeginDetail(NativeBattleTimedDetail detail)
+    {
+    }
+
+    void RecordDetail(NativeBattleTimedDetail detail, long elapsedTicks)
+    {
+    }
+
     void BeginCallback()
     {
     }
@@ -47,6 +71,31 @@ public static class NativeBattlePhaseTiming
         }
         sink.BeginCallback();
         return new(sink, Stopwatch.GetTimestamp());
+    }
+
+    internal static DetailScope MeasureDetail(NativeBattleTimedDetail detail)
+    {
+        if (current is not { DetailEnabled: true } sink)
+        {
+            return default;
+        }
+        sink.BeginDetail(detail);
+        return new(sink, detail, Stopwatch.GetTimestamp());
+    }
+
+    internal struct DetailScope(INativeBattlePhaseTimingSink sink, NativeBattleTimedDetail detail, long started) : IDisposable
+    {
+        private INativeBattlePhaseTimingSink? sink = sink;
+
+        public void Dispose()
+        {
+            if (sink is not { } observer)
+            {
+                return;
+            }
+            sink = null;
+            observer.RecordDetail(detail, Stopwatch.GetTimestamp() - started);
+        }
     }
 
     public readonly struct ObservationScope : IDisposable
