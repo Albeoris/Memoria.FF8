@@ -97,6 +97,7 @@ internal sealed partial class BattleScenePresentation
         if (renderer?.Width != width || renderer.Height != height)
         {
             renderer?.ClearNativeRawTextureCache();
+            renderer?.ClearNativePilotInterval();
             renderer = new BattleRenderer(width, height, ViewportLayout.Fit(320, 240, width, height));
             renderedPixels = null;
             renderedGpu = null;
@@ -113,10 +114,18 @@ internal sealed partial class BattleScenePresentation
         {
             (prepared, pilotNext, pilotAlpha) = pilotTimeline.Select(prepared, SmoothCompatibleMotion && presentationPhase.HasValue, presentationPhase ?? 0, session);
             pilotInterval = pilotNext is not null;
-            if (pilotNext is not null && !renderer.CanSampleNativePilotInterval(prepared, pilotNext))
+            if (pilotNext is null)
+            {
+                renderer.ClearNativePilotInterval();
+            }
+            else if (!renderer.CanSampleNativePilotInterval(prepared, pilotNext))
             {
                 pilotNext = null;
             }
+        }
+        else
+        {
+            renderer.ClearNativePilotInterval();
         }
         if (prepared is null && process.Graphics.Callback == 0)
         {

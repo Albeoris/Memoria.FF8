@@ -25,6 +25,92 @@ public sealed class BattlePilotPresentationTests
         Assert.Null(timeline.Select(second, true, 0.5f).Next);
     }
 
+    [Fact]
+    public void Renderer_reuses_exact_endpoints_and_releases_the_interval_on_reset()
+    {
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattlePreparedPresentation first = Frame(1, 0);
+        NativeBattlePreparedPresentation second = Frame(2, 10);
+        second = second with { Primitives = second.Primitives with { LastCommands = [.. second.Primitives.LastCommands, Frame(2, 20).Primitives.LastCommands[0]] } };
+        var interval = typeof(BattleRenderer).GetField("pilotInterval", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+
+        Assert.True(renderer.CanSampleNativePilotInterval(first, second));
+        object? cached = interval.GetValue(renderer);
+        Assert.NotNull(cached);
+        renderer.RenderNativePilotPrimitiveFrame(first, second, 0.25f);
+        Assert.Equal(165, capture.Vertices[0].Position.X, 3);
+        renderer.RenderNativePilotPrimitiveFrame(first, second, 0.75f);
+        Assert.Equal(175, capture.Vertices[0].Position.X, 3);
+        Assert.Same(cached, interval.GetValue(renderer));
+
+        NativeBattlePreparedPresentation replacement = Frame(2, 30);
+        renderer.RenderNativePilotPrimitiveFrame(first, replacement, 0.5f);
+        Assert.Equal(175, capture.Vertices[0].Position.X, 3);
+        Assert.NotSame(cached, interval.GetValue(renderer));
+
+        renderer.ClearNativePilotInterval();
+        Assert.Null(interval.GetValue(renderer));
+    }
+
+    [Fact]
+    public void Alternating_intervals_reuse_index_capacity_without_retaining_old_geometry_keys()
+    {
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattlePreparedPresentation first = Frame(1, 0);
+        NativeBattlePreparedPresentation matching = Later(0);
+        NativeBattlePreparedPresentation unrelated = Later(512);
+
+        for (int pair = 0; pair < 4; pair++)
+        {
+            Assert.True(DrawPair());
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        bool positionsMatch = true;
+        for (int pair = 0; pair < 8; pair++)
+        {
+            positionsMatch &= DrawPair();
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(positionsMatch, "A missing endpoint identity must hold its earlier geometry.");
+        Assert.True(allocated < 128 * 1024, $"Warmed interval switches allocated {allocated} bytes.");
+
+        bool DrawPair()
+        {
+            renderer.RenderNativePilotPrimitiveFrame(first, matching, 0.5f);
+            bool sampled = capture.Vertices[0].Position.X == 170;
+            renderer.RenderNativePilotPrimitiveFrame(first, unrelated, 0.5f);
+            return sampled && capture.Vertices[0].Position.X == 160;
+        }
+
+        static NativeBattlePreparedPresentation Later(int firstPrimitive)
+        {
+            NativeBattlePreparedPresentation frame = Frame(2, 20);
+            NativeBattleLogicalResolvedCommand resolved = frame.Primitives.LastCommands[0];
+            NativeBattlePilotVisualGeometry geometry = resolved.Command.PilotGeometry!;
+            NativeBattleLogicalCommand command = resolved.Command.ToCommand();
+            NativeBattleResolvedCommandList commands = NativeBattleResolvedCommandList.From(Enumerable.Range(firstPrimitive, 512).Select(primitive => resolved with { Command = command with { PilotGeometry = geometry with { Identity = geometry.Identity with { Primitive = primitive } } } }));
+            return frame with { Primitives = frame.Primitives with { LastCommands = commands } };
+        }
+    }
+
+    [Fact]
+    public void Failed_sample_releases_active_geometry_for_the_next_plain_draw()
+    {
+        Capture capture = new() { ThrowOnDraw = true };
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattlePreparedPresentation first = Frame(1, 0);
+        NativeBattlePreparedPresentation second = Frame(2, 20);
+
+        Assert.Throws<InvalidOperationException>(() => renderer.RenderNativePilotPrimitiveFrame(first, second, 0.5f));
+        capture.ThrowOnDraw = false;
+        renderer.RenderNativePrimitiveFrame(first.Primitives, null);
+        Assert.Equal(160, capture.Vertices[0].Position.X, 3);
+        renderer.RenderNativePilotPrimitiveFrame(first, second, 0.5f);
+        Assert.Equal(170, capture.Vertices[0].Position.X, 3);
+    }
+
     [Theory]
     [InlineData((ushort)2)]
     [InlineData((ushort)3)]
@@ -221,6 +307,7 @@ public sealed class BattlePilotPresentationTests
     private sealed class Capture : ITriangleRenderer
     {
         internal List<TriangleVertex> Vertices { get; } = [];
+        internal bool ThrowOnDraw { get; set; }
 
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
@@ -229,6 +316,10 @@ public sealed class BattlePilotPresentationTests
 
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
+            if (ThrowOnDraw)
+            {
+                throw new InvalidOperationException("Fixture draw failed.");
+            }
             Vertices.Add(a);
             Vertices.Add(b);
             Vertices.Add(c);

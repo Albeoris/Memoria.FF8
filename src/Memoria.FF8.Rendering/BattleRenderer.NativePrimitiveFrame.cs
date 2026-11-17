@@ -295,7 +295,8 @@ public sealed partial class BattleRenderer
                     ? ResolveNativePrimitiveTexture(frame, command, drawMode, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, drawMode, capabilities, colorState);
             }
-            PrimitiveVertex At(in NativeBattleLogicalCommandView command, int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words, ReadOnlySpan<BattleSceneScreenPoint> points)
+            NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, drawMode, state, perspective);
+            PrimitiveVertex At(in NativeBattleLogicalCommandView command, in NativeBattlePilotPrimitiveSample pilot, int corner, NativeBattlePrimitiveDepthVertex selectedDepth, ReadOnlySpan<uint> words, ReadOnlySpan<BattleSceneScreenPoint> points)
             {
                 int coordinateWord = 1 + corner * stride;
                 uint coordinate = words[coordinateWord];
@@ -322,7 +323,7 @@ public sealed partial class BattleRenderer
                 Vector2 position = !points.IsEmpty
                     ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, drawMode)
                     : NativePrimitivePosition(coordinate, command.Flags20, drawMode);
-                if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, drawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                if (TrySamplePilotCorner(pilot, corner, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
                 {
                     position = sampledPosition;
                     selectedDepth = sampledDepth;
@@ -340,9 +341,9 @@ public sealed partial class BattleRenderer
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
             int blend = (foreignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? drawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
-            PrimitiveVertex a = At(command, 0, projected[0], words, projectedPoints);
-            PrimitiveVertex b = At(command, 1, projected[1], words, projectedPoints);
-            PrimitiveVertex c = At(command, 2, projected[2], words, projectedPoints);
+            PrimitiveVertex a = At(command, pilot, 0, projected[0], words, projectedPoints);
+            PrimitiveVertex b = At(command, pilot, 1, projected[1], words, projectedPoints);
+            PrimitiveVertex c = At(command, pilot, 2, projected[2], words, projectedPoints);
             if (capturedSurface is null && foreignSurface is { } foreign)
             {
                 NativeBattleForeignRenderMaterial? hostMaterial = foreign.Material as NativeBattleForeignRenderMaterial ?? ForeignMaterialResolver?.Invoke(foreign.Material);
@@ -366,7 +367,7 @@ public sealed partial class BattleRenderer
                 }
                 if (quad)
                 {
-                    PrimitiveVertex d = At(command, 3, projected[3], words, projectedPoints);
+                    PrimitiveVertex d = At(command, pilot, 3, projected[3], words, projectedPoints);
                     float secondArea = (d.X - b.X) * (c.Y - b.Y) - (d.Y - b.Y) * (c.X - b.X);
                     if (!hostMaterial.Cull || secondArea >= 0)
                     {
@@ -388,7 +389,7 @@ public sealed partial class BattleRenderer
             }
             if (quad)
             {
-                PrimitiveVertex d = At(command, 3, projected[3], words, projectedPoints);
+                PrimitiveVertex d = At(command, pilot, 3, projected[3], words, projectedPoints);
                 submitted = DrawnTriangles;
                 QueueNativePrimitive(b, d, c, texture, blend, resolved.Pass, centroidTextureSampling: textured, actorOpacity: actorOpacity);
                 if (DrawnTriangles > submitted)
@@ -827,11 +828,12 @@ public sealed partial class BattleRenderer
         int y = unchecked((short)(command.WordSpan[1] >> 16));
         int width = point ? (command.Flags20 & 1) != 0 ? 1 : 8 : (ushort)command.WordSpan[2];
         int height = point ? width : (ushort)(command.WordSpan[2] >> 16);
-        PrimitiveVertex At(in NativeBattleLogicalCommandView command, int px, int py, int corner)
+        NativeBattlePilotPrimitiveSample pilot = command.SceneCapture?.Kind == NativeBattleSceneCaptureKind.Image ? default : PreparePilotPrimitiveSample(command, drawMode, frame.LastDepthState!, perspective);
+        PrimitiveVertex At(in NativeBattleLogicalCommandView command, in NativeBattlePilotPrimitiveSample pilot, int px, int py, int corner)
         {
             Vector2 position = NativePrimitivePosition(px, py, command.Flags20, drawMode);
             NativeBattlePrimitiveDepthVertex depth = vertices[0];
-            if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, drawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            if (TrySamplePilotCorner(pilot, corner, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;
                 depth = sampledDepth;
@@ -846,10 +848,10 @@ public sealed partial class BattleRenderer
             }
             return new(position.X, position.Y, depth.Depth, depth.ReciprocalW, Vector2.Zero, diffuse.Rgb, diffuse.Alpha);
         }
-        PrimitiveVertex a = At(command, x, y, 0);
-        PrimitiveVertex b = At(command, x + width, y, 1);
-        PrimitiveVertex c = At(command, x, y + height, 2);
-        PrimitiveVertex d = At(command, x + width, y + height, 3);
+        PrimitiveVertex a = At(command, pilot, x, y, 0);
+        PrimitiveVertex b = At(command, pilot, x + width, y, 1);
+        PrimitiveVertex c = At(command, pilot, x, y + height, 2);
+        PrimitiveVertex d = At(command, pilot, x + width, y + height, 3);
         int submitted = DrawnTriangles;
         QueueNativePrimitive(a, b, c, null, semi ? blend : -1, pass, actorOpacity: frame.ActorOpacity(command.PresentationActorId));
         if (PilotDiagnosticsEnabled && DrawnTriangles > submitted)

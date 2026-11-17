@@ -24,8 +24,9 @@ public sealed partial class BattleRenderer
         depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
         int blendMode = drawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
-        PrimitiveVertex a = Vertex(command, 0, projected[0]);
-        PrimitiveVertex b = Vertex(command, 1, projected[1]);
+        NativeBattlePilotPrimitiveSample pilot = PreparePilotPrimitiveSample(command, drawMode, depthState, perspective);
+        PrimitiveVertex a = Vertex(command, pilot, 0, projected[0]);
+        PrimitiveVertex b = Vertex(command, pilot, 1, projected[1]);
         int blend = semi ? blendMode : -1;
         if (TriangleRenderer is { } renderer)
         {
@@ -50,13 +51,13 @@ public sealed partial class BattleRenderer
         nativeTriangles.Add(new(a, b, default, null, blend, pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
         ObserveLine(command);
 
-        PrimitiveVertex Vertex(in NativeBattleLogicalCommandView command, int corner, NativeBattlePrimitiveDepthVertex depth)
+        PrimitiveVertex Vertex(in NativeBattleLogicalCommandView command, in NativeBattlePilotPrimitiveSample pilot, int corner, NativeBattlePrimitiveDepthVertex depth)
         {
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
             NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.WordSpan[colorIndex], semi, blendMode);
             Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, drawMode);
-            if (TrySamplePilotVertex(command, corner, drawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            if (TrySamplePilotCorner(pilot, corner, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;
                 depth = sampledDepth;

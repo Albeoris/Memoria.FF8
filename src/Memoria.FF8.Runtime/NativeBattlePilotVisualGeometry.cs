@@ -100,43 +100,48 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
 
     public static NativeBattlePilotVisualGeometry Sample(NativeBattlePilotVisualGeometry earlier, NativeBattlePilotVisualGeometry later, float alpha)
     {
-        if (alpha <= 0)
+        NativeBattlePilotCornerSampler sampler = PrepareCornerSampling(earlier, later, Math.Clamp(alpha, 0, 1));
+        if (sampler.KeepsEarlierGeometry)
         {
             return earlier;
         }
-        if (alpha >= 1)
+        if (sampler.KeepsLaterGeometry)
         {
             return later;
         }
-        if (earlier.Identity != later.Identity || earlier.CornerCount != later.CornerCount || !earlier.Continuous || !later.Continuous)
-        {
-            return earlier;
-        }
-        alpha = Math.Clamp(alpha, 0, 1);
-        return earlier with { A = SampleCorner(earlier, later, 0, alpha), B = SampleCorner(earlier, later, 1, alpha), C = SampleCorner(earlier, later, 2, alpha), D = earlier.CornerCount == 4 ? SampleCorner(earlier, later, 3, alpha) : default };
+        return earlier with { A = sampler.SampleCorner(0), B = sampler.SampleCorner(1), C = sampler.SampleCorner(2), D = earlier.CornerCount == 4 ? sampler.SampleCorner(3) : default };
     }
 
     public static Vector3 SampleCorner(NativeBattlePilotVisualGeometry earlier, NativeBattlePilotVisualGeometry later, int corner, float alpha)
     {
-        return SampleCorner(new NativeBattlePilotGeometryReference(earlier), new NativeBattlePilotGeometryReference(later), corner, alpha);
+        return PrepareCornerSampling(earlier, later, alpha).SampleCorner(corner);
     }
 
     public static Vector3 SampleCorner(NativeBattlePilotGeometryReference earlier, NativeBattlePilotGeometryReference later, int corner, float alpha)
     {
+        return PrepareCornerSampling(earlier, later, alpha).SampleCorner(corner);
+    }
+
+    public static NativeBattlePilotCornerSampler PrepareCornerSampling(NativeBattlePilotGeometryReference earlier, NativeBattlePilotGeometryReference later, float alpha)
+    {
         if (alpha >= 1)
         {
-            return later.Corner(corner);
+            return new(earlier, later, alpha, NativeBattlePilotCornerSampler.Selection.Later);
         }
-        if (alpha <= 0 || earlier.Identity != later.Identity || earlier.CornerCount != later.CornerCount || earlier.ScreenSpace != later.ScreenSpace || !earlier.Continuous || !later.Continuous)
+        if (alpha <= 0 || earlier.Identity != later.Identity || earlier.CornerCount != later.CornerCount || !earlier.Continuous || !later.Continuous)
         {
-            return earlier.Corner(corner);
+            return new(earlier, later, alpha, NativeBattlePilotCornerSampler.Selection.Earlier);
         }
-        if (earlier.Sprite is { } a && later.Sprite is { } b)
+        if (earlier.ScreenSpace != later.ScreenSpace)
         {
-            Vector3 local = a.LocalCorner(corner);
-            return Vector3.Lerp(a.Origin, b.Origin, alpha) + local.X * Vector3.Lerp(a.AxisX, b.AxisX, alpha) + local.Y * Vector3.Lerp(a.AxisY, b.AxisY, alpha) + local.Z * Vector3.Lerp(a.AxisZ, b.AxisZ, alpha);
+            // Whole-geometry sampling still applies the original corner copy, including the default D on triangles.
+            return new(earlier, later, alpha, NativeBattlePilotCornerSampler.Selection.EarlierCorners);
         }
-        return Vector3.Lerp(earlier.Corner(corner), later.Corner(corner), alpha);
+        if (earlier.Sprite is { } earlierSprite && later.Sprite is { } laterSprite)
+        {
+            return new(earlier, later, alpha, NativeBattlePilotCornerSampler.Selection.Sprite, earlierSprite, laterSprite);
+        }
+        return new(earlier, later, alpha, NativeBattlePilotCornerSampler.Selection.Interpolate);
     }
 
     private sealed record InverseView(Matrix4x4 Matrix);

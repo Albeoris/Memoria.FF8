@@ -57,7 +57,7 @@ public sealed partial class BattleRenderer
         }
         Vector3 world = geometry.Corner(corner);
         bool covered = false;
-        if (pilotProjection is not null && geometry.Continuous && pilotNextGeometry.TryGetValue(geometry.Identity, out NativeBattlePilotGeometryReference next) && next.Continuous && geometry.CornerCount == next.CornerCount)
+        if (activePilotInterval is { } interval && geometry.Continuous && interval.TryGetLaterGeometry(geometry.Identity, out NativeBattlePilotGeometryReference next) && next.Continuous && geometry.CornerCount == next.CornerCount)
         {
             world = NativeBattlePilotVisualGeometry.SampleCorner(geometry, next, corner, pilotAlpha);
             covered = true;
@@ -95,28 +95,106 @@ public sealed partial class BattleRenderer
     private static ulong PilotHash(ulong hash, float value) => PilotHash(hash, BitConverter.SingleToUInt32Bits(value));
     private static ulong PilotHash(ulong hash, ulong value) => unchecked((hash ^ value) * 1099511628211UL);
 
-    private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference> pilotNextGeometry = [];
+    private sealed class NativeBattlePilotInterval(NativeBattlePreparedPresentation earlier, NativeBattlePreparedPresentation later, string? fallbackReason, int fallbackCount)
+    {
+        private Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference>? geometry;
+        private bool geometryPrepared;
+        internal NativeBattlePreparedPresentation Earlier { get; } = earlier;
+        internal NativeBattlePreparedPresentation Later { get; } = later;
+        internal string? FallbackReason { get; } = fallbackReason;
+        internal int FallbackCount { get; } = fallbackCount;
+
+        internal void PrepareLaterGeometry()
+        {
+            if (geometryPrepared)
+            {
+                return;
+            }
+            Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference> indexed = geometry ??= [];
+            try
+            {
+                foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in Later.Primitives.LastCommands)
+                {
+                    if (resolved.Command.Pilot is { IsEmpty: false } pilot)
+                    {
+                        indexed[pilot.Identity] = pilot;
+                    }
+                }
+                geometryPrepared = true;
+            }
+            catch
+            {
+                indexed.Clear();
+                throw;
+            }
+        }
+
+        internal void ReuseLaterGeometryCapacity(NativeBattlePilotInterval retired)
+        {
+            geometry = retired.ReleaseLaterGeometry();
+        }
+
+        internal Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference>? ReleaseLaterGeometry()
+        {
+            Dictionary<NativeBattlePilotVisualIdentity, NativeBattlePilotGeometryReference>? retired = geometry;
+            geometry = null;
+            geometryPrepared = false;
+            retired?.Clear();
+            return retired;
+        }
+
+        internal bool TryGetLaterGeometry(NativeBattlePilotVisualIdentity identity, out NativeBattlePilotGeometryReference pilot) => geometry!.TryGetValue(identity, out pilot);
+    }
+
+    private NativeBattlePilotInterval? pilotInterval;
+    private NativeBattlePilotInterval? activePilotInterval;
     private NativeBattleCameraProjection? pilotProjection;
     private float pilotAlpha;
     public string? LastPilotFallbackReason { get; private set; }
     public int LastPilotFallbackCount { get; private set; }
 
+    public void ClearNativePilotInterval()
+    {
+        if (pilotInterval is { } retired && !ReferenceEquals(retired, activePilotInterval))
+        {
+            retired.ReleaseLaterGeometry();
+        }
+        pilotInterval = null;
+    }
+
     public bool CanSampleNativePilotInterval(NativeBattlePreparedPresentation earlier, NativeBattlePreparedPresentation later)
     {
-        LastPilotFallbackReason = null;
-        LastPilotFallbackCount = 0;
+        NativeBattlePilotInterval? interval = pilotInterval;
+        if (interval is null || !ReferenceEquals(interval.Earlier, earlier) || !ReferenceEquals(interval.Later, later))
+        {
+            NativeBattlePilotInterval replacement = PrepareNativePilotInterval(earlier, later);
+            if (interval is not null && !ReferenceEquals(interval, activePilotInterval))
+            {
+                replacement.ReuseLaterGeometryCapacity(interval);
+            }
+            pilotInterval = interval = replacement;
+        }
+        LastPilotFallbackCount = interval.FallbackCount;
+        LastPilotFallbackReason = interval.FallbackReason;
+        return interval.FallbackCount == 0;
+    }
+
+    private static NativeBattlePilotInterval PrepareNativePilotInterval(NativeBattlePreparedPresentation earlier, NativeBattlePreparedPresentation later)
+    {
+        string? fallbackReason = null;
+        int fallbackCount = 0;
         Check(earlier.Primitives);
         Check(later.Primitives);
-        if (LastPilotFallbackCount != 0)
+        if (fallbackCount != 0)
         {
-            LastPilotFallbackReason = "The completed interval contains geometry without a world-space presentation contract.";
+            fallbackReason = "The completed interval contains geometry without a world-space presentation contract.";
         }
         if (earlier.PilotCamera is { } earlierCamera && later.PilotCamera is { } laterCamera && !NativeBattlePilotVisualGeometry.CanSampleProjection(earlierCamera, laterCamera))
         {
-            LastPilotFallbackCount++;
-            LastPilotFallbackReason = "The completed interval contains a noninvertible native camera pose basis.";
+            fallbackCount++;
+            fallbackReason = "The completed interval contains a noninvertible native camera pose basis.";
         }
-        return LastPilotFallbackCount == 0;
+        return new(earlier, later, fallbackReason, fallbackCount);
 
         void Check(NativeBattlePreparedPrimitiveFrame frame)
         {
@@ -143,7 +221,7 @@ public sealed partial class BattleRenderer
                 bool screenFlash = command.ScreenCoverage is not null;
                 if (!screenFlash)
                 {
-                    LastPilotFallbackCount++;
+                    fallbackCount++;
                 }
             }
         }
@@ -166,41 +244,57 @@ public sealed partial class BattleRenderer
             NativeBattlePreparedPresentation endpoint = pilotAlpha == 0 ? earlier : later;
             return RenderNativePrimitiveFrame(endpoint.Primitives, endpoint.Textures, overlayCamera, capabilities, endpoint.TextureWindows, replacements, endpoint.UiFrame, uiTexture, effectTextureSource);
         }
-        pilotProjection = NativeBattlePilotVisualGeometry.SampleProjection(earlier.PilotProjection!, later.PilotProjection!, earlier.PilotCamera!, later.PilotCamera!, pilotAlpha);
-        pilotNextGeometry.Clear();
-        foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in later.Primitives.LastCommands)
-        {
-            if (resolved.Command.Pilot is { IsEmpty: false } geometry)
-            {
-                pilotNextGeometry[geometry.Identity] = geometry;
-            }
-        }
         try
         {
+            pilotProjection = NativeBattlePilotVisualGeometry.SampleProjection(earlier.PilotProjection!, later.PilotProjection!, earlier.PilotCamera!, later.PilotCamera!, pilotAlpha);
+            NativeBattlePilotInterval interval = pilotInterval!;
+            interval.PrepareLaterGeometry();
+            activePilotInterval = interval;
             return RenderNativePrimitiveFrame(earlier.Primitives, earlier.Textures, overlayCamera, capabilities, earlier.TextureWindows, replacements, earlier.UiFrame, uiTexture, effectTextureSource);
         }
         finally
         {
             pilotProjection = null;
-            pilotNextGeometry.Clear();
+            NativeBattlePilotInterval? retired = activePilotInterval;
+            activePilotInterval = null;
+            if (retired is not null && !ReferenceEquals(retired, pilotInterval))
+            {
+                retired.ReleaseLaterGeometry();
+            }
         }
     }
 
-    private bool TrySamplePilotVertex(in NativeBattleLogicalCommandView command, int corner, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
+    private readonly record struct NativeBattlePilotPrimitiveSample(NativeBattleCameraProjection? Projection, NativeBattlePilotGeometryReference Earlier, NativeBattlePilotCornerSampler Corners, NativeBattlePrimitiveDrawMode Mode, ushort Flags, float? BucketDepth, bool Perspective, float VertexWeight, float BucketMix, float CoordinateScale, bool ScreenSpace);
+
+    private NativeBattlePilotPrimitiveSample PreparePilotPrimitiveSample(in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective)
+    {
+        if (pilotProjection is null || command.Pilot is not { IsEmpty: false } earlier)
+        {
+            return default;
+        }
+        NativeBattlePilotCornerSampler corners = earlier.Continuous && activePilotInterval!.TryGetLaterGeometry(earlier.Identity, out NativeBattlePilotGeometryReference later) && later.Continuous && earlier.CornerCount == later.CornerCount
+            ? NativeBattlePilotVisualGeometry.PrepareCornerSampling(earlier, later, pilotAlpha)
+            : NativeBattlePilotVisualGeometry.PrepareCornerSampling(earlier, earlier, 0);
+        NativeBattleCameraProjection projection = earlier.FocalLengthOverride is ushort focal ? pilotProjection with { FocalLength = focal } : pilotProjection;
+        float vertexWeight = perspective ? (float)((depthState.RemainingWeight < 0.99999999 ? depthState.RemainingWeight : (double)depthState.RemainingWeight - NativeBattlePrimitiveDepthState.DepthBias) / 65536) : 0;
+        ushort flags = command.Flags20;
+        float coordinateScale = (flags & 1) != 0 ? 0.125f : 1;
+        float step = Math.Max((float)(0.9985 / (2 * NativeBattlePrimitiveOrdering.BattleTableLength)), 1f / 65536);
+        float? bucketDepth = command.OrderingBucket is int bucket ? bucket * step : null;
+        return new(projection, earlier, corners, mode, flags, bucketDepth, perspective, vertexWeight, depthState.BucketMix, coordinateScale, earlier.ScreenSpace);
+    }
+
+    private bool TrySamplePilotCorner(in NativeBattlePilotPrimitiveSample sample, int corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
     {
         position = default;
         depthVertex = default;
-        if (pilotProjection is null || command.Pilot is not { IsEmpty: false } earlier)
+        if (sample.Projection is not { } projection)
         {
             return false;
         }
-        Vector3 world = earlier.Corner(corner);
-        if (earlier.Continuous && pilotNextGeometry.TryGetValue(earlier.Identity, out NativeBattlePilotGeometryReference later) && later.Continuous && earlier.CornerCount == later.CornerCount)
-        {
-            world = NativeBattlePilotVisualGeometry.SampleCorner(earlier, later, corner, pilotAlpha);
-        }
-        NativeBattleCameraProjection projection = earlier.FocalLengthOverride is ushort focal ? pilotProjection with { FocalLength = focal } : pilotProjection;
-        Vector3 projected = earlier.ScreenSpace ? world : NativeBattlePilotVisualGeometry.Project(world, projection);
+        NativeBattlePilotGeometryReference earlier = sample.Earlier;
+        Vector3 world = sample.Corners.SampleCorner(corner);
+        Vector3 projected = sample.ScreenSpace ? world : NativeBattlePilotVisualGeometry.Project(world, projection);
         if (earlier.ProjectionScreenBounds is { } bounds)
         {
             projected.X = Math.Clamp(projected.X, bounds.X, bounds.Z);
@@ -218,18 +312,14 @@ public sealed partial class BattleRenderer
             projected.X += offset.X;
             projected.Y += offset.Y;
         }
-        float coordinateScale = (command.Flags20 & 1) != 0 ? 0.125f : 1;
-        position = SampledNativePrimitivePosition(projected.X * coordinateScale, projected.Y * coordinateScale, command.Flags20, mode);
-        int bucket = command.OrderingBucket ?? throw new InvalidDataException("Compatible battle motion requires the authored ordering bucket.");
-        float step = Math.Max((float)(0.9985 / (2 * NativeBattlePrimitiveOrdering.BattleTableLength)), 1f / 65536);
-        float bucketDepth = bucket * step;
+        position = SampledNativePrimitivePosition(projected.X * sample.CoordinateScale, projected.Y * sample.CoordinateScale, sample.Flags, sample.Mode);
+        float bucketDepth = sample.BucketDepth ?? throw new InvalidDataException("Compatible battle motion requires the authored ordering bucket.");
         float depth;
         float reciprocalW = 1;
         float vertexDepth = earlier.UseSourceDepths ? (earlier.SourceDepths ?? throw new InvalidDataException("Compatible outline motion requires its retained native depth FIFO."))[corner] : earlier.SampleDepth(projected.Z);
-        if (perspective)
+        if (sample.Perspective)
         {
-            float vertexWeight = (float)((depthState.RemainingWeight < 0.99999999 ? depthState.RemainingWeight : (double)depthState.RemainingWeight - NativeBattlePrimitiveDepthState.DepthBias) / 65536);
-            depth = (command.Flags20 & 4) != 0 ? vertexDepth * NativeBattlePrimitiveDepthState.VertexDepthScale + NativeBattlePrimitiveDepthState.DepthBias : vertexWeight * vertexDepth + depthState.BucketMix * bucketDepth + NativeBattlePrimitiveDepthState.DepthBias;
+            depth = (sample.Flags & 4) != 0 ? vertexDepth * NativeBattlePrimitiveDepthState.VertexDepthScale + NativeBattlePrimitiveDepthState.DepthBias : sample.VertexWeight * vertexDepth + sample.BucketMix * bucketDepth + NativeBattlePrimitiveDepthState.DepthBias;
             reciprocalW = 1 / vertexDepth;
         }
         else
