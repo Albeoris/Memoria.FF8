@@ -387,6 +387,26 @@ internal static class ExtendedTests
         host.Complete = true;
         vm.AdvanceTick();
         Check((byte)7, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+
+        byte[] completionPayload = [0, 0, 0, 0, 0, 0, 0, 16, 30, 0];
+        byte[] completionCode = Code([0xA1, 0, 0, 0x28, 13, 12, .. completionPayload, 0x24, 1, 0, 0x28, 4, 12, 1, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0]);
+        RecordingHost completionHost = new() { Complete = true };
+        FieldMachine completion = New(completionCode, completionHost);
+        completion.Initialize();
+        completion.AdvanceTick();
+        FieldHostRequest first = completionHost.Requests.Single(request => request.Command is FieldModelEffectCommand);
+        Check(19, first.ProgramCounter);
+        Check(true, first.Command is FieldModelEffectCommand { Operation: 12, Mode: 0, Payload: { } nativePayload } && nativePayload.SequenceEqual(completionPayload));
+        Check(32, completion.Capture().Entities[0].ProgramCounter);
+        Check(1, completion.Capture().Entities[0].WaitCounter);
+        FieldMachine completionCold = FieldMachine.Restore(Program(completionCode), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(completion.Capture()))!, new RecordingHost { Complete = true });
+        completion.AdvanceTick();
+        completionCold.AdvanceTick();
+        FieldHostRequest second = completionHost.Requests.Last(request => request.Command is FieldModelEffectCommand);
+        Check(35, second.ProgramCounter);
+        Check(true, second.Command is FieldModelEffectCommand { Operation: 12, Mode: 1, Payload: [1] });
+        Check((byte)99, completion.Variables.ReadByte(FieldBank.MapByte, 20));
+        Check(JsonSerializer.Serialize(completion.Capture()), JsonSerializer.Serialize(completionCold.Capture()));
     }
 
     public static void PreloadRequestRawWordAndContinuation()

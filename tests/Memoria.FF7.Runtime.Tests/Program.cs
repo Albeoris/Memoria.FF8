@@ -222,6 +222,12 @@ if (args.Contains("--native-transparency-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--native-model-completion-only", StringComparer.Ordinal))
+{
+    NativeModelCompletionTests.Run();
+    return 0;
+}
+
 if (args.Contains("--party-presentation-only", StringComparer.Ordinal))
 {
     NativePartyPresentationTests.Run();
@@ -1069,6 +1075,7 @@ var tests = new (string Name, Action Run)[]
     ("native background scroll phase and resource restoration", NativeBackgroundScrollTests.Run),
     ("native water initialization cache and cold continuation", NativeWaterEffectTests.Run),
     ("native transparency queue and cold continuation", NativeTransparencyTests.Run),
+    ("native model completion queue and cold continuation", NativeModelCompletionTests.Run),
     ("native player movement animation configuration", NativeMovementAnimationTests.Run),
     ("native window number state and reset", NativeWindowNumberTests.Run),
     ("native shared message entity ownership", NativeSharedMessageTests.Run),
