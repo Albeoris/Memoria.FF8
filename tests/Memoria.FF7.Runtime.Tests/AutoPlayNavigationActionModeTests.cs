@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Numerics;
+using Memoria.AutoPlay;
 using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -43,12 +44,15 @@ internal static class AutoPlayNavigationActionModeTests
         Ff7AutoplayInput ready = Ff7AutoPlayPolicy.ApplyReadyEntryInput(new(1, -1, Run: false), new(Held: 0x40));
         FieldInputState readyNative = Ff7AutoplayDriver.ProjectNavigationInput(ready, new());
         Check(ready.Horizontal == 1 && ready.Vertical == -1 && ready.Run && readyNative.Held == 0x40 && !machine.CanSkipScriptEntryForInput(0, 4, readyNative), "A selected ready run-button gate must retain its transient movement admission with a coherent actual run mode rather than letting walking clear its required bit.");
+        string previousCapability = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("physical-geometry|automatic-triangle-boundaries:1:|approach-admission:2|native-navigation-modes:run-walk:5")));
+        Check(Ff7AutoplayDriver.ReadSpatialBoundaryFingerprint("physical-geometry", new HashSet<int>()) != previousCapability, "Random-producer write-set support retained obsolete physical absence receipts.");
         CheckProgressRankedModes();
         CheckOwnedPortals();
         CheckSelectedPushAdmission();
         Check(before == JsonSerializer.Serialize(machine.Capture()), "Mode and skip planning must preserve authoritative VM, input and variables.");
         OriginalPlannedWalk();
         OriginalReadOnlyNavigationEntry();
+        OriginalRandomProducerNavigationEntry();
         OriginalAlternatingModeEscape();
     }
 
@@ -182,6 +186,47 @@ internal static class AutoPlayNavigationActionModeTests
         Check(action.Horizontal != 0 || action.Vertical != 0, "The proved no-effect owner must admit the native gateway approach without clearing its line or skipping its script.");
         Check(JsonSerializer.Serialize(session.Capture()) == before && File.ReadAllBytes(path).SequenceEqual(bytes), "Read-only native entry and route planning must preserve the fixture, VM, RNG and progress.");
         Console.WriteLine($"PASS original conditional-return producer proof ({proofTime.ElapsedMilliseconds}ms) and admitted gateway approach; native source unchanged.");
+    }
+
+    private static void OriginalRandomProducerNavigationEntry()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_RANDOM_PRODUCER_NAVIGATION_SAVE");
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP original random-producer navigation entry: configure original resources and MEMORIA_FF7_RANDOM_PRODUCER_NAVIGATION_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        string before = JsonSerializer.Serialize(session.Capture());
+        FieldInputState projected = Ff7AutoplayDriver.ProjectNavigationInput(new(Horizontal: 1), session.Machine.Input);
+        FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(13, 4, projected);
+        Check(proof.Complete && proof.HasNoEffect, $"An unrelated random producer obstructed the original conditional-return proof: {proof.Reason}");
+        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+        Ff7AutoPlayTarget target = observation.Events.Single(candidate => candidate.Id == "line:1:entity:11:script:2");
+        Ff7AutoplayDriver driver = new(session);
+        driver.ConfigureSpatialBoundaries(observation.Events, target);
+        Ff7AutoplayInput action = driver.ChooseTargetInput(target, observation.Events, run => driver.ApproachLine(target.Entity, target.Kind, run));
+        Check(action.Horizontal != 0 || action.Vertical != 0, "The original no-effect contact must admit the native selected LINE approach.");
+        Ff7AutoPlayState state = session.AutoPlayState!.Clone();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        Dictionary<string, string> facts = new(StringComparer.Ordinal);
+        foreach (var entry in state.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId && entry.Value.NavigationKey == observation.NavigationKey))
+        {
+            Ff7AutoPlayTarget guarded = observation.Events.Single(candidate => candidate.Id == entry.Value.EventId);
+            string physical = driver.ReadPhysicalAvailabilityFingerprint(guarded, entry.Value.BlockingEntities);
+            facts[entry.Key] = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint(physical, entry.Value.MovementFailure, session.Host.Process.Actors, entry.Value.BlockingEntities);
+        }
+        var savedCoverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
+        Check(savedCoverage.Unavailable && savedCoverage.UnavailableAttempts.All(attempt => !facts.TryGetValue(attempt.GuardKey, out string? current) || current != attempt.GuardFingerprint), "The new proof capability did not distinguish the original saved negative.");
+        planner.RefreshUnavailable(observation.VisitId, facts);
+        Check(!savedCoverage.Unavailable, "Shared guard refresh retained the obsolete random-producer refusal.");
+        AutoPlayPlanStep? selected = planner.PlanNavigation(observation.NavigationKey, needsRefresh: _ => false, preferredGoal: state.NavigationGoal, readAvailability: (navigation, observed) => navigation.Key == observation.NavigationKey ? Ff7AutoPlayPolicy.ReadComponentAvailability(state, navigation, observed, facts) : Ff7AutoPlayPolicy.ReadRetainedNavigationAvailability(state, navigation, observed));
+        Check(selected?.Event.Id == target.Id, $"The shared planner did not retry the restored native connector: {selected?.Event.Id}");
+        Check(JsonSerializer.Serialize(session.Capture()) == before && File.ReadAllBytes(path).SequenceEqual(bytes), "Random-producer proof or native approach planning changed the source, VM, RNG or progress.");
+        Console.WriteLine("PASS original random-producer invariant proof and configured native LINE approach; source unchanged.");
     }
 
     private static void OriginalAlternatingModeEscape()

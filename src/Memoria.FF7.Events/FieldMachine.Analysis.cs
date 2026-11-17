@@ -383,7 +383,7 @@ public sealed partial class FieldMachine
                     if (read is not null)
                     {
                         hostReads.Add(read);
-                        if (read.Kind == FieldHostReadKind.Random)
+                        if (read.Kind == FieldHostReadKind.Random && navigationInvariant is null)
                         {
                             throw new NotSupportedException("A random-result dependency requires an explicit stochastic event coverage contract.");
                         }

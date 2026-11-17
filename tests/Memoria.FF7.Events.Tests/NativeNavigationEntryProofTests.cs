@@ -25,6 +25,16 @@ internal static class NativeNavigationEntryProofTests
         }
         var unrelated = Create([0x80, 0x10, 10, 1, 0]);
         Check(Prove(unrelated.Machine).HasNoEffect, "A producer writing disjoint canonical bytes invalidated the predicate.");
+        var randomUnrelated = Create([0x99, 0x01, 10, 0]);
+        string randomBefore = JsonSerializer.Serialize(randomUnrelated.Machine.Capture());
+        Check(Prove(randomUnrelated.Machine).HasNoEffect, "An unrelated random output invalidated a producer write-set proof.");
+        Check(!randomUnrelated.Machine.AnalyzeScriptAtProgramCounter(0, randomUnrelated.ProducerPc).Complete, "Write-set inspection relaxed ordinary stochastic event coverage.");
+        Check(JsonSerializer.Serialize(randomUnrelated.Machine.Capture()) == randomBefore && randomUnrelated.Host.Calls == 0, "Random producer inspection advanced the native VM or host RNG.");
+        var randomAlias = Create([0x99, 0x01, 1, 0]);
+        Check(!Prove(randomAlias.Machine).HasNoEffect, "A random write through the predicate's high-byte alias escaped the producer closure.");
+        var randomBranch = Create([0x99, 0x05, 10, 0x14, 0x50, 10, 0, 0, 5, 0x80, 0x10, 0, 1, 0]);
+        randomBranch.Machine.Variables.WriteByte(FieldBank.MapByte, 10, 1);
+        Check(!Prove(randomBranch.Machine).HasNoEffect, "A random-dependent conditional hid its reachable predicate write arm.");
         var conditional = Create([0x14, 0x10, 10, 0, 0, 5, 0x80, 0x10, 0, 1, 0]);
         Check(!Prove(conditional.Machine).HasNoEffect, "A producer conditional outside the immutable domain hid its reachable write arm.");
         var request = Create([0x01, 2, 0x21, 0, 0x80, 0x10, 0, 1, 0], childOffset: 4);
