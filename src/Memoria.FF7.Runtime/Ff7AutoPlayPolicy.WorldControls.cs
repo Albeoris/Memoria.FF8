@@ -34,7 +34,7 @@ public sealed partial class Ff7AutoPlayPolicy
             throw new NotSupportedException("A native world control action cannot replay an unauthenticated travel route.");
         }
         planner.BeginEvent(observation.VisitId, next.Event.Id);
-        State.NavigationGoal = next.Goal;
+        RetainDestinationGoal(next, observation.NavigationKey, next.Event.ConditionSignature!);
         State.Active = new(observation.VisitId, next.Event.Id, next.Event.ConditionSignature!, session.FieldGeneration, worldModeModel, -1, Ff7AutoPlayTargetKind.WorldControl, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, WorldModeGoal: candidate.Goal);
         return true;
     }
@@ -47,7 +47,8 @@ public sealed partial class Ff7AutoPlayPolicy
             AutoPlayTravelGoal? destination = null;
             if (active.WorldModeGoal is { } goal)
             {
-                Ff7AutoPlayWorldScriptObservation target = world.ReadAutoPlayFrontierCatalog(goal.Chunk.X, goal.Chunk.Z).Scripts.Single(item => item.Id == goal.TargetEventId);
+                ObserveWorldChunk(world, goal.Chunk);
+                Ff7AutoPlayWorldScriptObservation target = worldCatalogs[goal.Chunk].Scripts.Single(item => item.Id == goal.TargetEventId);
                 Ff7AutoPlayWorldGuide actualRiderRoute = world.ReadAutoPlayNavigationGuide(target);
                 if (actualRiderRoute.Faces.Length == 0)
                 {

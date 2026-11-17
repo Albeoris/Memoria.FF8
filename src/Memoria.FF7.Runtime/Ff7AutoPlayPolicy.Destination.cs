@@ -1,7 +1,15 @@
+using Memoria.AutoPlay;
+
 namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private void RetainDestinationGoal(AutoPlayPlanStep next, string navigationKey, string condition)
+    {
+        AutoPlayTravelGoal? retained = State.DestinationField is not null && State.NavigationGoal is { EventId: not null } goal && goal.EventId == next.Event.Id && goal.NavigationKey == navigationKey && (goal.Conditions is null || goal.Conditions == condition) ? goal : null;
+        State.NavigationGoal = next.Goal ?? retained;
+    }
+
     /// <summary>Sets a planning destination without changing native execution or selecting physical inputs.</summary>
     public void SetDestinationField(ushort? destination)
     {

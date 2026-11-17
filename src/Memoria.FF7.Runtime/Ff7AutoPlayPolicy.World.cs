@@ -198,7 +198,7 @@ public sealed partial class Ff7AutoPlayPolicy
                 observation = ObserveWorldPlanner(world);
                 string condition = WorldCondition(target);
                 planner.BeginEvent(observation.VisitId, target.Id);
-                State.NavigationGoal = next.Goal;
+                RetainDestinationGoal(next, observation.NavigationKey, condition);
                 var coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
                 string? availability = ReadWorldSemanticAvailability(coverage, coverage.Event, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(coverage, physicalGuards)).Fingerprint;
                 State.Active = new(observation.VisitId, target.Id, condition, session.FieldGeneration, -1, script, Ff7AutoPlayTargetKind.WorldMesh, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, EntryAvailabilityFingerprint: availability, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : []);
@@ -282,6 +282,10 @@ public sealed partial class Ff7AutoPlayPolicy
         if (player is not null)
         {
             ObserveWorldChunk(world, new(player.X >> 13, player.Z >> 13));
+        }
+        if (State.NavigationGoal is { EventId: string goalEvent } retainedGoal && retainedGoal.NavigationKey == worldVisit + ":nav:world" && TryWorldSource(goalEvent, out Ff7AutoPlayWorldChunk goalChunk, out _))
+        {
+            ObserveWorldChunk(world, goalChunk);
         }
         ObserveWorldModelFrontiers(world);
         AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? previous = State.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == worldVisit);

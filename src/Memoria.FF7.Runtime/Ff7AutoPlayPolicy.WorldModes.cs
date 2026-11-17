@@ -45,6 +45,9 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (!world.Process.Initialized || !world.Process.MovementEnabled || world.Process.MainState != 1 || world.ReadAutoPlaySurfaceVehicleRider() is not int rider)
         {
+            worldModeCatalog.Clear();
+            worldModeQueue.Clear();
+            worldModeCandidatesObserved = false;
             return;
         }
         if (!worldModeCandidatesObserved)
