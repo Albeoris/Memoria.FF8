@@ -12,7 +12,8 @@ internal static class NativeModelCompletionTests
         Ff7Actor legacy = JsonSerializer.Deserialize<Ff7Actor>("{\"Slot\":0,\"Entity\":0,\"Model\":0}")!;
         Check(legacy.NativeModelCompletion is null && !JsonSerializer.Serialize(legacy).Contains("NativeModelCompletion", StringComparison.Ordinal), "An absent presentation owner changed old actor compatibility or serialization.");
         Throws<InvalidDataException>(() => new Ff7NativeModelCompletionState(11, [0]).Validate());
-        Throws<InvalidDataException>(() => new Ff7NativeModelCompletionState(12, []).Validate());
+        new Ff7NativeModelCompletionState(12, []).Validate();
+        new Ff7NativeModelCompletionState(255, []).Validate();
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
         if (string.IsNullOrWhiteSpace(root))
         {
@@ -52,7 +53,38 @@ internal static class NativeModelCompletionTests
         Check(host.Process.Actors[0].NativeModelCompletion is { Pending: true, Payload: [1] }, "A replacement request did not reestablish its pending owner.");
         host.Execute(new(102, 0, 7, 0x078F, new FieldModelEffectCommand(2) { Payload = new byte[6] }));
         Check(host.Process.Actors[0].NativeModelCompletion is null && host.Process.Actors[1].NativeModelCompletion is { Pending: true }, "Another accepted selector failed to replace only the current physical pending owner.");
+        RunPayloadFree(field, camera, hidden, distant);
         Console.WriteLine("PASS native selector12 packet, physical pending owner, strict depth, KAWIW, replacement and old/cold presentation state");
+    }
+
+    private static void RunPayloadFree(Ff7FieldResources field, PcFieldCamera camera, Ff7Actor hidden, Ff7Actor distant)
+    {
+        Ff7FieldResources original = Ff7FieldResources.Load(Ff7Installation.Discover(Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR")!), "kuro_1");
+        Check(original.Scripts.Data.Span.Slice(0x0EA3, 4).SequenceEqual(new byte[] { 0x28, 3, 255, 0 }), "The original payload-free request consumed a following script byte.");
+        Ff7NativeColorOffsetState color = new() { Red = 3, Green = -4, Blue = 5 };
+        hidden = hidden with { PartVisibility = new() { Visibility = [0, 1] }, NativeColorOffset = color };
+        distant = distant with { PartVisibility = new() { Visibility = [1, 0] } };
+        Ff7FieldHost host = new(field, (_, _) => 1, new() { Actors = [hidden, distant] }, fieldId: 604);
+        Check(host.Execute(new(200, 0, 6, 0x0EA3, new FieldModelEffectCommand(255, null) { Payload = [] })).Completed, "Payload-free FF did not acknowledge its native producer immediately.");
+        Check(host.Execute(new(201, 1, 6, 0x0EA3, new FieldModelEffectCommand(255, null) { Payload = [] })).Completed, "The second physical FF owner was rejected.");
+        FieldHostRequest wait = new(202, 0, 6, 0x0EA6, new FieldModelEffectCommand(13, Wait: true));
+        Check(!host.Execute(wait).Completed && host.Process.Actors[0].PartVisibility!.Visibility.SequenceEqual(new byte[] { 0, 1 }), "FF applied visibility at dispatch or completed its wait before the model callback.");
+        Ff7FieldHost cold = new(field, (_, _) => 1, JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!, fieldId: 604);
+        host.AdvanceActors();
+        cold.AdvanceActors();
+        Check(JsonSerializer.Serialize(host.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Payload-free FF changed its cold next callback.");
+        Check(host.Process.Actors[0].PartVisibility!.Visibility.SequenceEqual(new byte[] { 1, 1 }) && host.Process.Actors[1].PartVisibility!.Visibility.SequenceEqual(new byte[] { 1, 0 }), "FF failed to enable every eligible original part or crossed the strict depth gate.");
+        Check(host.Process.Actors[0].NativeColorOffset == color && host.Process.Actors[0].NativeModelCompletion is { Operation: 255, Payload: [], Pending: false } && host.Execute(wait).Completed, "FF invented color restoration, payload or an extra completion callback.");
+        Check(host.Execute(new(203, 0, 6, 0x0EA3, new FieldModelEffectCommand(12, null) { Payload = [] })).Completed, "The proved selector12 callback incorrectly requires an unread payload byte.");
+        host.AdvanceActors();
+        Check(host.Process.Actors[0].NativeModelCompletion is { Operation: 12, Payload: [], Pending: false }, "Empty selector12 failed its native one-callback completion.");
+        Ff7NativeModelEffectState pending = Ff7NativeModelEffect.Request(null, 0, [35]);
+        Ff7FieldHost unprocessed = new(field, (_, _) => 1, new() { Actors = [hidden with { ModelEffect = pending }] }, fieldId: 604);
+        Check(unprocessed.Execute(new(204, 0, 6, 0x0EA3, new FieldModelEffectCommand(255, null) { Payload = [] })).Completed && unprocessed.Process.Actors[0].ModelEffect is null, "An unprocessed request was mistaken for initialized native procedural ownership.");
+        Ff7FieldHost initialized = new(field, (_, _) => 1, new() { Actors = [hidden with { PartVisibility = null, ModelEffect = Ff7NativeModelEffect.Advance(pending, true) }] }, fieldId: 604);
+        string before = JsonSerializer.Serialize(initialized.Capture());
+        Throws<NotSupportedException>(() => initialized.Execute(new(205, 0, 6, 0x0EA3, new FieldModelEffectCommand(255, null) { Payload = [] })));
+        Check(before == JsonSerializer.Serialize(initialized.Capture()), "Unsupported native13 prelude replacement cleared applied presentation.");
     }
 
     private static void Check(bool condition, string message)

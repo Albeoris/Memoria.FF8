@@ -10,7 +10,7 @@ public sealed partial class Ff7FieldHost
     private FieldHostReply ModelEffect(int entity, FieldModelEffectCommand command)
     {
         FieldHostReply reply = ModelEffectCore(entity, command);
-        if (!command.Wait && command.Operation != 12 && reply.Completed && GetActor(entity).NativeModelCompletion is not null)
+        if (!command.Wait && command.Operation is not (12 or 255) && reply.Completed && GetActor(entity).NativeModelCompletion is not null)
         {
             SetActor(entity, current => current with { NativeModelCompletion = null });
         }
@@ -37,14 +37,14 @@ public sealed partial class Ff7FieldHost
             }
             return new(completed);
         }
-        if (command.Operation == 12)
+        if (command.Operation is 12 or 255)
         {
             byte[] payload = command.Payload ?? throw new InvalidDataException("Native model completion requires its complete original payload.");
-            if (payload.Length == 0 || command.Mode != payload[0])
+            if (command.Mode != (payload.Length == 0 ? null : (byte?)payload[0]))
             {
                 throw new InvalidDataException("Native model completion differs from its decoded payload.");
             }
-            if (actor.ModelEffect is { Restored: false })
+            if (actor.ModelEffect is { Initialized: true, Restored: false })
             {
                 throw new NotSupportedException("Native model completion replacing procedural colors requires its shared material restoration contract.");
             }
@@ -207,7 +207,8 @@ public sealed partial class Ff7FieldHost
         {
             throw new NotSupportedException("FFVII KAWAI13 model scale requires its native render-record owner.");
         }
-        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(actor.ModelEffect, command.Mode, parts, nativeScale, ModelPartPolygonCounts?.Invoke(actor.Model));
+        byte mode = command.Mode ?? throw new InvalidDataException("Native procedural colors require their original mode byte.");
+        Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(actor.ModelEffect, mode, parts, nativeScale, ModelPartPolygonCounts?.Invoke(actor.Model));
         SetActor(entity, current => current with { ModelEffect = state, NativeEyeControlPending = false });
         return new(true);
     }
@@ -281,7 +282,7 @@ public sealed partial class Ff7FieldHost
                 ModelEffect = modelEffect,
                 NativeTransparency = actor.NativeTransparency is null ? null : Ff7NativeTransparency.Advance(actor.NativeTransparency, eligible),
                 NativeModelCompletion = actor.NativeModelCompletion is null ? null : actor.NativeModelCompletion with { Pending = actor.NativeModelCompletion.Pending && !eligible },
-                PartVisibility = actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, eligible, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
+                PartVisibility = eligible && actor.NativeModelCompletion is { Operation: 255, Pending: true } && actor.PartVisibility is not null ? actor.PartVisibility with { Visibility = Enumerable.Repeat((byte)1, actor.PartVisibility.Visibility.Length).ToArray(), PendingPayload = null } : actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, eligible, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
                 NativeColorOffset = transparencyWritten || actor.NativeColorOffset is null ? null : Ff7NativeColorOffset.Advance(actor.NativeColorOffset, eligible),
                 NativeWaterEffect = water,
                 NativeEyeControlPending = actor.NativeEyeControlPending && !eligible

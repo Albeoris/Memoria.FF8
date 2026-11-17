@@ -238,7 +238,7 @@ public enum FieldLineOperation
 }
 public sealed record FieldLineCommand(FieldLineOperation Operation, short X1 = 0, short Y1 = 0, short Z1 = 0, short X2 = 0, short Y2 = 0, short Z2 = 0, byte Value = 0) : FieldCommand;
 
-public sealed record FieldModelEffectCommand(byte Operation, byte Mode = 0, bool Wait = false) : FieldCommand
+public sealed record FieldModelEffectCommand(byte Operation, byte? Mode = 0, bool Wait = false) : FieldCommand
 {
     public byte[]? Payload { get; init; }
 

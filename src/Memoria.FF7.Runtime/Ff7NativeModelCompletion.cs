@@ -4,7 +4,7 @@ public sealed record Ff7NativeModelCompletionState(int Operation, byte[] Payload
 {
     public void Validate()
     {
-        if (Operation != 12 || Payload is null || Payload.Length == 0)
+        if (Operation is not (12 or 255) || Payload is null)
         {
             throw new InvalidDataException("Native model completion requires an admitted selector and its original payload.");
         }

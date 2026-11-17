@@ -79,12 +79,12 @@ public sealed partial class FieldMachine
     private FieldModelEffectCommand ReadModelEffectCommand(int pc)
     {
         int length = program.Read(pc + 1);
-        if (program.Read(pc) != 0x28 || length < 4)
+        if (program.Read(pc) != 0x28 || length < 3)
         {
-            throw new InvalidDataException("A native model effect requires its original length and payload.");
+            throw new InvalidDataException("A native model effect requires its original length and selector.");
         }
         byte[] payload = Enumerable.Range(3, length - 3).Select(offset => program.Read(pc + offset)).ToArray();
-        return new(program.Read(pc + 2), payload[0]) { Payload = payload };
+        return new(program.Read(pc + 2), payload.Length == 0 ? null : payload[0]) { Payload = payload };
     }
 
     private void RestoreHostRequests(FieldVmSnapshot snapshot)

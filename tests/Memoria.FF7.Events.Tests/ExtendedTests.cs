@@ -407,6 +407,20 @@ internal static class ExtendedTests
         Check(true, second.Command is FieldModelEffectCommand { Operation: 12, Mode: 1, Payload: [1] });
         Check((byte)99, completion.Variables.ReadByte(FieldBank.MapByte, 20));
         Check(JsonSerializer.Serialize(completion.Capture()), JsonSerializer.Serialize(completionCold.Capture()));
+        foreach (byte selector in new byte[] { 12, 13, 255 })
+        {
+            byte[] emptyCode = Code(0xA1, 0, 0, 0x28, 3, selector, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+            RecordingHost emptyHost = new() { Complete = true };
+            FieldMachine empty = New(emptyCode, emptyHost);
+            empty.Initialize();
+            empty.AdvanceTick();
+            FieldModelEffectCommand packet = (FieldModelEffectCommand)emptyHost.Requests.Single(request => request.Command is FieldModelEffectCommand).Command;
+            Check(selector, packet.Operation);
+            Check((byte?)null, packet.Mode);
+            Check(0, packet.Payload!.Length);
+            Check((byte)99, empty.Variables.ReadByte(FieldBank.MapByte, 20));
+            Check(packet, JsonSerializer.Deserialize<FieldModelEffectCommand>(JsonSerializer.Serialize(packet))!);
+        }
     }
 
     public static void PreloadRequestRawWordAndContinuation()

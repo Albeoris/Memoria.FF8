@@ -44,9 +44,9 @@ public sealed partial class FieldMachine
                 return ActorProperty(id, FieldActorPropertyKind.AutomaticBlinkDisabled, B(id, 1), 2);
             case 0x28:
                 int effectLength = B(id, 1);
-                if (effectLength < 4)
+                if (effectLength < 3)
                 {
-                    throw new InvalidDataException("FFVII KAWAI requires its native length, selector and payload.");
+                    throw new InvalidDataException("FFVII KAWAI requires its native length and selector.");
                 }
                 _ = B(id, effectLength - 1);
                 return Actor(id, ReadModelEffectCommand(entities[id].Pc), effectLength);
