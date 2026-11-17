@@ -332,7 +332,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         {
             [relativePath] = """{"id":"Vit0","statModifiers":{"Vitality":{"operation":"ReducePercent","value":{"default":55}}}}"""u8.ToArray()
         }, component: component);
-        Assert.Equal(packageId, Assert.Single(OfficialModCatalog.Parse(Catalog(1, entry.Official!)).Components).RuntimePackageId);
+        Assert.Equal(packageId, Assert.Single(OfficialModCatalog.Parse(Catalog(1, entry.Official!)).Components, candidate => candidate.Id == id).RuntimePackageId);
         ModPackageInstaller installer = Installer();
         ModPackageInstallPlan plan = await installer.InspectAsync(path, entry, Token);
         Assert.True((await installer.RequestInstallAsync(plan, false, Token)).RestartRequired);

@@ -61,10 +61,15 @@ public sealed class MeltdownStatusNameTests
             using GameResourceHost host = new(game.GameDirectory, Path.Combine(root, "Application"), watch: false, modsDirectory: mods);
             Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
             Assert.Equal(expected, host.Resources.Localize(key, nativeName));
+            File.WriteAllText(payload, JsonSerializer.Serialize(new { id, name = SystemTextCatalog.Key("battle.status.sleep") }));
+            host.Mods.RequestRefresh();
+            Assert.True(host.Pump(true));
+            Assert.Equal("Sleep", host.Resources.Localize(key, nativeName));
+
             File.WriteAllText(payload, JsonSerializer.Serialize(new { id, name = "$en_kernel_magicspells_name_9999" }));
             host.Mods.RequestRefresh();
             Assert.False(host.Pump(true));
-            Assert.Equal(expected, host.Resources.Localize(key, nativeName));
+            Assert.Equal("Sleep", host.Resources.Localize(key, nativeName));
             Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.InvalidStatusNameReference" && diagnostic.PackageId == "Memoria/status-name");
             Assert.True(host.Mods.SetEnabled("Memoria/status-name", false).Success);
             Assert.True(host.Pump(true));

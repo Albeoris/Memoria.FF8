@@ -115,8 +115,9 @@ public sealed class NativeModDescriptorTests : IDisposable
         OfficialModComponent component = OfficialModCatalog.GirlNextDoor;
         OfficialModArtifact artifact = new("https://example.com/fixture.zip", 10, 20, new string('0', 64));
         OfficialModRelease release = new("1.0.2", "[0.8.10,)", "girl-next-door-v1.0.2", "", artifact);
-        var legacy = component with
+        OfficialModComponent legacy = component with
         {
+            Id = "girl-next-door",
             RuntimePackageId = OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId,
             SettingsKey = OfficialModCatalog.LegacyGirlNextDoorSettingsKey,
             Latest = release
@@ -125,6 +126,10 @@ public sealed class NativeModDescriptorTests : IDisposable
 
         release = release with { Version = "1.0.3", ReleaseTag = "girl-next-door-v1.0.3" };
         Assert.Throws<InvalidDataException>(() => OfficialModCatalog.Parse(Catalog(legacy with { Latest = release })));
+        OfficialModComponent previous = legacy with { RuntimePackageId = "Memoria/girl-next-door", SettingsKey = "girl-next-door", Latest = release };
+        Assert.Equal(previous.RuntimePackageId, Assert.Single(OfficialModCatalog.Parse(Catalog(previous)).Components).RuntimePackageId);
+
+        release = release with { Version = "1.0.4", ReleaseTag = component.Id + "-v1.0.4" };
         Assert.Equal(component.RuntimePackageId, Assert.Single(OfficialModCatalog.Parse(Catalog(component with { Latest = release })).Components).RuntimePackageId);
         Assert.Throws<InvalidDataException>(() => OfficialModCatalog.Parse(Catalog(component with { SettingsKey = "wrong", Latest = release })));
     }
