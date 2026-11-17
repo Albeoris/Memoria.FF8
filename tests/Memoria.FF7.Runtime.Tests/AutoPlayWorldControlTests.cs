@@ -58,6 +58,28 @@ internal static class AutoPlayWorldControlTests
         cold.AdvanceTick(advanceClock: false);
         Ff7WorldEntity actualRider = cold.World.Process.Entities.Single(entity => entity.Model == control.RiderModel);
         Check(actualRider.X == landing.Rider!.X && actualRider.Y == landing.Rider.Y && actualRider.Z == landing.Rider.Z && cold.World.Process.Input?.GroundTriangle == landing.Ground, $"The original native collision phase disagrees with its landing advice: actual={actualRider.X},{actualRider.Y},{actualRider.Z}/{cold.World.Process.Input?.GroundTriangle}, advised={landing.Rider.X},{landing.Rider.Y},{landing.Rider.Z}/{landing.Ground}.");
+        var passive = cold.World.Machine.AnalyzeModelDispatch(control.Model, 3, currentEntryOnly: true);
+        Check(passive.Complete && passive.IsInert && passive.HasDispatchHandler == false, "The configured native passive transport callback must have no handler.");
+        bool passiveMoved = false;
+        for (int horizontal = -1; horizontal <= 1; horizontal++)
+        {
+            for (int vertical = -1; vertical <= 1; vertical++)
+            {
+                if (horizontal == 0 && vertical == 0)
+                {
+                    continue;
+                }
+                var preview = cold.World.PreviewAutoPlayInput(new(horizontal, vertical));
+                if (preview.Moved && preview.ModelBoundaries?.Any(boundary => boundary.Model == control.Model && boundary.Event == 3) == true)
+                {
+                    Check(preview.ModelBoundaries.All(boundary => boundary.Inert), "An absent passive callback was reported as an effectful physical boundary.");
+                    passiveMoved = true;
+                }
+            }
+        }
+        var confirm = cold.World.PreviewAutoPlayInput(new(Held: 0x20));
+        Check(confirm.ModelBoundaries?.Any(boundary => boundary.Model == control.Model && boundary.Event == 4 && !boundary.Inert) == true && !Ff7AutoplayDriver.AdmitsUnselectedWorldModels(confirm.ModelBoundaries), "An effectful native boarding callback was admitted as passive transit.");
+        Check(passiveMoved, "The native rider fixture did not exercise an admitted movement through its passive transport contact.");
         Check(cold.World.HasAutoPlayControlCompleted(control), "The native release/collision phases did not return ownership to the rider.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Native control continuation changed its external standalone source.");
         Console.WriteLine("PASS original native transport control, cold short-hold continuation and rider ownership through native collision; source unchanged.");

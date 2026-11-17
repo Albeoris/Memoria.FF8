@@ -60,6 +60,8 @@ internal static class AutoPlayWorldNavigationTests
         HashSet<Ff7AutoplayInput> attempted = [new(-1, -1, Run: true), new(0, -1, Run: true), new(1, -1, Run: true), new(-1, 0, Run: true), new(1, 0, Run: true), new(-1, 1, Run: true), new(1, 1, Run: true), new(Run: false)];
         Ff7AutoPlayWorldRoute exploring = Ff7AutoplayDriver.SearchWorldRoute(turned, target, Preview, [], 1, attempted);
         Check(exploring.Status == Ff7AutoPlayWorldNavigationStatus.SearchLimited && exploring.Steps.Length == 0, "A bounded search emitted an unproved away prefix or misclassified its budget as absence.");
+        Check(Ff7AutoplayDriver.AdmitsUnselectedWorldModels([new(6, 3, Inert: true)]), "An absent or proved inert passive contact blocked ordinary native transit.");
+        Check(!Ff7AutoplayDriver.AdmitsUnselectedWorldModels([new(6, 3, Inert: true), new(7, 4)]), "A harmless neighbor admitted another model's effectful unselected callback.");
         CheckPhysicalCycle();
         CheckTerrainGuidance();
         CheckForeignMatchingScript();

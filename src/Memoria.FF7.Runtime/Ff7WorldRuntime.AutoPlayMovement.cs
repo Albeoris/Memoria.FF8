@@ -2,7 +2,7 @@ namespace Memoria.FF7.Runtime;
 
 internal sealed record Ff7AutoPlayWorldMovementState(int WorldId, int WorldMapState, Ff7WorldEntity Player, Ff7WorldInputState Input, Ff7WorldCameraState Camera, int ViewMode, int RadarMode, byte[]? Random, int RandomIndex);
 internal sealed record Ff7AutoPlayWorldTerrainBoundary(int ChunkX, int ChunkZ, int Script, bool RestoresPreviousPosition, bool Inert = false);
-internal sealed record Ff7AutoPlayWorldModelBoundary(int Model, int Event);
+internal sealed record Ff7AutoPlayWorldModelBoundary(int Model, int Event, bool Inert = false);
 internal sealed record Ff7AutoPlayWorldMovementPreview(bool Supported, string? Reason, Ff7AutoPlayWorldMovementState? State = null, bool Moved = false, Ff7AutoPlayWorldTerrainBoundary? TerrainBoundary = null, Ff7AutoPlayWorldModelBoundary[]? ModelBoundaries = null)
 {
     public bool RequiresVmPhase => Supported;
@@ -70,7 +70,7 @@ public sealed partial class Ff7WorldRuntime
             ResolvePlayerTerrain(autoPlayPreview: true, observeBoundary: value => boundary = value);
             Ff7AutoPlayWorldMovementState result = CaptureAutoPlayMovementState();
             bool moved = result.Player.X != source.Player.X || result.Player.Y != source.Player.Y || result.Player.Z != source.Player.Z;
-            Ff7AutoPlayWorldModelBoundary[] modelBoundaries = ReadAutoPlayModelContactSources().Where(entity => result.Player.ContactModel == entity.Model).Select(entity => new Ff7AutoPlayWorldModelBoundary(entity.Model, (input.Held & 32) != 0 ? 4 : 3)).ToArray();
+            Ff7AutoPlayWorldModelBoundary[] modelBoundaries = ReadAutoPlayModelContactSources().Where(entity => result.Player.ContactModel == entity.Model).Select(entity => new Ff7AutoPlayWorldModelBoundary(entity.Model, (input.Held & 32) != 0 ? 4 : 3, IsAutoPlayModelContactInert(entity.Model, (input.Held & 32) != 0 ? 4 : 3))).ToArray();
             return new(true, null, result, moved, boundary, modelBoundaries);
         }
         catch (Exception error) when (error is AutoPlayMovementUnsupportedException or NotSupportedException)

@@ -44,7 +44,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         static bool Admit(Ff7AutoPlayWorldMovementPreview step)
         {
-            return step.TerrainBoundary is not { Inert: false } && (step.ModelBoundaries?.Length ?? 0) == 0;
+            return step.TerrainBoundary is not { Inert: false } && AdmitsUnselectedWorldModels(step.ModelBoundaries);
         }
         if (worldRoute.TryPeek(out Ff7AutoPlayWorldRouteStep? retained))
         {

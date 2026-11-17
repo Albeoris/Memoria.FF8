@@ -18,6 +18,7 @@ internal sealed record Ff7AutoPlayWorldRoute(Ff7AutoPlayWorldNavigationStatus St
 
 public sealed partial class Ff7AutoplayDriver
 {
+    internal const int WorldModelContactAdmissionRevision = 1;
     private const int WorldWidth = 0x48000;
     private const int WorldDepth = 0x38000;
     private readonly Queue<Ff7AutoPlayWorldRouteStep> worldRoute = new();
@@ -207,7 +208,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         bool Admit(Ff7AutoPlayWorldMovementPreview step)
         {
-            return (step.ModelBoundaries?.Length ?? 0) == 0 && (step.TerrainBoundary is not { Inert: false } || !rearming && TargetBoundary(step));
+            return AdmitsUnselectedWorldModels(step.ModelBoundaries) && (step.TerrainBoundary is not { Inert: false } || !rearming && TargetBoundary(step));
         }
         bool Reached(Ff7AutoPlayWorldMovementPreview step)
         {
@@ -367,6 +368,11 @@ public sealed partial class Ff7AutoplayDriver
         return Math.Min(Edge(a, b), Math.Min(Edge(b, c), Edge(c, a)));
     }
 
+    internal static bool AdmitsUnselectedWorldModels(Ff7AutoPlayWorldModelBoundary[]? boundaries)
+    {
+        return boundaries is null || boundaries.All(boundary => boundary.Inert);
+    }
+
     internal static string WorldMovementKey(Ff7AutoPlayWorldMovementState state)
     {
         return WorldMovementKey(state, includePresentationFacing: true);
@@ -382,7 +388,7 @@ public sealed partial class Ff7AutoplayDriver
     {
         Ff7WorldEntity p = state.Player;
         Ff7WorldInputState i = state.Input;
-        StringBuilder key = new($"{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
+        StringBuilder key = new($"model-contact-admission:{WorldModelContactAdmissionRevision}:{state.WorldId}:{state.WorldMapState}:{p.Model}:{p.X}:{p.Y}:{p.Z}:{p.Terrain}:{p.Flags}:{p.ContactModel}:{(includePresentationFacing ? p.Direction : 0)}:{p.TargetDirection}:{(includePresentationFacing ? p.TurnOffset : 0)}:{state.ViewMode}:{i.CameraHeadingTarget ?? state.Camera.Heading}:{i.FreeDirectionOffset}:{i.PreviousControlHeld}:{i.CollisionSide}:{Math.Min(i.CollisionAge, 8)}:{i.CollisionRecovery}:{i.BridgeCooldown}:{i.HeightSmoothVelocity}:{i.HeightSmoothRemaining}:{i.TerrainScript}:{i.GroundTriangle}:{i.Bridge}");
         foreach (Ff7WorldTerrainReference cached in i.TerrainCache ?? [])
         {
             key.Append($"|{cached.ChunkX},{cached.ChunkZ},{cached.Triangle}");

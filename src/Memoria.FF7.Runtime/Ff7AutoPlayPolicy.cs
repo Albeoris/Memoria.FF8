@@ -45,6 +45,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return new(state.Coverage, phaseOrder: phaseOrder, candidateProgressionOrder: (visit, target, candidate) =>
         {
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(entry => entry.Visit.Key == visit.Key)?.Events.SingleOrDefault(entry => entry.Event.Id == target.Id);
+            if (state.DestinationField is not null && state.NavigationGoal is { EventId: not null } goal && goal.EventId == target.Id && (goal.Conditions is null || goal.Conditions == target.ConditionSignature) && state.Coverage.NavigationVisits.Any(navigation => navigation.Key == goal.NavigationKey && navigation.VisitKey == visit.Key))
+            {
+                return -3;
+            }
             if (coverage?.Completed != true)
             {
                 bool attempted = coverage?.UnavailableAttempts.Any(attempt => attempt.SourceConditionSignature == target.ConditionSignature && (target.Variants is { Count: > 0 } variants ? variants : [target.Id]).Contains(attempt.TargetId ?? target.Id, StringComparer.Ordinal)) == true;

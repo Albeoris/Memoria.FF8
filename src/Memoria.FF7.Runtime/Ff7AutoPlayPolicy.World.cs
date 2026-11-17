@@ -321,6 +321,12 @@ public sealed partial class Ff7AutoPlayPolicy
         ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);
         string navigation = worldVisit + ":nav:world";
         planner.ObserveNavigation(worldVisit, navigation, events.Values.ToArray());
+        if (State.DestinationField is not null && State.Active is null && worldModeCatalog.Count != 0)
+        {
+            var mode = worldModeCatalog.First();
+            State.NavigationGoal = new(navigation, mode.Key, events[mode.Key].ConditionSignature);
+            State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit).Events.Single(item => item.Event.Id == mode.Key).RouteNeedsRediscovery = true;
+        }
         visited.GlobalReads = visited.GlobalReads.Concat(worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).SelectMany(script => script.Analysis.Reads).Concat(worldModelCatalog.Values.SelectMany(model => model.Analysis.Reads)).Where(read => (read.Opcode & 3) == 0)).Distinct().OrderBy(read => read.Opcode).ThenBy(read => read.Operand).ToArray();
         if (ready)
         {

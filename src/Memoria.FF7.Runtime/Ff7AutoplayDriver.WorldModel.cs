@@ -136,7 +136,7 @@ public sealed partial class Ff7AutoplayDriver
 
     private static bool AdmitWorldModelStep(Ff7AutoPlayWorldMovementPreview step, int model, int eventId)
     {
-        return step.TerrainBoundary is not { Inert: false } && (step.ModelBoundaries ?? []).All(boundary => boundary.Model == model && boundary.Event == eventId);
+        return step.TerrainBoundary is not { Inert: false } && (step.ModelBoundaries ?? []).All(boundary => boundary.Inert || boundary.Model == model && boundary.Event == eventId);
     }
 
     internal static Ff7AutoPlayWorldRoute SearchWorldModelRoute(Ff7AutoPlayWorldMovementState source, Ff7AutoPlayWorldModelScriptObservation target, Func<Ff7AutoplayInput, Ff7AutoPlayWorldMovementState, Ff7AutoPlayWorldMovementPreview> preview, int nodeBudget, IReadOnlySet<Ff7AutoplayInput>? avoidFirst = null, Vector3? waypoint = null)

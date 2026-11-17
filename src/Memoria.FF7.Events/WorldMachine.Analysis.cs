@@ -29,6 +29,7 @@ public sealed record WorldScriptAnalysis(bool Complete, string? Reason, int Head
     public bool MayInteract => ChangesPersistentState || HasDialogue || MayChangeControlledModel;
     public bool MayEnterField => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransition);
     public bool MayReloadWorld => Transitions.Any(transition => transition.Operation == WorldOperation.FieldTransitionSelector);
+    public bool? HasDispatchHandler { get; init; }
 }
 
 public sealed partial class WorldMachine
@@ -141,7 +142,7 @@ public sealed partial class WorldMachine
         Entity? source = models.SingleOrDefault(entity => entity.Model == model && !entity.Detached && !entity.Disabled);
         if (entry == 0 || source is null)
         {
-            return new(true, null, header, 0, [], [], [], []) { IsInert = true };
+            return new(true, null, header, 0, [], [], [], []) { IsInert = true, HasDispatchHandler = entry != 0 };
         }
         WorldMachine initial = ForkInspection();
         initial.inspection!.ReadHost = readHost;
@@ -158,11 +159,11 @@ public sealed partial class WorldMachine
         }
         if (owner.Pc != entry || owner.Pc == previousPc && owner.Calls.Count == previousDepth)
         {
-            return new(true, null, header, 0, [], [], [], []) { IsInert = true };
+            return new(true, null, header, 0, [], [], [], []) { IsInert = true, HasDispatchHandler = entry != 0 };
         }
         owner.Calls.Clear();
         initial.active = initial.executing = owner;
-        return AnalyzeDispatch(initial, header, entry, instructionBudget, currentEntryOnly);
+        return AnalyzeDispatch(initial, header, entry, instructionBudget, currentEntryOnly) with { HasDispatchHandler = true };
     }
 
     private WorldScriptAnalysis AnalyzeDispatch(WorldMachine initial, int header, int entry, int instructionBudget, bool currentEntryOnly)

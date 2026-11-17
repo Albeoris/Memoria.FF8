@@ -8,6 +8,30 @@ public sealed record Ff7AutoPlayWorldModelScriptObservation(string Id, int Model
 
 public sealed partial class Ff7WorldRuntime
 {
+    private long autoPlayContactTick = -1;
+    private int autoPlayContactController = -1;
+    private readonly Dictionary<(int Model, int Event), bool> autoPlayInertContacts = [];
+
+    private bool IsAutoPlayModelContactInert(int model, int eventId)
+    {
+        if (autoPlayContactTick != tick || autoPlayContactController != controlledModel)
+        {
+            autoPlayInertContacts.Clear();
+            autoPlayContactTick = tick;
+            autoPlayContactController = controlledModel;
+        }
+        if (autoPlayInertContacts.TryGetValue((model, eventId), out bool known))
+        {
+            return known;
+        }
+        Ff7WorldEntity[] hostEntities = entities.Values.ToArray();
+        Ff7WorldEntity[] hostFreeEntities = freeEntities.ToArray();
+        WorldScriptAnalysis analysis = Machine.AnalyzeModelDispatch(model, eventId, currentEntryOnly: true, readHost: dependency => ProjectAutoPlayHostDependency(dependency, controlledModel, hostEntities, hostFreeEntities));
+        bool inert = analysis.Complete && analysis.IsInert && (analysis.Entry != 0 || analysis.HasDispatchHandler == false) && analysis.HostReads.All(read => read.Kind == WorldHostDependencyKind.Special && read.Selector == 8);
+        autoPlayInertContacts[(model, eventId)] = inert;
+        return inert;
+    }
+
     public Ff7AutoPlayWorldModelScriptObservation[] ReadAutoPlayModelFrontiers(int instructionBudget = 2048)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(instructionBudget, 1);

@@ -20,6 +20,7 @@ public sealed partial class Ff7WorldRuntime
         Ff7WorldEntity? player = entities.GetValueOrDefault(controlledModel);
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new
         {
+            ModelContactAdmission = Ff7AutoplayDriver.WorldModelContactAdmissionRevision,
             World = Resources.World,
             WorldMapState,
             ControlledModel = controlledModel,
