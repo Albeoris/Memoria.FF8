@@ -18,7 +18,7 @@ public sealed class FieldLightingMods
     public bool Active => PackageId is not null;
     public IReadOnlyList<string> PackageIds { get; }
 
-    /// <summary>Null explicitly disables lighting. An active component always resolves a scene, including an empty black one.</summary>
+    /// <summary>Null disables the component. A selected component resolves an independent scene; empty scenes retain native lighting.</summary>
     public FieldLightingScene? ResolveScene(string fieldName)
     {
         FieldLightingSceneIO.ValidateFieldName(fieldName);

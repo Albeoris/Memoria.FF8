@@ -219,7 +219,8 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
                 return pixels;
             }
 
-            Color[] dark = Render(FieldLightingScene.Empty(scene.FieldName), "empty");
+            Assert.Equal(legacy, Render(FieldLightingScene.Empty(scene.FieldName), "empty"));
+            Color[] dark = Render(scene with { Lights = scene.Lights.Select(light => light with { Enabled = false }).ToArray() }, "disabled");
             Color[] lit = Render(scene, "lit");
             int changed = 0;
             int blackModelPixels = 0;
@@ -235,11 +236,12 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
                 }
             }
             Assert.True(changed > 10, "Explicit positional lamps must change visible native or imported model pixels.");
-            Assert.True(blackModelPixels > 10, "Empty active lighting must leave visible opaque model surfaces completely black.");
+            Assert.True(blackModelPixels > 10, "An authored scene with all sources disabled must leave visible opaque model surfaces completely black.");
             Assert.True(changed < dark.Length / 2, "Lighting must preserve the painted background.");
-            Assert.Equal(dark, Render(scene with { Lights = scene.Lights.Select(light => light with { Enabled = false }).ToArray() }, "disabled"));
             Assert.Equal(dark, Render(scene with { Lights = scene.Lights.Select(light => light with { Direction = -light.Direction }).ToArray() }, "aimed-away"));
             Assert.Equal(lit, Render(scene, "restored"));
+            Assert.Equal(legacy, Render(scene with { Lights = [], PrimaryLightId = null }, "removed-all"));
+            Assert.Equal(legacy, Render(scene with { FieldName = "another_field" }, "another-field"));
             Assert.Equal(legacy, Render(null, "inactive"));
 
             FieldSpotLight top = scene.Lights[4];

@@ -18,7 +18,7 @@ internal sealed partial class GameWorld
     internal string? LightingUnavailableReason => renderer?.LightingUnavailableReason;
     internal string? LightingShadowDiagnostic => renderer?.LightingShadowDiagnostic;
     internal IReadOnlyDictionary<int, FieldActorShadowState> LightingShadowStates => renderer?.LightingShadowStates ?? EmptyLightingShadowStates;
-    internal string LightingStatus => LightingUnavailableReason ?? LightingShadowDiagnostic ?? (ActiveLighting is null ? "Legacy field rendering" : "Spotlight shading active");
+    internal string LightingStatus => LightingUnavailableReason ?? LightingShadowDiagnostic ?? (renderer?.UsesAuthoredLighting == true ? "Spotlight shading active" : "Native field lighting");
     internal Vector2? ProjectLightingPoint(Vector3 world) => renderer?.ProjectWorldPoint(world);
     internal bool TryPickLightingGround(Vector2 screen, out Vector3 point)
     {

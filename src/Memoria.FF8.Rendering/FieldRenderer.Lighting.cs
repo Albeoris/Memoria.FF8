@@ -13,8 +13,9 @@ public sealed partial class FieldRenderer
     private readonly List<FieldShadowTriangle> shadowCasters = [];
     private FieldLightingScene? effectiveLighting;
 
-    /// <summary>Null restores legacy rendering; an active empty scene deliberately illuminates models with zero light.</summary>
+    /// <summary>Native lighting remains active until this field has at least one authored source, including disabled sources.</summary>
     public FieldLightingScene? ActiveLighting { get; set; }
+    public bool UsesAuthoredLighting => effectiveLighting is not null;
     public string? LightingUnavailableReason { get; private set; }
     public string? LightingShadowDiagnostic { get; private set; }
     public IReadOnlyDictionary<int, FieldActorShadowState> LightingShadowStates => lightingShadowStates;
@@ -86,7 +87,7 @@ public sealed partial class FieldRenderer
         {
             backend.SetFieldLighting(null);
         }
-        if (ActiveLighting is null)
+        if (ActiveLighting is null || ActiveLighting.Lights.Count == 0 || !string.Equals(ActiveLighting.FieldName, field.Name, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -95,7 +96,7 @@ public sealed partial class FieldRenderer
             LightingUnavailableReason = backend?.FieldLightingUnavailableReason ?? "This renderer does not support field spotlight shading.";
             return;
         }
-        effectiveLighting = string.Equals(ActiveLighting.FieldName, field.Name, StringComparison.OrdinalIgnoreCase) ? ActiveLighting : FieldLightingScene.Empty(field.Name);
+        effectiveLighting = ActiveLighting;
         backend.SetFieldLighting(effectiveLighting);
         FieldSpotLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
         foreach (ActorVisual actor in actors)

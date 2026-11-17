@@ -69,7 +69,11 @@ public sealed class ModsInputAndAuthoringTests
             using ModRuntime runtime = new(root, watch: false);
             MenuController menu = new();
             menu.ConnectMods(runtime);
-            menu.Open("mods");
+            menu.Open("debug-room", true);
+            Assert.True(menu.Entries.Single(entry => entry.Id == "mods").Enabled);
+            menu.SelectEntry("debug-room", "mods");
+            menu.Navigate(MenuInput.Confirm);
+            Assert.Equal("mods", menu.ScreenId);
             menu.Push("mods-search");
             Assert.True(menu.IsModSearchEditing);
             Assert.True(menu.EnterModSearchCharacter('V'));

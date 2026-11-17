@@ -84,6 +84,36 @@ public sealed class FieldLightingRenderTests
     }
 
     [Fact]
+    public void Native_lighting_remains_until_a_source_is_authored_and_returns_after_removing_all_sources()
+    {
+        FieldAssets field = FixtureField(true);
+        RecordingLightingBackend backend = new();
+        FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = FieldLightingScene.Empty(field.Name) };
+        ActorVisual actor = FixtureActor(0) with { GroundShadowEnabled = false };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Assert.False(renderer.UsesAuthoredLighting);
+        Assert.Null(backend.Scene);
+        Assert.Empty(renderer.LightingShadowStates);
+
+        FieldSpotLight disabled = new() { Id = "lamp", Name = "Lamp", Enabled = false, Position = new(0, 0, 10), Range = 30 };
+        FieldLightingScene authored = new() { FieldName = field.Name, Lights = [disabled], PrimaryLightId = disabled.Id };
+        renderer.ActiveLighting = authored;
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Assert.True(renderer.UsesAuthoredLighting);
+        Assert.Same(authored, backend.Scene);
+        Assert.Equal(FieldActorShadowState.IntentionalNone, renderer.LightingShadowStates[actor.ObjectId]);
+
+        foreach (FieldLightingScene scene in new[] { authored with { Lights = [], PrimaryLightId = null }, authored with { FieldName = "another_field" } })
+        {
+            renderer.ActiveLighting = scene;
+            renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+            Assert.False(renderer.UsesAuthoredLighting);
+            Assert.Null(backend.Scene);
+            Assert.Empty(renderer.LightingShadowStates);
+        }
+    }
+
+    [Fact]
     public void Intentional_shadow_suppression_precedes_missing_ground_or_backend_fallback()
     {
         FieldAssets field = FixtureField(false);
@@ -93,7 +123,6 @@ public sealed class FieldLightingRenderTests
         ActorVisual actor = FixtureActor(0);
         foreach (FieldLightingScene scene in new[]
         {
-            FieldLightingScene.Empty(field.Name),
             new FieldLightingScene { FieldName = field.Name, Lights = [light] },
             new FieldLightingScene { FieldName = field.Name, Lights = [light with { Enabled = false }], PrimaryLightId = light.Id },
             new FieldLightingScene { FieldName = field.Name, Lights = [light with { Intensity = 0 }], PrimaryLightId = light.Id },
@@ -151,6 +180,7 @@ public sealed class FieldLightingRenderTests
         public string? FieldLightingUnavailableReason => null;
         public int CasterCount { get; private set; }
         public int GroundTriangles { get; private set; }
+        public FieldLightingScene? Scene { get; private set; }
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
             CasterCount = GroundTriangles = 0;
@@ -167,6 +197,7 @@ public sealed class FieldLightingRenderTests
         }
         public void SetFieldLighting(FieldLightingScene? scene)
         {
+            Scene = scene;
         }
         public bool PrepareFieldShadow(IReadOnlyList<FieldShadowTriangle> casters, out string? reason)
         {
