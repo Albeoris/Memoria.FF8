@@ -108,6 +108,9 @@ internal static class AutoPlayFieldDestinationGoalTests
         graph[210] = [211];
         graph[211] = [212];
         graph[212] = [300];
+        graph[400] = [100];
+        graph[100] = [200];
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, target => target.Id != exit.Id) is not null && state.NavigationGoal is null, "An optional out-and-back trip must not reenter the current field's unfiltered resource graph and bypass its blocked required exit.");
         Ff7AutoPlayObservation alternatives = observation with { Events = [optional, exit, alternate] };
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, alternatives, Read, target => target.Id != exit.Id) is null && state.NavigationGoal?.EventId == alternate.Id, "An unavailable shortest corridor must leave a longer currently admitted corridor to the requested destination eligible.");
         AutoPlayPlanStep? longer = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == exit.Id, [], "short-corridor-blocked"));

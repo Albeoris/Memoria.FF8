@@ -53,8 +53,8 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         const int maximumFields = 128;
         Queue<(ushort Field, Ff7AutoPlayTarget First)> pending = new();
-        HashSet<ushort> visited = [];
         int current = ReadVisitField(observation.VisitId);
+        HashSet<ushort> visited = current > 64 && current < short.MaxValue ? [(ushort)current] : [];
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && canSelect?.Invoke(target) != false))
         {
             foreach (int field in TargetDestinations(target).Where(field => field > 64 && field < short.MaxValue && field != current))
