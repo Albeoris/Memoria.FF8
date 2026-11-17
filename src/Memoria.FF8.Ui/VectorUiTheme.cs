@@ -86,10 +86,16 @@ public sealed class VectorUiTheme : UiTheme
         }
     }
 
-    public override void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled)
+    public override void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled, float minimumRatio = 0)
     {
         float height = Math.Min(7, track.Height);
-        Progress(canvas, new UiRect(track.X, track.Y + (track.Height - height) / 2, track.Width, height), ratio, enabled);
+        UiRect bounds = new(track.X, track.Y + (track.Height - height) / 2, track.Width, height);
+        Progress(canvas, bounds, ratio, enabled);
+        UiRect inner = bounds.Inset(1);
+        if (minimumRatio > 0 && !inner.IsEmpty)
+        {
+            canvas.Fill(new UiRect(inner.X, inner.Y, inner.Width * Math.Clamp(minimumRatio, 0, 1), inner.Height), enabled ? SliderMarker : Muted);
+        }
     }
 
     public override void Progress(IUiCanvas canvas, UiRect bounds, float ratio, bool enabled)

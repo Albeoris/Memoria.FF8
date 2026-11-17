@@ -346,7 +346,7 @@ internal sealed partial class GameWorld
 
     private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed, int originalReserveCount)
     {
-        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - encounter.Enemies.Count - originalReserveCount);
+        int available = Math.Min(Math.Min(count, ExpandedBattleFormation.MaximumAddedEnemies), ExpandedBattleFormation.MaximumEnemies - encounter.Enemies.Count - originalReserveCount);
         var sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
         if (available <= 0)
         {

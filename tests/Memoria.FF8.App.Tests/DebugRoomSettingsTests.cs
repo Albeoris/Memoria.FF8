@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DebugRoomSettingsTests
 {
     [Fact]
-    public void Additional_enemies_slider_edits_stored_value_and_marks_effective_request()
+    public void Additional_enemies_slider_keeps_party_bonus_out_of_its_hardcore_minimum()
     {
         UiPreferences preferences = new() { BattleAllyCount = 8, Difficulty = BattleDifficulty.Hardcore };
         MenuController menus = new(() =>
@@ -24,24 +24,50 @@ public sealed class DebugRoomSettingsTests
 
         UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
         Assert.Equal(0, slider.Value);
-        Assert.Equal(6f, slider.MarkerValue);
+        Assert.Equal(1f, slider.ForcedMinimum);
+        Assert.Contains("Hardcore forces a minimum of 1.", slider.Caption);
+        Assert.Contains("+1 per additional party member in battle.", slider.Caption);
         Assert.Equal(10, slider.Max);
-        Assert.Contains("Stored 0. Gold marker 6", menus.SelectedEntry!.Help);
+        Assert.Contains(slider.Caption, menus.SelectedEntry!.Help);
         menus.Navigate(MenuInput.Confirm);
         menus.Navigate(MenuInput.Left);
         Assert.Equal(0, preferences.AdditionalEnemies);
         menus.Navigate(MenuInput.Right);
         Assert.Equal(1, preferences.AdditionalEnemies);
-        Assert.Equal(6f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).MarkerValue);
+        Assert.Equal(1f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).ForcedMinimum);
 
         UiView view = menus.BuildView();
         slider = Assert.IsType<UiNumericSlider>(view.FocusedElement);
         float trackRight = slider.ValueBounds.Right - slider.ValueWidth - slider.ValueGap;
         view.Pointer(trackRight - 1, slider.Bounds.Y + slider.Bounds.Height / 2, pressed: true);
         Assert.Equal(10, preferences.AdditionalEnemies);
-        Assert.Equal(10f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).MarkerValue);
+        Assert.Equal(1f, Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement).ForcedMinimum);
         Assert.Equal(10, preferences.WithInstallationSetting("Additional enemies", "2", activeGame: true).AdditionalEnemies);
         Assert.Equal(2, preferences.WithInstallationSetting("Additional enemies", "2", activeGame: false).AdditionalEnemies);
+    }
+
+    [Theory]
+    [InlineData(BattleDifficulty.Normal, 3, 0)]
+    [InlineData(BattleDifficulty.Normal, 5, 0)]
+    [InlineData(BattleDifficulty.Hardcore, 3, 1)]
+    [InlineData(BattleDifficulty.Hardcore, 5, 1)]
+    public void Additional_enemies_caption_and_minimum_follow_difficulty_without_party_scaling(BattleDifficulty difficulty, int allies, float minimum)
+    {
+        UiPreferences preferences = new() { BattleAllyCount = allies, Difficulty = difficulty, AdditionalEnemies = 5 };
+        MenuController menus = new(() =>
+        {
+            MenuData data = new();
+            data.Settings["Additional enemies"] = "5";
+            data.SupportedActions.Add("config:Additional enemies");
+            return data;
+        }, _ => { });
+        menus.ConnectPreferences(() => preferences, _ => { });
+        menus.Open("config-combat");
+        menus.SelectEntry("config-combat", "Additional enemies");
+        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
+        Assert.Equal(minimum, slider.ForcedMinimum);
+        Assert.Contains("+1 per additional party member in battle.", slider.Caption);
+        Assert.Equal(difficulty == BattleDifficulty.Hardcore, slider.Caption.Contains("Hardcore forces a minimum of 1.", StringComparison.Ordinal));
     }
 
     [Fact]

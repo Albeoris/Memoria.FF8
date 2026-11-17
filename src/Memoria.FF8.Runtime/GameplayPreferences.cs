@@ -41,9 +41,9 @@ public sealed record GameplayPreferences
 
     public static bool IsBattleAllyCountSupported(int value) => value is 0 or >= 3 and <= NativeCharacterVitals.ExtendedRecordCount;
 
-    public int GetMinimumAdditionalEnemies(int playerCount) => Math.Max(playerCount > 3 ? playerCount - 2 : 0, Difficulty == BattleDifficulty.Hardcore ? 1 : 0);
+    public int GetMinimumAdditionalEnemies() => Difficulty == BattleDifficulty.Hardcore ? 1 : 0;
 
-    public int GetEffectiveAdditionalEnemies(int playerCount) => Math.Max(AdditionalEnemies, GetMinimumAdditionalEnemies(playerCount));
+    public int GetEffectiveAdditionalEnemies(int playerCount) => Math.Max(AdditionalEnemies, GetMinimumAdditionalEnemies()) + Math.Max(0, playerCount - 3);
 
     public BattleDifficulty Difficulty { get; init; } = BattleDifficulty.Normal;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.TurnBased;

@@ -24,7 +24,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         world.EnsureField();
         NativeCharacterVitals vitals = (session.State.CharacterVitals! with { CombatParty = [0, 1, 2] }).WithGuestBattleRecords().Rest();
         vitals = vitals with { Records = vitals.Records.Select(record => record with { MemberFlags = (ushort)(record.MemberFlags | 1), Status = 0 }).ToArray() };
-        foreach ((int allyCount, int addedEnemies) in new[] { (3, 0), (3, 1), (4, 2), (3, 0) })
+        foreach ((int allyCount, int addedEnemies, int expectedEnemies) in new[] { (3, 0, 1), (3, 1, 2), (4, 2, 4), (3, 0, 1) })
         {
             for (int callback = 0; callback < 60 && !world.Events.CanAcceptMovementInput; callback++)
             {
@@ -47,7 +47,7 @@ public sealed class ExpandedBattleProcessResourcesTests
             BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
             BattleModelRoster roster = battle.ReadBattlePresentationRoster();
             Assert.Equal(allyCount, roster.Party.Count());
-            Assert.Equal(1 + addedEnemies, roster.Enemies.Count());
+            Assert.Equal(expectedEnemies, roster.Enemies.Count());
             Assert.Equal(roster.Owners.Select(ActorId).Order(), process.Memory.Textures!.PresentationTextures!.Keys.Order());
             Assert.All(roster.Owners, owner => Assert.NotNull(process.Graphics.ActorModels.Get(owner).OriginalResourceRow104));
 
@@ -88,8 +88,8 @@ public sealed class ExpandedBattleProcessResourcesTests
 
         Assert.Equal(world.BattleResources.LoadEncounter(formation).Flags, entry.NativeEntry!.FormationFlags);
         Assert.NotNull(logical.NativeEntryAdvantage);
-        Assert.Equal(4, entry.AddedEnemySources!.Count);
-        Assert.Equal(Enumerable.Range(8, 4), entry.AddedEnemySources.Keys);
+        Assert.Equal(5, entry.AddedEnemySources!.Count);
+        Assert.Equal(Enumerable.Range(8, 5), entry.AddedEnemySources.Keys);
         Assert.All(entry.Combatants.Where(actor => !actor.IsPlayer), actor =>
         {
             Assert.NotNull(actor.NativeTemplate);
@@ -111,7 +111,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(entry.NativeRetainedMemory.EffectMemory!.SelectedIndex, process.Memory.SelectedIndex);
         BattleModelRoster roster = AssertBindings(logical, process, selected);
         Assert.Equal(4, roster.Party.Count());
-        Assert.Equal(5, roster.Enemies.Count());
+        Assert.Equal(6, roster.Enemies.Count());
         Assert.Equal(world.BattleResources.ReadNativePcUiIcons().Binding, selected.NativeGraphics!.PcUiIcons);
         Assert.False(process.EntryReady);
 

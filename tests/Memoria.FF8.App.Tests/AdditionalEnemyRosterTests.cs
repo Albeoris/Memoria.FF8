@@ -10,9 +10,12 @@ public sealed class AdditionalEnemyRosterTests
     [Theory]
     [InlineData(3, 0, 0)]
     [InlineData(3, 1, 1)]
-    [InlineData(4, 0, 2)]
-    [InlineData(11, 10, 10)]
+    [InlineData(4, 0, 1)]
+    [InlineData(11, 10, 18)]
     [InlineData(3, 0, 1, BattleDifficulty.Hardcore)]
+    [InlineData(5, 0, 3, BattleDifficulty.Hardcore)]
+    [InlineData(3, 5, 5, BattleDifficulty.Hardcore)]
+    [InlineData(4, 5, 6, BattleDifficulty.Hardcore)]
     public void AreaRosterKeepsAuthoredEnemiesAndResumesItsSelectedPlacements(int allies, int storedEnemies, int requested, BattleDifficulty difficulty = BattleDifficulty.Normal)
     {
         const ushort formation = 87;
@@ -46,7 +49,8 @@ public sealed class AdditionalEnemyRosterTests
         Assert.NotNull(battle.Presentation);
         if (requested == 0)
         {
-            Assert.Null(definition.AddedEnemySources);
+            Assert.NotNull(definition.AddedEnemySources);
+            Assert.Empty(definition.AddedEnemySources);
 
             return;
         }
@@ -69,7 +73,7 @@ public sealed class AdditionalEnemyRosterTests
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(restored.Capture()));
         BattleDefinition rebuilt = world.CreateEncounterBattle(formation, 4, restoredDefinition: before.Definition);
         Assert.Equal(definition.AddedEnemySources, rebuilt.AddedEnemySources);
-        Assert.Equal(enemies.Select(enemy => enemy.ModelId), rebuilt.Combatants.Where(actor => !actor.IsPlayer).Select(enemy => enemy.ModelId));
+        Assert.Equal(enemies.Select(enemy => enemy.ModelId), rebuilt.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).Select(enemy => enemy.ModelId));
         if (sourceField is not null)
         {
             Assert.Equal(storedEnemies, sourceField.GameplayPreferences.AdditionalEnemies);

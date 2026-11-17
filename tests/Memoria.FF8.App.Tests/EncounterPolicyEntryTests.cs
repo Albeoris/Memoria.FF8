@@ -24,7 +24,8 @@ public sealed class EncounterPolicyEntryTests
         world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 4));
         BattleSession battle = world.PrepareBattleEntry(136, 0, 4, BattleAtbMode.TurnBased).Battle;
         BattleDefinition definition = battle.ReadDefinition();
-        Assert.Equal(expanded, definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount);
+        Assert.Equal(expanded, definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || definition.AddedEnemySources is { Count: > 0 });
+        Assert.True(definition.UsesOriginalEnemySlots);
         Assert.Equal(allies, definition.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allies), definition.AddedEnemySources?.Count ?? 0);
         Assert.NotNull(battle.Presentation);

@@ -45,10 +45,16 @@ public sealed partial class MenuController
             .. HostSettingsEntries("Battle policy", "Random encounters")];
     }
 
-    private static int EffectiveAdditionalEnemies(UiPreferences preferences)
+    private static int MinimumAdditionalEnemies(UiPreferences preferences)
     {
-        GameplayPreferences gameplay = new() { Difficulty = preferences.Difficulty, AdditionalEnemies = preferences.AdditionalEnemies };
-        return gameplay.GetEffectiveAdditionalEnemies(preferences.BattleAllyCount);
+        GameplayPreferences gameplay = new() { Difficulty = preferences.Difficulty };
+        return gameplay.GetMinimumAdditionalEnemies();
+    }
+
+    private string AdditionalEnemiesCaption()
+    {
+        string party = SystemText("ui.configentries.additional-enemies.party", "+1 per additional party member in battle.");
+        return MinimumAdditionalEnemies(FontPreferences) > 0 ? SystemText("ui.configentries.additional-enemies.hardcore", "Hardcore forces a minimum of 1.") + " " + party : party;
     }
 
     private UiElement BuildBattleSettingsRows()

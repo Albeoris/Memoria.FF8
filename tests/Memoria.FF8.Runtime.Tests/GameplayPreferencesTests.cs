@@ -9,18 +9,34 @@ public sealed class GameplayPreferencesTests
     [Theory]
     [InlineData(BattleDifficulty.Normal, 3, 0, 0)]
     [InlineData(BattleDifficulty.Hard, 3, 0, 0)]
+    [InlineData(BattleDifficulty.Hardcore, 1, 0, 1)]
     [InlineData(BattleDifficulty.Hardcore, 3, 0, 1)]
-    [InlineData(BattleDifficulty.Normal, 4, 0, 2)]
+    [InlineData(BattleDifficulty.Hardcore, 5, 0, 3)]
+    [InlineData(BattleDifficulty.Hardcore, 3, 5, 5)]
+    [InlineData(BattleDifficulty.Hardcore, 4, 5, 6)]
+    [InlineData(BattleDifficulty.Normal, 4, 0, 1)]
     [InlineData(BattleDifficulty.Hardcore, 8, 1, 6)]
-    [InlineData(BattleDifficulty.Normal, 11, 4, 9)]
-    [InlineData(BattleDifficulty.Hardcore, 11, 10, 10)]
+    [InlineData(BattleDifficulty.Normal, 11, 4, 12)]
+    [InlineData(BattleDifficulty.Hardcore, 11, 10, 18)]
     public void Additional_enemy_request_respects_roster_and_difficulty_without_rewriting_the_preference(BattleDifficulty difficulty, int allies, int stored, int expected)
     {
         GameplayPreferences preferences = new GameplayPreferences { Difficulty = difficulty, AdditionalEnemies = stored }.NormalizeForDifficulty();
         preferences.Validate();
+        Assert.Equal(difficulty == BattleDifficulty.Hardcore ? 1 : 0, preferences.GetMinimumAdditionalEnemies());
         Assert.Equal(expected, preferences.GetEffectiveAdditionalEnemies(allies));
         Assert.Equal(stored, preferences.AdditionalEnemies);
         Assert.Equal(preferences, JsonSerializer.Deserialize<GameplayPreferences>(JsonSerializer.Serialize(preferences)));
+    }
+
+    [Fact]
+    public void Legacy_preferences_without_roster_options_use_default_counts()
+    {
+        GameplayPreferences preferences = JsonSerializer.Deserialize<GameplayPreferences>("{}")!;
+        preferences.Validate();
+        Assert.Equal(0, preferences.BattleAllyCount);
+        Assert.Equal(0, preferences.AdditionalEnemies);
+        Assert.Equal(0, preferences.GetEffectiveAdditionalEnemies(3));
+        Assert.Equal(1, preferences.GetEffectiveAdditionalEnemies(4));
     }
 
     [Fact]

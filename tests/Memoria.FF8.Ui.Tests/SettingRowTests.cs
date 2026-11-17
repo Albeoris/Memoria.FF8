@@ -212,6 +212,32 @@ public sealed class SettingRowTests
         Assert.Throws<ArgumentOutOfRangeException>(() => slider.Value = float.NaN);
     }
 
+    [Theory]
+    [InlineData(false, 0, "1", true)]
+    [InlineData(true, 0, "1", true)]
+    [InlineData(false, 1, "1", true)]
+    [InlineData(true, 1, "1", true)]
+    [InlineData(false, 5, "5", false)]
+    [InlineData(true, 5, "5", false)]
+    public void Forced_minimum_fills_the_bar_and_colors_the_effective_number(bool vector, float stored, string displayed, bool goldNumber)
+    {
+        UiNumericSlider slider = new() { Text = "Additional enemies", Max = 10, Value = stored, ForcedMinimum = 1, FontSize = 24, TrackHeight = 22, Caption = "Hardcore forces a minimum of 1. +1 per additional party member in battle." };
+        slider.Arrange(new UiRect(0, 0, 1280, 60));
+        UiTheme theme = vector ? new VectorUiTheme() : new UiTheme();
+        RecordingCanvas canvas = new();
+        slider.Draw(canvas, theme);
+
+        var number = Assert.Single(canvas.Texts, text => text.Text == displayed);
+        Assert.Equal(goldNumber ? theme.SliderMarker : theme.Foreground, number.Color);
+        Assert.Equal(stored, slider.Value);
+        var gold = Assert.Single(canvas.Fills, fill => fill.Color == theme.SliderMarker);
+        UiRect track = canvas.Fills[0].Bounds;
+        float inset = vector ? 1 : 4;
+        Assert.Equal(track.X + inset, gold.Bounds.X);
+        Assert.Equal((track.Width - 2 * inset) / 10, gold.Bounds.Width);
+        Assert.True(gold.Bounds.Bottom <= Assert.Single(canvas.Texts, text => text.Text == slider.Caption).Bounds.Y);
+    }
+
     [Fact]
     public void Slider_pointer_and_draw_use_the_same_scaled_and_letterboxed_coordinates()
     {

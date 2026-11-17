@@ -268,7 +268,11 @@ public sealed class UiNumericSlider : UiSlider
     public float ValueGap { get; set; } = 8;
     public float TrackHeight { get; set; } = 10;
     public string ValueFormat { get; set; } = "0";
-    public float? MarkerValue { get; set; }
+    public float ForcedMinimum { get; set; }
+    public string Caption { get; set; } = string.Empty;
+
+    private float CaptionHeight => string.IsNullOrEmpty(Caption) ? 0 : (FontSize > 0 ? FontSize : 16) * 0.65f;
+    private float DisplayValue => Math.Max(Value, Math.Clamp(ForcedMinimum, Min, Max));
 
     private UiRect NumberBounds
     {
@@ -276,7 +280,7 @@ public sealed class UiNumericSlider : UiSlider
         {
             UiRect values = ValueBounds;
             float width = Math.Clamp(ValueWidth, 0, values.Width);
-            return new UiRect(values.Right - width, values.Y, width, values.Height);
+            return new UiRect(values.Right - width, values.Y, width, Math.Max(0, values.Height - CaptionHeight));
         }
     }
 
@@ -285,8 +289,9 @@ public sealed class UiNumericSlider : UiSlider
         get
         {
             UiRect values = ValueBounds;
-            float height = Math.Clamp(TrackHeight, 0, values.Height);
-            return new UiRect(values.X, values.Y + (values.Height - height) / 2, Math.Max(0, values.Width - NumberBounds.Width - Math.Max(0, ValueGap)), height);
+            float availableHeight = Math.Max(0, values.Height - CaptionHeight);
+            float height = Math.Clamp(TrackHeight, 0, availableHeight);
+            return new UiRect(values.X, values.Y + (availableHeight - height) / 2, Math.Max(0, values.Width - NumberBounds.Width - Math.Max(0, ValueGap)), height);
         }
     }
 
@@ -296,17 +301,17 @@ public sealed class UiNumericSlider : UiSlider
         UiRect track = Track;
         if (!track.IsEmpty)
         {
-            theme.NumericSlider(canvas, track, Max == Min ? 0 : (Value - Min) / (Max - Min), Enabled);
-            if (MarkerValue is float marker && Max > Min)
-            {
-                float ratio = (Math.Clamp(marker, Min, Max) - Min) / (Max - Min);
-                float width = Math.Min(track.Width, track.Height / 5);
-                float x = track.X + (track.Width - width) * ratio;
-                canvas.Fill(new UiRect(x, track.Y, width, track.Height), Enabled ? theme.SliderMarker : theme.Muted);
-            }
+            float minimumRatio = Max == Min ? 0 : (Math.Clamp(ForcedMinimum, Min, Max) - Min) / (Max - Min);
+            theme.NumericSlider(canvas, track, Max == Min ? 0 : (DisplayValue - Min) / (Max - Min), Enabled, minimumRatio);
         }
 
-        canvas.Text(Value.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        UiColor valueColor = !Enabled ? theme.Muted : ForcedMinimum > Min && Value <= ForcedMinimum ? theme.SliderMarker : theme.Foreground;
+        canvas.Text(DisplayValue.ToString(ValueFormat, CultureInfo.InvariantCulture), FontSize > 0 ? FontSize : theme.FontSize, NumberBounds, valueColor, UiAlignment.Center, UiTextFlow.SingleLine);
+        if (!string.IsNullOrEmpty(Caption))
+        {
+            UiRect captionBounds = new(ValueBounds.X, ValueBounds.Bottom - CaptionHeight, ValueBounds.Width, CaptionHeight);
+            canvas.Text(Caption, CaptionHeight, captionBounds, Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        }
     }
 
     protected override void DrawPointer(IUiCanvas canvas, UiTheme theme)

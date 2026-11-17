@@ -40,7 +40,7 @@ public class UiTheme
         canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), enabled ? Highlight : Muted);
     }
 
-    public virtual void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled)
+    public virtual void NumericSlider(IUiCanvas canvas, UiRect track, float ratio, bool enabled, float minimumRatio = 0)
     {
         canvas.Fill(track, BorderDark);
         float bevel = Math.Min(3, Math.Min(track.Width, track.Height) / 2);
@@ -71,6 +71,11 @@ public class UiTheme
                 float bottom = fill.Y + fill.Height * (index + 1) / bands;
                 canvas.Fill(new UiRect(fill.X, top, fill.Width, bottom - top), enabled ? color : Muted);
             }
+        }
+
+        if (minimumRatio > 0 && !inner.IsEmpty)
+        {
+            canvas.Fill(new UiRect(inner.X, inner.Y, inner.Width * Math.Clamp(minimumRatio, 0, 1), inner.Height), enabled ? SliderMarker : Muted);
         }
     }
 
