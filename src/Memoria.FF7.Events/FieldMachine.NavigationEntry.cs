@@ -2,6 +2,7 @@ namespace Memoria.FF7.Events;
 
 public sealed record FieldNavigationEntryPoint(int Entity, int Script);
 public sealed record FieldNavigationEntryProof(bool Complete, bool HasNoEffect, string? Reason, FieldVariableRead[] Reads);
+public sealed record FieldNavigationControlState(bool PlayerLocked, bool MenuDisabled, int PlayerEntity, int PlayerAnimationStatus, IReadOnlyList<FieldNavigationEntryPoint> PossibleEntries);
 
 public sealed partial class FieldMachine
 {
@@ -106,7 +107,7 @@ public sealed partial class FieldMachine
     }
 
     /// <summary>Proves a read-only entry returns within one native handler quantum. The caller must supply every possible external variable publication and competing external script entry before dispatch; this method includes all captured owners, saved continuations and native child requests.</summary>
-    public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192)
+    public FieldNavigationEntryProof ProveNavigationEntryHasNoEffect(int entity, int script, FieldInputState projectedInput, IReadOnlyList<FieldVariableRead> externalWrites, IReadOnlyList<FieldNavigationEntryPoint> possibleExternalEntries, int instructionBudget = 8192, FieldNavigationControlState? controls = null)
     {
         ArgumentNullException.ThrowIfNull(projectedInput);
         ArgumentNullException.ThrowIfNull(externalWrites);
@@ -131,6 +132,7 @@ public sealed partial class FieldMachine
             detached.Input = projectedInput;
             HashSet<int> visited = [];
             bool returned = false;
+            bool publishesControls = false;
             for (int handler = 0; handler < 8; handler++)
             {
                 int pc = detached.entities[entity].Pc;
@@ -143,6 +145,17 @@ public sealed partial class FieldMachine
                 {
                     returned = true;
                     break;
+                }
+                if (opcode is 0x33 or 0x4A)
+                {
+                    bool value = program.Read(pc + 1) != 0;
+                    if (controls is null || (opcode == 0x33 ? value != controls.PlayerLocked || !value && controls.PlayerAnimationStatus != 0 : value != controls.MenuDisabled))
+                    {
+                        return Reject("The entry changes a captured native control publication.");
+                    }
+                    publishesControls = true;
+                    detached.Advance(entity, 2);
+                    continue;
                 }
                 if (opcode is >= 0x14 and <= 0x19)
                 {
@@ -193,6 +206,7 @@ public sealed partial class FieldMachine
             {
                 roots.Add((pending.Entity, pending.ProgramCounter));
             }
+            HashSet<(int Entity, int Pc)> currentRoots = roots.ToHashSet();
             foreach (FieldNavigationEntryPoint entry in possibleExternalEntries)
             {
                 if ((uint)entry.Entity >= entities.Length || entry.Script is < 0 or > 31)
@@ -231,6 +245,47 @@ public sealed partial class FieldMachine
                 {
                     reads.UnionWith(invariant.AssumedReads);
                     break;
+                }
+            }
+            if (publishesControls)
+            {
+                if (entities[entity].Priority <= 1)
+                {
+                    return Reject("The native control entry cannot preempt its current owner.");
+                }
+                foreach (FieldNavigationEntryPoint entry in controls!.PossibleEntries)
+                {
+                    if (!possibleExternalEntries.Contains(entry))
+                    {
+                        return Reject("A scoped control entry has no external allocation contract.");
+                    }
+                    currentRoots.Add((entry.Entity, program.Entry(entry.Entity, entry.Script)));
+                }
+                NavigationInvariantInspection controlInvariant = new(domains, possibleExternalEntries.ToHashSet());
+                foreach (var root in currentRoots)
+                {
+                    int before = controlInvariant.Instructions;
+                    if (remaining < 1)
+                    {
+                        return Reject("The bounded control producer closure exhausted its instruction budget.");
+                    }
+                    FieldScriptAnalysis producer = AnalyzeScriptCore(root.Entity, 0, root.Pc, remaining, null, 0, controlInvariant);
+                    if (!producer.Complete)
+                    {
+                        return Reject(producer.Reason ?? "A control producer has an incomplete native contract.");
+                    }
+                    remaining -= controlInvariant.Instructions - before;
+                }
+                foreach (var publication in controlInvariant.Commands)
+                {
+                    if (publication.Command is FieldControlCommand control && (control.Property == FieldControlKind.PlayerLocked && (control.Value != 0) != controls.PlayerLocked || control.Property == FieldControlKind.MenuDisabled && (control.Value != 0) != controls.MenuDisabled))
+                    {
+                        return Reject("A native producer can change an idempotent entry control.");
+                    }
+                    if (publication.Command is FieldLineCommand or FieldActorBind or FieldPartyCharacter or FieldPartyCommand or FieldPartyProjection or FieldPartyJoin or FieldPartySplit or FieldActorProperty or FieldActorMove or FieldActorPlacement or FieldActorLadder or FieldActorJump || publication.Entity == controls.PlayerEntity && publication.Command is FieldAnimation)
+                    {
+                        return Reject($"Native producer {publication.Entity}/{publication.Command.GetType().Name} can change the scoped control-entry geometry or player animation.");
+                    }
                 }
             }
             return new(true, true, null, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray());

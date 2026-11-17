@@ -10,6 +10,7 @@ internal static class AutoPlayNavigationActionModeTests
 {
     internal static void Run()
     {
+        CheckControlEntryScope();
         ushort[] entries = new ushort[32];
         entries[4] = 1;
         FieldProgram gate = new([0, 0x30, 0x40, 2, 4, 0x99, 0x50, 0, 0], [entries]);
@@ -54,6 +55,27 @@ internal static class AutoPlayNavigationActionModeTests
         OriginalReadOnlyNavigationEntry();
         OriginalRandomProducerNavigationEntry();
         OriginalAlternatingModeEscape();
+    }
+
+    private static void CheckControlEntryScope()
+    {
+        Ff7Actor player = new() { Slot = 0, Model = 0, Entity = 7, PlayerControlled = true, CollisionRadius = 34 };
+        Ff7Line near = new(0, 4, 20, -100, 0, 20, 100, 0);
+        Ff7Line far = near with { Slot = 1, Entity = 6, X1 = 200, X2 = 200 };
+        HashSet<FieldNavigationEntryPoint> possible = [new(4, 2), new(6, 2), new(9, 2)];
+        Ff7Actor actor = new() { Slot = 1, Model = 1, Entity = 9, EntityBound = true };
+        Check(Ff7Session.CanScopeNavigationControlEntries([player, actor], _ => false), "An ordinary stationary actor set did not expose a control scope.");
+        Check(!Ff7Session.CanScopeNavigationControlEntries([player, actor with { Jump = new(1, 0, 0, 0, 1) }], _ => false), "A scheduled NPC jump was excluded from control-scope stability.");
+        Check(!Ff7Session.CanScopeNavigationControlEntries([player, actor with { Ladder = new(1, 0, 0, 0, 0, 0) }], _ => false), "A scheduled NPC ladder was excluded from control-scope stability.");
+        Check(!Ff7Session.CanScopeNavigationControlEntries([player, actor], candidate => candidate.Entity == actor.Entity), "A scheduled NPC movement owner was excluded from control-scope stability.");
+        var scoped = Ff7Session.ReadNavigationControlEntries(player, [player, actor], [near, far], possible);
+        Check(scoped.Contains(new(4, 2)) && !scoped.Contains(new(6, 2)) && scoped.Contains(new(9, 2)), "Scoped host-control producers must use the native source LINE distance and retain every actor collision entry.");
+        Ff7Line edge = near with { X1 = 34, X2 = 34 };
+        Check(!Ff7Session.ReadNavigationControlEntries(player, [], [edge], possible).Contains(new(4, 2)), "The native strict collision-radius boundary was widened for control proof.");
+        foreach (Ff7Line pending in new[] { far with { Touch = true }, far with { Push = true }, far with { Across = true }, far with { Enter = true }, far with { Leave = true }, far with { Talk = true, Enabled = 0 } })
+        {
+            Check(Ff7Session.ReadNavigationControlEntries(player, [], [pending], possible).Contains(new(6, 2)), "A retained native LINE request was incorrectly excluded by distance or enable state.");
+        }
     }
 
     private static void CheckProgressRankedModes()

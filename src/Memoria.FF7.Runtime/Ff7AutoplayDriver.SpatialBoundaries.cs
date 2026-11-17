@@ -38,12 +38,14 @@ public sealed partial class Ff7AutoplayDriver
 
     private string WithSpatialBoundaryFingerprint(string fingerprint, IReadOnlySet<int>? sourceBoundaries = null)
     {
-        return ReadSpatialBoundaryFingerprint(fingerprint, sourceBoundaries ?? (spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : new HashSet<int>()));
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        string controls = $"{fingerprint}|native-entry-controls:{session.Host.Process.PlayerLocked}:{session.Host.Process.MenuDisabled}:{player.AnimationStatus}";
+        return ReadSpatialBoundaryFingerprint(controls, sourceBoundaries ?? (spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : new HashSet<int>()));
     }
 
     internal static string ReadSpatialBoundaryFingerprint(string fingerprint, IReadOnlySet<int> boundaryTriangles)
     {
-        string facts = $"{fingerprint}|automatic-triangle-boundaries:1:{string.Join(',', boundaryTriangles.Order())}|approach-admission:2|native-navigation-modes:run-walk:5|navigation-invariant-write-set:4|gateway-segment-contacts:2|forward-admission-blockers:1|navigation-predicate-ranges:1|floor-contact-escape:1|physical-advice-refinement:2|native-line-crossing:1";
+        string facts = $"{fingerprint}|automatic-triangle-boundaries:1:{string.Join(',', boundaryTriangles.Order())}|approach-admission:2|native-navigation-modes:run-walk:5|navigation-invariant-write-set:4|gateway-segment-contacts:2|forward-admission-blockers:1|navigation-predicate-ranges:1|floor-contact-escape:1|physical-advice-refinement:3|native-line-crossing:1";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
     }
 }

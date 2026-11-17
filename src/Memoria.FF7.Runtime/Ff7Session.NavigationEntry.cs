@@ -44,8 +44,42 @@ public sealed partial class Ff7Session
             Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
             possibleEntries.UnionWith(ReadNavigationTalkEntries(player, GetTalkTarget(), process.Lines));
         }
-        return Machine.ProveNavigationEntryHasNoEffect(entity, script, input, navigationExternalWrites, possibleEntries.ToArray());
+        FieldNavigationControlState? controls = null;
+        if (CanScopeNavigationControlEntries(process.Actors, Host.HasScriptedMotion))
+        {
+            Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
+            HashSet<FieldNavigationEntryPoint> controlEntries = ReadNavigationControlEntries(player, process.Actors, process.Lines, possibleEntries).ToHashSet();
+            if (talkContext)
+            {
+                controlEntries.UnionWith(ReadNavigationTalkEntries(player, GetTalkTarget(), process.Lines));
+            }
+            controls = new(process.PlayerLocked, process.MenuDisabled, player.Entity, player.AnimationStatus, controlEntries.ToArray());
+        }
+        return Machine.ProveNavigationEntryHasNoEffect(entity, script, input, navigationExternalWrites, possibleEntries.ToArray(), controls: controls);
     }
+
+    internal static bool CanScopeNavigationControlEntries(IReadOnlyList<Ff7Actor> actors, Func<Ff7Actor, bool> hasScriptedMotion)
+    {
+        return !actors.Any(actor => actor.Ladder is not null || actor.Jump is not null || hasScriptedMotion(actor));
+    }
+
+    internal static FieldNavigationEntryPoint[] ReadNavigationControlEntries(Ff7Actor player, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<Ff7Line> lines, IReadOnlySet<FieldNavigationEntryPoint> possibleEntries)
+    {
+        HashSet<FieldNavigationEntryPoint> entries = possibleEntries.Where(entry => actors.Any(actor => actor.EntityBound && actor.Entity == entry.Entity)).ToHashSet();
+        System.Numerics.Vector3 position = new(player.X4096 >> 12, player.Y4096 >> 12, player.Z4096 >> 12);
+        foreach (Ff7Line line in lines)
+        {
+            int distance = DistanceToSegment(new(line.X1, line.Y1, line.Z1), new(line.X2, line.Y2, line.Z2), position, out _);
+            // Native tail contacts test the pre-move player position. Dispatch
+            // also retains requests independently of the LINE enable flag.
+            if (line.Touch || line.Talk || line.Push || line.Across || line.Enter || line.Leave || line.Enabled == 1 && distance >= 0 && distance < unchecked(player.CollisionRadius * player.CollisionRadius))
+            {
+                entries.UnionWith(possibleEntries.Where(entry => entry.Entity == line.Entity));
+            }
+        }
+        return entries.ToArray();
+    }
+
     internal static FieldNavigationEntryPoint[] ReadNavigationTalkEntries(Ff7Actor player, Ff7Actor? selectedActor, IReadOnlyList<Ff7Line> lines)
     {
         HashSet<FieldNavigationEntryPoint> entries = [];

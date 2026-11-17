@@ -5,6 +5,7 @@ internal static class NativeNavigationEntryProofTests
 {
     public static void Run()
     {
+        IdempotentControlPublications();
         var stable = Create();
         string before = JsonSerializer.Serialize(stable.Machine.Capture());
         FieldNavigationEntryProof proof = Prove(stable.Machine);
@@ -112,6 +113,66 @@ internal static class NativeNavigationEntryProofTests
         FieldMachine longEntry = new(new(new byte[] { 0, 0 }.Concat(Enumerable.Repeat(new byte[] { 0x10, 1 }, 8).SelectMany(bytes => bytes)).Append((byte)0).ToArray(), [longEntries]));
         longEntry.Initialize();
         Check(!longEntry.ProveNavigationEntryHasNoEffect(0, 5, new(), [], []).HasNoEffect, "A return beyond the native eight-handler quantum was accepted.");
+    }
+
+    private static void IdempotentControlPublications()
+    {
+        FieldMachine CreateControls(byte[]? producer = null, bool active = false, bool busy = false, bool pending = false, bool saved = false)
+        {
+            byte[] code = [0, 0, 0x33, 0, 0x4A, 0, 0];
+            ushort[][] entries = [new ushort[32], new ushort[32], new ushort[32]];
+            entries[1][5] = 2;
+            entries[2][2] = 7;
+            FieldProgram program = new(code.Concat(producer ?? new byte[] { 0 }).ToArray(), entries);
+            FieldMachine machine = new(program, host: new RejectHost());
+            machine.Initialize();
+            if (active || busy || pending || saved)
+            {
+                FieldVmSnapshot snapshot = machine.Capture();
+                if (active)
+                {
+                    snapshot.Entities[2] = snapshot.Entities[2] with { ProgramCounter = 7 };
+                }
+                if (busy)
+                {
+                    snapshot.Entities[1] = snapshot.Entities[1] with { Priority = 1 };
+                }
+                if (pending)
+                {
+                    snapshot.Entities[2] = snapshot.Entities[2] with { ProgramCounter = 7 };
+                    snapshot = snapshot with { NextRequestId = 2, PendingRequests = [new(1, 2, 7, 7, new FieldControlCommand(FieldControlKind.MenuDisabled, 1))] };
+                }
+                if (saved)
+                {
+                    snapshot.Entities[2] = snapshot.Entities[2] with { Priority = 0 };
+                    snapshot.Entities[2].SavedProgramCounters[7] = 7;
+                }
+                machine = FieldMachine.Restore(program, snapshot, new RejectHost());
+            }
+            return machine;
+        }
+        FieldNavigationEntryProof ProveControls(FieldMachine machine, bool near = false, bool menuDisabled = false, int animation = 0)
+        {
+            FieldNavigationEntryPoint[] entries = [new(2, 2)];
+            return machine.ProveNavigationEntryHasNoEffect(1, 5, new(), [], entries, controls: new(false, menuDisabled, 0, animation, near ? entries : []));
+        }
+        FieldMachine stable = CreateControls();
+        string before = JsonSerializer.Serialize(stable.Capture());
+        Check(ProveControls(stable).HasNoEffect, "Equal native unlock/menu publications were rejected at a closed ordinary boundary.");
+        Check(!stable.ProveNavigationEntryHasNoEffect(1, 5, new(), [], []).HasNoEffect, "Control publications were accepted without captured host facts.");
+        Check(!ProveControls(stable, menuDisabled: true).HasNoEffect, "A menu-state change was mistaken for an idempotent publication.");
+        Check(!ProveControls(stable, animation: 1).HasNoEffect, "Unlock's native player-animation reset was ignored.");
+        Check(before == JsonSerializer.Serialize(stable.Capture()), "Control admission modified native VM state.");
+        FieldMachine far = CreateControls([0x4A, 1, 0]);
+        Check(ProveControls(far).HasNoEffect, "An untriggerable external menu writer invalidated the scoped control proof.");
+        Check(!ProveControls(far, near: true).HasNoEffect, "A physically possible external menu writer escaped the scoped producer closure.");
+        Check(!ProveControls(CreateControls([0x4A, 1, 0], active: true)).HasNoEffect, "An already active distant writer was incorrectly excluded by geometry.");
+        Check(!ProveControls(CreateControls([0x4A, 1, 0], pending: true)).HasNoEffect, "A pending native host-request owner escaped the control producer roots.");
+        Check(!ProveControls(CreateControls([0x4A, 1, 0], saved: true)).HasNoEffect, "A saved native continuation escaped the control producer roots.");
+        Check(!ProveControls(CreateControls([0xD1, 1, 0], active: true)).HasNoEffect, "A LINE enable producer could invalidate the external-entry set.");
+        FieldNavigationEntryProof relocation = ProveControls(CreateControls([0xA5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], active: true));
+        Check(!relocation.HasNoEffect && relocation.Reason!.Contains("FieldActorPlacement", StringComparison.Ordinal), "A scheduled actor relocation could invalidate the scoped geometry.");
+        Check(!ProveControls(CreateControls(busy: true)).HasNoEffect, "An unpreemptible entry owner was certified as a new native entry.");
     }
 
     private static FieldNavigationEntryProof Prove(FieldMachine machine, FieldVariableRead[]? writes = null, FieldNavigationEntryPoint[]? entries = null)
