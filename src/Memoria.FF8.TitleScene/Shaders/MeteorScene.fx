@@ -291,4 +291,3 @@ technique Composite
         PixelShader = compile PS_PROFILE CompositePixel();
     }
 }
-

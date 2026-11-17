@@ -80,9 +80,15 @@ try
     Reset-Fixture
 
     $manifest = Get-Content -LiteralPath $fixtureManifest -Raw | ConvertFrom-Json
-    $manifest.effects[1].outputSha256 = '0' * 64
+    ($manifest.effects | Where-Object { $_.source -eq 'src/Memoria.FF8.App/Shaders/Triangles.fx' -and $_.profile -eq 'Vulkan' }).outputSha256 = '0' * 64
     Write-Manifest $manifest
     Assert-Payload $fixture 'Vulkan' $fixtureManifest $false 'Embedded artifact hash mismatch rejected'
+    Reset-Fixture
+
+    $manifest = Get-Content -LiteralPath $fixtureManifest -Raw | ConvertFrom-Json
+    ($manifest.effects | Where-Object { $_.source -eq 'src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx' -and $_.profile -eq 'Vulkan' }).outputSha256 = '0' * 64
+    Write-Manifest $manifest
+    Assert-Payload $fixture 'Vulkan' $fixtureManifest $false 'Embedded meteor artifact hash mismatch rejected'
 }
 finally
 {

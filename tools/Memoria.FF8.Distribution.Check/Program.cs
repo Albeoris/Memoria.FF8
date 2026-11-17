@@ -227,6 +227,11 @@ static class GraphicsPayload
         {
             throw new InvalidDataException("The native MonoGame runtime payload does not match the host backend.");
         }
+        if (vulkan)
+        {
+            using FileStream runtimeStream = File.OpenRead(Path.Combine(directory, runtime));
+            NativeImage.RequireAbi(runtimeStream, rid);
+        }
         PayloadImages.Validate(directory, rid);
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
         JsonElement root = manifest.RootElement;

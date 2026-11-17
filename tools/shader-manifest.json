@@ -80,7 +80,7 @@
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "5854f7a2004b6d1a695d04a3d72ccfe92f77f4a47fa4ac809e32c7bd3eb19c83",
+      "sourceSha256": "a65219d1961f575cd829a85761d87ef0c5e9269eba06a9dbf37670eddfbf0e67",
       "profile": "DirectX_11",
       "defines": "",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.mgfxo",
@@ -88,7 +88,7 @@
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "5854f7a2004b6d1a695d04a3d72ccfe92f77f4a47fa4ac809e32c7bd3eb19c83",
+      "sourceSha256": "a65219d1961f575cd829a85761d87ef0c5e9269eba06a9dbf37670eddfbf0e67",
       "profile": "DirectX_12",
       "defines": "DIRECTX12=1",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.dx12.mgfxo",
@@ -96,7 +96,7 @@
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "5854f7a2004b6d1a695d04a3d72ccfe92f77f4a47fa4ac809e32c7bd3eb19c83",
+      "sourceSha256": "a65219d1961f575cd829a85761d87ef0c5e9269eba06a9dbf37670eddfbf0e67",
       "profile": "Vulkan",
       "defines": "",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.vulkan.mgfxo",
