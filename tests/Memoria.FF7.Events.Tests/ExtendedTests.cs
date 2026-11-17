@@ -57,6 +57,7 @@ internal static class ExtendedTests
 
     public static void PaletteRangeMultiplyOperandsAndContinuation()
     {
+        PaletteRangeCopyOperandsAndContinuation();
         foreach (byte opcode in new byte[] { 0xDF, 0xEF })
         {
             byte[] code = Code(0, opcode, 0x56, 0x1B, 0xD3, 7, 8, 4, 6, 8, 10, 12, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
@@ -88,6 +89,40 @@ internal static class ExtendedTests
             immediate.AdvanceTick();
             Check((byte)99, immediate.Variables.ReadByte(FieldBank.MapByte, 20));
         }
+    }
+
+    private static void PaletteRangeCopyOperandsAndContinuation()
+    {
+        byte[] code = Code(0, 0xED, 0x65, 0xD3, 7, 8, 4, 6, 12, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+        RecordingHost host = new() { Complete = false };
+        FieldMachine vm = New(code, host);
+        vm.Initialize();
+        vm.Variables.WriteWord(FieldBank.MapWord, 4, 0x1211);
+        vm.Variables.WriteByte(FieldBank.MapByte, 6, 29);
+        vm.Variables.WriteByte(FieldBank.Persistent1Byte, 12, 255);
+        vm.AdvanceTick();
+        FieldVmSnapshot saved = vm.Capture();
+        FieldHostRequest pending = saved.PendingRequests!.Single();
+        Check(new FieldPaletteCommand(FieldPaletteOperation.Copy, 7, 8, 256, First: 17, DestinationFirst: 29), pending.Command);
+        Check(17, saved.Entities[0].ProgramCounter);
+        RecordingHost coldHost = new() { Complete = true };
+        FieldMachine cold = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!, coldHost);
+        cold.AdvanceTick();
+        Check(pending.Id, coldHost.Requests.Single().Id);
+        Check((byte)99, cold.Variables.ReadByte(FieldBank.MapByte, 20));
+        Check(30, cold.Capture().Entities[0].ProgramCounter);
+        RecordingHost immediateHost = new() { Complete = true };
+        FieldMachine immediate = New(Code(0, 0xED, 0, 0, 1, 2, 17, 29, 2, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0), immediateHost);
+        immediate.Initialize();
+        immediate.AdvanceTick();
+        Check(new FieldPaletteCommand(FieldPaletteOperation.Copy, 1, 2, 3, First: 17, DestinationFirst: 29), immediateHost.Requests.Single().Command);
+        Check((byte)99, immediate.Variables.ReadByte(FieldBank.MapByte, 20));
+        FieldProgram truncated = new(code.Take(24).ToArray(), new[] { Enumerable.Repeat((ushort)16, 32).ToArray() });
+        FieldMachine invalid = new(truncated, host: new RecordingHost { Complete = true });
+        invalid.Initialize();
+        Throws<FieldExecutionException>(() => invalid.AdvanceTick());
+        FieldCommand legacy = JsonSerializer.Deserialize<FieldCommand>("{\"command\":\"palette\",\"Operation\":2,\"Source\":0,\"Destination\":1,\"Count\":2,\"First\":17}")!;
+        Check(new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 1, 2, First: 17), legacy);
     }
 
     public static void NewFadeOperandsAndContinuation()

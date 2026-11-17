@@ -30,13 +30,14 @@ public sealed partial class Ff7FieldHost
 
     private void Palette(FieldPaletteCommand command)
     {
-        if (command.Source is < 0 or > 255 || command.Destination is < 0 or > 255 || command.Count is < 1 or > 256 || command.First is < 0 or > 255)
+        int destinationFirst = command.DestinationFirst ?? command.First;
+        if (command.Source is < 0 or > 255 || command.Destination is < 0 or > 255 || command.Count is < 1 or > 256 || command.First is < 0 or > 255 || destinationFirst is < 0 or > 255 || command.DestinationFirst.HasValue && command.Operation != FieldPaletteOperation.Copy)
         {
             throw new InvalidDataException("FFVII palette command operands are invalid.");
         }
         ushort[] buffer = (ushort[])Process.PaletteBuffer.Clone();
         int source = command.Source * 16 + command.First;
-        int destination = command.Destination * 16 + command.First;
+        int destination = command.Destination * 16 + destinationFirst;
         if (command.Operation == FieldPaletteOperation.Store)
         {
             if (command.Source >= Process.PaletteRows.Length || command.First + command.Count > Process.PaletteRows[command.Source].Length || destination + command.Count > buffer.Length)

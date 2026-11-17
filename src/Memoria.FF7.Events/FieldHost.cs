@@ -215,7 +215,7 @@ public enum FieldPaletteOperation
     Add,
     Multiply
 }
-public sealed record FieldPaletteCommand(FieldPaletteOperation Operation, int Source, int Destination, int Count, int Red = 0, int Green = 0, int Blue = 0, int First = 0) : FieldCommand;
+public sealed record FieldPaletteCommand(FieldPaletteOperation Operation, int Source, int Destination, int Count, int Red = 0, int Green = 0, int Blue = 0, int First = 0, int? DestinationFirst = null) : FieldCommand;
 
 public sealed record FieldMenuCommand(int Mode, int Parameter) : FieldCommand;
 

@@ -864,6 +864,7 @@ internal static class NativeProcessTests
 
     private static void PaletteBufferStrideAndColors()
     {
+        PaletteIndependentCopyRanges();
         ushort[] row = new ushort[256];
         row[0] = 31;
         row[1] = 1024;
@@ -915,6 +916,49 @@ internal static class NativeProcessTests
         Equal(JsonSerializer.Serialize(added.Capture()), JsonSerializer.Serialize(coldAdded.Capture()));
         added.Execute(Request(8, new FieldPaletteCommand(FieldPaletteOperation.Add, 0, 16, 1, Red: 127, Green: 128, Blue: 255, First: 18)));
         Equal((ushort)31, added.Process.PaletteBuffer[274]);
+    }
+
+    private static void PaletteIndependentCopyRanges()
+    {
+        ushort[] buffer = Enumerable.Range(0, 1024).Select(value => (ushort)(value | 0x8000)).ToArray();
+        buffer[17] = 0;
+        Ff7FieldHost host = Host(new Ff7FieldProcess { PaletteBuffer = buffer });
+        FieldHostRequest copy = Request(300, new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 16, 256, First: 17, DestinationFirst: 29));
+        Equal(true, host.Execute(copy).Completed);
+        Equal((ushort)0x811C, host.Process.PaletteBuffer[284]);
+        Equal((ushort)0, host.Process.PaletteBuffer[285]);
+        Equal((ushort)0x8012, host.Process.PaletteBuffer[286]);
+        Equal((ushort)0x8110, host.Process.PaletteBuffer[540]);
+        Equal((ushort)0x821D, host.Process.PaletteBuffer[541]);
+        Equal(0L, host.Process.PaletteVersion);
+        Ff7FieldHost cold = Host(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        Equal(true, cold.Execute(copy).Completed);
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        foreach (var (sourceFirst, destinationFirst, expected) in new[] { (20, 21, new ushort[] { 20, 20, 20, 20, 24 }), (21, 20, new ushort[] { 21, 22, 23, 23, 24 }) })
+        {
+            Ff7FieldHost overlap = Host(new Ff7FieldProcess { PaletteBuffer = Enumerable.Range(0, 1024).Select(value => (ushort)value).ToArray() });
+            overlap.Execute(Request(301, new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 0, 3, First: sourceFirst, DestinationFirst: destinationFirst)));
+            Equal(true, overlap.Process.PaletteBuffer.AsSpan(20, 5).SequenceEqual(expected));
+        }
+        foreach (FieldPaletteCommand invalid in new[]
+        {
+            new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 63, 1, DestinationFirst: 16),
+            new FieldPaletteCommand(FieldPaletteOperation.Copy, 63, 0, 1, First: 16, DestinationFirst: 0),
+            new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 0, 1, DestinationFirst: -1),
+            new FieldPaletteCommand(FieldPaletteOperation.Copy, 0, 0, 1, DestinationFirst: 256)
+        })
+        {
+            string before = JsonSerializer.Serialize(host.Capture());
+            try
+            {
+                host.Execute(Request(302, invalid));
+                throw new Exception("Expected invalid palette copy operands to fail.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+            Equal(before, JsonSerializer.Serialize(host.Capture()));
+        }
     }
 
     private static void NamingMenuOwnership()
