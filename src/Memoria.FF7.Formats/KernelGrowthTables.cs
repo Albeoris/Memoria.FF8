@@ -41,6 +41,19 @@ public sealed class KernelGrowthTables
         return new(data[offset], unchecked((sbyte)data[offset + 1]));
     }
 
+    /// <summary>Reads the native join threshold's contiguous EXP coefficient, including bands beyond one eight-band curve.</summary>
+    public byte JoinExperienceGradient(int character, int band)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)character, 9u);
+        ArgumentOutOfRangeException.ThrowIfNegative(band);
+        long offset = 0x21C + data[character * 56 + 8] * 16 + band * 2L;
+        if (offset >= data.Length)
+        {
+            throw new NotSupportedException("Native join EXP coefficient addressing exceeds the supplied growth section.");
+        }
+        return data[(int)offset];
+    }
+
     public sbyte JoinModifier(int character)
     {
         if ((uint)character >= 9)

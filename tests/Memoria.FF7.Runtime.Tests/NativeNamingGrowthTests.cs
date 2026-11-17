@@ -12,6 +12,8 @@ internal static class NativeNamingGrowthTests
         CheckSignedModifierAndEmptyAverage();
         CheckSavedLevelReset();
         CheckStrictBoundaries();
+        CheckUpperJoinTargets();
+        CheckOriginalUpperJoin();
         CheckInstalledModifiers();
     }
 
@@ -89,15 +91,68 @@ internal static class NativeNamingGrowthTests
         Ff7BattleRng random = Random(kernel);
         string before = JsonSerializer.Serialize(random.Capture());
         Reject<NotSupportedException>(() => growth.InitializeJoin(Record(6, 1, 0), [], 0, random));
-        Reject<NotSupportedException>(() => growth.InitializeJoin(Record(6, 1, 0), [], 0, random, 100));
         Reject<InvalidDataException>(() => growth.InitializeJoin(Record(9, 1, 0), [], 0, random, 3));
         Reject<InvalidDataException>(() => growth.InitializeJoin(Record(6, 0, 0), [], 0, random, 3));
         Reject<InvalidDataException>(() => growth.InitializeJoin(new byte[131], [], 0, random, 3));
         Reject<ArgumentOutOfRangeException>(() => KernelGrowthTables.Read(kernel).JoinModifier(9));
-        kernel[6 * 56 + 10] = 126;
-        growth = new(KernelGrowthTables.Read(kernel));
-        Reject<NotSupportedException>(() => growth.InitializeJoin(Record(6, 1, 0), [Character(0, 0, 99)], 1, random));
         Check(before == JsonSerializer.Serialize(random.Capture()), "Unsupported join operands consumed the caller's RNG before validation.");
+    }
+
+    private static void CheckUpperJoinTargets()
+    {
+        byte[] kernel = Tables();
+        kernel[6 * 56 + 10] = 6;
+        kernel[0x21C + 9 * 16] = 69;
+        Ff7NativeGrowth growth = new(KernelGrowthTables.Read(kernel));
+        Ff7BattleRng random = Random(kernel);
+        string before = JsonSerializer.Serialize(random.Capture());
+        byte[] joining = Record(6, 99, 100);
+        byte[] capped = growth.InitializeJoin(joining, [Character(0, 0, 99)], 1, random);
+        Check(capped[1] == 99 && U32(capped, 0x3C) == 2405056 && capped[0x21] == 61 && U32(capped, 0x80) == 0, "An upper join target was clamped before its contiguous native EXP lookup or exceeded the ordinary growth level cap.");
+        Check(capped.AsSpan(2, 6).SequenceEqual(joining.AsSpan(2, 6)) && U16(capped, 0x2E) == U16(joining, 0x2E) && U16(capped, 0x32) == U16(joining, 0x32) && before == JsonSerializer.Serialize(random.Capture()), "An already capped joining record consumed growth RNG or changed base statistics.");
+        Ff7BattleRng growing = Random(kernel);
+        byte[] result = growth.InitializeJoin(Record(6, 1, 0), [Character(0, 0, 99)], 1, growing);
+        Check(result[1] == 99 && U32(result, 0x3C) == 2404956 && growing.Capture().Indices[3] == 16, "An upper target did not use ordinary capped growth with exactly eight draws per gained level.");
+        kernel[6 * 56 + 10] = 1;
+        growth = new(KernelGrowthTables.Read(kernel));
+        Check(growth.InitializeJoin(Record(6, 8, 14), [], 0, Random(kernel), savedLevel: 100)[1] == 99, "The native saved-level branch retained an unproved target99 clamp.");
+        kernel[6 * 56 + 10] = 126;
+        kernel[0x21C + 9 * 16 + 6] = 1;
+        growth = new(KernelGrowthTables.Read(kernel));
+        uint expected = Enumerable.Range(1, 161).Aggregate(0u, (value, level) => value + (uint)(level * level / 10));
+        Check(U32(growth.InitializeJoin(Record(6, 99, 0), [Character(0, 0, 99)], 1, Random(kernel)), 0x3C) == expected, "A larger valid signed join modifier lost its native raw coefficient address.");
+        Reject<ArgumentOutOfRangeException>(() => growth.Threshold(6, 99));
+        Reject<ArgumentOutOfRangeException>(() => KernelGrowthTables.Read(kernel).Curve(6, 8, 8));
+    }
+
+    private static void CheckOriginalUpperJoin()
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_UPPER_JOIN_SAVE");
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            Console.WriteLine("SKIP original upper join: configure original resources and MEMORIA_FF7_UPPER_JOIN_SAVE.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
+        Ff7Menu menu = session.Host.Process.Menu ?? throw new InvalidDataException("The upper-join fixture requires its pending native naming menu.");
+        Check(menu.Mode == 6 && menu.Parameter == 8, "The upper-join fixture requires its original naming persona.");
+        string vm = JsonSerializer.Serialize(session.Machine.Capture());
+        string rng = JsonSerializer.Serialize(session.Progress.BattleRng);
+        Ff7CharacterState original = session.Progress.Characters.Single(character => character.Id == 8);
+        Check(original.NativeRecord[1] == 99 && U32(original.NativeRecord, 0x3C) == 2452783, "The original upper-join fixture lost its capped existing record.");
+        session.Host.CompleteMenu(menu.RequestId);
+        Ff7CharacterState completed = session.Progress.Characters.Single(character => character.Id == 8);
+        Check(completed.NativeRecord[1] == 99 && U32(completed.NativeRecord, 0x3C) == 4857739 && completed.NativeRecord[0x21] == 61 && U32(completed.NativeRecord, 0x80) == 0, "Original upper join lost its native target102 additive EXP or actual level99 cap.");
+        Check(rng == JsonSerializer.Serialize(session.Progress.BattleRng) && vm == JsonSerializer.Serialize(session.Machine.Capture()), "Capped naming completion changed native RNG or advanced a field script.");
+        Check(completed.NativeRecord.AsSpan(2, 6).SequenceEqual(original.NativeRecord.AsSpan(2, 6)) && U16(completed.NativeRecord, 0x2E) == U16(original.NativeRecord, 0x2E) && U16(completed.NativeRecord, 0x32) == U16(original.NativeRecord, 0x32), "Capped naming completion changed base statistics.");
+        string once = JsonSerializer.Serialize(session.Progress);
+        session.Host.CompleteMenu(menu.RequestId);
+        Check(once == JsonSerializer.Serialize(session.Progress) && bytes.SequenceEqual(File.ReadAllBytes(path)), "Upper joining repeated its additive EXP or changed the standalone source.");
+        Console.WriteLine("PASS original native target102 naming completion: level99, EXP4857739, no RNG draws or script replay; source unchanged.");
     }
 
     private static void CheckInstalledModifiers()

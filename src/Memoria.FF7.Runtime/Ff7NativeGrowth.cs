@@ -110,10 +110,6 @@ public sealed class Ff7NativeGrowth
             targetLevel = (count == 0 ? nativeRecord[1] : levels / count) + modifier / 2;
         }
         targetLevel = Math.Max(1, targetLevel);
-        if (targetLevel > 99)
-        {
-            throw new NotSupportedException("Native join growth above level99 requires its original upper-bound contract.");
-        }
         byte[] prepared = nativeRecord.ToArray();
         if (reset)
         {
@@ -123,7 +119,18 @@ public sealed class Ff7NativeGrowth
             prepared.AsSpan(0x32, 2).Clear();
             prepared.AsSpan(0x3C, 4).Clear();
         }
-        return Apply(prepared, Threshold(persona, targetLevel - 1), random);
+        return Apply(prepared, JoinThreshold(persona, targetLevel - 1), random);
+    }
+
+    private uint JoinThreshold(int character, int level)
+    {
+        int gradient = tables.JoinExperienceGradient(character, LevelBand(level));
+        uint result = 0;
+        for (int index = 1; index <= level; index++)
+        {
+            result = unchecked(result + (uint)(gradient * index * index / 10));
+        }
+        return result;
     }
 
     public uint Threshold(int character, int level)
