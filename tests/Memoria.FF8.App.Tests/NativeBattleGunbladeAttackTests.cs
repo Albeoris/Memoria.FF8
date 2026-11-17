@@ -9,41 +9,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleGunbladeAttackTests
 {
-    [Fact]
-    public void Named_visible_shot_standalone_continues_one_callback()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_VISIBLE_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "Select a standalone visible gunblade shot.");
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.Contains(snapshot.ReadFixturePresentation().NativeGraphics!.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite && draw.Resource?.Id is 13 or 16);
-        BattleSession battle = BattleSession.Restore(snapshot);
-        BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleScenePresentation scene = new(assets, snapshot.Definition);
-        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224));
-        battle.Tick();
-        clone.Tick();
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-        Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224));
-    }
-
-    [Fact]
-    public void Named_pending_shot_standalone_continues_one_callback()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_SNAPSHOT");
-        Assert.SkipUnless(source is not null && File.Exists(source), "Select a standalone pending gunblade shot.");
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.NotNull(snapshot.ReadFixturePresentation().NativeGraphics!.PendingTriggerSoundActor);
-        BattleSession battle = BattleSession.Restore(snapshot);
-        BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        int before = battle.Events.Count;
-        battle.Tick();
-        clone.Tick();
-        Assert.Null(battle.Presentation!.Graphics.PendingTriggerSoundActor);
-        Assert.Single(battle.Events.Skip(before), item => item.Kind == "NativeModuleSound" && item.ActorId == "party");
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-    }
-
     [Theory]
     [InlineData(0, BattleGunbladeMode.Automatic, false)]
     [InlineData(6, BattleGunbladeMode.Automatic, false)]

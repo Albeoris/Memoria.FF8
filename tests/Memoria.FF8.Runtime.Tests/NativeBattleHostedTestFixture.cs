@@ -19,6 +19,7 @@ internal static class NativeBattleHostedTestFixture
         SetField(process, "services", typeof(BattleSession).GetMethod("CreateBattlePresentationServices", PrivateInstance)!.Invoke(logical, []));
         SetField(process, "hostedEntryRoster", roster);
         SetField(process, "hostedEntryAliases", aliases);
+        SetField(process, "hostedControlPackets", ImmutableArray<BattlePresentationProcess.HostedControlPacket>.Empty);
         var entryDescriptors = typeof(BattlePresentationProcess).GetField("hostedEntryDescriptors", PrivateInstance)!;
         entryDescriptors.SetValue(process, Activator.CreateInstance(entryDescriptors.FieldType));
         SetField(process, "nativeActionPackets", NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));

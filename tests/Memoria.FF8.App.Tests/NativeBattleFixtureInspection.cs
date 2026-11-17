@@ -62,16 +62,15 @@ internal static class NativeBattleFixtureInspection
         return value;
     }
 
-    internal static BattleSnapshot ReadLogicalSnapshot(string path)
+    internal static (JsonElement Source, long Callback, NativeBattlePrimitiveFrame Primitive) ReadArchivedEffectFrame(string path, ushort expectedEffect)
     {
         using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
         JsonElement source = document.RootElement;
-        if (source.ValueKind == JsonValueKind.Object &&
-            (source.TryGetProperty("NativeGraphics", out _) || source.TryGetProperty("NativeCommandBanks", out _)))
-        {
-            throw new NotSupportedException("This historical battle fixture requires case-specific migration before execution. Use current battle admission and private in-process continuation.");
-        }
-        return source.Deserialize<BattleSnapshot>() ?? throw new InvalidDataException("The standalone snapshot is null.");
+        JsonElement graphics = source.GetProperty("NativeGraphics");
+        Require(graphics.GetProperty("OriginalEffect").GetProperty("Binding").GetProperty("Effect").GetUInt16() == expectedEffect, "The archived frame has a different original effect.");
+        NativeBattlePrimitiveFrame primitive = NativeBattleFixtureState.ReadArchived<NativeBattlePrimitiveFrame>(graphics, "PrimitiveFrame")
+            ?? throw new InvalidDataException("The archived frame has no emitted primitive facts.");
+        return (source.Clone(), graphics.GetProperty("Callback").GetInt64(), primitive);
     }
 
     private static string Hash(string path)

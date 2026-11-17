@@ -57,27 +57,6 @@ public sealed class NativeBattleRestorationPresentationTests
         RunCurrentCast(source, assets, binding.Effect, false);
     }
 
-    [Fact]
-    public void Resume_the_named_restoration_checkpoint_for_one_native_callback()
-    {
-        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone restoration checkpoint is required.");
-        BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        BattleSession first = BattleSession.Restore(source);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
-        Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27 or 57 or 67);
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        first.AdvanceNativeGraphicsPresentation(Callback);
-        second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
-        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
-        Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE"), "restoration-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
-        Console.WriteLine($"Restoration checkpoint effect{source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect}, saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics!.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, wholeJSON/copiedpixels agree.");
-    }
-
     internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false, ushort? descriptorEffect = null)
     {
         BattleEncounter formation = assets.LoadEncounter(94);

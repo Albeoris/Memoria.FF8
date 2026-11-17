@@ -46,7 +46,7 @@ internal static class NativeBattleEffect80FixturePreparation
         BattleCombatantDefinition prototype = new()
         {
             Id = "effect80-prototype-3",
-            Name = NativeBattleEffectFixtureExporter.ComponentEnemyName(assets.ReadEnemyName(124), 124),
+            Name = NativeBattleComponentInputs.ComponentEnemyName(assets.ReadEnemyName(124), 124),
             ModelId = placement.ModelId,
             SceneSlot = placement.Slot,
             InitialActive = placement.Enabled,
@@ -170,7 +170,7 @@ internal static class NativeBattleEffect80FixturePreparation
         int casterBones = AssertCurrentPose(ready, casterDefinition, 4, 2);
         int targetBones = AssertCurrentPose(ready, targetDefinition, actualTarget, 71);
         Assert.Equal(placement.NativePosition, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, actualTarget).Transform!.Position28);
-        Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(123, casterDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 352 && action.MagicId == 80)));
+        Assert.Equal((byte)13, NativeBattleComponentInputs.SelectEnemySequence(assets.ReadEnemyAi(123, casterDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 352 && action.MagicId == 80)));
         NativeBattleGraphicsResource targetResource = assets.ReadNativeGraphicsResource(targetDefinition);
         Assert.True(targetResource.Contains(26));
         BattleCombatantDefinition retainedDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 121);

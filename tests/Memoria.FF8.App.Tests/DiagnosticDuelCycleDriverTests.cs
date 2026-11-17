@@ -40,13 +40,6 @@ public sealed class DiagnosticDuelCycleDriverTests
         Assert.Throws<InvalidDataException>(recipe.Validate);
     }
 
-    [Fact]
-    public void The_nonterminating_raw239_basic_source_is_no_longer_preparable()
-    {
-        Assert.False(Memoria.FF8.App.Tests.NativeBattleLimitComponentSources.Supports(274));
-        Assert.Throws<NotSupportedException>(() => Memoria.FF8.App.Tests.NativeBattleLimitComponentSources.Prepare(274, "unused", "unused"));
-    }
-
     [Theory]
     [InlineData(239, 0)]
     [InlineData(241, 0)]

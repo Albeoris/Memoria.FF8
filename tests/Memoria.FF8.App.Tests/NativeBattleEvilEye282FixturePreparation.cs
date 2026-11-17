@@ -37,7 +37,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
         BattleCombatantDefinition prototype = new()
         {
             Id = "evil-eye-prototype-3",
-            Name = NativeBattleEffectFixtureExporter.ComponentEnemyName(assets.ReadEnemyName(placement.ModelId), placement.ModelId),
+            Name = NativeBattleComponentInputs.ComponentEnemyName(assets.ReadEnemyName(placement.ModelId), placement.ModelId),
             ModelId = placement.ModelId,
             SceneSlot = placement.Slot,
             InitialActive = placement.Enabled,
@@ -143,7 +143,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.ActiveResourceRow100);
         Assert.Equal(placement.NativePosition, model.Transform!.Position28);
-        Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(94, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 152 && action.MagicId == 282)));
+        Assert.Equal((byte)12, NativeBattleComponentInputs.SelectEnemySequence(assets.ReadEnemyAi(94, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 152 && action.MagicId == 282)));
         ImmutableArray<NativeBattleActionMatrix> currentBones = NativeBattleBodyBoneMatrices.Require(model, pose);
         NativeBattlePackedMatrix32 selectedBone = NativeBattlePackedMatrix32.FromMatrix(currentBones[13], null);
         Assert.False(selectedBone.Known[18]);

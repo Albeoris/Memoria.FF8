@@ -7,27 +7,13 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleCinematicCasterFixtureTests
 {
     [Fact]
-    public void Default_fixture_retains_formation94_and_party_caster()
-    {
-        NativeEffectFixtureRequest request = Request();
-        Assert.Equal(94, request.EncounterId);
-        Assert.Equal((byte)0, request.CasterActorIndex);
-        NativeBattleEffectFixtureExporter.Validate(request);
-        NativeBattleEffectFixtureExporter.Validate(request with { EncounterId = 462, CasterActorIndex = 3 });
-        foreach (NativeEffectFixtureRequest invalid in new[] { request with { EncounterId = -1 }, request with { EncounterId = 1024 }, request with { CasterActorIndex = 1 }, request with { CasterActorIndex = 3, OrdinaryMagicAdmission = true } })
-        {
-            Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.Validate(invalid));
-        }
-    }
-
-    [Fact]
     public void Enemy_selection_retains_the_original_enabled_placement()
     {
         BattleEnemyPlacement placement = new(2, 17, Vector3.Zero, 35, false, false);
         BattleEncounter formation = new(462, 0, 0, 0, 0, [placement, placement with { Slot = 1, Enabled = false }]);
-        Assert.Same(placement, NativeBattleEffectFixtureExporter.SelectEnemy(formation));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.SelectEnemy(formation with { Enemies = [] }));
-        Assert.Throws<InvalidDataException>(() => NativeBattleEffectFixtureExporter.SelectEnemy(formation with { Enemies = [placement, placement with { Slot = 1 }] }));
+        Assert.Same(placement, NativeBattleComponentInputs.SelectEnemy(formation));
+        Assert.Throws<InvalidDataException>(() => NativeBattleComponentInputs.SelectEnemy(formation with { Enemies = [] }));
+        Assert.Throws<InvalidDataException>(() => NativeBattleComponentInputs.SelectEnemy(formation with { Enemies = [placement, placement with { Slot = 1 }] }));
     }
 
     [Fact]
@@ -38,7 +24,7 @@ public sealed class NativeBattleCinematicCasterFixtureTests
         Assert.SkipUnless(directory is not null && effect == "219", "Select installed original resources and cinematic effect219 for this original caster fixture check.");
         using BattleAssets assets = new(directory!);
         BattleEncounter formation = assets.LoadEncounter(462);
-        BattleEnemyPlacement enemy = NativeBattleEffectFixtureExporter.SelectEnemy(formation);
+        BattleEnemyPlacement enemy = NativeBattleComponentInputs.SelectEnemy(formation);
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(enemy.ModelId);
         NativeBattlePoseSource pose = Assert.IsType<NativeBattlePoseSource>(resource.PoseSource);
         Assert.True(pose.BoneCount >= 61, $"The original formation caster supplies only {pose.BoneCount} body bones.");
@@ -47,7 +33,7 @@ public sealed class NativeBattleCinematicCasterFixtureTests
         Assert.NotEmpty(referenced);
         foreach (BattleNativeAction action in referenced)
         {
-            byte sequence = NativeBattleEffectFixtureExporter.SelectEnemySequence(ai, action);
+            byte sequence = NativeBattleComponentInputs.SelectEnemySequence(ai, action);
             Assert.Contains(ai.Abilities, ability => ability.Command == action.Command && ability.Id == action.ActionId && ability.Sequence == sequence);
         }
     }
@@ -59,7 +45,7 @@ public sealed class NativeBattleCinematicCasterFixtureTests
         string? effect = Environment.GetEnvironmentVariable("MEMORIA_FF8_CINEMATIC_EFFECT");
         Assert.SkipUnless(directory is not null && effect == "77", "Select installed original resources and cinematic effect77 for this original caster fixture check.");
         using BattleAssets assets = new(directory!);
-        BattleEnemyPlacement enemy = NativeBattleEffectFixtureExporter.SelectEnemy(assets.LoadEncounter(981));
+        BattleEnemyPlacement enemy = NativeBattleComponentInputs.SelectEnemy(assets.LoadEncounter(981));
         Assert.Equal(0, enemy.Slot);
         Assert.Equal(126, enemy.ModelId);
         Assert.False(enemy.Hidden);
@@ -73,7 +59,7 @@ public sealed class NativeBattleCinematicCasterFixtureTests
         Assert.Equal(356, action.KernelIndex);
         Assert.Equal(assets.NativeKernelRecords.Single(row => row.Section == 3 && row.Index == 356).Bytes, action.RawRecord);
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(enemy.ModelId, enemy.Level);
-        Assert.Equal((byte)18, NativeBattleEffectFixtureExporter.SelectEnemySequence(ai, action));
+        Assert.Equal((byte)18, NativeBattleComponentInputs.SelectEnemySequence(ai, action));
         foreach (int slot in new[] { 2, 18, 34 })
         {
             Assert.Equal((byte)8, ai.Abilities[slot].Command);
@@ -84,8 +70,4 @@ public sealed class NativeBattleCinematicCasterFixtureTests
         Assert.Equal((byte)2, ai.Scripts[3][22]);
     }
 
-    private static NativeEffectFixtureRequest Request()
-    {
-        return new("caster", 219, 8, 0, 0, 200, 60);
-    }
 }

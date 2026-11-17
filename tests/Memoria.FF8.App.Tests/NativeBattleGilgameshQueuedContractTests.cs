@@ -34,7 +34,7 @@ public sealed class NativeBattleGilgameshQueuedContractTests
     [InlineData((ushort)330, (ushort)8)]
     public void Direct245_queued_contract_requires_native_sequence_zero_enemy_contact_flag_and_exact_alias(ushort effect, ushort action)
     {
-        byte sequence = NativeBattleEffectFixtureExporter.SelectSequence([], 245, action);
+        byte sequence = NativeBattleComponentInputs.SelectSequence([], 245, action);
         Assert.Equal((byte)0, sequence);
         (NativeBattleActionPacketsState packets, BattleActionHeaderReference index) = OriginalPackets().Prepare(new(OriginalOwner(0), 245, sequence, -1, action, effect, null));
         NativeBattleActionHeaderSlot header = packets.ReadHeader(index);

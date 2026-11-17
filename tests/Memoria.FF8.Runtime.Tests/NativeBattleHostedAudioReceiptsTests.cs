@@ -81,7 +81,7 @@ public sealed class NativeBattleHostedAudioReceiptsTests
     [Fact]
     public void StandalonePreviewStillQueuesAnUncommittedSound()
     {
-        NativeBattleEffectPresentationInputs input = NativeBattleHostedPresentationInitializationTests.Inputs(0, 3, NativeBattleScriptedEffectMemory.FromColdProcess(), 1, process: false);
+        NativeBattleEffectPresentationInputs input = NativeBattleHostedPresentationInitializationTests.Inputs(0, 3, NativeBattleScriptedEffectMemory.FromColdProcess(), 1, hosted: false);
         BattlePresentationProcess process = BattlePresentationProcess.CreateEffectPresentation(input);
         NativeGlobalSoundProcess before = process.NativeGlobalSoundProcess!;
         NativeBattleModuleSound request = new(123, 0, null);

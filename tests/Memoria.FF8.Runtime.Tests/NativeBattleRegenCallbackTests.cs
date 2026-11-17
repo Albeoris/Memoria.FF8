@@ -10,10 +10,20 @@ public sealed class NativeBattleRegenCallbackTests
     [InlineData("party", false, 500, 550, 3024)]
     [InlineData("party", true, 500, 450, 12000)]
     [InlineData("additional", false, 980, 1000, 3024)]
-    [InlineData("additional", true, 20, 0, 12000)]
     [InlineData("enemy", false, 500, 550, 3024)]
     [InlineData("reinforcement", false, 980, 1000, 3024)]
     public void Due_regen_publishes_one_current_contact_and_preserves_gauge_across_the_queued_fork(string actorId, bool zombie, int hp, int expected, int gauge)
+    {
+        VerifyDueRegeneration(actorId, zombie, hp, expected, gauge);
+    }
+
+    [Fact]
+    public void Lethal_zombie_regen_preserves_queued_gauge_and_reaches_the_ordinary_ko_reset()
+    {
+        VerifyDueRegeneration("additional", true, 20, 0, 12000);
+    }
+
+    private static void VerifyDueRegeneration(string actorId, bool zombie, int hp, int expected, int gauge)
     {
         BattleSession battle = Create(actorId, hp, gauge);
         BattleSnapshot before = battle.Capture();
@@ -28,6 +38,7 @@ public sealed class NativeBattleRegenCallbackTests
         foreach (BattleSession logical in new[] { battle, fork })
         {
             BattleCombatant actor = Actor(logical, actorId);
+            Assert.Equal(new NativeBattleAtbState(12000, gauge), actor.NativeAtb);
             if (zombie)
             {
                 actor.NativeStatus0 |= 0x40;
@@ -63,7 +74,7 @@ public sealed class NativeBattleRegenCallbackTests
             {
                 Assert.Equal(expected, logical.ReadPresentedVital(actorId).HitPoints);
             }
-            Assert.Equal(new NativeBattleAtbState(12000, gauge), actor.NativeAtb);
+            Assert.Equal(new NativeBattleAtbState(12000, expected == 0 ? 0 : gauge), actor.NativeAtb);
             Assert.Equal(0u, logical.Capture().NativeClock!.ActionPause);
             Assert.Null(logical.ActiveAction);
             Assert.Empty(logical.QueuedActions);
@@ -148,9 +159,27 @@ public sealed class NativeBattleRegenCallbackTests
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(0)
         {
             Flags8 = 0,
+            Kind5 = 0,
+            ResourceFlags44 = 0x140,
             ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)16
         }) with { EntryReady = true, EntryLifecycle = 4 };
+        NativeBattleModelCpuResources cpu = (NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 }).WithPresentationRoster(roster, aliases);
+        NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
+        NativeBattleModelDatSource source = NativeBattleEnemyOwnedHeapTests.Source(80);
+        int row = 0;
+        foreach (BattleEnemyModelOwner enemy in roster.Enemies)
+        {
+            cpu = cpu with { Rows = cpu.Rows.SetItem(row, cpu.Rows[row] with { LinkedPhysicalIndex36 = 255 }) };
+            (cpu, staging) = NativeBattleModelEnemyHeap.Load(cpu, staging, source, row, null, false);
+            graphics = graphics with { ActorModels = graphics.ActorModels.Set(enemy, graphics.ActorModels.Get(enemy) with { ActiveResourceRow100 = row, OriginalResourceRow104 = row }) };
+            row++;
+        }
         NativeBattleHostedTestFixture.BindProcess(battle, graphics, NativeBattleHostedTestFixture.CreateGraphicsDefinition(bindings));
+        BattlePresentationProcess process = battle.Presentation!;
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeFileStaging), staging);
+        NativeBattleHostedTestFixture.SetField(process, "enemyGeometryViews", new Dictionary<int, NativeBattleEnemyGeometryCache>());
+        NativeBattleHostedTestFixture.SetField(process, "enemyResourceViews", new Dictionary<NativeBattleGraphicsResource, Dictionary<int, NativeBattleGraphicsResource>>(ReferenceEqualityComparer.Instance));
         Invoke(battle, "InitializeExpandedPartyPresentation");
     }
 

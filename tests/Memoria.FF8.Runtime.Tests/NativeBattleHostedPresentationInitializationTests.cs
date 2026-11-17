@@ -262,6 +262,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
         BattleModelRoster roster = new(targets.Select(binding => binding.Owner).Prepend(sourceOwner));
         NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), new(roster, bindings));
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(sourceOwner, 8, 0, -1, 1, 1, null));
+        packets = packets.WritePlayerRepeatMode(header, 1);
         packets = packets.AppendContacts(Enumerable.Repeat(Packet(Target, 1), count));
         (packets, _) = packets.Publish(count);
         NativeBattleEffectParameters parameters = new(sourceOwner, 0, BattleModelTargets.From([Target]), header, 0, 0);

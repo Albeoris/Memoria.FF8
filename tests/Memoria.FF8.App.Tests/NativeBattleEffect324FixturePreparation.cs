@@ -26,7 +26,7 @@ internal static class NativeBattleEffect324FixturePreparation
         BattleCombatantDefinition prototype = new()
         {
             Id = "effect324-prototype-0",
-            Name = NativeBattleEffectFixtureExporter.ComponentEnemyName(assets.ReadEnemyName(placement.ModelId), placement.ModelId),
+            Name = NativeBattleComponentInputs.ComponentEnemyName(assets.ReadEnemyName(placement.ModelId), placement.ModelId),
             ModelId = placement.ModelId,
             SceneSlot = placement.Slot,
             InitialActive = placement.Enabled,
@@ -130,7 +130,7 @@ internal static class NativeBattleEffect324FixturePreparation
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.ActiveResourceRow100);
         Assert.Equal(placement.NativePosition, model.Transform!.Position28);
-        Assert.Equal((byte)16, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(83, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 225 && action.MagicId == 324)));
+        Assert.Equal((byte)16, NativeBattleComponentInputs.SelectEnemySequence(assets.ReadEnemyAi(83, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 225 && action.MagicId == 324)));
         BattleSnapshot restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready)).Capture();
         Assert.Equal(JsonSerializer.Serialize(ready), JsonSerializer.Serialize(restored));
         Save("allocation-ready", ready);

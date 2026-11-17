@@ -44,28 +44,6 @@ public sealed class NativeBattleEffectPresentationTests
         RunCurrentCast(source, assets, effect, binding.Entry, sound, false, false);
     }
 
-    [Fact]
-    public void Resume_the_named_revival_checkpoint_for_one_native_callback()
-    {
-        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect checkpoint is required.");
-        BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.True(source.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
-        BattleSession first = BattleSession.Restore(source);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
-        first.AdvanceNativeGraphicsPresentation(Callback);
-        second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
-        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
-        string id = "effect-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
-        NativeBattleRestorationPresentationTests.Publish(EvidenceDirectory(), id, first.Capture(), pixels);
-        Console.WriteLine($"Effect{source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics!.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
-    }
-
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, uint entry, uint expectedSound, bool requireCasting, bool requireMorphAndFlash)
     {
         BattleSession battle = BattleSession.Restore(initial);

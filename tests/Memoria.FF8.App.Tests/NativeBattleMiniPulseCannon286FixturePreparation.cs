@@ -35,7 +35,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
             return new BattleCombatantDefinition
             {
                 Id = $"mini-pulse-prototype-{slot}",
-                Name = NativeBattleEffectFixtureExporter.ComponentEnemyName(assets.ReadEnemyName(original.ModelId), original.ModelId),
+                Name = NativeBattleComponentInputs.ComponentEnemyName(assets.ReadEnemyName(original.ModelId), original.ModelId),
                 ModelId = original.ModelId,
                 SceneSlot = original.Slot,
                 InitialActive = original.Enabled,
@@ -131,7 +131,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.False(selected.Known[19]);
         Assert.All(selected.Known.Where((_, index) => index is not (18 or 19)), known => Assert.True(known));
         Assert.Equal(NativeBattleBodyBoneMatrices.Identity(pose), model.CurrentBodyBoneMatrices!.SkeletonSha256);
-        Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(110, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 293 && action.MagicId == 286)));
+        Assert.Equal((byte)12, NativeBattleComponentInputs.SelectEnemySequence(assets.ReadEnemyAi(110, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 293 && action.MagicId == 286)));
         NativeBattleParticipantSnapshot retainedCaller = Assert.Single(ready.Combatants, actor => actor.Id == caller.Id).NativeParticipant!;
         Assert.True(retainedCaller.Active);
         Assert.Equal(new NativeBattleVector(0, 0, -4600), ReadOriginalModelCell(graphics, retainedCaller.OriginalSlot!.Value.Offset).Transform!.Position28);

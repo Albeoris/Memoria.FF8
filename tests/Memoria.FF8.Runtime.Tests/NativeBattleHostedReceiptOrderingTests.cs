@@ -38,7 +38,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         Assert.Equal(new NativeBattleModelLifecycleReceipt[] { suspended, released, text }, services.ReadReceipts());
         Assert.Equal(4, prefix.Length);
         Assert.Same(released, prefix[^1]);
-        Assert.Collection(LegacyContacts(session), packet => Assert.Same(repeated, packet), packet => Assert.Same(repeated, packet), packet => Assert.Same(later, packet));
+        Assert.Collection(session.Presentation!.ReadAndClearHostedPresentationFrameOutputs().Contacts, packet => Assert.Same(repeated, packet), packet => Assert.Same(repeated, packet), packet => Assert.Same(later, packet));
         Assert.Equal(5, graphics.Effects.Slots.Count(task => (task.Flags0 & 1) != 0));
         Assert.Empty(graphics.PendingContacts);
     }
@@ -59,7 +59,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
 
         Assert.IsType<InvalidDataException>(invocation.InnerException);
         Assert.Same(existing, Assert.Single(services.ReadOrderedReceipts()));
-        Assert.Empty(LegacyContacts(session));
+        Assert.Empty(session.Presentation!.ReadAndClearHostedPresentationFrameOutputs().Contacts);
         Assert.Same(graphics, session.Presentation?.Graphics);
         Assert.Null(graphics.Effects.Head);
     }
@@ -83,12 +83,8 @@ public sealed class NativeBattleHostedReceiptOrderingTests
             SequenceState = new(),
             HasLinkedModelRing140 = false
         });
-        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [], []));
         NativeBattleGraphicsResource resource = new([0, 0]) { TextBank = ["Original text"] };
-        Field("presentationNativeTargets").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
-        {
-            [AddedEnemy] = new(AddedEnemy, graphics.ActorModels.Get(AddedEnemy), resource)
-        });
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [new("extra-enemy", 77, resource)], []));
         NativeBattleModelLifecycleServices services = new(ImmutableDictionary<BattleModelOwner, NativeBattleModelActorFacts>.Empty
             .Add(Original, new("original", false, 61, 0, 0) { RawBattleStatuses = 0 })
             .Add(AddedAlly, new("extra-ally", true, 61, 0, 0) { RawBattleStatuses = 0 })
@@ -101,5 +97,5 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
     }
 
-    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
+
 }

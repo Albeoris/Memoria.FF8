@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Assets.Localization;
@@ -10,6 +11,18 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleCommandPresentationTests
 {
+    [Fact]
+    public void Native_player_sequence_uses_the_original_command_table_and_special_command_rules()
+    {
+        ImmutableArray<byte> sequences = Enumerable.Range(0, 39).Select(value => (byte)value).ToImmutableArray();
+        Assert.Equal((byte)2, NativeBattleActionGraphics.ResolvePlayerSequence(2, 0, 5, sequences));
+        Assert.Equal((byte)14, NativeBattleActionGraphics.ResolvePlayerSequence(254, 0, 64, sequences));
+        Assert.Equal((byte)11, NativeBattleActionGraphics.ResolvePlayerSequence(254, 0, 70, sequences));
+        Assert.Equal((byte)0, NativeBattleActionGraphics.ResolvePlayerSequence(240, 0, 4, sequences));
+        Assert.Equal((byte)9, NativeBattleActionGraphics.ResolvePlayerSequence(255, 9, 5, sequences));
+        Assert.Throws<InvalidDataException>(() => NativeBattleActionGraphics.ResolvePlayerSequence(2, 0, 5, []));
+    }
+
     [Theory]
     [InlineData(1, "Attack")]
     [InlineData(12, "Mug")]

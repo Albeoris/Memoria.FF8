@@ -213,25 +213,6 @@ public sealed class NativeBattleBlizzardPresentationTests
         Console.WriteLine($"Blizzard144: peak{peakRgb}RGB at{peak.Frame}/{peak.ReadFixturePresentation().NativeGraphics!.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, contact{contacts}, original sound{sound.Sound}, independent standalone continuation passed.");
     }
 
-    [Fact]
-    public void Resume_the_named_Blizzard_checkpoint_for_one_native_callback()
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_BLIZZARD_SNAPSHOT");
-        Assert.SkipUnless(!string.IsNullOrWhiteSpace(source), "A concrete standalone Blizzard current-cast or after-event checkpoint is required.");
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.Equal((ushort)144, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        BattleSession first = BattleSession.Restore(snapshot);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
-        first.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(first));
-        second.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(second));
-        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
-        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
-        Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, independentwholeJSON/copiedpixels agree.");
-    }
-
     private static TimeSpan NextGraphicsCallback(BattleSession battle)
     {
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;

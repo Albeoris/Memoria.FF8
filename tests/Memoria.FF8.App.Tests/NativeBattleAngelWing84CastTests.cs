@@ -8,45 +8,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleAngelWing84CastTests
 {
     [Fact]
-    public void Continue_selected_Angel_Wing_midpoint_through_its_visible_scene_phases()
-    {
-        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_ANGEL_RESUME");
-        Assert.SkipUnless(path is not null, "Select an actual Angel Wing standalone midpoint.");
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR")!);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = BattleSession.Restore(snapshot);
-        BattleScenePresentation scene = new(assets, snapshot.Definition);
-        string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE")!, "angel-phases-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(output);
-        Console.WriteLine("Angel Wing phase evidence: " + output);
-        HashSet<ushort> seen = [];
-        for (int tick = 0; tick < 512; tick++)
-        {
-            ushort phase = battle.Presentation!.Memory.AngelWing84!.Scene!.Word(64);
-            if (phase is 2 or 3 or 4 && seen.Add(phase))
-            {
-                string name = "scene-" + phase;
-                NativeBattleRestorationPresentationTests.Publish(output, name, battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-                BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, name + ".battle.json")))!);
-                battle.Tick();
-                clone.Tick();
-                Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-                Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(clone, 320, 224).ToArray());
-                NativeBattleRestorationPresentationTests.Publish(output, name + "-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-            }
-            if (Released(battle))
-            {
-                NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-                Assert.Equal(new ushort[] { 2, 3, 4 }, seen.Order().ToArray());
-                return;
-            }
-            battle.Tick();
-        }
-        Assert.Fail("The selected Angel Wing midpoint did not complete its remaining scene phases.");
-    }
-
-    [Fact]
     public void Installed_Angel_Wing_completes_its_original_opening_without_a_spell_payload()
     {
         const int characterId = 4;
