@@ -55,7 +55,7 @@ public sealed class NativeBattleShotContinuationTests
             // This visual component has no enemy AI; select one real host poll instead of accelerating to another combatant's turn.
             battle.SetMode(BattleAtbMode.Normal);
             CompareNext("completed");
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, Effect = input.NativeGraphics?.OriginalEffect?.Binding.Effect, InputMode = input.Mode, CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, Effect = input.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect, InputMode = input.Mode, CompletionHostMode = battle.Mode, battle.Frame, NativeCallback = battle.Presentation!.Graphics.Callback }));
         }
         catch (Exception error)
         {

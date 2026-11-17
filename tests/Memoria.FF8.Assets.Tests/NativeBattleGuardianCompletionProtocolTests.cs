@@ -136,21 +136,21 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             session.Tick();
         }
         Assert.True(session.NativeEntryReady);
-        BattleSnapshot entry = session.Capture();
+        BattleSnapshot entry = session.CaptureForContinuation();
         NativeBattleActionPacketsState packets = session.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = entry.NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header.Ordinal));
-        session = BattleSession.Restore(entry with { NativeActionPackets = packets, NativeGraphics = entry.NativeGraphics with { Descriptors = descriptors } });
+        (NativeBattleDescriptorState descriptors, _) = entry.ReadFixturePresentation().NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header.Ordinal));
+        session = BattleSession.Restore((entry with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = entry.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } }));
         //Run actual50AFC0/phase1 preparation once; the module entry has not been invoked at phase2.
         for (int callback = 0; callback < 200 && !session.Presentation!.Graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2); callback++)
         {
             session.Tick();
         }
         Assert.Equal((byte)2, ActionTask(session).Phase);
-        BattleSnapshot prepared = session.Capture();
-        NativeBattleGraphicsState graphics = prepared.NativeGraphics!;
+        BattleSnapshot prepared = session.CaptureForContinuation();
+        NativeBattleGraphicsState graphics = prepared.ReadFixturePresentation().NativeGraphics!;
         Assert.NotNull(graphics.ActionContext!.Matrices);
         Assert.Null(session.NativeModelLoader!.Task);
         int taskSlot = Enumerable.Range(0, 4).Single(index => (graphics.Descriptors.Tasks[index].Flags & 1) != 0 && graphics.Descriptors.Tasks[index].Kind == NativeBattleDescriptorTaskKind.Action104);
@@ -163,14 +163,14 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         NativeBattleActionGraphicsState context = graphics.ActionGraphics! with { Guardian = graphics.ActionGraphics!.Guardian! with { Neighbor = new(Assert.IsAssignableFrom<BattlePartyModelOwner>(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(1))) } };
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect! with { Parameters = graphics.OriginalEffect!.Parameters! with { Parameter81 = parameter81 }, ReturnedDescriptor = 0, Pools = [] };
         graphics = graphics with { Descriptors = descriptors, ActorModels = graphics.ActorModels.Set(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(0), caster).Set(session.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(1), neighbor), ActionGraphics = context, OriginalEffect = effect, ModuleEffects = NativeBattleModuleState.Clear(), Effects = OriginalEffects(), Auxiliary = NativeBattleAuxiliaryState.Clear(), Flags = graphics.Flags | 0x11 };
-        NativeBattleCameraState camera = prepared.NativeCamera! with { Tasks = [null, null], Order = [], Mask = 0, ControlCursor = null, BlendProgress = 0 };
-        return BattleSession.Restore(prepared with { NativeGraphics = graphics, NativeCamera = camera, NativeEffectMemory = prepared.NativeEffectMemory! with { Active = 1 } });
+        NativeBattleCameraState camera = prepared.ReadFixturePresentation().NativeCamera! with { Tasks = [null, null], Order = [], Mask = 0, ControlCursor = null, BlendProgress = 0 };
+        return BattleSession.Restore(prepared.WithFixturePresentation(facts => facts with { NativeGraphics = graphics, NativeCamera = camera, NativeEffectMemory = prepared.ReadFixturePresentation().NativeEffectMemory! with { Active = 1 } }));
     }
 
     private static void SetCameraGate(ref BattleSession session, ushort mask)
     {
-        BattleSnapshot saved = session.Capture();
-        session = BattleSession.Restore(saved with { NativeCamera = saved.NativeCamera! with { Tasks = [null, null], Order = [], Mask = mask, ControlCursor = null, BlendProgress = 0 } });
+        BattleSnapshot saved = session.CaptureForContinuation();
+        session = BattleSession.Restore(saved.WithFixturePresentation(facts => facts with { NativeCamera = saved.ReadFixturePresentation().NativeCamera! with { Tasks = [null, null], Order = [], Mask = mask, ControlCursor = null, BlendProgress = 0 } }));
     }
 
     private static void AdvanceBoth(ref BattleSession first, ref BattleSession second)

@@ -180,7 +180,7 @@ public sealed class NativeBattleHostedTextureCacheTests
         BattleEnemyActorModel next = new(new("next-generation"));
         BattleEnemyActorModel extra = new(new("additional-enemy"));
         BattleModelRoster replacement = new(roster.Owners.Select(owner => owner == retired ? next : owner).Append(extra));
-        NativeBattleModelTextureCache rebound = cache.RebindPresentationEnemies(roster, replacement, [retired]);
+        NativeBattleModelTextureCache rebound = cache.RebindPresentationRoster(roster, replacement, [retired]);
 
         Assert.Same(replacement, rebound.PresentationRoster);
         Assert.Equal(cache.Rows.Length + 1, rebound.Rows.Length);
@@ -220,12 +220,12 @@ public sealed class NativeBattleHostedTextureCacheTests
         BattleModelRoster replacement = new(roster.Owners.Select(owner => owner == retired ? next : owner));
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.Initialize508260(null).WithPresentationRoster(roster).LoadEnemy(77, TimPack(1), retired).Cache;
 
-        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(replacement, replacement, []));
-        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, replacement, []));
-        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, replacement, [next]));
-        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, roster, [retired]));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationRoster(replacement, replacement, []));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationRoster(roster, replacement, []));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationRoster(roster, replacement, [next]));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationRoster(roster, roster, [retired]));
         BattleModelRoster reorderedParty = new(roster.Party.Reverse().Cast<BattleModelOwner>().Concat(roster.Enemies));
-        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationEnemies(roster, reorderedParty, []));
+        Assert.Throws<InvalidDataException>(() => cache.RebindPresentationRoster(roster, reorderedParty, []));
         Assert.Same(roster, cache.PresentationRoster);
         Assert.Equal(retired, cache.PresentationActors![0]);
         Assert.Equal((byte)3, cache.Rows[0].Kind);

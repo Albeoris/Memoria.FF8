@@ -74,9 +74,8 @@ public sealed class BattleTurnAdvanceTests
         Assert.True(battle.Combatants[0].IsReady);
         Assert.False(battle.Combatants[1].IsReady);
         Assert.Null(battle.Capture().TurnAdvance);
-        long stoppedAt = battle.Frame;
         int allyAtb = battle.Combatants[1].Atb;
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames + 5; frame++)
+        for (int frame = 0; frame < 1200 && !battle.Events.Any(item => item.Kind == "ActionComplete" && item.ActorId == "enemy"); frame++)
         {
             battle.Tick();
         }
@@ -85,7 +84,7 @@ public sealed class BattleTurnAdvanceTests
         Assert.Equal(allyAtb, battle.Combatants[1].Atb);
         Assert.False(battle.Combatants[1].IsReady);
         Assert.Null(battle.ActiveAction);
-        Assert.InRange(battle.Frame - stoppedAt, 0, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames + 1);
+        Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "enemy");
     }
 
     [Theory]

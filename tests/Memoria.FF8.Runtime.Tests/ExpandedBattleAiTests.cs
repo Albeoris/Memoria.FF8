@@ -27,7 +27,7 @@ public sealed class ExpandedBattleAiTests
         string[] targets = battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id).ToArray();
         Assert.Equal(11, targets.Length);
         BattleSession restored = DetachedExpandedAiFixture.Restore(before);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
             restored.Tick();
@@ -54,7 +54,7 @@ public sealed class ExpandedBattleAiTests
         BattleTargetSelection.SideGroup selection = Assert.IsType<BattleTargetSelection.SideGroup>(battle.ActiveAction!.TargetRequest.Selection);
         Assert.Equal(selector == 204 ? BattleTargetSide.Allies : selector == 205 ? BattleTargetSide.Enemies : BattleTargetSide.Both, selection.Side);
         BattleSession restored = DetachedExpandedAiFixture.Restore(snapshot);
-        for (int i = 0; i < BattleSession.AttackWindupFrames + 1; i++)
+        for (int i = 0; i < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); i++)
         {
             battle.Tick();
             restored.Tick();
@@ -112,28 +112,29 @@ public sealed class ExpandedBattleAiTests
     }
 
     [Fact]
-    public void Donor_action_capability_does_not_restrict_original_slot_AI()
+    public void Source_binding_collection_includes_only_effects_reached_by_the_AI()
     {
         NativeBattleAiDefinition program = Ai([4, 201, 12, 1, 0]);
-        NativeBattleEffectBinding effect = new(17, 0x1234, 0x1238) { RequiresOriginalCasterCompanion = true };
-        BattleNativeAction action = Physical with { MagicId = effect.Effect };
-
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(program, [action], 0, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [action], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, [Physical], 0, admitsDonorEffect: CanBind));
+        const ushort reached = 17;
+        BattleNativeAction action = Physical with { MagicId = reached };
+        BattleNativeAction unused = Physical with { ActionId = 42, MagicId = 18 };
+        Assert.Equal(reached, Assert.Single(Collect(program, [action, unused])));
+        Assert.Equal(reached, Assert.Single(Collect(program, [action, unused], originalEnemySlots: true)));
 
         NativeBattleAiDefinition drawn = Ai([42, 0]) with { Abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray() };
-        BattleNativeAction spell = action with { Command = 2, ActionId = 17, KernelSection = 1, TargetFlags = 0x48 };
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(drawn, [spell], 0, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(drawn, [spell], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(drawn, [spell with { MagicId = 0 }], 0, admitsDonorEffect: CanBind));
+        BattleNativeAction spell = action with { Command = 2, ActionId = reached, KernelSection = 1, TargetFlags = 0x48 };
+        Assert.Equal(reached, Assert.Single(Collect(drawn, [spell, unused])));
+        Assert.Empty(Collect(drawn, [spell with { MagicId = 0 }, unused]));
 
-        NativeBattleAiDefinition direct = Ai([30, checked((byte)effect.Effect), 0]);
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(direct, [Physical], 0, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(direct, [Physical], 0, originalEnemySlots: true, admitsDonorEffect: CanBind));
-        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai([30, 18, 0]), [Physical], 0, admitsDonorEffect: CanBind));
+        NativeBattleAiDefinition direct = Ai([30, (byte)reached, 0]);
+        Assert.Equal(reached, Assert.Single(Collect(direct, [unused])));
 
-        bool CanBind(ushort candidate) => candidate != effect.Effect || !effect.RequiresOriginalCasterCompanion;
+        static HashSet<ushort> Collect(NativeBattleAiDefinition program, BattleNativeAction[] actions, bool originalEnemySlots = false)
+        {
+            HashSet<ushort> effects = [];
+            Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(program, actions, 0, originalEnemySlots: originalEnemySlots, reachedEffects: effects));
+            return effects;
+        }
     }
 
     [Theory]
@@ -163,7 +164,7 @@ public sealed class ExpandedBattleAiTests
         Assert.Equal(selectsTargets ? 11 : 0, targets.Length);
         BattleSnapshot saved = battle.Capture();
         BattleSession restored = DetachedExpandedAiFixture.Restore(saved);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
             restored.Tick();
@@ -200,7 +201,7 @@ public sealed class ExpandedBattleAiTests
         target.NativeDeathCount = 0;
         target.CurrentHp = 0;
         target.NativeStatus0 |= 1;
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
         }
@@ -245,7 +246,7 @@ public sealed class ExpandedBattleAiTests
         BattleNativeAction native = Physical with { AttackType = 27, Power = 1, Hit = 99, HitCount = hitCount };
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Ai([4, 204, 7, 1, 6, 0]), [native], 0));
         BattleSession battle = Start([4, 204, 7, 1, 6, 0], 11, 11, native: native);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
         }

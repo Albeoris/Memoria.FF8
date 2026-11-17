@@ -69,7 +69,7 @@ public sealed class NativeBattleCuraPresentationTests
         }
         Assert.True(battle.NativeEntryReady);
         // The controlled producer edits one restored graph, including its physical status and packet owners.
-        BattleSnapshot before = NativeBattleStorageSnapshots.Restore(battle.Capture());
+        BattleSnapshot before = NativeBattleStorageSnapshots.Restore(battle.CaptureForContinuation());
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Cura component requires its live party status words.");
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
@@ -82,9 +82,9 @@ public sealed class NativeBattleCuraPresentationTests
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), nativeCura.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -104,14 +104,14 @@ public sealed class NativeBattleCuraPresentationTests
         BattleSession? clone = null;
         for (int callback = 0; callback < 1024 && HasActionDescriptor(battle); callback++)
         {
-            BattleSnapshot beforeStep = battle.Capture();
+            BattleSnapshot beforeStep = battle.CaptureForContinuation();
             try
             {
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot snapshot = battle.Capture();
-                NativeBattleGraphicsState currentGraphics = snapshot.NativeGraphics!;
+                BattleSnapshot snapshot = battle.CaptureForContinuation();
+                NativeBattleGraphicsState currentGraphics = snapshot.ReadFixturePresentation().NativeGraphics!;
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedCura |= currentGraphics.OriginalEffect is { Binding.Entry: 0x889D60, Cura: not null };
                 hiddenTarget |= (ReadOriginalModelCell(currentGraphics, 0).Flags0 & 4) != 0;
@@ -144,7 +144,7 @@ public sealed class NativeBattleCuraPresentationTests
                     exportedFirstEffectFrame = true;
                 }
                 NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } }));
+                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } })));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);
                 if (changedPixels <= peakChangedPixels)
@@ -165,7 +165,7 @@ public sealed class NativeBattleCuraPresentationTests
             }
             catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
             {
-                NativeBattleGraphicsState priorGraphics = beforeStep.NativeGraphics!;
+                NativeBattleGraphicsState priorGraphics = beforeStep.ReadFixturePresentation().NativeGraphics!;
                 PublishEvidence(evidence, evidenceId + "-before-unsupported-callback" + priorGraphics.Callback, beforeStep, null);
                 PublishJson(evidence, evidenceId + "-unsupported-details", new { exception.Message, beforeStep.Frame, priorGraphics.Callback, Root = priorGraphics.OriginalEffect?.ReturnedDescriptor });
                 throw;
@@ -197,7 +197,7 @@ public sealed class NativeBattleCuraPresentationTests
         audio.Update(BattleSession.Restore(battle.Capture()));
         Assert.Equal(heardBeforeRestore, heard.Count);
         PublishEvidence(evidence, evidenceId + "-peak", peak!, peakPixels);
-        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.NativeGraphics!.Callback, peak.Frame });
+        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.ReadFixturePresentation().NativeGraphics!.Callback, peak.Frame });
         PublishEvidence(evidence, evidenceId + "-after", battle.Capture(), scene.Render(battle, 320, 224));
     }
 

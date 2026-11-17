@@ -37,12 +37,10 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     public void ClocklessComponentChargeStillRequiresAZeroDisplayGauge()
     {
         BattleSnapshot raw = RawCharge();
-        BattleSnapshot clockless = raw with
+        BattleSnapshot clockless = (raw with
         {
-            Definition = raw.Definition with { NativeClockRules = null },
-            NativeGraphics = null,
-            Combatants = raw.Combatants.Select(actor => actor with { NativeAtb = null }).ToArray()
-        };
+            Definition = raw.Definition with { NativeClockRules = null },            Combatants = raw.Combatants.Select(actor => actor with { NativeAtb = null }).ToArray()
+        }).WithFixturePresentation(facts => facts with { NativeGraphics = null });
         Assert.NotEqual(0, clockless.Combatants[0].Atb);
         AssertRestoreError<InvalidDataException>(clockless);
     }
@@ -62,10 +60,10 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
         battle.Tick();
 
-        BattleSnapshot snapshot = battle.Capture();
+        BattleSnapshot snapshot = battle.CaptureForContinuation();
         BattleCombatantSnapshot caster = snapshot.Combatants[0];
         BattleGuardianForceCast cast = Assert.Single(snapshot.GuardianForceCasts);
-        Assert.Null(snapshot.NativeGraphics);
+        Assert.Null(snapshot.ReadFixturePresentation().NativeGraphics);
         Assert.Equal(new NativeBattleAtbState(12000, 51), caster.NativeAtb);
         Assert.Equal(42, caster.Atb);
         Assert.Equal((ushort)1058, cast.RemainingTicks);

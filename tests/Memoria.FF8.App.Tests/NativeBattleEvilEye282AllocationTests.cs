@@ -34,9 +34,9 @@ public sealed class NativeBattleEvilEye282AllocationTests
         _ = NativeBattleEffectFixtureExporter.Export(request, directory!, Path.Combine(output!, "baseline"));
         BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
         Assert.Equal(436, baseline.Definition.EncounterId);
-        Assert.Null(baseline.NativeGraphics!.OriginalEffect);
+        Assert.Null(baseline.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         (BattleSnapshot ready, int actualActor) = NativeBattleEvilEye282FixturePreparation.Prepare(game, assets, baseline, output!);
-        NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The allocated component requires its actual graphics owner.");
+        NativeBattleGraphicsState graphics = ready.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The allocated component requires its actual graphics owner.");
         Assert.Null(graphics.OriginalEffect);
         Assert.InRange(actualActor, 3, 6);
         BattleSession session = BattleSession.Restore(ready);

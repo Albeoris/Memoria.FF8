@@ -71,13 +71,7 @@ public sealed partial class BattleSession
             {
                 continue;
             }
-            if (actor.NativeActorIndex is int alias)
-            {
-                RemoveNativeQueuedActorCommands(actor);
-                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)alias), actor.Id);
-            }
             RemoveEncounterQueuedActions([actor.Id]);
-            nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
             ReleaseNativeParticipant(actor);
             RequestEncounterAllocationRetirement(actor);
             actor.IsBusy = false;

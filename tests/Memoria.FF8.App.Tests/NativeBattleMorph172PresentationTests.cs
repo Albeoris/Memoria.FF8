@@ -46,7 +46,7 @@ public sealed class NativeBattleMorph172PresentationTests
         Assert.Same(game.ReadNativeMorph172Resources(), binding.Morph172Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(29, casterDefinition.ModelId);
         Assert.Equal(41, casterResource.PoseSource!.BoneCount);
         Assert.Equal(41, NativeBattleBodyBoneMatrices.Require(casterModel, casterResource.PoseSource).Length);

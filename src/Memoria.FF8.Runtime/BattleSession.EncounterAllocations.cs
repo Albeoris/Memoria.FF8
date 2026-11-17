@@ -66,7 +66,14 @@ public sealed partial class BattleSession
             string role = roles[index];
             BattleCombatant copySource = ReadEncounterCopySource(source, role);
             BattleCombatantDefinition resolved = CreateEncounterCopyDefinition(copySource, id, role);
-            NativeBattleEnemyAllocation allocation = new(id, copySource.SceneSlot!.Value, generation) { ResolvedDefinition = resolved, EncounterBatchId = batchId, EncounterRole = roles[index], InheritedFromActorId = copySource.Id };
+            NativeBattleEnemyAllocation allocation = new(id, copySource.SceneSlot!.Value, generation)
+            {
+                ResolvedDefinition = resolved,
+                EncounterBatchId = batchId,
+                EncounterRole = role,
+                InheritedFromActorId = copySource.Id,
+                TemplateSourceOrdinal = ReadTemplateSourceOrdinal(copySource)
+            };
             BattleRosterSlot slot = slots[index];
             NativeBattleModelSlot? original = NativeBattleSlots.TryEncode(slot) is int indexAlias ? NativeBattleModelSlot.Decode(checked((byte)indexAlias)) : null;
             prepared.Add(new(allocation, slot, original, ReplaceOccupant: false));
@@ -244,7 +251,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        HostedModelLoadAdmission first = initialLoads.Single(admission => admission.Load.Owner.Actor.ActorId == batch.ActorIds[0]);
+        HostedModelLoadAdmission first = initialLoads.Single(admission => admission.Load is HostedDispatchControl.LoadEnemy load && load.Owner.Actor.ActorId == batch.ActorIds[0]);
         var admissions = ImmutableArray.CreateBuilder<HostedModelLoadAdmission>(batch.ActorIds.Length);
         admissions.Add(first);
         foreach (string id in batch.ActorIds.Skip(1))

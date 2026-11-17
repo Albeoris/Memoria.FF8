@@ -31,17 +31,17 @@ public sealed partial class BattleSession
         }
         uint flags = actor.NativePlayerStatRules.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native player reactions require the equipped character-ability flags.");
         //48B5F0 clears B98/B99; B9E retains its physical byte until a primary commit.
-        byte attacker = actor.LastNativeAction?.AttackerIndex ?? throw new NotSupportedException("Native player reactions require the retained attacker BYTE B98.");
-        if (attacker >= 3 && (flags & 4) != 0)
+        BattleCombatant? attacker = actor.LastAttackerId is { } id ? GetActor(id) : null;
+        if (attacker is { IsPlayer: false } && (flags & 4) != 0)
         {
             byte attackClass = actor.LastNativeAction?.AttackType ?? throw new NotSupportedException("Native Counter requires the received attack's original class byte.");
             if (attackClass == 0)
             {
-                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(attacker)), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy));
+                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, SelectBattleTarget(attacker) with { Replacement = BattleTargetReplacement.UseCurrentBattlePolicy });
             }
         }
         RunNativePlayerDamageSupport(actor);
-        if ((flags & 0x40000) == 0 || attacker == actor.NativeActorIndex)
+        if ((flags & 0x40000) == 0 || attacker == actor)
         {
             return;
         }
@@ -67,7 +67,8 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
-        actor.PreviousAiTarget = NativeBattleTargetRequestAdapter.CapturePrevious(request, ReadOriginalTargetSlot);
+        actor.PreviousAiTarget = request.Selection is BattleTargetSelection.Explicit { Actors: [var recipient] }
+            ? new BattlePreviousTarget.Actor(recipient) : NativeBattleTargetRequestAdapter.CapturePrevious(request, ReadOriginalTargetSlot);
         if (command == 4)
         {
             byte targetFlags = native.TargetFlags.GetValueOrDefault();
@@ -77,13 +78,10 @@ public sealed partial class BattleSession
         BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor;
         BattleAbility ability = reaction == BattleNativePlayerReaction.Counter ? BattleAbility.Attack : reaction == BattleNativePlayerReaction.AutoPotion ? BattleAbility.Item : BattleAbility.EnemyAbility;
         BattleAttackCommand queued = new(actor.Id, target.Id, request, ability, id) { NativePlayerReaction = reaction, NativeQueuedCommand = command, NativeAction = native, ReservedNativeItemSlot = command == 4 ? ConsumeNativeItem(id) : null };
-        queued = PrepareNativeEventCommand(actor, queued);
-        if (nativeProductionContext is not null && queued.NativeHeader is not null)
+        if (producingExpandedAiCallback)
         {
-            byte lane = nativeActionScratch.EventLane ?? throw new NotSupportedException("Native483400 requires its current event batch BYTE B0E.");
-            if (lane == 0)
-            {
-            }
+            ProduceExpandedAiCallbackCommand(queued);
+            return;
         }
         //483400 bypasses4847F0: keep ATB and Defend/Charged, and do not run the compelled player-input selector.
         actor.IsBusy = true;

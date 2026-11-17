@@ -244,7 +244,7 @@ public sealed class NativeAngeloSupportTests
         BattleCombatantDefinition[] actors = [rinoa, enemy];
         if (expanded)
         {
-            enemy = enemy with { NativeAi = assets.ReadEnemyAi(4, 1) with { Scripts = [[0], [0], [0], [0], [0]], SequenceTracks = [] }, InitialSuspended = periodic };
+            enemy = enemy with { NativeAi = assets.ReadEnemyAi(4, 1) with { Scripts = [[0], [0], [0], [0], [0]] }, InitialSuspended = periodic };
             BattleCombatantDefinition[] allies = Enumerable.Range(0, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = $"Ally {index}", IsPlayer = true, ModelId = index, Speed = 1 }).ToArray();
             BattleCombatantDefinition[] extraEnemies = Enumerable.Range(0, 5).Select(index => enemy with { Id = $"enemy-{index}", InitialSuspended = true }).ToArray();
             actors = periodic ? [.. allies, rinoa, enemy, .. extraEnemies] : [rinoa, .. allies, enemy, .. extraEnemies];

@@ -73,7 +73,7 @@ public sealed class NativeBattleBlizzardPresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
         NativeBattleStatusSnapshot status = party.NativeStatus!;
         NativeBattleStatusMirror presentation = new(status.Saved, status.Battle);
@@ -84,9 +84,9 @@ public sealed class NativeBattleBlizzardPresentationTests
         // An explicit post-formula7HP presentation contact; no formula or previous gameplay is replayed.
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), native.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -105,15 +105,15 @@ public sealed class NativeBattleBlizzardPresentationTests
         BattleSession? independent = null;
         for (int callback = 0; callback < 1024 && HasDescriptor(battle); callback++)
         {
-            BattleSnapshot prior = battle.Capture();
+            BattleSnapshot prior = battle.CaptureForContinuation();
             try
             {
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                NativeBattleGraphicsState currentGraphics = current.NativeGraphics!;
-                NativeBattleCameraState camera = current.NativeCamera!;
+                BattleSnapshot current = battle.CaptureForContinuation();
+                NativeBattleGraphicsState currentGraphics = current.ReadFixturePresentation().NativeGraphics!;
+                NativeBattleCameraState camera = current.ReadFixturePresentation().NativeCamera!;
                 Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), camera.ViewTranslationScratch);
                 if (camera.CurrentPose is not null)
                 {
@@ -126,7 +126,7 @@ public sealed class NativeBattleBlizzardPresentationTests
                     if (impulse != 0)
                     {
                         Assert.Equal((ushort)144, currentGraphics.OriginalEffect!.Binding.Effect);
-                        if (currentGraphics.Callback != prior.NativeGraphics!.Callback)
+                        if (currentGraphics.Callback != prior.ReadFixturePresentation().NativeGraphics!.Callback)
                         {
                             cameraImpulses++;
                         }
@@ -157,7 +157,7 @@ public sealed class NativeBattleBlizzardPresentationTests
                 mesh |= frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode is 0x24 or 0x26);
                 foreach (NativeBattleLogicalResolvedCommand executed in frame.LastCommands.Where(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.WordOffset == 2 && command.Command.Opcode == 0x26))
                 {
-                    NativeBattleEffectArena arena = current.NativeEffectMemory!.Arena!;
+                    NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
                     int offset = executed.Command.Packet.ByteOffset;
                     Assert.Equal((byte)9, arena.Read(offset + 3, 1)[0]);
                     Assert.Equal(0xE2080210u, BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset + 4, 4)));
@@ -166,7 +166,7 @@ public sealed class NativeBattleBlizzardPresentationTests
                 }
                 byte[] visible = scene.Render(battle, 320, 224).ToArray();
                 NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(current with { NativeGraphics = currentGraphics with { PrimitiveFrame = without } });
+                BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = without } }));
                 int rgb = DifferentRgb(visible, scene.Render(plain, 320, 224));
                 if (rgb > peakRgb)
                 {
@@ -185,7 +185,7 @@ public sealed class NativeBattleBlizzardPresentationTests
             catch (Exception exception)
             {
                 Publish(evidence, id + "-before-unsupported", prior, null);
-                PublishJson(evidence, id + "-unsupported", new { prior.Frame, prior.NativeGraphics!.Callback, Error = exception.ToString() });
+                PublishJson(evidence, id + "-unsupported", new { prior.Frame, prior.ReadFixturePresentation().NativeGraphics!.Callback, Error = exception.ToString() });
                 throw;
             }
         }
@@ -209,8 +209,8 @@ public sealed class NativeBattleBlizzardPresentationTests
         Assert.Single(heard, item => item.Sound == 300012);
         Publish(evidence, id + "-peak", peak!, peakPixels);
         Publish(evidence, id + "-after", battle.Capture(), scene.Render(battle, 320, 224));
-        PublishJson(evidence, id + "-details", new { Effect = 144, PeakRgbPixels = peakRgb, PeakFrame = peak!.Frame, PeakCallback = peak.NativeGraphics!.Callback, FinishedFrame = battle.Frame, FinishedCallback = battle.Presentation!.Graphics.Callback, ContactCount = contacts, OriginalSound = sound.Sound, CompositePacketObserved = composite, CameraImpulses = cameraImpulses });
-        Console.WriteLine($"Blizzard144: peak{peakRgb}RGB at{peak.Frame}/{peak.NativeGraphics.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, contact{contacts}, original sound{sound.Sound}, independent standalone continuation passed.");
+        PublishJson(evidence, id + "-details", new { Effect = 144, PeakRgbPixels = peakRgb, PeakFrame = peak!.Frame, PeakCallback = peak.ReadFixturePresentation().NativeGraphics!.Callback, FinishedFrame = battle.Frame, FinishedCallback = battle.Presentation!.Graphics.Callback, ContactCount = contacts, OriginalSound = sound.Sound, CompositePacketObserved = composite, CameraImpulses = cameraImpulses });
+        Console.WriteLine($"Blizzard144: peak{peakRgb}RGB at{peak.Frame}/{peak.ReadFixturePresentation().NativeGraphics.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, contact{contacts}, original sound{sound.Sound}, independent standalone continuation passed.");
     }
 
     [Fact]
@@ -219,17 +219,17 @@ public sealed class NativeBattleBlizzardPresentationTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_BLIZZARD_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(source), "A concrete standalone Blizzard current-cast or after-event checkpoint is required.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.Equal((ushort)144, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)144, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(first));
         second.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(second));
-        Assert.Equal(snapshot.NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
-        Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, independentwholeJSON/copiedpixels agree.");
+        Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, independentwholeJSON/copiedpixels agree.");
     }
 
     private static TimeSpan NextGraphicsCallback(BattleSession battle)

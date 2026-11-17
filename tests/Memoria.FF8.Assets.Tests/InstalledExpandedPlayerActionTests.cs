@@ -91,7 +91,7 @@ public sealed class InstalledExpandedPlayerActionTests
 
     private static void Advance(BattleSession battle, BattleSession restored)
     {
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();

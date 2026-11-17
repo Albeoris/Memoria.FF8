@@ -31,7 +31,7 @@ public sealed class NativeRevivalRulesTests
             ]
         }, BattleAtbMode.TurnBased);
         battle.QueueAction("caster", "ko", BattleAbility.Item, item.Id);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); frame++)
         {
             battle.Tick();
         }
@@ -61,7 +61,7 @@ public sealed class NativeRevivalRulesTests
             ]
         }, BattleAtbMode.TurnBased);
         battle.QueueAction("caster", "ko", BattleAbility.Magic, life.Id);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); frame++)
         {
             battle.Tick();
         }

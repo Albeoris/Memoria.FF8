@@ -19,8 +19,8 @@ public sealed class NativeBattleJunk44PresentationTests
         }
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNK44_EVIDENCE")!;
         BattleSnapshot completed = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json"));
-        byte[] vram = completed.NativeEffectMemory!.Textures!.ReadVram();
-        foreach (NativeBattleEffectFileAsset file in completed.NativeGraphics!.OriginalEffect!.Binding.Junk44Resources!.Files)
+        byte[] vram = completed.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
+        foreach (NativeBattleEffectFileAsset file in completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Junk44Resources!.Files)
         {
             ReadOnlySpan<byte> tim = file.Data.AsSpan();
             int pixels = checked(8 + BinaryPrimitives.ReadInt32LittleEndian(tim.Slice(8)));
@@ -72,17 +72,17 @@ public sealed class NativeBattleJunk44PresentationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 15, -1, 226, 44, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 226 && row.MagicId == 44).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot source = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } };
+        (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
+        BattleSnapshot source = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } });
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([44])[43];
         Assert.Equal(NativeBattleJunk44Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleJunk44Profile.Initializer, binding.Initializer);
         Assert.Equal(NativeBattleJunk44Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeJunk44Resources(), binding.Junk44Resources);
-        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, allocatedActor)!);
+        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, allocatedActor)!);
         Assert.Equal(83, definition.ModelId);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, allocatedActor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, allocatedActor);
         Assert.NotNull(resource.PoseSource);
         Assert.Equal(resource.PoseSource.BoneCount, NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource).Length);
         Assert.NotNull(model.GeometryWorldMatrix);

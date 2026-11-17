@@ -19,7 +19,7 @@ public sealed class NativeBattleCanisterShotCastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "canister-shot-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Canister Shot evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         try
         {
             Until(() => battle.CanChoosePlayerCommand("party"));
@@ -53,7 +53,7 @@ public sealed class NativeBattleCanisterShotCastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

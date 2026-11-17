@@ -25,7 +25,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         byte[] originalBytes = File.ReadAllBytes(source!);
         GameState state = GameSession.Load(source!);
         BattleSnapshot original = Assert.IsType<BattleSnapshot>(state.Battle);
-        NativeBattleGraphicsState graphics = original.NativeGraphics!;
+        NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
         NativeBattleGraphicsRules rules = original.Definition.NativeGraphics!.Rules;
         uint sleepFlag = rules.Project(0, 1);
         Assert.NotEqual(0u, sleepFlag);
@@ -55,8 +55,8 @@ public sealed class NativeBattleStatusExpiryContinuationTests
             migratedCount++;
         }
         Assert.True(migratedCount > 0, "The selected save contains no stale Sleep graphics.");
-        BattleSnapshot migrated = original with { NativeGraphics = graphics };
-        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(migrated with { NativeGraphics = original.NativeGraphics }));
+        BattleSnapshot migrated = original.WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
+        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(migrated.WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics })));
         GameState migratedState = state with { Battle = migrated };
         bool compact = originalBytes.AsSpan().StartsWith("MFF8SAVE"u8);
         new GameSession(migratedState).Save(output!, compact);
@@ -97,7 +97,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         BattleCombatantSnapshot sleepingTarget = originalTarget with { NativeStatus = status with { Battle = sleeping, Timers = timers, Presentation = new(status.Saved, sleeping) } };
         BattleSnapshot synthetic = original with { Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? sleepingTarget : actor).ToArray() };
         BattleSession setup = BattleSession.Restore(synthetic);
-        NativeBattleGraphicsState graphics = synthetic.NativeGraphics!;
+        NativeBattleGraphicsState graphics = synthetic.ReadFixturePresentation().NativeGraphics!;
         int targetIndex = FindOriginalModelSlot(graphics, target.Id);
         MethodInfo apply = typeof(BattleSession).GetMethod("ApplyNativeDescriptorStatus502380", BindingFlags.NonPublic | BindingFlags.Instance)!;
         MethodInfo address = typeof(BattleSession).GetMethod("NativeParticipantAddress", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -106,7 +106,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), (uint)address.Invoke(null, [targetIndex])!);
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8), checked((short)targetIndex));
         graphics = (NativeBattleGraphicsState)apply.Invoke(setup, [graphics, new NativeBattleDescriptorPacket(ImmutableArray.CreateRange(bytes))])!;
-        synthetic = synthetic with { NativeGraphics = graphics };
+        synthetic = synthetic.WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
         uint sleepFlag = original.Definition.NativeGraphics!.Rules.Project(0, 1);
         Assert.NotEqual(0u, ReadOriginalModelCell(graphics, targetIndex).Flags8.GetValueOrDefault() & sleepFlag);
         BattleSession battle = BattleSession.Restore(synthetic);
@@ -119,11 +119,11 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         {
             battle.Tick();
             second.Tick();
-            BattleSnapshot after = battle.Capture();
+            BattleSnapshot after = battle.CaptureForContinuation();
             Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(second.Capture()));
             BattleCombatantSnapshot current = after.Combatants.Single(actor => actor.Id == target.Id);
             sawPhysicalWake |= current.CurrentHp < originalTarget.CurrentHp && current.NativeParticipant?.LastAction?.AttackType == 0 && (current.NativeStatus!.Battle & 1) == 0;
-            completed = sawPhysicalWake && (ReadOriginalModelCell(after.NativeGraphics!, targetIndex).Flags8.GetValueOrDefault() & sleepFlag) == 0 && after.ActiveAction is null;
+            completed = sawPhysicalWake && (ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics!, targetIndex).Flags8.GetValueOrDefault() & sleepFlag) == 0 && after.ActiveAction is null;
             if (completed)
             {
                 break;
@@ -149,7 +149,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         Assert.SkipUnless(source is not null, "Select a standalone battle save with stale Sleep graphics.");
         byte[] originalBytes = File.ReadAllBytes(source!);
         BattleSnapshot original = GameSession.Load(source!).Battle!;
-        NativeBattleGraphicsState graphics = original.NativeGraphics!;
+        NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
         uint sleepFlag = original.Definition.NativeGraphics!.Rules.Project(0, 1);
         string[] targets = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(index => ReadOriginalModelActorId(graphics, index) is not null && (ReadOriginalModelCell(graphics, index).Flags8.GetValueOrDefault() & sleepFlag) != 0).Select(index => ReadOriginalModelActorId(graphics, index)!).ToArray();
         Assert.NotEmpty(targets);
@@ -178,12 +178,12 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         {
             first.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(Callback, TimeSpan.Zero);
-            BattleSnapshot current = first.Capture();
+            BattleSnapshot current = first.CaptureForContinuation();
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             completed = targets.All(id =>
             {
-                int index = FindOriginalModelSlot(current.NativeGraphics!, id);
-                return (current.Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & 1) == 0 && (ReadOriginalModelCell(current.NativeGraphics!, index).Flags8.GetValueOrDefault() & sleepFlag) == 0;
+                int index = FindOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, id);
+                return (current.Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & 1) == 0 && (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, index).Flags8.GetValueOrDefault() & sleepFlag) == 0;
             });
             if (completed)
             {
@@ -191,12 +191,12 @@ public sealed class NativeBattleStatusExpiryContinuationTests
             }
         }
         Assert.True(completed, "The expiry producer and queued opcode117 must clear the original Sleep graphics.");
-        BattleSnapshot after = first.Capture();
+        BattleSnapshot after = first.CaptureForContinuation();
         foreach (string target in targets)
         {
             Assert.Contains(after.Events, entry => entry.Frame > original.Frame && entry.Kind == "NativeStatusExpired" && entry.ActorId == target && entry.Amount == 16);
-            int index = FindOriginalModelSlot(after.NativeGraphics!, target);
-            Assert.Equal(ReadOriginalModelCell(graphics, index).Flags8!.Value & 0x1800000, ReadOriginalModelCell(after.NativeGraphics!, index).Flags8!.Value & 0x1800000);
+            int index = FindOriginalModelSlot(after.ReadFixturePresentation().NativeGraphics!, target);
+            Assert.Equal(ReadOriginalModelCell(graphics, index).Flags8!.Value & 0x1800000, ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics!, index).Flags8!.Value & 0x1800000);
         }
         AssertNoStaleSleep(after, sleepFlag);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
@@ -209,7 +209,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
     }
     private static void AssertNoStaleSleep(BattleSnapshot snapshot, uint sleepFlag)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         for (int index = 0; index < NativeBattleGraphicsModelAddress.NativeRowCount; index++)
         {
             BattleCombatantSnapshot? actor = snapshot.Combatants.SingleOrDefault(actor => actor.Id == ReadOriginalModelActorId(graphics, index));

@@ -6,7 +6,7 @@ internal static class NativeBattleRecoveryCaptureAssertions
 {
     internal static int AssertOwnedGeometry(BattleSnapshot snapshot, ushort effect)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         if (graphics.OriginalEffect is not { } selected || selected.Binding.Effect != effect)
         {
             return 0;

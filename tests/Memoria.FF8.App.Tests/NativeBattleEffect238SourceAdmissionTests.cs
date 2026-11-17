@@ -28,19 +28,19 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
         Assert.Equal(32, source.Definition.StageId);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
-        Assert.NotNull(source.NativeEffectMemory.ScriptedEffects);
-        Assert.NotNull(source.NativeEffectMemory.ScriptedGraphics);
-        Assert.NotNull(source.NativeEffectMemory.ScriptedColorRegisters);
-        Assert.NotNull(source.NativeEffectMemory.GeometryRegisters);
-        Assert.NotNull(source.NativeEffectMemory.PrimitiveProcess);
-        Assert.NotNull(source.NativeEffectMemory.Textures);
-        Assert.NotNull(source.NativeModelCpuResources);
-        Assert.NotNull(source.NativeFileStaging);
-        Assert.NotNull(source.NativeFileIo);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedGraphics);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.Textures);
+        Assert.NotNull(source.ReadFixturePresentation().NativeModelCpuResources);
+        Assert.NotNull(source.ReadFixturePresentation().NativeFileStaging);
+        Assert.NotNull(source.ReadFixturePresentation().NativeFileIo);
         if (cold)
         {
             Assert.Null(graphics.OriginalEffect);
@@ -63,7 +63,7 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
                 Assert.Equal(52, definition.ModelId);
                 Assert.Equal((byte)68, model.ModelId4);
                 Assert.Equal(0, definition.SceneSlot);
-                resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
+                resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
             }
             NativeBattlePoseSource pose = Assert.IsType<NativeBattlePoseSource>(resource.PoseSource);
             pose.Validate();
@@ -84,8 +84,8 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
             Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
             Assert.Null(ReadOriginalModelCell(graphics, physical).HasLinkedModelRing140);
         }
-        Assert.Equal(4, source.NativeStage!.Groups.Length);
-        Assert.All(source.NativeStage.Groups, group =>
+        Assert.Equal(4, source.ReadFixturePresentation().NativeStage!.Groups.Length);
+        Assert.All(source.ReadFixturePresentation().NativeStage.Groups, group =>
         {
             Assert.Equal(2, group.Source!.BoneCount);
             Assert.Equal(2, group.Matrices.Length);

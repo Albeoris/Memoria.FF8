@@ -79,7 +79,7 @@ public sealed class NativeBattleMoogle96PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int queued = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -101,7 +101,7 @@ public sealed class NativeBattleMoogle96PresentationTests
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([96])[95];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[95]));
         NativeBattleMoogle96Resources resources = installed.Moogle96Resources!;
-        uint transition = source.NativeStage!.ModelColors!.Color40;
+        uint transition = source.ReadFixturePresentation().NativeStage!.ModelColors!.Color40;
         BattleSession battle = BattleSession.Restore(source);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(battle.Capture()));
         BattleScenePresentation scene = new(assets, source.Definition);
@@ -157,9 +157,9 @@ public sealed class NativeBattleMoogle96PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 capturedGeometry += NativeBattleRestorationSummonCaptureAssertions.AssertOwned(current, 96);
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
                 if (beforeEffect?.ReturnedDescriptor is > 0 && afterEffect?.ReturnedDescriptor == 0)
@@ -177,17 +177,17 @@ public sealed class NativeBattleMoogle96PresentationTests
                 Assert.True(hp is 100 or 107);
                 for (int actor = 0; actor < ReadOriginalModelCells(graphics).Length; actor++)
                 {
-                    Assert.Equal(ReadOriginalModelCell(graphics, actor).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, actor).ActiveStagedResourceRow100);
+                    Assert.Equal(ReadOriginalModelCell(graphics, actor).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).ActiveStagedResourceRow100);
                 }
-                NativeBattleMoogle96State? state = current.NativeEffectMemory?.Moogle96;
-                NativeBattleMoogle96IoState? previousIo = prior.NativeEffectMemory?.Moogle96?.Io;
+                NativeBattleMoogle96State? state = current.ReadFixturePresentation().NativeEffectMemory?.Moogle96;
+                NativeBattleMoogle96IoState? previousIo = prior.ReadFixturePresentation().NativeEffectMemory?.Moogle96?.Io;
                 if (state?.Io is { Busy: not 0 } io)
                 {
                     int cursor = checked((int)(io.CursorAddress - NativeBattleMoogle96IoState.ScriptAddress));
                     short fileId = checked((short)BinaryPrimitives.ReadUInt16LittleEndian(io.Script.AsSpan().Slice(cursor + 2)));
                     NativeBattleEffectFileAsset file = Assert.Single(resources.Files, file => file.FileId == fileId);
-                    Assert.Equal(file.Data.ToArray(), current.NativeEffectMemory!.Arena!.Read(checked((int)(io.BufferAddress - 0x20DFAB8)), file.Data.Length));
-                    Assert.Contains(current.NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x732590);
+                    Assert.Equal(file.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(io.BufferAddress - 0x20DFAB8)), file.Data.Length));
+                    Assert.Contains(current.ReadFixturePresentation().NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x732590);
                     if (previousIo?.Busy is not > 0)
                     {
                         fileIds.Add(fileId);
@@ -218,12 +218,12 @@ public sealed class NativeBattleMoogle96PresentationTests
                 }
                 if (state?.Camera is not null)
                 {
-                    cameras.Add(Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(current.NativeCamera))));
+                    cameras.Add(Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(current.ReadFixturePresentation().NativeCamera))));
                 }
                 sawMutableUv |= state?.ProgramSource is { } program && !program.Data.AsSpan().SequenceEqual(resources.ProgramSource.Data.AsSpan());
                 sawTwoBanks |= state?.Nodes.Banks.All(bank => bank.InitializationFlag != 0 && bank.Data is not null) == true;
                 sawMusicZero |= Tasks(afterEffect, 0x733690).Any(task => task.ReadByte(0x29) == 2) && current.NativeGlobalSoundProcess!.MusicPlayback!.ReadGain(0) == 0;
-                stagePeak = Math.Max(stagePeak, current.NativeStage!.Groups.Max(group => group.ColorDepth));
+                stagePeak = Math.Max(stagePeak, current.ReadFixturePresentation().NativeStage!.Groups.Max(group => group.ColorDepth));
                 if (Tasks(afterEffect, 0x733CE0).Any(task => task.ReadByte(0x29) == 1))
                 {
                     for (int actor = 3; actor < 7; actor++)
@@ -232,17 +232,17 @@ public sealed class NativeBattleMoogle96PresentationTests
                         {
                             continue;
                         }
-                        Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 4);
-                        Assert.Equal(0x800, ReadOriginalModelCell(current.NativeGraphics, actor).Flags0 & 0x800);
+                        Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).Flags0 & 4);
+                        Assert.Equal(0x800, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).Flags0 & 0x800);
                     }
                     sawEnemyRestoreWithOverride = true;
                 }
                 stageCleared |= Tasks(afterEffect, 0x733570).Any();
                 if (stageCleared)
                 {
-                    Assert.Equal(source.NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), current.NativeStage.Groups.Select(group => group.ColorFlags).ToArray());
+                    Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), current.ReadFixturePresentation().NativeStage.Groups.Select(group => group.ColorFlags).ToArray());
                 }
-                NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                 sawPrivate |= frame.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8");
                 if (state?.Nodes.Work.PassGeometryCount > 0)
                 {
@@ -252,7 +252,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                 if (directorPacket is null && Tasks(afterEffect, 0x7327B0).Any() && FindDirectorPhysicalPacket(current) is { } physical)
                 {
                     directorPacket = physical;
-                    directorPacketCallback = current.NativeGraphics.Callback;
+                    directorPacketCallback = current.ReadFixturePresentation().NativeGraphics.Callback;
                     Assert.DoesNotContain(frame.LastCommands, item => item.Command.Packet == physical && item.Command.Opcode == 0xE1);
                 }
                 if (cold is not null)
@@ -262,7 +262,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
                 }
             }
@@ -289,7 +289,7 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.Equal(127, battle.Capture().NativeGlobalSoundProcess!.MusicPlayback!.ReadGain(0));
             Assert.Equal((ushort)107, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
-            Assert.Equal(source.NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
+            Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
             for (int actor = 3; actor < 7; actor++)
             {
                 if ((ReadOriginalModelCell(graphics, actor).Flags0 & 2) == 0)
@@ -347,9 +347,9 @@ public sealed class NativeBattleMoogle96PresentationTests
 
     private static NativeBattlePrimitiveReference? FindDirectorPhysicalPacket(BattleSnapshot snapshot)
     {
-        NativeBattlePrimitiveProcess process = snapshot.NativeEffectMemory!.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         NativeBattleCommonPacketMemory memory = process.CommonPacketMemory!;
-        foreach (NativeBattleLogicalProxy proxy in snapshot.NativeGraphics!.PrimitiveFrame!.Pending.Proxies)
+        foreach (NativeBattleLogicalProxy proxy in snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.Pending.Proxies)
         {
             NativeBattlePrimitiveReference reference = proxy.Packet;
             NativeBattleEffectArena? arena = (reference.Bank, reference.Buffer) switch
@@ -376,8 +376,8 @@ public sealed class NativeBattleMoogle96PresentationTests
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested, NativeBattleMoogle96Resources resources)
     {
         NativeBattleOriginalEffectState? effect = Selected(snapshot);
-        NativeBattleMoogle96State? state = snapshot.NativeEffectMemory?.Moogle96;
-        if (requested.Contains("io-pending") && state?.Io?.Busy is > 0 && snapshot.NativeFileIo!.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x732590))
+        NativeBattleMoogle96State? state = snapshot.ReadFixturePresentation().NativeEffectMemory?.Moogle96;
+        if (requested.Contains("io-pending") && state?.Io?.Busy is > 0 && snapshot.ReadFixturePresentation().NativeFileIo!.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x732590))
         {
             return "io-pending";
         }
@@ -414,7 +414,7 @@ public sealed class NativeBattleMoogle96PresentationTests
 
     private static short Word(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan().Slice(offset));
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0 && task.Callback == callback) ?? [];
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 96, Binding.Entry: 0x731DE0 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 96, Binding.Entry: 0x731DE0 } effect ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, string RgbaSha256);
 }

@@ -26,15 +26,15 @@ internal sealed class NativeBattleEffect289PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect289State state = current.NativeEffectMemory!.Effect289!;
+        NativeBattleEffect289State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect289!;
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
-        Assert.Equal((byte)50, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)50, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
         if (effect.ReturnedDescriptor is > 0)
         {
             Assert.Null(state.RootBankStorage);
@@ -113,11 +113,11 @@ internal sealed class NativeBattleEffect289PresentationObserver
                 opcodes.Add(command.Opcode);
             }
         }
-        if (prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
+        if (prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
         {
             Assert.NotNull(state.RootBankStorage);
             Assert.Empty(effect.Pools);
-            NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
             int particleActive = Enumerable.Range(0, ParticleCount).Count(index => (BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(ParticleOffset + index * ParticleStride, 2)) & 1) != 0);
             Assert.True(particleActive > 0);
             retainedParticle = true;
@@ -125,7 +125,7 @@ internal sealed class NativeBattleEffect289PresentationObserver
             detached = true;
             Mark("effect289-root-detached-with-retained-particle", current, cold);
         }
-        observations.Add(new { current.Frame, current.NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, SourceWords = sourceWords });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(CursorGlobal), Random = current.NativeCrtRandom, SourceWords = sourceWords });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -151,7 +151,7 @@ internal sealed class NativeBattleEffect289PresentationObserver
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
     {
-        uint cursor = current.NativeEffectMemory!.Effect289!.ReadDword(CursorGlobal);
+        uint cursor = current.ReadFixturePresentation().NativeEffectMemory!.Effect289!.ReadDword(CursorGlobal);
         if (cursor == 0)
         {
             return [];
@@ -159,7 +159,7 @@ internal sealed class NativeBattleEffect289PresentationObserver
         int end = checked((int)(cursor - ArenaAddress));
         int start = end >= SecondPacketOffset ? SecondPacketOffset : FirstPacketOffset;
         Assert.InRange(end, start, start + PacketBankBytes);
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
     }
 
     private void Mark(string name, BattleSnapshot current, Action<string, BattleSnapshot> cold)

@@ -36,12 +36,12 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         CurrentCommands = [];
-        if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.NativeGraphics;
-        NativeBattleEffect324State state = current.NativeEffectMemory!.Effect324!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleEffect324State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect324!;
         NativeBattleEffect324Resources resources = effect.Binding.Effect324Resources!;
         int caster = checked((int)state.ReadDword(CasterGlobal));
         Assert.InRange(caster, 3, 6);
@@ -53,14 +53,14 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleModulePoolTask? before = previous.Values.FirstOrDefault(task => task.Callback == MainCallback);
         int age = main?.ReadWord(12) ?? -1;
         int oldAge = before?.ReadWord(12) ?? -1;
-        if (current.NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
+        if (current.ReadFixturePresentation().NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
             camera = true;
-            track |= current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
-            view |= JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778());
+            track |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
             Mark("effect324-camera-current8-24-owners", current, cold);
         }
         if (!vibrationStarted && main is not null && age >= 1)
@@ -99,7 +99,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
             }
@@ -160,11 +160,11 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         }
         if (allowRejectedHistory && !warmNativeRejectedHistory && history?.ReadWord(12) == 17 && body.Length == 0)
         {
-            Assert.Equal(prior.NativeGraphics!.Callback + 1, graphics.Callback);
+            Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, graphics.Callback);
             var result = ReproduceHistory(prior, current);
             Assert.Equal(17, result.Age);
             Assert.Empty(result.Draw.Packets.Attempts);
-            warmRejectionProof = new { PriorFrame = prior.Frame, current.Frame, PriorNativeCallback = prior.NativeGraphics.Callback, CurrentNativeCallback = graphics.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, NativePacketCount = result.Draw.Packets.Attempts.Length, ActualHistoryCommands = body.Length, Scope = "Actual warm current-source geometry and captured bones/world with prior camera; native viewport/NCLIP rejection; no alpha, model, HP, status or camera reset" };
+            warmRejectionProof = new { PriorFrame = prior.Frame, current.Frame, PriorNativeCallback = prior.ReadFixturePresentation().NativeGraphics.Callback, CurrentNativeCallback = graphics.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, NativePacketCount = result.Draw.Packets.Attempts.Length, ActualHistoryCommands = body.Length, Scope = "Actual warm current-source geometry and captured bones/world with prior camera; native viewport/NCLIP rejection; no alpha, model, HP, status or camera reset" };
             warmNativeRejectedHistory = true;
             Mark("effect324-warm-native-history-rejected-current-source-age17", current, cold);
         }
@@ -178,21 +178,21 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
 
     internal static (NativeBattleRawModelBodyDraw Draw, uint GeometryAddress, uint SkeletonAddress, int Age, NativeBattleActionMatrix World, NativeBattleActionMatrix View) ReproduceHistory(BattleSnapshot prior, BattleSnapshot current)
     {
-        NativeBattleEffect324State state = current.NativeEffectMemory!.Effect324!;
+        NativeBattleEffect324State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect324!;
         int actor = checked((int)state.ReadDword(CasterGlobal));
-        NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.NativeGraphics!, actor);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(current.NativeGraphics!, actor);
+        NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, actor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, actor);
         Assert.Equal((byte)99, model.ModelId4);
         Assert.Null(model.ActiveStagedResourceRow100);
         int row = model.ActiveResourceRow100 ?? throw new InvalidDataException("History requires its actual current CPU resource row.");
         Assert.Equal(entering.ActiveResourceRow100, row);
-        NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         NativeBattleModelCpuResourceRow source = cpu.Rows[row];
         NativeBattleModelCpuReference geometry = source.Require(16);
         NativeBattleModelCpuReference skeleton = source.Require(12);
-        Assert.Equal(prior.NativeModelCpuResources!.Rows[row].Require(16), geometry);
-        Assert.Equal(prior.NativeModelCpuResources.Rows[row].Require(12), skeleton);
-        Assert.Equal((byte)28, NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, skeleton, 1)[0]);
+        Assert.Equal(prior.ReadFixturePresentation().NativeModelCpuResources!.Rows[row].Require(16), geometry);
+        Assert.Equal(prior.ReadFixturePresentation().NativeModelCpuResources.Rows[row].Require(12), skeleton);
+        Assert.Equal((byte)28, NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, skeleton, 1)[0]);
         Assert.Equal(entering.CurrentBodyBoneMatrices!.SkeletonSha256, model.CurrentBodyBoneMatrices!.SkeletonSha256);
         int available = source.Lengths[16];
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read(Read, 28, objectMask: 2);
@@ -203,14 +203,14 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleModulePoolTask? history = Tasks(prior).Values.FirstOrDefault(task => task.Callback == 0x597520);
         int age = history?.ReadWord(12) ?? 0;
         NativeBattleActionMatrix world = age > 6 ? Packed(SavedWorldAddress).ReadMatrix() : entering.GeometryWorldMatrix!;
-        NativeBattleActionMatrix view = prior.NativeCamera!.CapturePackedView1D97778().ReadMatrix();
+        NativeBattleActionMatrix view = prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778().ReadMatrix();
         NativeBattleActionMatrix basis = NativeBattleGfMatrices.Compose56C2F0(view, world);
         ImmutableArray<NativeBattleActionMatrix> local = Enumerable.Range(0, 28).Select(index => Packed(OriginalBonesAddress + (uint)(index * 32)).ReadMatrix()).ToImmutableArray();
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeStageCamera(local, basis, 0);
         int capacity = checked(cpu.ScratchMaximum!.Value * 8);
         uint scratchAddress = checked(0x196B018u - (uint)capacity);
-        ImmutableArray<byte> retained = current.NativeFileStaging!.Read(scratchAddress, capacity).ToImmutableArray();
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.NativeCamera.Projection!, model.Color40!.Value, 2, retained, current.Definition.NativeGraphics!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
+        ImmutableArray<byte> retained = current.ReadFixturePresentation().NativeFileStaging!.Read(scratchAddress, capacity).ToImmutableArray();
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.ReadFixturePresentation().NativeCamera.Projection!, model.Color40!.Value, 2, retained, current.Definition.NativeGraphics!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
         Assert.Equal(17 * 8, draw.ProjectedBytesWritten);
         return (draw, geometry.PhysicalAddress, skeleton.PhysicalAddress, age, world, view);
 
@@ -224,7 +224,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         {
             Assert.InRange(offset, 0, available);
             Assert.InRange(length, 0, available - offset);
-            return NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, geometry with { Offset = checked(geometry.Offset + offset) }, length);
+            return NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, geometry with { Offset = checked(geometry.Offset + offset) }, length);
         }
     }
 
@@ -242,7 +242,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleSummonColors colors = current.Definition.NativeGraphics.Rules.SummonColors!;
         foreach (NativeBattleRawPolygon polygon in geometry[1].Polygons.Where(polygon => polygon.Quad == quad))
         {
-            ImmutableArray<byte> bytes = resource.GeometryRelocated507550 ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, ReadOriginalModelCell(current.NativeGraphics!, caster).BodyTextureSlots!);
+            ImmutableArray<byte> bytes = resource.GeometryRelocated507550 ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, caster).BodyTextureSlots!);
             uint uv0 = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(8, 4));
             uint uv1 = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(12, 4));
             uint uv2 = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(quad ? 16 : 6, 2));
@@ -319,13 +319,13 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         Assert.Equal(2, banks.Count);
         Assert.Equal(1, Contacts);
         Assert.Equal(1, ContactGlyphs);
-        Assert.All(completed.NativeEffectMemory!.Effect324!.FixedBanks.Values, bank => Assert.NotNull(bank));
+        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect324!.FixedBanks.Values, bank => Assert.NotNull(bank));
     }
 
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

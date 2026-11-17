@@ -3,8 +3,8 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     public BattleGunbladeMode GunbladeMode { get; private set; }
-    public bool CanTriggerGunblade => expandedPresentationProcess is { } process ? CanTriggerExpandedGunblade(process) : CanTriggerNativeRenzokuken || Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
-    public bool GunbladeTriggerWindowOpen => expandedPresentationProcess is { } process ? CanTriggerExpandedGunblade(process) && IsNativeTriggerWindowOpen(process.TriggerWidget!) : nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenBarVisible && NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
+    public bool CanTriggerGunblade => Presentation is { } process && CanTriggerExpandedGunblade(process);
+    public bool GunbladeTriggerWindowOpen => CanTriggerGunblade && IsNativeTriggerWindowOpen(Presentation!.TriggerWidget!);
 
     public void SetGunbladeMode(BattleGunbladeMode mode)
     {
@@ -17,40 +17,21 @@ public sealed partial class BattleSession
 
     public bool TriggerGunblade()
     {
-        if (expandedPresentationProcess is { } process)
-        {
-            if (!CanTriggerExpandedGunblade(process))
-            {
-                return false;
-            }
-            NativeBattleTriggerWidget widget = process.TriggerWidget!;
-            bool succeeded = IsNativeTriggerWindowOpen(widget);
-            process.PressGunblade(expandedHostedActionToken!.Value, widget.Actor, widget);
-            return succeeded;
-        }
-        if (nativeRenzokukenProcesses.Count != 0)
-        {
-            return TriggerNativeRenzokuken();
-        }
-        if (!CanTriggerGunblade)
+        if (Presentation is not { } process || !CanTriggerExpandedGunblade(process))
         {
             return false;
         }
-        BattleActionPresentation action = ActiveAction!;
-        short timing = ProjectGunbladeTiming(action.RemainingFrames);
-        ActiveAction = action with { GunbladeTriggerTiming = NativeGunbladeAttack.TriggerSucceeded(timing) ? timing : (short)1 };
-        return NativeGunbladeAttack.TriggerSucceeded(timing);
+        NativeBattleTriggerWidget widget = process.TriggerWidget!;
+        bool succeeded = IsNativeTriggerWindowOpen(widget);
+        process.PressGunblade(expandedHostedActionToken!.Value, widget.Actor, widget);
+        return succeeded;
     }
-
-    private bool CanTriggerNativeWidget => Outcome == BattleOutcome.Active && CanPressNativeTriggerWidget(((NativeBattleGraphicsState?)null)?.TriggerWidget, definition.LimitProgress?.Options978) && (nativeRenzokukenProcesses.Count != 0 || GunbladeMode == BattleGunbladeMode.Manual);
 
     private static bool CanPressNativeTriggerWidget(NativeBattleTriggerWidget? widget, ushort? options)
     {
         return widget is { ClosingPhase: 0, PendingTrigger: false, Input.TriggerTiming: 0 } &&
             (options.HasValue ? (options.Value & 1) == 0 : throw new NotSupportedException("Native trigger input requires its saved options WORD."));
     }
-
-    private bool NativeTriggerWindowOpen => CanTriggerNativeWidget && IsNativeTriggerWindowOpen(((NativeBattleGraphicsState?)null)!.TriggerWidget!);
 
     private static bool IsNativeTriggerWindowOpen(NativeBattleTriggerWidget widget)
     {
@@ -66,14 +47,6 @@ public sealed partial class BattleSession
     private static bool IsGunbladeAction(BattleCombatant actor, BattleActionPresentation action)
     {
         return actor.GuardianFormVitals is null && actor.IsPlayer && NativeGunbladeAttack.HasTrigger(actor.ModelId) && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
-    }
-
-    private static short ProjectGunbladeTiming(int remainingFrames)
-    {
-        // TODO(TD-009): Project the native4BA6C0 quarter-pose window onto scaffold contact. The native sequenceVM must own the actual distance-dependent clip contact.
-        const int nativeWindowEnd = 32;
-        const int nativeQuarterPoseTicksPerSecond = 60;
-        return checked((short)(nativeWindowEnd - remainingFrames * nativeQuarterPoseTicksPerSecond / FramesPerSecond));
     }
 
     private short ResolveGunbladeTiming(BattleCombatant actor, BattleCombatant target, BattleActionPresentation action)

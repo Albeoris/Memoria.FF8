@@ -46,14 +46,14 @@ public sealed class NativeBattleGastricJuice128PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(33, casterSource.ModelId);
-        Assert.Equal((byte?)49, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)49, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([128])[127];
         Assert.Equal(NativeBattleGastricJuice128Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleGastricJuice128Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag127.tim", NativeBattleGastricJuice128Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(166432, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeGastricJuice128Resources(), binding.GastricJuice128Resources);
-        Assert.Equal(0u, source.NativeEffectMemory!.GastricJuice128!.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal));
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.GastricJuice128!.ReadDword(NativeBattleGastricJuice128Profile.WorkingGlobal));
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

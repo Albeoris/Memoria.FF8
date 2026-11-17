@@ -67,8 +67,8 @@ public sealed class SnapshotInitialStateMigrationTests
         Assert.Equal((byte)31, restored.NativeBattleMemory!.ActionScratch.GuardianBoostPercent);
         Assert.Equal((byte)62, restored.Battle!.NativeActionScratch!.GuardianBoostPercent);
         Assert.Equal((byte)93, restored.Battle.Definition.NativeRetainedMemory!.ActionScratch.GuardianBoostPercent);
-        Assert.Null(JsonSerializer.SerializeToNode(restored.Battle.NativeEffectMemory, Options)!["Effect326"]);
-        Assert.Null(restored.Battle.NativeStage);
+        Assert.Null(JsonSerializer.SerializeToNode(restored.Battle.ReadFixturePresentation().NativeEffectMemory, Options)!["Effect326"]);
+        Assert.Null(restored.Battle.ReadFixturePresentation().NativeStage);
         Assert.Null(restored.WorldProcess!.PreviousContactC76784);
         Assert.Null(restored.WorldProcess.WaterStepEdges2045C7C);
     }
@@ -112,7 +112,7 @@ public sealed class SnapshotInitialStateMigrationTests
         }
         effects["SelectedIndex"] = 17;
         GameState restored = Deserialize(saved);
-        JsonObject upgraded = JsonSerializer.SerializeToNode(restored.Battle!.NativeEffectMemory, Options)!.AsObject();
+        JsonObject upgraded = JsonSerializer.SerializeToNode(restored.Battle!.ReadFixturePresentation().NativeEffectMemory, Options)!.AsObject();
         foreach ((string name, JsonNode? value) in initial)
         {
             if (!allocationOwner.Contains(name))

@@ -164,7 +164,7 @@ public sealed class GuardianForceCastTests
         Assert.Null(session.ActiveAction);
         session.Tick();
         Assert.Equal("enemy", session.ActiveAction!.ActorId);
-        for (int callback = 0; callback < BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames; callback++)
+        for (int callback = 0; callback < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); callback++)
         {
             session.Tick();
         }
@@ -293,7 +293,7 @@ public sealed class GuardianForceCastTests
         BattleSession session = Create(compatibility: 3500, gfHp: 10, enemyReady: true);
         session.QueueAttack("enemy", "player");
         session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 1; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }
@@ -335,7 +335,7 @@ public sealed class GuardianForceCastTests
         BattleSession session = new(definition, BattleAtbMode.Normal);
         session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
         session.QueueAction("medic", "player", BattleAbility.Item, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }
@@ -359,7 +359,7 @@ public sealed class GuardianForceCastTests
         };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         session.QueueAction("player", "player", BattleAbility.Item, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }

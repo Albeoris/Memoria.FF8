@@ -19,10 +19,10 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         Assert.Equal("F7B53D35083C6062874694E039DF856F498CDAAD7E05C6115BF70DA7DEEBEEE5", Convert.ToHexString(hash));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(146L, original.Frame);
-        Assert.Equal(226L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal((ushort)86, original.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        Assert.Equal((ushort)0, original.NativeCamera!.Mask);
+        Assert.Equal(226L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)86, original.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal((ushort)0, original.ReadFixturePresentation().NativeCamera!.Mask);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleCameraState cold = game.ReadColdProcessNativeBattleMemory().Camera!;
         Assert.Equal((short?)0, cold.EyePaddingF6);
@@ -32,12 +32,11 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         Assert.All(cold.TrackEyePadding, value => Assert.Equal((short?)0, value));
         Assert.All(cold.TrackTargetPadding, value => Assert.Equal((short?)0, value));
         NativeBattleRetainedMemory retained = original.Definition.NativeRetainedMemory!;
-        BattleSnapshot migrated = original with
+        BattleSnapshot migrated = (original with
         {
-            NativeCamera = Fill(original.NativeCamera),
             Definition = original.Definition with { NativeRetainedMemory = retained with { Camera = Fill(retained.Camera!) } }
-        };
-        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(migrated with { NativeCamera = original.NativeCamera, Definition = original.Definition }));
+        }).WithFixturePresentation(facts => facts with { NativeCamera = Fill(original.ReadFixturePresentation().NativeCamera) });
+        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize((migrated with { Definition = original.Definition }).WithFixturePresentation(facts => facts with { NativeCamera = original.ReadFixturePresentation().NativeCamera })));
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);

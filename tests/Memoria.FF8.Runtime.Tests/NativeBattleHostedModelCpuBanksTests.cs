@@ -167,7 +167,7 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         BattleEnemyActorModel next = new(new("next-generation"));
         BattleModelRoster replacement = new(Roster.Owners.Select(owner => owner == Enemy ? next : owner));
         NativeBattleModelAliases aliases = new(replacement, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(4), next)]);
-        NativeBattleModelCpuBanks rebound = banks.RebindPresentationEnemies(Roster, replacement, [(BattleEnemyModelOwner)Enemy], aliases);
+        NativeBattleModelCpuBanks rebound = banks.RebindPresentationRoster(Roster, replacement, [(BattleEnemyModelOwner)Enemy], aliases);
 
         Assert.Same(replacement, rebound.PresentationRoster);
         Assert.Same(Roster, banks.PresentationRoster);
@@ -195,19 +195,19 @@ public sealed class NativeBattleHostedModelCpuBanksTests
         BattleModelRoster replacement = new(Roster.Owners.Select(owner => owner == retired ? next : owner));
         NativeBattleModelAliases aliases = new(replacement, [(NativeBattleModelSlot.Decode(0), NativeParty), (NativeBattleModelSlot.Decode(4), next)]);
 
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(replacement, replacement, [], aliases));
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [], aliases));
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [next], aliases));
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], Aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(replacement, replacement, [], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, replacement, [], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, replacement, [next], aliases));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, replacement, [retired], Aliases));
         Assert.Throws<ArgumentException>(() => new NativeBattleModelAliases(replacement, [(NativeBattleModelSlot.Decode(4), NativeParty)]));
         NativeBattleModelAliases shiftedParty = new(replacement, [(NativeBattleModelSlot.Decode(1), NativeParty)]);
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], shiftedParty));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, replacement, [retired], shiftedParty));
         NativeBattleModelAliases missingParty = new(replacement, [(NativeBattleModelSlot.Decode(4), next)]);
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, replacement, [retired], missingParty));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, replacement, [retired], missingParty));
 
         BattlePartyActorModel newParty = new(new("replacement-party"));
         BattleModelRoster partyReplacement = new(replacement.Owners.Select(owner => owner == ThirdExtra ? newParty : owner));
-        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationEnemies(Roster, partyReplacement, [retired], new(partyReplacement, [(NativeBattleModelSlot.Decode(0), NativeParty)])));
+        Assert.Throws<InvalidDataException>(() => banks.RebindPresentationRoster(Roster, partyReplacement, [retired], new(partyReplacement, [(NativeBattleModelSlot.Decode(0), NativeParty)])));
         Assert.Same(Roster, banks.PresentationRoster);
         Assert.Equal(0, banks.PartyBankIndex(NativeParty));
     }

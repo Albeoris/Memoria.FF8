@@ -1,3 +1,4 @@
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;

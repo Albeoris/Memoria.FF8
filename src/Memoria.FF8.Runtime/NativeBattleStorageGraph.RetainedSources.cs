@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 internal static class NativeBattleRetainedSourceAliases
 {
-    internal static void Validate(BattleSnapshot snapshot) => Validate(snapshot.NativeEffectMemory?.Rinoa88?.NodeData, snapshot.NativeFileStaging);
+    internal static void Validate(BattlePresentationNativeState snapshot) => Validate(snapshot.NativeEffectMemory?.Rinoa88?.NodeData, snapshot.NativeFileStaging);
     internal static void Validate(NativeBattleRetainedMemory snapshot) => Validate(snapshot.EffectMemory?.Rinoa88?.NodeData, snapshot.FileStaging);
 
     private static void Validate(NativeBattleNodeSource? source, NativeBattleFileStaging? owner)
@@ -56,7 +56,7 @@ internal static class NativeBattleRetainedSourceAliases
         }
     }
 
-    internal static BattleSnapshot Rebind(BattleSnapshot snapshot) => snapshot with { NativeEffectMemory = Rebind(snapshot.NativeEffectMemory, snapshot.NativeFileStaging) };
+    internal static BattlePresentationNativeState Rebind(BattlePresentationNativeState snapshot) => snapshot with { NativeEffectMemory = Rebind(snapshot.NativeEffectMemory, snapshot.NativeFileStaging) };
     internal static NativeBattleRetainedMemory Rebind(NativeBattleRetainedMemory snapshot) => snapshot with { EffectMemory = Rebind(snapshot.EffectMemory, snapshot.FileStaging) };
 
     private static NativeBattleEffectMemory? Rebind(NativeBattleEffectMemory? memory, NativeBattleFileStaging? owner)

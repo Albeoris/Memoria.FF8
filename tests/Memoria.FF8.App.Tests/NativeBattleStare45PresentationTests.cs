@@ -45,9 +45,9 @@ public sealed class NativeBattleStare45PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag044.tim", NativeBattleStare45Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(NativeBattleStare45Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeStare45Resources(), binding.Stare45Resources);
-        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, 3));
+        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(54, definition.ModelId);
         Assert.Equal(0, definition.SceneSlot);
         Assert.Equal(23, resource.PoseSource!.BoneCount);

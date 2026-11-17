@@ -62,8 +62,8 @@ internal static class NativeBattleLifecycleComponentSources
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         for (int callback = 0; callback < 1200; callback++)
         {
-            BattleSnapshot current = battle.Capture();
-            NativeBattleGraphicsState graphics = current.NativeGraphics ?? throw new InvalidDataException("The original lifecycle component lost its graphics owner.");
+            BattleSnapshot current = battle.CaptureForContinuation();
+            NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original lifecycle component lost its graphics owner.");
             if (graphics.OriginalEffect is { ReturnedDescriptor: null } admitted && admitted.RequestedEffect == effect && admitted.Pools.IsEmpty || graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104 && HeaderEffect(current, graphics.Descriptors.Packets[index].Argument) == effect))
             {
                 return current;

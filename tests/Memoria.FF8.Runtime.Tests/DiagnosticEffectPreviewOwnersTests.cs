@@ -1,6 +1,5 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Collections.Immutable;
-using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -10,8 +9,8 @@ public sealed class DiagnosticEffectPreviewOwnersTests
     [Fact]
     public void Other_modules_have_no_cinematic_or_director_specific_fields()
     {
-        BattleSession battle = Create(2, NativeBattleEffectMemory.FromColdProcess());
-        JsonElement json = JsonSerializer.SerializeToElement(battle.ObserveDiagnosticEffectPreviewOwners());
+        BattlePresentationProcess process = Create(2, NativeBattleEffectMemory.FromColdProcess());
+        JsonElement json = JsonSerializer.SerializeToElement(process.ObserveDiagnosticGraphicsOwners());
         Assert.Equal(JsonValueKind.Null, json.GetProperty("ScriptedEffect").ValueKind);
         Assert.Equal(JsonValueKind.Null, json.GetProperty("Effect101").ValueKind);
     }
@@ -25,8 +24,8 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         const uint node = NativeBattleEffectNodeMemory.ArenaAddress + 0x1000;
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.Unknown().Write(0x27973EC, BitConverter.GetBytes(manager)).Write(0x27973E8, BitConverter.GetBytes(node)).Write(0x2797450, BitConverter.GetBytes(0x020DFC80u)).Write(manager + 0xD0, new byte[] { 0, 1 }).Write(manager + 0x35, new byte[] { 255 });
         NativeBattleEffectArena arena = NativeBattleEffectArena.Clear().MarkUnknown(0x1000, 12).Write(0x1000, BitConverter.GetBytes(0x020DFC82u));
-        BattleSession battle = Create(effect, NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = core, Arena = arena }, graphicsFlags: 1);
-        object observation = battle.ObserveDiagnosticEffectPreviewOwners();
+        BattlePresentationProcess process = Create(effect, NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = core, Arena = arena }, graphicsFlags: 1);
+        object observation = process.ObserveDiagnosticGraphicsOwners();
         JsonElement json = JsonSerializer.SerializeToElement(observation);
         JsonElement module = json.GetProperty("ScriptedEffect");
         Assert.Equal(0x020DFC80u, module.GetProperty("GlobalPc").GetUInt32());
@@ -62,8 +61,8 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         {
             arena = arena.MarkUnknown(0x4050, 1);
         }
-        BattleSession battle = Create(211, NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = core, Arena = arena });
-        object observation = battle.ObserveDiagnosticEffectPreviewOwners();
+        BattlePresentationProcess process = Create(211, NativeBattleEffectMemory.FromColdProcess() with { ScriptedEffects = core, Arena = arena });
+        object observation = process.ObserveDiagnosticGraphicsOwners();
         JsonElement json = JsonSerializer.SerializeToElement(observation);
         JsonElement breakup = json.GetProperty("ScriptedEffect").GetProperty("CurrentNodeBreakup");
         Assert.Equal(mode, breakup.GetProperty("Mode").GetUInt16());
@@ -93,8 +92,8 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         (main, int mainSlot) = main.Append(NativeBattleEffect101Profile.MainCallback);
         main = main.WriteSlot(mainSlot, main.Slots[mainSlot].WriteWord(12, 54));
         NativeBattleEffect101State state = NativeBattleEffect101State.FromUnknown().WriteDword(NativeBattleEffect101Profile.TargetGlobal, 0x1D972C0).WriteDword(NativeBattleEffect101Profile.WorkingGlobal, main.BankAddress);
-        BattleSession battle = Create(101, NativeBattleEffectMemory.FromColdProcess() with { Effect101 = state }, [root, main]);
-        object observation = battle.ObserveDiagnosticEffectPreviewOwners();
+        BattlePresentationProcess process = Create(101, NativeBattleEffectMemory.FromColdProcess() with { Effect101 = state }, [root, main]);
+        object observation = process.ObserveDiagnosticGraphicsOwners();
         JsonElement json = JsonSerializer.SerializeToElement(observation);
         JsonElement director = json.GetProperty("Effect101");
         Assert.Equal(0, director.GetProperty("TargetIndex").GetInt32());
@@ -109,19 +108,17 @@ public sealed class DiagnosticEffectPreviewOwnersTests
         Assert.True(before.Length < 32768);
     }
 
-    private static BattleSession Create(ushort effect, NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools = default, uint graphicsFlags = 0)
+    private static BattlePresentationProcess Create(ushort effect, NativeBattleEffectMemory memory, ImmutableArray<NativeBattleEffectTaskPool> pools = default, uint graphicsFlags = 0)
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        Set(battle, nameof(BattleSession.NativeEffectMemory), memory);
-        Set(battle, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.Initialize());
-        Set(battle, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         NativeBattleGraphicsState graphics = OriginalUnboundGraphics(_ => new(3), graphicsFlags) with
         {
             OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0) { Pools = pools.IsDefault ? [] : pools }
         };
-        Set(battle, nameof(BattlePresentationProcess.NativeGraphics), graphics);
-        return battle;
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(battle, graphics);
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.Initialize());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        return process;
     }
-
-    private static void Set(BattleSession battle, string property, object value) => typeof(BattleSession).GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(battle, value);
 }

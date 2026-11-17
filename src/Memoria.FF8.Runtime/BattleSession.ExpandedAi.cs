@@ -72,10 +72,6 @@ public sealed partial class BattleSession
 
     private void CompleteExpandedEnemyDeath(BattleCombatant actor)
     {
-        if (nativeAiCallbackStage != 3 && !UsesOriginalEnemySlots)
-        {
-            throw new NotSupportedException("Expanded AI death projection requires the enemy death callback.");
-        }
         // TODO(TD-009): The expanded host uses its roster KO presentation in place of descriptor 106.
         actor.NativeStatus0 |= 1;
         actor.NativeCombatantFlags &= ~0xCu;
@@ -84,18 +80,18 @@ public sealed partial class BattleSession
         {
             Log("Defeated", actor.Id, actor.Id, 0, $"{actor.Name} is defeated.");
         }
-        if (UsesOriginalEnemySlots && actor.NativeAi?.DeathSequenceReleasesAllocation == true)
+        if (actor.NativeAi?.DeathSequenceReleasesAllocation == true)
         {
             // TODO(TD-009): The expanded host retains sequence 3's allocation release in the graphics FIFO.
             StageOrQueueRosterOperation(new BattleRosterMutation.Operation.DeathRelease(TargetActorReference(actor)));
         }
     }
 
-    private AiTargetSelection ResolveExpandedModelTarget(int selector)
+    private AiTargetSelection ResolveExpandedModelTarget(BattleCombatant actor, int selector)
     {
-        BattleCombatant? target = UsesOriginalEnemySlots ? ExpandedAiModelActor(selector) : combatants.FirstOrDefault(candidate => IsExpandedAiTarget(candidate) && NativeModelId(candidate) == selector);
+        BattleCombatant? target = FindSourceEnemyModelActor(actor, selector);
         AiTargetSelection selected = SelectAiActors(target is null ? [] : [target]);
-        return selected with { MissingOriginalModel = UsesOriginalEnemySlots && target is null };
+        return selected with { MissingOriginalModel = target is null };
     }
 
     private BattleCombatant? ExpandedAiModelActor(int model)
@@ -105,15 +101,11 @@ public sealed partial class BattleSession
 
     private IEnumerable<BattleCombatant> ExpandedAiModelQueryPopulation(int model)
     {
-        if (!UsesOriginalEnemySlots)
-        {
-            return combatants.Where(HasAiRosterSlot);
-        }
         if (model < 16)
         {
             return allies.Where(HasAiRosterSlot).OrderBy(candidate => candidate.Slot!.Value.Position);
         }
-        return NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex);
+        return enemies.Where(HasAiRosterSlot).OrderBy(candidate => candidate.NativeActorIndex ?? int.MaxValue).ThenBy(candidate => candidate.Slot!.Value.Position);
     }
 
     private void ValidateExpandedOriginalEnemySlots()
@@ -164,7 +156,7 @@ public sealed partial class BattleSession
             actor.PreviousAiTarget = selected.PreviousTarget;
             return false;
         }
-        if (!NativeBattleExpandedAi.SupportsAction(native, UsesOriginalEnemySlots))
+        if (!NativeBattleExpandedAi.SupportsAction(native))
         {
             throw new NotSupportedException($"Expanded AI command {command}/{id} requires an unsupported combat service.");
         }
@@ -192,7 +184,7 @@ public sealed partial class BattleSession
             }
             if ((flags & 2) != 0 && selection is BattleTargetSelection.SideGroup or NativeBattleTargetRequestAdapter.DeferredOperands)
             {
-                selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: SamplesOriginalAiSlots);
+                selection = NativeBattleTargetRequestAdapter.RandomizeOriginalSelection(selection, samplesOriginalSlots: true);
             }
         }
 
@@ -201,12 +193,12 @@ public sealed partial class BattleSession
             eligibility = selection switch
             {
                 BattleTargetSelection.SideGroup or NativeBattleTargetRequestAdapter.DeferredOperands => BattleTargetEligibility.SavedStatus,
-                BattleTargetSelection.Explicit when UsesOriginalEnemySlots => BattleTargetEligibility.Living,
+                BattleTargetSelection.Explicit => BattleTargetEligibility.Living,
                 _ => BattleTargetEligibility.AiAvailable
             };
         }
         BattleTargetReplacement replacement = selection is NativeBattleTargetRequestAdapter.DeferredOperands ||
-            selection is BattleTargetSelection.Explicit && UsesOriginalEnemySlots && eligibility is not BattleTargetEligibility.DrawnMagic
+            selection is BattleTargetSelection.Explicit && eligibility is not BattleTargetEligibility.DrawnMagic
             ? BattleTargetReplacement.UseCurrentBattlePolicy
             : BattleTargetReplacement.None;
         var request = new BattleTargetRequest(selection, deathSelf is not null ? BattleTargetEligibility.DeathCallback : eligibility, allowsKnockedOutAllies, replacement, deathSelf);
@@ -222,7 +214,7 @@ public sealed partial class BattleSession
         };
         if (producingExpandedAiCallback)
         {
-            if (!CaptureEncounterCounterCommand(actor, packet, "expanded AI counter", false, null))
+            if (!CaptureEncounterCounterCommand(packet))
             {
                 ProduceExpandedAiCallbackCommand(packet);
             }

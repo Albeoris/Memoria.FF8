@@ -35,12 +35,6 @@ public sealed partial class BattleSession
         return roll;
     }
 
-    private void QueueNativeSlots(BattleCombatant actor, BattleNativeAction action, byte sequence, byte? crisis)
-    {
-        BattleAttackCommand command = PrepareNativeSlotsCommand(actor, action, sequence, nativeSlotsRolls[actor.Id]);
-        EnqueueNativePacket(actor, command, action.Name ?? "Slots", playerInput: true);
-    }
-
     private static bool SupportsExpandedSlotsAction(BattleNativeAction? action)
     {
         return action is { Command: 16, KernelSection: 1, AttackType: 2, Power: 0, HitCount: 1, TargetFlags: 0x48, AttackFlags: 0x23 } &&
@@ -75,43 +69,6 @@ public sealed partial class BattleSession
         nativeLimitLevels.Remove(actor.Id);
         nativeSlotsRolls.Remove(actor.Id);
         Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: {action.Name} queued.");
-    }
-
-    private BattleAttackCommand PrepareNativeSlotsCommand(BattleCombatant actor, BattleNativeAction action, byte sequence, BattleNativeSlotsRoll roll)
-    {
-        ValidateNativeActionContract(action);
-        if (action.ActionId >= 51 && definition.LimitProgress?.SpecialMagicFlags is null)
-        {
-            throw new NotSupportedException("Special Slots magic requires the actual saved learned BYTE1CFE771 owner.");
-        }
-        if (roll.Repetitions is < 1 or > 3)
-        {
-            throw new NotSupportedException("Native Slots input exceeds its three physical target WORDs.");
-        }
-        BattleTargetRequest request = CreateAutomaticTargetRequest(action.TargetFlags!.Value, out NativeBattleTargetRequestAdapter.DeferredOperands? preflight);
-        roll = roll with { PreflightSelection = preflight };
-        ValidateNativeSlotsPreflight(roll, action);
-        BattleCombatant target = preflight is null ? ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor : ReadOriginalSelectedActor(preflight, activeOnly: false) ?? actor;
-        return new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeSequence = sequence, NativeSlots = roll };
-    }
-
-    private void ResolveNativeSlotsGroup(BattleCombatant actor, BattleActionPresentation command)
-    {
-        BattleNativeSlotsRoll slots = command.NativeSlots ?? throw new InvalidDataException("Native Slots group lacks its accepted roll.");
-        BattleNativeAction native = command.NativeAction ?? throw new InvalidDataException("Native Slots group lacks its installed magic.");
-        BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Slots", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
-        _ = nativeDispatchCommandLocation ?? throw new InvalidDataException("Native Slots requires its selected physical command entry.");
-        ValidateNativeSlotsPreflight(slots, native);
-        for (int repeat = 0; repeat < slots.Repetitions; repeat++)
-        {
-            BattleTargetRequest request = SelectNativeSlotsTargets(native, command.TargetRequest, slots.PreflightSelection);
-            BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? GetActor(command.TargetId);
-            //485610 submits one104 for the group; the effect consumes the following headers itself.
-            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, TargetRequest = request }, action, queueGraphics: repeat == 0))
-            {
-                break;
-            }
-        }
     }
 
     private void ValidateNativeSlotsPreflight(BattleNativeSlotsRoll roll, BattleNativeAction action)

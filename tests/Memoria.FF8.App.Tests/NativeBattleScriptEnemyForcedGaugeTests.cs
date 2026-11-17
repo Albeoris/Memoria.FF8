@@ -52,12 +52,12 @@ public sealed class NativeBattleScriptEnemyForcedGaugeTests
         };
         battle = Restore(source);
         BattleCombatant live = battle.Combatants.Single(actor => actor.Id == enemyId);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         Invoke(battle, "PublishNativeFullGaugeRegistration", live);
-        BattleSnapshot registered = battle.Capture();
+        BattleSnapshot registered = battle.CaptureForContinuation();
         Assert.Equal(before.NativeGlobalRandom, registered.NativeGlobalRandom);
         Assert.Equal(before.NativeCrtRandom, registered.NativeCrtRandom);
-        Assert.Equal(JsonSerializer.Serialize(before.NativeGraphics!.UiServices!.Commands), JsonSerializer.Serialize(registered.NativeGraphics!.UiServices!.Commands));
+        Assert.Equal(JsonSerializer.Serialize(before.ReadFixturePresentation().NativeGraphics!.UiServices!.Commands), JsonSerializer.Serialize(registered.ReadFixturePresentation().NativeGraphics!.UiServices!.Commands));
         Assert.Equal(JsonSerializer.Serialize(before.NativeCommandBanks), JsonSerializer.Serialize(registered.NativeCommandBanks));
         uint expectedFlags = before.Combatants.Single(actor => actor.Id == enemyId).NativeParticipant!.NativeCombatantFlags!.Value | 0x204;
         Assert.Equal(expectedFlags, live.NativeCombatantFlags);

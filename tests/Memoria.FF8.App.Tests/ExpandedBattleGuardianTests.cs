@@ -50,7 +50,6 @@ public sealed class ExpandedBattleGuardianTests
         Assert.True(process.EntryReady);
         Assert.Equal(NativeBattlePcDirectTextureFormat.Rgb555, battle.PreparedPresentation?.PrimitiveCapabilities?.DirectTextureFormat);
 
-        BattleSession child = ReadField<BattleSession>(process, "presentation");
         BattleActionDefinition action = Assert.Single(battle.ReadDefinition().ActionDefinitions, candidate => candidate.Ability == BattleAbility.GuardianForce && candidate.Id == GuardianId);
         BattleNativeAction native = Assert.IsType<BattleNativeAction>(action.NativeAction);
         Assert.Equal("Diamond Dust", action.Name);
@@ -62,7 +61,7 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Equal(5, enemies.Length);
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == CasterId);
         BattleModelOwner casterOwner = battle.ReadPresentationModelOwner(CasterId);
-        Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(casterOwner, out _));
+        Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(casterOwner, out _));
         Assert.True(battle.CanSelectExpandedGuardianForce(CasterId, GuardianId));
         ushort[] originalAffinity = caster.GuardianForceCompatibility!.ToArray();
         ushort[] affinityAfterOne = originalAffinity.ToArray();
@@ -114,7 +113,7 @@ public sealed class ExpandedBattleGuardianTests
             }
             if (occurrences is null)
             {
-                var headers = child.NativeActionPackets.PublishedHeaders().Where(header => header.Slot.Command == 254 && header.Slot.Source == casterOwner).ToArray();
+                var headers = process.ActionPackets.PublishedHeaders().Where(header => header.Slot.Command == 254 && header.Slot.Source == casterOwner).ToArray();
                 if (headers.Length != 0)
                 {
                     var (reference, header) = Assert.Single(headers);
@@ -122,8 +121,8 @@ public sealed class ExpandedBattleGuardianTests
                     token = Assert.IsType<long>(process.ActiveActionToken);
                     Assert.Equal(native.ActionId, header.Action);
                     Assert.Equal(enemies.Length, header.ReadContactCount());
-                    occurrences = Enumerable.Range(0, enemies.Length).Select(index => child.NativeActionPackets.ResolveContact(reference, index)).ToArray();
-                    Assert.All(occurrences, occurrence => Assert.Equal(0, child.NativeActionPackets.ReadContact(occurrence).Primary.PresentedAmount));
+                    occurrences = Enumerable.Range(0, enemies.Length).Select(index => process.ActionPackets.ResolveContact(reference, index)).ToArray();
+                    Assert.All(occurrences, occurrence => Assert.Equal(0, process.ActionPackets.ReadContact(occurrence).Primary.PresentedAmount));
                     Assert.Equal(hpBeforeAdmission!, enemies.Select(enemy => enemy.CurrentHp));
                     Assert.Equal(affinityAfterOne, caster.GuardianForceCompatibility);
                     NativeBattleActionScratch preliminary = ReadField<NativeBattleActionScratch>(battle, "nativeActionScratch");
@@ -139,7 +138,7 @@ public sealed class ExpandedBattleGuardianTests
 
         if (admittedAt is not int invocationStart || !Completed(battle, invocationStart))
         {
-            Assert.Fail(DescribeStalledGuardian(battle, child, process, sawModule, sawWidget, delivered.Count));
+            Assert.Fail(DescribeStalledGuardian(battle, process, sawModule, sawWidget, delivered.Count));
         }
         Assert.True(sawModule);
         Assert.True(sawWidget);
@@ -211,10 +210,10 @@ public sealed class ExpandedBattleGuardianTests
         Assert.Equal(133, receipt.Reload.FieldId);
     }
 
-    private static string DescribeStalledGuardian(BattleSession battle, BattleSession child, BattlePresentationProcess process, bool sawModule, bool sawWidget, int delivered)
+    private static string DescribeStalledGuardian(BattleSession battle, BattlePresentationProcess process, bool sawModule, bool sawWidget, int delivered)
     {
         NativeBattleGraphicsState graphics = process.Graphics;
-        NativeBattleActionPacketsState action = child.NativeActionPackets;
+        NativeBattleActionPacketsState action = process.ActionPackets;
         string descriptors = string.Join(",", graphics.Descriptors.Packets.Where(packet => packet.PriorityState != 0).Select(packet => $"{packet.Command}/{packet.PriorityState}"));
         string tasks = string.Join(",", graphics.Descriptors.Tasks.Where(task => task.Kind != NativeBattleDescriptorTaskKind.None).Select(task => $"{task.Kind}/{task.Phase}"));
         string models = string.Join(",", graphics.ActorModels.Entries.Select(entry => $"{entry.Owner.Side}/{entry.State.ModelId4}:{entry.State.Kind5}/{entry.State.EffectCounter97}/{entry.State.Flags0:X}"));

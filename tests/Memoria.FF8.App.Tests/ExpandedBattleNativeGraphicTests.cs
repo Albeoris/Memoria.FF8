@@ -29,7 +29,6 @@ public sealed class ExpandedBattleNativeGraphicTests
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         ExpandedBattleEntryAdmissionTests.ReachReady(world, battle);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant attacker = battle.Combatants.Single(actor => actor.Id == "party-3");
         BattleCombatant trigger = battle.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == (effectId == 110 ? 74 : 101));
@@ -80,10 +79,10 @@ public sealed class ExpandedBattleNativeGraphicTests
                 }
                 if (process.Graphics.OriginalEffect is { Binding.Effect: 243, Parameters: { } context, ReturnedDescriptor: > 0 } && !reserveContext)
                 {
-                    NativeBattleActionHeaderSlot contextHeader = presentation.NativeActionPackets.ReadHeader(context.Header);
+                    NativeBattleActionHeaderSlot contextHeader = process.ActionPackets.ReadHeader(context.Header);
                     Assert.Equal((byte)8, contextHeader.Command);
                     Assert.Equal((ushort)147, contextHeader.Action);
-                    NativeBattleContactPacket packet = Assert.Single(presentation.NativeActionPackets.ReadHeaderContacts(context.Header));
+                    NativeBattleContactPacket packet = Assert.Single(process.ActionPackets.ReadHeaderContacts(context.Header));
                     Assert.Equal(contextHeader.Source, packet.Primary.Recipient);
                     Assert.Equal(0, packet.Primary.PresentedAmount);
                     Assert.Equal((byte)1, packet.Primary.Flags2);
@@ -99,7 +98,7 @@ public sealed class ExpandedBattleNativeGraphicTests
             {
                 actionToken ??= Assert.IsType<long>(process.LastStepActionToken);
                 Assert.Equal(actionToken, process.LastStepActionToken);
-                NativeBattleActionHeaderSlot header = presentation.NativeActionPackets.ReadHeader(parameters.Header);
+                NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(parameters.Header);
                 Assert.Equal((byte)252, header.Command);
                 Assert.Equal((ushort)1, header.Action);
                 Assert.Equal(effectId, header.Effect);
@@ -109,7 +108,7 @@ public sealed class ExpandedBattleNativeGraphicTests
                 if (effectId == 248)
                 {
                     Assert.Equal(71, battle.Combatants.Single(actor => actor.Id == casterId).ModelId);
-                    NativeBattleContactPacket packet = Assert.Single(presentation.NativeActionPackets.ReadHeaderContacts(parameters.Header));
+                    NativeBattleContactPacket packet = Assert.Single(process.ActionPackets.ReadHeaderContacts(parameters.Header));
                     Assert.Equal(header.Source, packet.Primary.Recipient);
                 }
                 Assert.Equal(contextCount, battle.Events.Count(entry => entry.Kind == "EffectContact" && entry.NativeGraphicMagicId == effectId));
@@ -139,7 +138,7 @@ public sealed class ExpandedBattleNativeGraphicTests
             Assert.True(reserve.IsActive);
             int physicalSlot = Assert.IsType<int>(reserve.NativeActorIndex);
             Assert.Contains($"into physical slot {physicalSlot}.", spawn.Message);
-            Assert.Equal(reserveOwner, presentation.NativeActionPackets.ModelAliases.DecodeLiteral(checked((byte)physicalSlot)));
+            Assert.Equal(reserveOwner, process.ActionPackets.ModelAliases.DecodeLiteral(checked((byte)physicalSlot)));
             Assert.Equal(reserveOwner, process.Graphics.NativeBindings.DecodeLiteral(checked((byte)physicalSlot), process.Graphics.ActorModels));
             AssertAllocationMaterial(reserve);
         }

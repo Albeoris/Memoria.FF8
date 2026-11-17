@@ -63,7 +63,7 @@ public sealed class BattleFramePerformanceTests
         Assert.True(battle.Presentation!.Graphics.Callback > savedCallback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Battle!.Capture()));
         Assert.Equal(scene.Render(battle, 960, 720), new BattleScenePresentation(restored.BattleResources, restored.Battle.Capture().Definition).Render(restored.Battle, 960, 720));
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-measurement", new { Speed = speed, WarmupDisplayFrames = 60, DisplayFrames = 120, Width = 960, Height = 720, TotalMilliseconds = totalMilliseconds, UpdateMilliseconds = updateMilliseconds, RenderMilliseconds = renderMilliseconds, InitialFrame = initialFrame, SavedFrame = saved.Battle!.Frame, SavedCallback = saved.Battle.NativeGraphics!.Callback, ValidatedNextFrame = battle.Frame, ValidatedNextCallback = battle.Presentation!.Graphics.Callback, Sha256 = Convert.ToHexString(SHA256.HashData(scene.Render(battle, 960, 720))) });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, id + "-measurement", new { Speed = speed, WarmupDisplayFrames = 60, DisplayFrames = 120, Width = 960, Height = 720, TotalMilliseconds = totalMilliseconds, UpdateMilliseconds = updateMilliseconds, RenderMilliseconds = renderMilliseconds, InitialFrame = initialFrame, SavedFrame = saved.Battle!.Frame, SavedCallback = saved.Battle.ReadFixturePresentation().NativeGraphics!.Callback, ValidatedNextFrame = battle.Frame, ValidatedNextCallback = battle.Presentation!.Graphics.Callback, Sha256 = Convert.ToHexString(SHA256.HashData(scene.Render(battle, 960, 720))) });
     }
 
     [Fact]

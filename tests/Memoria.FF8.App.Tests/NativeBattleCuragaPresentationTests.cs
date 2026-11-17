@@ -21,7 +21,7 @@ public sealed class NativeBattleCuragaPresentationTests
         BattleSnapshot initial = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
         BattleSession battle = BattleSession.Restore(initial);
         Assert.True(HasActionDescriptor(battle));
-        Assert.Null(initial.NativeGraphics!.OriginalEffect?.Curaga?.Auxiliary16F80);
+        Assert.Null(initial.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.Curaga?.Auxiliary16F80);
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using BattleAssets assets = new(gameDirectory);
         BattleScenePresentation scene = new(assets, initial.Definition);
@@ -36,13 +36,13 @@ public sealed class NativeBattleCuragaPresentationTests
         {
             BattleSnapshot before = battle.Capture();
             battle.AdvanceNativeGraphicsPresentation(Callback);
-            BattleSnapshot after = battle.Capture();
-            NativeBattleCuragaState? state = after.NativeGraphics!.OriginalEffect?.Curaga;
+            BattleSnapshot after = battle.CaptureForContinuation();
+            NativeBattleCuragaState? state = after.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.Curaga;
             if (!cleared && state?.Auxiliary16F80 is int geometry)
             {
                 int emitter = state.Auxiliary25F8!.Value;
                 Assert.Equal(emitter + 0x25F8, geometry);
-                Assert.All(after.NativeEffectMemory!.Arena!.Read(emitter, 0x25F8 + 0x16F80), value => Assert.Equal((byte)0, value));
+                Assert.All(after.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(emitter, 0x25F8 + 0x16F80), value => Assert.Equal((byte)0, value));
                 Assert.Equal(before.NativeCrtRandom, after.NativeCrtRandom);
                 cleared = true;
                 clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
@@ -56,7 +56,7 @@ public sealed class NativeBattleCuragaPresentationTests
                 continuedClone = true;
                 clone = null;
             }
-            NativeBattleGraphicsState graphics = after.NativeGraphics!;
+            NativeBattleGraphicsState graphics = after.ReadFixturePresentation().NativeGraphics!;
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
             if (!frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
             {
@@ -64,7 +64,7 @@ public sealed class NativeBattleCuragaPresentationTests
             }
             byte[] visible = scene.Render(battle, 320, 224).ToArray();
             NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-            BattleSession plain = BattleSession.Restore(after with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
+            BattleSession plain = BattleSession.Restore(after.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
             int changedPixels = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
             peakChangedPixels = Math.Max(peakChangedPixels, changedPixels);
             if (changedPixels > nonFlashPeakChangedPixels && !frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A))
@@ -85,7 +85,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == 0x4946F);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_CURAGA_EVIDENCE");
         string evidenceId = "curaga-resumed-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
-        BattleSnapshot finished = battle.Capture();
+        BattleSnapshot finished = battle.CaptureForContinuation();
         PublishEvidence(evidence, evidenceId + "-non-flash-peak", nonFlashPeak!, nonFlashPixels);
         PublishEvidence(evidence, evidenceId + "-after", finished, scene.Render(battle, 320, 224));
         string afterJson = string.IsNullOrWhiteSpace(evidence) ? JsonSerializer.Serialize(finished) : File.ReadAllText(Path.Combine(evidence, evidenceId + "-after.battle.json"));
@@ -100,7 +100,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
         PublishEvidence(evidence, evidenceId + "-after-validation", battle.Capture(), null);
-        PublishJson(evidence, evidenceId + "-details", new { Source = Path.GetFullPath(path!), PeakChangedPixelsIncludingFlash = peakChangedPixels, NonFlashPeakChangedPixels = nonFlashPeakChangedPixels, NonFlashPeakFrame = nonFlashPeak!.Frame, NonFlashPeakCallback = nonFlashPeak.NativeGraphics!.Callback, FinishedFrame = finished.Frame, FinishedCallback = finished.NativeGraphics!.Callback, ValidationFrame = battle.Frame, ValidationCallback = battle.Presentation!.Graphics.Callback });
+        PublishJson(evidence, evidenceId + "-details", new { Source = Path.GetFullPath(path!), PeakChangedPixelsIncludingFlash = peakChangedPixels, NonFlashPeakChangedPixels = nonFlashPeakChangedPixels, NonFlashPeakFrame = nonFlashPeak!.Frame, NonFlashPeakCallback = nonFlashPeak.ReadFixturePresentation().NativeGraphics!.Callback, FinishedFrame = finished.Frame, FinishedCallback = finished.ReadFixturePresentation().NativeGraphics!.Callback, ValidationFrame = battle.Frame, ValidationCallback = battle.Presentation!.Graphics.Callback });
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class NativeBattleCuragaPresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Curaga component requires its live party status words.");
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
@@ -168,9 +168,9 @@ public sealed class NativeBattleCuragaPresentationTests
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), nativeCuraga.DamagePresentation, 0, 1, status.Saved, 100, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -191,18 +191,18 @@ public sealed class NativeBattleCuragaPresentationTests
         BattleSession? clone = null;
         for (int callback = 0; callback < 1024 && HasActionDescriptor(battle); callback++)
         {
-            BattleSnapshot beforeStep = battle.Capture();
+            BattleSnapshot beforeStep = battle.CaptureForContinuation();
             try
             {
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot snapshot = battle.Capture();
-                NativeBattleGraphicsState currentGraphics = snapshot.NativeGraphics!;
+                BattleSnapshot snapshot = battle.CaptureForContinuation();
+                NativeBattleGraphicsState currentGraphics = snapshot.ReadFixturePresentation().NativeGraphics!;
                 if (!observedPoolClear && currentGraphics.OriginalEffect?.Curaga is { Auxiliary25F8: int emitters, Auxiliary16F80: int geometry })
                 {
                     Assert.Equal(emitters + 0x25F8, geometry);
-                    Assert.All(snapshot.NativeEffectMemory!.Arena!.Read(emitters, 0x25F8 + 0x16F80), value => Assert.Equal((byte)0, value));
+                    Assert.All(snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(emitters, 0x25F8 + 0x16F80), value => Assert.Equal((byte)0, value));
                     Assert.Equal(beforeStep.NativeCrtRandom, snapshot.NativeCrtRandom);
                     observedPoolClear = true;
                 }
@@ -238,7 +238,7 @@ public sealed class NativeBattleCuragaPresentationTests
                     exportedFirstEffectFrame = true;
                 }
                 NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } });
+                BattleSession plain = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutEffect } }));
                 byte[] background = scene.Render(plain, 320, 224);
                 int changedPixels = DifferentRgbPixels(visible, background);
                 if (changedPixels <= peakChangedPixels)
@@ -259,7 +259,7 @@ public sealed class NativeBattleCuragaPresentationTests
             }
             catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
             {
-                NativeBattleGraphicsState priorGraphics = beforeStep.NativeGraphics!;
+                NativeBattleGraphicsState priorGraphics = beforeStep.ReadFixturePresentation().NativeGraphics!;
                 PublishEvidence(evidence, evidenceId + "-before-unsupported-callback" + priorGraphics.Callback, beforeStep, null);
                 PublishJson(evidence, evidenceId + "-unsupported-details", new { exception.Message, beforeStep.Frame, priorGraphics.Callback, Root = priorGraphics.OriginalEffect?.ReturnedDescriptor });
                 throw;
@@ -294,7 +294,7 @@ public sealed class NativeBattleCuragaPresentationTests
         audio.Update(BattleSession.Restore(battle.Capture()));
         Assert.Equal(heardBeforeRestore, heard.Count);
         PublishEvidence(evidence, evidenceId + "-peak", peak!, peakPixels);
-        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.NativeGraphics!.Callback, peak.Frame });
+        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.ReadFixturePresentation().NativeGraphics!.Callback, peak.Frame });
         PublishEvidence(evidence, evidenceId + "-after", battle.Capture(), scene.Render(battle, 320, 224));
     }
 

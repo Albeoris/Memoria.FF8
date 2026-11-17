@@ -49,7 +49,7 @@ public sealed class InteractiveBattleCausalTests
             }
             else if (active.ActiveAction is not null || active.QueuedActions.Count != 0)
             {
-                world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames + 1));
+                world.ApplyBattleInput(new BattleInput(BattleInputKind.Tick));
             }
             else
             {

@@ -27,14 +27,14 @@ internal sealed class NativeBattleEffect68PresentationObserver
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         CurrentCommands = [];
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleOriginalEffectState? effect = graphics.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect68State state = current.NativeEffectMemory!.Effect68!;
-        NativeBattleScanProcess scan = current.NativeEffectMemory.Scan!;
+        NativeBattleEffect68State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect68!;
+        NativeBattleScanProcess scan = current.ReadFixturePresentation().NativeEffectMemory.Scan!;
         state.Validate();
         scan.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> before = Tasks(prior);
@@ -81,7 +81,7 @@ internal sealed class NativeBattleEffect68PresentationObserver
                 Mark("effect68-current-contact-after-children", current, cold);
             }
         }
-        if (state.ReadWord(ResultCompleteGlobal) == 1 && prior.NativeEffectMemory?.Effect68?.ReadWord(ResultCompleteGlobal) == 0)
+        if (state.ReadWord(ResultCompleteGlobal) == 1 && prior.ReadFixturePresentation().NativeEffectMemory?.Effect68?.ReadWord(ResultCompleteGlobal) == 0)
         {
             closedWindow = true;
             Assert.Equal(0u, scan.Text.Windows.TextRows[1].ReadDword(8));
@@ -106,7 +106,7 @@ internal sealed class NativeBattleEffect68PresentationObserver
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect68-contact-glyph", current, cold);
@@ -205,7 +205,7 @@ internal sealed class NativeBattleEffect68PresentationObserver
         Assert.InRange(cursor, start, start + 0x4000);
         int begin = checked((int)(start - 0x20DFAB8u));
         int end = checked((int)(cursor - 0x20DFAB8u));
-        NativeBattleLogicalCommand[] commands = current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= begin && command.Packet.ByteOffset < end).ToArray();
+        NativeBattleLogicalCommand[] commands = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= begin && command.Packet.ByteOffset < end).ToArray();
         if (commands.Length != 0)
         {
             packetBanks.Add(start == first ? 0 : 1);
@@ -216,7 +216,7 @@ internal sealed class NativeBattleEffect68PresentationObserver
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

@@ -47,7 +47,7 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
         Assert.Equal(new NativeBattleVector(-100, 0, -1400), enemy.NativePosition);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
         if (cold)
         {
             Assert.Null(graphics.OriginalEffect);
@@ -57,13 +57,13 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
             Assert.True(graphics.OriginalEffect is { Binding.Effect: 231, ReturnedDescriptor: 0 });
         }
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Null(source.NativeAiVariables);
         Assert.Null(source.PersistentAiVariables);
-        source.NativeEffectMemory.ScriptedEffects!.Validate();
-        source.NativeEffectMemory.GeometryRegisters!.Validate();
-        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.NativeModelCpuResources);
-        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.NativeFileStaging);
+        source.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!.Validate();
+        source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters!.Validate();
+        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.ReadFixturePresentation().NativeModelCpuResources);
+        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.ReadFixturePresentation().NativeFileStaging);
         cpu.Validate();
         staging.Validate();
         if (cold)
@@ -122,7 +122,7 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
         {
             Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
         }
-        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.NativeStage);
+        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.ReadFixturePresentation().NativeStage);
         Assert.Equal(4, stage.Groups.Length);
         foreach (NativeBattleStageGroup group in stage.Groups)
         {
@@ -166,14 +166,14 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
     internal static void ValidateQueuedAction(BattleSnapshot source, BattleSnapshot queued)
     {
         Assert.Equal(source.Frame, queued.Frame);
-        NativeBattleGraphicsState initialGraphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(queued.NativeGraphics);
+        NativeBattleGraphicsState initialGraphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(queued.ReadFixturePresentation().NativeGraphics);
         Assert.Null(graphics.OriginalEffect);
-        Assert.Equal(0, queued.NativeEffectMemory!.Active);
+        Assert.Equal(0, queued.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(initialGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(graphics)));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeModelCpuResources), JsonSerializer.Serialize(queued.NativeModelCpuResources));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(queued.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeStage), JsonSerializer.Serialize(queued.NativeStage));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeModelCpuResources), JsonSerializer.Serialize(queued.ReadFixturePresentation().NativeModelCpuResources));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(queued.ReadFixturePresentation().NativeFileStaging));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeStage), JsonSerializer.Serialize(queued.ReadFixturePresentation().NativeStage));
         Assert.Equal(JsonSerializer.Serialize(source.NativeAiVariables), JsonSerializer.Serialize(queued.NativeAiVariables));
         Assert.Equal(JsonSerializer.Serialize(source.PersistentAiVariables), JsonSerializer.Serialize(queued.PersistentAiVariables));
         Assert.Equal(JsonSerializer.Serialize(source.Random), JsonSerializer.Serialize(queued.Random));

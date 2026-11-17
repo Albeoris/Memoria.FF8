@@ -44,7 +44,7 @@ public sealed class ExpandedBattleEnemyItemAdmissionTests
         BattleSession restored = BattleSession.Restore(midpoint);
         Assert.Equal(JsonSerializer.Serialize(midpoint), JsonSerializer.Serialize(restored.Capture()));
 
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); tick++)
         {
             battle.Tick();
             restored.Tick();

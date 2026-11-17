@@ -27,12 +27,12 @@ internal sealed class NativeBattleEffect173PresentationObserver
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         CurrentCommands = [];
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         if (graphics.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleEffect173State state = current.NativeEffectMemory!.Effect173!;
+        NativeBattleEffect173State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect173!;
         state.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
@@ -124,7 +124,7 @@ internal sealed class NativeBattleEffect173PresentationObserver
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect173-current-contact-glyph", current, cold);
@@ -151,7 +151,7 @@ internal sealed class NativeBattleEffect173PresentationObserver
         Assert.Equal(2, packetBanks.Count);
         Assert.Equal(1, Contacts);
         Assert.Equal(1, ContactGlyphs);
-        NativeBattleEffect173State state = completed.NativeEffectMemory!.Effect173!;
+        NativeBattleEffect173State state = completed.ReadFixturePresentation().NativeEffectMemory!.Effect173!;
         Assert.NotNull(state.CommonQueueStorage);
         Assert.All(state.FixedBanks.Values, bank => Assert.NotNull(bank));
         File.WriteAllText(Path.Combine(output, "effect173-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Callbacks = callbacks.Order(), PacketBanks = packetBanks.Order(), CommonInitialized = commonInitialized, Programme = programme, Geometry = geometry, Cleanup = cleanup, MainRetired = mainRetired, CentroidBanks = centroidBanks.Order(), RecordKinds = recordKinds.Order(), Contacts, ContactGlyphs, Observations = observations }));
@@ -167,7 +167,7 @@ internal sealed class NativeBattleEffect173PresentationObserver
         }
         uint start = cursor >= arena + 0xC000 ? arena + 0xC000 : arena;
         Assert.InRange(cursor, start, start + 0xC000);
-        NativeBattleLogicalCommand[] commands = current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).ToArray();
+        NativeBattleLogicalCommand[] commands = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).ToArray();
         if (commands.Length > 0)
         {
             packetBanks.Add(start == arena ? 0 : 1);
@@ -178,7 +178,7 @@ internal sealed class NativeBattleEffect173PresentationObserver
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

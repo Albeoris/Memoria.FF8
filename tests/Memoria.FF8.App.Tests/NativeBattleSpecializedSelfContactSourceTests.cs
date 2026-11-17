@@ -18,7 +18,7 @@ public sealed class NativeBattleSpecializedSelfContactSourceTests
         try
         {
             BattleSnapshot source = Assert.IsType<BattleSnapshot>(NativeBattleSpecializedComponentSources.Prepare(effect, directory!, output));
-            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
+            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
             NativeBattleActionPacketsState packets = Assert.IsType<NativeBattleActionPacketsState>(source.NativeActionPackets);
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             int headerIndex = checked((int)((graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u) / 20));

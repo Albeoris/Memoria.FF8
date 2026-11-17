@@ -26,7 +26,7 @@ public sealed class NativeBattleHoly175PresentationTests
         using BattleAssets assets = new(directory);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 2 && item.ActionId == 14 && item.MagicId == 175);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int descriptor = Assert.Single(graphics.Descriptors.Queue, slot => graphics.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -89,8 +89,8 @@ public sealed class NativeBattleHoly175PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? after = Selected(current);
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
                 {
@@ -105,13 +105,13 @@ public sealed class NativeBattleHoly175PresentationTests
                     Assert.Equal(finalHp, hp);
                     contacts++;
                 }
-                NativeBattleHoly175State state = current.NativeEffectMemory!.Holy175!;
+                NativeBattleHoly175State state = current.ReadFixturePresentation().NativeEffectMemory!.Holy175!;
                 if (after?.Pools.Length == 2)
                 {
                     sprite31Peak = Math.Max(sprite31Peak, Active(state.Sprite31Rows, 100));
                     sprite4Peak = Math.Max(sprite4Peak, Active(state.Sprite4Rows, 80));
                 }
-                NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
+                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame;
                 if (primitive is not null)
                 {
                     captureFrames += primitive.LastCommands.Any(command => command.Pass == 1 && command.Command.Packet.Bank == NativeBattleHoly175CaptureMemory.PacketBank && command.Command.Opcode == 0x28) ? 1 : 0;
@@ -119,13 +119,13 @@ public sealed class NativeBattleHoly175PresentationTests
                 }
                 if (Selected(prior)?.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x5D1BD0 && task.ReadWord(0xC) == 5) == true)
                 {
-                    NativeBattlePrimitiveFrame captured = current.NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame captured = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                     var windows = captured.LastCommands.Where(command => command.Pass > 0 && command.Command.Packet.Bank == NativeBattleHoly175WarpDrawing.PacketBank && command.DrawMode.TexturePixelSnapshot is not null).Select(command => command.DrawMode).DistinctBy(mode => mode.TexturePixelSnapshot);
                     foreach (NativeBattlePrimitiveDrawMode mode in windows)
                     {
                         NativeBattlePcTextureWindowSelection selection = mode.TextureSelection!;
                         NativeBattlePcTextureWindowPixels saved = captured.LastTextureSnapshots!.Value[mode.TexturePixelSnapshot!.Value];
-                        NativeBattlePcTextureWindowPixels actual = NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), current.NativeEffectMemory.Textures!);
+                        NativeBattlePcTextureWindowPixels actual = NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), current.ReadFixturePresentation().NativeEffectMemory.Textures!);
                         Assert.Equal(actual.Data.ToArray(), saved.Data.ToArray());
                         preparedCapturePages++;
                     }
@@ -138,7 +138,7 @@ public sealed class NativeBattleHoly175PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
                 }
             }
@@ -197,9 +197,9 @@ public sealed class NativeBattleHoly175PresentationTests
     }
 
     private static int Active(NativeBattleEffectArena rows, int count) => Enumerable.Range(0, count).Count(index => (rows.Read(index * 24, 1)[0] & 1) != 0);
-    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
+    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 175, Binding.Entry: 0x5D1AD0 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 175, Binding.Entry: 0x5D1AD0 } effect ? effect : null;
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested)
     {
         NativeBattleModulePoolTask? primary = Selected(snapshot)?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x5D1BD0);

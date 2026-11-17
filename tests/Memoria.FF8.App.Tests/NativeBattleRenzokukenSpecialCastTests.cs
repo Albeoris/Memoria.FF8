@@ -112,7 +112,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-special-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Renzokuken evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         int capturedFrames = 0;
         try
         {
@@ -157,9 +157,9 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
                 return definition.Combatants.Single(actor => actor.Id == "enemy").NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
             });
-            BattleSnapshot ready = battle.Capture();
+            BattleSnapshot ready = battle.CaptureForContinuation();
             const uint transitionColor = 0x00312617;
-            battle = BattleSession.Restore(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } });
+            battle = BattleSession.Restore((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage.ModelColors! with { Color40 = transitionColor } } }));
             Bind(battle);
             const int actorIndex = 0;
             uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
@@ -236,7 +236,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

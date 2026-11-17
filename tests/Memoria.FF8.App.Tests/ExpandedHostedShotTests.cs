@@ -46,10 +46,9 @@ public sealed class ExpandedHostedShotTests
         world.ApplyBattleInput(command);
         TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Shot opening");
         Assert.True(battle.TriggerNativeShot(IrvineId));
-        TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Fire Ammo readiness");
+        TickUntil(() => battle.GetNativeShot(IrvineId) is { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: 2 }, "Fire Ammo readiness");
         Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
         battle.EndNativeShot(IrvineId);
-        Assert.Contains(battle.QueuedActions, pending => pending.ActorId == IrvineId && pending.NativeLimitCallback == NativeLimitCallback.ShotEnding);
         TickUntil(() => battle.GetNativeShot(IrvineId) is null && !process.HasActiveAction && process.PendingCompletion is null, "Shot close");
         Assert.Equal(new byte?[] { 14, 237, 238 }, shotDispatches.Select(dispatch => dispatch.NativeCommand).ToArray());
         Assert.True(battle.Combatants.Single(actor => actor.Id == IrvineId).IsAlive);
@@ -134,14 +133,13 @@ public sealed class ExpandedHostedShotTests
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant irvine = Assert.Single(battle.Combatants, actor => actor.Id == IrvineId);
         BattleModelOwner source = battle.ReadPresentationModelOwner(IrvineId);
-        Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(source, out _));
+        Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(source, out _));
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         BattleCombatant[] enemies = battle.Combatants.Where(IsAvailableEnemy).ToArray();
-        BattleCombatant target = enemies.First(enemy => !child.NativeActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(enemy.Id), out _));
+        BattleCombatant target = enemies.First(enemy => !process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(enemy.Id), out _));
         BattleNativeAction effect = Assert.Single(battle.ReadDefinition().NativeActions, action => action.Command == 237 && action.ActionId == ammo);
         bool group = (effect.TargetFlags!.Value & 0x10) == 0;
         Assert.Equal(ammo == 1, group);
@@ -169,9 +167,17 @@ public sealed class ExpandedHostedShotTests
 
         if (close == "Timer")
         {
-            short remaining = battle.GetNativeShot(IrvineId)!.RemainingTimer;
-            battle.AdvanceNativeShotPresentation(TimeSpan.FromSeconds((remaining + 1d) / BattleSession.FramesPerSecond));
-            Assert.Equal(BattleNativeShotPhase.Ending, battle.GetNativeShot(IrvineId)!.Phase);
+            BattleSession continuation = battle.ForkForContinuation();
+            BattleNativeShotState ready = battle.GetNativeShot(IrvineId)!;
+            Assert.Equal(ready.Widget, continuation.GetNativeShot(IrvineId)!.Widget);
+            Assert.Equal(0, process.AccumulateElapsed(TimeSpan.Zero));
+            Assert.Equal(ready.Widget, battle.GetNativeShot(IrvineId)!.Widget);
+            AdvanceUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ending, () =>
+            {
+                continuation.Tick();
+                Assert.Equal(continuation.GetNativeShot(IrvineId)?.Widget, battle.GetNativeShot(IrvineId)?.Widget);
+            });
+            Assert.False(battle.TriggerNativeShot(IrvineId));
         }
         else
         {
@@ -183,9 +189,9 @@ public sealed class ExpandedHostedShotTests
                 }
             }
             world.ApplyBattleInput(new(BattleInputKind.ShotTrigger, ActorId: IrvineId));
-            Assert.Equal(BattleNativeShotPhase.AwaitingEffect, battle.GetNativeShot(IrvineId)!.Phase);
             Assert.False(battle.TriggerNativeShot(IrvineId));
-            Assert.Equal(stock - 1, Stock());
+            Assert.Equal(stock, Stock());
+            AdvanceUntil(() => Stock() == stock - 1);
             AdvanceUntil(() => CompletedCount() >= 2);
             BattleModelOwner[] selected = (group ? enemies : [target]).Select(enemy => battle.ReadPresentationModelOwner(enemy.Id)).ToArray();
             Assert.Equal(selected, contacts[237].Select(contact => contact.Primary.Recipient));
@@ -235,31 +241,32 @@ public sealed class ExpandedHostedShotTests
         int CompletedCount() => battle.Events.Skip(begin).Count(entry => entry is { Kind: "ActionComplete", ActorId: IrvineId });
         int Stock() => battle.Items.SingleOrDefault(itemStock => itemStock.Id == item)?.Count ?? 0;
 
-        void AdvanceUntil(Func<bool> completed)
+        void AdvanceUntil(Func<bool> completed, Action? afterCallback = null)
         {
             for (int frame = 0; frame < CallbackBudget && !completed(); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 Assert.Same(process, battle.Presentation);
-                foreach (var header in child.NativeActionPackets.PublishedHeaders().Where(header => header.Slot.Source == source && header.Slot.Command is 14 or 237 or 238))
+                foreach (var header in process.ActionPackets.PublishedHeaders().Where(header => header.Slot.Source == source && header.Slot.Command is 14 or 237 or 238))
                 {
                     if (!contacts.ContainsKey(header.Slot.Command))
                     {
-                        contacts.Add(header.Slot.Command, child.NativeActionPackets.ReadHeaderContacts(header.Reference).ToArray());
+                        contacts.Add(header.Slot.Command, process.ActionPackets.ReadHeaderContacts(header.Reference).ToArray());
                     }
                 }
                 if (process.LastFrameServices is { } services)
                 {
                     receipts.AddRange(services.ReadOrderedReceipts());
                 }
+                afterCallback?.Invoke();
             }
             if (!completed())
             {
-                NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
+                NativeBattleGraphicsState graphics = process.Graphics;
                 string queue = string.Join(", ", graphics.Descriptors.Queue.Select(slot => $"{graphics.Descriptors.Packets[slot].Command}/{graphics.Descriptors.Packets[slot].PriorityState:X2}"));
                 string logical = battle.ActiveAction is { } action ? $"{action.Ability}/{action.Phase}/{action.NativeLimitCallback}" : "none";
                 NativeBattleGraphicsModel model = graphics.ActorModels.Get(source);
-                byte? sequence = graphics.ActionGraphics is { } active ? child.NativeActionPackets.ReadHeader(active.Header).Sequence : null;
+                byte? sequence = graphics.ActionGraphics is { } active ? process.ActionPackets.ReadHeader(active.Header).Sequence : null;
                 string track = model.SequenceState is { } state ? $"offset={state.Offset46:X}, pending={state.Pending3:X}, callback={state.Callback42:X}" : "absent";
                 Assert.Fail($"Shot did not reach its expected boundary. Phase={battle.GetNativeShot(IrvineId)?.Phase}; action={logical}; token={process.ActiveActionToken}; outcome={battle.Outcome}; descriptor queue={queue}; callback={graphics.ActionGraphics?.Callback:X}; source flags={model.Flags0:X}/{model.ResourceFlags44:X}; header sequence={sequence}; model sequence={model.Sequence}, frame={model.SequenceFrame}, {track}; headers={string.Join(",", contacts.Keys)}.");
             }

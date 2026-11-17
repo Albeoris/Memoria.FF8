@@ -14,17 +14,17 @@ public static class NativeBattleExpandedAi
 {
     private readonly record struct ScriptPath(int Offset, bool MayTargetParty, bool PreparedEjection);
 
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions = null, Func<ushort, bool>? admitsDonorEffect = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions = null, ISet<ushort>? reachedEffects = null, ISet<byte>? originalModelOperands = null)
     {
-        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, rosterRestrictions, admitsDonorEffect, default);
+        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, rosterRestrictions, reachedEffects, originalModelOperands, default);
     }
 
     internal static ExpandedAiAdmission EvaluateRebound(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, string> references)
     {
-        return Evaluate(program, actions, formation, null, false, null, null, null, null, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
+        return Evaluate(program, actions, formation, null, false, null, null, null, null, null, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
     }
 
-    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions, Func<ushort, bool>? admitsDonorEffect, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
+    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions, ISet<ushort>? reachedEffects, ISet<byte>? originalModelOperands, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
     {
         if (program.Scripts is not { Length: 5 } || program.Scripts.Any(script => script is null) ||
             program.LevelBand is < 0 or > 2 || program.Abilities is not { Length: 48 } || program.Abilities.Any(ability => ability is null) || program.Texts is null)
@@ -36,10 +36,11 @@ public static class NativeBattleExpandedAi
             blockers?.Add("program-layout");
             return ExpandedAiAdmission.RequiresUnsupportedService;
         }
-        HashSet<(byte Command, ushort Id)> supported = actions.Where(action => SupportsAction(action, originalEnemySlots) && AdmitsDonorEffect(action.MagicId)).Select(action => (action.Command, action.ActionId)).ToHashSet();
+        HashSet<(byte Command, ushort Id)> supported = actions.Where(SupportsAction).Select(action => (action.Command, action.ActionId)).ToHashSet();
         HashSet<(byte Command, ushort Id)>? ejections = rosterRestrictions is null
             ? null : actions.Where(AppliesEject).Select(action => (action.Command, action.ActionId)).ToHashSet();
         NativeBattleAiAbility berserk = program.Abilities[16 * program.LevelBand];
+        RecordAbilityEffects(berserk);
         if (PreparesEjection(berserk.Command, berserk.Id))
         {
             RecordPartyDeparture(1, null, null);
@@ -105,6 +106,18 @@ public static class NativeBattleExpandedAi
                 {
                     reserveSceneSlots?.Add(instruction[0]);
                 }
+                if (originalModelOperands is not null)
+                {
+                    switch (opcode)
+                    {
+                        case 27 or 29 when instruction[0] < NativeBattleSlots.EnemyCount:
+                            originalModelOperands.Add(checked((byte)(instruction[0] + NativeBattleSlots.AllyCount)));
+                            break;
+                        case 43 or 53 or 58 when NativeBattleSlots.Contains(instruction[0]):
+                            originalModelOperands.Add(instruction[0]);
+                            break;
+                    }
+                }
                 switch (opcode)
                 {
                     case 1 or 24 or 26 or 34 when originalEnemySlots && instruction[0] >= program.Texts.Length && program.AdmittedHeapTextDirectory is null:
@@ -140,19 +153,26 @@ public static class NativeBattleExpandedAi
                         MarkUnsupportedService($"opcode:{opcode}");
                         break;
                     case 30:
+                        if (instruction[0] != 0)
+                        {
+                            reachedEffects?.Add(instruction[0]);
+                        }
                         if (!actions.Any(action => action is { Command: 8, ActionId: 1, CrisisLevel: null }))
                         {
                             MarkUnsupportedService("graphics-target-flags:8/1");
                         }
-                        else if (!AdmitsDonorEffect(instruction[0]))
-                        {
-                            MarkUnsupportedService($"graphics-effect:{instruction[0]}");
-                        }
                         break;
                     case 42:
-                        if (actions.Any(action => action is { Command: 2, ActionId: > 0 } && (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(action) || !AdmitsDonorEffect(action.MagicId))))
+                        foreach (BattleNativeAction drawn in actions.Where(action => action is { Command: 2, ActionId: > 0 }))
                         {
-                            MarkUnsupportedService("drawn-magic-contract");
+                            if (drawn.MagicId != 0)
+                            {
+                                reachedEffects?.Add(drawn.MagicId);
+                            }
+                            if (!ExpandedBattleActionRules.SupportsDrawnEnemyMagic(drawn))
+                            {
+                                MarkUnsupportedService("drawn-magic-contract");
+                            }
                         }
                         if (rosterRestrictions is not null && actions.Any(action => IsPotentialPartyDrawnEjection(action)))
                         {
@@ -235,6 +255,7 @@ public static class NativeBattleExpandedAi
                                 continue;
                             }
                             NativeBattleAiAbility ability = program.Abilities[16 * program.LevelBand + slot];
+                            RecordAbilityEffects(ability);
                             if (!SupportsCommand(ability.Command, ability.Id))
                             {
                                 MarkUnsupportedService($"command:{ability.Command}/{ability.Id}");
@@ -323,7 +344,17 @@ public static class NativeBattleExpandedAi
             return id == 0 || supported.Contains((command, id));
         }
 
-        bool AdmitsDonorEffect(ushort effect) => originalEnemySlots || admitsDonorEffect?.Invoke(effect) != false;
+        void RecordAbilityEffects(NativeBattleAiAbility ability)
+        {
+            if (reachedEffects is null || ability.Id == 0)
+            {
+                return;
+            }
+            foreach (BattleNativeAction action in actions.Where(action => action.Command == ability.Command && action.ActionId == ability.Id && action.MagicId != 0))
+            {
+                reachedEffects.Add(action.MagicId);
+            }
+        }
     }
 
     private static bool AppliesEject(BattleNativeAction action)
@@ -348,7 +379,7 @@ public static class NativeBattleExpandedAi
 
     private static bool SelectorMayTargetParty(int selector) => selector is not (>= 16 and < 201 or 202 or 205 or 207 or 209);
 
-    internal static bool SupportsAction(BattleNativeAction action, bool originalEnemySlots)
+    internal static bool SupportsAction(BattleNativeAction action)
     {
         if (action is { Command: 4, KernelSection: 7, AttackType: 4, TargetFlags: byte flags })
         {
@@ -358,10 +389,10 @@ public static class NativeBattleExpandedAi
         if (action.Command == 236)
         {
             //48D200/48FE20 share enemy records and formulas with command8. The special graphics route uses the authored placement.
-            return originalEnemySlots && action is { KernelSection: 3, TargetFlags: null } && ExpandedBattleActionRules.SupportsEnemyContacts(action);
+            return action is { KernelSection: 3, TargetFlags: null } && ExpandedBattleActionRules.SupportsEnemyContacts(action);
         }
         return action.Command is 2 or 8 && ExpandedBattleActionRules.SupportsEnemyContacts(action) && action.AttackType is not (5 or 6) &&
             ((action.TargetFlags.GetValueOrDefault() & 3) == 0 || action is { Command: 2, ActionId: 16 } ||
-             originalEnemySlots && action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } && (action.TargetFlags.GetValueOrDefault() & 3) == 1);
+             action is { Command: 8, AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0, AttackFlags: 3, HitCount: 1 } && (action.TargetFlags.GetValueOrDefault() & 3) == 1);
     }
 }

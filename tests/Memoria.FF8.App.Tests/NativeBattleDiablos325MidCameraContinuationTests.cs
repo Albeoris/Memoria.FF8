@@ -39,7 +39,7 @@ public sealed class NativeBattleDiablos325MidCameraContinuationTests
                 before = first.Capture();
                 first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-                BattleSnapshot current = first.Capture();
+                BattleSnapshot current = first.CaptureForContinuation();
                 Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
                 byte[] pixels = scene.Render(first, 320, 224).ToArray();
                 Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
@@ -57,29 +57,29 @@ public sealed class NativeBattleDiablos325MidCameraContinuationTests
                     expectedRandom = expectedRandom.Draw(out _).Draw(out _);
                 }
                 Assert.Equal(expectedRandom, current.NativeCrtRandom);
-                NativeBattleDiablos325TailStep expectedCamera = NativeBattleDiablos325MidCamera.Advance656429(new(before.NativeEffectMemory!, before.NativeGraphics!.OriginalEffect!), before.NativeCamera!, counter);
-                Assert.Equal(expectedCamera.Camera.CurrentPose, current.NativeCamera!.CurrentPose);
+                NativeBattleDiablos325TailStep expectedCamera = NativeBattleDiablos325MidCamera.Advance656429(new(before.ReadFixturePresentation().NativeEffectMemory!, before.ReadFixturePresentation().NativeGraphics!.OriginalEffect!), before.ReadFixturePresentation().NativeCamera!, counter);
+                Assert.Equal(expectedCamera.Camera.CurrentPose, current.ReadFixturePresentation().NativeCamera!.CurrentPose);
                 Assert.DoesNotContain(current.Events.Skip(before.Events.Length), item => item.NativeModuleSound is not null);
-                NativeBattleDiablos325Frame wingFrame = new(current.NativeEffectMemory!, current.NativeGraphics!.OriginalEffect!);
-                NativeBattleDiablos325ShapeDraw wing = NativeBattleDiablos325Shapes.Advance654899(wingFrame, task.WriteWord(0xC, counter), before.NativeCamera!.Projection!);
+                NativeBattleDiablos325Frame wingFrame = new(current.ReadFixturePresentation().NativeEffectMemory!, current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!);
+                NativeBattleDiablos325ShapeDraw wing = NativeBattleDiablos325Shapes.Advance654899(wingFrame, task.WriteWord(0xC, counter), before.ReadFixturePresentation().NativeCamera!.Projection!);
                 uint privateStart = Root(current).ReadByte(0xE) != 0 ? 0xF85Cu : 0x885Cu;
-                Assert.Equal(current.NativeEffectMemory!.Diablos325!.ModelBuffer5208 + privateStart + (uint)wing.Packets.AllocationBytes, current.NativeEffectMemory.Diablos325.PacketCursor51D0);
-                NativeBattleDiablos325Frame programmeFrame = new(before.NativeEffectMemory!, before.NativeGraphics!.OriginalEffect!);
-                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!);
+                Assert.Equal(current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.ModelBuffer5208 + privateStart + (uint)wing.Packets.AllocationBytes, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PacketCursor51D0);
+                NativeBattleDiablos325Frame programmeFrame = new(before.ReadFixturePresentation().NativeEffectMemory!, before.ReadFixturePresentation().NativeGraphics!.OriginalEffect!);
+                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.ReadFixturePresentation().NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!);
                 NativeBattleModulePoolTask drawnTask = task.WriteDword(0x164, unchecked(task.ReadDword(0x164) - 32));
-                NativeBattleDiablos325BodyDraw body = NativeBattleDiablos325BodyDrawing.Draw6574F0(current.NativeEffectMemory, drawnTask, before.NativeCamera!.Projection!);
+                NativeBattleDiablos325BodyDraw body = NativeBattleDiablos325BodyDrawing.Draw6574F0(current.ReadFixturePresentation().NativeEffectMemory, drawnTask, before.ReadFixturePresentation().NativeCamera!.Projection!);
                 foreach (NativeBattleGfGeometryAttempt attempt in body.Packets.Attempts.Where(item => item.Primitive is not null))
                 {
                     int address = checked(programme.Packets.AllocationBytes + attempt.ByteOffsetRelative);
-                    Assert.Contains(current.NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, before.NativeEffectMemory!.PrimitiveProcess!.PacketBank!, address));
+                    Assert.Contains(current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.PacketBank!, address));
                 }
                 foreach (NativeBattleGfGeometryAttempt attempt in wing.Packets.Attempts.Where(item => item.Primitive is not null))
                 {
                     int address = checked((int)(privateStart + (uint)attempt.ByteOffsetRelative));
-                    Assert.Contains(current.NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, "20DFAB8", address));
+                    Assert.Contains(current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, "20DFAB8", address));
                 }
-                NativeBattleDiablos325Frame reference = new(current.NativeEffectMemory! with { PrimitiveProcess = wing.Memory.PrimitiveProcess }, current.NativeGraphics!.OriginalEffect!);
-                NativeBattleEffectTaskPool previous = before.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
+                NativeBattleDiablos325Frame reference = new(current.ReadFixturePresentation().NativeEffectMemory! with { PrimitiveProcess = wing.Memory.PrimitiveProcess }, current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!);
+                NativeBattleEffectTaskPool previous = before.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
                 reference = reference with { Random = before.NativeCrtRandom, Effect = reference.Effect with { Pools = reference.Effect.Pools.Select(pool => pool.DescriptorAddress == previous.DescriptorAddress ? previous : pool).ToImmutableArray() } };
                 NativeBattleDiablos325PointChoice? chosen = null;
                 if (((counter - 92) & 7) == 7)
@@ -89,30 +89,30 @@ public sealed class NativeBattleDiablos325MidCameraContinuationTests
                     Assert.Equal(current.NativeCrtRandom, chosen.Random);
                 }
                 int childBytes = 0;
-                reference = NativeBattleDiablos325Particles.Advance659960(reference, before.NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!, (frame, batch) =>
+                reference = NativeBattleDiablos325Particles.Advance659960(reference, before.ReadFixturePresentation().NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!, (frame, batch) =>
                 {
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts.Where(item => item.Primitive is not null))
                     {
                         int address = checked(programme.Packets.AllocationBytes + body.Packets.AllocationBytes + childBytes + attempt.ByteOffsetRelative);
-                        Assert.Contains(current.NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, before.NativeEffectMemory!.PrimitiveProcess!.PacketBank!, address));
+                        Assert.Contains(current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.PacketBank!, address));
                     }
                     childBytes += batch.AllocationBytes;
                     return frame;
                 });
-                NativeBattleEffectTaskPool children = Assert.IsType<NativeBattleOriginalEffectState>(current.NativeGraphics?.OriginalEffect).Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
+                NativeBattleEffectTaskPool children = Assert.IsType<NativeBattleOriginalEffectState>(current.ReadFixturePresentation().NativeGraphics?.OriginalEffect).Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
                 NativeBattleEffectTaskPool expectedChildren = reference.Effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Particles.Descriptor);
                 Assert.Equal(JsonSerializer.Serialize(expectedChildren), JsonSerializer.Serialize(children));
                 foreach (int index in Enumerable.Range(0, children.Slots.Length))
                 {
-                    Assert.Equal(children.Slots[index].Payload, current.NativeEffectMemory.Arena!.Read(0x3505C + index * 0xE8 + 12, 0xDC).ToImmutableArray());
+                    Assert.Equal(children.Slots[index].Payload, current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x3505C + index * 0xE8 + 12, 0xDC).ToImmutableArray());
                 }
-                Assert.Equal((byte)0, current.NativeEffectMemory!.Diablos325!.Mode51F0);
-                Assert.Equal(690162, current.NativeEffectMemory.SummonStream!.Number);
-                rows.Add(new { current.Frame, NativeCallback = current.NativeGraphics!.Callback, Timeline = counter + 1, BodyAllocationBytes = body.Packets.AllocationBytes, ProgrammeAllocationBytes = programme.Packets.AllocationBytes, PrivateShapeBytes = wing.Packets.AllocationBytes, ChildCommonBytes = childBytes, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)) });
+                Assert.Equal((byte)0, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Mode51F0);
+                Assert.Equal(690162, current.ReadFixturePresentation().NativeEffectMemory.SummonStream!.Number);
+                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Timeline = counter + 1, BodyAllocationBytes = body.Packets.AllocationBytes, ProgrammeAllocationBytes = programme.Packets.AllocationBytes, PrivateShapeBytes = wing.Packets.AllocationBytes, ChildCommonBytes = childBytes, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)) });
             }
-            BattleSnapshot boundary = first.Capture();
+            BattleSnapshot boundary = first.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "middle-camera-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "middle-camera-validated", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback }));
         }
         catch
         {
@@ -144,7 +144,7 @@ public sealed class NativeBattleDiablos325MidCameraContinuationTests
         return true;
     }
 
-    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
-    private static NativeBattleModulePoolTask Timeline(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
+    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
+    private static NativeBattleModulePoolTask Timeline(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

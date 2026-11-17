@@ -42,7 +42,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "rough-divide-163-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Rough Divide evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool initial = false;
         bool selected = false;
         bool midpoint = false;
@@ -71,7 +71,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                 NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (!initial && graphics.OriginalEffect is { Binding.Effect: 160, ReturnedDescriptor: > 0 })
                 {
-                    Assert.True(battle.Capture().NativeEffectMemory!.Renzokuken160!.InitialControl);
+                    Assert.True(battle.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Renzokuken160!.InitialControl);
                     Assert.Equal(finisherIndex, battle.GetNativeRenzokuken("party")!.FinisherActionId);
                     CompareNext("initial-control");
                     initial = true;
@@ -121,7 +121,7 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

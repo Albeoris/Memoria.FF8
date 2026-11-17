@@ -4,7 +4,7 @@ public sealed partial class BattlePresentationProcess
 {
     private NativeBattleGraphicsState RebindNativeSequenceGeometry92(NativeBattleGraphicsState graphics, BattleModelOwner current, byte selector)
     {
-        (BattleModelOwner source, BattleModelTargets targets, bool sourceHasNonActorSelectors) = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, current, selector, graphics.ActionContext, graphics.NativeBindings);
+        (BattleModelOwner source, BattleModelTargets targets, bool sourceHasNonActorSelectors) = NativeBattleSequenceSelections.GeometryArguments92(graphics.ActorModels, current, selector, graphics.ActionContext, graphics.NativeBindings, ReadSourceBindings(graphics, current));
         if (targets.IsEmpty)
         {
             throw new InvalidDataException("Native92 requires a bound target selection.");
@@ -23,7 +23,7 @@ public sealed partial class BattlePresentationProcess
     {
         if (opcode == 0x93)
         {
-            foreach (BattleModelOwner owner in NativeBattleSequenceSelections.SelectModels93(graphics.ActorModels, current, selector, graphics.NativeBindings).Enumerate())
+            foreach (BattleModelOwner owner in NativeBattleSequenceSelections.SelectModels93(graphics.ActorModels, current, selector, graphics.NativeBindings, ReadSourceBindings(graphics, current)).Enumerate())
             {
                 graphics = SelectNativeHeaderSequence(graphics, owner, sequence);
             }

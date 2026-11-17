@@ -134,8 +134,8 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
 
         void Log(string phase)
         {
-            BattleSnapshot snapshot = battle.Capture();
-            NativeBattleCameraState camera = snapshot.NativeCamera!;
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
+            NativeBattleCameraState camera = snapshot.ReadFixturePresentation().NativeCamera!;
             string signature = JsonSerializer.Serialize(new
             {
                 camera.CurrentPose,
@@ -146,8 +146,8 @@ public sealed class NativeBattleRenzokukenFinisherCameraContinuationTests
                 ControlResource = camera.ControlResource is { } control ? new { control.Source.Identity, control.BaseOffset, control.StreamOffset, control.ModelTableOffset } : null,
                 Tasks = camera.Tasks.Select(task => task is null ? null : new { task.Channel, task.ProgramOffset, task.Elapsed, task.Duration }),
                 Active = snapshot.ActiveAction is { } action ? new { action.NativeHeader, action.NativeSequence, action.ActionId, action.NativeQueuedCommand } : null,
-                Effect = snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect,
-                Models = snapshot.NativeGraphics is { } graphics ? ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, model.Sequence, model.SequenceFrame, model.CameraSequence130, model.CameraAccumulator131 }) : null,
+                Effect = snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect,
+                Models = snapshot.ReadFixturePresentation().NativeGraphics is { } graphics ? ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, model.Sequence, model.SequenceFrame, model.CameraSequence130, model.CameraAccumulator131 }) : null,
                 Bindings = snapshot.Definition.NativeGraphics?.Bindings.Select(binding => new { binding.ActorId, binding.Resource.HasActionCamera, HasBank = binding.Resource.ActionCameraBank is not null })
             });
             if (signature != previous)

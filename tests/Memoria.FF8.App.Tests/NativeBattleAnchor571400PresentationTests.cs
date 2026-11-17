@@ -25,28 +25,28 @@ public sealed class NativeBattleAnchor571400PresentationTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(snapshotPath!);
-        NativeBattleGraphicsState sourceGraphics = source.NativeGraphics ?? throw new InvalidDataException("The selected original snapshot requires its actual graphics owner.");
+        NativeBattleGraphicsState sourceGraphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The selected original snapshot requires its actual graphics owner.");
         NativeBattleOriginalEffectState sourceEffect = sourceGraphics.OriginalEffect ?? throw new InvalidDataException("The selected original snapshot requires its retained Morph172 binding.");
         Assert.Equal((ushort)172, sourceEffect.RequestedEffect);
         Assert.Equal(NativeBattleMorph172Profile.Entry, sourceEffect.Binding.Entry);
         Assert.Equal(0u, sourceEffect.ReturnedDescriptor);
         Assert.Empty(sourceEffect.Pools);
-        NativeBattleMorph172State retainedState = source.NativeEffectMemory?.Morph172 ?? throw new InvalidDataException("The original snapshot requires its retained Morph172 storage.");
+        NativeBattleMorph172State retainedState = source.ReadFixturePresentation().NativeEffectMemory?.Morph172 ?? throw new InvalidDataException("The original snapshot requires its retained Morph172 storage.");
         Assert.NotNull(retainedState.RootBankStorage);
         Assert.NotNull(retainedState.ChildBankStorage);
         NativeBattleOriginalEffectState materialized = NativeBattleEffectResourceResolver.MaterializeSelected(sourceEffect, effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        source = source with { NativeGraphics = sourceGraphics with { OriginalEffect = materialized } };
+        source = source.WithFixturePresentation(facts => facts with { NativeGraphics = sourceGraphics with { OriginalEffect = materialized } });
 
         BattleSession initialized = BattleSession.Restore(source);
-        NativeBattleGraphicsState warmGraphics = Run(initialized, source.NativeGraphics!, true);
-        BattleSnapshot warm = initialized.Capture();
+        NativeBattleGraphicsState warmGraphics = Run(initialized, source.ReadFixturePresentation().NativeGraphics!, true);
+        BattleSnapshot warm = initialized.CaptureForContinuation();
         NativeBattleOriginalEffectState warmEffect = warmGraphics.OriginalEffect ?? throw new InvalidDataException("The actual warm native entry lost its effect.");
         Assert.Equal(NativeBattleMorph172Profile.RootDescriptor, warmEffect.ReturnedDescriptor);
         NativeBattleEffectTaskPool children = warmEffect.Pools[1];
         NativeBattleModulePoolTask main = Assert.Single(children.Slots.Where(task => (task.Flags & 1) != 0));
         Assert.Equal(NativeBattleMorph172Profile.MainCallback, main.Callback);
         Assert.Equal((ushort)0, main.ReadWord(12));
-        int caster = checked((int)warm.NativeEffectMemory!.Morph172!.ReadDword(NativeBattleMorph172Profile.CasterGlobal));
+        int caster = checked((int)warm.ReadFixturePresentation().NativeEffectMemory!.Morph172!.ReadDword(NativeBattleMorph172Profile.CasterGlobal));
         Assert.Equal(3, caster);
         NativeBattleGraphicsModel originalModel = ReadOriginalModelCell(warmGraphics, caster);
         Assert.Equal(2, originalModel.Flags0 & 2);
@@ -60,14 +60,14 @@ public sealed class NativeBattleAnchor571400PresentationTests
         if (disabled)
         {
             warmGraphics = warmGraphics with { ActorModels = warmGraphics.ActorModels.Set(RequireOriginalModelOwner(warmGraphics, caster), originalModel with { Flags0 = (ushort)(originalModel.Flags0 & ~2) }) };
-            warm = warm with { NativeGraphics = warmGraphics };
+            warm = warm.WithFixturePresentation(facts => facts with { NativeGraphics = warmGraphics });
         }
 
         string name = disabled ? "disabled" : "enabled";
         Directory.CreateDirectory(output!);
         File.WriteAllText(Path.Combine(output!, "anchor-" + name + "-warm-entry.battle.json"), JsonSerializer.Serialize(warm));
-        NativeBattleEffectMemory memoryBefore = warm.NativeEffectMemory!;
-        NativeBattleFileStaging stagingBefore = warm.NativeFileStaging ?? throw new InvalidDataException("The original warm entry requires its physical temporary memory.");
+        NativeBattleEffectMemory memoryBefore = warm.ReadFixturePresentation().NativeEffectMemory!;
+        NativeBattleFileStaging stagingBefore = warm.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("The original warm entry requires its physical temporary memory.");
         uint temporaryAddress = BinaryPrimitives.ReadUInt32LittleEndian(stagingBefore.Read(NativeBattleTemporaryMemory.Cursor, 4));
         NativeBattleEffectMemory expectedMemory = memoryBefore;
         NativeBattleFileStaging expectedStaging = stagingBefore;
@@ -104,9 +104,9 @@ public sealed class NativeBattleAnchor571400PresentationTests
         NativeBattleEffectArena expectedPoint8 = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(0, BitConverter.GetBytes(expectedPoint.X)).Write(2, BitConverter.GetBytes(expectedPoint.Y)).Write(4, BitConverter.GetBytes(expectedPoint.Z)).Write(6, BitConverter.GetBytes(w));
         BattleSession actual = BattleSession.Restore(warm);
         NativeBattleGraphicsState result = Run(actual, warmGraphics, false);
-        BattleSnapshot after = actual.Capture();
-        NativeBattleEffectMemory actualMemory = after.NativeEffectMemory ?? throw new InvalidDataException("The actual anchor lost its process memory.");
-        NativeBattleFileStaging actualStaging = after.NativeFileStaging ?? throw new InvalidDataException("The actual anchor lost its temporary memory.");
+        BattleSnapshot after = actual.CaptureForContinuation();
+        NativeBattleEffectMemory actualMemory = after.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("The actual anchor lost its process memory.");
+        NativeBattleFileStaging actualStaging = after.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("The actual anchor lost its temporary memory.");
         NativeBattleModulePoolTask advanced = Assert.Single(result.OriginalEffect!.Pools[1].Slots.Where(task => (task.Flags & 1) != 0));
         Assert.Equal((ushort)1, advanced.ReadWord(12));
         NativeBattleEffectArena actualPoint8 = NativeBattleMorph172Controller.TaskView(advanced, 16, 8);
@@ -121,7 +121,7 @@ public sealed class NativeBattleAnchor571400PresentationTests
         Assert.Equal(warm.NativeCrtRandom, after.NativeCrtRandom);
         Assert.Equal(warm.NativeGlobalRandom, after.NativeGlobalRandom);
         Assert.Equal(warm.Frame, after.Frame);
-        Assert.Equal(ReadOriginalModelCells(warm.NativeGraphics!), ReadOriginalModelCells(result));
+        Assert.Equal(ReadOriginalModelCells(warm.ReadFixturePresentation().NativeGraphics!), ReadOriginalModelCells(result));
         Assert.Equal(warm.Events.Length, after.Events.Length);
         if (disabled)
         {

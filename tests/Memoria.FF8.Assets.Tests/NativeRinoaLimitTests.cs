@@ -76,7 +76,7 @@ public sealed class NativeRinoaLimitTests
         Assert.Equal(row switch { 1 => "enemy-3", 2 => "rinoa", _ => "enemy-0" }, queued.TargetId);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
             restored.Tick();

@@ -20,7 +20,7 @@ public static class NativeBattleCinematicActorSelector64
         else if ((instruction & 0x1000) != 0)
         {
             NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0]);
-            frame = aliases.FindOriginalOwner(slot) is { } bound
+            frame = aliases.ReadAuthoredOperandOrOriginalCell(slot) is { } bound
                 ? NativeBattleCinematicActorAccess.WriteSlotActor(frame, bound, aliases)
                 : NativeBattleCinematicActorAccess.WriteSlotOriginalCell(frame, slot);
             return NativeBattleScriptedCommandReads.Advance(frame, 4);

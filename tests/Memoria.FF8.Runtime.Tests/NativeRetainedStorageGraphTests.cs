@@ -107,15 +107,13 @@ public sealed class NativeRetainedStorageGraphTests
         pool.Append(0x1000);
         pool.Slots[0].WriteByte(12, 83);
         NativeBattleOriginalEffectState callback = new(2, 1, new(2, 0x1000, 0), null, pool.DescriptorAddress) { Pools = [pool] };
-        BattleSnapshot completed = NativeBattleStorageSnapshots.Capture(battle.Capture() with
+        BattleSnapshot completed = NativeBattleStorageSnapshots.Capture((battle.CaptureForContinuation() with
         {
-            Outcome = BattleOutcome.Victory,
-            NativeEffectMemory = effect with { ReturnedTaskPointer1D96AAC = pool.DescriptorAddress, DetachedReturnedTask = callback }
-        });
+            Outcome = BattleOutcome.Victory        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = effect with { ReturnedTaskPointer1D96AAC = pool.DescriptorAddress, DetachedReturnedTask = callback } }));
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, live.ColdExecutableSha256);
         NativeBattleRetainedMemory restored = NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(retained))!);
 
-        Assert.NotNull(completed.NativeEffectMemory!.DetachedReturnedTask);
+        Assert.NotNull(completed.ReadFixturePresentation().NativeEffectMemory!.DetachedReturnedTask);
         Assert.Null(restored.EffectMemory!.DetachedReturnedTask);
         Assert.Equal(0u, restored.EffectMemory.ReturnedTaskPointer1D96AAC);
         AssertAliases(restored);

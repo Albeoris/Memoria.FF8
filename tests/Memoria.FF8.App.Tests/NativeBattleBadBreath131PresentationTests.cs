@@ -45,14 +45,14 @@ public sealed class NativeBattleBadBreath131PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(48, casterSource.ModelId);
-        Assert.Equal((byte?)64, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)64, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([131])[130];
         Assert.Equal(NativeBattleBadBreath131Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleBadBreath131Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag130-299.tim", NativeBattleBadBreath131Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(132640, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeBadBreath131Resources(), binding.BadBreath131Resources);
-        Assert.True(source.NativeEffectMemory!.BadBreath131!.PendingColdSources);
+        Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.BadBreath131!.PendingColdSources);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

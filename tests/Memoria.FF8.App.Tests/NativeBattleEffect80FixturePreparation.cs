@@ -13,7 +13,7 @@ internal static class NativeBattleEffect80FixturePreparation
     internal static (BattleSnapshot Snapshot, int CasterActorIndex, int TargetActorIndex) Prepare(GameAssets game, BattleAssets assets, BattleSnapshot baseline, string output)
     {
         Assert.Equal(511, baseline.Definition.EncounterId);
-        NativeBattleGraphicsState baselineGraphics = baseline.NativeGraphics ?? throw new InvalidDataException("The original source requires its current graphics owner.");
+        NativeBattleGraphicsState baselineGraphics = baseline.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original source requires its current graphics owner.");
         Assert.True(baselineGraphics.EntryReady);
         Assert.Null(baselineGraphics.OriginalEffect);
         Assert.Empty(baseline.QueuedActions);
@@ -76,7 +76,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Directory.CreateDirectory(output);
         Save("source-reference-input", baseline);
         BattleSession session = new(definition, baseline.Mode);
-        BattleSnapshot cold = session.Capture();
+        BattleSnapshot cold = session.CaptureForContinuation();
         Assert.Equal(0, cold.Frame);
         Assert.NotNull(cold.NativeClock);
         Assert.NotNull(cold.Definition.NativeClockRules);
@@ -84,8 +84,8 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.NotNull(cold.NativeAiVariables);
         Assert.Equal(8, cold.NativeAiVariables!.Length);
         Assert.All(cold.NativeAiVariables, value => Assert.Equal(0u, value));
-        NativeBattleGraphicsState coldGraphics = cold.NativeGraphics ?? throw new InvalidDataException("The fresh original fixture requires its actual graphics owner.");
-        session = BattleSession.Restore(cold with { NativeGraphics = coldGraphics with { NativeOutcome = new NativeBattleOutcomeState() } });
+        NativeBattleGraphicsState coldGraphics = cold.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fresh original fixture requires its actual graphics owner.");
+        session = BattleSession.Restore(cold.WithFixturePresentation(facts => facts with { NativeGraphics = coldGraphics with { NativeOutcome = new NativeBattleOutcomeState() } }));
         Save("source-before-entry", session.Capture());
         int entryCallbacks = 0;
         while (!session.NativeEntryReady && entryCallbacks < 1200)
@@ -94,9 +94,9 @@ internal static class NativeBattleEffect80FixturePreparation
             entryCallbacks++;
         }
         Assert.True(session.NativeEntryReady, "The fresh original fixture did not complete its native entry within the diagnostic budget.");
-        BattleSnapshot source = session.Capture();
+        BattleSnapshot source = session.CaptureForContinuation();
         Assert.NotNull(source.NativeClock);
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         Assert.Empty(source.NativeAllocations);
         Assert.Empty(source.QueuedActions);
         Assert.Null(source.ActiveAction);
@@ -109,7 +109,7 @@ internal static class NativeBattleEffect80FixturePreparation
             Assert.Equal(originalPlacement.Hidden, participant.Hidden);
             Assert.Equal(originalPlacement.InitiallySuspended, participant.Suspended);
             Assert.Equal(originalPlacement.Untargetable, participant.Untargetable);
-            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.NativeGraphics, participant.ActorIndex).Transform!.Position28);
+            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, participant.ActorIndex).Transform!.Position28);
             Assert.Null(originalActor.NativeAi);
         }
         NativeBattleParticipantSnapshot freshCaster = Assert.Single(source.Combatants, actor => actor.Id == casterDefinition.Id).NativeParticipant!;
@@ -120,12 +120,12 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(placement.InitiallySuspended, inert.Suspended);
         Assert.Equal(placement.Untargetable, inert.Untargetable);
         Save("source-after-entry", source);
-        File.WriteAllText(Path.Combine(output, "fresh-source-origin.json"), JsonSerializer.Serialize(new { Scenario = "Independent fresh original formation511 fixture with native clock rules and battle speed present before construction; no mutable state copied from the reference snapshot", FormationId = 511, StageId = 142, SourceFrame = source.Frame, NativeCallback = source.NativeGraphics.Callback, EntryCallbacks = entryCallbacks, ClockRules = definition.NativeClockRules, BattleSpeed = definition.NativeBattleSpeed, ColdAiBank = cold.NativeAiVariables, Prototype = prototype, Binding = prototypeBinding, ExistingResourcesVerified = originalGraphics.Bindings.Select(binding => binding.ActorId).ToArray() }));
+        File.WriteAllText(Path.Combine(output, "fresh-source-origin.json"), JsonSerializer.Serialize(new { Scenario = "Independent fresh original formation511 fixture with native clock rules and battle speed present before construction; no mutable state copied from the reference snapshot", FormationId = 511, StageId = 142, SourceFrame = source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics.Callback, EntryCallbacks = entryCallbacks, ClockRules = definition.NativeClockRules, BattleSpeed = definition.NativeBattleSpeed, ColdAiBank = cold.NativeAiVariables, Prototype = prototype, Binding = prototypeBinding, ExistingResourcesVerified = originalGraphics.Bindings.Select(binding => binding.ActorId).ToArray() }));
         BattleCombatantDefinition removedDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 121);
         BattleCombatantSnapshot removedBefore = Assert.Single(source.Combatants, actor => actor.Id == removedDefinition.Id);
         int removedIndex = removedBefore.NativeParticipant!.ActorIndex;
-        int removedResource = ReadOriginalModelCell(source.NativeGraphics!, removedIndex).TextureResourceIndex ?? throw new InvalidDataException("The original participant requires its loaded resource row before removal.");
-        NativeBattleModelTextureCacheRow removedTexture = source.NativeModelTextureCache!.Rows[removedResource];
+        int removedResource = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, removedIndex).TextureResourceIndex ?? throw new InvalidDataException("The original participant requires its loaded resource row before removal.");
+        NativeBattleModelTextureCacheRow removedTexture = source.ReadFixturePresentation().NativeModelTextureCache!.Rows[removedResource];
         bool removalObserved = false;
         BattleCombatant removedActor = Assert.Single(session.Combatants, actor => actor.Id == removedDefinition.Id);
         Invoke(session, "QueueNativeGraphicsRemoval", removedActor);
@@ -158,7 +158,7 @@ internal static class NativeBattleEffect80FixturePreparation
         AssertDescriptor(session.Capture(), 113, 0x487670);
         SaveNext("caster-activation-pending");
         int activationCallbacks = Drain();
-        BattleSnapshot ready = session.Capture();
+        BattleSnapshot ready = session.CaptureForContinuation();
         AssertReadyActor(ready, casterDefinition.Id, 4);
         AssertReadyActor(ready, allocated.Id, actualTarget);
         BattleCombatantDefinition targetDefinition = session.GetCombatantDefinition(allocated.Id);
@@ -169,7 +169,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(prototype.InitialUntargetable, targetDefinition.InitialUntargetable);
         int casterBones = AssertCurrentPose(ready, casterDefinition, 4, 2);
         int targetBones = AssertCurrentPose(ready, targetDefinition, actualTarget, 71);
-        Assert.Equal(placement.NativePosition, ReadOriginalModelCell(ready.NativeGraphics!, actualTarget).Transform!.Position28);
+        Assert.Equal(placement.NativePosition, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, actualTarget).Transform!.Position28);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(123, casterDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 352 && action.MagicId == 80)));
         NativeBattleGraphicsResource targetResource = assets.ReadNativeGraphicsResource(targetDefinition);
         Assert.True(targetResource.Contains(26));
@@ -183,16 +183,16 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(original.NativeParticipant.Suspended, retained.NativeParticipant.Suspended);
         Assert.True(retained.NativeParticipant.Untargetable);
         Assert.Equal((ushort)(original.NativeStatus!.Saved | 1), retained.NativeStatus!.Saved);
-        Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, original.NativeParticipant.ActorIndex).Transform!.Position28, ReadOriginalModelCell(ready.NativeGraphics!, original.NativeParticipant!.ActorIndex).Transform!.Position28);
-        Assert.Null(ready.NativeGraphics!.OriginalEffect);
+        Assert.Equal(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant.ActorIndex).Transform!.Position28, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant!.ActorIndex).Transform!.Position28);
+        Assert.Null(ready.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         SaveNext("allocation-ready");
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Controlled original participant105 removal and112 barrier, scene-slot3 allocation and direct actor4 activation; no preceding death AI, effect227, action74, formula or effect80 execution", FormationId = 511, StageId = 142, Allocation = allocation, CasterActorIndex = 4, TargetActorIndex = actualTarget, CasterModel = 123, TargetModel = 124, CasterBones = casterBones, TargetBones = targetBones, CasterSequence = 13, TargetSequence = 26, AllocationCallbacks = allocationCallbacks, ActivationCallbacks = activationCallbacks, Events = session.Events.Where(entry => entry.Kind is "NativeSpawn" or "Activated").ToArray() }, new JsonSerializerOptions { WriteIndented = true }));
         return (ready, 4, actualTarget);
 
         int AssertCurrentPose(BattleSnapshot snapshot, BattleCombatantDefinition actor, int index, int expected)
         {
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, index);
-            Assert.Equal(actor.Id, ReadOriginalModelActorId(snapshot.NativeGraphics!, index));
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, index);
+            Assert.Equal(actor.Id, ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics!, index));
             Assert.Equal(checked((byte)(actor.ModelId + 16)), model.ModelId4);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource ?? throw new InvalidDataException("The actual loaded model requires its original skeleton.");
             Assert.Equal(expected, pose.BoneCount);
@@ -207,22 +207,22 @@ internal static class NativeBattleEffect80FixturePreparation
         {
             for (int count = 0; count < 1200; count++)
             {
-                BattleSnapshot current = session.Capture();
-                if (!removalObserved && !Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id).NativeParticipant!.Active && (ReadOriginalModelCell(current.NativeGraphics!, removedIndex).Flags0 & 2) == 0)
+                BattleSnapshot current = session.CaptureForContinuation();
+                if (!removalObserved && !Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id).NativeParticipant!.Active && (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, removedIndex).Flags0 & 2) == 0)
                 {
                     BattleCombatantSnapshot released = Assert.Single(current.Combatants, actor => actor.Id == removedDefinition.Id);
                     Assert.Equal(removedBefore.CurrentHp, released.CurrentHp);
                     Assert.Equal((ushort)(removedBefore.NativeStatus!.Saved | 1), released.NativeStatus!.Saved);
                     Assert.True(released.NativeParticipant!.Untargetable);
-                    NativeBattleModelTextureCache cache = current.NativeModelTextureCache!;
+                    NativeBattleModelTextureCache cache = current.ReadFixturePresentation().NativeModelTextureCache!;
                     Assert.Equal((byte)0, cache.Rows[removedResource].Kind);
                     Assert.Equal(0, cache.BlockedSlots & removedTexture.TextureMask!.Value);
                     removalObserved = true;
-                    File.WriteAllText(Path.Combine(output, "participant-release-receipt.json"), JsonSerializer.Serialize(new { Scenario = "Actual105 kind5 participant, heap and texture release before124 load; no manual texture or participant flag mutation", Actor = removedDefinition.Id, PhysicalIndex = removedIndex, ResourceRow = removedResource, BeforeTexture = removedTexture, AfterTexture = cache.Rows[removedResource], BeforeBlockedSlots = source.NativeModelTextureCache!.BlockedSlots, AfterBlockedSlots = cache.BlockedSlots, BeforeParticipant = removedBefore.NativeParticipant, AfterParticipant = released.NativeParticipant, BeforeStatus = removedBefore.NativeStatus, AfterStatus = released.NativeStatus, BeforeHp = removedBefore.CurrentHp, AfterHp = released.CurrentHp }));
+                    File.WriteAllText(Path.Combine(output, "participant-release-receipt.json"), JsonSerializer.Serialize(new { Scenario = "Actual105 kind5 participant, heap and texture release before124 load; no manual texture or participant flag mutation", Actor = removedDefinition.Id, PhysicalIndex = removedIndex, ResourceRow = removedResource, BeforeTexture = removedTexture, AfterTexture = cache.Rows[removedResource], BeforeBlockedSlots = source.ReadFixturePresentation().NativeModelTextureCache!.BlockedSlots, AfterBlockedSlots = cache.BlockedSlots, BeforeParticipant = removedBefore.NativeParticipant, AfterParticipant = released.NativeParticipant, BeforeStatus = removedBefore.NativeStatus, AfterStatus = released.NativeStatus, BeforeHp = removedBefore.CurrentHp, AfterHp = released.CurrentHp }));
                     SaveNext("original121-released");
                     continue;
                 }
-                if (current.NativeGraphics!.Descriptors.Queue.IsEmpty && current.QueuedActions.Length == 0 && current.ActiveAction is null && current.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false })
+                if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && current.QueuedActions.Length == 0 && current.ActiveAction is null && current.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false })
                 {
                     return count;
                 }
@@ -264,7 +264,7 @@ internal static class NativeBattleEffect80FixturePreparation
 
     private static void AssertDescriptor(BattleSnapshot snapshot, ushort command, uint? argument)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         Assert.Contains(graphics.Descriptors.Queue, slot => graphics.Descriptors.Packets[slot].Command == command && (argument is null || graphics.Descriptors.Packets[slot].Argument == argument));
     }
 

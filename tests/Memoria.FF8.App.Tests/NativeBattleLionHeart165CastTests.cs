@@ -36,7 +36,7 @@ public sealed class NativeBattleLionHeart165CastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "lion-heart-165-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Lion Heart evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool initial = false;
         bool selected = false;
         bool drawn = false;
@@ -66,7 +66,7 @@ public sealed class NativeBattleLionHeart165CastTests
                 NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (!initial && graphics.OriginalEffect is { Binding.Effect: 160, ReturnedDescriptor: > 0 })
                 {
-                    Assert.True(battle.Capture().NativeEffectMemory!.Renzokuken160!.InitialControl);
+                    Assert.True(battle.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Renzokuken160!.InitialControl);
                     Assert.Equal(finisherIndex, battle.GetNativeRenzokuken("party")!.FinisherActionId);
                     CompareNext("initial-control");
                     initial = true;
@@ -78,10 +78,10 @@ public sealed class NativeBattleLionHeart165CastTests
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "209FAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot backgroundSource = battle.Capture();
-                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.NativeGraphics!;
+                        BattleSnapshot backgroundSource = battle.CaptureForContinuation();
+                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "209FAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(backgroundSource with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(backgroundSource.WithFixturePresentation(facts => facts with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -116,7 +116,7 @@ public sealed class NativeBattleLionHeart165CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

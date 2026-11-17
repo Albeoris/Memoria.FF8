@@ -15,7 +15,7 @@ public sealed class NativeBattleGunbladeAttackTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_VISIBLE_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "Select a standalone visible gunblade shot.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.Contains(snapshot.NativeGraphics!.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite && draw.Resource?.Id is 13 or 16);
+        Assert.Contains(snapshot.ReadFixturePresentation().NativeGraphics!.ModuleDraws, draw => draw.Kind == NativeBattleModuleDrawKind.Sprite && draw.Resource?.Id is 13 or 16);
         BattleSession battle = BattleSession.Restore(snapshot);
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         using BattleAssets assets = new(TestResources.GameDirectory);
@@ -33,7 +33,7 @@ public sealed class NativeBattleGunbladeAttackTests
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_SNAPSHOT");
         Assert.SkipUnless(source is not null && File.Exists(source), "Select a standalone pending gunblade shot.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.NotNull(snapshot.NativeGraphics!.PendingTriggerSoundActor);
+        Assert.NotNull(snapshot.ReadFixturePresentation().NativeGraphics!.PendingTriggerSoundActor);
         BattleSession battle = BattleSession.Restore(snapshot);
         BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         int before = battle.Events.Count;
@@ -109,7 +109,7 @@ public sealed class NativeBattleGunbladeAttackTests
             }
             if (!restoredSound && battle.Presentation!.Graphics.PendingTriggerSoundActor is BattleModelOwner owner)
             {
-                Assert.Equal(RequireOriginalModelOwner(battle.Presentation?.Graphics, 0), owner);
+                Assert.Equal(RequireOriginalModelOwner(battle.Presentation!.Graphics, 0), owner);
                 BattleSnapshot snapshot = battle.Capture();
                 string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUNBLADE_OUTPUT");
                 if (output is not null)
@@ -178,12 +178,12 @@ public sealed class NativeBattleGunbladeAttackTests
             {
                 return;
             }
-            BattleSnapshot snapshot = battle.Capture();
-            graphics = snapshot.NativeGraphics!;
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
+            graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
             frame = graphics.PrimitiveFrame!;
             byte[] pixels = scene.Render(battle, 320, 224);
             NativeBattlePrimitiveFrame withoutParticle = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not int index || !draws.Contains(index)).ToImmutableArray() };
-            BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = graphics with { PrimitiveFrame = withoutParticle } }));
+            BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutParticle } })));
             byte[] background = new BattleScenePresentation(assets, definition).Render(plain, 320, 224);
             int changed = 0;
             for (int offset = 0; offset < pixels.Length; offset += 4)

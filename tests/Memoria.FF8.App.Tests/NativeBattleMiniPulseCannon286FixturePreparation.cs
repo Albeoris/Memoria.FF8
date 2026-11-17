@@ -50,9 +50,9 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         BattleCombatantDefinition[] actors = [.. baseline.Definition.Combatants, .. prototypes];
         BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation), NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleSnapshot fresh = session.Capture();
-        NativeBattleGraphicsState freshGraphics = fresh.NativeGraphics ?? throw new InvalidDataException("The original allocation requires its native graphics owner.");
-        session = BattleSession.Restore(fresh with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } });
+        BattleSnapshot fresh = session.CaptureForContinuation();
+        NativeBattleGraphicsState freshGraphics = fresh.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original allocation requires its native graphics owner.");
+        session = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } }));
         Directory.CreateDirectory(output);
         Save("allocation-before-entry", session.Capture());
         int entryCallbacks = 0;
@@ -72,7 +72,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         }
         Save("allocation-before-native-call", before);
         BattleCombatant allocated = Invoke<BattleCombatant>(session, "AllocateNativeEnemy", [caller, placement.Slot, 0, false]) ?? throw new InvalidDataException("The native allocation producer did not return its actor.");
-        BattleSnapshot pending = session.Capture();
+        BattleSnapshot pending = session.CaptureForContinuation();
         NativeBattleEnemyAllocation allocation = Assert.Single(pending.NativeAllocations);
         Assert.Equal(0, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
@@ -81,7 +81,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.InRange(actualIndex, 3, 6);
         Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(pending.NativeLastAllocatedTarget).Operand);
         Assert.True(pendingActor.AllocationPendingStatistics);
-        NativeBattleDescriptorState descriptors = pending.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = pending.ReadFixturePresentation().NativeGraphics!.Descriptors;
         Assert.Contains(descriptors.Queue, slot => descriptors.Packets[slot].Command == 102);
         Assert.Contains(descriptors.Queue, slot => descriptors.Packets[slot].Command == 113 && descriptors.Packets[slot].Argument == 0x48AD10);
         Assert.DoesNotContain(descriptors.Queue, slot => descriptors.Packets[slot].Command == 113 && descriptors.Packets[slot].Argument == 0x487670);
@@ -89,17 +89,17 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         int allocationCallbacks = Pump(session, snapshot =>
         {
             NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelActorId(snapshot.NativeGraphics, actualIndex) == allocated.Id && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).ActiveResourceRow100 is not null;
+            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex) == allocated.Id && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).ActiveResourceRow100 is not null;
         });
-        BattleSnapshot loaded = session.Capture();
+        BattleSnapshot loaded = session.CaptureForContinuation();
         NativeBattleParticipantSnapshot unactivated = Assert.Single(loaded.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
         Assert.True(unactivated.Active);
         Assert.True(unactivated.Hidden && unactivated.Untargetable && unactivated.Suspended);
         Assert.False(unactivated.AllocationPendingStatistics);
         Assert.DoesNotContain(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
         Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(loaded.NativeLastAllocatedTarget).Operand);
-        Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.NativeGraphics!, actualIndex));
-        Assert.NotNull(ReadOriginalModelCell(loaded.NativeGraphics!, actualIndex).ActiveResourceRow100);
+        Assert.Equal(allocated.Id, ReadOriginalModelActorId(loaded.ReadFixturePresentation().NativeGraphics!, actualIndex));
+        Assert.NotNull(ReadOriginalModelCell(loaded.ReadFixturePresentation().NativeGraphics!, actualIndex).ActiveResourceRow100);
         Save("allocation-ready-52-false", loaded);
         BattleSnapshot coldLoaded = NativeBattleStorageSnapshots.Capture(loaded);
         Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(coldLoaded));
@@ -117,7 +117,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal(110, currentDefinition.ModelId);
         Assert.Equal(0, currentDefinition.SceneSlot);
         Assert.True(currentDefinition.InitialHidden && currentDefinition.InitialUntargetable && currentDefinition.InitialSuspended);
-        NativeBattleGraphicsState graphics = ready.NativeGraphics!;
+        NativeBattleGraphicsState graphics = ready.ReadFixturePresentation().NativeGraphics!;
         NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualIndex);
         Assert.Equal((byte)126, model.ModelId4);
         Assert.Equal(placement.NativePosition, model.Transform!.Position28);
@@ -149,14 +149,14 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
             BattleSnapshot source = owner.Capture();
             Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(source.NativeLastAllocatedTarget).Operand);
             Invoke<object?>(owner, "QueueNativeActivation", [source.NativeLastAllocatedTarget]);
-            BattleSnapshot queued = owner.Capture();
-            NativeBattleDescriptorState queue = queued.NativeGraphics!.Descriptors;
+            BattleSnapshot queued = owner.CaptureForContinuation();
+            NativeBattleDescriptorState queue = queued.ReadFixturePresentation().NativeGraphics!.Descriptors;
             Assert.Contains(queue.Queue, slot => queue.Packets[slot].Command == 113 && queue.Packets[slot].Argument == 0x487670);
             Save(name + "-pending-53", queued);
             callbacks = Pump(owner, snapshot =>
             {
                 NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).GeometryWorldMatrix is not null && ReadOriginalModelCell(snapshot.NativeGraphics, actualIndex).CurrentBodyBoneMatrices is not null;
+                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).GeometryWorldMatrix is not null && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).CurrentBodyBoneMatrices is not null;
             });
             BattleSnapshot result = owner.Capture();
             Save(name + "-ready-53", result);

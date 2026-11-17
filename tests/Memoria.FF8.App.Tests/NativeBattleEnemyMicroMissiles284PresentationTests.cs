@@ -46,9 +46,9 @@ public sealed class NativeBattleEnemyMicroMissiles284PresentationTests
         Assert.Equal(NativeBattleEnemyMicroMissiles284Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeEnemyMicroMissiles284Resources(), binding.EnemyMicroMissiles284Resources);
         source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(283, binding) } };
-        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, 3));
+        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(1, definition.ModelId);
         Assert.Equal(0, definition.SceneSlot);
         Assert.NotNull(resource.PoseSource);
@@ -58,10 +58,10 @@ public sealed class NativeBattleEnemyMicroMissiles284PresentationTests
         Assert.NotNull(model.Rotation14);
         Assert.NotNull(model.ActiveResourceRow100);
         Assert.Null(model.ActiveStagedResourceRow100);
-        BattleCombatantDefinition recipientDefinition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics!, 0) ?? throw new InvalidDataException("The original recipient identity is missing."));
+        BattleCombatantDefinition recipientDefinition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0) ?? throw new InvalidDataException("The original recipient identity is missing."));
         Assert.Equal(0, recipientDefinition.ModelId);
         NativeBattlePoseSource recipientPose = assets.ReadNativeGraphicsResource(recipientDefinition).PoseSource ?? throw new InvalidDataException("The original recipient requires its current skeleton.");
-        Assert.Equal(23, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(source.NativeGraphics!, 0), recipientPose).Length);
+        Assert.Equal(23, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 0), recipientPose).Length);
         Assert.Equal(22, Enumerable.Range(0, recipientPose.BoneCount).Count(bone => System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(recipientPose.Skeleton.AsSpan().Slice(16 + bone * 48)) >= 0));
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));

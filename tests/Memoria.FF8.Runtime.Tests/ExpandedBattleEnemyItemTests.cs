@@ -29,7 +29,7 @@ public sealed class ExpandedBattleEnemyItemTests
         Assert.Equal("enemy", battle.ActiveAction!.TargetId);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
 
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); tick++)
         {
             battle.Tick();
             restored.Tick();

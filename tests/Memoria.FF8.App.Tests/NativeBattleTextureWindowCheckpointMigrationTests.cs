@@ -25,10 +25,10 @@ public sealed class NativeBattleTextureWindowCheckpointMigrationTests
             "A43CD00990A3770F0D43A3D2C0D7B2B7805BB529CABE7A744415DF03EE8EAF01"
         });
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
-        NativeBattleEffectMemory memory = original.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = original.ReadFixturePresentation().NativeEffectMemory!;
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess!;
         Assert.Null(process.TextureWindowBits);
-        NativeBattleGraphicsState graphics = original.NativeGraphics!;
+        NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame!;
         Assert.DoesNotContain(frame.LastCommands, command => command.Command.Opcode == 0xE2);
         Assert.All(frame.LastCommands, command => Assert.Null(command.DrawMode.TextureWindowBits));
@@ -40,11 +40,7 @@ public sealed class NativeBattleTextureWindowCheckpointMigrationTests
         Assert.Null(reset.ScaleU);
         Assert.Null(reset.ScaleV);
         var selected = NativeBattleLogicalPasses.SelectTextures(frame.LastCommands.Select(command => command with { DrawMode = command.DrawMode with { TextureWindowBits = 0 } }).ToImmutableArray(), reset);
-        BattleSnapshot migrated = original with
-        {
-            NativeEffectMemory = memory with { PrimitiveProcess = process with { TextureWindowBits = 0, TextureWindowCache = selected.Cache } },
-            NativeGraphics = graphics with { PrimitiveFrame = frame with { LastCommands = selected.Commands } }
-        };
+        BattleSnapshot migrated = original.WithFixturePresentation(facts => facts with { NativeEffectMemory = memory with { PrimitiveProcess = process with { TextureWindowBits = 0, TextureWindowCache = selected.Cache } }, NativeGraphics = graphics with { PrimitiveFrame = frame with { LastCommands = selected.Commands } } });
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         using BattleAssets assets = new(game.GameDirectory);

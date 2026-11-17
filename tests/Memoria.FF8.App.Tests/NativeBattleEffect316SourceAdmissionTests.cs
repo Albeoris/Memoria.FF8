@@ -25,9 +25,9 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         Assert.Equal(0, source.Frame);
         Assert.Equal(441, source.Definition.EncounterId);
         Assert.Equal(124, source.Definition.StageId);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Null(graphics.OriginalEffect);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         string casterId = ReadOriginalModelActorId(graphics, 3)!;
         BattleCombatantDefinition caster = session.GetCombatantDefinition(casterId);
         Assert.Equal(130, caster.ModelId);
@@ -48,8 +48,8 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource!;
         Assert.Equal(29, pose.BoneCount);
         Assert.Equal(29, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
-        NativeBattleModelCpuResources cpu = source.NativeModelCpuResources!;
-        NativeBattleFileStaging staging = source.NativeFileStaging!;
+        NativeBattleModelCpuResources cpu = source.ReadFixturePresentation().NativeModelCpuResources!;
+        NativeBattleFileStaging staging = source.ReadFixturePresentation().NativeFileStaging!;
         int rowIndex = model.ActiveResourceRow100!.Value;
         NativeBattleModelCpuResourceRow row = cpu.Rows[rowIndex];
         NativeBattleModelCpuReference geometryReference = row.Require(16);
@@ -116,8 +116,8 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         Assert.Equal(new byte[] { 2, 2, 93, 4, 8, 10, 0, 0 }, motion.AsSpan(6, 8).ToArray());
         ushort allocation = model.TextureAllocationMask!.Value;
         Assert.True(System.Numerics.BitOperations.PopCount((uint)allocation) >= 3);
-        Assert.NotNull(source.NativeModelTextureCache);
-        Assert.NotNull(source.NativeEffectMemory.Textures);
+        Assert.NotNull(source.ReadFixturePresentation().NativeModelTextureCache);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.Textures);
         List<NativeBattleTextureCopy> copies = [];
         for (int variant = 0; variant <= 10; variant++)
         {

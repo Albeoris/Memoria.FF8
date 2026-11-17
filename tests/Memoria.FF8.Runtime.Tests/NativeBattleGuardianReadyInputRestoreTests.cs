@@ -155,7 +155,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     [Fact]
     public void ComponentBankRetainsItsZeroGaugeInvariant()
     {
-        AssertReadyInputError<InvalidDataException>(RawReadyInput() with { NativeGraphics = null });
+        AssertReadyInputError<InvalidDataException>(RawReadyInput().WithFixturePresentation(facts => facts with { NativeGraphics = null }));
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         BattleCombatantSnapshot actor = pending.Combatants[0] with { NativeAtb = new(12000, 12000), Atb = BattleSession.AtbMaximum };
         pending = pending with { Combatants = [actor, .. pending.Combatants.Skip(1)], GuardianForceCasts = [pending.GuardianForceCasts[0] with { RemainingTicks = 0 }] };
         BattleSession session = RestoreChargeOwners(pending);
-        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, pending.NativeGraphics);
+        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, pending.ReadFixturePresentation().NativeGraphics);
         bool completed = (bool)Method("PollNativeGuardianScriptTask").Invoke(session, [pending.NativeScriptState.Tasks.Slots[CastSlot(pending)]])!;
         Assert.True(completed);
         return session.Capture();
@@ -183,7 +183,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
     private static BattleSession RestoreReadyInputOwners(BattleSnapshot saved)
     {
         BattleSession target = RestoreChargeOwners(saved);
-        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(target, saved.NativeGraphics);
+        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(target, saved.ReadFixturePresentation().NativeGraphics);
         saved.NativeCommandBanks!.Validate();
         typeof(BattleSession).GetField("nativeCommandBanks", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(target, saved.NativeCommandBanks);
         Method("ValidateNativeCommandBindings").Invoke(target, [new HashSet<string>()]);

@@ -369,7 +369,7 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Null(queued.TargetRequest.OriginalProjection);
         Assert.Equal(command, queued.NativeQueuedCommand);
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();
@@ -449,7 +449,7 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Null(windup.ActiveAction!.NativeSpecial);
         Assert.Equal(JsonSerializer.Serialize(cards), JsonSerializer.Serialize(windup.NativeCards));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(windup))!);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); tick++)
         {
             battle.Tick();
             restored.Tick();
@@ -497,7 +497,7 @@ public sealed class NativeOrdinaryCommandTests
         battle.QueueAction(caster.Id, "enemy-5", BattleAbility.NativeCommand, action.Id);
         battle.Tick();
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); tick++)
         {
             battle.Tick();
             restored.Tick();
@@ -514,7 +514,7 @@ public sealed class NativeOrdinaryCommandTests
     private static void QueueAndHit(BattleSession battle, string target, byte command, ushort id)
     {
         battle.QueueNativePlayerCommand("actor", target, command, id);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

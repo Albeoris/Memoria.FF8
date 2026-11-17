@@ -5,7 +5,6 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private readonly record struct AiTargetSelection(BattleTargetRequest Request, BattlePreviousTarget? PreviousTarget, bool MissingOriginalModel = false);
-    private bool SamplesOriginalAiSlots => UsesOriginalEnemySlots && definition.AddedEnemySources is not { Count: > 0 } && allies.All(HasNativeRosterSlot);
 
     private AiTargetSelection EmptyAiTargets => new(BattleTargetRequest.None, null);
 
@@ -23,15 +22,15 @@ public sealed partial class BattleSession
             206 => SelectAiGroup(BattleTargetSide.Both),
             207 => PickAiSide(BattleSide.Enemies, actor),
             208 => SelectAiGroup(BattleTargetSide.Allies, random: true),
-            209 => nativeLastAllocatedTarget switch
+            209 => ReadAiLastAllocation(actor) switch
             {
-                NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => SelectAiActorOperand(original.Operand),
+                NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => SelectAiActorOperand(original.Operand, actor),
                 BattlePreviousTarget.Actor captured => SelectAiActors([GetActor(captured.Reference.ActorId)]),
                 _ => EmptyAiTargets
             },
             >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? id) => SelectAiActors([GetActor(id)]),
-            >= 220 and <= 227 => SelectAiActorOperand(unchecked((int)actor.AiVariables[selector - 220])),
-            _ => ResolveExpandedModelTarget(selector)
+            >= 220 and <= 227 => SelectAiActorOperand(unchecked((int)actor.AiVariables[selector - 220]), actor),
+            _ => ResolveExpandedModelTarget(actor, selector)
         };
     }
 
@@ -40,29 +39,24 @@ public sealed partial class BattleSession
         return SelectAiActors([actor]);
     }
 
-    private AiTargetSelection SelectDirectAiActor(int operand)
+    private AiTargetSelection SelectDirectAiActor(BattleCombatant actor, int operand)
     {
-        if (!UsesOriginalEnemySlots)
-        {
-            throw new NotSupportedException("Expanded AI direct actor targeting requires original enemy slots.");
-        }
-        return !NativeBattleSlots.Contains(operand) ? EmptyAiTargets : SelectAiActorOperand(operand);
+        return NativeBattleSlots.Contains(operand) ? SelectAiActorOperand(operand, actor) : EmptyAiTargets;
     }
 
-    private AiTargetSelection SelectAiActorOperand(int operand)
+    private AiTargetSelection SelectAiActorOperand(int operand, BattleCombatant? caller = null)
     {
         (NativeBattleTargetRequestAdapter.OriginalWordProjection projection, bool allowsKo) = NativeBattleTargetRequestAdapter.DecodeAiActorOperand(operand);
-        if (!UsesOriginalEnemySlots && projection.RequiresOriginalSlots)
+        if (caller is not null && ReadDonorSource(caller) is not null && projection.RequiresOriginalSlots && projection.Operands.Slots is [var slot] && slot.Side == BattleSide.Enemies)
         {
-            throw new InvalidDataException("Expanded AI cannot use original target operands without original enemy slots.");
+            return FindSourceOriginalActor(caller, NativeBattleSlots.Encode(slot)) is { } donor ? SelectAiActor(donor) : EmptyAiTargets;
         }
         return SelectOriginalAiTargets(projection, allowsKo);
     }
 
     private AiTargetSelection SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalWordProjection source, bool allowsKnockedOutAllies = false)
     {
-        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(source, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies, samplesOriginalSlots: SamplesOriginalAiSlots);
-            request = request with { OriginalProjection = null };
+        BattleTargetRequest request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(source, BattleTargetEligibility.SavedStatus, allowsKnockedOutAllies);
         return new(request, NativeBattleTargetRequestAdapter.CapturePrevious(source, allowsKnockedOutAllies));
     }
 
@@ -74,22 +68,15 @@ public sealed partial class BattleSession
     private AiTargetSelection FilterAiTargets(byte allTargets, byte group, byte comparison, byte criterion)
     {
         // 486E70 computes extrema before applying allocation/death and group filtering.
-        BattleCombatant[] population = SamplesOriginalAiSlots || UsesOriginalEnemySlots && group >= 16 && group is not (200 or 201)
-            ? NativeTargetActors().OrderBy(candidate => candidate.NativeActorIndex).ToArray()
-            : combatants.Where(HasAiRosterSlot).ToArray();
+        BattleCombatant[] population = combatants.Where(HasAiRosterSlot).ToArray();
         var filter = NativeAiTargetFilter(population, group, comparison, criterion);
-        BattleCombatant[] candidates = population.Where(candidate => (SamplesOriginalAiSlots || !candidate.Untargetable) && filter.Eligible(candidate)).ToArray();
+        BattleCombatant[] candidates = population.Where(filter.Eligible).ToArray();
         if (allTargets == 0)
         {
             return PickAiTarget(candidates, filter.Side);
         }
 
         BattleTargetSide side = candidates.Any(candidate => candidate.Side == BattleSide.Enemies) ? BattleTargetSide.Enemies : BattleTargetSide.Allies;
-        if (SamplesOriginalAiSlots)
-        {
-            return SelectOriginalAiTargets(NativeBattleTargetRequestAdapter.OriginalGroup(side, candidates.Select(candidate => NativeBattleSlots.Decode(candidate.RequireNativeActorIndex()))));
-        }
-
         int? firstOriginalSlot = candidates.Select(candidate => candidate.NativeActorIndex).Min();
         BattlePreviousTarget previous = firstOriginalSlot is int original
             ? new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(original)
@@ -101,17 +88,7 @@ public sealed partial class BattleSession
 
     private AiTargetSelection PickAiSide(BattleSide side, BattleCombatant? exclude = null)
     {
-        if (!SamplesOriginalAiSlots)
-        {
-            IEnumerable<BattleCombatant> available = Roster(side).Where(candidate => candidate != exclude && IsExpandedAiTarget(candidate));
-            if (exclude is not null && IsExpandedAiTarget(exclude))
-            {
-                available = available.DefaultIfEmpty(exclude);
-            }
-            return PickAiTarget(available, side);
-        }
-
-        BattleCombatant[] roster = NativeTargetActors().Where(candidate => candidate.Side == side).ToArray();
+        BattleCombatant[] roster = Roster(side).Where(HasAiRosterSlot).ToArray();
         BattleCombatant[] living = roster.Where(candidate => (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
         if (exclude is not null && living.Length == 1)
         {
@@ -127,14 +104,15 @@ public sealed partial class BattleSession
     private AiTargetSelection PickAiTarget(IEnumerable<BattleCombatant> candidates, BattleSide? side = null)
     {
         BattleCombatant[] available = candidates.ToArray();
-        if (!SamplesOriginalAiSlots)
-        {
-            return available.Length == 0 ? EmptyAiTargets : SelectAiActors([available[NextRandomByte() % available.Length]]);
-        }
         if (available.Length == 0)
         {
             throw new NotSupportedException("Native random target selection has no eligible physical slot and would not terminate.");
         }
+        return SelectAiActor(SampleNativeTarget(available, side));
+    }
+
+    private BattleCombatant SampleNativeTarget(BattleCombatant[] available, BattleSide? side)
+    {
         int count = side switch
         {
             BattleSide.Allies => NativeBattleSlots.AllyCount,
@@ -142,13 +120,19 @@ public sealed partial class BattleSession
             _ => NativeBattleSlots.Count
         };
         int first = side == BattleSide.Enemies ? NativeBattleSlots.AllyCount : 0;
-        Dictionary<int, BattleCombatant> eligible = available.ToDictionary(candidate => candidate.RequireNativeActorIndex());
+        BattleCombatant[] extensions = combatants.Where(candidate => candidate.Slot is not null && candidate.NativeActorIndex is null && (side is null || candidate.Side == side))
+            .OrderBy(candidate => candidate.Side).ThenBy(candidate => candidate.Slot!.Value.Position).ToArray();
+        var slots = new BattleCombatant?[count + extensions.Length];
+        foreach (BattleCombatant candidate in available)
+        {
+            int position = candidate.NativeActorIndex is int original ? original - first : count + Array.IndexOf(extensions, candidate);
+            slots[position] = candidate;
+        }
         while (true)
         {
-            int index = first + NextRandomByte() % count;
-            if (eligible.TryGetValue(index, out BattleCombatant? selected))
+            if (slots[NextRandomByte() % slots.Length] is { } selected)
             {
-                return SelectAiActor(selected);
+                return selected;
             }
         }
     }
@@ -225,11 +209,6 @@ public sealed partial class BattleSession
     private static bool HasNativeRosterSlot(BattleCombatant actor) => actor.NativeActorIndex.HasValue;
 
     private bool HasAiRosterSlot(BattleCombatant actor) => actor.Slot is not null;
-
-    private IEnumerable<BattleCombatant> NativeTargetActors()
-    {
-        return combatants.Where(HasNativeRosterSlot);
-    }
 
     private int NativeAiTargetStat(BattleCombatant actor, int row)
     {

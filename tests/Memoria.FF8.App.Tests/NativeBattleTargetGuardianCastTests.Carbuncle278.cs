@@ -50,10 +50,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             }
         }
         Assert.True(entered);
-        BattleSnapshot source = battle.Capture();
+        BattleSnapshot source = battle.CaptureForContinuation();
         ushort initialCounter = Counter(source);
         Assert.InRange(initialCounter, (ushort)0, (ushort)1);
-        Assert.NotEqual(0u, source.NativeEffectMemory!.Carbuncle278!.ModelBuffer81F8);
+        Assert.NotEqual(0u, source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.ModelBuffer81F8);
         BattleScenePresentation scene = new(assets, definition);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
         BattleSession first = BattleSession.Restore(source);
@@ -75,11 +75,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 88 ? "before-sparkle-boundary" : counter == 2 ? "before-model-construction" : "master-" + counter, current, pixels);
             }
         }
-        BattleSnapshot boundary = first.Capture();
+        BattleSnapshot boundary = first.CaptureForContinuation();
         Assert.Equal((ushort)88, Counter(boundary));
-        Assert.Equal((ushort)86, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0].ReadWord(0xC));
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-window-complete", boundary.Frame, NativeCallback = boundary.NativeGraphics.Callback, Counter = Counter(boundary) }));
+        Assert.Equal((ushort)86, boundary.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0].ReadWord(0xC));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-window-complete", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics.Callback, Counter = Counter(boundary) }));
 
-        static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
+        static ushort Counter(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }
 }

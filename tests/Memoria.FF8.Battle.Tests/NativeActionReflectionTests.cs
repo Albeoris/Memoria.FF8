@@ -21,7 +21,7 @@ public sealed class NativeActionReflectionTests
             ]
         }, BattleAtbMode.Normal);
         battle.QueueAction("player", "first", BattleAbility.Magic, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }
@@ -57,7 +57,7 @@ public sealed class NativeActionReflectionTests
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         battle = BattleSession.Restore(battle.Capture() with { NativeScriptState = new() { DisableAutomaticTargetReplacement = disabled } });
         battle.QueueNativePlayerCommand("player", "first", 2, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

@@ -7,12 +7,12 @@ internal static class NativeBattleExplicitComponentCapture
 {
     internal static NativeBattleLogicalCommand[] Commands(BattleSnapshot current, ushort effectId)
     {
-        NativeBattleOriginalEffectState effect = current.NativeGraphics!.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         int start;
         int end;
         if (effectId == 101)
         {
-            NativeBattleEffect101State state = current.NativeEffectMemory!.Effect101!;
+            NativeBattleEffect101State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect101!;
             if (effect.Pools[0].Slots[0].ReadWord(12) == 0)
             {
                 return [];
@@ -36,7 +36,7 @@ internal static class NativeBattleExplicitComponentCapture
             end = effect.DrawArenaOffset ?? start;
         }
         Assert.True(end >= start);
-        return current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && command.Opcode is >= 0x20 and < 0x80).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end && command.Opcode is >= 0x20 and < 0x80).ToArray();
     }
 
     internal static int AssertFrame(BattleSnapshot current, ushort effectId)

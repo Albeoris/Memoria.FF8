@@ -61,10 +61,10 @@ public sealed class NativeBattleZombieContinuationTests
                 long allocated = GC.GetAllocatedBytesForCurrentThread();
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 Console.WriteLine($"callback {callbacks}: {System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds:F2}ms; {(GC.GetAllocatedBytesForCurrentThread() - allocated) / 1048576.0:F2}MB; effect {battle.Presentation?.Graphics?.OriginalEffect?.Binding.Effect}");
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 if (callbacks % 16 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { callbacks, current.Frame, NativeCallback = current.NativeGraphics?.Callback, Active = current.ActiveAction?.ActionId, Queue = current.QueuedActions.Length, Zombie = HasZombie(current) }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { callbacks, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics?.Callback, Active = current.ActiveAction?.ActionId, Queue = current.QueuedActions.Length, Zombie = HasZombie(current) }));
                 }
                 zombieSeen |= HasZombie(current);
                 if (!comparedMidpoint && HasZombie(current) && callbacks >= 95)
@@ -75,7 +75,7 @@ public sealed class NativeBattleZombieContinuationTests
                 if (zombieSeen && comparedMidpoint && Released(current))
                 {
                     CompareNext("completed", current);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", SourceFrame = initial.Frame, SourceNativeCallback = initial.NativeGraphics?.Callback, current.Frame, NativeCallback = current.NativeGraphics?.Callback, Callbacks = callbacks + 1, zombieSeen, comparedMidpoint }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", SourceFrame = initial.Frame, SourceNativeCallback = initial.ReadFixturePresentation().NativeGraphics?.Callback, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics?.Callback, Callbacks = callbacks + 1, zombieSeen, comparedMidpoint }));
                     return;
                 }
                 if (!zombieSeen && Released(current))
@@ -90,7 +90,7 @@ public sealed class NativeBattleZombieContinuationTests
             File.WriteAllText(Path.Combine(output, "failure.txt"), error.ToString());
             Publish("before-boundary", before, false);
             Publish("failed-live", battle.Capture(), false);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", callbacks, before.Frame, NativeCallback = before.NativeGraphics?.Callback, zombieSeen, comparedMidpoint, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", callbacks, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, zombieSeen, comparedMidpoint, Error = error.ToString() }));
             throw;
         }
 
@@ -118,7 +118,7 @@ public sealed class NativeBattleZombieContinuationTests
         {
             string path = Path.Combine(output, name + ".battle.json");
             File.WriteAllBytes(path, JsonSerializer.SerializeToUtf8Bytes(snapshot));
-            Console.WriteLine($"{name}: {path}; field {source?.FieldId}; battle frame {snapshot.Frame}; native callback {snapshot.NativeGraphics?.Callback}");
+            Console.WriteLine($"{name}: {path}; field {source?.FieldId}; battle frame {snapshot.Frame}; native callback {snapshot.ReadFixturePresentation().NativeGraphics?.Callback}");
             if (render)
             {
                 byte[] pixels = scene.Render(Restore(snapshot), 320, 224).ToArray();
@@ -131,11 +131,11 @@ public sealed class NativeBattleZombieContinuationTests
 
     private static bool HasZombie(BattleSnapshot snapshot)
     {
-        return snapshot.NativeGraphics?.OriginalEffect?.Binding.ZombieResources is not null && snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor != 0;
+        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.ZombieResources is not null && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor != 0;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        return !HasZombie(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeCommandBanks?.BoundCommands.Any() != true && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
+        return !HasZombie(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeCommandBanks?.BoundCommands.Any() != true && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }

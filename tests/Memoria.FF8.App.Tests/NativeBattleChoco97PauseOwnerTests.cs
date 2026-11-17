@@ -11,7 +11,7 @@ public sealed class NativeBattleChoco97PauseOwnerTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_CHOCO97_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A complete before-ChocoFire component is required.");
         BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path!));
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         NativeBattleModulePoolTask? task = null;
         for (int callback = 0; callback < 64; callback++)
         {
@@ -31,15 +31,15 @@ public sealed class NativeBattleChoco97PauseOwnerTests
         BattleSnapshot running = Continue(0);
         Assert.Equal(frame, Program(frozen)!.ReadDword(0x98));
         Assert.Equal(frame + 1, Program(running)!.ReadDword(0x98));
-        Assert.Equal(7u, frozen.NativeEffectMemory!.Choco97!.FreezePrimary);
-        Assert.Equal(7u, running.NativeEffectMemory!.Choco97!.FreezePrimary);
-        Assert.Equal(1u, frozen.NativeEffectMemory.Choco97.FreezeSecondary);
-        Assert.Equal(0u, running.NativeEffectMemory.Choco97.FreezeSecondary);
+        Assert.Equal(7u, frozen.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezePrimary);
+        Assert.Equal(7u, running.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezePrimary);
+        Assert.Equal(1u, frozen.ReadFixturePresentation().NativeEffectMemory.Choco97.FreezeSecondary);
+        Assert.Equal(0u, running.ReadFixturePresentation().NativeEffectMemory.Choco97.FreezeSecondary);
 
         BattleSnapshot Continue(uint secondary)
         {
-            NativeBattleEffectMemory memory = before.NativeEffectMemory!;
-            BattleSnapshot input = before with { NativeEffectMemory = memory with { Choco97 = memory.Choco97! with { FreezePrimary = 7, FreezeSecondary = secondary } } };
+            NativeBattleEffectMemory memory = before.ReadFixturePresentation().NativeEffectMemory!;
+            BattleSnapshot input = before.WithFixturePresentation(facts => facts with { NativeEffectMemory = memory with { Choco97 = memory.Choco97! with { FreezePrimary = 7, FreezeSecondary = secondary } } });
             BattleSnapshot independent = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(input))!;
             BattleSession restored = BattleSession.Restore(independent);
             Assert.Equal(JsonSerializer.Serialize(input), JsonSerializer.Serialize(restored.Capture()));
@@ -48,5 +48,5 @@ public sealed class NativeBattleChoco97PauseOwnerTests
         }
     }
 
-    private static NativeBattleModulePoolTask? Program(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => task.Callback == 0x72A660 && task.Flags != 0);
+    private static NativeBattleModulePoolTask? Program(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => task.Callback == 0x72A660 && task.Flags != 0);
 }

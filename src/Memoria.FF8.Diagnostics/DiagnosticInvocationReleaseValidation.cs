@@ -17,20 +17,6 @@ public static class DiagnosticInvocationReleaseValidation
         {
             throw new InvalidDataException("Standalone terminal textures cannot be attached to another completion mode.");
         }
-        if (release.Boundary == BattleDiagnosticInvocationRelease.AftercareBoundary)
-        {
-            if (!release.PacketRemoved)
-            {
-                throw new InvalidDataException("Scoped aftercare begins only after actual main packet retirement.");
-            }
-            ValidateGraphicsFrameCertificate(release, focal, lifecycle);
-            DiagnosticInvocationAftercareValidation.ValidatePlan(release, focal, lifecycle);
-            return;
-        }
-        if (release.Aftercare is not null)
-        {
-            throw new InvalidDataException("Aftercare cannot be attached to an ordinary completion mode.");
-        }
         if (!release.Blockers.IsEmpty)
         {
             throw new InvalidDataException("Focal release retains explicit native blockers.");
@@ -56,7 +42,7 @@ public static class DiagnosticInvocationReleaseValidation
         ValidateIdentity(certificate, focal, lifecycle);
         NativeBattleDescriptorPacket originalPacket = certificate.CompletionPacket!;
         NativeBattleDescriptorPacket focalPacket = release.CompletionPacket!;
-        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.Aftercare is not null || certificate.TerminalTextures is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
+        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.TerminalTextures is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
         {
             throw new InvalidDataException("Deferred release changed its same-callback native event/header/packet certificate or retried across graphics frames.");
         }
@@ -72,7 +58,7 @@ public static class DiagnosticInvocationReleaseValidation
         BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures ?? throw new InvalidDataException("Standalone terminal texture release lacks its actual native proof.");
         BattleDiagnosticTerminalHoldState hold = proof.Hold ?? throw new InvalidDataException("Standalone terminal texture release lacks its declared victory hold.");
         hold.Declaration.Validate();
-        if (!release.PacketRemoved || release.Aftercare is not null || !release.Owners.AuxiliaryHead || HasOutstandingOwners(release.Owners with { AuxiliaryHead = false }, 0) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || focal.NativeCommand != 16 || focal.ActionId is not (53 or 56) || focal.RequestedEffect != (focal.ActionId == 53 ? 288 : 85) || hold.Declaration.Candidate != BattleOutcome.Victory || hold.Rearms != 0 || hold.HoldId == Guid.Empty || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != focal.ActorId || hold.Receipts.IsDefault)
+        if (!release.PacketRemoved || !release.Owners.AuxiliaryHead || HasOutstandingOwners(release.Owners with { AuxiliaryHead = false }, 0) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || focal.NativeCommand != 16 || focal.ActionId is not (53 or 56) || focal.RequestedEffect != (focal.ActionId == 53 ? 288 : 85) || hold.Declaration.Candidate != BattleOutcome.Victory || hold.Rearms != 0 || hold.HoldId == Guid.Empty || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != focal.ActorId || hold.Receipts.IsDefault)
         {
             throw new InvalidDataException("Standalone terminal textures require one declared held destructive Slots victory, exact packet retirement and no other native owner.");
         }
@@ -101,7 +87,6 @@ public static class DiagnosticInvocationReleaseValidation
         {
             throw new InvalidDataException("Standalone terminal textures cannot include a foreign model owner.");
         }
-        DiagnosticInvocationAftercareValidation.ValidateEmptyCommandBanks(proof.CommandBanks);
     }
 
     public static void ValidateTerminalTextureAdmission(BattleDiagnosticInvocationRelease release, BattleDiagnosticTerminalHoldReceipt admission)

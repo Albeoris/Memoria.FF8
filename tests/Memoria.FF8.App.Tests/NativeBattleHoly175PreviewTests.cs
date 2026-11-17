@@ -27,12 +27,12 @@ public sealed class NativeBattleHoly175PreviewTests
         for (int index = 0; index < 600; index++)
         {
             active.AdvanceNativeGraphicsPresentation(callback);
-            BattleSnapshot snapshot = active.Capture();
-            entered |= snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect == 175;
-            bool capturing = snapshot.NativeGraphics?.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleHoly175CaptureMemory.PacketBank) == true;
+            BattleSnapshot snapshot = active.CaptureForContinuation();
+            entered |= snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == 175;
+            bool capturing = snapshot.ReadFixturePresentation().NativeGraphics?.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleHoly175CaptureMemory.PacketBank) == true;
             if (capturing)
             {
-                NativeBattlePrimitiveFrame primitive = snapshot.NativeGraphics!.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame primitive = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 Assert.Contains(primitive.LastCommands, command => command.Pass == 0 && command.Command.Words[0] == 0xE3040240u);
                 Assert.Contains(primitive.LastCommands, command => command.Pass == 0 && command.Command.Words[0] == 0xE5080240u);
             }
@@ -46,19 +46,19 @@ public sealed class NativeBattleHoly175PreviewTests
                     NativeBattleRestorationPresentationTests.Publish(output, $"frame-{index:D3}", snapshot, pixels);
                 }
             }
-            bool flare = snapshot.NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x5D43B0) == true;
+            bool flare = snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x5D43B0) == true;
             if (!captureRestored && capturing || !flareRestored && flare)
             {
                 BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
                 cold.AdvanceNativeGraphicsPresentation(callback);
                 active.AdvanceNativeGraphicsPresentation(callback);
-                BattleSnapshot continued = active.Capture();
-                BattleSnapshot restoredNext = cold.Capture();
+                BattleSnapshot continued = active.CaptureForContinuation();
+                BattleSnapshot restoredNext = cold.CaptureForContinuation();
                 // Preview ATB menu suppression is a host policy; compare the saved graphical effect independently of menu admission.
-                Assert.Equal(JsonSerializer.Serialize(continued.NativeGraphics! with { UiServices = null }), JsonSerializer.Serialize(restoredNext.NativeGraphics! with { UiServices = null }));
-                Assert.Equal(JsonSerializer.Serialize(continued.NativeEffectMemory), JsonSerializer.Serialize(restoredNext.NativeEffectMemory));
-                Assert.Equal(JsonSerializer.Serialize(continued.NativeCamera), JsonSerializer.Serialize(restoredNext.NativeCamera));
-                Assert.Equal(JsonSerializer.Serialize(continued.NativeStage), JsonSerializer.Serialize(restoredNext.NativeStage));
+                Assert.Equal(JsonSerializer.Serialize(continued.ReadFixturePresentation().NativeGraphics! with { UiServices = null }), JsonSerializer.Serialize(restoredNext.ReadFixturePresentation().NativeGraphics! with { UiServices = null }));
+                Assert.Equal(JsonSerializer.Serialize(continued.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(restoredNext.ReadFixturePresentation().NativeEffectMemory));
+                Assert.Equal(JsonSerializer.Serialize(continued.ReadFixturePresentation().NativeCamera), JsonSerializer.Serialize(restoredNext.ReadFixturePresentation().NativeCamera));
+                Assert.Equal(JsonSerializer.Serialize(continued.ReadFixturePresentation().NativeStage), JsonSerializer.Serialize(restoredNext.ReadFixturePresentation().NativeStage));
                 Assert.Equal(scene.Render(active, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(cold, 320, 224).ToArray());
                 captureRestored |= capturing;
                 flareRestored |= flare;

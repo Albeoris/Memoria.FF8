@@ -4,8 +4,6 @@ public sealed record BattleNativeRenzokukenInvocation(byte CrisisLevel);
 public sealed record BattleNativeRenzokukenState(ushort MagicId, BattleTargetRequest TargetRequest, byte? FinisherActionId, BattleNativeRenzokukenInputState Input)
 {
     public int PoseFrames { get; init; }
-    public byte UiPhase { get; init; }
-    public long UiSubframeTicks { get; init; }
     public bool PendingTrigger { get; init; }
 }
 
@@ -19,28 +17,10 @@ public sealed partial class BattleSession
         return nativeRenzokukenProcesses.GetValueOrDefault(actorId);
     }
 
-    public bool CanTriggerNativeRenzokuken => expandedPresentationProcess is { } host ? CanTriggerExpandedHostedRenzokuken(host) : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 1) == 0 && nativeRenzokukenProcesses.Single().Value.Input.Phase != 8;
-    public bool NativeRenzokukenBarVisible => expandedPresentationProcess is { } host ? CaptureExpandedHostedRenzokukenFrame() is { } frame && host.TriggerWidget is { Visible: true } widget && widget.Actor == frame.Owner.Actor && widget.SourceMagicId == frame.Owner.MagicId
-        : nativeRenzokukenProcesses.Count != 0 && (RequireNativeRenzokukenOptions() & 0x8001) == 0 && RenzokukenResource(nativeRenzokukenProcesses.Single().Value.MagicId).ShowBar != 0;
-
-    public bool NativeRenzokukenTriggerWindowOpen
-    {
-        get
-        {
-            if (expandedPresentationProcess is { } host)
-            {
-                return CanTriggerExpandedHostedRenzokuken(host) && IsNativeTriggerWindowOpen(host.TriggerWidget!);
-            }
-            if (!CanTriggerNativeRenzokuken)
-            {
-                return false;
-            }
-            BattleNativeRenzokukenState state = nativeRenzokukenProcesses.Single().Value;
-            BattleNativeRenzokukenResource resource = RenzokukenResource(state.MagicId);
-            int distance = state.Input.PoseClock + state.Input.SubframeClock - resource.Timeline.InputThresholds[state.Input.ContactIndex];
-            return state.Input.TriggerTiming == 0 && NativeGunbladeAttack.TriggerSucceeded(checked((short)(distance + 5)));
-        }
-    }
+    public bool CanTriggerNativeRenzokuken => Presentation is { } process && CanTriggerExpandedHostedRenzokuken(process);
+    public bool NativeRenzokukenBarVisible => Presentation is { } process && CaptureExpandedHostedRenzokukenFrame() is { } frame &&
+        process.TriggerWidget is { Visible: true } widget && widget.Actor == frame.Owner.Actor && widget.SourceMagicId == frame.Owner.MagicId;
+    public bool NativeRenzokukenTriggerWindowOpen => CanTriggerNativeRenzokuken && IsNativeTriggerWindowOpen(Presentation!.TriggerWidget!);
 
     private ushort RequireNativeRenzokukenOptions()
     {
@@ -92,26 +72,6 @@ public sealed partial class BattleSession
             return;
     }
 
-    private void StartNativeRenzokuken(BattleAttackCommand queued)
-    {
-        BattleCombatant actor = GetActor(queued.ActorId);
-        byte crisis = queued.NativeRenzokuken!.CrisisLevel;
-        BattleCombatant selectedTarget = GetActor(queued.TargetId);
-        BattleCombatant? target = IsExpandedRenzokukenTarget(selectedTarget) ? selectedTarget : null;
-        if (target is null || !CanNativeBattleActorAct(actor))
-        {
-            actor.IsBusy = false;
-            nativeLimitLevels.Remove(actor.Id);
-            Log("Cancelled", actor.Id, queued.TargetId, 0, "Renzokuken has no available original target.");
-            return;
-        }
-        (ushort magicId, byte? finisher) = SelectNativeRenzokukenResource(actor, target, crisis);
-        BattleNativeRenzokukenResource resource = RenzokukenResource(magicId);
-            BeginExpandedRenzokuken(queued, actor, target, magicId, finisher);
-            Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
-            return;
-    }
-
     private (ushort Magic, byte? Finisher) SelectNativeRenzokukenResource(BattleCombatant actor, BattleCombatant target, byte crisis)
     {
         if (target.NativeRenzokukenMagicIds.Length != 7)
@@ -131,79 +91,14 @@ public sealed partial class BattleSession
 
     public bool TriggerNativeRenzokuken()
     {
-        if (expandedPresentationProcess is { } host)
-        {
-            return CanTriggerExpandedHostedRenzokuken(host) && TriggerGunblade();
-        }
-        if (!CanTriggerNativeRenzokuken)
-        {
-            return false;
-        }
-        (string actorId, BattleNativeRenzokukenState state) = nativeRenzokukenProcesses.Single();
-        nativeRenzokukenProcesses[actorId] = state with { PendingTrigger = true };
-        return NativeRenzokukenTriggerWindowOpen;
-    }
-
-    public void AdvanceNativeRenzokukenUi(bool poseAdvanced, bool triggerPressed = false)
-    {
-        if (expandedPresentationProcess is not null || nativeRenzokukenProcesses.Count == 0)
-        {
-            return;
-        }
-        (string actorId, BattleNativeRenzokukenState state) = nativeRenzokukenProcesses.Single();
-        BattleNativeRenzokukenResource resource = RenzokukenResource(state.MagicId);
-        BattleNativeRenzokukenInputStep step = NativeBattleRenzokukenRules.AdvanceInput(resource.Timeline, state.Input, poseAdvanced, triggerPressed || state.PendingTrigger, (RequireNativeRenzokukenOptions() & 1) != 0, nativeBattleUiRandom);
-        nativeBattleUiRandom = step.Random;
-        state = state with { Input = step.State, PendingTrigger = false, PoseFrames = state.PoseFrames + (poseAdvanced ? 1 : 0) };
-        nativeRenzokukenProcesses[actorId] = state;
-        if (step.Contact is { } contact)
-        {
-            BattleCombatant actor = GetActor(actorId);
-            BattleNativeAction physical = actor.NativeAttack! with { Command = 251, DispatchCommand = 5, ActionId = 0, AttackType = 10, Power = actor.NativePlayerStatRules!.CharacterRecord[33], HitCount = 1, AttackFlags = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0 };
-                ResolveExpandedRenzokukenTrigger(physical, contact.TriggerTiming, contact.Index == contact.Total, state.FinisherActionId is not null);
-        }
-        if (state.Input.Phase == 8 && state.PoseFrames >= resource.Timeline.TotalPoseFrames)
-        {
-            nativeRenzokukenProcesses.Remove(actorId);
-            nativeLimitLevels.Remove(actorId);
-            CompleteNativeTimedAction();
-            GetActor(actorId).IsBusy = actions.Any(command => command.ActorId == actorId);
-            CompleteBattleIfNeeded();
-        }
-    }
-
-    public void AdvanceNativeRenzokukenPresentation(TimeSpan elapsed)
-    {
-        if (elapsed < TimeSpan.Zero || elapsed > TimeSpan.FromSeconds(1000))
-        {
-            throw new ArgumentOutOfRangeException(nameof(elapsed));
-        }
-        if (expandedPresentationProcess is not null || nativeRenzokukenProcesses.Count == 0)
-        {
-            return;
-        }
-        (string actorId, BattleNativeRenzokukenState state) = nativeRenzokukenProcesses.Single();
-        //TODO(TD-009): The original widgetBYTE33 phase currently projects onto four120Hz callbacks per30Hz pose. Use the shared native graphics scheduler when it owns these service callbacks.
-        long ticks = state.UiSubframeTicks + elapsed.Ticks * 120;
-        int callbacks = checked((int)(ticks / TimeSpan.TicksPerSecond));
-        nativeRenzokukenProcesses[actorId] = state with { UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };
-        for (int callback = 0; callback < callbacks; callback++)
-        {
-            if (!nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? current))
-            {
-                break;
-            }
-            byte phase = (byte)((current.UiPhase + 1) & 3);
-            nativeRenzokukenProcesses[actorId] = current with { UiPhase = phase };
-            AdvanceNativeRenzokukenUi(phase == 0);
-        }
+        return CanTriggerNativeRenzokuken && TriggerGunblade();
     }
 
     private void RestoreNativeRenzokuken(string actorId, byte crisis, BattleNativeRenzokukenState state, ExpandedHostedEvent? hostedEvent)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleNativeRenzokukenResource resource = RenzokukenResource(state.MagicId);
-        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming < 20 || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || !OwnsHostedRenzokukenRestore(hostedEvent, actorId) && state.PoseFrames > resource.Timeline.TotalPoseFrames || state.UiPhase > 3 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
+        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming < 20 || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || !OwnsHostedRenzokukenRestore(hostedEvent, actorId) && state.PoseFrames > resource.Timeline.TotalPoseFrames || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
         {
             throw new InvalidDataException("Saved Renzokuken input contradicts its original actor or resource.");
         }
@@ -246,7 +141,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded Renzokuken disagrees with its installed target selectors or equipped finishers.");
         }
-        NativeBattleTriggerReceipt? candidateTrigger = hosted ? hostedTrigger : ((NativeBattleGraphicsState?)null)?.PendingTrigger;
+        NativeBattleTriggerReceipt? candidateTrigger = hostedTrigger;
         int pending = candidateTrigger is { } receipt && receipt.Actor == CreatePresentationModelOwner(GetActor(actorId)) && receipt.ContactIndex == process.Input.ContactIndex && receipt.ContactIndex == timed.Contacts + 1 ? 1 : 0;
         if (timed.Command.ActorId != actorId || timed.Command.NativeRenzokuken?.CrisisLevel != nativeLimitLevels.GetValueOrDefault(actorId) || timed.Contacts + pending != process.Input.ContactIndex || timed.Command.TargetRequest != process.TargetRequest)
         {
@@ -259,44 +154,4 @@ public sealed partial class BattleSession
         return !target.IsPlayer && target.IsActive && target.IsAlive && !target.Untargetable;
     }
 
-    private bool OwnsNativeRenzokukenWidget(NativeBattleGraphicsState graphics)
-    {
-        return graphics.TriggerWidget is { SourceMagicId: ushort magic } widget && nativeRenzokukenProcesses.TryGetValue(RequireCanonicalGraphicsActorId(widget.Actor), out BattleNativeRenzokukenState? process) && process.MagicId == magic;
-    }
-
-    private void MirrorNativeRenzokukenWidget(NativeBattleTriggerWidget widget)
-    {
-        string actorId = RequireCanonicalGraphicsActorId(widget.Actor);
-        if (widget.SourceMagicId is null || !nativeRenzokukenProcesses.TryGetValue(actorId, out BattleNativeRenzokukenState? process))
-        {
-            return;
-        }
-        if (widget.SourceMagicId != process.MagicId)
-        {
-            throw new InvalidDataException("Native Renzokuken widget belongs to a different actual effect resource.");
-        }
-        nativeRenzokukenProcesses[actorId] = process with { Input = widget.Input, PoseFrames = widget.Input.PoseClock / 4, PendingTrigger = widget.PendingTrigger };
-    }
-
-    private void CommitNativeRawRenzokukenTrigger(NativeBattleTriggerReceipt receipt)
-    {
-        NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable event owner.");
-        BattleCombatant actor = GetActor(timed.Command.ActorId);
-        BattleNativeRenzokukenState process = nativeRenzokukenProcesses.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native Renzokuken receipt lacks its durable input owner.");
-        if (receipt.Actor != CreatePresentationModelOwner(actor) || receipt.ContactIndex != timed.Contacts + 1 || receipt.ContactIndex != process.Input.ContactIndex)
-        {
-            throw new InvalidDataException("Native Renzokuken receipt differs from its pending input/contact boundary.");
-        }
-        bool previous = suppressNativeImmediateCounter;
-        suppressNativeImmediateCounter = receipt.ContactIndex != receipt.TotalContacts || process.FinisherActionId is not null;
-        try
-        {
-            RecomputeNativeTriggerContact(receipt);
-            nativeTimedAction = timed with { Contacts = receipt.ContactIndex };
-        }
-        finally
-        {
-            suppressNativeImmediateCounter = previous;
-        }
-    }
 }

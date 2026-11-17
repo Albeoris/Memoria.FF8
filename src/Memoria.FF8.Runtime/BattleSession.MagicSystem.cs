@@ -35,16 +35,21 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer && actor.MagicRecordId is not null))
         {
-            actor.MagicOwner = () => magicVitals!;
-            actor.SetMagicOwner = next =>
-            {
-                magicVitals = next;
-                foreach (BattleCombatant player in combatants.Where(candidate => candidate.IsPlayer))
-                {
-                    ReprojectNativePlayerStatistics(player);
-                }
-            };
+            BindBattleMagicOwner(actor);
         }
+    }
+
+    private void BindBattleMagicOwner(BattleCombatant actor)
+    {
+        actor.MagicOwner = () => magicVitals!;
+        actor.SetMagicOwner = next =>
+        {
+            magicVitals = next;
+            foreach (BattleCombatant player in allies)
+            {
+                ReprojectNativePlayerStatistics(player);
+            }
+        };
     }
 
     public MagicCastQuote QuoteMagic(string actorId, int spellId)
@@ -145,7 +150,7 @@ public sealed partial class BattleSession
             }
             return header is null && !free && ability != BattleAbility.Draw && GetActor(actorId).MagicRecordId is not null && (ability == BattleAbility.Magic || native?.Command == 2);
         }
-        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeCallback is null).Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeader, command.GuardianFormAction))).ToList();
+        List<(string? Identity, string Actor, int Spell, bool Required)> commands = actions.Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId), NeedsReservation(command.ActorId, command.Ability, command.NativeAction, command.FreeNativeMagic, command.NativeHeader, command.GuardianFormAction))).ToList();
         if (hostedReservation is not null && magicVitals.MagicSystem.Reservations.Any(reservation => reservation.ActionId == hostedReservation))
         {
             throw new InvalidDataException("A hosted completion cannot carry an unsettled magic reservation.");
@@ -165,7 +170,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("A saved ordinary spell requires its original cast reservation identity.");
         }
-        foreach (BattleAttackCommand command in actions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeHeader is null && command.MagicReservationId is not null))
+        foreach (BattleAttackCommand command in actions.Where(command => command.NativeHeader is null && command.MagicReservationId is not null))
         {
             MagicCastReservation? reservation = magicVitals.MagicSystem.Reservations.FirstOrDefault(candidate => candidate.ActionId == command.MagicReservationId);
             int cost = Math.Min(MagicCost(GetActor(command.ActorId), command), GetAvailableMagicCasts(command.ActorId, command.ActionId, command.MagicReservationId));

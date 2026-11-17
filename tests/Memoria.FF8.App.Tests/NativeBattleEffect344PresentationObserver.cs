@@ -20,17 +20,17 @@ internal sealed class NativeBattleEffect344PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect344State state = current.NativeEffectMemory!.Effect344!;
+        NativeBattleEffect344State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect344!;
         state.Validate();
         NativeBattleModulePoolTask? before = Child(prior);
         NativeBattleModulePoolTask? child = Child(current);
         byte complete = state.Read(CompletionGlobal, 1)[0];
-        foreach (NativeBattleAuxiliaryTask worker in current.NativeGraphics.Auxiliary.Slots.Where(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.MusicLoad501A70))
+        foreach (NativeBattleAuxiliaryTask worker in current.ReadFixturePresentation().NativeGraphics.Auxiliary.Slots.Where(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.MusicLoad501A70))
         {
             Assert.Equal(CompletionGlobal, BinaryPrimitives.ReadUInt32LittleEndian(worker.Payload.AsSpan().Slice(4, 4)));
             workerPhases.Add(worker.Payload[0]);
@@ -60,9 +60,9 @@ internal sealed class NativeBattleEffect344PresentationObserver
             if (age == 32 && child?.ReadWord(12) == 33)
             {
                 NativeBattleEffect344Resources resources = effect.Binding.Effect344Resources!;
-                Assert.Equal(resources.Camera.Data.ToArray(), current.NativeEffectMemory.Textures!.Animation!.Source.Data.ToArray());
-                Assert.Equal(resources.Camera.Data.ToArray(), current.NativeCamera!.ControlResource!.Source.Data.ToArray());
-                Assert.Equal((byte)20, ReadOriginalModelCell(current.NativeGraphics, 4).Sequence);
+                Assert.Equal(resources.Camera.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation!.Source.Data.ToArray());
+                Assert.Equal(resources.Camera.Data.ToArray(), current.ReadFixturePresentation().NativeCamera!.ControlResource!.Source.Data.ToArray());
+                Assert.Equal((byte)20, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).Sequence);
                 CameraPublished = true;
                 sequencePublished = true;
                 Mark("effect344-camera-sequence20", current, cold);
@@ -73,10 +73,10 @@ internal sealed class NativeBattleEffect344PresentationObserver
                 Mark("effect344-contact34", current, cold);
             }
         }
-        for (int index = 0; index < current.NativeGraphics.Effects.Slots.Length; index++)
+        for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics.Effects.Slots.Length; index++)
         {
-            NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-            if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+            if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect344-contact-glyph", current, cold);
@@ -115,7 +115,7 @@ internal sealed class NativeBattleEffect344PresentationObserver
             Assert.True(BinaryPrimitives.ReadUInt16LittleEndian(state.ReadBank(0).Read(12, 2)) >= 36);
             Mark("effect344-banks-retained", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, ChildAge = child?.ReadWord(12), Completion = complete, Cursor = state.ReadDword(CursorGlobal), CameraPublished, Sequence = ReadOriginalModelCell(current.NativeGraphics, 4).Sequence, Contacts, ContactGlyphs });
+        observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics.Callback, ChildAge = child?.ReadWord(12), Completion = complete, Cursor = state.ReadDword(CursorGlobal), CameraPublished, Sequence = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).Sequence, Contacts, ContactGlyphs });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -134,11 +134,11 @@ internal sealed class NativeBattleEffect344PresentationObserver
         Assert.Contains("effect344-camera-sequence20", markers);
         Assert.Contains("effect344-contact34", markers);
         Assert.Contains("effect344-banks-retained", markers);
-        Assert.Empty(completed.NativeGraphics!.OriginalEffect!.Pools);
+        Assert.Empty(completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools);
         File.WriteAllText(Path.Combine(output, "effect344-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), WorkerPhases = workerPhases.Order(), MusicLoaded = musicLoaded, CameraPublished, Sequence20Published = sequencePublished, Contacts, ContactGlyphs, Observations = observations }));
     }
 
-    private static NativeBattleModulePoolTask? Child(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == ChildCallback) : null;
+    private static NativeBattleModulePoolTask? Child(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == ChildCallback) : null;
 
     private void Mark(string name, BattleSnapshot snapshot, Action<string, BattleSnapshot> cold)
     {

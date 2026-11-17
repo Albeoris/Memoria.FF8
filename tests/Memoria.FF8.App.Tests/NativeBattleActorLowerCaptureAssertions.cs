@@ -7,7 +7,7 @@ internal static class NativeBattleActorLowerCaptureAssertions
 {
     internal static int AssertOwned(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.NativeGraphics is not { OriginalEffect: { } original, PrimitiveFrame: { } frame } || original.Binding.Effect != effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics is not { OriginalEffect: { } original, PrimitiveFrame: { } frame } || original.Binding.Effect != effect)
         {
             return 0;
         }

@@ -45,9 +45,9 @@ public sealed class NativeBattleGravija214PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag213-310.tim", NativeBattleGravija214Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(NativeBattleGravija214Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeGravija214Resources(), binding.Gravija214Resources);
-        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, 3));
+        BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(90, definition.ModelId);
         Assert.Equal(0, definition.SceneSlot);
         Assert.NotNull(resource.PoseSource);

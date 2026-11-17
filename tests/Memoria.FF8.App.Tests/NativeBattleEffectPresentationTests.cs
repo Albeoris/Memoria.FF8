@@ -36,7 +36,7 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect cast is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null || binding.RecoveryResources is not null);
+        NativeBattleEffectBinding binding = source.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null || binding.RecoveryResources is not null);
         ushort effect = binding.Effect;
         Assert.True(effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -50,20 +50,20 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect checkpoint is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.True(source.NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
+        Assert.True(source.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(Callback);
         second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
         string id = "effect-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         NativeBattleRestorationPresentationTests.Publish(EvidenceDirectory(), id, first.Capture(), pixels);
-        Console.WriteLine($"Effect{source.NativeGraphics.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.NativeGraphics.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
+        Console.WriteLine($"Effect{source.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, uint entry, uint expectedSound, bool requireCasting, bool requireMorphAndFlash)
@@ -77,8 +77,8 @@ public sealed class NativeBattleEffectPresentationTests
         string? evidence = EvidenceDirectory();
         string id = $"effect{effect}-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-before", initial, scene.Render(battle, 320, 224));
-        bool casting = initial.NativeGraphics!.ActionGraphics?.Callback == 0x50A9A0;
-        bool selected = initial.NativeGraphics.OriginalEffect?.Binding.Entry == entry;
+        bool casting = initial.ReadFixturePresentation().NativeGraphics!.ActionGraphics?.Callback == 0x50A9A0;
+        bool selected = initial.ReadFixturePresentation().NativeGraphics.OriginalEffect?.Binding.Entry == entry;
         bool restoredMidpoint = false;
         int statusTransitions = 0;
         int hpTransitions = 0;
@@ -99,7 +99,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (targetStatus.Presentation.Saved is ushort priorSaved && (priorSaved & 1) != 0 && (targetStatus.Saved & 1) == 0)
         {
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.NativeGraphics, 1);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics, 1);
             NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, model.TextureAllocationMask, 0, 0);
             Assert.NotNull(expectedContactCopy);
@@ -112,8 +112,8 @@ public sealed class NativeBattleEffectPresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot after = battle.Capture();
-                NativeBattleGraphicsState graphics = after.NativeGraphics!;
+                BattleSnapshot after = battle.CaptureForContinuation();
+                NativeBattleGraphicsState graphics = after.ReadFixturePresentation().NativeGraphics!;
                 if (effect is 5 or 35)
                 {
                     capturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(after, effect);
@@ -130,7 +130,7 @@ public sealed class NativeBattleEffectPresentationTests
                     if (expectedContactCopy is { } copy)
                     {
                         NativeBattleEffectVramCopy expected = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
-                        Assert.Contains(after.NativeEffectMemory!.Textures!.Slots, slot => slot?.Kind == 3 && slot.Copy == expected);
+                        Assert.Contains(after.ReadFixturePresentation().NativeEffectMemory!.Textures!.Slots, slot => slot?.Kind == 3 && slot.Copy == expected);
                     }
                     statusTransitions++;
                 }
@@ -162,7 +162,7 @@ public sealed class NativeBattleEffectPresentationTests
                 }
                 byte[] visible = scene.Render(battle, 320, 224).ToArray();
                 NativeBattlePrimitiveFrame plainFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(after with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } });
+                BattleSession plain = BattleSession.Restore(after.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } }));
                 byte[] background = scene.Render(plain, 320, 224).ToArray();
                 int rgb = Enumerable.Range(0, visible.Length / 4).Count(pixel => !visible.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                 if (rgb > peakRgb)
@@ -221,7 +221,7 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(heardBeforeRestore, heard.Count);
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-peak", peak!, peakPixels);
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-after", battle.Capture(), scene.Render(battle, 320, 224));
-        Console.WriteLine($"Effect{effect} peakRGB{peakRgb} at{peak!.Frame}/{peak.NativeGraphics!.Callback}, after{battle.Frame}/{battle.Presentation!.Graphics.Callback}, status{statusTransitions}, HP{hpTransitions}, morph{morphed}, flash{flashed}; evidence{evidence ?? "disabled"}.");
+        Console.WriteLine($"Effect{effect} peakRGB{peakRgb} at{peak!.Frame}/{peak.ReadFixturePresentation().NativeGraphics!.Callback}, after{battle.Frame}/{battle.Presentation!.Graphics.Callback}, status{statusTransitions}, HP{hpTransitions}, morph{morphed}, flash{flashed}; evidence{evidence ?? "disabled"}.");
     }
 
     private static bool HasDescriptor(BattleSession battle)
@@ -234,8 +234,8 @@ public sealed class NativeBattleEffectPresentationTests
     {
         object? owner = effect switch
         {
-            4 => snapshot.NativeEffectMemory!.DoubleMorph,
-            21 => snapshot.NativeEffectMemory!.TripleMorph,
+            4 => snapshot.ReadFixturePresentation().NativeEffectMemory!.DoubleMorph,
+            21 => snapshot.ReadFixturePresentation().NativeEffectMemory!.TripleMorph,
             _ => throw new NotSupportedException("The current enhancement test requires its own original morph owner.")
         };
         Assert.NotNull(owner);

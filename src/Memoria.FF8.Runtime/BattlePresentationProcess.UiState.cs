@@ -4,6 +4,7 @@ public readonly struct BattlePresentationUiState
 {
     private readonly NativeBattleGraphicsState? graphics;
     private readonly NativeBattleUiServices? services;
+    private readonly BattlePresentationProcess? process;
     private readonly bool vitalsVisible;
 
     public BattlePresentationUiState(bool commandMenuHidden, bool vitalsVisible, bool guardianBoostOwnsInput, bool paused)
@@ -14,8 +15,9 @@ public readonly struct BattlePresentationUiState
         Paused = paused;
     }
 
-    internal BattlePresentationUiState(NativeBattleGraphicsState graphics, NativeBattleUiServices services)
+    internal BattlePresentationUiState(BattlePresentationProcess process, NativeBattleGraphicsState graphics, NativeBattleUiServices services)
     {
+        this.process = process;
         this.graphics = graphics;
         this.services = services;
         CommandMenuHidden = (services.Flags942 & 0x841) != 0x40;
@@ -42,7 +44,7 @@ public readonly struct BattlePresentationUiState
                 return Windows.IsVitalsRowVisible4B1740(row);
             }
         }
-        return state.ActorModels.Roster.ContainsPartyActor(actorId);
+        return state.ActorModels.Roster.ContainsPartyActor(actorId) && !process!.IsPartyReplacementVitalsHidden(actorId);
     }
 
     private NativeBattleUiWindows Windows => services?.Windows ?? throw new NotSupportedException("Battle HUD requires its retained UI window bank. Migrate the named snapshot explicitly.");
@@ -57,7 +59,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleGraphicsState graphics = Graphics;
             if (graphics.UiServices is { } services)
             {
-                return new(graphics, services);
+                return new(this, graphics, services);
             }
             if (graphics.EntryReady)
             {

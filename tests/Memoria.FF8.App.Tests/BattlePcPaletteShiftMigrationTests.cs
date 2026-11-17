@@ -39,8 +39,8 @@ public sealed class BattlePcPaletteShiftMigrationTests
         Assert.True(JsonNode.DeepEquals(original, comparison), "Migration changed more than the three proved retained palette-shift owners.");
         BattleSnapshot migrated = JsonSerializer.Deserialize<BattleSnapshot>(document)!;
         Assert.Equal((byte?)0, migrated.Definition.NativeRetainedMemory!.EffectMemory!.PrimitiveProcess!.Color!.AlternatePaletteShift);
-        Assert.Equal((byte?)0, migrated.NativeEffectMemory!.PrimitiveProcess!.Color!.AlternatePaletteShift);
-        Assert.Equal((byte?)0, migrated.NativeGraphics!.PrimitiveFrame!.LastColorState!.AlternatePaletteShift);
+        Assert.Equal((byte?)0, migrated.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Color!.AlternatePaletteShift);
+        Assert.Equal((byte?)0, migrated.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastColorState!.AlternatePaletteShift);
         BattleSession restored = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(restored.Capture()));
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
@@ -68,8 +68,8 @@ public sealed class BattlePcPaletteShiftMigrationTests
         byte[] source = File.ReadAllBytes(input!);
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(source)!;
         Assert.Equal(12, snapshot.Frame);
-        Assert.Equal(92, snapshot.NativeGraphics!.Callback);
-        Assert.Equal((byte?)0, snapshot.NativeGraphics.PrimitiveFrame!.LastColorState!.AlternatePaletteShift);
+        Assert.Equal(92, snapshot.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((byte?)0, snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastColorState!.AlternatePaletteShift);
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession independent = BattleSession.Restore(snapshot);
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);

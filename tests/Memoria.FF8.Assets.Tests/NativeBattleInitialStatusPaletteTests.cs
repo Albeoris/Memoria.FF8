@@ -64,7 +64,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
         string json = JsonSerializer.Serialize(session.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(expected[..512], new NativeBattleEffectArena(restored.Capture().NativeEffectMemory!.Textures!.VramRegions).Read(224 * 2048, 512));
-        Assert.Equal(expected[512..], new NativeBattleEffectArena(restored.Capture().NativeEffectMemory!.Textures!.VramRegions).Read(225 * 2048, 512));
+        Assert.Equal(expected[..512], new NativeBattleEffectArena(restored.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Textures!.VramRegions).Read(224 * 2048, 512));
+        Assert.Equal(expected[512..], new NativeBattleEffectArena(restored.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Textures!.VramRegions).Read(225 * 2048, 512));
     }
 }

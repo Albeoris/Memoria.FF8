@@ -28,12 +28,12 @@ internal sealed partial class GameWorld
         List<BattleNativeGrowthChange> changes = [];
         foreach (BattleCombatant actor in active.Combatants.Where(actor => actor.IsPlayer))
         {
-            BattleNativeCharacterGrowth? before = completed.Definition.Combatants.Single(source => source.Id == actor.Id).NativeGrowth;
+            byte row = checked((byte)(actor.MagicRecordId ?? throw new InvalidDataException("Native party growth requires its admitted row.")));
+            BattleNativeCharacterGrowth? before = ReadAdmittedPartyMember(completed.Definition, row).NativeGrowth;
             if (before is null || actor.NativeGrowth is not { } after || before.SameSources(after))
             {
                 continue;
             }
-            byte row = byte.Parse(actor.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
             changes.Add(new(row, before, after));
         }
         return changes.ToArray();

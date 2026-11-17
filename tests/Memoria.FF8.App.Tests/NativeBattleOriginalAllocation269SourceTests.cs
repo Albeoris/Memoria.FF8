@@ -72,20 +72,20 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         }
         Pump(AllocationReady, "original-reserve-activation");
         BattleCombatant allocated = Assert.Single(session.Combatants, actor => actor.ModelId == 94 && actor.IsActive);
-        BattleSnapshot ready = session.Capture();
+        BattleSnapshot ready = session.CaptureForContinuation();
         NativeBattleEnemyAllocation allocation = Assert.Single(ready.NativeAllocations);
         Assert.Equal(3, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
         int caster = Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(ready.NativeLastAllocatedTarget).Operand;
         Assert.InRange(caster, 3, 6);
-        NativeBattleGraphicsModel loaded = ReadOriginalModelCell(ready.NativeGraphics!, caster);
+        NativeBattleGraphicsModel loaded = ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, caster);
         Assert.Equal((byte)110, loaded.ModelId4);
         Assert.NotNull(loaded.GeometryWorldMatrix);
         BattleCombatantDefinition current = session.GetCombatantDefinition(allocated.Id);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(current).PoseSource ?? throw new InvalidDataException("The original allocated caster requires its actual skeleton.");
         var bones = NativeBattleBodyBoneMatrices.Require(loaded, pose);
         Assert.Equal(pose.BoneCount, bones.Length);
-        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(ready.NativeGraphics).OriginalEffect);
+        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(ready.ReadFixturePresentation().NativeGraphics).OriginalEffect);
         Save("after-entry", ready);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 266 && row.MagicId == 269);
         byte sequence = NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(94, allocated.Level), action);
@@ -95,13 +95,13 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         NativeBattleStatusSnapshot status = targetStatusOwner.NativeStatus ?? throw new InvalidDataException("The original party target requires its actual status owner.");
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics.Descriptors.EnqueueAction(128, header);
-        Save("queued-action104", ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } });
+        (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics.Descriptors.EnqueueAction(128, header);
+        Save("queued-action104", (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } }));
         File.WriteAllText(Path.Combine(output!, "allocation-source-result.json"), JsonSerializer.Serialize(new { Effect = 269, Status = "passed", Scenario = "Controlled post-formula deaths of three original enemies; actual authored death callbacks/barrier allocate and activate original reserve row3; no natural formula or inventory admission", Encounter = 436, Stage = 125, ActualCaster = caster, NativeModel = 110, OriginalModel = 94, allocation.SceneSlot, BoneCount = bones.Length, Command = action.Command, Action = action.ActionId, Sequence = sequence, Frame = ready.Frame, EffectCallbacks = 0 }, new JsonSerializerOptions { WriteIndented = true }));
 
         bool AllocationReady()
         {
-            BattleSnapshot snapshot = session.Capture();
+            BattleSnapshot snapshot = session.CaptureForContinuation();
             if (snapshot.NativeAllocations.Length != 1)
             {
                 return false;
@@ -111,8 +111,8 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
             {
                 return false;
             }
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, participant.ActorIndex);
-            return Assert.IsType<NativeBattleGraphicsState>(snapshot.NativeGraphics).Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, participant.ActorIndex);
+            return Assert.IsType<NativeBattleGraphicsState>(snapshot.ReadFixturePresentation().NativeGraphics).Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
         }
 
         void Save(string name, BattleSnapshot snapshot)

@@ -32,7 +32,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
                 Assert.True(observation.Textures.IsTerminalQuiescent);
                 Assert.Equal(new[] { "effect-or-auxiliary-task" }, battle.ObserveDiagnosticDrainBlockers());
                 ObserveFingerprint("before-capture", battle, observation);
-                BattleSnapshot terminal = battle.Capture();
+                BattleSnapshot terminal = battle.CaptureForContinuation();
                 ObserveFingerprint("after-capture", battle, battle.ObserveComponentTerminalTextures(101));
                 string frozen = JsonSerializer.Serialize(terminal);
                 BattleSession direct = BattleSession.Restore(terminal);
@@ -41,8 +41,8 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
                 cold.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
                 ObserveFingerprint("direct-restore-before-tick", direct, direct.ObserveComponentTerminalTextures(101));
                 ObserveFingerprint("json-restore-before-tick", cold, cold.ObserveComponentTerminalTextures(101));
-                byte[] vram = terminal.NativeEffectMemory!.Textures!.ReadVram();
-                string auxiliary = JsonSerializer.Serialize(terminal.NativeGraphics!.Auxiliary);
+                byte[] vram = terminal.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
+                string auxiliary = JsonSerializer.Serialize(terminal.ReadFixturePresentation().NativeGraphics!.Auxiliary);
                 for (int tail = 0; tail < 3; tail++)
                 {
                     direct.Tick();
@@ -52,10 +52,10 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
                     ObserveFingerprint("json-after-tick-" + tail, cold, cold.ObserveComponentTerminalTextures(101));
                     Assert.Equal(observation.ResidentFingerprint, next.ResidentFingerprint);
                     Assert.True(next.GraphicsCallback > observation.GraphicsCallback);
-                    BattleSnapshot nextState = direct.Capture();
+                    BattleSnapshot nextState = direct.CaptureForContinuation();
                     Assert.Equal(JsonSerializer.Serialize(nextState), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(auxiliary, JsonSerializer.Serialize(nextState.NativeGraphics!.Auxiliary));
-                    Assert.Equal(vram, nextState.NativeEffectMemory!.Textures!.ReadVram());
+                    Assert.Equal(auxiliary, JsonSerializer.Serialize(nextState.ReadFixturePresentation().NativeGraphics!.Auxiliary));
+                    Assert.Equal(vram, nextState.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram());
                     Assert.Equal(new[] { "effect-or-auxiliary-task" }, direct.ObserveDiagnosticDrainBlockers());
                 }
                 Assert.Equal(frozen, JsonSerializer.Serialize(terminal));

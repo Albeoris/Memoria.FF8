@@ -28,6 +28,16 @@ public sealed partial class BattleSession
         };
         return FindTargetActor(reference) ?? throw new NotSupportedException("The last allocated participant is no longer present.");
     }
+
+    private BattlePreviousTarget? ReadAiLastAllocation(BattleCombatant caller)
+    {
+        if (ReadDonorSource(caller)?.Group is not { } group)
+        {
+            return nativeLastAllocatedTarget;
+        }
+        NativeBattleEnemyAllocation? latest = nativeAllocations.LastOrDefault(allocation => allocation.DonorSource?.Group == group);
+        return latest is null ? null : new BattlePreviousTarget.Actor(TargetActorReference(GetActor(latest.Id)));
+    }
     public IReadOnlyList<uint>? PersistentAiVariables => persistentAiVariables?.ToArray();
 
     private void InitializeNativeParticipants()
@@ -244,7 +254,7 @@ public sealed partial class BattleSession
                     case 27:
                         int entranceIndex = instruction[0] + NativeBattleSlots.AllyCount;
                         byte entranceSequence = instruction[1];
-                        QueueNativeEnemyEntrance(actor, FindNativeActor(entranceIndex), entranceSequence);
+                        QueueNativeEnemyEntrance(actor, RequireSourceOriginalActor(actor, entranceIndex), entranceSequence);
                         break;
                     case 29:
                         int removal = instruction[0];
@@ -309,7 +319,7 @@ public sealed partial class BattleSession
                         break;
                     case 43:
                         int physicalTarget = instruction[0];
-                        selected = SelectDirectAiActor(physicalTarget);
+                        selected = SelectDirectAiActor(actor, physicalTarget);
                         break;
                     case 41:
                         DrawNativeAiSpell(actor, false, hostedOperationsAtStart);
@@ -365,7 +375,7 @@ public sealed partial class BattleSession
                         StageOrQueueRosterOperation(activation);
                         break;
                     case 58:
-                        FindNativeActor(instruction[0]).Untargetable = false;
+                        RequireSourceOriginalActor(actor, instruction[0]).Untargetable = false;
                         break;
                     case 57:
                         //4863F0 consumes the request as internalkind3 and saved/resultBYTE1, without victory rewards.
@@ -506,6 +516,11 @@ public sealed partial class BattleSession
     private BattleCombatant FindNativeActor(int index)
     {
         return FindActiveNativeActor(index) ?? throw new NotSupportedException($"Native battle actor index {index} has no current allocation.");
+    }
+
+    private BattleCombatant RequireSourceOriginalActor(BattleCombatant caller, int operand)
+    {
+        return FindSourceOriginalActor(caller, operand) ?? throw new NotSupportedException($"Native AI operand {operand} has no current actor in its source group.");
     }
 
     private BattleCombatant? FindActiveNativeActor(int index)

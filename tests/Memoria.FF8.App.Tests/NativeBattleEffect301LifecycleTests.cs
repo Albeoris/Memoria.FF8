@@ -14,7 +14,7 @@ public sealed class NativeBattleEffect301LifecycleTests(ITestOutputHelper output
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT301_CONTINUATION_SNAPSHOT");
         Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone original301 source for native lifecycle diagnosis.");
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
-        Assert.True(source.NativeEffectMemory!.Effect301!.ScriptSourcePending);
+        Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.Effect301!.ScriptSourcePending);
         using GameAssets game = new(directory!);
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);

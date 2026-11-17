@@ -73,7 +73,7 @@ public sealed class NativeBattleHasteFloatPresentationTests
             BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
             sourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath)));
             prior = source;
-            NativeBattleGraphicsState graphics = source.NativeGraphics!;
+            NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
             sourceCallback = graphics.Callback;
             int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
@@ -117,9 +117,9 @@ public sealed class NativeBattleHasteFloatPresentationTests
                     if (pending.Contains("initialized"))
                     {
                         boundary = "initialized";
-                        firstLiveCallback = prior.NativeGraphics!.Callback;
+                        firstLiveCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback;
                     }
-                    else if (pending.Contains("live-continuation") && prior.NativeGraphics!.Callback >= firstLiveCallback + 2)
+                    else if (pending.Contains("live-continuation") && prior.ReadFixturePresentation().NativeGraphics!.Callback >= firstLiveCallback + 2)
                     {
                         boundary = "live-continuation";
                     }
@@ -133,10 +133,10 @@ public sealed class NativeBattleHasteFloatPresentationTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(targetHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
-                if (ReadOriginalModelCell(prior.NativeGraphics!, 0).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics!, 0).Sequence == contact.Primary.Sequence)
+                if (ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 0).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 0).Sequence == contact.Primary.Sequence)
                 {
                     contactSequenceTransitions++;
                 }
@@ -148,7 +148,7 @@ public sealed class NativeBattleHasteFloatPresentationTests
                     Assert.Equal(statusMask, currentStatus);
                     NativeBattleModulePoolTask contactTask = Assert.Single(before!.Pools[1].Slots, task => (task.Flags & 1) != 0 && task.Callback == (item.Effect == 125 ? 0x6BB8D0u : 0x6C9580u));
                     int nativeContactCounter = item.Effect == 125 ? 63 : 64;
-                    long elapsedCallbacks = current.NativeGraphics!.Callback - prior.NativeGraphics!.Callback;
+                    long elapsedCallbacks = current.ReadFixturePresentation().NativeGraphics!.Callback - prior.ReadFixturePresentation().NativeGraphics!.Callback;
                     Assert.InRange(nativeContactCounter - contactTask.ReadWord(12), 0L, Math.Max(0L, elapsedCallbacks - 1));
                     statusTransitions++;
                 }
@@ -158,13 +158,13 @@ public sealed class NativeBattleHasteFloatPresentationTests
                 {
                     completions++;
                 }
-                observedPrivatePackets |= current.NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                observedPrivatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                 if (after?.ReturnedDescriptor is > 0 && frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutEffect } });
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutEffect } }));
                     int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                     if (changed > peakChangedPixels)
                     {
@@ -173,7 +173,7 @@ public sealed class NativeBattleHasteFloatPresentationTests
                         peakPixels = visible;
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -226,7 +226,7 @@ public sealed class NativeBattleHasteFloatPresentationTests
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         }
 
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
     }
 
     private static int DifferentRgbPixels(byte[] first, byte[] second)

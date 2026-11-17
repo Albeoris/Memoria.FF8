@@ -55,7 +55,7 @@ public sealed partial class BattleSession
             AdvanceExpandedUiAtbService, ActivateExpandedHostedClock, AdvanceExpandedPresentedVitals4B0500, CaptureExpandedHostedRenzokukenFrame, ApplyExpandedHostedRenzokukenWidgetSteps,
             () => (Frame, GuardianAnimationSkipPending), () => NativeHostCallbacks ?? Frame, ReadPreparedActor, ReadPreparedScanActor, ReadPreparedScanExtra,
             () => DiagnosticEffectDispatched is not null, ObservePresentationEffect,
-            ObservePresentationDescriptorQueued, ObservePresentationDescriptorRemoved, ObservePresentationFrameEnded, ReadPresentationStackVitals, MatchesDiagnosticVisualEntry, AdmitDiagnosticVisualEntry,
+            ObservePresentationDescriptorRemoved, ObservePresentationFrameEnded, ReadPresentationStackVitals, MatchesDiagnosticVisualEntry, AdmitDiagnosticVisualEntry,
             ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate);
     }
 

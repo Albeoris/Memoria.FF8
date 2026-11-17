@@ -49,26 +49,26 @@ public sealed class NativeBattleDiablos325WellContinuationTests
                 before = first.Capture();
                 first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-                BattleSnapshot current = first.Capture();
+                BattleSnapshot current = first.CaptureForContinuation();
                 Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
                 byte[] pixels = scene.Render(first, 320, 224).ToArray();
                 Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
-                NativeBattleModulePoolTask task = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
+                NativeBattleModulePoolTask task = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
                 NativeBattleRestorationPresentationTests.Publish(output, "before-stream-selection", current, pixels);
                 Assert.Equal((ushort)(counter + 1), task.ReadWord(0xC));
                 Assert.Equal((uint)(counter - 8), task.ReadDword(0x268));
-                Assert.Equal(4096u, current.NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(4096u, current.NativeEffectMemory.Diablos325.PreviousFlash51EC);
-                Assert.All(current.NativeStage!.Groups, group =>
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group =>
                 {
                     Assert.Equal((short)4096, group.ColorDepth);
                     Assert.Equal(0, group.Flags & 2);
                 });
-                rows.Add(new { current.Frame, NativeCallback = current.NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.NativeEffectMemory.PrimitiveProcess!.ByteCursor });
+                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.ByteCursor });
             }
-            BattleSnapshot boundary = first.Capture();
+            BattleSnapshot boundary = first.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "well-geometry-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = "before-stream-selection" }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "well-geometry-validated", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback, Boundary = "before-stream-selection" }));
         }
         catch
         {
@@ -128,6 +128,6 @@ public sealed class NativeBattleDiablos325WellContinuationTests
         }
     }
 
-    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
+    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

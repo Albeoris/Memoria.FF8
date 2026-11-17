@@ -73,7 +73,7 @@ public sealed partial class BattleSession
 
     private static void ValidateExpandedHostedRenzokukenProof(BattleSnapshot snapshot, HostedRenzokukenCandidateProof proof)
     {
-        if (!ReferenceEquals(snapshot, proof.Snapshot) || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
+        if (!ReferenceEquals(snapshot, proof.Snapshot) || snapshot.Outcome != BattleOutcome.Active ||
             proof.Event is not { Renzokuken: { } owner, LogicallyComplete: false } || !ReferenceEquals(snapshot.ActiveAction, proof.Event.ActivePresentation) ||
             snapshot.NativeTimedAction is not { } timed || !ReferenceEquals(timed.Command, proof.Event.ActivePresentation) ||
             snapshot.NativeLimits.SingleOrDefault(limit => limit.ActorId == owner.ActorId)?.Renzokuken is not { } state || state.MagicId != owner.MagicId ||
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
         }
         HostedRenzokukenOwner owner = new(caster, source.Id, magic, finisher);
         BattleTargetRequest targets = SelectBattleTarget(recipient, eligibility: BattleTargetEligibility.SavedStatus);
-        BattleActionPresentation mirror = NativeCommandPresentation(command) with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, TargetRequest = targets };
+        BattleActionPresentation mirror = NativeCommandPresentation(command) with { Phase = BattleActionPhase.Recovery, TargetRequest = targets };
         ExpandedHostedEvent hostedEvent = new(mirror, mirror, 0x47DE70, null, CompletionOwner: caster) { Renzokuken = owner };
         candidate.ActiveAction = mirror;
         candidate.expandedHostedEvent = hostedEvent;
@@ -375,7 +375,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Hosted Renzokuken finisher left captured counters unpublished.");
         }
         ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
-        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.ModelOwner)));
         candidate.ValidateExpandedHostedInvocations(planned);
         HostedRenzokukenFinisherReplacement replacement = new(receipt, packets, invocation.FirstContact, contacts.Select(contact => contact.Packet).ToImmutableArray(), routed);
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);

@@ -65,20 +65,20 @@ public sealed class NativeBattleModule5707A0PresentationTests
             session.Tick();
         }
         Assert.True(session.Presentation!.Graphics.EntryReady);
-        BattleSnapshot original = session.Capture();
-        int actor = FindOriginalModelSlot(original.NativeGraphics!, "enemy-1");
+        BattleSnapshot original = session.CaptureForContinuation();
+        int actor = FindOriginalModelSlot(original.ReadFixturePresentation().NativeGraphics!, "enemy-1");
         Assert.Equal(4, actor);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(original.NativeGraphics!, actor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics!, actor);
         Assert.Equal((byte)89, model.ModelId4);
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);
         Assert.NotNull(model.CurrentBodyBoneMatrices);
-        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(original.NativeGraphics).ModuleEffects.Head);
+        Assert.Null(Assert.IsType<NativeBattleGraphicsState>(original.ReadFixturePresentation().NativeGraphics).ModuleEffects.Head);
         NativeBattleModuleResource resource = original.Definition.NativeModuleResources[resourceId];
         Assert.Equal(0x570CC0u, resource.WrapperCallback);
         Assert.Equal(0x5707A0u, resource.Callback);
         // This is a declared component append; it does not insert an opcode into the original Wedge sequence.
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(original with { NativeGraphics = original.NativeGraphics with { ModuleEffects = NativeBattleStorageSnapshots.Restore(original.NativeGraphics.ModuleEffects).AppendModelResource(RequireOriginalModelOwner(original.NativeGraphics, actor), resource, 0x100000u | resourceId, original.NativeGraphics.NativeBindings.CaptureAliases(original.NativeGraphics.ActorModels)) } }));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(original.WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics with { ModuleEffects = NativeBattleStorageSnapshots.Restore(original.ReadFixturePresentation().NativeGraphics.ModuleEffects).AppendModelResource(RequireOriginalModelOwner(original.ReadFixturePresentation().NativeGraphics, actor), resource, 0x100000u | resourceId, original.ReadFixturePresentation().NativeGraphics.NativeBindings.CaptureAliases(original.ReadFixturePresentation().NativeGraphics.ActorModels)) } })));
         List<ushort> phases = [];
         List<object> receipts = [];
         int commands = 0;
@@ -90,15 +90,15 @@ public sealed class NativeBattleModule5707A0PresentationTests
             BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!);
             session.AdvanceNativeGraphicsPresentation(Callback);
             restored.AdvanceNativeGraphicsPresentation(Callback);
-            BattleSnapshot after = session.Capture();
+            BattleSnapshot after = session.CaptureForContinuation();
             Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
-            foreach (NativeBattleModuleDraw draw in after.NativeGraphics!.ModuleDraws.Where(draw => draw.Kind.ToString() == "Impact570860"))
+            foreach (NativeBattleModuleDraw draw in after.ReadFixturePresentation().NativeGraphics!.ModuleDraws.Where(draw => draw.Kind.ToString() == "Impact570860"))
             {
                 phases.Add(draw.Phase);
             }
-            NativeBattlePrimitiveFrame frame = after.NativeGraphics!.PrimitiveFrame ?? throw new InvalidDataException("The selected module requires its actual primitive frame.");
+            NativeBattlePrimitiveFrame frame = after.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame ?? throw new InvalidDataException("The selected module requires its actual primitive frame.");
             commands += frame.LastCommands.Count(command => command.Command.ModuleDraw is not null);
-            receipts.Add(new { Callback = callbacks, after.NativeGraphics.ModuleEffects, after.NativeGraphics.ModuleDraws, ModuleCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not null).ToArray(), after.NativeEffectMemory });
+            receipts.Add(new { Callback = callbacks, after.ReadFixturePresentation().NativeGraphics.ModuleEffects, after.ReadFixturePresentation().NativeGraphics.ModuleDraws, ModuleCommands = frame.LastCommands.Where(command => command.Command.ModuleDraw is not null).ToArray(), after.ReadFixturePresentation().NativeEffectMemory });
             callbacks++;
         }
         Assert.Equal(new ushort[] { 0, 1, 2, 3 }, phases);

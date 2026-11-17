@@ -42,7 +42,7 @@ public sealed class NativeBattleQuake38PresentationTests
         }
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath);
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath)!, "before-ordinary-input.battle.json"));
-        NativeBattleGraphicsState sourceGraphics = source.NativeGraphics!;
+        NativeBattleGraphicsState sourceGraphics = source.ReadFixturePresentation().NativeGraphics!;
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -60,7 +60,7 @@ public sealed class NativeBattleQuake38PresentationTests
         Assert.Equal(1, Stock(source, caster, action.ActionId));
         int producedHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
         Assert.True(beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp > producedHp);
-        NativeBattleStageGroup originalGround = source.NativeStage!.Groups[1];
+        NativeBattleStageGroup originalGround = source.ReadFixturePresentation().NativeStage!.Groups[1];
         Assert.NotEqual(0, originalGround.Flags & 1);
         Assert.Contains(source.Definition.NativeStageSource!.Geometry!.Value, mesh => mesh.StageGroup == 1 && mesh.Polygons.Length != 0);
         BattleSession battle = BattleSession.Restore(source);
@@ -84,7 +84,7 @@ public sealed class NativeBattleQuake38PresentationTests
             {
                 prior = battle.Capture();
                 NativeBattleOriginalEffectState? before = Selected(prior);
-                NativeBattleQuake38State? priorState = prior.NativeEffectMemory?.Quake38;
+                NativeBattleQuake38State? priorState = prior.ReadFixturePresentation().NativeEffectMemory?.Quake38;
                 NativeBattleModulePoolTask? emitter = Emitter(before);
                 bool contactReady = emitter is not null && emitter.ReadByte(41) == 1 && emitter.ReadByte(40) == 0;
                 string? boundary = before?.ReturnedDescriptor is > 0 && pending.Contains("initialized") ? "initialized" : priorState?.Word(0x279299E) == 5 && pending.Contains("ripple") ? "ripple" : null;
@@ -97,9 +97,9 @@ public sealed class NativeBattleQuake38PresentationTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleOriginalEffectState? after = Selected(current);
-                NativeBattleQuake38State? state = current.NativeEffectMemory?.Quake38;
+                NativeBattleQuake38State? state = current.ReadFixturePresentation().NativeEffectMemory?.Quake38;
                 Assert.Equal(producedHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
                 if (state is not null && after?.ReturnedDescriptor is > 0)
@@ -109,25 +109,25 @@ public sealed class NativeBattleQuake38PresentationTests
                     {
                         particles.Add(task.Callback);
                     }
-                    groundHidden |= (current.NativeStage!.Groups[1].Flags & 2) == 0;
+                    groundHidden |= (current.ReadFixturePresentation().NativeStage!.Groups[1].Flags & 2) == 0;
                     NativeBattleModulePoolTask? sequence = after.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x8D8800);
-                    if (sequence?.ReadByte(41) == 7 && state.SavedActors[OriginalOwner(3)].Position28 is { } saved && ReadOriginalModelCell(current.NativeGraphics!, 3).Transform is { } transform)
+                    if (sequence?.ReadByte(41) == 7 && state.SavedActors[OriginalOwner(3)].Position28 is { } saved && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Transform is { } transform)
                     {
                         bounced |= transform.Position28.Y != saved.Y;
                     }
                 }
-                cameraChanged |= JsonSerializer.Serialize(current.NativeCamera?.Projection) != JsonSerializer.Serialize(source.NativeCamera?.Projection);
+                cameraChanged |= JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera?.Projection) != JsonSerializer.Serialize(source.ReadFixturePresentation().NativeCamera?.Projection);
                 if (contactReady)
                 {
                     Assert.True(Emitter(after) is null || Emitter(after)!.ReadByte(41) == 2);
                     contacts++;
-                    File.WriteAllText(Path.Combine(output, "emitter-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.NativeGraphics!.Callback, AfterCallback = current.NativeGraphics!.Callback, Emitter = emitter, Contact = contact, TargetHp = producedHp, Observation = "Original emitter consumes its complete installed action target list after its linked sequence and camera tasks release; ordinary producer HP remains unchanged" }, new JsonSerializerOptions { WriteIndented = true }));
+                    File.WriteAllText(Path.Combine(output, "emitter-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback, AfterCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Emitter = emitter, Contact = contact, TargetHp = producedHp, Observation = "Original emitter consumes its complete installed action target list after its linked sequence and camera tasks release; ordinary producer HP remains unchanged" }, new JsonSerializerOptions { WriteIndented = true }));
                 }
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
                 {
                     completions++;
                 }
-                NativeBattlePrimitiveFrame frame = current.NativeGraphics!.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 if (frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
@@ -135,7 +135,7 @@ public sealed class NativeBattleQuake38PresentationTests
                     if (changed > peak)
                     {
                         peak = changed;
-                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.NativeGraphics.Callback}", current, visible);
+                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
                     }
                     bool Crack(NativeBattleLogicalResolvedCommand command) => command.Command.Packet.Bank == "20DFAB8" && (command.Command.Opcode & 0xFC) == 0x2C && command.Command.Words.Length >= 3 && (command.Command.Words[2] >> 16) == 0x3C54;
                     if (frame.LastCommands.Any(Crack))
@@ -144,11 +144,11 @@ public sealed class NativeBattleQuake38PresentationTests
                         if (cracks > peakCracks)
                         {
                             peakCracks = cracks;
-                            NativeBattleRestorationPresentationTests.Publish(output, $"ground-crack-visible-peak-{current.NativeGraphics.Callback}", current, visible);
+                            NativeBattleRestorationPresentationTests.Publish(output, $"ground-crack-visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
                         }
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -174,7 +174,7 @@ public sealed class NativeBattleQuake38PresentationTests
             Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == installed.Quake38Resources!.QuakeSound);
             NativeBattleQuake38State final = battle.Presentation!.Memory.Quake38!;
             Assert.Equal(7, final.Word(0x279299E));
-            Assert.Equal(originalGround.Flags & 2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
+            Assert.Equal(originalGround.Flags & 2, battle.CaptureForContinuation().ReadFixturePresentation().NativeStage!.Groups[1].Flags & 2);
             Assert.Equal(0, final.Word(0x279299C));
             Assert.Equal(0, final.Word(0x2792D6C));
             Assert.Equal(0, final.Word(0x2792E18));
@@ -195,11 +195,11 @@ public sealed class NativeBattleQuake38PresentationTests
 
         int Isolate(BattleSnapshot snapshot, byte[] visible, Func<NativeBattleLogicalResolvedCommand, bool> selected)
         {
-            NativeBattlePrimitiveFrame frame = snapshot.NativeGraphics!.PrimitiveFrame!;
-            BattleSnapshot without = snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !selected(command)).ToImmutableArray() } } };
+            NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
+            BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !selected(command)).ToImmutableArray() } } });
             return DifferentRgbPixels(visible, scene.Render(BattleSession.Restore(without), 320, 224));
         }
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect ? effect : null;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect ? effect : null;
         void ColdNext(string name, BattleSnapshot snapshot, bool advanceOriginal = true)
         {
             BattleSession running = advanceOriginal ? battle : BattleSession.Restore(snapshot);

@@ -269,7 +269,7 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("Saved encounter Summon decision differs from its declared policy rule.");
             }
         }
-        foreach (BattleAttackCommand command in QueuedActions.Concat(nativeCommandBanks.BoundCommands).Where(command => command.NativeAction?.PresentationOnly == true))
+        foreach (BattleAttackCommand command in QueuedActions.Where(command => command.NativeAction?.PresentationOnly == true))
         {
             Validate(command.ActorId, command.NativeQueuedCommand, command.NativeSequence, command.NativeAiCallbackStage);
         }
@@ -336,12 +336,6 @@ public sealed partial class BattleSession
         foreach (string id in retiring)
         {
             BattleCombatant actor = GetActor(id);
-            if (actor.NativeActorIndex is >= 0 and < 7)
-            {
-                RemoveNativeQueuedActorCommands(actor);
-                nativeCommandBanks = nativeCommandBanks.RemoveActorCallbacks(checked((byte)actor.RequireNativeActorIndex()), actor.Id);
-            }
-            nativeCommandBanks = nativeCommandBanks.RemoveAllocationCallbacks(actor.Id);
             if (actor.IsActive)
             {
                 ReleaseNativeParticipant(actor);

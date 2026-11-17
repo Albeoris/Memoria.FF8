@@ -35,7 +35,7 @@ public sealed class NativeBattleRecover93PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState graphics = source.NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
         NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
@@ -102,7 +102,7 @@ public sealed class NativeBattleRecover93PresentationTests
                 int? fadeCounter = Live(beforeEffect, profile.Code(0x754E60))?.ReadWord(0x24);
                 if (fadeCounter == 35)
                 {
-                    stageHighBytes = prior.NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray();
+                    stageHighBytes = prior.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray();
                 }
                 string? name = BoundaryName(beforeEffect, requested, profile);
                 BattleSession? cold = null;
@@ -116,9 +116,9 @@ public sealed class NativeBattleRecover93PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 capturedGeometry += NativeBattleRestorationSummonCaptureAssertions.AssertOwned(current, effectId);
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current, profile);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
                 if (beforeEffect?.ReturnedDescriptor is > 0 && afterEffect?.ReturnedDescriptor == 0)
@@ -134,23 +134,23 @@ public sealed class NativeBattleRecover93PresentationTests
                     contactTransitions++;
                 }
                 Assert.True(hp == initialHp || hp == expectedHp);
-                Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.NativeGraphics, targetIndex).ActiveStagedResourceRow100);
+                Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, targetIndex).ActiveStagedResourceRow100);
                 if (revival)
                 {
                     Assert.Equal((ushort)100, current.NativePartyPresentation.Rows[0]!.HitPoints);
                 }
-                sawModelTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
+                sawModelTim |= current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
                 if (fadeCounter is >= 35 and <= 76)
                 {
                     int expectedDepth = fadeCounter <= 41 ? Math.Min(1536, (fadeCounter.Value - 35) * 256) : fadeCounter <= 70 ? 1536 : Math.Max(0, 1536 - (fadeCounter.Value - 70) * 256);
-                    Assert.All(current.NativeStage!.Groups, group => Assert.Equal((short)expectedDepth, group.ColorDepth));
+                    Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group => Assert.Equal((short)expectedDepth, group.ColorDepth));
                     stageCleared = true;
                 }
                 if (stageCleared)
                 {
-                    Assert.Equal(stageHighBytes!, current.NativeStage!.Groups.Select(group => group.ColorFlags).ToArray());
-                    stagePeak = Math.Max(stagePeak, current.NativeStage.Groups.Max(group => group.ColorDepth));
-                    short depth = current.NativeStage.Groups[0].ColorDepth;
+                    Assert.Equal(stageHighBytes!, current.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags).ToArray());
+                    stagePeak = Math.Max(stagePeak, current.ReadFixturePresentation().NativeStage.Groups.Max(group => group.ColorDepth));
+                    short depth = current.ReadFixturePresentation().NativeStage.Groups[0].ColorDepth;
                     if (stageDepths.Count == 0 || stageDepths[^1] != depth)
                     {
                         stageDepths.Add(depth);
@@ -162,15 +162,15 @@ public sealed class NativeBattleRecover93PresentationTests
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
-                    NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                     int privatePackets = frame.LastCommands.Count(item => item.Command.Packet.Bank == "20DFAB8");
                     int commonFramePackets = frame.LastCommands.Count(item => item.Command.Packet.Bank != "20DFAB8");
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(item => item.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = without } });
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
                     int changed = Enumerable.Range(0, pixels.Length / 4).Count(pixel => !pixels.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, privatePackets, commonFramePackets, changed, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, privatePackets, commonFramePackets, changed, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
                 }
             }
@@ -264,7 +264,7 @@ public sealed class NativeBattleRecover93PresentationTests
     }
 
     private static NativeBattleModulePoolTask? Live(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == callback);
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, NativeBattleAngeloRestorationProfile profile) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == profile.Effect && effect.Binding.Entry == profile.Entry ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, NativeBattleAngeloRestorationProfile profile) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == profile.Effect && effect.Binding.Entry == profile.Entry ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, int PrivatePackets, int CommonFramePackets, int ChangedRgbPixels, string RgbaSha256);
 }

@@ -17,7 +17,7 @@ public sealed class NativeBattleRetainedModelFieldsTests
         models = models.SetItem(6, models[6] with { Flags0 = 0, Rotation12 = 31, Rotation14 = -32, Rotation16 = 33, RotationPadding18 = 0xFEDC, Transform = transform with { Position28 = new(101, -102, 103), Vertical34 = -104 }, Color44 = 0xA5123456, GeometryBounds52 = new(new(-707, -808, -909), new(1010, 1111, 1212)) });
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), models[0]), (3, new BattleEnemyActorModel(new("enemy")), models[3])]);
         graphics = graphics with { NativeBindings = graphics.NativeBindings.WriteUnboundCell(NativeBattleModelSlot.Decode(6), models[6]) };
-        BattleSnapshot snapshot = Snapshot(retained) with { NativeGraphics = graphics };
+        BattleSnapshot snapshot = Snapshot(retained).WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
         NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
         var next = NativeBattleModelBoundary.FromRetainedMemory(restored).CaptureOriginalCells(new BattleActorModels([]));
@@ -34,7 +34,7 @@ public sealed class NativeBattleRetainedModelFieldsTests
     public void Missing_previous_fields_stay_unknown_when_captured_and_cleared()
     {
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { ModelTransformRows = null };
-        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(Snapshot(retained) with { NativeGraphics = OriginalGraphics([]) }, null);
+        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(Snapshot(retained).WithFixturePresentation(facts => facts with { NativeGraphics = OriginalGraphics([]) }), null);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
         Assert.All(NativeBattleModelBoundary.FromRetainedMemory(restored).CaptureOriginalCells(new BattleActorModels([])), model =>
         {

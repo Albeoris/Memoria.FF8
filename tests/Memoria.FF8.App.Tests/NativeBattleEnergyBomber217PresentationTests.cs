@@ -50,7 +50,7 @@ public sealed class NativeBattleEnergyBomber217PresentationTests
             BattleCombatantDefinition original = Assert.Single(source.Definition.Combatants, candidate => candidate.Id == actor.Id);
             Assert.Equal(index, original.SceneSlot);
             Assert.Equal(index + 112, original.ModelId);
-            Assert.Equal((byte?)(index + 128), ReadOriginalModelCell(source.NativeGraphics!, index + 3).ModelId4);
+            Assert.Equal((byte?)(index + 128), ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, index + 3).ModelId4);
         }
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([217])[216];
         Assert.Equal(NativeBattleEnergyBomber217Profile.Entry, binding.Entry);

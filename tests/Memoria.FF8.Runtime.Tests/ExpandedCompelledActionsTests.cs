@@ -43,7 +43,7 @@ public sealed class ExpandedCompelledActionsTests
         Assert.Null(action.TargetRequest.OriginalProjection);
 
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();
@@ -109,7 +109,7 @@ public sealed class ExpandedCompelledActionsTests
         battle.Tick();
         Assert.Equal(BattleAbility.Magic, battle.ActiveAction!.Ability);
         Assert.Equal("enemy", battle.ActiveAction.TargetId);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

@@ -28,7 +28,7 @@ public sealed partial class NativeBattleRinoa89CastTests
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
@@ -60,7 +60,7 @@ public sealed partial class NativeBattleRinoa89CastTests
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutEffect = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(battle.Capture() with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(battle.Capture().WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -93,7 +93,7 @@ public sealed partial class NativeBattleRinoa89CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

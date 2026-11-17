@@ -24,12 +24,12 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
         Assert.Equal(33, source.Frame);
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Equal(111, graphics.Callback);
         Assert.Null(graphics.OriginalEffect);
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
-        NativeBattleEffect312State state = Assert.IsType<NativeBattleEffect312State>(source.NativeEffectMemory.Effect312);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
+        NativeBattleEffect312State state = Assert.IsType<NativeBattleEffect312State>(source.ReadFixturePresentation().NativeEffectMemory.Effect312);
         state.Validate();
         Assert.True(state.ColdSourceOrigin);
         Assert.False(state.StaticPacketBound);
@@ -73,7 +73,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
                 Assert.False(definition.InitialHidden);
                 Assert.False(definition.InitialSuspended);
                 Assert.False(definition.InitialUntargetable);
-                resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
+                resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
             }
             else
             {
@@ -107,7 +107,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
             Assert.All(matrices, matrix => matrix.Validate());
             model.GeometryWorldMatrix!.Validate();
         }
-        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.NativeStage);
+        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.ReadFixturePresentation().NativeStage);
         Assert.Equal(4, stage.Groups.Length);
         foreach (int physical in new[] { 0, 1 })
         {
@@ -120,7 +120,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
             Assert.All(group.Matrices, matrix => matrix.Validate());
             NativeBattleDecodedPose decoded = pose.Sample(group.Animation, group.Counter, group.PoseFlags);
             Assert.Equal(2, decoded.Bones.Length);
-            Assert.NotNull(stage.CurrentGroupGeometryAddress(physical, source.NativeFileStaging!.Read));
+            Assert.NotNull(stage.CurrentGroupGeometryAddress(physical, source.ReadFixturePresentation().NativeFileStaging!.Read));
         }
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 285 && row.MagicId == 312 && row.KernelSection == 3 && row.KernelIndex == 285);
         Assert.Equal(20, action.RawRecord.Length);

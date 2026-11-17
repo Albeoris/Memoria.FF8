@@ -75,7 +75,7 @@ public sealed class NativeBattleZombiePresentationTests
             BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
             sourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath)));
             prior = source;
-            NativeBattleGraphicsState graphics = source.NativeGraphics!;
+            NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
             sourceCallback = graphics.Callback;
             int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
@@ -103,7 +103,7 @@ public sealed class NativeBattleZombiePresentationTests
             ushort statusMask = action.Statuses0;
             uint graphicsStatusMask = source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1);
             Assert.NotEqual(0u, graphicsStatusMask);
-            Assert.Equal(0u, ReadOriginalModelCell(source.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
+            Assert.Equal(0u, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
             Assert.Equal(0, beforeInput.Combatants.Single(actor => actor.Id == target).NativeStatus!.Saved & statusMask);
             NativeBattleStatusSnapshot producedStatus = source.Combatants.Single(actor => actor.Id == target).NativeStatus!;
             Assert.Equal(statusMask, producedStatus.Saved & statusMask);
@@ -125,9 +125,9 @@ public sealed class NativeBattleZombiePresentationTests
                     if (pending.Contains("initialized"))
                     {
                         boundary = "initialized";
-                        firstLiveCallback = prior.NativeGraphics!.Callback;
+                        firstLiveCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback;
                     }
-                    else if (pending.Contains("live-continuation") && prior.NativeGraphics!.Callback >= firstLiveCallback + 45)
+                    else if (pending.Contains("live-continuation") && prior.ReadFixturePresentation().NativeGraphics!.Callback >= firstLiveCallback + 45)
                     {
                         boundary = "live-continuation";
                     }
@@ -141,10 +141,10 @@ public sealed class NativeBattleZombiePresentationTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(targetHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
-                if (ReadOriginalModelCell(prior.NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics!, 3).Sequence == contact.Primary.Sequence)
+                if (ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Sequence == contact.Primary.Sequence)
                 {
                     contactSequenceTransitions++;
                 }
@@ -156,8 +156,8 @@ public sealed class NativeBattleZombiePresentationTests
                 {
                     statusTransitions++;
                 }
-                uint priorGraphicsStatus = ReadOriginalModelCell(prior.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
-                uint currentGraphicsStatus = ReadOriginalModelCell(current.NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
+                uint priorGraphicsStatus = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
+                uint currentGraphicsStatus = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask;
                 if (priorGraphicsStatus != currentGraphicsStatus)
                 {
                     Assert.Equal(0u, priorGraphicsStatus);
@@ -173,7 +173,7 @@ public sealed class NativeBattleZombiePresentationTests
                     Assert.Equal(55, currentTargetAge);
                     Assert.Equal(0u, priorGraphicsStatus);
                     Assert.Equal(graphicsStatusMask, currentGraphicsStatus);
-                    File.WriteAllText(Path.Combine(output, "target54-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.NativeGraphics!.Callback, AfterCallback = current.NativeGraphics!.Callback, BeforeAge = previousTargetAge, AfterAge = currentTargetAge, BeforeFlags = priorGraphicsStatus, AfterFlags = currentGraphicsStatus, InstalledGraphicsStatusMask = graphicsStatusMask, Contact = contact, Observation = "Actual saved model Flags8 native status projection changes once at the original target54 contact; no task/contact/status mutation" }, new JsonSerializerOptions { WriteIndented = true }));
+                    File.WriteAllText(Path.Combine(output, "target54-contact-receipt.json"), JsonSerializer.Serialize(new { BeforeCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback, AfterCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, BeforeAge = previousTargetAge, AfterAge = currentTargetAge, BeforeFlags = priorGraphicsStatus, AfterFlags = currentGraphicsStatus, InstalledGraphicsStatusMask = graphicsStatusMask, Contact = contact, Observation = "Actual saved model Flags8 native status projection changes once at the original target54 contact; no task/contact/status mutation" }, new JsonSerializerOptions { WriteIndented = true }));
                 }
                 NativeBattleOriginalEffectState? after = Selected(current);
                 initialized |= after?.ReturnedDescriptor is > 0;
@@ -181,41 +181,41 @@ public sealed class NativeBattleZombiePresentationTests
                 {
                     completions++;
                 }
-                observedPrivatePackets |= current.NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                observedPrivatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                 bool additive = frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0xE1);
                 observedAdditivePackets |= additive;
                 if (after?.ReturnedDescriptor is > 0 && additive)
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutEffect } });
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutEffect } }));
                     int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                     if (changed > peakChangedPixels)
                     {
                         peakChangedPixels = changed;
-                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.NativeGraphics!.Callback}", current, visible);
+                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                     }
                 }
                 if (previousTargetAge is >= 30 and < 60)
                 {
-                    Assert.NotEqual(0, ReadOriginalModelCell(current.NativeGraphics!, 3).Flags0 & 8);
+                    Assert.NotEqual(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Flags0 & 8);
                     NativeBattleGfGeometryBatch expectedOverlay = OverlayPackets(prior, previousTargetAge);
                     bool IsOverlay(NativeBattleLogicalResolvedCommand command) => command.Command.Packet.Bank == "20DFAB8" && expectedOverlay.Attempts.Any(attempt => attempt.Primitive is { } primitive && primitive.Words.Skip(1).SequenceEqual(command.Command.Words));
                     if (frame.LastCommands.Any(IsOverlay))
                     {
                         byte[] visible = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutOverlay = frame with { LastCommands = frame.LastCommands.Where(command => !IsOverlay(command)).ToImmutableArray() };
-                        BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutOverlay } });
+                        BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutOverlay } }));
                         int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                         if (changed > peakOverlayPixels)
                         {
                             peakOverlayPixels = changed;
-                            NativeBattleRestorationPresentationTests.Publish(output, $"body-overlay-visible-peak-{current.NativeGraphics!.Callback}", current, visible);
+                            NativeBattleRestorationPresentationTests.Publish(output, $"body-overlay-visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                         }
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -245,18 +245,18 @@ public sealed class NativeBattleZombiePresentationTests
 
             NativeBattleGfGeometryBatch OverlayPackets(BattleSnapshot snapshot, int age)
             {
-                NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics!, 3);
+                NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3);
                 NativeBattleGraphicsResource resource = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == target).Resource;
                 if (model.ActiveResourceRow100 is int row)
                 {
-                    resource = NativeBattleEnemyResourceView.Resolve(snapshot.NativeModelCpuResources!, snapshot.NativeFileStaging!, row, resource);
+                    resource = NativeBattleEnemyResourceView.Resolve(snapshot.ReadFixturePresentation().NativeModelCpuResources!, snapshot.ReadFixturePresentation().NativeFileStaging!, row, resource);
                 }
                 NativeBattleZombieResources resources = installed.ZombieResources!;
                 int reach = (model.Transform!.Scale38 >> 1) + 2048;
                 var overlay = NativeBattleZombieDrawing.OverlayParameters(age, reach);
                 NativeBattleActionMatrix world = model.GeometryWorldMatrix!;
                 world = world with { Y = unchecked(world.Y + overlay.Lift) };
-                NativeBattleCameraProjection projection = snapshot.NativeCamera!.Projection!;
+                NativeBattleCameraProjection projection = snapshot.ReadFixturePresentation().NativeCamera!.Projection!;
                 NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(projection.View!, world);
                 NativeBattleModuleProjectedVertex origin = NativeBattleModuleProjection.Project45FE10(matrix, resources.Zero, projection);
                 if (origin.Depth == 0)
@@ -265,11 +265,11 @@ public sealed class NativeBattleZombiePresentationTests
                 }
                 NativeBattleGraphicsModel prepared = NativeBattleBodyBoneMatrices.Compose5095B0(model, matrix);
                 NativeBattlePoseSource pose = resource.PoseSource!;
-                int capacity = snapshot.NativeModelCpuResources!.ScratchMaximum!.Value * 8;
+                int capacity = snapshot.ReadFixturePresentation().NativeModelCpuResources!.ScratchMaximum!.Value * 8;
                 uint workspace = checked(0x196B018u - (uint)capacity);
                 uint tint = NativeBattleDuelSharedPackets.InterpolateColor56CC00(resources.Black, model.Color40!.Value, overlay.Weight, 4096 - overlay.Weight, 0);
-                NativeBattleScriptedGraphicsMemory registers = snapshot.NativeEffectMemory!.ScriptedGraphics!;
-                return NativeBattleZombieOverlay.Draw(resource.Geometry!.Value, NativeBattleBodyBoneMatrices.Require(prepared, pose), projection, tint, model.SequenceState!.MeshMask124, resource.GeometryRelocated507550 ? null : model.BodyTextureSlots, workspace, capacity, snapshot.NativeFileStaging!, resources.Wave, unchecked((short)origin.Screen), overlay.Phase, unchecked((short)(overlay.Amplitude >> 2)), registers.Dqa, registers.Dqb).Packets;
+                NativeBattleScriptedGraphicsMemory registers = snapshot.ReadFixturePresentation().NativeEffectMemory!.ScriptedGraphics!;
+                return NativeBattleZombieOverlay.Draw(resource.Geometry!.Value, NativeBattleBodyBoneMatrices.Require(prepared, pose), projection, tint, model.SequenceState!.MeshMask124, resource.GeometryRelocated507550 ? null : model.BodyTextureSlots, workspace, capacity, snapshot.ReadFixturePresentation().NativeFileStaging!, resources.Wave, unchecked((short)origin.Screen), overlay.Phase, unchecked((short)(overlay.Amplitude >> 2)), registers.Dqa, registers.Dqb).Packets;
             }
 
             void ColdNext(string name, BattleSnapshot snapshot, BattleScenePresentation presentation, bool advanceOriginal = true)
@@ -304,7 +304,7 @@ public sealed class NativeBattleZombiePresentationTests
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         }
 
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
     }
 
     private static int TargetAge(NativeBattleOriginalEffectState? effect)

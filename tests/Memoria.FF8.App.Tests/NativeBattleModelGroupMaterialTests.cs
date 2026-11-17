@@ -51,8 +51,8 @@ public sealed class NativeBattleModelGroupMaterialTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot initial = battle.Capture();
-        NativeBattleGraphicsState graphics = initial.NativeGraphics!;
+        BattleSnapshot initial = battle.CaptureForContinuation();
+        NativeBattleGraphicsState graphics = initial.ReadFixturePresentation().NativeGraphics!;
         bool enemyBody = selection == 0;
         int actor = FindOriginalModelSlot(graphics, enemyBody ? "enemy" : "party");
         Assert.InRange(actor, 0, 6);
@@ -82,15 +82,15 @@ public sealed class NativeBattleModelGroupMaterialTests
         int emitted = 0;
         for (int callback = 0; callback < 15; callback++)
         {
-            BattleSnapshot before = battle.Capture();
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(before.NativeGraphics!, actor);
-            NativeBattleCameraProjection projection = before.NativeCamera!.Projection!;
-            NativeBattleAuxiliaryTask task = Assert.IsType<NativeBattleGraphicsState>(before.NativeGraphics).Auxiliary.Slots[slot];
+            BattleSnapshot before = battle.CaptureForContinuation();
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(before.ReadFixturePresentation().NativeGraphics!, actor);
+            NativeBattleCameraProjection projection = before.ReadFixturePresentation().NativeCamera!.Projection!;
+            NativeBattleAuxiliaryTask task = Assert.IsType<NativeBattleGraphicsState>(before.ReadFixturePresentation().NativeGraphics).Auxiliary.Slots[slot];
             ImmutableArray<NativeBattleActionMatrix> matrices;
             if (deformation)
             {
                 byte bone = task.Payload[5];
-                NativeBattleActionMatrix retained = callback == 0 ? NativeBattlePoseMatrices.ReadDeformationBone50F2E0(model, resource.PoseSource!, bone) : before.NativeEffectMemory!.SequenceDeformationMatrix1D99BF8!;
+                NativeBattleActionMatrix retained = callback == 0 ? NativeBattlePoseMatrices.ReadDeformationBone50F2E0(model, resource.PoseSource!, bone) : before.ReadFixturePresentation().NativeEffectMemory!.SequenceDeformationMatrix1D99BF8!;
                 matrices = NativeBattlePoseMatrices.DeformedGroupMatrices50F2E0(model, resource.PoseSource!, projection.View!, bone, retained);
             }
             else
@@ -102,7 +102,7 @@ public sealed class NativeBattleModelGroupMaterialTests
             uint color = (definition.NativeGraphics!.Rules.SummonColors!.Interpolate(sourceColor, (callback << 12) / 15, 0) & 0xFFFFFFu) | 0x02000000u;
             ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0([relocated], matrices, projection, color, 1, null, 17, 4, null);
             BattleSession? clone = callback == 7 ? BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!) : null;
-            int cursor = before.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;
+            int cursor = before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;
             battle = Advance(battle);
             if (clone is not null)
             {

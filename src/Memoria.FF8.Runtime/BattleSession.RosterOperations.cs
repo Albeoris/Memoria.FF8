@@ -71,7 +71,7 @@ public sealed partial class BattleSession
                 BattleCombatant target = remove.Target switch
                 {
                     BattlePreviousTarget.Actor actor => FindTargetActor(actor.Reference) ?? throw new InvalidDataException("Roster removal requires its captured actor."),
-                    NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => FindNativeActor(original.Operand),
+                    NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => RequireSourceOriginalActor(caller, original.Operand),
                     _ => throw new InvalidDataException("Roster removal requires a typed actor or original slot operand.")
                 };
                 StageExpandedHostedModelControl(105, target);
@@ -82,11 +82,13 @@ public sealed partial class BattleSession
                 break;
 
             case BattleRosterMutation.Operation.Activate activate:
-                StageHostedNativeActivation(activate.Target);
+                BattlePreviousTarget activationTarget = activate.Target is NativeBattleTargetRequestAdapter.OriginalPreviousOperand originalOperand && ReadDonorSource(caller) is not null
+                    ? new BattlePreviousTarget.Actor(TargetActorReference(RequireSourceOriginalActor(caller, originalOperand.Operand))) : activate.Target;
+                StageHostedNativeActivation(activationTarget);
                 break;
 
             case BattleRosterMutation.Operation.ActivateLastAllocation:
-                StageHostedNativeActivation(nativeLastAllocatedTarget);
+                StageHostedNativeActivation(ReadAiLastAllocation(caller));
                 break;
 
             case BattleRosterMutation.Operation.DeathRelease:

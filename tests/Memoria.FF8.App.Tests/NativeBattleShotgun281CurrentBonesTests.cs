@@ -20,7 +20,7 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
         using BattleAssets assets = new(directory!);
         BattleSnapshot before = NativeBattleEffectFamilyRunner.LoadSnapshot(snapshotPath!);
         BattleSession original = BattleSession.Restore(before);
-        NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The original component requires its current graphics owner.");
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original component requires its current graphics owner.");
         const int caster = 3;
         BattleCombatantDefinition definition = original.GetCombatantDefinition(ReadOriginalModelActorId(graphics, caster) ?? throw new InvalidDataException("The original caster requires its current allocation identity."));
         Assert.Equal(78, definition.ModelId);
@@ -42,13 +42,13 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
 
         BattleSnapshot composed = Compose(before);
         ImmutableArray<NativeBattleActionMatrix> expected = NativeBattlePoseMatrices.ComposeStageCamera(local, world, 0);
-        ImmutableArray<NativeBattleActionMatrix> actual = NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(composed.NativeGraphics!, caster), pose);
+        ImmutableArray<NativeBattleActionMatrix> actual = NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(composed.ReadFixturePresentation().NativeGraphics!, caster), pose);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
         Assert.NotEqual(JsonSerializer.Serialize(local[23]), JsonSerializer.Serialize(actual[23]));
         Save("composed", composed);
         BattleSnapshot restored = Restore(composed);
-        Assert.Equal(JsonSerializer.Serialize(local), JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.NativeGraphics!, caster), pose)));
-        Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(ReadOriginalModelCell(restored.NativeGraphics!, caster).GeometryWorldMatrix));
+        Assert.Equal(JsonSerializer.Serialize(local), JsonSerializer.Serialize(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.ReadFixturePresentation().NativeGraphics!, caster), pose)));
+        Assert.Equal(JsonSerializer.Serialize(world), JsonSerializer.Serialize(ReadOriginalModelCell(restored.ReadFixturePresentation().NativeGraphics!, caster).GeometryWorldMatrix));
         Save("restored", restored);
 
         BattleSnapshot coldBefore = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "before.battle.json"));
@@ -57,32 +57,32 @@ public sealed class NativeBattleShotgun281CurrentBonesTests
         BattleSnapshot coldAtCompose = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "composed.battle.json"));
         Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(Restore(coldAtCompose)));
         Assert.Equal(JsonSerializer.Serialize(restored), JsonSerializer.Serialize(BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "restored.battle.json"))).Capture()));
-        File.WriteAllText(Path.Combine(output!, "current-bones.json"), JsonSerializer.Serialize(new { Status = "passed", Caster = caster, ResourceModel = definition.ModelId, NativeModel = model.ModelId4, SkeletonSha256 = skeletonHash, CurrentWorld = world, Before = Pack(local), Composed = Pack(actual), Restored = Pack(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.NativeGraphics!, caster), pose)), SelectedBone = 23 }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output!, "current-bones.json"), JsonSerializer.Serialize(new { Status = "passed", Caster = caster, ResourceModel = definition.ModelId, NativeModel = model.ModelId4, SkeletonSha256 = skeletonHash, CurrentWorld = world, Before = Pack(local), Composed = Pack(actual), Restored = Pack(NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(restored.ReadFixturePresentation().NativeGraphics!, caster), pose)), SelectedBone = 23 }, new JsonSerializerOptions { WriteIndented = true }));
 
         BattleSnapshot Compose(BattleSnapshot snapshot)
         {
-            BattleSnapshot current = BattleSession.Restore(snapshot).Capture();
-            NativeBattleGraphicsState owner = current.NativeGraphics!;
+            BattleSnapshot current = BattleSession.Restore(snapshot).CaptureForContinuation();
+            NativeBattleGraphicsState owner = current.ReadFixturePresentation().NativeGraphics!;
             NativeBattleGraphicsModel actor = ReadOriginalModelCell(owner, caster);
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new InvalidDataException("The current world owner is missing."));
-            return current with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), actor) } };
+            return current.WithFixturePresentation(facts => facts with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), actor) } });
         }
 
         BattleSnapshot Restore(BattleSnapshot snapshot)
         {
-            BattleSnapshot current = BattleSession.Restore(snapshot).Capture();
-            NativeBattleFileStaging staging = current.NativeFileStaging ?? throw new InvalidDataException("The original component requires physical temporary memory.");
+            BattleSnapshot current = BattleSession.Restore(snapshot).CaptureForContinuation();
+            NativeBattleFileStaging staging = current.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("The original component requires physical temporary memory.");
             byte[] cursor = staging.Read(NativeBattleTemporaryMemory.Cursor, 4);
             NativeBattleTemporaryAllocation allocation = NativeBattleTemporaryMemory.Allocate5082B0(staging, 88);
             NativeBattleEffectArena temporary = NativeBattleTemporaryMemory.ReadView(allocation.Staging, allocation.Address, 88);
-            NativeBattleGraphicsState owner = current.NativeGraphics!;
+            NativeBattleGraphicsState owner = current.ReadFixturePresentation().NativeGraphics!;
             NativeBattleBodyBonePreparation prepared = NativeBattleBodyBoneTemporary.Prepare508C90(ReadOriginalModelCell(owner, caster), pose, temporary);
             staging = NativeBattleTemporaryMemory.PublishView(allocation.Staging, allocation.Address, prepared.Temporary58, 88);
             Assert.Equal(prepared.Temporary58.ReadSnapshot(0, 88).Data, staging.ReadSnapshot(allocation.Address, 88).Data);
             Assert.Equal(prepared.Temporary58.ReadSnapshot(0, 88).Known, staging.ReadSnapshot(allocation.Address, 88).Known);
             staging = NativeBattleTemporaryMemory.Release5082D0(staging, 88);
             Assert.Equal(cursor, staging.Read(NativeBattleTemporaryMemory.Cursor, 4));
-            return current with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), prepared.Model) }, NativeFileStaging = staging };
+            return current.WithFixturePresentation(facts => facts with { NativeGraphics = owner with { ActorModels = owner.ActorModels.Set(RequireOriginalModelOwner(owner, caster), prepared.Model) }, NativeFileStaging = staging });
         }
 
         void Save(string name, BattleSnapshot snapshot)

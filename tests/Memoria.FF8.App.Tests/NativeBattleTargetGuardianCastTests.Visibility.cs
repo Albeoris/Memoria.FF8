@@ -10,8 +10,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
 {
     private static ImmutableHashSet<NativeBattlePrimitiveReference> DoomtrainCommonPacketReferences(BattleSnapshot prior, BattleSnapshot current)
     {
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
-        if (prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0) || prior.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || current.NativeStage is not { } stage || stage.Groups.Any(group => (group.Flags & 3) == 3))
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
+        if (prior.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0) || prior.ReadFixturePresentation().NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || current.ReadFixturePresentation().NativeStage is not { } stage || stage.Groups.Any(group => (group.Flags & 3) == 3))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -23,7 +23,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         var (actor, actorSlot) = actors[0];
         NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
         NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actorSlot)).Resource;
-        if (resource.LinkedGeometry is not { IsEmpty: true } || resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || current.NativeCamera?.Projection is not { } projection || prior.NativeCamera?.Projection?.View is not { } view)
+        if (resource.LinkedGeometry is not { IsEmpty: true } || resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || current.ReadFixturePresentation().NativeCamera?.Projection is not { } projection || prior.ReadFixturePresentation().NativeCamera?.Projection?.View is not { } view)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -76,8 +76,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
 
     private static ImmutableHashSet<NativeBattlePrimitiveReference> CactuarBodyPacketReferences(BattleSnapshot snapshot, NativeBattleCactuar199Resources resources, NativeBattleSummonColors colors)
     {
-        NativeBattleCactuarRawModelState? model = snapshot.NativeEffectMemory?.Cactuar199?.RawModel;
-        if (model?.ProjectedScratch is not { } scratch || resources.Model.Geometry.Length != 1 || snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: 199 } effect || !effect.Pools.SelectMany(pool => pool.Slots).Any(task => task.Callback == 0x5A8C20 && (task.Flags & 1) != 0))
+        NativeBattleCactuarRawModelState? model = snapshot.ReadFixturePresentation().NativeEffectMemory?.Cactuar199?.RawModel;
+        if (model?.ProjectedScratch is not { } scratch || resources.Model.Geometry.Length != 1 || snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 199 } effect || !effect.Pools.SelectMany(pool => pool.Slots).Any(task => task.Callback == 0x5A8C20 && (task.Flags & 1) != 0))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -93,7 +93,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(model.Model.AsSpan().Slice(0x28));
         ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.EmitProjected5099D0(mesh.Polygons, vertices, color, 17, 4, 0, null, colors);
-        NativeBattlePrimitiveFrame frame = snapshot.NativeGraphics?.PrimitiveFrame ?? throw new InvalidDataException("The visibility sample requires its rendered primitive frame.");
+        NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics?.PrimitiveFrame ?? throw new InvalidDataException("The visibility sample requires its rendered primitive frame.");
         ImmutableHashSet<NativeBattlePrimitiveReference>.Builder matched = ImmutableHashSet.CreateBuilder<NativeBattlePrimitiveReference>();
         int offset = 0;
         foreach (NativeBattleGeometryPrimitive primitive in expected)
@@ -112,9 +112,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     }
     internal static ImmutableHashSet<NativeBattlePrimitiveReference> GuardianPacketReferences(BattleSnapshot prior, BattleSnapshot current, ushort effect, GameAssets game)
     {
-        NativeBattlePrimitiveFrame primitive = current.NativeGraphics!.PrimitiveFrame!;
+        NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
         ImmutableHashSet<NativeBattlePrimitiveReference>.Builder references = primitive.LastCommands.Where(command => command.Command.Packet.Bank is "20DFAB8" or "2523C98" or "2466638" or "243BE6C" or "24224D4" or "24059F8" or "DBAEE0" or "230AD0C" or "2368580").Select(command => command.Command.Packet).ToImmutableHashSet().ToBuilder();
-        bool priorMesh = prior.NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleAuxiliaryKind.ModelGroupFade50F0E0 or NativeBattleAuxiliaryKind.ModelDeformation50F2E0);
+        bool priorMesh = prior.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleAuxiliaryKind.ModelGroupFade50F0E0 or NativeBattleAuxiliaryKind.ModelDeformation50F2E0);
         if (priorMesh)
         {
             return references.ToImmutable();
@@ -127,7 +127,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             references.UnionWith(DoomtrainCommonPacketReferences(prior, current));
         }
-        else if (current.NativeEffectMemory?.Cinematic?.Effect == effect && current.NativeEffectMemory.ScriptedEffects is { } core)
+        else if (current.ReadFixturePresentation().NativeEffectMemory?.Cinematic?.Effect == effect && current.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects is { } core)
         {
             uint manager = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));
             uint end = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(manager + 0x7C, 4));

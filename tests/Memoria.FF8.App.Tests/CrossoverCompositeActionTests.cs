@@ -718,7 +718,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             Assert.Equal(before, CaptureNative());
             Assert.Equal(working, JsonSerializer.Serialize(provider.WorkingStock));
 
-            string CaptureNative() => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new BattleSnapshot { NativeGraphics = effect.Graphics, NativeEffectMemory = effect.Memory })) + JsonSerializer.Serialize(effect.Random) + JsonSerializer.Serialize(effect.Source);
+            string CaptureNative() => JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(new BattleSnapshot { }.WithFixturePresentation(facts => facts with { NativeGraphics = effect.Graphics, NativeEffectMemory = effect.Memory }))) + JsonSerializer.Serialize(effect.Random) + JsonSerializer.Serialize(effect.Source);
         }
 
         public void ExecuteAngelWingTurns(uint repetitionStatus = 0, int expectedCasts = 1)

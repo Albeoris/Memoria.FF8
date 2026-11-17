@@ -93,8 +93,8 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.Equal(OriginalHash, Convert.ToHexString(SHA256.HashData(bytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(253L, original.Frame);
-        Assert.Equal(333L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)193, original.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal(333L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)193, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Empty(original.Definition.NativeActions);
         Assert.Null(original.ActiveAction);
         NativeBattleActionHeaderSlot header = original.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));

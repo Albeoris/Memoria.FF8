@@ -51,8 +51,8 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 12, -1, 293, 286, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 293 && row.MagicId == 286).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.NativeGraphics!.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot source = ready with { NativeActionPackets = packets, NativeGraphics = ready.NativeGraphics with { Descriptors = descriptors } };
+        (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
+        BattleSnapshot source = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } });
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([286])[285];
         Assert.Equal(NativeBattleMiniPulseCannon286Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleMiniPulseCannon286Profile.Initializer, binding.Initializer);
@@ -61,10 +61,10 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         Assert.True(source.Definition.NativeEffectCatalog.Length > 285);
         source = source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(285, binding) } };
         Assert.Same(binding.MiniPulseCannon286Resources, source.Definition.NativeEffectCatalog[285].MiniPulseCannon286Resources);
-        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, allocatedActor)!);
+        BattleCombatantDefinition definition = BattleSession.Restore(source).GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, allocatedActor)!);
         Assert.Equal(110, definition.ModelId);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, allocatedActor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, allocatedActor);
         Assert.NotNull(resource.PoseSource);
         Assert.Equal(resource.PoseSource.BoneCount, NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource).Length);
         Assert.NotNull(model.GeometryWorldMatrix);

@@ -80,10 +80,6 @@ public sealed partial class BattleSession
             return;
     }
 
-
-
-
-
     public bool TriggerNativeShot(string actorId)
     {
         if (GetNativeShot(actorId) is not { Phase: BattleNativeShotPhase.Ready, RemainingTimer: > 0, RemainingAmmo: > 0, FireRequested: false } state)
@@ -196,11 +192,11 @@ public sealed partial class BattleSession
     {
         BattleCombatant target = GetActor(targetId);
         BattleTargetRequest request = SelectBattleTarget(target, eligibility: BattleTargetEligibility.Living);
-        if (callback == NativeLimitCallback.ShotEnding && OwnsExpandedHostedInvocation)
+        if (callback == NativeLimitCallback.ShotEnding)
         {
             request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy);
         }
-        else if (callback == NativeLimitCallback.ShotEffect || callback == NativeLimitCallback.ShotOpening && OwnsExpandedHostedInvocation)
+        else if (callback == NativeLimitCallback.ShotEffect || callback == NativeLimitCallback.ShotOpening)
         {
             BattleTargetSelection selection = (action.TargetFlags!.Value & 0x10) == 0
                 ? new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies)
@@ -221,19 +217,6 @@ public sealed partial class BattleSession
         actor.Atb = 0;
         actor.IsBusy = true;
         Log("Queued", actor.Id, command.TargetId, 0, $"{actor.Name}: {command.NativeAction!.Name} queued.");
-    }
-
-    private void QueueNativeShotAction(BattleCombatant actor, BattleNativeAction action, BattleTargetRequest request, NativeLimitCallback callback)
-    {
-        BattleCombatant target = ResolveBattleTargets(request, sampleRandom: false).FirstOrDefault() ?? actor;
-        BattleAttackCommand command = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, action.ActionId)
-        {
-            NativeAction = action,
-            NativeLimitCallback = callback,
-            NativeQueuedCommand = action.Command,
-            NativeSequence = 0
-        };
-        EnqueueNativePacket(actor, command, action.Name ?? "Shot", playerInput: true);
     }
 
     private static string ReadExpandedShotTarget(BattleNativeShotState state)

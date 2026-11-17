@@ -45,14 +45,14 @@ public sealed class NativeBattleDisolvingAcid132PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(48, casterSource.ModelId);
-        Assert.Equal((byte?)64, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)64, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([132])[131];
         Assert.Equal(NativeBattleDisolvingAcid132Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleDisolvingAcid132Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag131.tim", NativeBattleDisolvingAcid132Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(150048, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeDisolvingAcid132Resources(), binding.DisolvingAcid132Resources);
-        Assert.Equal(0u, source.NativeEffectMemory!.DisolvingAcid132!.ReadDword(NativeBattleDisolvingAcid132Profile.WorkingGlobal));
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.DisolvingAcid132!.ReadDword(NativeBattleDisolvingAcid132Profile.WorkingGlobal));
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

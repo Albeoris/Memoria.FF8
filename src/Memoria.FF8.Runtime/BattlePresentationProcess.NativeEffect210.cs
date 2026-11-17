@@ -6,13 +6,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    private static BattleModelOwner ResolveNativeEffectCompanion(NativeBattleGraphicsState graphics, BattleModelOwner source)
+    private BattleModelOwner ResolveNativeEffectCompanion(NativeBattleGraphicsState graphics, BattleModelOwner source)
     {
-        if (!graphics.NativeBindings.TryEncodeExactActor(source, graphics.ActorModels, out byte sourceSlot))
-        {
-            throw new NotSupportedException("An effect caster without an original slot requires an explicit companion binding.");
-        }
-        return graphics.NativeBindings.DecodeLiteral(checked((byte)(sourceSlot + 1)), graphics.ActorModels);
+        return ResolveSourceRelativeModel(graphics, source, 1);
     }
 
     private NativeBattleGraphicsState RunNativeEffect210(NativeBattleGraphicsState graphics, bool initialize)

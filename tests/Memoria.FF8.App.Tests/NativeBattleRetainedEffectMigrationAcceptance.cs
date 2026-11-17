@@ -23,7 +23,7 @@ internal static class NativeBattleRetainedEffectMigrationAcceptance
         Assert.True(SnapshotRetainedEffectMigration.Owns(contract.Owner));
         BattleSnapshot resolved = BattleSession.Restore(source).Capture();
         BattleSnapshot owned = NativeBattleStorageSnapshots.Restore(resolved with { Definition = null! }) with { Definition = resolved.Definition };
-        NativeBattleEffectMemory originalMemory = owned.NativeEffectMemory ?? throw new InvalidDataException("Source acceptance requires its retained effect memory.");
+        NativeBattleEffectMemory originalMemory = owned.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("Source acceptance requires its retained effect memory.");
         PropertyInfo property = typeof(NativeBattleEffectMemory).GetProperty(contract.Owner)!;
         object original = property.GetValue(originalMemory) ?? throw new InvalidDataException("Source acceptance requires its selected retained effect owner.");
         JsonNode originalState = Capture(original);
@@ -46,7 +46,7 @@ internal static class NativeBattleRetainedEffectMigrationAcceptance
             object replacement = property.GetValue(migratedMemory.EffectMemory!)!;
             NativeBattleEffectMemory graft = (NativeBattleEffectMemory)typeof(NativeBattleEffectMemory).GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance)!.Invoke(originalMemory, null)!;
             property.SetValue(graft, replacement);
-            BattleSnapshot detached = NativeBattleStorageSnapshots.Capture(owned with { NativeEffectMemory = graft });
+            BattleSnapshot detached = NativeBattleStorageSnapshots.Capture(owned.WithFixturePresentation(facts => facts with { NativeEffectMemory = graft }));
             result = BattleSession.Restore(detached).Capture();
         }
 
@@ -58,7 +58,7 @@ internal static class NativeBattleRetainedEffectMigrationAcceptance
         RemoveGraphMetadata(after);
         Assert.True(JsonNode.DeepEquals(before, after), "Migration acceptance changed state outside the selected retained owner.");
         BattleSnapshot verified = NativeBattleStorageSnapshots.Restore(result with { Definition = null! }) with { Definition = result.Definition };
-        Assert.True(JsonNode.DeepEquals(cold ? coldState : originalState, Capture(property.GetValue(verified.NativeEffectMemory!)!)), contract.Owner);
+        Assert.True(JsonNode.DeepEquals(cold ? coldState : originalState, Capture(property.GetValue(verified.ReadFixturePresentation().NativeEffectMemory!)!)), contract.Owner);
 
         Directory.CreateDirectory(output);
         using FileStream receipt = new(Path.Combine(output, $"effect-{effect}-source-migration.json"), FileMode.CreateNew, FileAccess.Write, FileShare.Read);

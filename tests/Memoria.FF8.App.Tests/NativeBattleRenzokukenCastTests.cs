@@ -85,9 +85,9 @@ public sealed class NativeBattleRenzokukenCastTests
             candidate = candidate.Draw(out byte resource).Draw(out byte finisher);
             return ifrit.NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effectId && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
         });
-        BattleSnapshot ready = battle.Capture();
+        BattleSnapshot ready = battle.CaptureForContinuation();
         const uint transitionColor = 0x00312617;
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(ready with { NativeLimits = [new("party", crisis)], Random = random, NativeStage = ready.NativeStage! with { ModelColors = ready.NativeStage.ModelColors! with { Color40 = transitionColor } } }));
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage.ModelColors! with { Color40 = transitionColor } } })));
         const int actorIndex = 0;
         uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
         Assert.NotNull(shadowColor);
@@ -161,11 +161,11 @@ public sealed class NativeBattleRenzokukenCastTests
 
         static void CompareState(BattleSession actual, BattleSession copy)
         {
-            BattleSnapshot expected = actual.Capture();
-            BattleSnapshot observed = copy.Capture();
+            BattleSnapshot expected = actual.CaptureForContinuation();
+            BattleSnapshot observed = copy.CaptureForContinuation();
             Assert.Equal(expected.Frame, observed.Frame);
             Assert.Equal(expected.Outcome, observed.Outcome);
-            Assert.Equal(expected.NativeGraphics!.Callback, observed.NativeGraphics!.Callback);
+            Assert.Equal(expected.ReadFixturePresentation().NativeGraphics!.Callback, observed.ReadFixturePresentation().NativeGraphics!.Callback);
             Assert.Equal(expected.NativeTimedAction, observed.NativeTimedAction);
             Assert.Equal(expected.NativeLimits.Select(limit => limit.Renzokuken), observed.NativeLimits.Select(limit => limit.Renzokuken));
             Assert.Equal(expected.NativeBattleUiRandom, observed.NativeBattleUiRandom);

@@ -157,8 +157,8 @@ internal static class NativeBattleLimitComponentSources
     {
         for (int callback = 0; callback < 4096; callback++)
         {
-            BattleSnapshot snapshot = battle.Capture();
-            NativeBattleGraphicsState graphics = snapshot.NativeGraphics ?? throw new InvalidDataException("The installed limit producer lost its native graphics owner.");
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
+            NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The installed limit producer lost its native graphics owner.");
             int[] descriptors = graphics.Descriptors.Queue.Where(index => graphics.Descriptors.Packets[index].Command == 104).ToArray();
             if (graphics.OriginalEffect is { } original && original.Binding.Effect == effect)
             {
@@ -174,7 +174,7 @@ internal static class NativeBattleLimitComponentSources
             }
             foreach (int descriptor in descriptors)
             {
-                uint argument = snapshot.NativeGraphics.Descriptors.Packets[descriptor].Argument;
+                uint argument = snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument;
                 uint offset = checked(argument - 0x1D280C4u);
                 if (offset % 20 != 0 || offset / 20 >= snapshot.NativeActionPackets!.ActionCount || offset / 20 >= NativeBattleRetainedActionPackets.HeaderCapacity)
                 {

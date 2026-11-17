@@ -45,14 +45,14 @@ public sealed class NativeBattleSaliva138PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(44, casterSource.ModelId);
-        Assert.Equal((byte?)60, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)60, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([138])[137];
         Assert.Equal(NativeBattleSaliva138Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleSaliva138Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag137.tim", NativeBattleSaliva138Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(166432, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeSaliva138Resources(), binding.Saliva138Resources);
-        Assert.True(source.NativeEffectMemory!.Saliva138!.PendingColdSources);
+        Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.Saliva138!.PendingColdSources);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

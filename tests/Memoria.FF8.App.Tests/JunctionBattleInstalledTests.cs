@@ -76,7 +76,7 @@ public sealed class JunctionBattleInstalledTests
             bool approach = false;
             bool contact = false;
             bool completed = false;
-            int modelIndex = FindOriginalModelSlot(battle.Presentation?.Graphics, actor);
+            int modelIndex = FindOriginalModelSlot(battle.Presentation!.Graphics, actor);
             for (int callback = 0; callback < 4096; callback++)
             {
                 battle.Tick();

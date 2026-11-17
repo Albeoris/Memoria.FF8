@@ -78,7 +78,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
-        BattleSnapshot prior = battle.Capture();
+        BattleSnapshot prior = battle.CaptureForContinuation();
         try
         {
             for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
@@ -94,7 +94,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.False(battle.Combatants.Single(actor => actor.Id == "target").IsAlive);
             Assert.Equal(1, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Saved & 1);
             Publish("before", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-            string cameraBefore = JsonSerializer.Serialize(battle.Capture().NativeCamera);
+            string cameraBefore = JsonSerializer.Serialize(battle.CaptureForContinuation().ReadFixturePresentation().NativeCamera);
             battle.QueueAction("party", "target", BattleAbility.Magic, 25);
             BattleSession? clone = RestoreCheckpoint("queued");
             bool selectedCasting = false;
@@ -113,7 +113,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 battle.Tick();
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 if (clone is not null)
                 {
                     clone.Tick();
@@ -131,12 +131,12 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     Assert.Equal(0, contact.SavedStatuses4 & 1);
                     producedRevivalContact = true;
                 }
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 capturedGeometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(current, 27);
                 selectedCasting |= graphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedFullLife |= graphics.OriginalEffect is { Binding.Effect: 27, Restoration: not null };
-                cameraChanged |= JsonSerializer.Serialize(current.NativeCamera) != cameraBefore;
-                Assert.NotNull(current.NativeCamera!.Projection!.View);
+                cameraChanged |= JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera) != cameraBefore;
+                Assert.NotNull(current.ReadFixturePresentation().NativeCamera!.Projection!.View);
                 ushort hp = current.NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (hp != displayedHp)
                 {
@@ -152,7 +152,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } }));
+                    BattleSession background = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutEffect } })));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     changedRgbPixels = CountRgbChanges(visible, plain);
                     if (changedRgbPixels > 0)
@@ -166,7 +166,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     break;
                 }
             }
-            BattleSnapshot completed = battle.Capture();
+            BattleSnapshot completed = battle.CaptureForContinuation();
             Assert.True(selectedCasting);
             Assert.True(selectedFullLife);
             Assert.True(capturedGeometry > 0);
@@ -188,8 +188,8 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.Equal((byte)1, remainingStock.Count);
             Assert.Equal(9999, completed.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
             Assert.True(Released(completed), "Full-life must release the ordinary action, action pause, descriptor, root and active tasks.");
-            Assert.Equal((byte)0, completed.NativeEffectMemory!.Active);
-            Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, 0).Flags0 & 4);
+            Assert.Equal((byte)0, completed.ReadFixturePresentation().NativeEffectMemory!.Active);
+            Assert.Equal(0, ReadOriginalModelCell(completed.ReadFixturePresentation().NativeGraphics!, 0).Flags0 & 4);
             uint effectSound = game.ReadNativeRestorationResources(27).Sound;
             NativeBattleModuleSound sound = Assert.Single(heard, item => item.Sound == effectSound);
             Assert.Equal((byte)128, sound.Pan);
@@ -204,13 +204,13 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(after.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(after, 320, 224).ToArray());
             Publish("completed-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", RevivedHitPoints = revived.CurrentHp, changedRgbPixels, healingTransitions, completed.Frame, Callback = Assert.IsType<NativeBattleGraphicsState>(completed.NativeGraphics).Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", RevivedHitPoints = revived.CurrentHp, changedRgbPixels, healingTransitions, completed.Frame, Callback = Assert.IsType<NativeBattleGraphicsState>(completed.ReadFixturePresentation().NativeGraphics).Callback }));
         }
         catch (Exception exception)
         {
             Publish("before-failure", prior, null);
             Publish("failed", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = exception.ToString(), prior.Frame, Callback = prior.NativeGraphics?.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = exception.ToString(), prior.Frame, Callback = prior.ReadFixturePresentation().NativeGraphics?.Callback }));
             throw;
         }
 
@@ -233,7 +233,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 

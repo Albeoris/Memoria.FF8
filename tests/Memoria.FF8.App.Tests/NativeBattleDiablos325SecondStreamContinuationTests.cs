@@ -36,35 +36,35 @@ public sealed class NativeBattleDiablos325SecondStreamContinuationTests
                 before = first.Capture();
                 first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
                 second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-                BattleSnapshot current = first.Capture();
+                BattleSnapshot current = first.CaptureForContinuation();
                 Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
                 byte[] pixels = scene.Render(first, 320, 224).ToArray();
                 Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
-                NativeBattleModulePoolTask task = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
+                NativeBattleModulePoolTask task = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 89 ? "before-second-camera-reset" : "timeline-" + counter, current, pixels);
                 Assert.Equal((ushort)(counter + 1), task.ReadWord(0xC));
                 Assert.Equal((uint)(counter - 8), task.ReadDword(0x268));
-                Assert.Equal(4096u, current.NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(4096u, current.NativeEffectMemory.Diablos325.PreviousFlash51EC);
-                Assert.All(current.NativeStage!.Groups, group =>
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group =>
                 {
                     Assert.Equal((short)4096, group.ColorDepth);
                     Assert.Equal(0, group.Flags & 2);
                 });
                 Assert.Equal(source.NativeCrtRandom, current.NativeCrtRandom);
-                Assert.Equal(new NativeBattleSummonStreamState(690162, 0x20DFAB8u + 0x1685C), current.NativeEffectMemory.SummonStream);
+                Assert.Equal(new NativeBattleSummonStreamState(690162, 0x20DFAB8u + 0x1685C), current.ReadFixturePresentation().NativeEffectMemory.SummonStream);
                 Assert.Equal((byte)1, task.ReadByte(0xF));
                 Assert.DoesNotContain(current.Events.Skip(before.Events.Length), item => item.NativeModuleSound is not null);
-                Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, current.NativeEffectMemory.Arena!.Read(0x4C14, 5));
+                Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x4C14, 5));
                 if (counter == 89)
                 {
-                    Assert.Equal(new NativeBattleCameraPose(new(1734, -10908, -829), new(-1314, -2156, -5327), 288, 0), current.NativeCamera!.CurrentPose);
+                    Assert.Equal(new NativeBattleCameraPose(new(1734, -10908, -829), new(-1314, -2156, -5327), 288, 0), current.ReadFixturePresentation().NativeCamera!.CurrentPose);
                 }
-                rows.Add(new { current.Frame, NativeCallback = current.NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.NativeEffectMemory.PrimitiveProcess!.ByteCursor });
+                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.ByteCursor });
             }
-            BattleSnapshot boundary = first.Capture();
+            BattleSnapshot boundary = first.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "second-stream-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Boundary = "before-second-camera-reset" }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "second-stream-validated", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback, Boundary = "before-second-camera-reset" }));
         }
         catch
         {
@@ -75,6 +75,6 @@ public sealed class NativeBattleDiablos325SecondStreamContinuationTests
         Assert.Equal(original, File.ReadAllText(input!));
     }
 
-    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
+    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

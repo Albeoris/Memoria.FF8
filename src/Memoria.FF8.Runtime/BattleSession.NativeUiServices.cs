@@ -5,10 +5,6 @@ public sealed partial class BattleSession
 
     private bool WaitingForTurnBasedDecision => !UsesRealTimeBattleClock && combatants.Any(actor => actor.IsPlayer && actor.IsReady);
 
-
-
-
-
     internal static NativeBattleUiServices ApplyNativeReadyMenuSelection(NativeBattleUiServices services, bool selectMenu, bool slotsPending)
     {
         if (selectMenu && !slotsPending)
@@ -17,15 +13,6 @@ public sealed partial class BattleSession
             return services.SetFlags(0, 0x10) with { Menu957 = 4 };
         }
         return services;
-    }
-
-    private void RemoveNativeUiReady(BattleCombatant actor)
-    {
-    }
-
-    private NativeBattleGraphicsState? PrepareNativeUiReadyRemoval(BattleCombatant actor)
-    {
-        return ((NativeBattleGraphicsState?)null);
     }
 
     public void OpenNativeActionMenu()
@@ -38,25 +25,5 @@ public sealed partial class BattleSession
         RequireNoPendingSlotsDeal();
         Presentation?.SetActionMenu(false);
     }
-
-
-
-    private void DispatchNativeTriggerReceipt()
-    {
-        if (expandedPresentationProcess is { } process)
-        {
-            if (process.PendingTrigger is { } hostedTrigger && expandedHostedEvent?.Renzokuken is not null && CurrentExpandedHostedInvocation?.Header.Command == 5)
-            {
-                DispatchExpandedHostedRenzokukenTrigger(process, hostedTrigger);
-            }
-            else
-            {
-                DispatchExpandedGunbladeTrigger(process);
-            }
-            return;
-        }
-            return;
-    }
-
 
 }

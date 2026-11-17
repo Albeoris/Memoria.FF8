@@ -25,10 +25,10 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
         Assert.Equal(0, source.Frame);
         Assert.Equal(119, source.Definition.EncounterId);
         Assert.Equal(33, source.Definition.StageId);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Null(graphics.OriginalEffect);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
-        NativeBattleEffect251State state = source.NativeEffectMemory.Effect251!;
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
+        NativeBattleEffect251State state = source.ReadFixturePresentation().NativeEffectMemory.Effect251!;
         Assert.NotNull(state);
         Assert.False(state.ScriptSourcesBound);
         Assert.Empty(state.ScriptStorage);
@@ -36,7 +36,7 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
         Assert.Single(state.FixedBanks);
         Assert.Equal(5, state.CommonQueueStorage.Count);
         Assert.Equal(new byte[RootBankLength], state.ReadBank(RootBank).Read(0, RootBankLength));
-        Assert.Equal(new byte[4], NativeBattleTemporaryMemory.ReadView(source.NativeFileStaging!, PauseAddress, 4).Read(0, 4));
+        Assert.Equal(new byte[4], NativeBattleTemporaryMemory.ReadView(source.ReadFixturePresentation().NativeFileStaging!, PauseAddress, 4).Read(0, 4));
         List<object> rigs = [];
         for (int index = 0; index < 2; index++)
         {
@@ -54,7 +54,7 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
             Assert.Equal(index == 1, actor.NativeParticipant.Untargetable);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.Equal((byte)(original + 16), model.ModelId4);
-            NativeBattleGraphicsResource resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, assets.ReadNativeGraphicsResource(definition));
+            NativeBattleGraphicsResource resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, assets.ReadNativeGraphicsResource(definition));
             NativeBattlePoseSource pose = resource.PoseSource!;
             Assert.Equal(bones, pose.BoneCount);
             Assert.Equal(bones, NativeBattleBodyBoneMatrices.Require(model, pose).Length);

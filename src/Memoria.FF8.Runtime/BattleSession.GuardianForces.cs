@@ -105,7 +105,7 @@ public sealed partial class BattleSession
             }
             byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
             BattleTargetRequest request = CreateAutomaticTargetRequest(targetFlags);
-            EnqueueNativeInputCommand(cast.Command with { TargetRequest = request });
+            actions.Enqueue(cast.Command with { TargetRequest = request });
             Log("GuardianForceReady", actor.Id, cast.Command.TargetId, cast.Command.ActionId, "GF charge completed.");
         }
         else
@@ -231,20 +231,4 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ValidateNativeGuardianInputBinding(BattleAttackCommand command, NativeBattleCommandPacket physical, int bankIndex)
-    {
-        BattleCombatant actor = GetActor(command.ActorId);
-        BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
-        BattleNativeAction? native = action.NativeAction;
-        BattleGuardianForceVital? gf = guardianForces.GetValueOrDefault(command.ActionId);
-        if (command.NativeQueuedCommand is not (3 or 254) || bankIndex != (command.NativeQueuedCommand == 3 ? 2 : 1) || command.NativeHeader is not null || command.NativeAction is not null || !command.MagicCasts.IsDefaultOrEmpty || guardianForceCasts.ContainsKey(actor.Id) || !actor.IsPlayer || !actor.EquipmentIds.Contains(command.ActionId) || gf is not { Acquired: true, HitPoints: > 0 } || !action.Available || native is null || native.Command != 254 || native.ActionId != command.ActionId + 64)
-        {
-            throw new InvalidDataException("Saved GF input lacks its equipped living GF and original3/FE command owner.");
-        }
-        ushort? originalWord = ProjectNativeCommandTargets(command).Single();
-        if (physical.ReadWord(4) != command.ActionId + 64 || physical.ReadByte(2) != 0 || physical.ReadByte(3) != 0 || originalWord is ushort targetWord && physical.ReadWord(6) != targetWord)
-        {
-            throw new InvalidDataException("Saved GF input contradicts its original action WORD, target WORD or flag bytes.");
-        }
-    }
 }

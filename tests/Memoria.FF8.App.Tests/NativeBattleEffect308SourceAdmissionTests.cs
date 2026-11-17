@@ -27,10 +27,10 @@ public sealed class NativeBattleEffect308SourceAdmissionTests
         Assert.Equal(0, source.Frame);
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.True(graphics.EntryReady);
         Assert.Null(graphics.OriginalEffect);
-        NativeBattleEffectMemory memory = source.NativeEffectMemory!;
+        NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory!;
         Assert.Equal(0, memory.Active);
         NativeBattleEffect308State state = memory.Effect308!;
         Assert.NotNull(state);

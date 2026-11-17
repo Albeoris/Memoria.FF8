@@ -37,7 +37,7 @@ public sealed class PartialMagicTargetTests
 
         Assert.Equal(new[] { "caster", "ally" }, Assert.Single(inputs).MagicTargets);
         Assert.Equal(new ushort[] { 1, 2 }, Assert.Single(session.QueuedActions).MagicCasts.Select(cast => NativeBattleTargetRequestAdapter.ProjectOriginalWord(cast.Targets, target => session.Combatants.Single(actor => actor.Id == target.ActorId).Slot)!.Value));
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 2; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }
@@ -77,7 +77,7 @@ public sealed class PartialMagicTargetTests
         Assert.False(hud.SelectingTarget);
         Assert.False(hud.CanConfirmMagicTargets);
         Assert.Empty(hud.MagicConfirmCaption);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 2; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }

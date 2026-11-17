@@ -16,7 +16,7 @@ public sealed class NativeBattleTonberry90InitializerMetadataTests
         BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         first.Tick();
         independent.Tick();
-        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal((ushort)90, first.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
         Assert.NotNull(first.Presentation!.Memory.Tonberry90);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(independent.Capture()));

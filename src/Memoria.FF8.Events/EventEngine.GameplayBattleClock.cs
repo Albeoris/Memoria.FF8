@@ -67,7 +67,7 @@ public sealed partial class EventEngine
             long active;
             if (services is GameSession { State.Battle: { } battle, State.PendingBattleEncounter: { ScriptedOwner: { } owner } occurrence } && battle.Definition.NativeExamTimerAtEntry?.ClockCalls == request.BattleClockCallsAtEntry && occurrence.SourceFrame == request.Frame && occurrence.SourceFieldId == request.FieldId && occurrence.SourceHash == request.ProgramHash && occurrence.Formation == request.Encounter && owner.FieldId == request.FieldId && owner.ProgramHash == request.ProgramHash && owner.ObjectId == request.ObjectId && owner.ScriptId == request.ScriptId && owner.Operation == request.Operation && owner.Flags == request.Flags)
             {
-                active = battle.NativeHostCallbacks ?? (battle.NativeGraphics is null ? battle.Frame : throw new InvalidDataException("Historical semantic battle time lacks its active callback count."));
+                active = battle.NativeHostCallbacks ?? battle.Frame;
             }
             else if (saved.Frame == request.Frame && saved.ExamTimer?.ClockCalls == request.BattleClockCallsAtEntry)
             {

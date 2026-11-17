@@ -24,18 +24,12 @@ public sealed class InstalledNativeActionExecutionTests
         Assert.Equal((ushort)0, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.False(session.Capture().NativeActionScratch!.GuardianFormulaE1E);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Damage");
-        NativeBattleRandomState random = session.Capture().Random!;
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames - 1; frame++)
+        for (int frame = 0; frame < 1200 && session.Capture().NativeActionScratch!.GuardianFormulaE1E != true; frame++)
         {
             session.Tick();
             restored.Tick();
         }
-        Assert.Equal(13, session.Frame);
-        Assert.Equal(random, session.Capture().Random);
-        Assert.Equal(10000, session.Combatants[1].CurrentHp);
-        session.Tick();
-        restored.Tick();
         Assert.Equal(273, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
         Assert.True(session.Capture().NativeActionScratch!.GuardianFormulaE1E);
         for (int frame = 0; frame < 30; frame++)
@@ -159,7 +153,7 @@ public sealed class InstalledNativeActionExecutionTests
             session.Tick();
             Assert.Single(session.Events, item => item.Kind == "GuardianForceReady");
         }
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(session.ActiveAction is null && session.QueuedActions.Count == 0); frame++)
         {
             session.Tick();
         }

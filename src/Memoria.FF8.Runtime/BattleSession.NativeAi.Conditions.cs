@@ -147,7 +147,7 @@ public sealed partial class BattleSession
         }
         else if (selector == 203)
         {
-                string? expected = value == 200 ? actor.Id : ExpandedAiModelActor(value)?.Id;
+                string? expected = value == 200 ? actor.Id : FindSourceEnemyModelActor(actor, value)?.Id;
                 return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
         }
         else
@@ -188,18 +188,10 @@ public sealed partial class BattleSession
                 200 => actor,
                 203 when actor.LastAttackerId is string attacker => GetActor(attacker),
                 >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? targetId) => GetActor(targetId),
-                >= 220 and <= 227 when UsesOriginalEnemySlots => FindExpandedNumericConditionActor(actor.AiVariables[selector - 220]),
-                >= 220 and <= 227 => throw new NotSupportedException("Expanded numeric AI condition selectors require original actor slots."),
-                _ => ExpandedAiModelActor(selector)
+                >= 220 and <= 227 => RequireSourceOriginalActor(actor, checked((int)actor.AiVariables[selector - 220])),
+                _ => FindSourceEnemyModelActor(actor, selector)
                     ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")
             };
-    }
-
-    private BattleCombatant FindExpandedNumericConditionActor(uint index)
-    {
-        return index < NativeBattleSlots.Count && FindAllocatedNativeActor((int)index) is { } target
-            ? target
-            : throw new NotSupportedException($"Expanded AI condition actor index {index} has no retained native allocation.");
     }
 
     private int NativeConditionLastAttackerIndex(BattleCombatant actor)

@@ -79,7 +79,7 @@ public sealed class NativeBattleRingWorldMatrixTests
         {
             ActorModels = graphics.ActorModels.Set(bodyOwner, body with { SequenceState = body.SequenceState! with { Header40 = 512 } }).Set(swordOwner, sword with { SequenceState = sword.SequenceState! with { Header40 = 0 } })
         };
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot with { NativeGraphics = graphics }));
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
         BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
         for (int callback = 0; callback < 2; callback++)
         {

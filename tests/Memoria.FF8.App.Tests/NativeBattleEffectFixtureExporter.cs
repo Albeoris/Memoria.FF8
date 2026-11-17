@@ -308,11 +308,11 @@ internal static class NativeBattleEffectFixtureExporter
             File.WriteAllText(Path.Combine(outputDirectory, "combatant-inputs.json"), JsonSerializer.Serialize(definition.Combatants.Select(actor => new { actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.SceneSlot, actor.Level, actor.InitialActive, actor.InitialHidden, actor.InitialSuspended, actor.InitialUntargetable, actor.MaximumHp, actor.CurrentHp, actor.Speed, actor.Attack, actor.Defense, actor.Magic, actor.Spirit, actor.PhysicalPower, actor.Hit, actor.Luck, actor.Evasion, actor.Costume, actor.WeaponId, actor.EquipmentIds, actor.InitialAtb, actor.ElementAttack, actor.ElementAttackPercent, actor.DrainPercent, actor.ElementDefenses, actor.DrawSpells })));
             boundary = "before-entry";
             BattleSession battle = new(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
-            BattleSnapshot fresh = battle.Capture();
-            NativeBattleGraphicsState freshGraphics = fresh.NativeGraphics ?? throw new InvalidDataException("The fresh component requires its native graphics owner.");
+            BattleSnapshot fresh = battle.CaptureForContinuation();
+            NativeBattleGraphicsState freshGraphics = fresh.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fresh component requires its native graphics owner.");
             // Establish the fresh typed outcome owner without inventing values for its unknown nullable bytes.
             // Native entry and outcome callbacks publish their own reached fields.
-            battle = BattleSession.Restore(fresh with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } });
+            battle = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } }));
             Save(boundary, battle.Capture());
             // Continue this component's actual entry producer; never replay travel or restore a partial owner.
             boundary = "battle-entry";
@@ -326,7 +326,7 @@ internal static class NativeBattleEffectFixtureExporter
                 throw new InvalidDataException("The component did not reach NativeEntryReady within its explicit entry callback budget; this is not an effect duration bound.");
             }
             boundary = "after-entry";
-            BattleSnapshot before = battle.Capture();
+            BattleSnapshot before = battle.CaptureForContinuation();
             Save(boundary, before);
             if (request.OrdinaryMagicAdmission)
             {
@@ -346,8 +346,8 @@ internal static class NativeBattleEffectFixtureExporter
                         Save("before-ordinary-blocker", prior);
                         return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary logical formula/header producer; no manually supplied contacts or descriptor104" };
                     }
-                    BattleSnapshot current = battle.Capture();
-                    if (current.NativeGraphics!.Descriptors.Queue.Any(slot => current.NativeGraphics.Descriptors.Packets[slot].Command == 104))
+                    BattleSnapshot current = battle.CaptureForContinuation();
+                    if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(slot => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[slot].Command == 104))
                     {
                         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party");
                         if (caster.MagicStocks.Single(stock => stock.Id == request.ActionId).Count != 1)
@@ -382,7 +382,7 @@ internal static class NativeBattleEffectFixtureExporter
                     ushort priorSaved = preparedStatus.Status.Presentation.Saved!.Value;
                     NativeBattlePartyPresentation party = before.NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
                     before = before with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) }, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
-                    NativeBattleGraphicsState priorGraphics = before.NativeGraphics!;
+                    NativeBattleGraphicsState priorGraphics = before.ReadFixturePresentation().NativeGraphics!;
                     NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(priorGraphics, 1);
                     uint flags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
                     uint added = flags & ~(targetModel.Flags8 ?? throw new InvalidDataException("The revival fixture requires its existing graphics status."));
@@ -394,7 +394,7 @@ internal static class NativeBattleEffectFixtureExporter
                             timers = timers.SetItem(bit, 0);
                         }
                     }
-                    before = before with { NativeGraphics = priorGraphics with { ActorModels = priorGraphics.ActorModels.Set(RequireOriginalModelOwner(priorGraphics, 1), targetModel with { Flags8 = flags, StatusTimers = timers }) } };
+                    before = before.WithFixturePresentation(facts => facts with { NativeGraphics = priorGraphics with { ActorModels = priorGraphics.ActorModels.Set(RequireOriginalModelOwner(priorGraphics, 1), targetModel with { Flags8 = flags, StatusTimers = timers }) } });
                 }
             }
             else if (request.TargetActorIndex == 3)
@@ -411,7 +411,7 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 BattleEnemyPlacement selectedEnemy = SelectCasterEnemy(formation, request);
                 BattleCombatantDefinition selectedDefinition = definition.Combatants.Single(actor => actor.Id == selectedCaster.Id);
-                if (selectedDefinition.IsPlayer || selectedDefinition.ModelId != selectedEnemy.ModelId || selectedDefinition.SceneSlot != selectedEnemy.Slot || ReadOriginalModelCell(before.NativeGraphics!, request.CasterActorIndex).ModelId4 != selectedEnemy.NativeModelId)
+                if (selectedDefinition.IsPlayer || selectedDefinition.ModelId != selectedEnemy.ModelId || selectedDefinition.SceneSlot != selectedEnemy.Slot || ReadOriginalModelCell(before.ReadFixturePresentation().NativeGraphics!, request.CasterActorIndex).ModelId4 != selectedEnemy.NativeModelId)
                 {
                     throw new InvalidDataException("The selected enemy caster's physical row contradicts its original formation model owner.");
                 }
@@ -444,9 +444,9 @@ internal static class NativeBattleEffectFixtureExporter
             }
             (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(request.TargetActorIndex), native.DamagePresentation, request.TargetActorIndex >= 3 ? (byte)1 : (byte)0, request.HealingContact ? (byte)1 : (byte)0, status.Saved, request.ControlledContactValue ?? 7, status.Battle), secondary));
             (packets, _) = packets.Publish(1);
-            NativeBattleGraphicsState graphics = before.NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
+            NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-            BattleSnapshot pending = before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+            BattleSnapshot pending = (before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
             boundary = "queued-action104";
             Save(boundary, pending);
             if (request.AdmissionProbeMaximumCallbacks > 0)
@@ -456,7 +456,7 @@ internal static class NativeBattleEffectFixtureExporter
                 TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
                 for (int count = 0; count < request.AdmissionProbeMaximumCallbacks; count++)
                 {
-                    BattleSnapshot prior = battle.Capture();
+                    BattleSnapshot prior = battle.CaptureForContinuation();
                     try
                     {
                         battle.AdvanceNativeGraphicsPresentation(callback);
@@ -466,7 +466,7 @@ internal static class NativeBattleEffectFixtureExporter
                         Save("last-complete-before-blocker", prior);
                         return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection);
                     }
-                    if (battle.Presentation?.Graphics?.Callback != prior.NativeGraphics!.Callback + 1)
+                    if (battle.Presentation?.Graphics?.Callback != prior.ReadFixturePresentation().NativeGraphics!.Callback + 1)
                     {
                         Save("last-complete-before-counter-blocker", prior);
                         throw new InvalidDataException("The diagnostic prefix did not advance exactly one native callback.");
@@ -509,7 +509,7 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 throw new InvalidDataException("The exported complete standalone changes during its immediate independent load.");
             }
-            artifacts.Add(new(name, filename, Convert.ToHexString(SHA256.HashData(bytes)), bytes.LongLength, snapshot.Frame, snapshot.NativeGraphics?.Callback ?? throw new InvalidDataException("The exported component lacks its callback owner.")));
+            artifacts.Add(new(name, filename, Convert.ToHexString(SHA256.HashData(bytes)), bytes.LongLength, snapshot.Frame, snapshot.ReadFixturePresentation().NativeGraphics?.Callback ?? throw new InvalidDataException("The exported component lacks its callback owner.")));
         }
     }
 }

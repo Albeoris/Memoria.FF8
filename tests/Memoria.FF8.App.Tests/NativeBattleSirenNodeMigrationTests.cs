@@ -19,8 +19,8 @@ public sealed class NativeBattleSirenNodeMigrationTests
         string hash = Convert.ToHexString(SHA256.HashData(bytes));
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
-        Assert.Equal((ushort)95, retained.NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleSiren95Resources resources = retained.NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
+        Assert.Equal((ushort)95, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
+        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
         Assert.Null(resources.NodeSchedule);
         Assert.Null(resources.StaticNodeSource);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -47,7 +47,7 @@ public sealed class NativeBattleSirenNodeMigrationTests
         JsonObject module = migrated["NativeEffectMemory"]!["Siren95"]!.AsObject();
         Assert.False(module.ContainsKey("StaticNodeData"));
         Assert.False(module.ContainsKey("StaticNodeDataKnownCold"));
-        Assert.DoesNotContain(retained.NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745180);
+        Assert.DoesNotContain(retained.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745180);
         module["StaticNodeData"] = JsonSerializer.SerializeToNode(authenticated.StaticNodeSource.Data);
         JsonNode reverted = migrated.DeepClone();
         foreach (string property in new[] { "NodeSchedule", "StaticNodeSource" })
@@ -76,7 +76,7 @@ public sealed class NativeBattleSirenNodeMigrationTests
                 Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             }
             Assert.Equal(snapshot.Frame + 1, first.Frame);
-            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+            Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
             using BattleAssets assets = new(game.GameDirectory);
             byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());

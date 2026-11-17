@@ -11,7 +11,7 @@ public sealed class NativeBattleStorageGraphTests
     public void Private_continuation_restores_bidirectional_node_main_and_task_views_with_independent_owners()
     {
         BattleSession live = Session();
-        BattleSnapshot captured = live.Capture() with { StorageGraph = null };
+        BattleSnapshot captured = live.CaptureForContinuation() with { StorageGraph = null };
         BattleSession first = BattleSession.Restore(captured);
         BattleSession second = BattleSession.Restore(captured);
         NativeBattleEffectArena main = first.Presentation!.Memory.Arena!;
@@ -34,7 +34,7 @@ public sealed class NativeBattleStorageGraphTests
         Assert.Equal((byte)123, raw[0]);
         Assert.False(known[0]);
         Assert.Equal(2, source.Arena.ReadResourcePointer(32)!.CpuRow);
-        Assert.Equal((byte)0, captured.NativeEffectMemory!.Arena!.ReadByte(SourceOffset + 4));
+        Assert.Equal((byte)0, captured.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadByte(SourceOffset + 4));
     }
 
     [Theory]
@@ -125,7 +125,7 @@ public sealed class NativeBattleStorageGraphTests
     public void Private_continuation_rebinds_node_source_to_current_staging_without_touching_history()
     {
         BattleSession live = SessionWithStaging();
-        BattleSnapshot captured = live.Capture() with { StorageGraph = null };
+        BattleSnapshot captured = live.CaptureForContinuation() with { StorageGraph = null };
         BattleSession first = BattleSession.Restore(captured);
         BattleSession second = BattleSession.Restore(captured);
         NativeBattleNodeSource source = first.Presentation!.Memory.Rinoa88!.NodeData!;
@@ -142,7 +142,7 @@ public sealed class NativeBattleStorageGraphTests
         source.ReadWithKnownness(100, raw, known);
         Assert.Equal((byte)123, raw[0]);
         Assert.False(known[0]);
-        Assert.Equal((byte)0, captured.NativeFileStaging!.Read(address + 4, 1)[0]);
+        Assert.Equal((byte)0, captured.ReadFixturePresentation().NativeFileStaging!.Read(address + 4, 1)[0]);
     }
 
     [Fact]

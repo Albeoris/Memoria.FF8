@@ -27,17 +27,17 @@ internal sealed class NativeBattleEffect80PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
+        NativeBattleEffect80State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect80!;
         state.Validate();
-        Assert.Equal((byte)139, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
-        Assert.Equal((byte)140, ReadOriginalModelCell(current.NativeGraphics, 5).ModelId4);
-        Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
-        if (ReadOriginalModelCell(current.NativeGraphics, 5).Sequence == 26)
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).ModelId4);
+        Assert.Equal((ushort)1448, current.ReadFixturePresentation().NativeModelCpuResources!.ScratchMaximum);
+        if (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).Sequence == 26)
         {
             sequence26 = true;
             Mark("effect80-target-sequence26", current, cold);
@@ -46,14 +46,14 @@ internal sealed class NativeBattleEffect80PresentationObserver
         NativeBattleModulePoolTask? driver = Find(current, DriverCallback);
         if (beforeDriver?.ReadByte(0x29) == 1 && driver?.ReadByte(0x29) == 2)
         {
-            Assert.Equal((ushort)1, prior.NativeEffectMemory!.Effect80!.ReadWord(TargetAddress + 0x48));
+            Assert.Equal((ushort)1, prior.ReadFixturePresentation().NativeEffectMemory!.Effect80!.ReadWord(TargetAddress + 0x48));
             Contacts++;
             Mark("effect80-current-contact-handshake", current, cold);
         }
-        for (int index = 0; index < current.NativeGraphics.Effects.Slots.Length; index++)
+        for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics.Effects.Slots.Length; index++)
         {
-            NativeBattleEffectTask task = current.NativeGraphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, task.ModelOwner, 5) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            NativeBattleEffectTask task = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, task.ModelOwner, 5) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect80-contact-glyph", current, cold);
@@ -100,7 +100,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
                     Mark("effect80-relocated-" + address.ToString("X"), current, cold);
                 }
             }
-            if (current.NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x7AF390 && (task.ReadByte(0x26) & 8) != 0))
+            if (current.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x7AF390 && (task.ReadByte(0x26) & 8) != 0))
             {
                 Mark("effect80-body-context-C0", current, cold);
             }
@@ -117,7 +117,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
                 Assert.Equal(unchecked((ushort)(pointer >> 16)), state.ReadWord(TrailPointerAddress + 2));
                 Mark("effect80-current-trail-pointer-alias", current, cold);
             }
-            if (prior.NativeEffectMemory?.Effect80 is { } previous && previous.ReadDword(TrailRandomGlobal) != state.ReadDword(TrailRandomGlobal))
+            if (prior.ReadFixturePresentation().NativeEffectMemory?.Effect80 is { } previous && previous.ReadDword(TrailRandomGlobal) != state.ReadDword(TrailRandomGlobal))
             {
                 randomChanged = true;
                 Mark("effect80-private-lcg", current, cold);
@@ -135,7 +135,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
             trailObserved = true;
             Mark("effect80-current-trail-packets", current, cold);
         }
-        CurrentCommands = PrivateCommands(current).Concat(current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => body.Contains(command.Packet) || trail.Contains(command.Packet))).Distinct().ToArray();
+        CurrentCommands = PrivateCommands(current).Concat(current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => body.Contains(command.Packet) || trail.Contains(command.Packet))).Distinct().ToArray();
         foreach (NativeBattleLogicalCommand command in CurrentCommands)
         {
             opcodes.Add(command.Opcode);
@@ -150,7 +150,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
             Assert.All(state.FixedBanks.Values, bank => Assert.NotNull(bank));
             Mark("effect80-physical-banks-retained", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, DriverPhase = driver?.ReadByte(0x29), Sequence = ReadOriginalModelCell(current.NativeGraphics, 5).Sequence, Contacts, ContactGlyphs, BodyPackets = body.Count, TrailPackets = trail.Count, OwnedPackets = CurrentCommands.Length, Cursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Random = state.ReadDword(TrailRandomGlobal) });
+        observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics.Callback, DriverPhase = driver?.ReadByte(0x29), Sequence = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).Sequence, Contacts, ContactGlyphs, BodyPackets = body.Count, TrailPackets = trail.Count, OwnedPackets = CurrentCommands.Length, Cursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Random = state.ReadDword(TrailRandomGlobal) });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -172,19 +172,19 @@ internal sealed class NativeBattleEffect80PresentationObserver
 
     private static ImmutableHashSet<NativeBattlePrimitiveReference> BodyPacketReferences(BattleSnapshot current)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         NativeBattleModulePoolTask? body = effect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == 0x7AF390 && (task.ReadByte(0x26) & 12) == 8);
         if (body is null)
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
+        NativeBattleEffect80State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect80!;
         int actorSlot = NativeBattleGraphicsModelAddress.DecodeOriginalCell(state.ReadDword(BodyContextAddress + 0x64)).Offset;
-        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics, actorSlot);
-        NativeBattleModelCpuResources cpu = current.NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actorSlot);
+        NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
-        string actorId = ReadOriginalModelActorId(current.NativeGraphics, actorSlot) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
+        string actorId = ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics, actorSlot) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
         NativeBattleGraphicsBinding? binding = current.Definition.NativeGraphics!.Bindings.SingleOrDefault(item => item.ActorId == actorId);
         if (binding is null)
         {
@@ -193,7 +193,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
             binding = Assert.Single(current.Definition.NativeGraphics.Bindings, item => item.ActorId == prototype.Id);
         }
         NativeBattlePoseSource pose = binding.Resource.PoseSource ?? throw new InvalidDataException("The deformed body proof requires its selected skeleton.");
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState?.MeshMask124 ?? throw new InvalidDataException("The deformed body proof requires its actual object mask."));
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState?.MeshMask124 ?? throw new InvalidDataException("The deformed body proof requires its actual object mask."));
         uint color = (actor.Color40 ?? throw new InvalidDataException("The deformed body proof requires its current color.")) & 0xFFFFFF;
         short bias = unchecked((short)state.ReadWord(BodyContextAddress + 0xC0));
         HashSet<BodyFace> faces = [];
@@ -220,7 +220,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
                 faces.Add(new(opcode, color, bucket, screens[0], screens[1], screens[2], screens[3], depths[0], depths[1], depths[2], depths[3], BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(12, 4)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(polygon.Quad ? 16 : 6, 2)), polygon.Quad ? BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(18, 2)) : (ushort)0));
             }
         }
-        return current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
+        return current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
 
         bool Matches(NativeBattleLogicalCommand command)
         {
@@ -241,7 +241,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
 
     private static ImmutableHashSet<NativeBattlePrimitiveReference> TrailPacketReferences(BattleSnapshot current)
     {
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode == 0x3E && command.Words.Length == 12 && command.VertexPayload4.SequenceEqual(new[] { 0, 0, 0, 0 }) && MatchesTrail(command.Words)).Select(command => command.Packet).ToImmutableHashSet();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode == 0x3E && command.Words.Length == 12 && command.VertexPayload4.SequenceEqual(new[] { 0, 0, 0, 0 }) && MatchesTrail(command.Words)).Select(command => command.Packet).ToImmutableHashSet();
     }
 
     private static bool MatchesTrail(ImmutableArray<uint> words)
@@ -251,7 +251,7 @@ internal sealed class NativeBattleEffect80PresentationObserver
 
     private static NativeBattleLogicalCommand[] PrivateCommands(BattleSnapshot current)
     {
-        NativeBattleEffect80State state = current.NativeEffectMemory!.Effect80!;
+        NativeBattleEffect80State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect80!;
         uint source = state.ReadDword(InitializerGlobal);
         uint primary = state.ReadDword(CursorGlobal);
         uint secondary = state.ReadDword(SecondaryCursorGlobal);
@@ -268,10 +268,10 @@ internal sealed class NativeBattleEffect80PresentationObserver
             uint start = source + ((cursor - source - 1) / 0x8000) * 0x8000;
             return offset >= checked((int)(start - 0x20DFAB8u)) && offset < checked((int)(cursor - 0x20DFAB8u));
         }
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && (Contains(command.Packet.ByteOffset, primary) || Contains(command.Packet.ByteOffset, secondary))).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && (Contains(command.Packet.ByteOffset, primary) || Contains(command.Packet.ByteOffset, secondary))).ToArray();
     }
 
-    private static NativeBattleModulePoolTask? Find(BattleSnapshot snapshot, uint callback) => snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == callback) : null;
+    private static NativeBattleModulePoolTask? Find(BattleSnapshot snapshot, uint callback) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == callback) : null;
 
     private void Mark(string name, BattleSnapshot snapshot, Action<string, BattleSnapshot> cold)
     {

@@ -30,10 +30,10 @@ public sealed class NativeBattleEffect232SourceAdmissionTests
         Assert.Equal(14, source.Definition.StageId);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
-        NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(source.NativeEffectMemory);
-        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.NativeModelCpuResources);
-        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.NativeFileStaging);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
+        NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(source.ReadFixturePresentation().NativeEffectMemory);
+        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.ReadFixturePresentation().NativeModelCpuResources);
+        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.ReadFixturePresentation().NativeFileStaging);
         Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, memory.Active);
@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect232SourceAdmissionTests
         Assert.NotNull(memory.ScriptedColorRegisters);
         Assert.NotNull(memory.PrimitiveProcess);
         Assert.NotNull(memory.Textures);
-        Assert.NotNull(source.NativeFileIo);
+        Assert.NotNull(source.ReadFixturePresentation().NativeFileIo);
         NativeBattleScriptedEffectMemory core = Assert.IsType<NativeBattleScriptedEffectMemory>(memory.ScriptedEffects);
         NativeBattleGeometryRegisters geometry = Assert.IsType<NativeBattleGeometryRegisters>(memory.GeometryRegisters);
         core.Validate();
@@ -121,7 +121,7 @@ public sealed class NativeBattleEffect232SourceAdmissionTests
             Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
             Assert.Null(ReadOriginalModelCell(graphics, physical).HasLinkedModelRing140);
         }
-        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.NativeStage);
+        NativeBattleStageState stage = Assert.IsType<NativeBattleStageState>(source.ReadFixturePresentation().NativeStage);
         Assert.Equal(4, stage.Groups.Length);
         Assert.All(stage.Groups, group =>
         {

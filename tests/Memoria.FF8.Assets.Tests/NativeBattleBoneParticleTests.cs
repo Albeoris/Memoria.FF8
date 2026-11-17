@@ -29,8 +29,8 @@ public sealed class NativeBattleBoneParticleTests
         {
             battle.Tick();
         }
-        BattleSnapshot pending = battle.Capture();
-        NativeBattleAuxiliaryTask task = Assert.Single(pending.NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
+        BattleSnapshot pending = battle.CaptureForContinuation();
+        NativeBattleAuxiliaryTask task = Assert.Single(pending.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830);
         Assert.Equal(24, task.Program!.Offset);
         Assert.Equal(0u, BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleStorageSnapshots.Capture(task).Payload.AsSpan().Slice(8)));
         Assert.Equal(0x81, task.Program.Source[task.Program.Offset]);

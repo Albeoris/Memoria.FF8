@@ -27,8 +27,8 @@ public sealed class NativeBattleChoco99PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        int queued = Assert.Single(source.NativeGraphics!.Descriptors.Queue, slot => source.NativeGraphics.Descriptors.Packets[slot].Command == 104);
-        uint offset = unchecked(source.NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
+        int queued = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, slot => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[slot].Command == 104);
+        uint offset = unchecked(source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)240, header.Command);
@@ -112,9 +112,9 @@ public sealed class NativeBattleChoco99PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 ownership.Accept(current);
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? after = Selected(current);
                 initialized |= after?.ReturnedDescriptor is > 0;
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
@@ -135,8 +135,8 @@ public sealed class NativeBattleChoco99PresentationTests
                     contacts++;
                 }
                 Assert.True(hp is 100 or 93);
-                NativeBattleChoco99State? state = current.NativeEffectMemory?.Choco99;
-                NativeBattleChoco99IoState? previousIo = prior.NativeEffectMemory?.Choco99?.Io;
+                NativeBattleChoco99State? state = current.ReadFixturePresentation().NativeEffectMemory?.Choco99;
+                NativeBattleChoco99IoState? previousIo = prior.ReadFixturePresentation().NativeEffectMemory?.Choco99?.Io;
                 if (state?.Io is { } io)
                 {
                     for (int row = 0; row < resources.Io.Script.Data.Length; row += 16)
@@ -154,9 +154,9 @@ public sealed class NativeBattleChoco99PresentationTests
                         ushort opcode = U16(io.Script, cursor);
                         uint destination = U32(io.Script, cursor + 12);
                         NativeBattleEffectFileAsset file = Assert.Single(resources.Io.Files, item => item.FileId == id);
-                        byte[] copied = opcode == 1 ? current.NativeEffectMemory!.Arena!.Read(checked((int)(destination - 0x20DFAB8)), file.Data.Length) : io.Banks.Read(destination, file.Data.Length);
+                        byte[] copied = opcode == 1 ? current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(destination - 0x20DFAB8)), file.Data.Length) : io.Banks.Read(destination, file.Data.Length);
                         Assert.Equal(file.Data.ToArray(), copied);
-                        Assert.Contains(current.NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback is 0x718510 or 0x718570 or 0x718580 or 0x718590);
+                        Assert.Contains(current.ReadFixturePresentation().NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback is 0x718510 or 0x718570 or 0x718580 or 0x718590);
                         files.Add(id);
                     }
                     if (previousIo?.Busy is > 0 && io.Busy == 0)
@@ -175,7 +175,7 @@ public sealed class NativeBattleChoco99PresentationTests
 
                     if (!sawEnemyCentroid && Tasks(after, 0x718130).Any())
                     {
-                        NativeBattleVector[] enemies = ReadOriginalModelCells(current.NativeGraphics).Skip(3).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Transform!.Position28).ToArray();
+                        NativeBattleVector[] enemies = ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics).Skip(3).Where(model => (model.Flags0 & 2) != 0).Select(model => model.Transform!.Position28).ToArray();
                         short x = enemies.Length == 0 ? (short)0 : (short)((enemies.Min(point => point.X) + enemies.Max(point => point.X)) / 2);
                         short z = enemies.Length == 0 ? (short)0 : (short)((enemies.Min(point => point.Z) + enemies.Max(point => point.Z)) / 2);
                         Assert.Equal((ushort)0, context.Word(0));
@@ -253,18 +253,18 @@ public sealed class NativeBattleChoco99PresentationTests
                     {
                         ushort index = cameraY.ReadWord(0x38);
                         short impulse = resources.Meteo.CameraY.Values[index];
-                        NativeBattleCameraState cameraState = current.NativeCamera ?? throw new InvalidDataException("The view translation lost its current camera owner.");
+                        NativeBattleCameraState cameraState = current.ReadFixturePresentation().NativeCamera ?? throw new InvalidDataException("The view translation lost its current camera owner.");
                         NativeBattleActionMatrix freshView = NativeBattlePoseMatrices.CameraView(cameraState.CurrentPose ?? throw new InvalidDataException("The view translation requires the fresh camera pose."));
                         Assert.Equal(unchecked(freshView.Y + impulse), cameraState.Projection!.View!.Y);
                         Assert.Equal((short?)0, cameraState.ViewTranslationScratch!.Y);
                         cameraYIndices.Add(index);
                     }
                 }
-                sawOverlay |= current.NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => item.Command.Packet.Bank == NativeBattleFullscreenOverlay.PacketBank) == true;
-                sawHiddenEnvironment |= current.NativeStage!.Groups.All(group => (group.Flags & 2) == 0) && ReadOriginalModelCells(current.NativeGraphics).Skip(3).Take(4).Any(model => (model.Flags0 & 6) == 6);
-                stagePeak = Math.Max(stagePeak, current.NativeStage!.Groups.Max(group => group.ColorDepth));
+                sawOverlay |= current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => item.Command.Packet.Bank == NativeBattleFullscreenOverlay.PacketBank) == true;
+                sawHiddenEnvironment |= current.ReadFixturePresentation().NativeStage!.Groups.All(group => (group.Flags & 2) == 0) && ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics).Skip(3).Take(4).Any(model => (model.Flags0 & 6) == 6);
+                stagePeak = Math.Max(stagePeak, current.ReadFixturePresentation().NativeStage!.Groups.Max(group => group.ColorDepth));
                 commonIo |= CommonIo(current);
-                visible |= current.NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true;
+                visible |= current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true;
                 if (cold is not null)
                 {
                     cold.AdvanceNativeGraphicsPresentation(Callback);
@@ -273,7 +273,7 @@ public sealed class NativeBattleChoco99PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
                 }
             }
@@ -313,8 +313,8 @@ public sealed class NativeBattleChoco99PresentationTests
                 Assert.Equal((short)0, group.ColorDepth);
                 Assert.Equal(0u, group.ColorFlags & 0xFFFFFF);
             });
-            Assert.Equal(source.NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.ColorFlags).ToArray());
-            Assert.Equal(source.NativeStage.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
+            Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.ColorFlags).ToArray());
+            Assert.Equal(source.ReadFixturePresentation().NativeStage.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
             NativeBattleChoco97Context finalContext = battle.Presentation!.Memory.Choco99!.Context!;
             for (int actor = 3; actor < 7; actor++)
             {
@@ -358,7 +358,7 @@ public sealed class NativeBattleChoco99PresentationTests
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested, NativeBattleChoco99Resources resources)
     {
         NativeBattleOriginalEffectState? effect = Selected(snapshot);
-        NativeBattleChoco99State? state = snapshot.NativeEffectMemory?.Choco99;
+        NativeBattleChoco99State? state = snapshot.ReadFixturePresentation().NativeEffectMemory?.Choco99;
         bool Live(uint callback, int? phase = null) => Tasks(effect, callback).Any(task => phase is null || task.ReadByte(0x29) == phase);
         string? candidate = requested.Contains("contact-before") && state?.Context?.Word(0x48) == 1 && Live(0x718130, 1) ? "contact-before"
             : requested.Contains("io-pending") && state?.Io?.Busy is > 0 ? "io-pending"
@@ -522,9 +522,9 @@ public sealed class NativeBattleChoco99PresentationTests
 
     private static ushort U16(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan().Slice(offset));
     private static uint U32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan().Slice(offset));
-    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
+    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 99, Binding.Entry: 0x717D30 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 99, Binding.Entry: 0x717D30 } effect ? effect : null;
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback, bool active = true) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (!active || (task.Flags & 1) != 0) && task.Callback == callback) ?? [];
     private sealed record Boundary(string Name, long Before, long After, string RgbaSha256);
 }

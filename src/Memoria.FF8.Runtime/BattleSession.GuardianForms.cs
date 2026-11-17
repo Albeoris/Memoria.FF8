@@ -297,7 +297,6 @@ public sealed partial class BattleSession
         if (form.Phase != BattleGuardianFormPhase.Returning)
         {
             CancelUncommittedGuardianFormCommands(actor);
-            RemoveNativeUiReady(actor);
             actor.Atb = 0;
         }
         if (HasCommittedGuardianFormAction(actor.Id))
@@ -361,7 +360,6 @@ public sealed partial class BattleSession
         actor.IsBusy = guardianForceCasts.ContainsKey(actorId) || QueuedActions.Any(command => command.ActorId == actorId);
         actor.RefreshNativeHpStatusFlags();
         RestoreGuardianFormHumanVital(actor);
-        RemoveNativeUiReady(actor);
         Log("GuardianFormFailed", actorId, actorId, form.GuardianForceId, "GF presentation resources were released after failure.");
     }
 
@@ -386,22 +384,6 @@ public sealed partial class BattleSession
         foreach (BattleAttackCommand command in retained)
         {
             actions.Enqueue(command);
-        }
-        for (int bank = 0; bank < 3; bank++)
-        {
-            for (int slot = 0; slot < 11; slot++)
-            {
-                NativeBattleCommandLocation location = new(checked((byte)bank), checked((byte)slot));
-                if (nativeDispatchCommandLocation == location)
-                {
-                    continue;
-                }
-                BattleAttackCommand? command = nativeCommandBanks.Banks[bank].LogicalCommands[2 * slot];
-                if (command?.ActorId == actor.Id && command.NativeHeader is null && (command.GuardianFormAction is not null || command.GuardianFormInvocation is not null))
-                {
-                    nativeCommandBanks = nativeCommandBanks.Release(location);
-                }
-            }
         }
     }
 
@@ -468,7 +450,7 @@ public sealed partial class BattleSession
     {
         if (command.GuardianFormAction is null && command.GuardianFormInvocation is null)
         {
-            if (GetGuardianForm(command.ActorId) is { EntryCompleted: true } && command.NativeCallback is null && command.NativePlayerReaction is null && command.NativeAction is not { Command: 0, ActionId: 2 or 6 } && !(RequiresNativeCompelledCommand(GetActor(command.ActorId)) && command.Ability == BattleAbility.Attack && command.NativeQueuedCommand == 1 && command.NativeAction is null))
+            if (GetGuardianForm(command.ActorId) is { EntryCompleted: true } && command.NativePlayerReaction is null && command.NativeAction is not { Command: 0, ActionId: 2 or 6 } && !(RequiresNativeCompelledCommand(GetActor(command.ActorId)) && command.Ability == BattleAbility.Attack && command.NativeQueuedCommand == 1 && command.NativeAction is null))
             {
                 throw new InvalidDataException("Saved transformed actor command lacks its form binding.");
             }

@@ -98,10 +98,8 @@ public sealed class StoryBattleRosterTests
         Assert.All(authored, actor => Assert.NotNull(actor.NativeTemplate));
         if (formation == 794)
         {
-            Assert.All(definition.Combatants.Where(actor => actor.SceneSlot is int slot && definition.AddedEnemySources!.ContainsKey(slot)), donor =>
-                Assert.True(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(donor.ModelId).Sequences).CanCloneIndependently()));
-            Assert.False(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(106).Sequences).CanCloneIndependently());
-            Assert.False(Assert.IsType<BattleSequenceSet>(expandedWorld.BattleResources.LoadEnemy(107).Sequences).CanCloneIndependently());
+            Assert.All(definition.AddedEnemySources!, source =>
+                Assert.Equal(expandedWorld.BattleResources.FormationSourceHash(source.Value.Formation), source.Value.FormationHash));
         }
         ExpandedBattleEntryAdmissionTests.ReachReady(expandedWorld, expanded);
         Assert.Equal(request.Frame, world.Events.Frame);
@@ -153,7 +151,7 @@ public sealed class StoryBattleRosterTests
                 world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: squall.Id, TargetId: enemyRinoa.Id) { ForcePhysical = true });
                 issuedAttacks++;
             }
-            if (!comparedPrivateCallback && battle is { Outcome: BattleOutcome.Active, NativeGraphics.NativeOutcome.ResultByte6E7: 1 })
+            if (!comparedPrivateCallback && battle is { Outcome: BattleOutcome.Active, Presentation.Graphics.NativeOutcome.ResultByte6E7: 1 })
             {
                 BattleSession copy = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
                 world.ApplyBattleInput(new(BattleInputKind.Tick));

@@ -18,7 +18,7 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(sourcePath!)!, "before-ordinary-input.battle.json"));
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = graphics.Descriptors.Packets[slot].Argument - 0x1D280C4;
         Assert.Equal(0u, offset % 20);
@@ -45,13 +45,13 @@ public sealed class NativeBattleOrdinaryMagicPresentationTests
         bool restoredMid = false;
         bool completed = false;
         int callbacks = 1;
-        BattleSnapshot prior = battle.Capture();
+        BattleSnapshot prior = battle.CaptureForContinuation();
         try
         {
             for (; callbacks < 512; callbacks++)
             {
                 prior = battle.Capture();
-                bool restore = !restoredMid && prior.NativeGraphics!.OriginalEffect is { Binding.Effect: 118, ReturnedDescriptor: > 0 } current && current.Pools.Any(pool => pool.DescriptorAddress == 0x2521630 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(12) == 20));
+                bool restore = !restoredMid && prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 118, ReturnedDescriptor: > 0 } current && current.Pools.Any(pool => pool.DescriptorAddress == 0x2521630 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(12) == 20));
                 if (restore)
                 {
                     NativeBattleRestorationPresentationTests.Publish(output, "mid-before", prior, scene.Render(battle, 320, 224));

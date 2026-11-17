@@ -228,7 +228,7 @@ public sealed class NativePartySwitchTests
             using GameWorld resumed = new(new GameSession(restored), directory, sharedAssets: assets);
             resumed.EnsureField();
             BattleDefinition battle = resumed.CreateEncounterBattle(87, nativeSeed: 4);
-            Assert.NotNull(battle.Presentation);
+            Assert.True(battle.UsesOriginalEnemySlots);
             Assert.Equal(selected.Select(row => (int?)row), battle.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId));
         }
         finally

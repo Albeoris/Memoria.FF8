@@ -6,7 +6,7 @@ internal static class NativeBattleCinematicCaptureAssertions
 {
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
         {
             return 0;
         }
@@ -21,7 +21,7 @@ internal static class NativeBattleCinematicCaptureAssertions
         foreach (NativeBattleLogicalCommand command in commands.Where(command => command.Opcode is >= 0x20 and < 0x80))
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
-            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.NativeGraphics!.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
+            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
             Assert.True(visual.Identity.Generation > 0);
             Assert.InRange(visual.CornerCount, 3, 4);
             if (visual.ScreenSpace)

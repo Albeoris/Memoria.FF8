@@ -17,16 +17,16 @@ internal static class NativeBattleReachedCaptureAssertions
 
     internal static void SearchCommon(BattleSnapshot prior, BattleSnapshot current, NativeBattleSearchResources resources)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
-        NativeBattleOriginalEffectState? previous = prior.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? previous = prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != 92 || effect.Pools.IsDefaultOrEmpty)
         {
             Assert.False(previous?.Binding.Effect == 92 && previous.Pools.Any(pool => pool.Slots.Any(task => task.Callback == 0x755EE0 && (task.Flags & 1) != 0)), "Search lost its physical mesh rows before reached-producer coverage could inspect their final callback.");
             return;
         }
-        NativeBattleLogicalCommand[] common = current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode is >= 0x20 and < 0x80).ToArray();
+        NativeBattleLogicalCommand[] common = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode is >= 0x20 and < 0x80).ToArray();
         HashSet<(NativeBattlePrimitiveReference Packet, int Word)> used = [];
-        NativeBattleCameraProjection projection = prior.NativeCamera?.Projection ?? throw new InvalidDataException("Search coverage requires its pre-callback projection.");
+        NativeBattleCameraProjection projection = prior.ReadFixturePresentation().NativeCamera?.Projection ?? throw new InvalidDataException("Search coverage requires its pre-callback projection.");
         for (int bank = 0; bank < effect.Pools.Length; bank++)
         {
             NativeBattleEffectTaskPool pool = effect.Pools[bank];
@@ -47,7 +47,7 @@ internal static class NativeBattleReachedCaptureAssertions
                 {
                     continue;
                 }
-                ImmutableArray<byte> copiedView = current.NativeEffectMemory?.Search?.ViewCopy ?? throw new InvalidDataException("Search coverage requires its actual copied renderer view.");
+                ImmutableArray<byte> copiedView = current.ReadFixturePresentation().NativeEffectMemory?.Search?.ViewCopy ?? throw new InvalidDataException("Search coverage requires its actual copied renderer view.");
                 NativeBattleActionMatrix view = new(Enumerable.Range(0, 9).Select(index => BinaryPrimitives.ReadInt16LittleEndian(copiedView.AsSpan(index * 2, 2))).ToImmutableArray(), BinaryPrimitives.ReadInt32LittleEndian(copiedView.AsSpan(20, 4)), BinaryPrimitives.ReadInt32LittleEndian(copiedView.AsSpan(24, 4)), BinaryPrimitives.ReadInt32LittleEndian(copiedView.AsSpan(28, 4)), 4096);
                 NativeBattleActionMatrix projectedView = projection.View ?? throw new InvalidDataException("Search coverage requires its renderer view.");
                 Assert.Equal(view.Rotation.ToArray(), projectedView.Rotation.ToArray());

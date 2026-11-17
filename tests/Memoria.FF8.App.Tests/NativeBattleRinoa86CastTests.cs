@@ -57,17 +57,17 @@ public sealed class NativeBattleRinoa86CastTests
         for (int callback = 0; callback < 4096; callback++)
         {
             battle.Tick();
-            BattleSnapshot snapshot = battle.Capture();
-            bool active = snapshot.NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 86 };
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
+            bool active = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 86 };
             bool killed = snapshot.Combatants.Where(actor => actor.Id != "party").All(actor => actor.CurrentHp == 0);
-            bool released = killed && ReadOriginalModelCell(snapshot.NativeGraphics, 3).Flags0 == 0;
+            bool released = killed && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, 3).Flags0 == 0;
             if (active && ((!contact && killed) || (!releasedDuringEffect && released)))
             {
                 if (released)
                 {
-                    int row = ReadOriginalModelCell(snapshot.NativeGraphics, 3).ActiveResourceRow100!.Value;
+                    int row = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, 3).ActiveResourceRow100!.Value;
                     NativeBattleGraphicsResource original = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actors[1].Id).Resource;
-                    NativeBattleGraphicsResource retained = NativeBattleEnemyResourceView.Resolve(snapshot.NativeModelCpuResources!, snapshot.NativeFileStaging!, row, original);
+                    NativeBattleGraphicsResource retained = NativeBattleEnemyResourceView.Resolve(snapshot.ReadFixturePresentation().NativeModelCpuResources!, snapshot.ReadFixturePresentation().NativeFileStaging!, row, original);
                     Assert.NotNull(retained.PoseSource);
                 }
                 BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
@@ -109,7 +109,7 @@ public sealed class NativeBattleRinoa86CastTests
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
@@ -154,10 +154,10 @@ public sealed class NativeBattleRinoa86CastTests
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot captured = battle.Capture();
-                        NativeBattleGraphicsState capturedGraphics = captured.NativeGraphics!;
+                        BattleSnapshot captured = battle.CaptureForContinuation();
+                        NativeBattleGraphicsState capturedGraphics = captured.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = capturedGraphics.PrimitiveFrame! with { LastCommands = capturedGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(captured with { NativeGraphics = capturedGraphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(captured.WithFixturePresentation(facts => facts with { NativeGraphics = capturedGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -207,7 +207,7 @@ public sealed class NativeBattleRinoa86CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

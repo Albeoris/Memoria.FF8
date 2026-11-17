@@ -29,10 +29,10 @@ public sealed class NativeBattleTornado146PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition);
-        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
-        string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
-        uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+        string caster = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
+        uint offset = source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
@@ -52,7 +52,7 @@ public sealed class NativeBattleTornado146PresentationTests
         bool privatePackets = false;
         bool targetLifted = false;
         bool groundHidden = false;
-        NativeBattleModelTransform originalTarget = ReadOriginalModelCell(source.NativeGraphics, 3).Transform!;
+        NativeBattleModelTransform originalTarget = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3).Transform!;
         HashSet<string> renderedPhases = [];
         int contacts = 0;
         int completions = 0;
@@ -71,8 +71,8 @@ public sealed class NativeBattleTornado146PresentationTests
                 if (before?.ReturnedDescriptor is > 0)
                 {
 
-                    Assert.NotNull(prior.NativeEffectMemory);
-                    Assert.NotNull(prior.NativeEffectMemory.Tornado146);
+                    Assert.NotNull(prior.ReadFixturePresentation().NativeEffectMemory);
+                    Assert.NotNull(prior.ReadFixturePresentation().NativeEffectMemory.Tornado146);
                     Assert.Equal(2, before.Pools.Length);
                     Assert.Equal(0x24936C8u, before.Pools[0].BankAddress);
                     Assert.Equal(0x2493760u, before.Pools[1].BankAddress);
@@ -102,13 +102,13 @@ public sealed class NativeBattleTornado146PresentationTests
                 {
                     ColdNext(boundary);
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(expectedHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current));
-                for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
+                for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);
@@ -121,16 +121,16 @@ public sealed class NativeBattleTornado146PresentationTests
                 {
                     completions++;
                 }
-                privatePackets |= current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleTornado146State.PacketBank);
-                targetLifted |= ReadOriginalModelCell(current.NativeGraphics, 3).Transform!.Position28.Y < originalTarget.Position28.Y - 200;
-                groundHidden |= (current.NativeStage!.Groups[1].Flags & 2) == 0;
+                privatePackets |= current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleTornado146State.PacketBank);
+                targetLifted |= ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).Transform!.Position28.Y < originalTarget.Position28.Y - 200;
+                groundHidden |= (current.ReadFixturePresentation().NativeStage!.Groups[1].Flags & 2) == 0;
                 int currentAge = Age(after);
                 string? phase = currentAge is >= 10 and < 17 ? "funnel" : currentAge is >= 40 and < 65 ? "pieces-ground" : currentAge is >= 90 and < 98 ? "landing" : null;
-                if (phase is not null && !renderedPhases.Contains(phase) && current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleTornado146State.PacketBank))
+                if (phase is not null && !renderedPhases.Contains(phase) && current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleTornado146State.PacketBank))
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    NativeBattlePrimitiveFrame withoutEffect = current.NativeGraphics.PrimitiveFrame with { LastCommands = current.NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != NativeBattleTornado146State.PacketBank).ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutEffect } });
+                    NativeBattlePrimitiveFrame withoutEffect = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame with { LastCommands = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != NativeBattleTornado146State.PacketBank).ToImmutableArray() };
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutEffect } }));
                     byte[] ordinary = scene.Render(plain, 320, 224).ToArray();
                     int changed = 0;
                     for (int index = 0; index < pixels.Length; index += 4)
@@ -147,7 +147,7 @@ public sealed class NativeBattleTornado146PresentationTests
                         NativeBattleRestorationPresentationTests.Publish(output, "visible-" + phase, current, pixels);
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -157,10 +157,10 @@ public sealed class NativeBattleTornado146PresentationTests
             Assert.True(privatePackets);
             Assert.True(targetLifted);
             Assert.True(groundHidden);
-            Assert.Equal(2, battle.Capture().NativeStage!.Groups[1].Flags & 2);
+            Assert.Equal(2, battle.CaptureForContinuation().ReadFixturePresentation().NativeStage!.Groups[1].Flags & 2);
             Assert.Equal(originalTarget.Position28, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Transform!.Position28);
             Assert.Equal(originalTarget.Vertical34, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Transform!.Vertical34);
-            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 0x1020);
+            Assert.Equal(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3).Flags0 & 0x1020, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 0x1020);
             Assert.Equal(new[] { "funnel", "landing", "pieces-ground" }, renderedPhases.Order().ToArray());
             Assert.True(pixelChanges > 100);
             Assert.Equal(1, contacts);
@@ -185,7 +185,7 @@ public sealed class NativeBattleTornado146PresentationTests
         }
 
         int Stock(BattleSnapshot snapshot) => (snapshot.Combatants.Single(actor => actor.Id == caster).NativeMagicInventory ?? throw new InvalidDataException("Original Magic stock is missing.")).Single(stock => stock.SpellId == action.ActionId).Count;
-        static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 146 } effect ? effect : null;
+        static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 146 } effect ? effect : null;
 
         static int Age(NativeBattleOriginalEffectState? effect)
         {

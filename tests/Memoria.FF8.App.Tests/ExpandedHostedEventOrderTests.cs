@@ -38,7 +38,6 @@ public sealed class ExpandedHostedEventOrderTests
         BattleSession battle = GameWorld.CreateLiveBattleSession(definition with { Combatants = actors, EncounterMod = route }, field.State.GameplayPreferences with { AtbMode = BattleAtbMode.TurnBased }, game, world.BattleResources);
         world.CommitPreparedBattleEntry(entry with { Battle = battle });
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession presentation = ReadPresentation(process);
         DrainEntry(battle, process);
 
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party-3");
@@ -67,7 +66,7 @@ public sealed class ExpandedHostedEventOrderTests
         {
             battle.Tick();
             Assert.Same(process, battle.Presentation);
-            if (counterHeader is null && presentation.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Source == counterOwner && header.Slot.Action == demi.ActionId) is { Slot: not null } produced)
+            if (counterHeader is null && process.ActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Source == counterOwner && header.Slot.Action == demi.ActionId) is { Slot: not null } produced)
             {
                 counterHeader = produced.Reference;
                 producedRandom = Assert.IsType<NativeBattleRandomState>(battle.Capture().Random);
@@ -96,16 +95,16 @@ public sealed class ExpandedHostedEventOrderTests
                         if (completion.Callback == 0x47DE70)
                         {
                             BattleActionHeaderReference retained = Assert.IsType<BattleActionHeaderReference>(counterHeader);
-                            Assert.Equal(demi.ActionId, presentation.NativeActionPackets.ReadHeader(retained).Action);
+                            Assert.Equal(demi.ActionId, process.ActionPackets.ReadHeader(retained).Action);
                             if (poisoned)
                             {
-                                Assert.Equal(new ushort[] { demi.ActionId, 2 }, presentation.NativeActionPackets.PublishedHeaders().Skip(1).Select(header => header.Slot.Action));
+                                Assert.Equal(new ushort[] { demi.ActionId, 2 }, process.ActionPackets.PublishedHeaders().Skip(1).Select(header => header.Slot.Action));
                                 Assert.DoesNotContain(battle.Events.Skip(firstEvent), item => item.Kind == "ActionComplete" && item.ActorId == caster.Id);
                             }
                             else
                             {
-                                Assert.Equal(0, presentation.NativeActionPackets.ActionCount);
-                                Assert.False(presentation.NativeActionPackets.HasPublishedHeader(retained));
+                                Assert.Equal(0, process.ActionPackets.ActionCount);
+                                Assert.False(process.ActionPackets.HasPublishedHeader(retained));
                                 Assert.True(BattleCompletedAction(battle, firstEvent, caster.Id));
                                 Assert.NotNull(battle.ActiveAction);
                             }
@@ -163,7 +162,6 @@ public sealed class ExpandedHostedEventOrderTests
         field.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, 29, source)));
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession presentation = ReadPresentation(process);
         DrainEntry(battle, process);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
@@ -183,12 +181,12 @@ public sealed class ExpandedHostedEventOrderTests
         {
             battle.Tick();
             Assert.Same(process, battle.Presentation);
-            if (!entranceObserved && presentation.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 0 && header.Slot.Action == 3) is { Slot: not null } entrance)
+            if (!entranceObserved && process.ActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 0 && header.Slot.Action == 3) is { Slot: not null } entrance)
             {
                 entranceObserved = true;
                 Assert.Equal(biggsOwner, entrance.Slot.Source);
                 Assert.Equal((byte)0, entrance.Slot.Sequence);
-                NativeBattleContactHalf contact = Assert.Single(presentation.NativeActionPackets.ReadHeaderContacts(entrance.Reference)).Primary;
+                NativeBattleContactHalf contact = Assert.Single(process.ActionPackets.ReadHeaderContacts(entrance.Reference)).Primary;
                 Assert.Equal(wedgeOwner, contact.Recipient);
                 Assert.Equal((byte)0, contact.Sequence);
                 Assert.Equal((byte)1, contact.Flags2);
@@ -228,11 +226,6 @@ public sealed class ExpandedHostedEventOrderTests
         Assert.True(process.EntryReady);
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
-    }
-
-    private static BattleSession ReadPresentation(BattlePresentationProcess process)
-    {
-        return Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
     }
 
     private static bool BattleCompletedAction(BattleSession battle, int start, string actorId)

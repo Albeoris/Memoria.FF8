@@ -275,23 +275,18 @@ public sealed class ExpandedActionPreparationTests
         object bridge = typeof(BattleSession).GetMethod("PrepareExpandedHostedContactBridge", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [invocation, roster])!;
         typeof(BattleSession).GetMethod("BindExpandedHostedContactTracking", privateInstance)!.Invoke(owner, [invocation, roster, bridge]);
         pending.SetValue(owner, newer);
-        BattleSession child = Create();
         var (_, aliases) = owner.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = 0 });
         PropertyInfo graphicsProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!;
-        graphicsProperty.SetValue(child.Presentation!, graphics with { EntryReady = true });
-        typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        typeof(BattleSession).GetField("definition", privateInstance)!.SetValue(child, child.ReadDefinition() with
-        {
-            NativeGraphics = new(rules, [new("caster", 0, new([0, 0]))], [])
-        });
+        BattleDefinition resources = owner.ReadDefinition() with { NativeGraphics = new(rules, [new("caster", 0, new([0, 0]))], []) };
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(owner, graphics with { EntryReady = true }, resources);
         NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { Recipient = header.Source } };
-        long token = child.Presentation!.BeginHostedAction(header, [wrongRecipient]);
+        long token = process.BeginHostedAction(header, [wrongRecipient]);
         NativeBattleTriggerReceipt receipt = new(header.Source, 1, 1, 25, 32);
-        graphicsProperty.SetValue(child.Presentation!, child.Presentation!.Graphics with { PendingTrigger = receipt });
-        NativeBattleGraphicsState originalGraphics = child.Presentation!.Graphics;
-        NativeBattleActionPacketsState rejectedPackets = child.NativeActionPackets;
+        graphicsProperty.SetValue(process, process.Graphics with { PendingTrigger = receipt });
+        NativeBattleGraphicsState originalGraphics = process.Graphics;
+        NativeBattleActionPacketsState rejectedPackets = process.ActionPackets;
         BattleActionHeaderReference admittedHeader = Assert.Single(rejectedPackets.PublishedHeaders()).Reference;
         invocation.GetType().GetProperty("HeaderReference", privateInstance)!.SetValue(invocation, admittedHeader);
         BattlePendingEnemyDraw? ReadBoundDraw()
@@ -305,9 +300,6 @@ public sealed class ExpandedActionPreparationTests
         Type hostedEventType = typeof(BattleSession).GetNestedType("ExpandedHostedEvent", BindingFlags.NonPublic)!;
         object currentEvent = Activator.CreateInstance(hostedEventType, owner.ActiveAction, owner.ActiveAction, 0x47DE70u, null, false, header.Source)!;
         typeof(BattleSession).GetField("expandedHostedEvent", privateInstance)!.SetValue(owner, currentEvent);
-        var process = (BattlePresentationProcess)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
-        typeof(BattlePresentationProcess).GetField("logicalOwner", privateInstance)!.SetValue(process, owner);
-        typeof(BattlePresentationProcess).GetField("presentation", privateInstance)!.SetValue(process, child);
         typeof(BattleSession).GetField("expandedPresentationProcess", privateInstance)!.SetValue(owner, process);
         MethodInfo recompute = typeof(BattleSession).GetMethod("DispatchExpandedGunbladeTrigger", privateInstance)!;
         string before = Snapshot(owner);
@@ -316,14 +308,14 @@ public sealed class ExpandedActionPreparationTests
         Assert.Same(invocation, ReadHostedInvocation(owner));
         Assert.Same(held, ReadBoundDraw());
         Assert.Same(newer, pending.GetValue(owner));
-        Assert.Same(rejectedPackets, child.NativeActionPackets);
-        Assert.Same(originalGraphics, child.Presentation?.Graphics);
+        Assert.Same(rejectedPackets, process.ActionPackets);
+        Assert.Same(originalGraphics, process.Graphics);
 
         NativeBattleActionPacketsState corrected = NativeBattleActionPacketsState.Create(roster, rejectedPackets.ExportRetained(), aliases);
         (corrected, BattleActionHeaderReference reference) = corrected.Prepare(header);
         (corrected, _) = corrected.AppendContact(placeholder.Packet);
         (corrected, _) = corrected.Publish(1);
-        typeof(BattleSession).GetField("nativeActionPackets", privateInstance)!.SetValue(child, corrected.WritePlayerRepeatMode(reference, 1));
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", privateInstance)!.SetValue(process, corrected.WritePlayerRepeatMode(reference, 1));
         BattleCombatant target = Assert.Single(owner.Combatants, actor => actor.Id == "enemy");
         Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
         recompute.Invoke(owner, [process]);
@@ -333,7 +325,7 @@ public sealed class ExpandedActionPreparationTests
         Assert.Equal(5, target.MagicStocks.Single(stock => stock.Id == 1).Count);
 
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
-        services.EmitContact(child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)));
+        services.EmitContact(process.ActionPackets.ReadContact(new BattleContactOccurrence(0)));
         MethodInfo acknowledge = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", privateInstance)!;
         acknowledge.Invoke(owner, [services, token]);
         Assert.Null(ReadBoundDraw());

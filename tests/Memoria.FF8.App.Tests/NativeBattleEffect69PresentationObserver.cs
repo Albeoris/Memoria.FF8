@@ -26,12 +26,12 @@ internal sealed class NativeBattleEffect69PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect69State state = current.NativeEffectMemory!.Effect69!;
+        NativeBattleEffect69State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect69!;
         state.Validate();
         NativeBattleModulePoolTask? main = ReadMain(current);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
@@ -54,7 +54,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
                 Assert.NotNull(state.FixedBanks[MainBank]);
             }
             uint p = state.ReadDword(ArenaGlobal);
-            if (age is > 0 and < 48 && Enumerable.Range(0, 128).Any(index => current.NativeEffectMemory.Arena!.Read(0x8020 + index * 16 + 15, 1)[0] != 0) && !sparks)
+            if (age is > 0 and < 48 && Enumerable.Range(0, 128).Any(index => current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x8020 + index * 16 + 15, 1)[0] != 0) && !sparks)
             {
                 sparks = true;
                 Mark("effect69-current-sparks", current, cold);
@@ -67,14 +67,14 @@ internal sealed class NativeBattleEffect69PresentationObserver
             if (age >= 51 && !loaded)
             {
                 NativeBattleEffectFileAsset file = effect.Binding.Effect69Resources!.ReadFile(37);
-                Assert.Equal(file.Data.ToArray(), current.NativeEffectMemory.Arena!.Read(0x8020, file.Data.Length));
+                Assert.Equal(file.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x8020, file.Data.Length));
                 loaded = true;
                 Mark("effect69-file37-current-COMMON", current, cold);
             }
-            if (state.ReadDword(RandomGlobal) != prior.NativeEffectMemory!.Effect69!.ReadDword(RandomGlobal) && !debris)
+            if (state.ReadDword(RandomGlobal) != prior.ReadFixturePresentation().NativeEffectMemory!.Effect69!.ReadDword(RandomGlobal) && !debris)
             {
-                Assert.Contains(Enumerable.Range(0, 364), index => Word(current.NativeEffectMemory.Arena!.Read(index * 0x3C + 6, 2)) is 1 or 2);
-                Assert.Contains(Enumerable.Range(0, 364), index => BinaryPrimitives.ReadInt32LittleEndian(current.NativeEffectMemory.Arena!.Read(0x5A50 + index * 4, 4)) == -1);
+                Assert.Contains(Enumerable.Range(0, 364), index => Word(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(index * 0x3C + 6, 2)) is 1 or 2);
+                Assert.Contains(Enumerable.Range(0, 364), index => BinaryPrimitives.ReadInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x5A50 + index * 4, 4)) == -1);
                 debris = true;
                 Mark("effect69-detached-face-current-private-LCG", current, cold);
             }
@@ -84,13 +84,13 @@ internal sealed class NativeBattleEffect69PresentationObserver
             }
             if (age >= 111 && !reloaded)
             {
-                NativeBattleStageState owner = current.NativeStage!;
-                Assert.True(current.NativeEffectIoResult >= 0);
-                Assert.Equal(prior.NativeStage!.SourceAddress1D9A820, owner.SourceAddress1D9A820);
+                NativeBattleStageState owner = current.ReadFixturePresentation().NativeStage!;
+                Assert.True(current.ReadFixturePresentation().NativeEffectIoResult >= 0);
+                Assert.Equal(prior.ReadFixturePresentation().NativeStage!.SourceAddress1D9A820, owner.SourceAddress1D9A820);
                 uint destination = owner.SourceAddress1D9A820!.Value;
-                byte[] directory = current.NativeEffectMemory.Arena!.Read(0x9A84, 32);
+                byte[] directory = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x9A84, 32);
                 int length = checked(BinaryPrimitives.ReadInt32LittleEndian(directory.AsSpan(24)) + 0x2020);
-                Assert.Equal(current.NativeEffectMemory.Arena.Read(0x9A84, length), current.NativeFileStaging!.Read(destination, length));
+                Assert.Equal(current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(0x9A84, length), current.ReadFixturePresentation().NativeFileStaging!.Read(destination, length));
                 Assert.NotNull(owner.MutableGeometry);
                 Assert.Equal((short)8, owner.RotationSpeed);
                 Assert.Equal(0x00606868u, owner.ModelColors!.Color40);
@@ -130,7 +130,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
             stage = true;
             Mark("effect69-current-stage-COMMON", current, cold);
         }
-        observations.Add(new { current.Frame, NativeCallback = current.NativeGraphics.Callback, Age = age, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Random = current.NativeCrtRandom, FileResult = current.NativeEffectIoResult, CommonCaster = caster, CommonStage = stage });
+        observations.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Age = age, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Random = current.NativeCrtRandom, FileResult = current.ReadFixturePresentation().NativeEffectIoResult, CommonCaster = caster, CommonStage = stage });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -154,8 +154,8 @@ internal sealed class NativeBattleEffect69PresentationObserver
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot prior, BattleSnapshot current)
     {
-        NativeBattleEffect69State? state = current.NativeEffectMemory?.Effect69;
-        NativeBattlePrimitiveFrame? primitive = current.NativeGraphics?.PrimitiveFrame;
+        NativeBattleEffect69State? state = current.ReadFixturePresentation().NativeEffectMemory?.Effect69;
+        NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics?.PrimitiveFrame;
         if (state is null || primitive is null)
         {
             return [];
@@ -179,12 +179,12 @@ internal sealed class NativeBattleEffect69PresentationObserver
         {
             return [];
         }
-        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.NativeGraphics!, 4);
+        NativeBattleGraphicsModel actor = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 4);
         Assert.NotEqual(0, actor.Flags0 & 4);
-        NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         NativeBattleModelCpuReference source = cpu.Rows[actor.ActiveResourceRow100!.Value].Require(16);
-        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.NativeGraphics!, 4)).Resource.PoseSource!;
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState!.MeshMask124);
+        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 4)).Resource.PoseSource!;
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState!.MeshMask124);
         return MatchFaces(current, meshes, 8);
     }
 
@@ -197,10 +197,10 @@ internal sealed class NativeBattleEffect69PresentationObserver
         {
             return [];
         }
-        NativeBattleStageState stage = current.NativeStage!;
+        NativeBattleStageState stage = current.ReadFixturePresentation().NativeStage!;
         Assert.NotEqual(3, stage.Groups[1].Flags & 3);
-        uint address = stage.CurrentGroupGeometryAddress(1, (pointer, length) => current.NativeFileStaging!.Read(pointer, length))!.Value;
-        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => current.NativeFileStaging!.Read(checked(address + (uint)offset), length), stage.Groups[1].Matrices.Length);
+        uint address = stage.CurrentGroupGeometryAddress(1, (pointer, length) => current.ReadFixturePresentation().NativeFileStaging!.Read(pointer, length))!.Value;
+        ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => current.ReadFixturePresentation().NativeFileStaging!.Read(checked(address + (uint)offset), length), stage.Groups[1].Matrices.Length);
         HashSet<StageFace> faces = [];
         foreach (NativeBattleRawPolygon face in meshes.SelectMany(mesh => mesh.Polygons))
         {
@@ -212,7 +212,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
             }
             faces.Add(new(face.Quad, color, BinaryPrimitives.ReadUInt32LittleEndian(source.Slice(8)), BinaryPrimitives.ReadUInt32LittleEndian(source.Slice(12)) & 0xFDFFFFFF, Word(source.Slice(face.Quad ? 16 : 6)), face.Quad ? Word(source.Slice(18)) : (ushort)0));
         }
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
 
         bool Matches(NativeBattleLogicalCommand command)
         {
@@ -236,7 +236,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
 
     private static ImmutableHashSet<NativeBattlePrimitiveReference> MatchFaces(BattleSnapshot current, ImmutableArray<NativeBattleRawMesh> meshes, int stride)
     {
-        uint scratch = checked(0x196B018u - (uint)(current.NativeModelCpuResources!.ScratchMaximum!.Value * 8));
+        uint scratch = checked(0x196B018u - (uint)(current.ReadFixturePresentation().NativeModelCpuResources!.ScratchMaximum!.Value * 8));
         HashSet<FaceKey> faces = [];
         foreach (NativeBattleRawMesh mesh in meshes)
         {
@@ -253,7 +253,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
                         valid = false;
                         break;
                     }
-                    (byte[] data, bool[] known) = current.NativeFileStaging!.ReadSnapshot(checked(scratch + (uint)(index * stride)), 6);
+                    (byte[] data, bool[] known) = current.ReadFixturePresentation().NativeFileStaging!.ReadSnapshot(checked(scratch + (uint)(index * stride)), 6);
                     if (!known.All(value => value))
                     {
                         valid = false;
@@ -268,7 +268,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
                 }
             }
         }
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => Common(command) && command.Words.Length is 7 or 9 && command.VertexPayload4.Length == 4 && faces.Contains(new(command.Words.Length == 9, command.Words[1], command.Words[3], command.Words[5], command.Words.Length == 9 ? command.Words[7] : 0, command.VertexPayload4[0], command.VertexPayload4[1], command.VertexPayload4[2], command.VertexPayload4[3], command.Words[2], command.Words[4], unchecked((ushort)command.Words[6]), command.Words.Length == 9 ? unchecked((ushort)command.Words[8]) : (ushort)0))).Select(command => command.Packet).ToImmutableHashSet();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => Common(command) && command.Words.Length is 7 or 9 && command.VertexPayload4.Length == 4 && faces.Contains(new(command.Words.Length == 9, command.Words[1], command.Words[3], command.Words[5], command.Words.Length == 9 ? command.Words[7] : 0, command.VertexPayload4[0], command.VertexPayload4[1], command.VertexPayload4[2], command.VertexPayload4[3], command.Words[2], command.Words[4], unchecked((ushort)command.Words[6]), command.Words.Length == 9 ? unchecked((ushort)command.Words[8]) : (ushort)0))).Select(command => command.Packet).ToImmutableHashSet();
     }
 
     private static bool SparkMatches(BattleSnapshot current, NativeBattleLogicalCommand command)
@@ -277,7 +277,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
         {
             return false;
         }
-        NativeBattleModuleResource sprite = current.NativeGraphics!.OriginalEffect!.Binding.Effect69Resources!.Sprite;
+        NativeBattleModuleResource sprite = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect69Resources!.Sprite;
         for (int phase = 0; phase < 18; phase++)
         {
             ImmutableArray<byte> quads = sprite.ProjectedFrame571C80(phase).Quads;
@@ -304,7 +304,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
         }
         for (int index = 0; index < 364; index++)
         {
-            byte[] record = current.NativeEffectMemory!.Arena!.Read(index * 0x3C, 0x3C);
+            byte[] record = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(index * 0x3C, 0x3C);
             int kind = Word(record.AsSpan(6));
             if (kind == (command.Words.Length == 9 ? 2 : 1) && command.Words[2] == BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(0x2C)) && command.Words[4] == BinaryPrimitives.ReadUInt32LittleEndian(record.AsSpan(0x30)) && (ushort)command.Words[6] == Word(record.AsSpan(0x34)) && (kind == 1 || (ushort)command.Words[8] == Word(record.AsSpan(0x36))))
             {
@@ -315,7 +315,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
     }
 
     private static bool Common(NativeBattleLogicalCommand command) => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode is 0x24 or 0x26 or 0x2C or 0x2E;
-    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == MainCallback);
+    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == MainCallback);
     private static ushort Word(ReadOnlySpan<byte> data) => BinaryPrimitives.ReadUInt16LittleEndian(data);
     private void Mark(string marker, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {

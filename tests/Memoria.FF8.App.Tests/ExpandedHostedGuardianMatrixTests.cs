@@ -65,7 +65,6 @@ public sealed class ExpandedHostedGuardianMatrixTests
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleActionDefinition action = Assert.Single(battle.ReadDefinition().ActionDefinitions, candidate => candidate.Ability == BattleAbility.GuardianForce && candidate.Id == guardianId);
         BattleNativeAction native = Assert.IsType<BattleNativeAction>(action.NativeAction);
         Assert.Equal((byte)254, native.Command);
@@ -75,7 +74,7 @@ public sealed class ExpandedHostedGuardianMatrixTests
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == CasterId);
         BattleModelOwner casterOwner = battle.ReadPresentationModelOwner(CasterId);
-        Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(casterOwner, out _));
+        Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(casterOwner, out _));
         Assert.True(battle.CanSelectExpandedGuardianForce(CasterId, guardianId));
         ushort[] initialAffinity = caster.GuardianForceCompatibility!.ToArray();
         ushort[] expectedAffinity = initialAffinity.ToArray();
@@ -111,12 +110,12 @@ public sealed class ExpandedHostedGuardianMatrixTests
                 : null;
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             Assert.Same(process, battle.Presentation);
-            if (token is null && child.NativeActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 254 && header.Slot.Source == casterOwner) is { Slot: not null } admitted)
+            if (token is null && process.ActionPackets.PublishedHeaders().FirstOrDefault(header => header.Slot.Command == 254 && header.Slot.Source == casterOwner) is { Slot: not null } admitted)
             {
                 token = Assert.IsType<long>(process.ActiveActionToken);
                 Assert.Equal(native.ActionId, admitted.Slot.Action);
                 Assert.Equal(native.MagicId, admitted.Slot.Effect);
-                NativeBattleContactPacket[] packets = child.NativeActionPackets.ReadHeaderContacts(admitted.Reference).ToArray();
+                NativeBattleContactPacket[] packets = process.ActionPackets.ReadHeaderContacts(admitted.Reference).ToArray();
                 Assert.NotEmpty(packets);
                 Assert.All(packets, packet => Assert.Contains(packet.Primary.Recipient, eligible!.Enumerate()));
                 frozenRecipients = packets.ToDictionary(packet => packet.Occurrence!.Value, packet => packet.Primary.Recipient);

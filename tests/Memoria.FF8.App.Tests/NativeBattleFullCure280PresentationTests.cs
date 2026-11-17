@@ -45,7 +45,7 @@ public sealed class NativeBattleFullCure280PresentationTests
             for (int tick = 0; tick < 1000; tick++)
             {
                 prior = battle.Capture();
-                if (!liveRestore && prior.NativeGraphics!.OriginalEffect is { Binding.Effect: 280, ReturnedDescriptor: > 0 } selected && selected.Pools.Any(pool => pool.DescriptorAddress == 0x2507FF8 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(22) >= 12)))
+                if (!liveRestore && prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 280, ReturnedDescriptor: > 0 } selected && selected.Pools.Any(pool => pool.DescriptorAddress == 0x2507FF8 && pool.Slots.Any(task => (task.Flags & 1) != 0 && task.ReadWord(22) >= 12)))
                 {
                     CompareNext("live");
                     liveRestore = true;
@@ -54,7 +54,7 @@ public sealed class NativeBattleFullCure280PresentationTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(1000, current.Combatants.Single(actor => actor.Id == "party").CurrentHp);
                 Assert.Equal(1, Assert.Single(current.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!, stock => stock.SpellId == action.ActionId).Count);
                 if (prior.NativePartyPresentation!.Rows[0]!.HitPoints != current.NativePartyPresentation!.Rows[0]!.HitPoints)
@@ -63,12 +63,12 @@ public sealed class NativeBattleFullCure280PresentationTests
                     Assert.Equal((ushort)1000, current.NativePartyPresentation.Rows[0]!.HitPoints);
                     presentedHealings++;
                 }
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 if (graphics.OriginalEffect is { Binding.Effect: 280 } effect)
                 {
                     if (effect.FullCure280 is { } entered)
                     {
-                        Assert.True(current.NativeEffectMemory!.Cursor > 0, "Original TIM loading must leave a nonzero allocation cursor for this fixed-base regression.");
+                        Assert.True(current.ReadFixturePresentation().NativeEffectMemory!.Cursor > 0, "Original TIM loading must leave a nonzero allocation cursor for this fixed-base regression.");
                         Assert.Equal(0, entered.BufferOffset);
                         foreach (NativeBattleEffectTaskPool pool in effect.Pools.Where(pool => pool.DescriptorAddress is 0x2508008 or 0x2507FF8 or 0x2507FE8))
                         {
@@ -81,7 +81,7 @@ public sealed class NativeBattleFullCure280PresentationTests
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame hidden = graphics.PrimitiveFrame with { LastCommands = graphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession plain = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = hidden } });
+                        BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = hidden } }));
                         byte[] background = new BattleScenePresentation(assets, source.Definition).Render(plain, 320, 224).ToArray();
                         int changed = Enumerable.Range(0, pixels.Length / 4).Count(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(background.AsSpan(index * 4, 3)));
                         if (changed > maximumChangedPixels)

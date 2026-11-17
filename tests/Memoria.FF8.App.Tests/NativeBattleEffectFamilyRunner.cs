@@ -134,13 +134,13 @@ internal static class NativeBattleEffectFamilyRunner
             BattleSnapshot source = LoadSnapshot(sourcePath);
             NativeBattleEffectBinding supplied = source.Definition.NativeEffectCatalog.Single(binding => binding.Effect == item.Effect);
             Require(JsonSerializer.Serialize(original) == JsonSerializer.Serialize(supplied), "The supplied fixture does not contain the installed original effect binding and resources.");
-            Require(source.NativeGraphics is not null && source.NativeEffectMemory is not null, "The standalone fixture lacks its native graphics or effect memory owner.");
+            Require(source.ReadFixturePresentation().NativeGraphics is not null && source.ReadFixturePresentation().NativeEffectMemory is not null, "The standalone fixture lacks its native graphics or effect memory owner.");
             battle = BattleSession.Restore(source);
             Require(JsonSerializer.Serialize(source) == JsonSerializer.Serialize(battle.Capture()), "Restore changed the supplied standalone state.");
             NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
             Require(descriptors.Queue.Count(slot => descriptors.Packets[slot].Command == 104) == 1, "The fixture requires exactly one live action104 descriptor.");
             NativeBattleDescriptorPacket descriptor = descriptors.Packets[descriptors.Queue.Single(slot => descriptors.Packets[slot].Command == 104)];
-            ValidateActionIdentity(descriptor, source.NativeActionPackets, source.NativeGraphics!.ActionGraphics, item);
+            ValidateActionIdentity(descriptor, source.NativeActionPackets, source.ReadFixturePresentation().NativeGraphics!.ActionGraphics, item);
             passed.Add(stage);
             BattleScenePresentation scene = new(assets, source.Definition);
             if (phase == "cold")
@@ -155,7 +155,7 @@ internal static class NativeBattleEffectFamilyRunner
                 Require(JsonSerializer.Serialize(expected) == JsonSerializer.Serialize(reference.Capture()), "Expected-next fixture changes during restore.");
                 Advance();
                 callbacks++;
-                Require(battle.Presentation!.Graphics.Callback == source.NativeGraphics!.Callback + 1, "The cold fixture did not advance exactly one native callback.");
+                Require(battle.Presentation!.Graphics.Callback == source.ReadFixturePresentation().NativeGraphics!.Callback + 1, "The cold fixture did not advance exactly one native callback.");
                 Require(JsonSerializer.Serialize(expected) == JsonSerializer.Serialize(battle.Capture()), "Cold next callback differs from the supplied expected-next fixture.");
                 Require(scene.Render(battle, 320, 224).SequenceEqual(new BattleScenePresentation(assets, expected.Definition).Render(reference, 320, 224)), "Cold next-callback pixels differ.");
                 passed.Add(stage);

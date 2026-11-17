@@ -40,7 +40,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             first.Tick();
             second.Tick();
         }
-        Assert.Equal(snapshot.NativeGraphics!.Callback + callbacks, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + callbacks, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
@@ -84,7 +84,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         Assert.Equal(model, definition.Combatants.Single(actor => actor.Id == "monster").ModelId);
         BattleSession battle = source is null ? new(definition, BattleAtbMode.Normal) : BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot prior = battle.Capture();
+        BattleSnapshot prior = battle.CaptureForContinuation();
         string startName = source is null ? "before-entry" : "resume-source";
         Publish(startName, prior);
         battle = Load(startName);
@@ -104,9 +104,9 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             {
                 prior = battle.Capture();
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleCloudBombPresentationOwnership.AssertFrame(current, native.MagicId);
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 if (control is not null && native.MagicId == 248)
                 {
                     if (NativeBattleCinematicCaptureAssertions.AssertFrame(current, 248) > 0)
@@ -129,14 +129,14 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     }
                 }
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");
-                if (control is not null && native.MagicId == 110 && graphics.OriginalEffect is { Binding.Effect: 110 } streamEffect && (streamEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (control is not null && native.MagicId == 110 && graphics.OriginalEffect is { Binding.Effect: 110 } streamEffect && (streamEffect.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     if (NativeBattleExplicitComponentCapture.AssertFrame(current, 110) > 0)
                     {
                         capturedControlFrames++;
                     }
                 }
-                if (native.MagicId is 168 or 179 or 180 && graphics.OriginalEffect is { } cloudBomb && cloudBomb.Binding.Effect == native.MagicId && (cloudBomb.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (native.MagicId is 168 or 179 or 180 && graphics.OriginalEffect is { } cloudBomb && cloudBomb.Binding.Effect == native.MagicId && (cloudBomb.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = cloudBomb.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
                     NativeBattleLogicalCommand[] owned = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
@@ -153,7 +153,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                         capturedControlFrames++;
                     }
                 }
-                if (control is not null && native.MagicId is 17 or 18 && graphics.OriginalEffect is { } controlEffect && controlEffect.Binding.Effect == native.MagicId && (controlEffect.ReturnedDescriptor is > 0 || prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0) && graphics.PrimitiveFrame is { } controlPrimitives)
+                if (control is not null && native.MagicId is 17 or 18 && graphics.OriginalEffect is { } controlEffect && controlEffect.Binding.Effect == native.MagicId && (controlEffect.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0) && graphics.PrimitiveFrame is { } controlPrimitives)
                 {
                     NativeBattleLogicalCommand[] owned;
                     if (native.MagicId == 17)
@@ -163,7 +163,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     }
                     else
                     {
-                        owned = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
+                        owned = NativeBattleSelectedCinematicObserver.CurrentCommands(current, prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value, includeCompleted: true);
                     }
                     NativeBattleLogicalCommand[] geometry = owned.Where(command => command.Opcode is >= 0x20 and < 0x40).ToArray();
                     foreach (NativeBattleLogicalCommand command in geometry)
@@ -191,7 +191,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, native.MagicId, game);
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                    BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                    BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } }));
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                     int changed = 0;
                     for (int offset = 0; offset < rendered.Length; offset += 4)

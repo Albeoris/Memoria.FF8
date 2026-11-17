@@ -28,8 +28,7 @@ public sealed partial class BattleSession
 
     private void RunNativePlayerDamageSupport(BattleCombatant actor)
     {
-        byte attacker = actor.LastNativeAction?.AttackerIndex ?? 0;
-        if (actor.ModelId != 4 || attacker < 3)
+        if (actor.ModelId != 4 || actor.LastAttackerId is not { } attackerId || GetActor(attackerId) is not { IsPlayer: false } attacker)
         {
             return;
         }
@@ -45,7 +44,7 @@ public sealed partial class BattleSession
         }
         else if ((progress.AngeloFlags & 1) != 0 && NextRandomByte() <= 16)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(attacker)), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.UseCurrentBattlePolicy));
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, SelectBattleTarget(attacker) with { Replacement = BattleTargetReplacement.UseCurrentBattlePolicy });
         }
     }
 

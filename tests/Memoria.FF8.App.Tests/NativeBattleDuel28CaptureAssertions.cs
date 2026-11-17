@@ -6,13 +6,13 @@ internal static class NativeBattleDuel28CaptureAssertions
 {
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        if (effect is not (212 or 215 or 216) || snapshot.NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect)
+        if (effect is not (212 or 215 or 216) || snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect)
         {
             return 0;
         }
         var owned = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToHashSet();
         int count = 0;
-        foreach (NativeBattleLogicalCommand command in snapshot.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80))
+        foreach (NativeBattleLogicalCommand command in snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80))
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
             Assert.Equal(effect, visual.Identity.Effect);

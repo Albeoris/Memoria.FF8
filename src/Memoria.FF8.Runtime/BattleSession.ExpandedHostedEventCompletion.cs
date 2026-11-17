@@ -115,6 +115,10 @@ public sealed partial class BattleSession
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch, encounterLoad);
         ObserveDiagnosticHostedCompletionAcknowledged(process, receipt);
+        if (ObservingDiagnosticCounter && nextEvent.LogicallyComplete && hostedEvent.Command.ExpandedAiCallback is { } participant)
+        {
+            ObserveDiagnosticParticipantCallback(new(participant, BattleParticipantCallbackPhase.Completed, []));
+        }
         PublishHostedGuardianFormAudio(form);
     }
 
@@ -145,7 +149,7 @@ public sealed partial class BattleSession
     private void StageExpandedHostedAftercare(BattleCombatant actor, ushort id)
     {
         BattleNativeAction native = NativePostActionEffect(id);
-        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(actor), BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
+        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, SelectBattleTarget(actor), BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
         BattleActionDefinition definition = new(command.Ability, id, native.Name!, BattleActionEffect.Native, 0, true) { NativeAction = native };
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
         _ = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);

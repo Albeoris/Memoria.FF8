@@ -28,7 +28,7 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         BattleSnapshot original = NativeBattleEffectFixtureExporter.Prepare(baseline, directory, Path.Combine(output, "fixture"), "before-entry").Snapshot;
         (BattleSnapshot ready, int caster) = NativeBattleEvilEye282FixturePreparation.Prepare(game, assets, original, output!);
         Assert.InRange(caster, 3, 6);
-        NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The allocation requires its actual graphics owner.");
+        NativeBattleGraphicsState graphics = ready.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The allocation requires its actual graphics owner.");
         Assert.Null(graphics.OriginalEffect);
         Assert.Empty(graphics.Descriptors.Queue);
         NativeBattleEnemyAllocation allocation = Assert.Single(ready.NativeAllocations);
@@ -49,7 +49,7 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot queued = ready with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        BattleSnapshot queued = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         string readyPath = Save("after-entry", ready);
         string queuedPath = Save("queued-action104", queued);
         BattleSession cold = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(queued));

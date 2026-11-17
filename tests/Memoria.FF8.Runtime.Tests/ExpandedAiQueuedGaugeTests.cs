@@ -37,7 +37,7 @@ public sealed class ExpandedAiQueuedGaugeTests
         Assert.Equal(JsonSerializer.Serialize(windup), JsonSerializer.Serialize(restored.Capture()));
 
         restored = RestoreAndVerify(windup);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames && live.ActiveAction is not null; frame++)
+        for (int frame = 0; frame < 1200 && !(live.ActiveAction is null); frame++)
         {
             live.Tick();
             restored.Tick();

@@ -126,72 +126,6 @@ public sealed partial class BattleSession
         return definition.ActionDefinitions.SingleOrDefault(action => action.Ability == ability && action.Id == id) ?? throw new NotSupportedException($"Battle {ability} {id} has no supported installed effect contract.");
     }
 
-    private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
-    {
-        if (command.NativeSlots is not null)
-        {
-            ResolveNativeSlotsGroup(actor, command);
-            return;
-        }
-        if (command.Ability == BattleAbility.Draw)
-        {
-            ResolvePlayerDraw(actor, target, command);
-            return;
-        }
-        if (!command.MagicCasts.IsDefaultOrEmpty)
-        {
-            ResolveNativeMagicGroup(actor, command);
-            return;
-        }
-        if (command.NativeGraphic is { } graphic)
-        {
-            ResolveNativeGraphicCommand(actor, command, graphic);
-            return;
-        }
-        //48FE20 commands14/238 explicitly suppress their damage/effect consumer;237 owns each accepted shot.
-        if (command.NativeQueuedCommand is 14 or 238)
-        {
-            BattleNativeAction control = command.NativeAction ?? throw new InvalidDataException("Native Shot control lacks its original ammunition metadata.");
-            ResolveInstalledNativeAction(actor, target, command, new(command.Ability, command.ActionId, control.Name ?? "Shot", BattleActionEffect.Native, 0, false) { NativeAction = control });
-            Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeQueuedCommand == 14 ? "Shot started." : "Shot ended.");
-            return;
-        }
-        if (command.IndependentGuardian is { } guardian)
-        {
-            ResolveIndependentGuardianItem(actor, target, command, guardian);
-            return;
-        }
-        if (command.NativeAction is { } native)
-        {
-            if (IsGunbladeAction(actor, command) && native.Command is 1 or 12 or 28)
-            {
-                native = native with { Command = native.Command == 28 ? (byte)243 : native.Command == 12 ? (byte)248 : (byte)253, AttackType = 10, Critical = 0 };
-                command = command with { NativeAction = native };
-            }
-            BattleActionDefinition nativeDefinition = definition.ActionDefinitions.FirstOrDefault(candidate => candidate.NativeAction?.Command == native.Command && candidate.NativeAction.ActionId == native.ActionId && candidate.NativeAction.CrisisLevel == native.CrisisLevel) ?? new(command.Ability, command.ActionId, native.Name ?? $"Native action {native.Command}/{native.ActionId}", BattleActionEffect.Native, native.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = native };
-            ResolveInstalledNativeAction(actor, target, command, nativeDefinition);
-            return;
-        }
-        if (command.Ability == BattleAbility.EnemyAbility)
-        {
-            throw new InvalidDataException("Native action lacks its exact installed command/action metadata.");
-        }
-        if (command.Ability == BattleAbility.Attack)
-        {
-            BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Attack requires its installed native action.");
-            BattleNativeAction prepared = IsGunbladeAttack(actor, command.Ability) ? attack with { Command = 253, AttackType = 10, Critical = 0 } : attack;
-            BattleActionDefinition installed = new(BattleAbility.Attack, 0, attack.Name ?? "Attack", BattleActionEffect.Native, prepared.Power, false) { NativeAction = prepared };
-            ResolveInstalledNativeAction(actor, target, command, installed);
-            return;
-        }
-        BattleActionDefinition action = FindAction(command.Ability, command.ActionId);
-        if (action.NativeAction is null)
-        {
-            throw new NotSupportedException("Action requires its installed native record.");
-        }
-        ResolveInstalledNativeAction(actor, target, command, action);
-    }
-
     private void ApplySignedDamage(BattleCombatant actor, BattleCombatant target, int damage, string source)
     {
         if (damage < 0)
@@ -203,7 +137,6 @@ public sealed partial class BattleSession
             ApplyDamage(actor, target, damage, source);
         }
     }
-
 
     private int NextRandomByte()
     {

@@ -43,9 +43,11 @@ internal sealed class BattleSourceGrouping
 
     public BattleSourceGroupId? FindGroup(BattleModelOwner owner) => owner is BattleEnemyActorModel enemy && groupsByOwner.TryGetValue(enemy, out BattleSourceGroupId group) ? group : null;
 
-    public BattleSourceBindings Bind(BattleSourceGroupId group, BattleActorModels models, NativeBattleModelBoundary original)
+    public BattleSourceBindings Bind(BattleSourceGroupId group, BattleActorModels models, NativeBattleModelBoundary original, IEnumerable<BattleSourceMember> added)
     {
-        ImmutableArray<BattleSourceMember> members = membersByGroup[group];
+        ImmutableArray<BattleSourceMember> initial = membersByGroup.GetValueOrDefault(group, []);
+        ImmutableArray<BattleSourceMember> members = initial.Concat(added).Where(member => models.Contains(member.Owner))
+            .OrderBy(member => member.OriginalSlot?.Offset ?? byte.MaxValue).ThenBy(member => member.SceneSlot).ToImmutableArray();
         var aliases = new List<(NativeBattleModelSlot, BattleModelOwner)>();
         for (byte operand = 0; operand < 3; operand++)
         {
@@ -57,7 +59,7 @@ internal sealed class BattleSourceGrouping
         }
         foreach (BattleSourceMember member in members)
         {
-            if (member.OriginalSlot is { } slot && models.Contains(member.Owner))
+            if (member.OriginalSlot is { } slot)
             {
                 aliases.Add((slot, member.Owner));
             }
@@ -67,10 +69,13 @@ internal sealed class BattleSourceGrouping
 }
 
 internal sealed record BattleSourceMember(BattleEnemyActorModel Owner, int SceneSlot, byte NativeModel, NativeBattleModelSlot? OriginalSlot);
+internal sealed record BattleSourcePlacementBinding(BattleSourceGroupId Group, int SceneSlot, int? OriginalEnemyOrdinal);
 
 /// <summary>Authored model operands for one admitted source group at its current roster generation.</summary>
 internal sealed class BattleSourceBindings(ImmutableArray<BattleSourceMember> members, NativeBattleModelAliases aliases)
 {
+    public NativeBattleModelAliases ApplyAuthoredOperands(NativeBattleModelAliases physical) => physical.WithAuthoredOperands(aliases);
+
     public BattleModelOwner DecodeLiteral(byte operand) => aliases.DecodeLiteral(operand);
 
     public BattleModelOwner DecodeRelative(BattleModelOwner source, int offset)
@@ -103,5 +108,17 @@ internal sealed class BattleSourceBindings(ImmutableArray<BattleSourceMember> me
                 yield return member.Owner;
             }
         }
+    }
+
+    public BattleEnemyActorModel? FindFirstModel(int nativeModel)
+    {
+        foreach (BattleSourceMember member in members)
+        {
+            if (member.NativeModel == nativeModel && aliases.Roster.Contains(member.Owner))
+            {
+                return member.Owner;
+            }
+        }
+        return null;
     }
 }

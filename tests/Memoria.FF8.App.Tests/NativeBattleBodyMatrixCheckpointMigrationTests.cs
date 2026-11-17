@@ -16,7 +16,7 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
         Assert.NotEqual(Path.GetFullPath(input!), Path.GetFullPath(output));
         Assert.False(File.Exists(output));
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.True(graphics.Callback > 0);
         Assert.Null(graphics.OriginalEffect);
         BattleActorModels models = graphics.ActorModels;
@@ -36,19 +36,19 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
             NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == (entry.Owner is BattlePartyActorModel party ? party.Actor.ActorId : Assert.IsType<BattleEnemyActorModel>(entry.Owner).Actor.ActorId)).Resource;
             if (model.ModelId4 >= 16)
             {
-                resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
+                resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
             }
             models = models.Set(entry.Owner, NativeBattleBodyBoneMatrices.Publish508C90(model, resource.PoseSource!));
             changed++;
         }
         Assert.True(changed > 0);
-        BattleSnapshot migrated = source with { NativeGraphics = graphics with { ActorModels = models } };
-        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(migrated with { NativeGraphics = graphics }));
+        BattleSnapshot migrated = source.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { ActorModels = models } });
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(migrated.WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
         File.WriteAllText(output, JsonSerializer.Serialize(migrated));
         BattleSnapshot saved = NativeBattleEffectFamilyRunner.LoadSnapshot(output);
         BattleSession battle = BattleSession.Restore(saved);
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(battle.Capture()));
-        Assert.Equal(changed, ReadOriginalModelCells(saved.NativeGraphics!).Count(model => model.CurrentBodyBoneMatrices is not null));
+        Assert.Equal(changed, ReadOriginalModelCells(saved.ReadFixturePresentation().NativeGraphics!).Count(model => model.CurrentBodyBoneMatrices is not null));
     }
 }

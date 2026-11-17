@@ -117,7 +117,7 @@ public sealed class BattleGuardianFormLifecycleTests
         saved = saved with { Definition = definition, GuardianForces = definition.GuardianForces };
         BattleSession battle = RoundTrip(saved);
         battle.QueueAction("other", "actor", BattleAbility.Magic, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }
@@ -183,7 +183,7 @@ public sealed class BattleGuardianFormLifecycleTests
         saved = saved with { Definition = definition, GuardianForms = transformed ? saved.GuardianForms : new(true, 1, []) };
         BattleSession battle = RoundTrip(saved);
         battle.QueueAction("other", "actor", BattleAbility.Magic, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

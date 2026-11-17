@@ -19,10 +19,10 @@ public sealed class NativeBattleDoomtrainCreatureMigrationTests
         string hash = Convert.ToHexString(SHA256.HashData(bytes));
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
-        Assert.Equal((ushort)191, retained.NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleDoomtrain191Resources resources = retained.NativeGraphics.OriginalEffect!.Binding.Doomtrain191Resources!;
+        Assert.Equal((ushort)191, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
+        NativeBattleDoomtrain191Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Doomtrain191Resources!;
         Assert.Null(resources.Creature);
-        Assert.Null(retained.NativeEffectMemory!.Doomtrain191!.Model);
+        Assert.Null(retained.ReadFixturePresentation().NativeEffectMemory!.Doomtrain191!.Model);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleDoomtrain191Resources authenticated = game.ReadNativeEffectCatalogForEffects([191])[190].Doomtrain191Resources!;
         Assert.NotNull(authenticated.Creature);
@@ -80,7 +80,7 @@ public sealed class NativeBattleDoomtrainCreatureMigrationTests
             Assert.False(actual.Anchor.Known[19]);
             Assert.Throws<NotSupportedException>(() => actual.Model.Read(0x52, 2));
             Assert.Equal(snapshot.Frame + 1, first.Frame);
-            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+            Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
             using BattleAssets assets = new(game.GameDirectory);
             byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());

@@ -39,14 +39,14 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_GUARDIAN_SKIP_CONTINUATION");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Select a standalone ordinary guardian continuation with MEMORIA_FF8_GUARDIAN_SKIP_CONTINUATION.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.Null(source.NativeGraphics!.GuardianAnimationSkip);
-        Assert.True(source.NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 });
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.GuardianAnimationSkip);
+        Assert.True(source.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 });
         Assert.True(source.ActiveAction is { NativeQueuedCommand: 254, GuardianFormInvocation: null });
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.NativeGraphics.ActionGraphics!.Header.Ordinal));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.ReadFixturePresentation().NativeGraphics.ActionGraphics!.Header.Ordinal));
         Assert.Equal((byte)254, header.Command);
         int guardian = header.Action - 64;
         Assert.InRange(guardian, 0, 15);
-        ushort effectId = checked((ushort)source.NativeGraphics.OriginalEffect!.Binding.Effect);
+        ushort effectId = checked((ushort)source.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
         Run(guardian, effectId, source);
     }
 
@@ -146,7 +146,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         });
 
         BattleSnapshot expected = ordinary.Capture();
-        BattleSnapshot actual = skipped.Capture();
+        BattleSnapshot actual = skipped.CaptureForContinuation();
         Assert.Single(actual.Events, item => item.Kind == "GuardianForceCharging" && item.ActorId == "party");
         Assert.Single(actual.Events, item => item.Kind == "GuardianForceReady" && item.ActorId == "party");
         BattleEvent[] expectedDamage = expected.Events.Where(item => item.Kind == "Damage" && item.ActorId == "party").Select(item => item with { Frame = 0 }).ToArray();
@@ -192,7 +192,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
                 effectId,
                 Target = target,
                 ContinuationFrame = continuation?.Frame,
-                ContinuationCallback = continuation?.NativeGraphics?.Callback,
+                ContinuationCallback = continuation?.ReadFixturePresentation().NativeGraphics?.Callback,
                 SkippedCallbacks = finaleCallback - beforeSkip,
                 SkipElapsedMilliseconds = skipTimer?.Elapsed.TotalMilliseconds,
                 FinaleFrame = finaleSnapshot.Frame,
@@ -200,7 +200,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
                 FinaleSamples = finaleSamples,
                 OrdinaryHeaderFlags = ordinaryFlags,
                 CompletedFrame = actual.Frame,
-                CompletedCallback = actual.NativeGraphics!.Callback,
+                CompletedCallback = actual.ReadFixturePresentation().NativeGraphics!.Callback,
                 DamageContacts = actualDamage.Length,
                 TotalDamage = actualDamage.Sum(item => item.Amount),
                 Combatants = actual.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, actor.NativeStatus }),

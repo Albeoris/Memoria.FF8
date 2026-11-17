@@ -42,11 +42,6 @@ public sealed partial class BattleSession
             actor.IsBusy = false;
             return;
         }
-        if (IsDuelCallback(command.NativeLimitCallback))
-        {
-            StartExpandedDuelMove(command);
-            return;
-        }
         if (OwnsExpandedHostedInvocation && command.NativeLimitCallback == NativeLimitCallback.ShotEnding && !ActionHasValidTarget(command.TargetRequest, command.NativeGraphic))
         {
             // The original command admission cancels an empty close before producing its graphics header.
@@ -93,11 +88,6 @@ public sealed partial class BattleSession
             RequireOrdinaryExpandedHostedCommand(command);
         BattleCombatant actor = GetActor(command.ActorId);
         BattleCombatant target = GetActor(command.TargetId);
-        if (IsDuelCallback(command.NativeLimitCallback))
-        {
-            CompleteExpandedDuelMove(command);
-            return;
-        }
         if (!command.MagicCasts.IsDefaultOrEmpty)
         {
             ResolveExpandedMagicGroup(actor, command);
@@ -344,7 +334,7 @@ public sealed partial class BattleSession
             if (!producingExpandedAiCallback)
             {
                 // Contact preparation has consumed the special result into the staged invocation.
-                ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null, NativeSpecial = null };
+                ActiveAction = command with { Phase = BattleActionPhase.Recovery, MagicReservationId = null, NativeSpecial = null };
             }
             return;
         }

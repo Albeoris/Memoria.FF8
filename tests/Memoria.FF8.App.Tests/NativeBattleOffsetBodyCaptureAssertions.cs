@@ -6,7 +6,7 @@ internal static class NativeBattleOffsetBodyCaptureAssertions
 {
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        if (effect is not (290 or 298 or 308) || snapshot.NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
+        if (effect is not (290 or 298 or 308) || snapshot.ReadFixturePresentation().NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
         {
             return 0;
         }

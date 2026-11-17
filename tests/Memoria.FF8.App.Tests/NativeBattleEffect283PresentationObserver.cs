@@ -29,13 +29,13 @@ internal sealed class NativeBattleEffect283PresentationObserver
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 283);
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect283State state = current.NativeEffectMemory!.Effect283!;
-        NativeBattleGraphicsModel target = ReadOriginalModelCell(current.NativeGraphics, 4);
+        NativeBattleEffect283State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect283!;
+        NativeBattleGraphicsModel target = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4);
         if (effect.ReturnedDescriptor is > 0)
         {
             Assert.Null(state.RootBankStorage);
@@ -84,7 +84,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
                     {
                         Mark("effect283-main-" + age, current, cold);
                     }
-                    observations.Add(new { current.Frame, current.NativeGraphics.Callback, Age = age, MainFrame = main.Frame, SecondaryFrame = secondary.Frame, Selector = unchecked((short)task.ReadWord(0xE)), TaskCallback = task.Callback, target.Flags0, target.Color44 });
+                    observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, Age = age, MainFrame = main.Frame, SecondaryFrame = secondary.Frame, Selector = unchecked((short)task.ReadWord(0xE)), TaskCallback = task.Callback, target.Flags0, target.Color44 });
                 }
             }
             int cursor = checked((int)(state.ReadDword(CursorGlobal) - ArenaAddress));
@@ -98,12 +98,12 @@ internal sealed class NativeBattleEffect283PresentationObserver
                 window |= command.Opcode == 0xE2;
             }
         }
-        if (prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
+        if (prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
         {
             Assert.NotNull(state.RootBankStorage);
             Assert.Empty(effect.Pools);
             Assert.Equal((ushort)60, BinaryPrimitives.ReadUInt16LittleEndian(state.RootBankStorage.Read(0xC, 2)));
-            NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
             Assert.Equal((ushort)60, BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(0xC, 2)));
             Assert.Equal(60, BinaryPrimitives.ReadInt32LittleEndian(arena.Read(MainProgrammeWorkspaceOffset + 4, 4)));
             Assert.Equal(36, BinaryPrimitives.ReadInt32LittleEndian(arena.Read(SecondaryProgrammeWorkspaceOffset + 4, 4)));
@@ -129,13 +129,13 @@ internal sealed class NativeBattleEffect283PresentationObserver
         {
             Assert.Contains(marker, markers);
         }
-        Assert.Equal(0, ReadOriginalModelCell(completed.NativeGraphics!, 4).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(completed.ReadFixturePresentation().NativeGraphics!, 4).Flags0 & 4);
         File.WriteAllText(Path.Combine(output, "effect283-observations.json"), JsonSerializer.Serialize(new { MainAges = mainAges.Order(), MainFrames = mainFrames.Order(), SecondaryFrames = secondaryFrames.Order(), Callbacks = callbacks.Order(), PacketBanks = banks.Order(), Opcodes = opcodes.Order(), Markers = markers.Order(), BodyCommon = bodyCommon, Window = window, Fade = fade, Restored = restored, Detached = detached, Observations = observations }));
     }
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
     {
-        uint cursor = current.NativeEffectMemory!.Effect283!.ReadDword(CursorGlobal);
+        uint cursor = current.ReadFixturePresentation().NativeEffectMemory!.Effect283!.ReadDword(CursorGlobal);
         if (cursor == 0)
         {
             return [];
@@ -143,7 +143,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
         int end = checked((int)(cursor - ArenaAddress));
         int start = end >= SecondPacketOffset ? SecondPacketOffset : FirstPacketOffset;
         Assert.InRange(end, start, start + PacketBankBytes);
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
     }
 
     private void Mark(string name, BattleSnapshot current, Action<string, BattleSnapshot> cold)

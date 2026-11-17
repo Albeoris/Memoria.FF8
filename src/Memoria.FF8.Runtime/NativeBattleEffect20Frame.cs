@@ -16,4 +16,13 @@ public sealed record NativeBattleEffect20ClearActorFlags124Bit2(BattleModelOwner
 public sealed record NativeBattleEffect20RingSequence(BattleModelOwner Actor, int Count) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20Activate(BattleModelOwner Actor) : NativeBattleEffect20Operation;
 public sealed record NativeBattleEffect20OverlayTask(uint Address) : NativeBattleEffect20Operation;
-public sealed record NativeBattleEffect20Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect20Frame, NativeBattleEffect20Operation, NativeBattleEffect20Frame> Execute, Func<NativeBattleEffect20Frame, uint, NativeBattleEffect20LeafStep> AdvanceOverlay);
+public sealed record NativeBattleEffect20Inputs(NativeBattleActionPacketsState Packets, NativeBattlePackedMatrix32 Camera, Func<BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<BattleModelOwner, NativeBattlePoseSource> ReadPoseSource, Func<NativeBattleEffect20Frame, NativeBattleEffect20Operation, NativeBattleEffect20Frame> Execute, Func<NativeBattleEffect20Frame, uint, NativeBattleEffect20LeafStep> AdvanceOverlay)
+{
+    internal Func<byte, BattleModelOwner>? AuthoredOperand { get; init; }
+
+    internal BattleModelOwner ResolveDeferredModel()
+    {
+        byte operand = NativeBattleEffect20Profile.DeferredModelOperand;
+        return AuthoredOperand?.Invoke(operand) ?? Packets.ModelAliases.DecodeLiteral(operand);
+    }
+}

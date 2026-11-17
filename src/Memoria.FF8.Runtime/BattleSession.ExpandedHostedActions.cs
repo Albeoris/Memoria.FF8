@@ -396,6 +396,9 @@ public sealed partial class BattleSession
                 case NativeBattleAllocationGateReached:
                     CompleteNativeAllocationGate();
                     break;
+                case NativeBattlePartyReplacementReached replacement:
+                    ApplyPartyReplacement(replacement.Descriptor);
+                    break;
                 case NativeBattleModelTriggerRegistered trigger:
                     AcknowledgeExpandedGunbladeRegistration(trigger, actionToken);
                     break;

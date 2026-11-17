@@ -16,7 +16,7 @@ public sealed partial class BattleSession
             }
             NativeBattleActionHeaderPreparation prepared = PrepareNativeEntranceHeader(actor);
             NativeBattleContactPacket contact = PrepareNativeEntranceContact(target, owner, sequence);
-            BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(target), BattleAbility.EnemyAbility, 3)
+            BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Recovery, SelectBattleTarget(target), BattleAbility.EnemyAbility, 3)
             {
                 NativeQueuedCommand = 0,
                 NativeSequence = 0,
@@ -51,55 +51,6 @@ public sealed partial class BattleSession
         (ushort saved, uint battle) = NativeContactStatusMirror(target);
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(sequence, 1, 0, 3, covered: false);
         return new(new(targetOwner, presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle), null);
-    }
-
-    private void ResolveNativeGraphicCommand(BattleCombatant actor, BattleActionPresentation command, BattleNativeGraphicCommand graphic)
-    {
-        NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native command252 requires its original485610 dispatch context.");
-        byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1);
-        NativeBattleActionHeaderPreparation header = new(CreatePresentationModelOwner(actor), 252, sequence, -1, 1, graphic.MagicId, null);
-        (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
-        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = 252, Action = 1, DeferredEffectsE00 = false };
-
-        //48D200 caseFC leaves AE3=1;48E830 resolves its single target mask before48FE20.
-        BattleCombatant[] targets = ResolveBattleTargets(command.TargetRequest);
-        foreach (BattleCombatant recipient in combatants.Where(candidate => candidate.Slot is not null))
-        {
-            recipient.NativeRemainingHits = targets.Contains(recipient) ? 1 : 0;
-        }
-        bool aborted = targets.Length == 0 || !NativeFirstHitAdmitted(actor, command, context);
-        if (!aborted)
-        {
-            foreach (BattleCombatant recipient in targets)
-            {
-                if ((NativeSavedStatusBits(recipient) & 1) != 0 && (!command.TargetRequest.AllowsKnockedOutAllies || !recipient.IsPlayer))
-                {
-                    aborted = true;
-                    break;
-                }
-                BattleNativeAction native = NativeGraphicContactAction(actor, graphic.MagicId);
-                BattleActionPresentation resolved = command with { NativeAction = native };
-                BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Native graphical effect", BattleActionEffect.Native, 0, false) { NativeAction = native };
-                BattleActionPresentation? previous = resolvingNativeAction;
-                resolvingNativeAction = resolved;
-                try
-                {
-                    NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(actor, recipient, resolved, action, native);
-                    (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
-                }
-                finally
-                {
-                    resolvingNativeAction = previous;
-                }
-            }
-        }
-        int count = targets.Length;
-        PublishNativeSingleActionHeader(count);
-        RecordPublishedNativeTargetCount(count);
-        if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !aborted)
-        {
-            nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
-        }
     }
 
     private BattleNativeAction NativeGraphicContactAction(BattleCombatant actor, byte effect)

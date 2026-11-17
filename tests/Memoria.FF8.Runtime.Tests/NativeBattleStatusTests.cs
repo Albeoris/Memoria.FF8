@@ -239,7 +239,7 @@ public sealed class NativeBattleStatusTests
     private static void Hit(BattleSession battle)
     {
         battle.QueueAction("party", "enemy", BattleAbility.Magic, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "EffectContact")); frame++)
         {
             battle.Tick();
         }

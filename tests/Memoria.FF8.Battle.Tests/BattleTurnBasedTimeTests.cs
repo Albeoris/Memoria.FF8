@@ -11,7 +11,7 @@ public sealed class BattleTurnBasedTimeTests
         BattleSession battle = Create(Actor("player", true, 100) with { InitialAtb = BattleSession.AtbMaximum, NativeStatus0 = 2 }, Actor("ally", true, 100) with { InitialAtb = BattleSession.AtbMaximum }, Actor("enemy", false, 1));
         battle.QueueAttack("player", "enemy");
         battle.Tick();
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "Damage" && item.ActorId == "player" && item.Message.StartsWith("Poison:"))); frame++)
         {
             battle.Tick();
         }

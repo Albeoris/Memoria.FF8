@@ -35,45 +35,6 @@ public sealed partial class BattleSession
         }
     }
 
-    private void CompleteNativeAiReturnDamage(BattleCombatant actor, BattleActionPresentation command)
-    {
-        if (command.NativeAiCallbackStage is not byte stage)
-        {
-            if (actor.NativeAi is not null && command.Ability == BattleAbility.EnemyAbility && command.NativeQueuedCommand is not null && !IsNativeReturnDamageAction(command.NativeAction))
-            {
-                throw new NotSupportedException("Native AI command completion lacks its original callback stage for483EF0; migrate the queued invocation explicitly.");
-            }
-            return;
-        }
-        //483EF0's draw-follow-up gate BYTE1D28E0C is clear for these original interpreter-produced commands.
-        //247 is the separately owned reflected follow-up; it must not aggregate a second Return Damage command.
-        if (command.NativeQueuedCommand == 247 || (NativeSavedStatusBits(actor) & 1) != 0)
-        {
-            return;
-        }
-        BattleCombatant[] party = combatants.Where(candidate => candidate.NativeActorIndex is >= 0 and < 3 && candidate != actor).OrderBy(candidate => candidate.NativeActorIndex).ToArray();
-        if (party.Any(candidate => candidate.NativeReturnDamage is null))
-        {
-            throw new NotSupportedException("Native483EF0 requires each retained party Return Damage WORD, including KO rows; unknown old values cannot be replaced with zero.");
-        }
-        ushort total = 0;
-        foreach (BattleCombatant member in party)
-        {
-            total = unchecked((ushort)(total + member.NativeReturnDamage!.Value));
-        }
-        actor.NativeReturnDamage = total;
-        foreach (BattleCombatant member in party)
-        {
-            member.NativeReturnDamage = 0;
-        }
-        if (stage == 3 || total == 0)
-        {
-            return;
-        }
-        //The original command's header is already published. This synchronous0/5 follows it before the interpreter resumes.
-        QueueNativeCommand(actor, 0, 5, 0, SelectAiActor(actor));
-    }
-
     private bool TryResolveNativeReturnDamage(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleNativeAction native)
     {
         if (!IsNativeReturnDamageAction(native))

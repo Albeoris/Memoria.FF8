@@ -18,7 +18,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_EVIDENCE") ?? Path.GetTempPath(), "tonberry-entry-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         try
         {
             for (int tick = 0; tick < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); tick++)
@@ -40,9 +40,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 }
             }
             Assert.True(entered);
-            BattleSnapshot entry = battle.Capture();
-            Assert.Equal(7, entry.NativeGraphics!.OriginalEffect!.Pools.Length);
-            Assert.NotNull(entry.NativeEffectMemory!.Tonberry90);
+            BattleSnapshot entry = battle.CaptureForContinuation();
+            Assert.Equal(7, entry.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Length);
+            Assert.NotNull(entry.ReadFixturePresentation().NativeEffectMemory!.Tonberry90);
             Publish("entry", entry);
             BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, "entry.battle.json")))!);
             Assert.Equal(JsonSerializer.Serialize(entry), JsonSerializer.Serialize(clone.Capture()));
@@ -63,11 +63,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 }
             }
             Assert.True(booted);
-            BattleSnapshot boot = battle.Capture();
+            BattleSnapshot boot = battle.CaptureForContinuation();
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
-            Assert.Equal(0x762DA0u, boot.NativeGraphics!.OriginalEffect!.Pools[4].Slots[0].Callback);
-            Assert.Equal(0x762850u, boot.NativeGraphics.OriginalEffect.Pools[6].Slots[0].Callback);
-            Assert.NotNull(boot.NativeEffectMemory!.SharedEffectView2793E58);
+            Assert.Equal(0x762DA0u, boot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[4].Slots[0].Callback);
+            Assert.Equal(0x762850u, boot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools[6].Slots[0].Callback);
+            Assert.NotNull(boot.ReadFixturePresentation().NativeEffectMemory!.SharedEffectView2793E58);
             Publish("boot", boot);
             bool capturedGround = false;
             bool drewActor = false;
@@ -90,10 +90,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     break;
                 }
                 clone.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-                BattleSnapshot actual = battle.Capture();
+                BattleSnapshot actual = battle.CaptureForContinuation();
                 Assert.Equal(JsonSerializer.Serialize(actual), JsonSerializer.Serialize(clone.Capture()));
-                capturedGround |= actual.NativeEffectMemory!.GroundCapture is { Statics.Regions.IsEmpty: false };
-                drewActor = actual.NativeGraphics!.OriginalEffect!.Pools[3].Slots.Any(task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0);
+                capturedGround |= actual.ReadFixturePresentation().NativeEffectMemory!.GroundCapture is { Statics.Regions.IsEmpty: false };
+                drewActor = actual.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[3].Slots.Any(task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0);
                 if (drewActor)
                 {
                     Assert.True(capturedGround);
@@ -108,14 +108,14 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             BattleSession restored = BattleSession.Restore(retained);
             Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(restored.Capture()));
             Assert.Equal(scene.Render(BattleSession.Restore(retained), 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(restored, 320, 224).ToArray());
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-boot-and-phase-one-validated", retained.Frame, NativeCallback = retained.NativeGraphics!.Callback, CapturedGround = capturedGround, DrewActor = drewActor, Boundary = boundary }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-boot-and-phase-one-validated", retained.Frame, NativeCallback = retained.ReadFixturePresentation().NativeGraphics!.Callback, CapturedGround = capturedGround, DrewActor = drewActor, Boundary = boundary }));
             Console.WriteLine($"Tonberry phase-one standalone evidence: {output}");
         }
         catch (Exception error)
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 
@@ -131,7 +131,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.False(Directory.Exists(output));
         Directory.CreateDirectory(output!);
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        Assert.Equal((ushort)90, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)90, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = BattleSession.Restore(snapshot);
@@ -167,11 +167,11 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 }
                 if (battle.Presentation?.Graphics?.OriginalEffect is not { ReturnedDescriptor: > 0 })
                 {
-                    BattleSnapshot completed = battle.Capture();
+                    BattleSnapshot completed = battle.CaptureForContinuation();
                     Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(independent.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(independent, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "completed", completed, scene.Render(battle, 320, 224).ToArray());
-                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", completed.Frame, NativeCallback = completed.NativeGraphics?.Callback }));
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", completed.Frame, NativeCallback = completed.ReadFixturePresentation().NativeGraphics?.Callback }));
                     return;
                 }
             }
@@ -183,7 +183,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(retained.Capture()));
             NativeBattleRestorationPresentationTests.Publish(output!, "before-boundary", before, scene.Render(retained, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output!, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
     }

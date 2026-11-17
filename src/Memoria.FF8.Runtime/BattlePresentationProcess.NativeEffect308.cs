@@ -35,11 +35,11 @@ public sealed partial class BattlePresentationProcess
             {
                 return source;
             }
-            if (role is not (1 or 2) || !graphics.NativeBindings.TryEncodeExactActor(source, graphics.ActorModels, out byte original))
+            if (role is not (1 or 2))
             {
                 throw new NotSupportedException("Effect308 requires its explicit companion model role binding.");
             }
-            return graphics.NativeBindings.DecodeLiteral(checked((byte)(original + role)), graphics.ActorModels);
+            return ResolveSourceRelativeModel(graphics, source, role);
         }
 
         NativeBattleCameraState Camera() => NativeCamera ?? throw new NotSupportedException("Effect308 requires its current camera.");

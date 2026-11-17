@@ -28,7 +28,7 @@ public sealed class BattleWorkingStorageIsolationTests
         Assert.Equal(17u, session.Presentation!.Memory.Arena!.ReadUInt32(12));
         Assert.Equal(17u, main.Slots[0].ReadDword(12));
         Assert.Equal(0u, auxiliary.Slots[0].ReadDword(12));
-        Assert.Equal(17u, session.Capture().NativeEffectMemory!.Arena!.ReadUInt32(12));
+        Assert.Equal(17u, session.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadUInt32(12));
     }
 
     [Fact]
@@ -48,21 +48,21 @@ public sealed class BattleWorkingStorageIsolationTests
         BattleSession live = new(definition, BattleAtbMode.Normal);
         NativeBattleQuake38State fields = live.Presentation!.Memory.Quake38!;
         fields.SetDword(0x278C8E0, 17);
-        BattleSnapshot first = live.Capture();
+        BattleSnapshot first = live.CaptureForContinuation();
         string firstJson = JsonSerializer.Serialize(first);
         fields.SetDword(0x278C8E0, 18);
-        BattleSnapshot second = live.Capture();
+        BattleSnapshot second = live.CaptureForContinuation();
         BattleSession a = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(firstJson)!);
         BattleSession b = BattleSession.Restore(first);
         a.Presentation!.Memory.Quake38!.SetDword(0x278C8E0, 19);
 
         Assert.Equal(17u, b.Presentation!.Memory.Quake38!.Dword(0x278C8E0));
-        Assert.Equal(18u, second.NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
+        Assert.Equal(18u, second.ReadFixturePresentation().NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
         Assert.Equal(18u, fields.Dword(0x278C8E0));
         Assert.Equal(firstJson, JsonSerializer.Serialize(first));
         Assert.Equal(coldJson, JsonSerializer.Serialize(cold));
         Assert.Equal(0u, first.Definition.NativeRetainedMemory!.EffectMemory!.Quake38!.Dword(0x278C8E0));
-        Assert.Throws<InvalidOperationException>(() => first.NativeEffectMemory!.Quake38!.SetByte(0x278C8E0, 0));
+        Assert.Throws<InvalidOperationException>(() => first.ReadFixturePresentation().NativeEffectMemory!.Quake38!.SetByte(0x278C8E0, 0));
         Assert.Throws<InvalidOperationException>(() => cold.EffectMemory!.Quake38!.SetByte(0x278C8E0, 0));
     }
 
@@ -79,6 +79,6 @@ public sealed class BattleWorkingStorageIsolationTests
         fields.SetDword(0x278C8E0, 20);
         Assert.Throws<InvalidOperationException>(() => live.Capture());
         fields.RollbackCheckpoint();
-        Assert.Equal(0u, live.Capture().NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
+        Assert.Equal(0u, live.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Quake38!.Dword(0x278C8E0));
     }
 }

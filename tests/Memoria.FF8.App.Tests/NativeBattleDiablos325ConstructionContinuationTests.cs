@@ -44,15 +44,15 @@ public sealed class NativeBattleDiablos325ConstructionContinuationTests
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-            BattleSnapshot current = first.Capture();
+            BattleSnapshot current = first.CaptureForContinuation();
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output, "timeline-created", current, pixels);
-            Assert.Equal(new NativeBattleCameraPose(new(0, -1796, 5667), new(0, -3166, -3315), 288, 0), current.NativeCamera!.CurrentPose);
+            Assert.Equal(new NativeBattleCameraPose(new(0, -1796, 5667), new(0, -3166, -3315), 288, 0), current.ReadFixturePresentation().NativeCamera!.CurrentPose);
             Assert.Equal((ushort)3, Root(current).ReadWord(0xC));
             Assert.Equal((byte)1, Root(current).ReadByte(0xF));
-            NativeBattleModulePoolTask timeline = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
+            NativeBattleModulePoolTask timeline = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
             Assert.Equal((ushort)1, timeline.ReadWord(0xC));
             Assert.Equal(0xFD8584u, timeline.ReadDword(0x264));
             NativeBattleModuleSound sound = current.Events.Last(item => item.NativeModuleSound?.Sound == 240248).NativeModuleSound!;
@@ -66,15 +66,15 @@ public sealed class NativeBattleDiablos325ConstructionContinuationTests
                 Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
                 pixels = scene.Render(first, 320, 224).ToArray();
                 Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
-                NativeBattleModulePoolTask flashed = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
+                NativeBattleModulePoolTask flashed = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051A0).Slots[0];
                 Assert.Equal((ushort)(counter + 1), flashed.ReadWord(0xC));
                 uint flash = checked(256u + (uint)(counter - 1) * 512);
-                Assert.Equal(flash, current.NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(flash, current.NativeEffectMemory.Diablos325.PreviousFlash51EC);
-                Assert.All(current.NativeStage!.Groups, group => Assert.Equal(unchecked((short)flash), group.ColorDepth));
+                Assert.Equal(flash, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
+                Assert.Equal(flash, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group => Assert.Equal(unchecked((short)flash), group.ColorDepth));
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 8 ? "before-opening-programme" : "flash-" + counter, current, pixels);
             }
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "construction-and-eight-flash-callbacks-validated", current.Frame, NativeCallback = current.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "construction-and-eight-flash-callbacks-validated", current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback }));
         }
         catch
         {
@@ -121,6 +121,6 @@ public sealed class NativeBattleDiablos325ConstructionContinuationTests
         }
     }
 
-    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
+    private static NativeBattleModulePoolTask Root(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25051B0).Slots[0];
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

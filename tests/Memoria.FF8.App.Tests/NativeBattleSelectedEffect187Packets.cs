@@ -6,13 +6,13 @@ internal static class NativeBattleSelectedEffect187Packets
 {
     public static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot)
     {
-        NativeBattleEffect187State state = snapshot.NativeEffectMemory?.Effect187 ?? throw new InvalidDataException("Effect187 visibility requires its actual retained output interval.");
+        NativeBattleEffect187State state = snapshot.ReadFixturePresentation().NativeEffectMemory?.Effect187 ?? throw new InvalidDataException("Effect187 visibility requires its actual retained output interval.");
         int first = state.CommonPacketStart ?? throw new InvalidDataException("Effect187 visibility requires its actual callback COMMON start.");
         int end = state.CommonPacketEnd ?? throw new InvalidDataException("Effect187 visibility requires its actual callback COMMON end.");
-        NativeBattlePrimitiveProcess process = snapshot.NativeEffectMemory!.PrimitiveProcess ?? throw new InvalidDataException("Effect187 visibility requires its actual COMMON process.");
+        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess ?? throw new InvalidDataException("Effect187 visibility requires its actual COMMON process.");
         Assert.InRange(first, 0, process.CommonPacketWriteCapacity);
         Assert.InRange(end, first, process.CommonPacketWriteCapacity);
-        NativeBattlePrimitiveFrame primitive = snapshot.NativeGraphics?.PrimitiveFrame ?? throw new InvalidDataException("Effect187 visibility requires its current physical commands.");
+        NativeBattlePrimitiveFrame primitive = snapshot.ReadFixturePresentation().NativeGraphics?.PrimitiveFrame ?? throw new InvalidDataException("Effect187 visibility requires its current physical commands.");
         int bankOffset = checked(process.PacketBuffer * process.CommonPacketNominalCapacity);
         return primitive.LastCommands.Select(value => value.Command).Where(IsOwned).ToArray();
 

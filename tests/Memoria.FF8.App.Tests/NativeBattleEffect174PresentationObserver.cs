@@ -25,11 +25,11 @@ internal sealed class NativeBattleEffect174PresentationObserver
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         CurrentCommands = [];
-        if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleEffect174State state = current.NativeEffectMemory!.Effect174!;
+        NativeBattleEffect174State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect174!;
         state.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
@@ -70,11 +70,11 @@ internal sealed class NativeBattleEffect174PresentationObserver
             retired = true;
             Mark("effect174-main-retired", current, cold);
         }
-        NativeBattleGraphicsState graphics = current.NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect174-contact-glyph", current, cold);
@@ -105,7 +105,7 @@ internal sealed class NativeBattleEffect174PresentationObserver
         Assert.Equal(2, banks.Count);
         Assert.Equal(1, Contacts);
         Assert.Equal(1, ContactGlyphs);
-        Assert.All(completed.NativeEffectMemory!.Effect174!.FixedBanks.Values, bank => Assert.NotNull(bank));
+        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect174!.FixedBanks.Values, bank => Assert.NotNull(bank));
         File.WriteAllText(Path.Combine(output, "effect174-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), History = history, Body = body, Cleanup = cleanup, Retired = retired, Banks = banks.Order(), Contacts, ContactGlyphs, Observations = observations }));
     }
 
@@ -134,11 +134,11 @@ internal sealed class NativeBattleEffect174PresentationObserver
         {
             return [];
         }
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         int actorIndex = historical ? 3 : 0;
         NativeBattleGraphicsModel actor = ReadOriginalModelCell(graphics, actorIndex);
         NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == ReadOriginalModelActorId(graphics, actorIndex));
-        NativeBattleModelCpuResources cpu = current.NativeModelCpuResources!;
+        NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         HashSet<Face> faces = [];
         uint[] colors = historical ? graphics.OriginalEffect!.Binding.Effect174Resources!.HistoryColors.ToArray() : [actor.Color40!.Value];
         Add(actor.ActiveResourceRow100!.Value, binding.Resource.PoseSource!.BoneCount, historical ? 8u : actor.SequenceState!.MeshMask124);
@@ -151,7 +151,7 @@ internal sealed class NativeBattleEffect174PresentationObserver
         void Add(int row, int count, uint mask)
         {
             NativeBattleModelCpuReference source = cpu.Rows[row].Require(16);
-            ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), count, (_, counts, _, _) =>
+            ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), count, (_, counts, _, _) =>
             {
                 Assert.Equal((ushort)0, counts[2]);
                 Assert.Equal((ushort)0, counts[3]);
@@ -181,11 +181,11 @@ internal sealed class NativeBattleEffect174PresentationObserver
     }
 
     private readonly record struct Face(byte Opcode, uint Color, uint Uv0, uint Uv1, uint Uv2, uint Uv3);
-    private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSnapshot snapshot) => snapshot.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command);
+    private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command);
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

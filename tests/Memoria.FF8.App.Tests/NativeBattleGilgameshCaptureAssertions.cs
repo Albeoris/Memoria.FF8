@@ -23,10 +23,10 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         this.effect = effect;
         this.contact = contact;
         AssertQueuedInvocation(effect, header, contact, source.NativeActionPackets!.ModelAliases);
-        Assert.IsType<NativeBattleGilgameshProcess>(source.NativeEffectMemory!.Gilgamesh).Validate();
-        Assert.IsType<NativeBattlePcRenderRequest>(source.NativeEffectMemory!.PcRenderRequest);
-        Assert.NotNull(source.NativeStage);
-        Assert.True(source.NativeStage!.Groups.Length >= 4);
+        Assert.IsType<NativeBattleGilgameshProcess>(source.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh).Validate();
+        Assert.IsType<NativeBattlePcRenderRequest>(source.ReadFixturePresentation().NativeEffectMemory!.PcRenderRequest);
+        Assert.NotNull(source.ReadFixturePresentation().NativeStage);
+        Assert.True(source.ReadFixturePresentation().NativeStage!.Groups.Length >= 4);
     }
 
     internal static void AssertQueuedInvocation(ushort effect, NativeBattleActionHeaderSlot header, NativeBattleContactPacket contact, NativeBattleModelAliases aliases)
@@ -51,7 +51,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
 
     internal static NativeBattleLogicalCommand[] Commands(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics is not { OriginalEffect: { } selected, PrimitiveFrame: { } frame } || selected.Binding.Effect != effect)
         {
             return [];
         }
@@ -61,12 +61,12 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
 
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        snapshot.NativeGraphics!.ModuleEffects.Validate();
+        snapshot.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Validate();
         NativeBattleLogicalCommand[] commands = Commands(snapshot, effect).Where(command => command.Opcode is >= 0x20 and < 0x80).ToArray();
         foreach (NativeBattleLogicalCommand command in commands)
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
-            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.NativeGraphics.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
+            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.ReadFixturePresentation().NativeGraphics.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
             Assert.True(visual.Identity.Generation > 0);
             Assert.NotEqual(0L, visual.Identity.ResourceGeneration);
             Assert.InRange(visual.CornerCount, 3, 4);
@@ -93,7 +93,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
 
     internal static bool HasFlash(BattleSnapshot snapshot, ushort effect)
     {
-        return snapshot.NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.GilgameshFlashPresentation?.Effect == effect);
+        return snapshot.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.GilgameshFlashPresentation?.Effect == effect);
     }
 
     internal void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
@@ -114,14 +114,14 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
             flashReleased = true;
             cold("gilgamesh-flash-released", current);
         }
-        if (current.NativeEffectMemory!.Gilgamesh!.VibrationHandle is int handle && handle > 0 && current.NativeVibrationProcess!.IsPlaying(handle))
+        if (current.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh!.VibrationHandle is int handle && handle > 0 && current.NativeVibrationProcess!.IsPlaying(handle))
         {
             vibrationSeen = true;
         }
-        for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
+        for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
         {
-            NativeBattleEffectTask now = current.NativeGraphics.Effects.Slots[slot];
-            NativeBattleEffectTask before = prior.NativeGraphics!.Effects.Slots[slot];
+            NativeBattleEffectTask now = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+            NativeBattleEffectTask before = prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
             if ((now.Flags0 & 1) != 0 && now.Kind == NativeBattleEffectKind.DamageText5069B0 && now.Frame == 1 && !((before.Flags0 & 1) != 0 && before.Kind == now.Kind && before.Frame == 1))
             {
                 Assert.Equal(contact.Primary.Recipient, now.ModelOwner);
@@ -141,7 +141,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         Assert.False(HasFlash(completed, effect));
         AssertContactTextPublications(contact, textPublications);
         Assert.True(vibrationSeen);
-        Assert.False(completed.NativeVibrationProcess!.IsPlaying(completed.NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value));
+        Assert.False(completed.NativeVibrationProcess!.IsPlaying(completed.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value));
         NativeBattleGilgameshEffectResources resources = game.ReadNativeGilgameshEffectResources(effect);
         uint Stream(ushort id) => unchecked((uint)(690000 + BinaryPrimitives.ReadInt32LittleEndian(resources.Files.Files.Single(file => file.FileId == id).Bytes.AsSpan())));
         uint[] expected = [resources.Director.SoundInitial, unchecked((uint)(resources.InitialStreamNumber + 690000)), resources.Director.SoundMiddle, resources.Director.SoundLate, Stream(750), Stream(752), resources.Director.SoundClosing, Stream(753)];
@@ -161,9 +161,9 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         }
         for (int group = 0; group < 4; group++)
         {
-            Assert.Equal((byte)(source.NativeStage!.Groups[group].Flags | 2), completed.NativeStage!.Groups[group].Flags);
-            Assert.Equal((short)0, completed.NativeStage.Groups[group].ColorDepth);
-            Assert.Equal(0u, completed.NativeStage.Groups[group].ColorFlags);
+            Assert.Equal((byte)(source.ReadFixturePresentation().NativeStage!.Groups[group].Flags | 2), completed.ReadFixturePresentation().NativeStage!.Groups[group].Flags);
+            Assert.Equal((short)0, completed.ReadFixturePresentation().NativeStage.Groups[group].ColorDepth);
+            Assert.Equal(0u, completed.ReadFixturePresentation().NativeStage.Groups[group].ColorFlags);
         }
     }
 }

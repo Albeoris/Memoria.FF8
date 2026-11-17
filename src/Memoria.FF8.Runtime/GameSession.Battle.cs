@@ -84,8 +84,8 @@ public sealed partial class GameSession
 
     private static bool IsCompletedPresentationRetainedPair(BattleSnapshot battle, NativeBattleRetainedMemory retained)
     {
-        return battle.Outcome != BattleOutcome.Active && battle.NativeGraphics is null &&
-            battle.ActiveAction is null && battle.QueuedActions.Length == 0 && battle.NativeGuardianBoost is null && battle.NativeTimedAction is null &&
+        return battle.Outcome != BattleOutcome.Active &&
+            battle.ActiveAction is null && battle.QueuedActions.Length == 0 && battle.NativeTimedAction is null &&
             retained is { Stage: not null, Camera: not null, EffectMemory: not null };
     }
 
@@ -93,7 +93,7 @@ public sealed partial class GameSession
     {
         NativeBattleRetainedMemory? original = battle.Definition.NativeRetainedMemory;
         if (retained.AllocationControl != battle.NativeScriptState.AllocationControl ||
-            retained.ActionScratch != (battle.NativeActionScratch is { } scratch ? scratch with { ComponentCompletion = null } : null) ||
+            retained.ActionScratch != battle.NativeActionScratch ||
             !SameRetainedFacts(retained.PartyStatusMirrors, battle.NativePartyStatusMirrors) ||
             !SameRetainedFacts(retained.PresentationStatusMemory, battle.NativePresentationStatusMemory) ||
             !SameRetainedFacts(retained.ActionMemory, battle.NativeActionMemory) ||

@@ -51,9 +51,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         Assert.True(entered);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot source = battle.Capture();
+        BattleSnapshot source = battle.CaptureForContinuation();
         Assert.InRange(Counter(source), (ushort)0, (ushort)1);
-        Assert.Equal(0x20DFAB8u, source.NativeEffectMemory!.Pandemona291!.ModelBuffer25562F4);
+        Assert.Equal(0x20DFAB8u, source.ReadFixturePresentation().NativeEffectMemory!.Pandemona291!.ModelBuffer25562F4);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
         BattleSession live = BattleSession.Restore(source);
         BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output, "entry.battle.json")))!);
@@ -66,7 +66,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(live.Capture()), JsonSerializer.Serialize(independent.Capture()));
             Assert.Equal(scene.Render(live, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         }
-        BattleSnapshot boundary = live.Capture();
+        BattleSnapshot boundary = live.CaptureForContinuation();
         NativeBattleRestorationPresentationTests.Publish(output, "before-timeline", boundary, scene.Render(live, 320, 224).ToArray());
         for (int opening = 0; opening < 40; opening++)
         {
@@ -76,10 +76,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(scene.Render(live, 320, 224).ToArray(), scene.Render(independent, 320, 224).ToArray());
         }
         boundary = live.Capture();
-        Assert.Equal((ushort)40, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
+        Assert.Equal((ushort)40, boundary.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
         NativeBattleRestorationPresentationTests.Publish(output, "before-next-scene", boundary, scene.Render(live, 320, 224).ToArray());
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-constructor-opening-surface-and-disk-restore-validated", boundary.Frame, NativeCallback = boundary.NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = "before-vortex" }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-constructor-opening-surface-and-disk-restore-validated", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback, Counter = Counter(boundary), Boundary = "before-vortex" }));
 
-        static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattlePandemona291Entry.MainDescriptor).Slots[0].ReadWord(0xC);
+        static ushort Counter(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattlePandemona291Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }
 }

@@ -15,14 +15,14 @@ public sealed class NativeBattleGuardianParticleVisualTests
         Assert.SkipUnless(beforePath is not null && afterPath is not null, "Concrete standalone snapshots before and after the first particle callback are required.");
         BattleSnapshot before = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(beforePath!))!;
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(afterPath!))!;
-        Assert.Equal((ushort)116, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)116, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal(before.Frame + 1, snapshot.Frame);
-        Assert.Equal(before.NativeGraphics!.Callback + 1, snapshot.NativeGraphics.Callback);
-        Assert.DoesNotContain(before.NativeGraphics.PrimitiveFrame!.LastCommands, IsParticle);
-        NativeBattlePrimitiveFrame frame = snapshot.NativeGraphics.PrimitiveFrame!;
+        Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback + 1, snapshot.ReadFixturePresentation().NativeGraphics.Callback);
+        Assert.DoesNotContain(before.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands, IsParticle);
+        NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
         int particleCommands = frame.LastCommands.Count(IsParticle);
         Assert.True(particleCommands > 0);
-        BattleSnapshot without = snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !IsParticle(command)).ToImmutableArray() } } };
+        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !IsParticle(command)).ToImmutableArray() } } });
         BattleSession original = BattleSession.Restore(snapshot);
         BattleSession control = BattleSession.Restore(without);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -30,14 +30,14 @@ public sealed class NativeBattleGuardianParticleVisualTests
         byte[] full = scene.Render(original, 320, 224).ToArray();
         byte[] removed = scene.Render(control, 320, 224).ToArray();
         int changed = Enumerable.Range(0, 320 * 224).Count(index => !full.AsSpan(4 * index, 3).SequenceEqual(removed.AsSpan(4 * index, 3)));
-        BattleSnapshot onlyParticles = snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(IsParticle).ToImmutableArray() } } };
+        BattleSnapshot onlyParticles = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(IsParticle).ToImmutableArray() } } });
         byte[] isolated = scene.Render(BattleSession.Restore(onlyParticles), 320, 224);
         int isolatedPixels = Enumerable.Range(0, 320 * 224).Count(index => isolated[4 * index] != 0 || isolated[4 * index + 1] != 0 || isolated[4 * index + 2] != 0);
         Console.WriteLine($"Private trail diagnostic: commands{particleCommands}, isolatedRGBpixels{isolatedPixels}, full-frameRGBdifference{changed}.");
         Assert.True(changed > 0, "Actual6C84C0 private packets must contribute visible pixels independently of common ribbons and GF skin.");
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(original.Capture()));
         Assert.Equal(JsonSerializer.Serialize(without), JsonSerializer.Serialize(control.Capture()));
-        Console.WriteLine($"Native particle visual control at frame{snapshot.Frame}/callback{snapshot.NativeGraphics.Callback}: before signature0, removed{particleCommands} private trail draws, changed{changed}RGB pixels; neither simulation advanced.");
+        Console.WriteLine($"Native particle visual control at frame{snapshot.Frame}/callback{snapshot.ReadFixturePresentation().NativeGraphics.Callback}: before signature0, removed{particleCommands} private trail draws, changed{changed}RGB pixels; neither simulation advanced.");
     }
 
     private static bool IsParticle(NativeBattleLogicalResolvedCommand command)

@@ -29,10 +29,10 @@ public sealed class NativeBattleUltima149PresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "ordinary-produced-action104.battle.json"));
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition);
-        string caster = ReadOriginalModelActorId(source.NativeGraphics!, 0)!;
-        string target = ReadOriginalModelActorId(source.NativeGraphics!, 3)!;
-        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics).Descriptors.Packets[index].Command == 104);
-        uint offset = source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+        string caster = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0)!;
+        string target = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
+        int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
+        uint offset = source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
@@ -68,8 +68,8 @@ public sealed class NativeBattleUltima149PresentationTests
                 string? boundary = null;
                 if (before?.ReturnedDescriptor is > 0)
                 {
-                    Assert.True(prior.NativeEffectMemory!.Cursor > 0, "Original TIM loading must leave a nonzero allocation cursor for this fixed-base regression.");
-                    Assert.NotNull(prior.NativeEffectMemory.Ultima149);
+                    Assert.True(prior.ReadFixturePresentation().NativeEffectMemory!.Cursor > 0, "Original TIM loading must leave a nonzero allocation cursor for this fixed-base regression.");
+                    Assert.NotNull(prior.ReadFixturePresentation().NativeEffectMemory.Ultima149);
                     Assert.Equal(2, before.Pools.Length);
                     Assert.Equal(0x2461E90u, before.Pools[0].BankAddress);
                     Assert.Equal(0x2463190u, before.Pools[1].BankAddress);
@@ -99,13 +99,13 @@ public sealed class NativeBattleUltima149PresentationTests
                 {
                     ColdNext(boundary);
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(expectedHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current));
-                for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
+                for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);
@@ -118,15 +118,15 @@ public sealed class NativeBattleUltima149PresentationTests
                 {
                     completions++;
                 }
-                privatePackets |= current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                sideHidden |= (ReadOriginalModelCell(current.NativeGraphics, 0).Flags0 & 4) != 0;
+                privatePackets |= current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                sideHidden |= (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 0).Flags0 & 4) != 0;
                 int currentAge = Age(after);
                 string? phase = currentAge is >= 20 and < 35 ? "orbit" : currentAge is >= 50 and < 80 ? "shards" : currentAge is >= 108 and < 140 ? "ring-core" : null;
-                if (phase is not null && !renderedPhases.Contains(phase) && current.NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
+                if (phase is not null && !renderedPhases.Contains(phase) && current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    NativeBattlePrimitiveFrame withoutEffect = current.NativeGraphics.PrimitiveFrame with { LastCommands = current.NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = withoutEffect } });
+                    NativeBattlePrimitiveFrame withoutEffect = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame with { LastCommands = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutEffect } }));
                     byte[] ordinary = scene.Render(plain, 320, 224).ToArray();
                     int changed = 0;
                     for (int index = 0; index < pixels.Length; index += 4)
@@ -143,7 +143,7 @@ public sealed class NativeBattleUltima149PresentationTests
                         NativeBattleRestorationPresentationTests.Publish(output, "visible-" + phase, current, pixels);
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -163,7 +163,7 @@ public sealed class NativeBattleUltima149PresentationTests
             NativeBattleOriginalEffectState finished = Selected(battle.Capture())!;
             Assert.Equal(0u, finished.ReturnedDescriptor);
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
-            Assert.Equal(ReadOriginalModelCell(source.NativeGraphics!, 0).Flags0 & 0x800, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0 & 0x804);
+            Assert.Equal(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 0).Flags0 & 0x800, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0 & 0x804);
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);
             ColdNext("completed");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == caster);
@@ -177,7 +177,7 @@ public sealed class NativeBattleUltima149PresentationTests
         }
 
         int Stock(BattleSnapshot snapshot) => (snapshot.Combatants.Single(actor => actor.Id == caster).NativeMagicInventory ?? throw new InvalidDataException("Original Magic stock is missing.")).Single(stock => stock.SpellId == action.ActionId).Count;
-        static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 149 } effect ? effect : null;
+        static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 149 } effect ? effect : null;
 
         static int Age(NativeBattleOriginalEffectState? effect)
         {

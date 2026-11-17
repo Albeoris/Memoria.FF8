@@ -1,12 +1,24 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
+
+internal enum BattleParticipantCallbackPhase
+{
+    Queued,
+    Started,
+    Completed
+}
+
+internal sealed record BattleParticipantCallbackReceipt(BattleExpandedAiCallbackRequest Request, BattleParticipantCallbackPhase Phase, ImmutableArray<BattleActionHeaderReference> Headers, NativeBattlePendingReaction? Reaction = null, string? ScriptSha256 = null);
 
 public sealed partial class BattleSession
 {
     internal sealed record ExpandedAiInvocationReservation(BattleModelOwner Source, BattleActionPresentation Command);
     private bool producingExpandedAiCallback;
     private ExpandedAiInvocationReservation? producingExpandedAiInvocation;
+    private List<BattleParticipantCallbackReceipt>? participantCallbackObservations;
 
-    private void QueueExpandedAiCallback(BattleCombatant actor, int stage)
+    private void QueueExpandedAiCallback(BattleCombatant actor, int stage, NativeBattlePendingReaction? reaction = null)
     {
         BattleExpandedAiCallbackRequest request = new(TargetActorReference(actor), checked((byte)stage));
         BattleAttackCommand packet = ExpandedAiCallbackPacket(request);
@@ -17,6 +29,14 @@ public sealed partial class BattleSession
         StopTurnAdvance();
         actor.IsBusy = true;
         actions.Enqueue(packet);
+        if (participantCallbackObservations is { } staged)
+        {
+            staged.Add(new(request, BattleParticipantCallbackPhase.Queued, [], reaction));
+        }
+        else if (ObservingDiagnosticCounter)
+        {
+            ObserveDiagnosticParticipantCallback(new(request, BattleParticipantCallbackPhase.Queued, [], reaction));
+        }
     }
 
     private static BattleAttackCommand ExpandedAiCallbackPacket(BattleExpandedAiCallbackRequest request)
@@ -26,12 +46,13 @@ public sealed partial class BattleSession
 
     private static BattleActionPresentation ExpandedAiCallbackPresentation(BattleExpandedAiCallbackRequest request)
     {
-        return new(request.Actor.ActorId, request.Actor.ActorId, BattleActionPhase.Recovery, 1, BattleTargetRequest.None, BattleAbility.EnemyAbility) { ExpandedAiCallback = request };
+        return new(request.Actor.ActorId, request.Actor.ActorId, BattleActionPhase.Recovery, BattleTargetRequest.None, BattleAbility.EnemyAbility) { ExpandedAiCallback = request };
     }
 
     private BattleCombatant ValidateExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request)
     {
-        if (request.Stage > 3 || request.Actor is null || FindTargetActor(request.Actor) is not { NativeAi: not null } actor ||
+        if (request.Stage > 3 || request.Actor is null || FindTargetActor(request.Actor) is not { } actor ||
+            (actor.IsPlayer ? request.Stage is not (2 or 3) : actor.NativeAi is null) ||
             !packet.MagicCasts.IsEmpty || (packet with { MagicCasts = [] }) != ExpandedAiCallbackPacket(request))
         {
             throw new InvalidDataException("An expanded AI callback must identify its exact allocated actor and native stage.");
@@ -74,6 +95,7 @@ public sealed partial class BattleSession
         BattleSnapshot before = Capture();
         BattleModelOwner completionOwner = RequirePresentationModelOwner(process.Graphics.ActorModels.Roster, actor);
         BattleSession candidate = CreatePreparedHostedActionCandidate(before);
+        PrepareDiagnosticCounterCandidate(candidate, request);
         BattleActionPresentation mirror = ExpandedAiCallbackPresentation(request);
         candidate.ActiveAction = mirror;
         candidate.BeginNativeBattleActionPause();
@@ -89,6 +111,14 @@ public sealed partial class BattleSession
             candidate.producingExpandedAiCallback = false;
         }
         PublishPreparedExpandedActionCandidate(before, candidate, mirror, process, completionOwner);
+        if (ObservingDiagnosticCounter)
+        {
+            ImmutableArray<BattleActionHeaderReference> headers = expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>()
+                .Select(invocation => invocation.HeaderReference).OfType<BattleActionHeaderReference>().ToImmutableArray();
+            BattleParticipantCallbackReceipt admitted = new(request, BattleParticipantCallbackPhase.Started, headers);
+            ObserveDiagnosticParticipantCallback(admitted);
+            PublishDiagnosticCounterCandidate(candidate, admitted);
+        }
     }
 
     private void InterpretExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request, BattleCombatant actor)
@@ -102,7 +132,11 @@ public sealed partial class BattleSession
         actions.Clear();
         try
         {
-            if (request.Stage == 3)
+            if (actor.IsPlayer)
+            {
+                InterpretNativePlayerReaction(actor, request.Stage);
+            }
+            else if (request.Stage == 3)
             {
                 RunExpandedEnemyDeathAi(actor);
             }
@@ -124,15 +158,7 @@ public sealed partial class BattleSession
 
     private void ProduceExpandedAiCallbackCommand(BattleAttackCommand packet)
     {
-        BattleActionPresentation command = new(packet.ActorId, packet.TargetId, BattleActionPhase.Recovery, 1, packet.TargetRequest, packet.Ability, packet.ActionId)
-        {
-            NativeQueuedCommand = packet.NativeQueuedCommand,
-            NativeAction = packet.NativeAction,
-            NativeGraphic = packet.NativeGraphic,
-            NativeAiCallbackStage = packet.NativeAiCallbackStage,
-            NativeSequence = packet.NativeSequence,
-            MagicCasts = packet.MagicCasts
-        };
+        BattleActionPresentation command = NativeCommandPresentation(packet) with { Phase = BattleActionPhase.Recovery };
         BattleActionPresentation? outer = resolvingNativeAction;
         bool outerImpacts = deferringExpandedImpacts;
         int? outerRecoverSourceHp = expandedRecoverSourceHp;

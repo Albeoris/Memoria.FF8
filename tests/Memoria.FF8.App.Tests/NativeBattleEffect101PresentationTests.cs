@@ -44,8 +44,8 @@ public sealed class NativeBattleEffect101PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(1, casterSource.SceneSlot);
         Assert.Equal(109, casterSource.ModelId);
-        Assert.Equal((byte?)125, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
-        Assert.Null(ReadOriginalModelCell(source.NativeGraphics!, 4).ModelId4);
+        Assert.Equal((byte?)125, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
+        Assert.Null(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 4).ModelId4);
         Assert.NotNull(game.ReadNativeEffectCatalogForEffects([101])[100].Effect101Resources);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));

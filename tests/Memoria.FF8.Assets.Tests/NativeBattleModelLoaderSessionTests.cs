@@ -81,7 +81,7 @@ public sealed class NativeBattleModelLoaderSessionTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_MODEL_LOAD_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Set MEMORIA_FF8_MODEL_LOAD_SNAPSHOT to the original standalone pending-load snapshot.");
         BattleSnapshot pending = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!)) ?? throw new InvalidDataException("Named model-load checkpoint is empty.");
-        Assert.Equal((byte)1, pending.NativeModelLoader?.Task?.Phase);
+        Assert.Equal((byte)1, pending.ReadFixturePresentation().NativeModelLoader?.Task?.Phase);
         string json = JsonSerializer.Serialize(pending);
         BattleSession first = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);

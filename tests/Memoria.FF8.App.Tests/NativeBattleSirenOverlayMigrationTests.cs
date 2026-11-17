@@ -19,8 +19,8 @@ public sealed class NativeBattleSirenOverlayMigrationTests
         string hash = Convert.ToHexString(SHA256.HashData(bytes));
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
-        Assert.Equal((ushort)95, retained.NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleSiren95Resources resources = retained.NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
+        Assert.Equal((ushort)95, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
+        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
         Assert.Null(resources.OverlayProgram);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleSiren95Resources authenticated = game.ReadNativeEffectCatalogForEffects([95])[94].Siren95Resources!;
@@ -67,7 +67,7 @@ public sealed class NativeBattleSirenOverlayMigrationTests
                 Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             }
             Assert.Equal(snapshot.Frame + 1, first.Frame);
-            Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+            Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
             using BattleAssets assets = new(game.GameDirectory);
             byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());

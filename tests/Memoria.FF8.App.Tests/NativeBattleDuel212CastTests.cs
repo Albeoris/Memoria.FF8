@@ -35,7 +35,7 @@ public sealed class NativeBattleDuel212CastTests
             {
                 if (battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 212, ReturnedDescriptor: > 0, Pools.Length: 4 } effect && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
                 {
-                    BattleSnapshot selected = battle.Capture();
+                    BattleSnapshot selected = battle.CaptureForContinuation();
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected", selected, scene.Render(battle, 320, 224).ToArray());
                     BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, "selected.battle.json")))!);
                     clone.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
@@ -46,7 +46,7 @@ public sealed class NativeBattleDuel212CastTests
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.NativeGraphics.Callback }));
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.ReadFixturePresentation().NativeGraphics.Callback }));
                     return;
                 }
                 before = battle.Capture();
@@ -81,7 +81,7 @@ public sealed class NativeBattleDuel212CastTests
         Console.WriteLine("Limit effect evidence: " + output);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool selected = false;
         bool drawn = false;
         bool midpoint = false;
@@ -109,10 +109,10 @@ public sealed class NativeBattleDuel212CastTests
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot backgroundSource = battle.Capture();
-                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.NativeGraphics!;
+                        BattleSnapshot backgroundSource = battle.CaptureForContinuation();
+                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(backgroundSource with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(backgroundSource.WithFixturePresentation(facts => facts with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -141,7 +141,7 @@ public sealed class NativeBattleDuel212CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", characterId, effectId, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

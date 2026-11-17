@@ -29,21 +29,21 @@ public sealed class NativeBattleEffect31FollowingActionTests
         Assert.True(cooldown.NativeEntryReady);
         source = cooldown.Capture();
         NativeBattleEffect31SourceAdmissionTests.ValidateSource(source, game, assets, false);
-        NativeBattleEffect31State warm = source.NativeEffectMemory!.Effect31!;
+        NativeBattleEffect31State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect31!;
         Assert.True(warm.StaticSourcesBound);
         Assert.NotEmpty(warm.ReadCallbackStack().Observations);
         BattleSnapshot prepared = NativeBattleEffect31PresentationTests.QueueComponent(source, game, assets);
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.NativeEffectMemory!.Effect31));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeModelCpuResources), JsonSerializer.Serialize(prepared.NativeModelCpuResources));
-        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
+        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory!.Effect31));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeModelCpuResources), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeModelCpuResources));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(source.NativeCrtRandom, prepared.NativeCrtRandom);
         Assert.Equal(JsonSerializer.Serialize(source.Random), JsonSerializer.Serialize(prepared.Random));
         NativeBattleRestorationPresentationTests.Publish(output!, "following-before-entry", prepared, null);
         BattleSnapshot completed = NativeBattleEffect31PresentationTests.RunPrepared(prepared, game, assets, output!);
         Assert.True(NativeBattleEffect31PresentationTests.Restore(completed, game).NativeEntryReady);
         Assert.True(completed.Frame > source.Frame);
-        Assert.NotEqual(JsonSerializer.Serialize(warm.ReadCallbackStack()), JsonSerializer.Serialize(completed.NativeEffectMemory!.Effect31!.ReadCallbackStack()));
-        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 31, SameEffect = true, NoHistoryReset = true, completed.Frame, Callback = completed.NativeGraphics!.Callback }));
+        Assert.NotEqual(JsonSerializer.Serialize(warm.ReadCallbackStack()), JsonSerializer.Serialize(completed.ReadFixturePresentation().NativeEffectMemory!.Effect31!.ReadCallbackStack()));
+        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 31, SameEffect = true, NoHistoryReset = true, completed.Frame, Callback = completed.ReadFixturePresentation().NativeGraphics!.Callback }));
     }
 }

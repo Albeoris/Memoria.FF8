@@ -225,7 +225,6 @@ public sealed partial class BattleSession
             if (ownsReactionBatch)
             {
                 nativeActionCommitDepth--;
-                FlushNativeReactions();
             }
         }
     }

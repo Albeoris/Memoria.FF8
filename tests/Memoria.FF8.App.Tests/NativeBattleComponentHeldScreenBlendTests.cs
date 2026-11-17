@@ -24,7 +24,7 @@ public sealed class NativeBattleComponentHeldScreenBlendTests(ITestOutputHelper 
         {
             NativeBattleGraphicsState? beforeGraphics = battle.Presentation?.Graphics;
             NativeBattleEffectMemory? beforeMemory = battle.Presentation?.Memory;
-            BattleComponentHeldScreenBlendObservation? observation = battle.Presentation!.ObserveComponentHeldScreenBlend(effect);
+            BattleComponentHeldScreenBlendObservation? observation = battle.ObserveComponentHeldScreenBlend(effect);
             Assert.Same(beforeGraphics, battle.Presentation?.Graphics);
             Assert.Same(beforeMemory, battle.Presentation?.Memory);
             if (observation is not null)
@@ -32,24 +32,24 @@ public sealed class NativeBattleComponentHeldScreenBlendTests(ITestOutputHelper 
                 Assert.True(observation.IsEligible);
                 Assert.True(observation.ScreenBlend.IsHeld);
                 Assert.Equal(new[] { "effect-or-auxiliary-task" }, battle.ObserveDiagnosticDrainBlockers());
-                BattleSnapshot terminal = battle.Capture();
+                BattleSnapshot terminal = battle.CaptureForContinuation();
                 string frozen = JsonSerializer.Serialize(terminal);
                 BattleSession direct = BattleSession.Restore(terminal);
                 BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);
                 Attach(direct);
                 Attach(cold);
-                string auxiliary = JsonSerializer.Serialize(terminal.NativeGraphics!.Auxiliary);
+                string auxiliary = JsonSerializer.Serialize(terminal.ReadFixturePresentation().NativeGraphics!.Auxiliary);
                 for (int tail = 0; tail < 3; tail++)
                 {
                     direct.Tick();
                     cold.Tick();
-                    BattleComponentHeldScreenBlendObservation next = Assert.IsType<BattleComponentHeldScreenBlendObservation>(direct.Presentation!.ObserveComponentHeldScreenBlend(effect));
+                    BattleComponentHeldScreenBlendObservation next = Assert.IsType<BattleComponentHeldScreenBlendObservation>(direct.ObserveComponentHeldScreenBlend(effect));
                     Assert.Equal(observation.ResidentFingerprint, next.ResidentFingerprint);
                     Assert.True(next.GraphicsCallback > observation.GraphicsCallback);
-                    BattleSnapshot state = direct.Capture();
+                    BattleSnapshot state = direct.CaptureForContinuation();
                     Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(cold.Capture()));
-                    Assert.Equal(auxiliary, JsonSerializer.Serialize(state.NativeGraphics!.Auxiliary));
-                    Assert.Equal(state.NativeEffectMemory!.Textures!.ReadVram(), cold.Presentation!.Memory.Textures!.ReadVram());
+                    Assert.Equal(auxiliary, JsonSerializer.Serialize(state.ReadFixturePresentation().NativeGraphics!.Auxiliary));
+                    Assert.Equal(state.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram(), cold.Presentation!.Memory.Textures!.ReadVram());
                     Assert.Equal(new[] { "effect-or-auxiliary-task" }, direct.ObserveDiagnosticDrainBlockers());
                 }
                 Assert.Equal(frozen, JsonSerializer.Serialize(terminal));

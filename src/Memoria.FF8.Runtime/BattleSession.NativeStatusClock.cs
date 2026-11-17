@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                     {
                             BattleNativeAction regen = NativePostActionEffect(4);
                             BattleActionDefinition action = new(BattleAbility.EnemyAbility, 4, regen.Name!, BattleActionEffect.Native, 0, true) { NativeAction = regen };
-                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, 1, SelectBattleTarget(actor), action.Ability, action.Id) { NativeAction = regen }, action, regen);
+                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, SelectBattleTarget(actor), action.Ability, action.Id) { NativeAction = regen }, action, regen);
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
@@ -103,7 +103,7 @@ public sealed partial class BattleSession
 
         // 483470 -> 4877F0 callback 5 -> 48D200 command 246 / action 43 / effect 9.
         BattleNativeAction action = new(246, 43, -1, -1) { Name = "Doom", MagicId = 9, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Windup, 1, SelectBattleTarget(actor), BattleAbility.EnemyAbility, action.ActionId)
+        BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Windup, SelectBattleTarget(actor), BattleAbility.EnemyAbility, action.ActionId)
         {
             NativeAction = action,
             NativeQueuedCommand = action.Command,

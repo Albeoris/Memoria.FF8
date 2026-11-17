@@ -4,21 +4,12 @@ public sealed partial class BattleSession
 {
     private void OnNativePlayerCommandSubmitted(BattleCombatant actor, byte command)
     {
-        NativeBattleGraphicsState? graphics = actor.IsPlayer && command is not (0 or 254) ? PrepareNativeUiReadyRemoval(actor) : ((NativeBattleGraphicsState?)null);
-        PublishNativePlayerCommandSubmission(actor, command, graphics);
-    }
-
-    private void PublishNativePlayerCommandSubmission(BattleCombatant actor, byte command, NativeBattleGraphicsState? graphics)
-    {
-        if (actor.IsPlayer)
+        if (!actor.IsPlayer)
         {
-            StopTurnAdvance();
+            return;
         }
-        if (actor.IsPlayer && command is not (0 or 254))
-        {
-        }
-        //4847F0 clears Defend/Charged when accepting an ordinary player command;0 and254 bypass this producer.
-        if (actor.IsPlayer && command is not (0 or 254))
+        StopTurnAdvance();
+        if (command is not (0 or 254))
         {
             actor.NativeStatus1 &= 0xFF77FFFF;
         }

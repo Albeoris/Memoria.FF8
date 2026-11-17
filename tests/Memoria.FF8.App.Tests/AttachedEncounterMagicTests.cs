@@ -312,7 +312,7 @@ public sealed partial class AttachedEncounterMagicTests
         EncounterNativeEventState? opening = null;
         if (tauntResource is not null)
         {
-            EncounterNativeTextCue cue = Assert.Single(battle.ReadDefinition().EncounterMod!.NativeEvents!.Opening);
+            EncounterNativeTextCue cue = Assert.Single(battle.ReadDefinition().EncounterMod!.NativeEvents!.Resources.Opening);
             var callbackEvents = battle.Events.Skip(start).ToArray();
             BattleEvent message = Assert.Single(callbackEvents, entry => entry.Kind == "NativeText" && entry.NativeTextIdentity == BattleTextIdentity.Enemy(caster.ModelId, cue.Text));
             Assert.Equal(caster.Id, message.ActorId);
@@ -344,7 +344,7 @@ public sealed partial class AttachedEncounterMagicTests
         EncounterCompiledDefinition mod = EncounterPolicyRuntime.Compile(composition, definition, binding);
         if (tauntResource is not null)
         {
-            mod = mod with { NativeEvents = EncounterNativeEventResourceReader.Bind(tauntResource), EventGates = mod.EventGates.Add("opening", new("original", "nativeTaunts", 1)) };
+            mod = mod with { NativeEvents = EncounterNativeEventBinding.Bind(binding, definition.Combatants.Single(actor => actor.Id == binding.OriginalActorId), tauntResource), EventGates = mod.EventGates.Add("opening", new("original", "nativeTaunts", 1)) };
         }
         BattleNativeAction fire = definition.NativeActions.Single(action => action.Command == 2 && action.ActionId == 1);
         EncounterCompiledAction cast = new(EncounterCompiledActionKind.Cast, [new("Fire", fire, 0, true, false)], EncounterCompiledTargetKind.RandomOpponent, null, true, false, null, []);

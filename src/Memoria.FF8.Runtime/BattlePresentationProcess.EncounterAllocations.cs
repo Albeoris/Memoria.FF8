@@ -17,7 +17,7 @@ public sealed partial class BattlePresentationProcess
     {
         if (batch is not { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: 0 } ||
             hostedEncounterLoadCheckpoint is not null || dispatch.Registry is not { } registry ||
-            !registry.Replacement.Loads.Keys.Any(owner => owner.Actor.ActorId == batch.ActorIds[0]))
+            !registry.Replacement.Loads.Keys.OfType<BattleEnemyActorModel>().Any(owner => owner.Actor.ActorId == batch.ActorIds[0]))
         {
             return null;
         }

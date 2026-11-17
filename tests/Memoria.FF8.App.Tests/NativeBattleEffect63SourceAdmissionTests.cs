@@ -28,8 +28,8 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
         Assert.Equal(0, source.Frame);
         Assert.Equal(510, source.Definition.EncounterId);
         Assert.Equal(37, source.Definition.StageId);
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         BattleEncounter formation = assets.LoadEncounter(510);
         Assert.Equal(3, formation.Enemies.Count);
         List<object> actors = [];
@@ -37,7 +37,7 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
         {
             int physical = index + 3;
             int original = index == 0 ? 124 : 125;
-            BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, physical)!);
+            BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, physical)!);
             Assert.Equal(original, definition.ModelId);
             Assert.True(definition.InitialActive);
             BattleEnemyPlacement placement = Assert.Single(formation.Enemies, actor => actor.Slot == definition.SceneSlot && actor.ModelId == original);
@@ -45,30 +45,30 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
             Assert.Equal(placement.Hidden, definition.InitialHidden);
             Assert.Equal(placement.InitiallySuspended, definition.InitialSuspended);
             Assert.Equal(placement.Untargetable, definition.InitialUntargetable);
-            NativeBattleGraphicsModel current = ReadOriginalModelCell(source.NativeGraphics, physical);
+            NativeBattleGraphicsModel current = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, physical);
             Assert.Equal(checked((byte)(original + 16)), current.ModelId4);
             Assert.NotEqual(0, current.Flags0 & 2);
             Assert.NotNull(current.Transform);
             Assert.NotNull(current.GeometryWorldMatrix);
             actors.Add(new { Physical = physical, definition.ModelId, definition.SceneSlot, placement.Enabled, placement.Hidden, placement.InitiallySuspended, placement.Untargetable, current.Flags0, current.Transform });
         }
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 4)!);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 4)!);
         Assert.Equal(1, caster.SceneSlot);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 361 && row.MagicId == 63 && row.KernelSection == 3 && row.KernelIndex == 361);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 4);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new NotSupportedException("The current caster requires its actual skeleton.");
         Assert.Equal(2, pose.BoneCount);
         Assert.Equal(pose.BoneCount, NativeBattleBodyBoneMatrices.Require(model, pose).Length);
         NativeBattleEffect63Resources resources = game.ReadNativeEffect63Resources();
-        NativeBattleGeometryRegisterStep registers = new(source.NativeEffectMemory.GeometryRegisters!, source.NativeEffectMemory.ScriptedColorRegisters!);
+        NativeBattleGeometryRegisterStep registers = new(source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters!, source.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters!);
         List<object> points = [];
         NativeBattleEffectArena first = Query(FirstPointAddress);
         NativeBattleEffectArena second = Query(SecondPointAddress);
         short midX = unchecked((short)((Word(first, 0) + Word(second, 0)) / 2));
         short midY = unchecked((short)((Word(first, 2) + Word(second, 2)) / 2));
         short midZ = unchecked((short)((Word(first, 4) + Word(second, 4)) / 2));
-        NativeBattleModelTransform target = ReadOriginalModelCell(source.NativeGraphics, 0).Transform ?? throw new NotSupportedException("The source requires its actual current target position.");
+        NativeBattleModelTransform target = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 0).Transform ?? throw new NotSupportedException("The source requires its actual current target position.");
         int x = midX - target.Position28.X;
         int z = target.Position28.Z - midZ;
         (NativeBattleActionMatrix basis, int length) = NativeBattleFunguarLaser277.Basis50CBA0(x, 0, z);
@@ -78,7 +78,7 @@ public sealed class NativeBattleEffect63SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Current source pose only; exact point preparation and native basis length, no action execution or later-pose claim", source.Frame, source.NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, Actors = actors, PhysicalCaster = 4, Bones = pose.BoneCount, Points = points, Midpoint = new { X = midX, Y = midY, Z = midZ }, Target = target.Position28, Difference = new { X = x, Z = z }, NativeBasis = basis, NativeLength = length, Division = new { X = offsetX, Z = offsetZ }, SnapshotUnchanged = true }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Current source pose only; exact point preparation and native basis length, no action execution or later-pose claim", source.Frame, source.ReadFixturePresentation().NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, Actors = actors, PhysicalCaster = 4, Bones = pose.BoneCount, Points = points, Midpoint = new { X = midX, Y = midY, Z = midZ }, Target = target.Position28, Difference = new { X = x, Z = z }, NativeBasis = basis, NativeLength = length, Division = new { X = offsetX, Z = offsetZ }, SnapshotUnchanged = true }));
 
         NativeBattleEffectArena Query(uint address)
         {

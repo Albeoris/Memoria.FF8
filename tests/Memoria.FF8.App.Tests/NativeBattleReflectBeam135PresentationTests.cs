@@ -45,14 +45,14 @@ public sealed class NativeBattleReflectBeam135PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(26, casterSource.ModelId);
-        Assert.Equal((byte?)42, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)42, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([135])[134];
         Assert.Equal(NativeBattleReflectBeam135Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleReflectBeam135Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag134.tim", NativeBattleReflectBeam135Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(170016, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeReflectBeam135Resources(), binding.ReflectBeam135Resources);
-        Assert.NotNull(source.NativeEffectMemory!.ReflectBeam135);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.ReflectBeam135);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

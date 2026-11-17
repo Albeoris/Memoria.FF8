@@ -79,6 +79,7 @@ public sealed class InstalledEnemyGuestMessageTests
         BattleModelOwner owner = battle.ReadPresentationModelOwner(reserve.Id);
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         int resourceRow = Assert.IsType<int>(graphics.ActorModels.Get(owner).OriginalResourceRow104);
+        BattleSession resumed = battle.ForkForContinuation();
         BattleSnapshot beforeTurn = battle.Capture();
         NativeBattleRetainedMemory retained = NativeBattleStorageSnapshots.Fork(battle.CaptureRetainedBattleMemory(beforeTurn, NativeFieldRuntimeProfile.FF8EnExecutableHash));
         NativeBattleModelCpuResources cpu = retained.ModelCpuResources!;
@@ -97,17 +98,12 @@ public sealed class InstalledEnemyGuestMessageTests
         Assert.Equal(3, message.NativeMessageMode);
         Assert.Null(message.NativeTextIdentity);
 
-        if (!attached)
-        {
-            BattleSession restored = BattleSession.Restore(beforeTurn);
-            restored.AttachNativeEffectResourceResolver(effect => assets.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            BattleEvent replay = RunReserveTurn(restored, reserve.Id);
-            Assert.Equal(message.ActorId, replay.ActorId);
-            Assert.Equal(message.Message, replay.Message);
-            Assert.Equal(message.NativeAiHeapMessage.EntryAddress, replay.NativeAiHeapMessage!.EntryAddress);
-            Assert.Equal(message.NativeAiHeapMessage.Encoded.ToArray(), replay.NativeAiHeapMessage.Encoded.ToArray());
-            Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), restored.Capture().Random!.Indexes.ToArray());
-        }
+        BattleEvent replay = RunReserveTurn(resumed, reserve.Id);
+        Assert.Equal(message.ActorId, replay.ActorId);
+        Assert.Equal(message.Message, replay.Message);
+        Assert.Equal(message.NativeAiHeapMessage.EntryAddress, replay.NativeAiHeapMessage!.EntryAddress);
+        Assert.Equal(message.NativeAiHeapMessage.Encoded.ToArray(), replay.NativeAiHeapMessage.Encoded.ToArray());
+        Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), resumed.Capture().Random!.Indexes.ToArray());
     }
 
     [Fact]

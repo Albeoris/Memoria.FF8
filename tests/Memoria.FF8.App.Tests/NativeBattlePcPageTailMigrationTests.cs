@@ -49,7 +49,7 @@ public sealed class NativeBattlePcPageTailMigrationTests
         finally
         {
             Assert.Equal(hash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
-            File.WriteAllText(output! + ".migration.json", JsonSerializer.Serialize(new { Status = status, Source = Path.GetFullPath(source!), SourceSha256 = hash, Output = Path.GetFullPath(output!), Changes = new[] { new { Path = "/NativeEffectMemory/Textures/VramReadTail", Operation = "add", Bytes = NativeBattleEffectTextureState.PcPageReadTailLength, Value = "zero-initialized static read tail" } }, snapshot.Frame, NativeCallback = snapshot.NativeGraphics!.Callback }));
+            File.WriteAllText(output! + ".migration.json", JsonSerializer.Serialize(new { Status = status, Source = Path.GetFullPath(source!), SourceSha256 = hash, Output = Path.GetFullPath(output!), Changes = new[] { new { Path = "/NativeEffectMemory/Textures/VramReadTail", Operation = "add", Bytes = NativeBattleEffectTextureState.PcPageReadTailLength, Value = "zero-initialized static read tail" } }, snapshot.Frame, NativeCallback = snapshot.ReadFixturePresentation().NativeGraphics!.Callback }));
         }
     }
 }

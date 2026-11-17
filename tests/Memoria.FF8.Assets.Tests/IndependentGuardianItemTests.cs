@@ -36,7 +36,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queued.Capture()));
         BattleSession active = RestoreJson(battle);
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(battle.Capture() with { ActiveAction = windup with { IndependentGuardian = invocation with { Level = 11 } } }));
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             queued.Tick();
@@ -70,7 +70,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal(message, battle.ActiveAction!.IndependentGuardian!.FailureMessage);
         Assert.Null(battle.ActiveAction.IndependentGuardian.Action);
         BattleSession restored = RestoreJson(battle);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();
@@ -104,7 +104,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal((ushort)140, battle.ActiveAction!.IndependentGuardian!.Action!.MagicId);
         Assert.Null(battle.NativeScriptState.SavedBattleFlagsAfter);
         BattleSession active = RestoreJson(battle);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Outcome != BattleOutcome.Active); frame++)
         {
             battle.Tick();
             queued.Tick();
@@ -183,7 +183,7 @@ public sealed class IndependentGuardianItemTests
         }
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(windup with { ActiveAction = windup.ActiveAction with { IndependentGuardian = invocation with { Level = 11 } } }));
         BattleSession restored = BattleSession.Restore(windup);
-        while (battle.Frame <= BattleSession.AttackWindupFrames)
+        for (int callback = 0; callback < 1200 && !battle.Events.Any(item => item.Kind == "Damage"); callback++)
         {
             battle.Tick();
             restored.Tick();
@@ -215,7 +215,7 @@ public sealed class IndependentGuardianItemTests
         Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Amount6);
         Assert.Equal((uint)0x47EA30, header.Data!.ProducerAddress);
         Assert.Equal(30, header.Data.Argument);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }
@@ -239,7 +239,7 @@ public sealed class IndependentGuardianItemTests
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
         battle.Tick();
         battle = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

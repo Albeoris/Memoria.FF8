@@ -29,8 +29,8 @@ public sealed class NativeBattlePosePresentationTests
         Assert.True(session.Presentation!.Graphics.EntryReady);
         Assert.True(session.Combatants[0].IsReady);
         AssertEntrySoundAllocation(session);
-        BattleSnapshot saved = session.Capture();
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.NativeGraphics.ModuleEffects).AppendModelResource(session.ReadPresentationModelOwner("party"), definition.NativeModuleResources[39], 0x100027, session.ReadBattlePresentationPacketBindings().Aliases) } }));
+        BattleSnapshot saved = session.CaptureForContinuation();
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved.WithFixturePresentation(facts => facts with { NativeGraphics = saved.ReadFixturePresentation().NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.ReadFixturePresentation().NativeGraphics.ModuleEffects).AppendModelResource(session.ReadPresentationModelOwner("party"), definition.NativeModuleResources[39], 0x100027, session.ReadBattlePresentationPacketBindings().Aliases) } })));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(session);
@@ -79,12 +79,12 @@ public sealed class NativeBattlePosePresentationTests
         }
         Assert.True(session.Presentation!.Graphics.EntryReady);
         AssertEntrySoundAllocation(session);
-        BattleSnapshot saved = session.Capture();
-        int index = FindOriginalModelSlot(saved.NativeGraphics!, "ifrit");
-        NativeBattleVector position = ReadOriginalModelCell(saved.NativeGraphics!, index).Transform!.Position28;
-        byte pan = saved.NativeCamera!.Projection!.ReadPan(position);
+        BattleSnapshot saved = session.CaptureForContinuation();
+        int index = FindOriginalModelSlot(saved.ReadFixturePresentation().NativeGraphics!, "ifrit");
+        NativeBattleVector position = ReadOriginalModelCell(saved.ReadFixturePresentation().NativeGraphics!, index).Transform!.Position28;
+        byte pan = saved.ReadFixturePresentation().NativeCamera!.Projection!.ReadPan(position);
         NativeBattleContactPacket contact = new(new(session.ReadPresentationModelOwner("ifrit"), 5, 0x40, 0, 0, 0, 0), null);
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved with { NativeGraphics = Assert.IsType<NativeBattleGraphicsState>(saved.NativeGraphics) with { PendingContacts = [contact] } }));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved.WithFixturePresentation(facts => facts with { NativeGraphics = Assert.IsType<NativeBattleGraphicsState>(saved.ReadFixturePresentation().NativeGraphics) with { PendingContacts = [contact] } })));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(session);

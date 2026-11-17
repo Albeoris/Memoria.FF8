@@ -10,7 +10,7 @@ public sealed record BattleDiagnosticNaturalVictory(Guid LifecycleId, long Callb
 {
     public bool IsNaturalVictory => LifecycleId != Guid.Empty && Callback >= 0 && SimulationFrame >= 0 && Candidate == BattleOutcome.Victory && NativeReady && !PendingOutcome && !ExceptionalOutcome && !Combatants.IsDefaultOrEmpty && Combatants.Length <= 11 && Combatants.All(actor => actor is not null && !string.IsNullOrWhiteSpace(actor.Id) && actor.NativeIndex is >= -1 and < 7 && (actor.IsPlayer ? actor.NativeIndex < 3 : actor.NativeIndex is -1 or >= 3)) && Combatants.Count(actor => actor.IsPlayer) <= 3 && Combatants.Count(actor => !actor.IsPlayer) <= 8 && Combatants.Select(actor => actor.Id).Distinct(StringComparer.Ordinal).Count() == Combatants.Length && Combatants.Where(actor => actor.NativeIndex >= 0).Select(actor => actor.NativeIndex).Distinct().Count() == Combatants.Count(actor => actor.NativeIndex >= 0) && Combatants.Any(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3 && (actor.NativeFlags & 1) != 0 && (actor.SavedStatus & 5) == 0 && actor.CurrentHp > 0) && Combatants.Any(actor => !actor.IsPlayer) && !Combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (actor.SavedStatus & 5) == 0);
 }
-public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold, [property: JsonRequired] ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks)
+public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold)
 {
     public BattleDiagnosticNaturalVictory? NaturalVictory { get; init; }
 }
@@ -29,16 +29,14 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
 {
     public const string ExecutingBoundary = "executing-completion";
     public const string GraphicsFrameBoundary = "completed-graphics-frame";
-    public const string AftercareBoundary = "completed-graphics-frame-aftercare";
     public const string TerminalTextureBoundary = "completed-graphics-frame-terminal-textures";
-    public BattleDiagnosticInvocationAftercarePlan? Aftercare { get; init; }
     public BattleDiagnosticTerminalTextureRelease? TerminalTextures { get; init; }
     public string Boundary { get; init; } = ExecutingBoundary;
     public bool PacketRemoved { get; init; }
     public long? GraphicsCallback { get; init; }
     public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
     public BattleDiagnosticInvocationRelease? ExecutingCompletion { get; init; }
-    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || Aftercare is not null || TerminalTextures is not null);
+    public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || TerminalTextures is not null);
 }
 
 public sealed partial class BattleSession
@@ -59,7 +57,6 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticInvocationDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
-        ObserveDiagnosticInvocationAftercareEffectDispatch();
         if (diagnosticPendingFrameAttempt is not null)
         {
             LastDiagnosticInvocationPendingOwners = new { Reason = "dispatch-before-graphics-frame-end", dispatch.Serial, FocalSerial = diagnosticPendingFrameAttempt.Dispatch.Serial };
@@ -80,7 +77,6 @@ public sealed partial class BattleSession
 
     private void ObservePresentationDescriptorRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket original)
     {
-        ObserveDiagnosticInvocationAftercarePacketRemoved(state, slot, original);
         if (diagnosticInvocationDispatch is null || LastDiagnosticInvocationCompletion is { Released: true } ||
             expandedHostedEvent is not { CompletionToken: not null } pending || original.Command != 10 || original.Argument != pending.Callback)
         {
@@ -107,7 +103,6 @@ public sealed partial class BattleSession
         DiagnosticInvocationCompletion attempt = new(dispatch, packets.ExportRetained().Headers[header], retired.Original, actor, receipt.Callback,
             retired.Slot, retired.Original.Serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? process.Graphics.Callback, process.Graphics.Callback, diagnosticDispatchSerial);
         diagnosticAwaitingCompletionAck = (receipt, attempt, retired.Retired);
-        BeginDiagnosticInvocationFocalCompletion(attempt);
     }
 
     private void ObserveDiagnosticHostedCompletionAcknowledged(BattlePresentationProcess process, NativeBattlePresentationCompletionRequested receipt)
@@ -117,7 +112,6 @@ public sealed partial class BattleSession
             return;
         }
         diagnosticAwaitingCompletionAck = null;
-        EndDiagnosticInvocationFocalCompletion();
         ObserveDiagnosticInvocationCompletion(observed.Attempt, completed: true, acknowledged: process.IsCompletionAcknowledged(receipt.Token), retiredWitness: observed.Retired);
     }
 
@@ -213,14 +207,14 @@ public sealed partial class BattleSession
         };
         if (frameEnd && !LastDiagnosticInvocationCompletion.Released)
         {
-            BattleDiagnosticInvocationRelease? scoped = TrySealDiagnosticTerminalTextures(LastDiagnosticInvocationCompletion, graphics) ?? TrySealDiagnosticInvocationAftercare(attempt, LastDiagnosticInvocationCompletion, graphics);
+            BattleDiagnosticInvocationRelease? scoped = TrySealDiagnosticTerminalTextures(LastDiagnosticInvocationCompletion, graphics);
             if (scoped is not null)
             {
                 LastDiagnosticInvocationCompletion = scoped;
             }
             if (LastDiagnosticTerminalTextureAttempt is { Result: "pending" } textureAttempt)
             {
-                LastDiagnosticTerminalTextureAttempt = textureAttempt with { Result = scoped?.TerminalTextures is not null ? "sealed" : scoped?.Aftercare is not null ? "deferred-aftercare" : "unsupported" };
+                LastDiagnosticTerminalTextureAttempt = textureAttempt with { Result = scoped?.TerminalTextures is not null ? "sealed" : "unsupported" };
             }
         }
         if (LastDiagnosticInvocationCompletion.Released && (frameEnd || retiredWitness is null))
@@ -243,7 +237,6 @@ public sealed partial class BattleSession
     {
         diagnosticRetiredCompletion = null;
         ObserveDiagnosticInvocationGraphicsFrameEnd(process);
-        ObserveDiagnosticInvocationAftercareFrameEnd();
     }
 
     private void ObserveDiagnosticInvocationGraphicsFrameEnd(BattlePresentationProcess process)
@@ -285,8 +278,6 @@ public sealed partial class BattleSession
             ActiveAction = ActiveAction is { } active ? new { active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeHeader, active.NativeQueuedCommand } : null,
             QueuedPresentationCount = actions.Count,
             QueuedPresentations = actions.Take(64).Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeHeader, command.NativeQueuedCommand, command.NativeCallback }).ToArray(),
-            BoundCommands = nativeCommandBanks.Banks.SelectMany((bank, bankIndex) => bank.LogicalCommands.Select((command, packetIndex) => new { command, bankIndex, packetIndex })).Where(row => row.command is not null).Take(66).Select(row => new { Bank = row.bankIndex, Slot = row.packetIndex / 2, Subcommand = row.packetIndex % 2, row.command!.ActorId, row.command!.TargetId, row.command!.Ability, row.command!.ActionId, NativeHeaderIndex = OriginalDiagnosticHeaderIndex(row.command!.NativeHeader), row.command!.NativeQueuedCommand, row.command!.NativeCallback }).ToArray(),
-            DispatchedCommand = nativeDispatchCommandLocation,
             Auxiliary = auxiliary.ToArray(),
             AuxiliaryTruncated = next is not null
         };
@@ -336,7 +327,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = process.Memory;
         NativeBattleActionPacketsState packets = process.ActionPackets;
         int? files = process.NativeFileIo?.ActiveCount;
-        return new(graphics.Descriptors.Queue.Length, graphics.Descriptors.Tasks.Count(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0), graphics.PendingContacts.Length, graphics.Effects.PublishedCount, graphics.Effects.Head is not null, graphics.Auxiliary.Head is not null, graphics.ModuleEffects.PublishedCount, graphics.ModuleEffects.Head is not null, files, memory.ReturnedTaskPointer1D96AAC, memory.DetachedReturnedTask is not null, process.NativeCameraTaskMask, process.ObserveNativeSoundBusy(), graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)), ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(), nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
+        return new(graphics.Descriptors.Queue.Length, graphics.Descriptors.Tasks.Count(task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0), graphics.PendingContacts.Length, graphics.Effects.PublishedCount, graphics.Effects.Head is not null, graphics.Auxiliary.Head is not null, graphics.ModuleEffects.PublishedCount, graphics.ModuleEffects.Head is not null, files, memory.ReturnedTaskPointer1D96AAC, memory.DetachedReturnedTask is not null, process.NativeCameraTaskMask, process.ObserveNativeSoundBusy(), graphics.ActorModels.Entries.Select(entry => entry.State).Any(model => (model.Flags0 & 2) != 0 && (model.ResourceMagicId is not null || model.ActiveStagedResourceRow100 is not null)), ActiveAction is not null || actions.Count != 0, nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
             ActionHeaders = packets.ActionCount,
             ContactRows = packets.ContactCount,

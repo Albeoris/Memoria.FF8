@@ -11,22 +11,14 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState QueueNativeDescriptor(NativeBattleGraphicsState graphics, ushort command, uint argument, ushort? index = null, ushort? value = null, byte priority = 128)
     {
-        (NativeBattleDescriptorState queued, int slot) = graphics.Descriptors.Enqueue(command, priority, argument, index, value);
-        if (services?.ObservesEffects() == true)
-        {
-            services?.DescriptorQueued(slot, queued.Packets[slot]);
-        }
+        (NativeBattleDescriptorState queued, _) = graphics.Descriptors.Enqueue(command, priority, argument, index, value);
         return graphics with { Descriptors = queued };
     }
 
     private NativeBattleGraphicsState QueueNativeModelDescriptor(NativeBattleGraphicsState graphics, ushort command, uint argument, BattleModelOwner owner, ushort? value = null)
     {
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
-        (NativeBattleDescriptorState queued, int slot) = graphics.Descriptors.EnqueueModel(command, 128, argument, owner, aliases, value);
-        if (services?.ObservesEffects() == true)
-        {
-            services?.DescriptorQueued(slot, queued.Packets[slot]);
-        }
+        (NativeBattleDescriptorState queued, _) = graphics.Descriptors.EnqueueModel(command, 128, argument, owner, aliases, value);
         return graphics with { Descriptors = queued };
     }
 
@@ -82,6 +74,11 @@ public sealed partial class BattlePresentationProcess
                     if (HasBattleEntry && IsHostedCompletionCallback(packet.Argument))
                     {
                         ReachHostedCompletion(graphics, slot, packet);
+                        return new(graphics.Descriptors, 15);
+                    }
+                    if (packet.Argument is 0x4971F0 or 0x497270)
+                    {
+                        graphics = ReachPartyReplacement(graphics, slot, packet);
                         return new(graphics.Descriptors, 15);
                     }
                     graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, packet.Argument == 0x487670 ? packet.Data : 0);
@@ -229,20 +226,18 @@ public sealed partial class BattlePresentationProcess
                         {
                             throw new InvalidDataException("Entry model load differs from its admitted resource binding.");
                         }
-                        if (plan.OriginalSlot is { } slotToBind)
+                        if (HasBattleEntry && hostedModelRegistry?.Loads.TryGetValue(loadingOwner, out HostedModelLoadAdmission? admission) == true && (admission.Load is HostedDispatchControl.LoadParty || plan.OriginalSlot is not null))
                         {
-                            if (HasBattleEntry && FindHostedAllocationBinding(hostedModelRegistry, loadingOwner) is not null)
+                            if (!TryRebindHostedAllocationModel(graphics, plan, slot, out graphics))
                             {
-                                if (!TryRebindHostedAllocationModel(graphics, plan, slot, out graphics))
-                                {
-                                    return new(descriptors, false);
-                                }
+                                return new(descriptors, false);
                             }
-                            else
-                            {
-                                (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(slotToBind, loadingOwner, graphics.ActorModels);
-                                graphics = graphics with { NativeBindings = boundary, ActorModels = models };
-                            }
+                            loading = graphics.ActorModels.Get(loadingOwner);
+                        }
+                        else if (plan.OriginalSlot is { } slotToBind)
+                        {
+                            (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(slotToBind, loadingOwner, graphics.ActorModels);
+                            graphics = graphics with { NativeBindings = boundary, ActorModels = models };
                         }
                         else if (!graphics.ActorModels.Contains(loadingOwner))
                         {
@@ -415,7 +410,7 @@ public sealed partial class BattlePresentationProcess
                 {
                     throw new InvalidDataException("Hosted native 103 requires the loaded identity and committed allocation statistics.");
                 }
-                return CompleteNativeGraphicsModel(graphics, packet, owner, allocatedBinding, false, allocation.Information246, allocation.SavedStatus,
+                return CompleteNativeGraphicsModel(graphics, packet, owner, allocatedBinding, isParty, allocation.Information246, allocation.SavedStatus,
                     allocation.RawBattleStatuses ?? throw new InvalidDataException("Hosted native 103 requires the original battle status."), ReadModelCompletionRandom(), plan.OriginalSlot is null);
             }
             NativeBattleModelEntryFacts facts = RequireHostedEntryFacts(owner);

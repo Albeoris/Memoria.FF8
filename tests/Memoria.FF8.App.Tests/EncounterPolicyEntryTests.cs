@@ -31,7 +31,7 @@ public sealed class EncounterPolicyEntryTests
         EncounterCompiledDefinition mod = Assert.IsType<EncounterCompiledDefinition>(definition.EncounterMod);
         Assert.Equal(EncounterBindingResolver.Disc1Edea, mod.Encounter);
         Assert.NotNull(mod.NativeEvents);
-        Assert.NotEmpty(mod.NativeEvents.DeathTerminal);
+        Assert.NotEmpty(mod.NativeEvents.Resources.DeathTerminal);
         BattleCombatantDefinition source = Assert.Single(definition.Combatants, actor => actor.Id == "enemy-0");
         BattleEnemyNativeProjection baseline = world.BattleResources.ReadEnemyNativeStats(source.ModelId).Project(source.Level);
         Assert.Equal(1.25, source.MaximumHpMultiplier);

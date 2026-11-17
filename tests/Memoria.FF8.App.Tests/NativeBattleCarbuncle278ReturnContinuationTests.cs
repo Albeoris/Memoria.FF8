@@ -44,7 +44,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         NativeBattleRestorationPresentationTests.Publish(output, "source", source, null);
         List<object> rows = [];
         int callbacks = 0;
-        while (first.Capture().NativeGraphics!.OriginalEffect!.ReturnedDescriptor != 0)
+        while (first.CaptureForContinuation().ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor != 0)
         {
             Assert.True(callbacks < 128, "Native Carbuncle return did not release its root.");
             BattleSnapshot before = first.Capture();
@@ -58,13 +58,13 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
                 NativeBattleRestorationPresentationTests.Publish(output, "failed-before-callback-" + callbacks, before, null);
                 throw;
             }
-            BattleSnapshot current = first.Capture();
+            BattleSnapshot current = first.CaptureForContinuation();
             callbacks++;
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
             ushort counter = Creature(current).ReadWord(0xC);
-            rows.Add(new { current.Frame, NativeCallback = current.NativeGraphics!.Callback, Creature = counter, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)) });
+            rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Creature = counter, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)) });
             if (callbacks == 1)
             {
                 NativeBattleRestorationPresentationTests.Publish(output, "after-first-return-callback", current, pixels);
@@ -72,7 +72,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
                 Assert.Equal(new NativeGlobalSoundAllocation(4, 5, 29), sound.Allocation);
                 Assert.Equal((byte?)5, current.NativeGlobalSoundProcess!.Rotation);
                 Assert.Equal<uint?>(240063u, current.NativeGlobalSoundProcess.OriginalEffectIds[29]);
-                Assert.All(ReadOriginalModelCells(current.NativeGraphics!).Take(3), model => Assert.Equal(4, model.Flags0 & 4));
+                Assert.All(ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics!).Take(3), model => Assert.Equal(4, model.Flags0 & 4));
                 Assert.Equal(0u, Creature(current).ReadDword(0x78));
             }
             if (counter is 232 or 248 or 264 or 280 or 283)
@@ -80,15 +80,15 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
                 NativeBattleRestorationPresentationTests.Publish(output, "creature-" + counter, current, pixels);
             }
         }
-        BattleSnapshot finished = first.Capture();
-        Assert.Equal((byte)255, finished.NativeEffectMemory!.Carbuncle278!.Done81D8);
-        Assert.Equal(0u, finished.NativeEffectMemory.Carbuncle278.Flash81D4);
-        Assert.All(finished.NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal(0, task.Flags & 1));
-        Assert.All(ReadOriginalModelCells(finished.NativeGraphics).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
-        foreach (int slot in Enumerable.Range(3, NativeBattleGraphicsModelAddress.NativeRowCount - 3).Where(slot => (ReadOriginalModelCell(source.NativeGraphics!, slot).Flags0 & 2) != 0))
+        BattleSnapshot finished = first.CaptureForContinuation();
+        Assert.Equal((byte)255, finished.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Done81D8);
+        Assert.Equal(0u, finished.ReadFixturePresentation().NativeEffectMemory.Carbuncle278.Flash81D4);
+        Assert.All(finished.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal(0, task.Flags & 1));
+        Assert.All(ReadOriginalModelCells(finished.ReadFixturePresentation().NativeGraphics).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
+        foreach (int slot in Enumerable.Range(3, NativeBattleGraphicsModelAddress.NativeRowCount - 3).Where(slot => (ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, slot).Flags0 & 2) != 0))
         {
-            NativeBattleGraphicsModel prior = ReadOriginalModelCell(source.NativeGraphics!, slot);
-            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.NativeGraphics, slot).Transform!.Position28.Z);
+            NativeBattleGraphicsModel prior = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, slot);
+            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.ReadFixturePresentation().NativeGraphics, slot).Transform!.Position28.Z);
         }
         NativeBattleRestorationPresentationTests.Publish(output, "root-released", finished, scene.Render(first, 320, 224).ToArray());
         for (int tick = 0; tick < 128 && !Released(first.Capture()); tick++)
@@ -107,7 +107,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(output, "completed-next", first.Capture(), scene.Render(first, 320, 224).ToArray());
         File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", finished.Frame, NativeCallback = finished.NativeGraphics!.Callback, Callbacks = callbacks }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", finished.Frame, NativeCallback = finished.ReadFixturePresentation().NativeGraphics!.Callback, Callbacks = callbacks }));
         Assert.Equal(original, File.ReadAllText(input!));
 
         void AddResources(JsonNode current, string path)
@@ -160,9 +160,9 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         Assert.SkipUnless(input is not null && File.Exists(input) && !string.IsNullOrWhiteSpace(evidence) && directory is not null && Directory.Exists(directory), "Select installed resources, a root-released standalone and a distinct evidence directory.");
         string original = File.ReadAllText(input!);
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(original)!;
-        Assert.Equal((ushort)278, source.NativeGraphics!.OriginalEffect!.RequestedEffect);
-        Assert.Equal(0u, source.NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Equal((byte)255, source.NativeEffectMemory!.Carbuncle278!.Done81D8);
+        Assert.Equal((ushort)278, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal((byte)255, source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Done81D8);
         string output = Path.Combine(evidence!, "carbuncle-release-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine($"Carbuncle release continuation evidence: {output}");
@@ -194,7 +194,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
             NativeBattleRestorationPresentationTests.Publish(output, "completed-next", first.Capture(), scene.Render(first, 320, 224).ToArray());
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", first.Capture().Frame, NativeCallback = first.Capture().NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", first.Capture().Frame, NativeCallback = first.CaptureForContinuation().ReadFixturePresentation().NativeGraphics!.Callback }));
         }
         catch
         {
@@ -205,7 +205,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         Assert.Equal(original, File.ReadAllText(input!));
     }
 
-    private static NativeBattleModulePoolTask Creature(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0];
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 };
+    private static NativeBattleModulePoolTask Creature(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0];
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 };
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

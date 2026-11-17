@@ -112,9 +112,9 @@ public sealed class NativeBattleEffect232ResourcesTests
         Assert.SkipUnless(path is not null, "Select the current Effect232 source snapshot.");
         using GameAssets game = Open();
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
-        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.NativeModelCpuResources);
-        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.NativeFileStaging);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
+        NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.ReadFixturePresentation().NativeModelCpuResources);
+        NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.ReadFixturePresentation().NativeFileStaging);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
         Assert.Equal(0, ReadOriginalModelCell(graphics, 3).ActiveResourceRow100);
         Assert.Equal((byte)41, ReadOriginalModelCell(graphics, 3).ModelId4);
         NativeBattleModelCpuResourceRow row = cpu.Rows[0];

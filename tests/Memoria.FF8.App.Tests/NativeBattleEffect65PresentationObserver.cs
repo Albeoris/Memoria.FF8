@@ -31,16 +31,16 @@ internal sealed class NativeBattleEffect65PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleOriginalEffectState? effect = graphics.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect65State state = current.NativeEffectMemory!.Effect65!;
+        NativeBattleEffect65State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect65!;
         state.Validate();
         Assert.Equal((byte)140, ReadOriginalModelCell(graphics, 5).ModelId4);
-        Assert.Equal((ushort)1448, current.NativeModelCpuResources!.ScratchMaximum);
+        Assert.Equal((ushort)1448, current.ReadFixturePresentation().NativeModelCpuResources!.ScratchMaximum);
         NativeBattleModulePoolTask? before = ReadMain(prior);
         NativeBattleModulePoolTask? main = ReadMain(current);
         int age = main is null ? -1 : unchecked((short)main.ReadWord(12));
@@ -57,7 +57,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect65-contact-glyph", current, cold);
@@ -116,7 +116,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
             }
             if (age >= 238)
             {
-                NativeBattleEffectArena arena = current.NativeEffectMemory!.Arena!;
+                NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
                 uint polygon = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x39E00, 4));
                 uint vertices = BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x39E04, 4));
                 Assert.Equal(104u, polygon);
@@ -129,7 +129,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
                 warmLiterals = true;
                 Mark("effect65-current-literal-fields", current, cold);
             }
-            if (state.ReadDword(RandomGlobal) != prior.NativeEffectMemory!.Effect65!.ReadDword(RandomGlobal))
+            if (state.ReadDword(RandomGlobal) != prior.ReadFixturePresentation().NativeEffectMemory!.Effect65!.ReadDword(RandomGlobal))
             {
                 privateRandom = true;
                 Mark("effect65-private-LCG", current, cold);
@@ -190,7 +190,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
 
     private static NativeBattleLogicalCommand[] PrivateCommands(BattleSnapshot current)
     {
-        NativeBattleEffect65State state = current.NativeEffectMemory!.Effect65!;
+        NativeBattleEffect65State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect65!;
         uint arena = state.ReadDword(ArenaGlobal);
         uint cursor = state.ReadDword(CursorGlobal);
         if (arena == 0 || cursor <= arena + FirstPacketOffset)
@@ -199,26 +199,26 @@ internal sealed class NativeBattleEffect65PresentationObserver
         }
         int end = checked((int)(cursor - arena));
         int start = FirstPacketOffset + Math.Clamp((end - FirstPacketOffset - 1) / 0x10000, 0, 1) * 0x10000;
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < end).ToArray();
     }
 
     private static NativeBattleLogicalCommand[] CommonStripCommands(BattleSnapshot current, int age)
     {
-        if (age is < 403 or > 472 || current.NativeEffectMemory!.Effect65!.Read(0x2544FD0, 1)[0] == 0)
+        if (age is < 403 or > 472 || current.ReadFixturePresentation().NativeEffectMemory!.Effect65!.Read(0x2544FD0, 1)[0] == 0)
         {
             return [];
         }
-        NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
         bool linked = Enumerable.Range(0, 32).Any(index => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x3CD30 + index * 56, 4)) != 0 && BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x3CD30 + index * 56 + 0x34, 2)) >= 2);
         if (!linked)
         {
             return [];
         }
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command =>
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command =>
             (command.Packet.Bank is "off_B6D070" or "off_B6D094") && command.WordOffset == 1 && command.Opcode == 0x3E && command.Flags20 == 1 && command.Words.Length == 12 && command.VertexPayload4.Length == 4 && command.VertexPayload4.All(value => value == 0) && command.Words[2] == 0x3F54A048 && command.Words[5] == 0x00B6A078 && (ushort)command.Words[8] == 0xA048 && (ushort)command.Words[11] == 0xA078 && (command.Words[0] & 0xFFFFFF) == (command.Words[3] & 0xFFFFFF) && (command.Words[6] & 0xFFFFFF) == (command.Words[9] & 0xFFFFFF)).ToArray();
     }
 
-    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.NativeGraphics.OriginalEffect.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
+    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
 
     private static NativeBattleLogicalCommand[] CommonFadeCommands(BattleSnapshot current, NativeBattleModulePoolTask? before)
     {
@@ -242,7 +242,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
         }
         uint color = unchecked((byte)(255 * factor >> 12));
         uint packed = 0x2A000000 | color | color << 8 | color << 16;
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => (command.Packet.Bank is "off_B6D070" or "off_B6D094") && command.WordOffset == 1 && command.Opcode == 0x2A && command.Flags20 == 0 && command.Words.Length == 5 && command.Words[0] == packed && command.Words[1] == 0 && command.Words[2] == 320 && command.Words[3] == 0x00D80000 && command.Words[4] == 0x00D80140).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => (command.Packet.Bank is "off_B6D070" or "off_B6D094") && command.WordOffset == 1 && command.Opcode == 0x2A && command.Flags20 == 0 && command.Words.Length == 5 && command.Words[0] == packed && command.Words[1] == 0 && command.Words[2] == 320 && command.Words[3] == 0x00D80000 && command.Words[4] == 0x00D80140).ToArray();
     }
 
     private static IEnumerable<NativeBattleModulePoolTask> Live(NativeBattleEffectTaskPool pool)

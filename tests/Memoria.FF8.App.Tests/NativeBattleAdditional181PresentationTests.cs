@@ -45,7 +45,7 @@ public sealed class NativeBattleAdditional181PresentationTests
         Assert.Same(game.ReadNativeAdditional181Resources(), binding.Additional181Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => actor.IsPlayer);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = Memoria.FF8.Tests.NativeBattleTypedFixture.ReadOriginalModelCell(source.NativeGraphics!, 0);
+        NativeBattleGraphicsModel casterModel = Memoria.FF8.Tests.NativeBattleTypedFixture.ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 0);
         Assert.Equal(0, casterDefinition.ModelId);
         Assert.Equal((int?)1, casterModel.ActiveResourceRow100);
         Assert.Equal((int?)2, casterModel.LinkedTextureResourceIndex);

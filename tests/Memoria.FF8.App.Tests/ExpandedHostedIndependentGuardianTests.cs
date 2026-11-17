@@ -102,10 +102,9 @@ public sealed class ExpandedHostedIndependentGuardianTests
     {
         BattleSession battle = ExpandedBattleInstalledEntry.Start(world);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == CasterId);
         BattleModelOwner owner = battle.ReadPresentationModelOwner(CasterId);
-        Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out _));
+        Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(owner, out _));
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         BattleDefinition definition = battle.ReadDefinition();
@@ -138,12 +137,12 @@ public sealed class ExpandedHostedIndependentGuardianTests
         for (int frame = 0; frame < CallbackBudget && !Completed(battle, firstEvent); frame++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            foreach (var header in child.NativeActionPackets.PublishedHeaders().Where(header => header.Slot.Source == owner))
+            foreach (var header in process.ActionPackets.PublishedHeaders().Where(header => header.Slot.Source == owner))
             {
                 if (seenHeaders.Add(header.Reference))
                 {
                     headers.Add(header.Slot);
-                    foreach (NativeBattleContactPacket contact in child.NativeActionPackets.ReadHeaderContacts(header.Reference))
+                    foreach (NativeBattleContactPacket contact in process.ActionPackets.ReadHeaderContacts(header.Reference))
                     {
                         expected.Add(contact.Occurrence!.Value, contact.Primary.Recipient);
                     }

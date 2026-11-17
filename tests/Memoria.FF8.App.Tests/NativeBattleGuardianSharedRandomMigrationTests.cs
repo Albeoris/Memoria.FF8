@@ -20,9 +20,9 @@ public sealed class NativeBattleGuardianSharedRandomMigrationTests
         Assert.Equal(originalHash, Convert.ToHexString(SHA256.HashData(originalBytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(originalBytes)!;
         Assert.Equal(255L, original.Frame);
-        Assert.Equal(443L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)303, original.NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        Assert.Null(original.NativeEffectMemory!.SharedEffectRandom);
+        Assert.Equal(443L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)303, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Null(original.ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom);
         Assert.Null(original.Definition.NativeRetainedMemory!.EffectMemory!.SharedEffectRandom);
         Assert.Equal(0, original.Definition.NativeRetainedMemory.EffectMemory.SelectedIndex);
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, original.Definition.NativeRetainedMemory.ColdExecutableSha256);
@@ -55,7 +55,7 @@ public sealed class NativeBattleGuardianSharedRandomMigrationTests
         {
             expected = expected.Draw7059E0(out _);
         }
-        Assert.Equal(expected, first.Capture().NativeEffectMemory!.SharedEffectRandom);
+        Assert.Equal(expected, first.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(BattleSession.Restore(first.Capture()).Capture()));
         using BattleAssets assets = new(game.GameDirectory);

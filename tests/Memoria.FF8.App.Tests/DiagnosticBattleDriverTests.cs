@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Memoria.FF8.App.Tests;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Tests;
@@ -148,7 +149,7 @@ public sealed class DiagnosticBattleDriverTests
         {
             battle.Tick();
             audio.Update(battle);
-            if (battle.Presentation!.ObserveComponentHeldScreenBlend(211) is { } observation)
+            if (battle.ObserveComponentHeldScreenBlend(211) is { } observation)
             {
                 BattleDiagnosticEffectDispatch dispatch = Assert.Single(dispatches, value => value.ExecutedEffect == 211);
                 Assert.Equal(317, dispatch.ActionId);

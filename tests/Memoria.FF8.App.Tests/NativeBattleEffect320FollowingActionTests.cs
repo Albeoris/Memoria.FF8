@@ -20,29 +20,29 @@ public sealed class NativeBattleEffect320FollowingActionTests
         using BattleAssets assets = new(directory!);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect320PresentationTests.Released(source));
-        Assert.Null(source.NativeCamera!.ControlCursor);
-        Assert.Empty(source.NativeCamera.Order);
-        NativeBattleEffect320State warm = source.NativeEffectMemory!.Effect320!;
+        Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        NativeBattleEffect320State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect320!;
         Assert.True(warm.MutableAnchorSourceBound);
         Assert.All(warm.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.All(warm.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
         BattleSnapshot prepared = NativeBattleEffect320PresentationTests.QueueComponent(source, game, assets);
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.NativeEffectMemory!.Effect320));
-        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
+        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory!.Effect320));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         BattleSnapshot completed = NativeBattleEffect320PresentationTests.RunPrepared(prepared, game, assets, output!);
         BattleSession cleanup = NativeBattleEffect320PresentationTests.Restore(completed, game);
         for (int callback = 1; callback <= 4; callback++)
         {
             cleanup.Tick();
-            BattleSnapshot current = cleanup.Capture();
+            BattleSnapshot current = cleanup.CaptureForContinuation();
             Assert.True(NativeBattleEffect320PresentationTests.Released(current));
-            Assert.Equal(JsonSerializer.Serialize(completed.NativeEffectMemory!.Effect320), JsonSerializer.Serialize(current.NativeEffectMemory!.Effect320));
+            Assert.Equal(JsonSerializer.Serialize(completed.ReadFixturePresentation().NativeEffectMemory!.Effect320), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Effect320));
             Assert.Equal(source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), current.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
             NativeBattleEffect320PresentationTests.VerifyColdNext("separate-cleanup-" + callback, current, game, assets, output!);
         }
-        BattleSnapshot drained = cleanup.Capture();
+        BattleSnapshot drained = cleanup.CaptureForContinuation();
         NativeBattleRestorationPresentationTests.Publish(output!, "following-drained", drained, null);
-        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 320, SameFamily = true, SeparateCleanupCallbacks = 4, drained.Frame, Callback = drained.NativeGraphics!.Callback }));
+        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 320, SameFamily = true, SeparateCleanupCallbacks = 4, drained.Frame, Callback = drained.ReadFixturePresentation().NativeGraphics!.Callback }));
     }
 }

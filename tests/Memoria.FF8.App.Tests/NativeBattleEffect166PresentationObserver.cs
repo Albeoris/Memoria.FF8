@@ -30,12 +30,12 @@ internal sealed class NativeBattleEffect166PresentationObserver
     {
         CurrentCommands = [];
         CurrentFadeCommands = [];
-        NativeBattleGraphicsState graphics = current.NativeGraphics!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         if (graphics.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleEffect166State state = current.NativeEffectMemory!.Effect166!;
+        NativeBattleEffect166State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect166!;
         state.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
@@ -91,7 +91,7 @@ internal sealed class NativeBattleEffect166PresentationObserver
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect166-current-contact-glyph", current, cold);
@@ -118,8 +118,8 @@ internal sealed class NativeBattleEffect166PresentationObserver
             Assert.Equal(effect.Binding.Effect166Resources!.ReadOriginalCapturePacket().AsSpan().Slice(4).ToArray(), source.AsSpan(4).ToArray());
             environment = Commands(current).Where(command => command.Packet.Bank == "23BF038" && command.Opcode is >= 0xE3 and <= 0xE5).ToArray();
             Assert.NotEmpty(environment);
-            byte[] beforeVram = prior.NativeEffectMemory!.Textures!.ReadVram();
-            byte[] afterVram = current.NativeEffectMemory!.Textures!.ReadVram();
+            byte[] beforeVram = prior.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
+            byte[] afterVram = current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
             int changedPixels = 0;
             int nonzeroPixels = 0;
             for (int y = 256; y < 512; y++)
@@ -135,7 +135,7 @@ internal sealed class NativeBattleEffect166PresentationObserver
             }
             Assert.True(changedPixels > 100, "The current software stage capture did not change its target VRAM rectangle.");
             Assert.True(nonzeroPixels > 100, "The captured current stage contains no visible geometry after its black clear.");
-            Assert.Equal(1u, current.NativeEffectMemory.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
+            Assert.Equal(1u, current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
             capture = true;
             Mark("effect166-current-stage-capture-environment", current, cold);
         }
@@ -184,11 +184,11 @@ internal sealed class NativeBattleEffect166PresentationObserver
     }
 
     private static bool Common(NativeBattleLogicalCommand command) => (command.Packet.Bank is "off_B6D070" or "off_B6D094") && command.WordOffset == 1;
-    private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSnapshot snapshot) => snapshot.NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command);
+    private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command);
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

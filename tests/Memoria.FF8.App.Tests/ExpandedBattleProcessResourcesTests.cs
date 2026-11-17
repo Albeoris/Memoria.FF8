@@ -44,20 +44,12 @@ public sealed class ExpandedBattleProcessResourcesTests
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }
             Assert.True(battle.NativeEntryReady);
-            if (addedEnemies == 0)
-            {
-                Assert.Null(battle.Presentation);
-                Assert.Null(battle.Presentation!.Memory.Textures!.PresentationTextures);
-            }
-            else
-            {
-                BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
-                BattleModelRoster roster = battle.ReadBattlePresentationRoster();
-                Assert.Equal(allyCount, roster.Party.Count());
-                Assert.Equal(1 + addedEnemies, roster.Enemies.Count());
-                Assert.Equal(roster.Owners.Select(ActorId).Order(), process.Memory.Textures!.PresentationTextures!.Keys.Order());
-                Assert.All(roster.Owners, owner => Assert.NotNull(process.Graphics.ActorModels.Get(owner).OriginalResourceRow104));
-            }
+            BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+            BattleModelRoster roster = battle.ReadBattlePresentationRoster();
+            Assert.Equal(allyCount, roster.Party.Count());
+            Assert.Equal(1 + addedEnemies, roster.Enemies.Count());
+            Assert.Equal(roster.Owners.Select(ActorId).Order(), process.Memory.Textures!.PresentationTextures!.Keys.Order());
+            Assert.All(roster.Owners, owner => Assert.NotNull(process.Graphics.ActorModels.Get(owner).OriginalResourceRow104));
 
             world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
             for (int callback = 0; callback < 1200 && !battle.CanReturnToField; callback++)
@@ -105,22 +97,18 @@ public sealed class ExpandedBattleProcessResourcesTests
         });
 
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
-        BattleSession presentation = ReadField<BattleSession>(process, "presentation");
-        BattleDefinition selected = presentation.ReadDefinition();
-        Assert.Equal(logical.NativeEntryAdvantage, presentation.NativeEntryAdvantage);
-        Assert.Equal(entry.NativeGlobalRandom, selected.NativeGlobalRandom);
-        Assert.Equal(entry.NativeCrtRandom, selected.NativeCrtRandom);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(entry.NativeExamTimerAtEntry), JsonSerializer.SerializeToElement(selected.NativeExamTimerAtEntry)));
+        BattlePresentationResources selected = ReadField<BattlePresentationResources>(process, "resources");
+        Assert.Equal(entry.NativeGlobalRandom, selected.InitialGlobalRandom);
+        Assert.Equal(entry.NativeCrtRandom, selected.InitialCrtRandom);
         Assert.Equal(entry.NativeStageSource, selected.NativeStageSource);
         Assert.Equal(entry.NativeStageCameraBank, selected.NativeStageCameraBank);
-        Assert.Equal(entry.NativeMusicProcess, selected.NativeMusicProcess);
-        Assert.Equal(entry.NativeGlobalSoundProcess, selected.NativeGlobalSoundProcess);
+        Assert.Equal(entry.NativeMusicProcess, selected.InitialMusic);
+        Assert.Equal(entry.NativeGlobalSoundProcess, selected.InitialSound);
         Assert.Equal(entry.NativeModuleResources, selected.NativeModuleResources);
         Assert.Equal(entry.NativeEffectCatalog, selected.NativeEffectCatalog);
         Assert.Equal(entry.NativeEntryWaveFile, selected.NativeEntryWaveFile);
-        Assert.Equal(entry.NativeRetainedMemory!.ColdExecutableSha256, selected.NativeRetainedMemory!.ColdExecutableSha256);
+        Assert.Equal(entry.NativeRetainedMemory!.ColdExecutableSha256, selected.InitialState!.ColdExecutableSha256);
         Assert.Equal(entry.NativeRetainedMemory.EffectMemory!.SelectedIndex, process.Memory.SelectedIndex);
-        Assert.Same(ReadField<Func<ushort, NativeBattleEffectBinding>>(logical, "nativeEffectResourceResolver"), ReadField<Func<ushort, NativeBattleEffectBinding>>(presentation, "nativeEffectResourceResolver"));
         BattleModelRoster roster = AssertBindings(logical, process, selected);
         Assert.Equal(4, roster.Party.Count());
         Assert.Equal(5, roster.Enemies.Count());
@@ -141,7 +129,7 @@ public sealed class ExpandedBattleProcessResourcesTests
             if (!observedSparseModelLoad && loaded.Roster.Count > 0)
             {
                 Assert.True(loaded.Roster.Count < roster.Count);
-                NativeBattleActionPacketsState packets = presentation.NativeActionPackets;
+                NativeBattleActionPacketsState packets = process.ActionPackets;
                 Assert.Equal(roster.Owners, packets.Roster.Owners);
                 foreach (BattleModelOwner pending in roster.Owners.Where(owner => !loaded.Contains(owner)))
                 {
@@ -155,7 +143,6 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal((byte)4, process.Graphics.EntryLifecycle);
         Assert.Equal(entry.StageId, process.Stage.ResourceStageId);
         Assert.True(process.GlobalRandomCalls >= 27);
-        Assert.Equal(logical.NativeEntryAdvantage, presentation.NativeEntryAdvantage);
         Assert.All(selected.NativeGraphics!.Bindings, binding =>
         {
             NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(logical.ReadPresentationModelOwner(binding.ActorId));
@@ -165,7 +152,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         });
         Assert.Equal(0, logical.Frame);
         Assert.Equal(process.Graphics.Callback, logical.NativeHostCallbacks);
-        Assert.Null(logical.Presentation?.Graphics);
+        Assert.Same(process, logical.Presentation);
         Assert.Same(process, world.Battle!.Presentation);
     }
 
@@ -196,9 +183,9 @@ public sealed class ExpandedBattleProcessResourcesTests
         // This fixture isolates entry resources from the authored encounter's AI execution.
         entry = entry with { Combatants = entry.Combatants.Select(actor => actor with { NativeAi = null, NativeTemplate = actor.NativeTemplate is { } template ? template with { NativeDrawTables = null } : null }).ToArray() };
         BattleSession logical = new(entry, BattleAtbMode.TurnBased);
-        ExpandedBattlePresentationResources host = new(game, assets);
-        BattlePresentationProcess process = host.CreateProcess(logical);
-        BattleDefinition selected = ReadField<BattleSession>(process, "presentation").ReadDefinition();
+        InstalledBattlePresentation.Attach(logical, game, assets, encounter);
+        BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
+        BattlePresentationResources selected = ReadField<BattlePresentationResources>(process, "resources");
         BattleModelRoster roster = AssertBindings(logical, process, selected);
         Assert.DoesNotContain(roster.Enemies, owner => ActorId(owner) is "enemy-2" or "enemy-3");
         Assert.Contains(roster.Enemies, owner => ActorId(owner) == "enemy-8");
@@ -216,7 +203,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(assets.ReadEnemyNativeInformation246(donor.ModelId), entry.Combatants.Single(actor => actor.Id == "enemy-8").Information246);
     }
 
-    private static BattleModelRoster AssertBindings(BattleSession logical, BattlePresentationProcess process, BattleDefinition selected)
+    private static BattleModelRoster AssertBindings(BattleSession logical, BattlePresentationProcess process, BattlePresentationResources selected)
     {
         BattleModelRoster roster = logical.ReadBattlePresentationRoster();
         Assert.All(process.Graphics.ActorModels.Owners, owner => Assert.Contains(owner, roster.Owners));

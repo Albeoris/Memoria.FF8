@@ -22,12 +22,12 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         Assert.Equal(originalHash, Convert.ToHexString(SHA256.HashData(originalBytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(originalBytes)!;
         Assert.Equal(255L, original.Frame);
-        Assert.Equal(496L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Null(original.NativeEffectMemory!.ModelColorOverrides);
+        Assert.Equal(496L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Null(original.ReadFixturePresentation().NativeEffectMemory!.ModelColorOverrides);
         Assert.Null(original.Definition.NativeRetainedMemory!.EffectMemory!.ModelColorOverrides);
-        NativeBattleGraphicsModel visible = ReadOriginalModelCell(original.NativeGraphics, 3);
-        Assert.Equal(visible, original.NativeGraphics.ActorModels.Get(RequireOriginalModelOwner(original.NativeGraphics, 3)));
+        NativeBattleGraphicsModel visible = ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics, 3);
+        Assert.Equal(visible, original.ReadFixturePresentation().NativeGraphics.ActorModels.Get(RequireOriginalModelOwner(original.ReadFixturePresentation().NativeGraphics, 3)));
         Assert.Equal(0, visible.Flags0 & 0x808);
         Assert.Equal(0, visible.Flags2!.Value & 4);
         Assert.True((visible.Flags8!.Value & 0x2160510) == 0);
@@ -52,12 +52,12 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
-        BattleSnapshot after = first.Capture();
+        BattleSnapshot after = first.CaptureForContinuation();
         Assert.Equal(255L, after.Frame);
-        Assert.Equal(497L, after.NativeGraphics!.Callback);
-        Assert.Equal(original.NativeStage!.ModelColors!.Color40, ReadOriginalModelCell(after.NativeGraphics, 3).Color40);
-        Assert.True(ReadOriginalModelCell(after.NativeGraphics, 3).Transform!.Vertical34 == 0);
-        Assert.All(after.NativeEffectMemory!.ModelColorOverrides!.Slots, slot =>
+        Assert.Equal(497L, after.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal(original.ReadFixturePresentation().NativeStage!.ModelColors!.Color40, ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics, 3).Color40);
+        Assert.True(ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics, 3).Transform!.Vertical34 == 0);
+        Assert.All(after.ReadFixturePresentation().NativeEffectMemory!.ModelColorOverrides!.Slots, slot =>
         {
             Assert.Equal((byte?)255, slot.Actor);
             Assert.Null(slot.Color);
@@ -72,16 +72,16 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
             first.AdvanceNativeGraphicsPresentation(callback);
             second.AdvanceNativeGraphicsPresentation(callback);
         }
-        BattleSnapshot completed = first.Capture();
-        Assert.Equal(0, completed.NativeEffectMemory!.Active);
-        Assert.Equal(0u, completed.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
-        Assert.DoesNotContain(completed.NativeGraphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
-        NativeBattleGraphicsModel caster = ReadOriginalModelCell(completed.NativeGraphics, 0);
+        BattleSnapshot completed = first.CaptureForContinuation();
+        Assert.Equal(0, completed.ReadFixturePresentation().NativeEffectMemory!.Active);
+        Assert.Equal(0u, completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+        Assert.DoesNotContain(completed.ReadFixturePresentation().NativeGraphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104);
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(completed.ReadFixturePresentation().NativeGraphics, 0);
         Assert.True(caster.Phase6 == 16);
         Assert.Equal(0, caster.Flags0 & 0x808);
         Assert.Equal(0, caster.Flags2!.Value & 4);
         Assert.True((caster.Flags8!.Value & 0x2160510) == 0);
-        Assert.Equal(completed.NativeStage!.ModelColors!.Color40, caster.Color40);
+        Assert.Equal(completed.ReadFixturePresentation().NativeStage!.ModelColors!.Color40, caster.Color40);
         Assert.NotEqual(0u, caster.Color40);
         Assert.Equal(JsonSerializer.Serialize(completed), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
@@ -90,6 +90,6 @@ public sealed class NativeBattleGuardianModelColorMigrationTests
             JsonSerializer.Serialize(stream, migratedNode);
         }
         Assert.Equal(originalHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))));
-        Console.WriteLine($"Exact A3-migrated30 pending-color output={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}; only live ModelColorOverrides added with Actor255/unknownRGB in both rows, Definition unchanged. Proof: first declared cold actor0 admission consumes second row,1732-function bounded entry/current116 closure excludes both indexed writers. Actual callback496→497 validates native50A0A0 stageRGB/Vertical34; remaining current cast completes at{completed.NativeGraphics.Callback} with casterRGB{caster.Color40:X6}, equal to retained stage color. Independent whole states/JSON/copied render agree; unused pending RGB remains unknown.");
+        Console.WriteLine($"Exact A3-migrated30 pending-color output={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}; only live ModelColorOverrides added with Actor255/unknownRGB in both rows, Definition unchanged. Proof: first declared cold actor0 admission consumes second row,1732-function bounded entry/current116 closure excludes both indexed writers. Actual callback496→497 validates native50A0A0 stageRGB/Vertical34; remaining current cast completes at{completed.ReadFixturePresentation().NativeGraphics.Callback} with casterRGB{caster.Color40:X6}, equal to retained stage color. Independent whole states/JSON/copied render agree; unused pending RGB remains unknown.");
     }
 }

@@ -34,7 +34,7 @@ public sealed class NativeBattleAiDrawTests
         battle.QueueAction("party", "enemy", BattleAbility.Magic, 1);
 
         Assert.Equal(new NativeMagicStock(1, 1), battle.Capture().Combatants.Single(actor => actor.Id == "party").NativeMagicInventory![5]);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "EffectContact")); frame++)
         {
             battle.Tick();
         }

@@ -50,12 +50,11 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
 
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant enemy = battle.Combatants.Single(actor => actor.Id == owner.Id);
         BattleCombatant target = battle.Combatants.Single(actor => actor.Id == AddedAlly);
         BattleModelOwner enemyOwner = battle.ReadPresentationModelOwner(enemy.Id);
         BattleModelOwner targetOwner = battle.ReadPresentationModelOwner(target.Id);
-        Assert.False(presentation.NativeActionPackets.ModelAliases.TryEncodeExact(targetOwner, out _));
+        Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(targetOwner, out _));
         Assert.Equal(0u, target.NativeCombatantFlags & 0x10000);
         Assert.Equal((byte)0, enemy.AiTurnCount);
         int initialHp = target.CurrentHp;
@@ -93,7 +92,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
                 if (expected is null)
                 {
                     Assert.Equal(initialHp - firstDamage - secondDamage, target.CurrentHp);
-                    NativeBattleActionPacketsState packets = presentation.NativeActionPackets;
+                    NativeBattleActionPacketsState packets = process.ActionPackets;
                     var headers = packets.PublishedHeaders().Where(entry => entry.Slot.Source == enemyOwner).ToArray();
                     Assert.Equal(2, headers.Length);
                     Assert.All(headers, entry =>

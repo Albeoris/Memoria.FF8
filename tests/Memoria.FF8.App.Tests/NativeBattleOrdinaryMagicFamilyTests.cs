@@ -75,7 +75,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
             BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
             sourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath)));
             prior = source;
-            NativeBattleGraphicsState graphics = source.NativeGraphics!;
+            NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
             sourceCallback = graphics.Callback;
             int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
@@ -117,9 +117,9 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                     if (pending.Contains("initialized"))
                     {
                         boundary = "initialized";
-                        firstLiveCallback = prior.NativeGraphics!.Callback;
+                        firstLiveCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback;
                     }
-                    else if (pending.Contains("live-continuation") && prior.NativeGraphics!.Callback >= firstLiveCallback + 2)
+                    else if (pending.Contains("live-continuation") && prior.ReadFixturePresentation().NativeGraphics!.Callback >= firstLiveCallback + 2)
                     {
                         boundary = "live-continuation";
                     }
@@ -133,17 +133,17 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(targetHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
-                if (ReadOriginalModelCell(prior.NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.NativeGraphics!, 3).Sequence == contact.Primary.Sequence)
+                if (ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Sequence == contact.Primary.Sequence)
                 {
                     contactSequenceTransitions++;
                 }
-                for (int index = 0; index < current.NativeGraphics!.Effects.Slots.Length; index++)
+                for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) && (Assert.IsType<NativeBattleGraphicsState>(prior.NativeGraphics).Effects.Slots[index].Flags0 & 1) == 0)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) && (Assert.IsType<NativeBattleGraphicsState>(prior.ReadFixturePresentation().NativeGraphics).Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
                         Assert.Equal(expectedText.Color, text.Color);
@@ -157,8 +157,8 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                 {
                     completions++;
                 }
-                observedPrivatePackets |= current.NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                observedPrivatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -208,7 +208,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
             File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         }
 
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect && effect.Binding.Entry == installed.Entry ? effect : null;
     }
 
     private static int Stock(BattleSnapshot snapshot, string actor, ushort action) => (snapshot.Combatants.Single(item => item.Id == actor).NativeMagicInventory ?? throw new InvalidDataException("The ordinary fixture lacks its canonical native magic inventory.")).Single(stock => stock.SpellId == action).Count;

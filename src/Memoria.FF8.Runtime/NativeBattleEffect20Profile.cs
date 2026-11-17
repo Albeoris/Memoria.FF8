@@ -6,6 +6,7 @@ public static class NativeBattleEffect20Profile
 {
     public const uint Entry = 0x89FBC0;
     public const uint Initializer = 0x89FBA0;
+    public const byte DeferredModelOperand = 6;
     public const uint InitializerGlobal = 0x2721590;
     public const uint RootCallback = 0x89FD00;
     public const uint TargetCallback = 0x89FFB0;

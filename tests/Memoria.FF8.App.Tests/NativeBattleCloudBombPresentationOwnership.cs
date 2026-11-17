@@ -7,12 +7,12 @@ internal static class NativeBattleCloudBombPresentationOwnership
 {
     internal static void AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        if (effect is not (168 or 179 or 180) || snapshot.NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect)
+        if (effect is not (168 or 179 or 180) || snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect)
         {
             return;
         }
         ImmutableHashSet<NativeBattlePrimitiveReference> references = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-        foreach (NativeBattleLogicalCommand command in snapshot.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40))
+        foreach (NativeBattleLogicalCommand command in snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40))
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
             Assert.Equal(effect, visual.Identity.Effect);

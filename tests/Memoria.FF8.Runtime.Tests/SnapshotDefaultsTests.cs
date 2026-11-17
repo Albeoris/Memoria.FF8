@@ -124,7 +124,7 @@ public sealed class SnapshotDefaultsTests
         GameState restored = Deserialize(snapshot);
 
         Assert.Null(restored.NativeBattleMemory!.EffectMemory!.Shiva);
-        Assert.Null(restored.Battle!.NativeEffectMemory!.Shiva);
+        Assert.Null(restored.Battle!.ReadFixturePresentation().NativeEffectMemory!.Shiva);
     }
 
     [Theory]

@@ -46,9 +46,7 @@ public sealed partial class BattleSession
         }
 
         bool allowKo = request.AllowsKnockedOutAllies && actor.IsPlayer;
-        BattleTargetEligibility eligibility = request.Eligibility == BattleTargetEligibility.DeathCallback
-            ? UsesOriginalEnemySlots ? BattleTargetEligibility.Living : BattleTargetEligibility.AiAvailable
-            : request.Eligibility;
+        BattleTargetEligibility eligibility = request.Eligibility == BattleTargetEligibility.DeathCallback ? BattleTargetEligibility.Living : request.Eligibility;
         return eligibility switch
         {
             BattleTargetEligibility.DrawnMagic => actor.IsAlive || allowKo,
@@ -148,47 +146,14 @@ public sealed partial class BattleSession
 
     private BattleTargetSelection ChooseOriginalRandomActionTarget(BattleSide side)
     {
-        int count = side == BattleSide.Allies ? NativeBattleSlots.AllyCount : NativeBattleSlots.EnemyCount;
-        BattleRosterSlot Slot(int index)
+        BattleCombatant[] allocated = Roster(side).Where(HasAiRosterSlot).ToArray();
+        if (allocated.Any(actor => (side != BattleSide.Allies || actor.IsActive) && (NativeSavedStatusBits(actor) & 5) == 0))
         {
-            return side == BattleSide.Allies ? BattleRosterSlot.Ally(index) : BattleRosterSlot.Enemy(index);
-        }
-
-        for (int index = 0; index < count; index++)
-        {
-            BattleCombatant? actor = FindAllocatedNativeActor(NativeBattleSlots.Encode(Slot(index)));
-            if (side == BattleSide.Allies && actor is not { IsActive: true })
-            {
-                continue;
-            }
-            if (OriginalRandomStatusBlocked(actor, 5))
-            {
-                continue;
-            }
-            while (true)
-            {
-                BattleRosterSlot sampled = Slot(NextRandomByte() % count);
-                BattleCombatant? selected = FindAllocatedNativeActor(NativeBattleSlots.Encode(sampled));
-                if (!OriginalRandomStatusBlocked(selected, 1))
-                {
-                    return NativeBattleTargetRequestAdapter.SelectOriginalSlot(sampled);
-                }
-            }
+            BattleCombatant selected = SampleNativeTarget(allocated.Where(actor => (NativeSavedStatusBits(actor) & 1) == 0).ToArray(), side);
+            return selected.NativeActorIndex is int index
+                ? NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(index))
+                : new BattleTargetSelection.Explicit([TargetActorReference(selected)]);
         }
         return side == BattleSide.Allies ? NativeBattleTargetRequestAdapter.EmptyOriginalSelection : NativeBattleTargetRequestAdapter.SelectOriginalSlot(BattleRosterSlot.Enemy(0));
-    }
-
-    private bool OriginalRandomStatusBlocked(BattleCombatant? actor, ushort bits)
-    {
-        if (actor is not null)
-        {
-            return (NativeSavedStatusBits(actor) & bits) != 0;
-        }
-        if (originalParticipantSlotsInitialized)
-        {
-            // Native participant initialization and release set KO on empty original slots.
-            return true;
-        }
-        throw new NotSupportedException("Original random target selection reached a slot without retained saved status.");
     }
 }

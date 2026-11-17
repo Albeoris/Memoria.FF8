@@ -96,7 +96,7 @@ public sealed class ActiveBattleResourceProfileCompatibilityTests
         GameSession sourceSession = new(PlayerStateLoader.Load(path, sourceDirectory, sharedAssets: sourceAssets, resources: sourceResources.Resources, modelOverrides: sourceResources, readGameplayPolicy: () => sourceResources.GameplayPolicy));
         using GameWorld source = World(sourceSession, sourceDirectory, sourceResources, sourceAssets);
         source.EnsureField();
-        BattleSnapshot original = source.Battle!.Capture();
+        BattleSnapshot original = source.Battle!.CaptureForContinuation();
         using GameResourceHost targetResources = new(targetDirectory!, watch: false);
         targetResources.ConnectEncounterMods();
         using GameAssets targetAssets = new(targetDirectory!, resources: targetResources.Resources, modelOverrides: targetResources);
@@ -115,7 +115,7 @@ public sealed class ActiveBattleResourceProfileCompatibilityTests
             Assert.Throws<NotSupportedException>(() => target.CreateEncounterBattle(original.Definition.EncounterId!.Value, original.Definition.NativeSeed));
         }
         GameState originalState = sourceSession.PrepareSnapshot();
-        Assert.False(original.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0);
+        Assert.False(original.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0);
         source.ApplyBattleInput(new(BattleInputKind.Tick));
         target.ApplyBattleInput(new(BattleInputKind.Tick));
         cold.ApplyBattleInput(new(BattleInputKind.Tick));

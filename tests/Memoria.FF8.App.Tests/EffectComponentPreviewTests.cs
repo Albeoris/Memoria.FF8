@@ -73,8 +73,8 @@ public sealed class EffectComponentPreviewTests
         ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
         BattleCombatant actor = battle.Combatants.Single(candidate => candidate.NativeActorIndex == 3);
         NativeBattleAiDefinition ai = Assert.IsType<NativeBattleAiDefinition>(actor.NativeAi);
-        var selected = Assert.Single(ai.Abilities.Skip(16 * ai.LevelBand).Take(16).Select((row, slot) => (Row: row, Slot: slot))
-            .Where(entry => entry.Row.Command == 8 && world.BattleResources.NativeActions.Any(action => action.Command == entry.Row.Command && action.ActionId == entry.Row.Id && action.MagicId == effect)));
+        var selected = Assert.Single(ai.Abilities.Skip(16 * ai.LevelBand).Take(16).Select((row, slot) => (Row: row, Slot: slot)),
+            entry => entry.Row.Command == 8 && world.BattleResources.NativeActions.Any(action => action.Command == entry.Row.Command && action.ActionId == entry.Row.Id && action.MagicId == effect));
         BattleDiagnosticEnemyAbility ability = new(actor.ModelId, actor.SceneSlot!.Value, ai.LevelBand, selected.Slot, selected.Row.Command, selected.Row.Id, selected.Row.Sequence, 201);
         actor.Atb = BattleSession.AtbMaximum;
         for (int callback = 0; callback < 360 && !battle.CanSubmitDiagnosticEnemyAbility(actor.Id, ability); callback++)

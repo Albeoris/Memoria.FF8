@@ -20,29 +20,29 @@ public sealed class NativeBattleEffect345FollowingActionTests
         using BattleAssets assets = new(directory!);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect345PresentationTests.Released(source));
-        Assert.Null(source.NativeCamera!.ControlCursor);
-        Assert.Empty(source.NativeCamera.Order);
-        NativeBattleEffect345State warm = source.NativeEffectMemory!.Effect345!;
+        Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        NativeBattleEffect345State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect345!;
         Assert.True(warm.OwnedModelSourceBound);
         Assert.Equal(2, warm.NodeData!.Count);
         Assert.All(warm.BankStorage, bank => Assert.NotNull(bank));
         BattleSnapshot prepared = NativeBattleEffect345PresentationTests.QueueComponent(source, game, assets);
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.NativeEffectMemory!.Effect345));
-        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.NativeGraphics!)));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeFileStaging), JsonSerializer.Serialize(prepared.NativeFileStaging));
+        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory!.Effect345));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         BattleSnapshot completed = NativeBattleEffect345PresentationTests.RunPrepared(prepared, game, assets, output!);
         BattleSession cleanup = NativeBattleEffect345PresentationTests.Restore(completed, game);
         for (int callback = 1; callback <= 4; callback++)
         {
             cleanup.Tick();
-            BattleSnapshot current = cleanup.Capture();
+            BattleSnapshot current = cleanup.CaptureForContinuation();
             Assert.True(NativeBattleEffect345PresentationTests.Released(current));
-            Assert.Equal(JsonSerializer.Serialize(completed.NativeEffectMemory!.Effect345), JsonSerializer.Serialize(current.NativeEffectMemory!.Effect345));
+            Assert.Equal(JsonSerializer.Serialize(completed.ReadFixturePresentation().NativeEffectMemory!.Effect345), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Effect345));
             Assert.Equal(source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), current.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
             NativeBattleEffect345PresentationTests.VerifyColdNext("separate-cleanup-" + callback, current, game, assets, output!);
         }
-        BattleSnapshot drained = cleanup.Capture();
+        BattleSnapshot drained = cleanup.CaptureForContinuation();
         NativeBattleRestorationPresentationTests.Publish(output!, "following-drained", drained, null);
-        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 345, SameFamily = true, SeparateCleanupCallbacks = 4, drained.Frame, Callback = drained.NativeGraphics!.Callback }));
+        File.WriteAllText(Path.Combine(output!, "following-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 345, SameFamily = true, SeparateCleanupCallbacks = 4, drained.Frame, Callback = drained.ReadFixturePresentation().NativeGraphics!.Callback }));
     }
 }

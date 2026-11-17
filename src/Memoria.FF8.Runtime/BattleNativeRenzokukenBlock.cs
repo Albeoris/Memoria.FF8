@@ -12,19 +12,11 @@ public static partial class NativeBattleRenzokukenRules
     /// <summary>504BB0 AB scans the reached pose bytes through A1; A0 separates contact segments.</summary>
     public static BattleNativeRenzokukenBlock ReadBlock(ReadOnlySpan<byte> program, int opcodeOffset, IReadOnlyList<byte> animationFrameCounts)
     {
-        if (opcodeOffset < 0 || opcodeOffset + 1 >= program.Length || program[opcodeOffset] != 0xAB)
-        {
-            throw new InvalidDataException("Renzokuken timing requires an actual reached AB opcode and its display operand.");
-        }
+        int end = ReadBlockEnd(program, opcodeOffset);
         List<byte> segments = [1];
-        for (int position = opcodeOffset + 2; position < program.Length; position++)
+        for (int position = opcodeOffset + 2; position < end - 1; position++)
         {
             byte opcode = program[position];
-            if (opcode == 0xA1)
-            {
-                ImmutableArray<byte> lengths = segments.ToImmutableArray();
-                return new(program[opcodeOffset + 1], lengths, Timeline(lengths)) { EndOffset = position + 1 };
-            }
             if (opcode == 0xA0)
             {
                 segments.Add(0);
@@ -38,6 +30,18 @@ public static partial class NativeBattleRenzokukenRules
                 segments[^1] = unchecked((byte)(segments[^1] + animationFrameCounts[opcode]));
             }
         }
-        throw new InvalidDataException("Native AB timing block has no A1 terminator in its original sequence.");
+        ImmutableArray<byte> lengths = segments.ToImmutableArray();
+        return new(program[opcodeOffset + 1], lengths, Timeline(lengths)) { EndOffset = end };
+    }
+
+    internal static int ReadBlockEnd(ReadOnlySpan<byte> program, int opcodeOffset)
+    {
+        if (opcodeOffset < 0 || opcodeOffset + 1 >= program.Length || program[opcodeOffset] != 0xAB)
+        {
+            throw new InvalidDataException("Renzokuken timing requires an actual reached AB opcode and its display operand.");
+        }
+        int first = opcodeOffset + 2;
+        int terminator = program[first..].IndexOf((byte)0xA1);
+        return terminator < 0 ? throw new InvalidDataException("Native AB timing block has no A1 terminator in its original sequence.") : first + terminator + 1;
     }
 }

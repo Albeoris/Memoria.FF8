@@ -167,7 +167,7 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
 
     private static BattlePresentationProcess.HostedModelLoadAdmission Admission()
     {
-        return new(new(New, Slot, NativeBattleModelSlot.Decode(3), 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
+        return new(new BattlePresentationProcess.HostedDispatchControl.LoadEnemy(New, BattleRosterSlot.Enemy(0), Slot, 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
     }
 
     private static BattlePresentationProcess Fixture()
@@ -181,7 +181,7 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
         NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
         BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
-        typeof(BattlePresentationProcess).GetField("hostedModelRegistry", Private)!.SetValue(child, new BattlePresentationProcess.HostedModelRegistry(roster, ImmutableDictionary<BattleEnemyActorModel, BattlePresentationProcess.HostedModelLoadAdmission>.Empty));
+        typeof(BattlePresentationProcess).GetField("hostedModelRegistry", Private)!.SetValue(child, new BattlePresentationProcess.HostedModelRegistry(roster, ImmutableDictionary<BattleModelOwner, BattlePresentationProcess.HostedModelLoadAdmission>.Empty));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(child, NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(child, NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with

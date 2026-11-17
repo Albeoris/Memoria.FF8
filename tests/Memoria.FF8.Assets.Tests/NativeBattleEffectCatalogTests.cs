@@ -10,16 +10,16 @@ public sealed class NativeBattleEffectCatalogTests
     [InlineData(NativeBattleEffect314Profile.Entry, NativeBattleEffect314Profile.Initializer)]
     [InlineData(NativeBattleEffect315Profile.Entry, NativeBattleEffect315Profile.Initializer)]
     [InlineData(NativeBattleEffect326Profile.Entry, NativeBattleEffect326Profile.Initializer)]
-    public void Caster_companion_capability_is_registered_by_callback_pair(uint entry, uint initializer)
+    public void Effect_entry_and_initializer_are_decoded_from_the_same_catalog_row(uint entry, uint initializer)
     {
         var catalog = NativeBattleEffectCatalogReader.Read(new CompanionCatalogImage(entry, initializer));
 
-        NativeBattleEffectBinding declared = Assert.Single(catalog, binding => binding.RequiresOriginalCasterCompanion);
+        NativeBattleEffectBinding declared = catalog[16];
         Assert.Equal((ushort)17, declared.Effect);
         Assert.Equal(entry, declared.Entry);
         Assert.Equal(initializer, declared.Initializer);
         Assert.Equal(entry, catalog[17].Entry);
-        Assert.False(catalog[17].RequiresOriginalCasterCompanion);
+        Assert.NotEqual(initializer, catalog[17].Initializer);
     }
 
     [Fact]

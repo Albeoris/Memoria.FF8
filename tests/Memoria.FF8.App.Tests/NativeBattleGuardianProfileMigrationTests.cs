@@ -20,7 +20,7 @@ public sealed class NativeBattleGuardianProfileMigrationTests
         Assert.NotNull(graphics);
         Assert.Null(graphics.PrimitiveCapabilities);
         Assert.NotNull(graphics.Rules.ShadowSource);
-        Assert.Equal((ushort)116, original.NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(BattleSession.Restore(original).Capture()));
         //The earlier renderer already used the PC alpha-palette RGBA path. Declare its supported Gouraud RGB/alpha capability;
         //do not infer a historical native device, hidden bounds or the rolling WORD146 minimum from this snapshot.
@@ -37,6 +37,6 @@ public sealed class NativeBattleGuardianProfileMigrationTests
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(source!)));
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(target!))!).Capture()));
-        Console.WriteLine($"Profile migration preserves frame{original.Frame}/callback{original.NativeGraphics.Callback}; one-callback result={boundary}");
+        Console.WriteLine($"Profile migration preserves frame{original.Frame}/callback{original.ReadFixturePresentation().NativeGraphics.Callback}; one-callback result={boundary}");
     }
 }

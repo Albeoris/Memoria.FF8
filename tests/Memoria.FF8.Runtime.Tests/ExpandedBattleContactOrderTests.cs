@@ -33,7 +33,7 @@ public sealed class ExpandedBattleContactOrderTests
         Assert.True(battle.SupportsExpandedAction(action));
         battle.QueueAction(allies[^1].Id, enemies[^1].Id, ability, actionId);
         BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.Events.Any(item => item.Kind == "ActionComplete")); tick++)
         {
             battle.Tick();
             restored.Tick();

@@ -27,7 +27,7 @@ public sealed class NativeBattleDeathCountTests
     private static void Hit(BattleSession battle)
     {
         battle.QueueAction("actor", "ally", BattleAbility.Magic, 1);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "EffectContact")); frame++)
         {
             battle.Tick();
         }

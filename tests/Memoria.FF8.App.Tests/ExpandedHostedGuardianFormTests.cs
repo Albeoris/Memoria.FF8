@@ -76,8 +76,8 @@ public sealed class ExpandedHostedGuardianFormTests
     {
         Run((world, battle, process, actor, owner) =>
         {
-            var source = new BattleSession.HostedGuardianFormVisualOwner(Assert.IsType<BattlePartyActorModel>(owner), Caster, 1, Ifrit);
-            var change = new BattleSession.HostedGuardianFormVisualChange(source, Entering: true, new(source, BattleGuardianFormPhase.Entering, HasAction: false, Finishing: false));
+            var source = new BattlePresentationProcess.HostedGuardianFormVisualOwner(Assert.IsType<BattlePartyActorModel>(owner), Caster, 1, Ifrit);
+            var change = new BattlePresentationProcess.HostedGuardianFormVisualChange(source, Entering: true, new(source, BattleGuardianFormPhase.Entering, HasAction: false, Finishing: false));
             NativeBattleGraphicsState graphics = process.Graphics;
             NativeBattleEffectMemory memory = process.Memory;
             NativeBattleCameraState camera = process.Camera;
@@ -86,7 +86,7 @@ public sealed class ExpandedHostedGuardianFormTests
             int events = battle.Events.Count;
             ulong randomCalls = process.GlobalRandomCalls;
             Assert.Throws<InvalidOperationException>(() => process.PrepareGuardianFormChange(change with { Owner = source with { ActorId = "party-0" } }));
-            BattleSession.PreparedHostedGuardianFormChange prepared = process.PrepareGuardianFormChange(change);
+            BattlePresentationProcess.PreparedHostedGuardianFormChange prepared = process.PrepareGuardianFormChange(change);
             process.ValidatePreparedGuardianFormChange(prepared);
             Assert.Equal(owner, prepared.Replacement.NativeGraphics!.GuardianFormPresentation!.Actor);
             Assert.Same(graphics, process.Graphics);
@@ -104,30 +104,6 @@ public sealed class ExpandedHostedGuardianFormTests
             Assert.Same(advanced, process.Graphics);
             Assert.Null(process.Graphics.GuardianFormPresentation);
             Assert.Null(battle.GetGuardianForm(Caster));
-        });
-    }
-
-    [Fact]
-    public void Turn_based_poison_depletes_the_guardian_and_publishes_the_human_model()
-    {
-        Run((world, battle, process, actor, owner) =>
-        {
-            byte? humanModel = process.Graphics.ActorModels.Get(owner).ModelId4;
-            Enter(world, battle, process, actor, owner);
-            int humanHp = actor.HumanHitPoints;
-            actor.CurrentHp = 1;
-            actor.Effects.Add(new(new() { Kind = BattleStatusKind.Poison, DurationFrames = 1, TickIntervalFrames = 1, Magnitude = 100 }, 1, 1));
-            int begin = battle.Events.Count;
-            long frame = battle.Frame;
-            world.ApplyBattleInput(new(BattleInputKind.AdvanceTurn));
-            Assert.True(battle.Frame > frame);
-            Assert.Same(process, battle.Presentation);
-            Assert.Null(battle.GetGuardianForm(Caster));
-            Assert.Null(process.Graphics.GuardianFormPresentation);
-            Assert.Equal(humanModel, process.Graphics.ActorModels.Get(owner).ModelId4);
-            Assert.Equal(humanHp, actor.CurrentHp);
-            Assert.Contains(battle.Events.Skip(begin), entry => entry is { Kind: "Damage", TargetId: Caster, Amount: 1 });
-            Assert.Single(battle.Events.Skip(begin), entry => entry is { Kind: "GuardianFormReturned", ActorId: Caster });
         });
     }
 

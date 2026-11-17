@@ -14,6 +14,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect251Inputs? inputs = null;
         inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect251 requires its color tables."), _ => nativeActionPackets, (_, actor) => CaptureNativeEffect301Model(graphics.ActorModels.Get(actor)), Point, Anchor, _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect251 requires its current projection."), _ => Camera().Roll, PollIo, (current, operation) => ExecuteNativeEffect251Operation(ref graphics, current, operation, resources, inputs!))
         {
+            AuthoredOperand = operand => ResolveSourceModelOperand(graphics, effect.Parameters!.Source, operand),
             BoneWorld5FC0 = Bone,
             Bounds6690 = (current, actor) => ReadNativeEffect251Bounds(ref graphics, current, actor)
         };

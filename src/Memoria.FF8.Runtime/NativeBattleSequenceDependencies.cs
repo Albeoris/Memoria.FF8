@@ -136,8 +136,8 @@ internal static class NativeBattleSequenceEncoding
             0x97 or 0x98 or 0xB5 or 0xB6 or 0xB8 when position + 1 < source.Length => position + SoundOperandWidth(source[position + 1]),
             0x99 or 0xB1 => NativeBattleAuxiliaryState.SkipSoundParticleProgram(source, position + 1),
             0x9F => NativeBattleAuxiliaryState.SkipSoundParticleProgram(source, position),
-            0xAB => NativeBattleRenzokukenRules.ReadBlock(source.AsSpan(), origin, resource.AnimationFrames).EndOffset,
-            0xB0 or 0xB4 when position + 1 < source.Length => NativeBattleSequenceParticles.Read505900(new(source, position), 0, static () => 0).NextOffset,
+            0xAB => NativeBattleRenzokukenRules.ReadBlockEnd(source.AsSpan(), origin),
+            0xB0 or 0xB4 => NativeBattleSequenceParticles.ReadOperandEnd(new(source, position)),
             _ => throw new NotSupportedException($"Native sequence opcode{opcode:X2} has no bounded dependency contract.")
         };
     }

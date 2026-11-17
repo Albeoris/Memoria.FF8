@@ -6,7 +6,7 @@ internal static class NativeBattleRenzokukenCaptureAssertions
 {
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.NativeGraphics.PrimitiveFrame is not { } frame)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } frame)
         {
             return 0;
         }

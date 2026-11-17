@@ -36,7 +36,7 @@ public sealed class NativeBattleCactuar199PresentationTests
         Assert.Equal(20, guardianAction.Level);
         Assert.Equal((byte)29, kernel.AttackType);
         Assert.Equal((byte)90, kernel.Power);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         int queued = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -126,8 +126,8 @@ public sealed class NativeBattleCactuar199PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
                 NativeBattleContactPacket actualContact = current.NativeActionPackets!.ReadContact(header.FirstContact);
                 if (prior.NativeActionScratch!.GuardianFormulaE1E != true && current.NativeActionScratch!.GuardianFormulaE1E == true)
@@ -142,7 +142,7 @@ public sealed class NativeBattleCactuar199PresentationTests
                     Assert.Equal(targetInitialHp, beforeHp);
                     Assert.Equal(beforeHp - actualContact.Primary.Amount6, afterHp);
                     formulaAmount = actualContact.Primary.Amount6;
-                    formulaBoundary = new(prior.NativeGraphics.Callback, current.NativeGraphics.Callback, beforeHp, afterHp, actualContact.Primary.Amount6, actualContact.Primary.ContactFlags, prior.NativeCrtRandom, current.NativeCrtRandom);
+                    formulaBoundary = new(prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, beforeHp, afterHp, actualContact.Primary.Amount6, actualContact.Primary.ContactFlags, prior.NativeCrtRandom, current.NativeCrtRandom);
                     formulaTransitions++;
                 }
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
@@ -172,17 +172,17 @@ public sealed class NativeBattleCactuar199PresentationTests
                         int sequenceStart = targetResource.SequenceStart(actualContact.Primary.Sequence);
                         Assert.Equal((byte)0xA7, targetResource.SequenceSection[sequenceStart]);
                         byte switchedSequence = targetResource.SequenceSection[sequenceStart + 1];
-                        Assert.Equal(switchedSequence, ReadOriginalModelCell(current.NativeGraphics, 3).Sequence);
-                        Assert.Equal(1, ReadOriginalModelCell(current.NativeGraphics, 3).SequenceFrame);
+                        Assert.Equal(switchedSequence, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).Sequence);
+                        Assert.Equal(1, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).SequenceFrame);
                         requestedContactSequence = actualContact.Primary.Sequence;
                         executedContactSequence = switchedSequence;
                         contactSchedulerTransitions++;
                     }
                 }
-                for (int index = 0; index < current.NativeGraphics.Effects.Slots.Length; index++)
+                for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-                    if ((text.Flags0 & 1) != 0 && (prior.NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3))
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    if ((text.Flags0 & 1) != 0 && (prior.ReadFixturePresentation().NativeGraphics.Effects.Slots[index].Flags0 & 1) == 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3))
                     {
                         Assert.NotNull(formulaAmount);
                         NativeBattleEffectsState expected = ExpectedOriginalDamageText(actualContact.Primary, actualContact.Primary.Amount6);
@@ -193,7 +193,7 @@ public sealed class NativeBattleCactuar199PresentationTests
                 }
                 Assert.Equal(targetInitialHp - formulaAmount.GetValueOrDefault(), current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
-                NativeBattleCactuar199State? state = current.NativeEffectMemory?.Cactuar199;
+                NativeBattleCactuar199State? state = current.ReadFixturePresentation().NativeEffectMemory?.Cactuar199;
                 if (state?.RawModel.DecodedPose is not null)
                 {
                     poses.Add(state.RawModel.Model[0x6C]);
@@ -202,15 +202,15 @@ public sealed class NativeBattleCactuar199PresentationTests
                 }
                 if (state?.CameraTask is not null)
                 {
-                    cameras.Add(Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(current.NativeCamera))));
+                    cameras.Add(Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(current.ReadFixturePresentation().NativeCamera))));
                 }
                 if (state?.VibrationHandle is > 0)
                 {
                     vibrationHandle = state.VibrationHandle;
                     sawVibration |= current.NativeVibrationProcess!.IsPlaying(state.VibrationHandle.Value);
                 }
-                uint? stream = current.NativeEffectMemory?.SummonStream?.SourceAddress;
-                uint? previousStream = prior.NativeEffectMemory?.SummonStream?.SourceAddress;
+                uint? stream = current.ReadFixturePresentation().NativeEffectMemory?.SummonStream?.SourceAddress;
+                uint? previousStream = prior.ReadFixturePresentation().NativeEffectMemory?.SummonStream?.SourceAddress;
                 if (stream is 0xE94910 or 0xE94914 && stream != previousStream)
                 {
                     streams.Add(stream.Value);
@@ -221,17 +221,17 @@ public sealed class NativeBattleCactuar199PresentationTests
                     maximumNeedles = Math.Max(maximumNeedles, ActiveSlots(current, 0x2B000, 0x3C, 800));
                     sawCache |= CacheInitialized(current);
                 }
-                sawHeapTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.InitializerHeapTim.Identity) == true;
-                sawModelTim |= current.NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
+                sawHeapTim |= current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.InitializerHeapTim.Identity) == true;
+                sawModelTim |= current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
                 sawCommonIo |= CommonIo(current);
                 if (CommonIo(current))
                 {
-                    Assert.Equal(source.Definition.NativeCommonEffectTexture!.Data.ToArray(), current.NativeEffectMemory!.Arena!.Read(0x4000, source.Definition.NativeCommonEffectTexture.Data.Length));
+                    Assert.Equal(source.Definition.NativeCommonEffectTexture!.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x4000, source.Definition.NativeCommonEffectTexture.Data.Length));
                     sawCommonBytes = true;
                 }
-                NativeBattlePrimitiveFrame primitive = current.NativeGraphics.PrimitiveFrame!;
-                stageFlashPeak = Math.Max(stageFlashPeak, current.NativeStage!.Groups.Max(group => group.ColorDepth));
-                sawFullscreenFlash |= current.NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CriticalFlash571300);
+                NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                stageFlashPeak = Math.Max(stageFlashPeak, current.ReadFixturePresentation().NativeStage!.Groups.Max(group => group.ColorDepth));
+                sawFullscreenFlash |= current.ReadFixturePresentation().NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CriticalFlash571300);
                 sawCommonPackets |= primitive.LastCommands.Any(item => item.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
                 needlePackets += primitive.LastCommands.Count(item => item.Command.Opcode == 0x2E && item.Command.Words.Length == 9 && item.Command.Words[2] == 0x3F540000 && item.Command.Words[4] == 0x00B9000F);
                 if (cold is not null)
@@ -241,7 +241,7 @@ public sealed class NativeBattleCactuar199PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
                 }
             }
@@ -331,8 +331,8 @@ public sealed class NativeBattleCactuar199PresentationTests
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested)
     {
         NativeBattleOriginalEffectState? effect = Selected(snapshot);
-        NativeBattleCactuar199State? state = snapshot.NativeEffectMemory?.Cactuar199;
-        if (requested.Contains("guardian-formula") && snapshot.NativeGuardianBoost?.Phase == 3 && snapshot.NativeActionScratch!.GuardianFormulaE1E != true)
+        NativeBattleCactuar199State? state = snapshot.ReadFixturePresentation().NativeEffectMemory?.Cactuar199;
+        if (requested.Contains("guardian-formula") && snapshot.ReadFixturePresentation().NativeGuardianBoost?.Phase == 3 && snapshot.NativeActionScratch!.GuardianFormulaE1E != true)
         {
             return "guardian-formula";
         }
@@ -365,16 +365,16 @@ public sealed class NativeBattleCactuar199PresentationTests
 
     private static int ActiveSlots(BattleSnapshot snapshot, int offset, int stride, int count)
     {
-        byte[] bytes = snapshot.NativeEffectMemory!.Arena!.Read(offset, stride * count);
+        byte[] bytes = snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset, stride * count);
         return Enumerable.Range(0, count).Count(index => (BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * stride)) & 1) != 0);
     }
 
-    private static bool CacheInitialized(BattleSnapshot snapshot) => BinaryPrimitives.ReadUInt16LittleEndian(snapshot.NativeEffectMemory!.Arena!.Read(0x2000E, 2)) is >= 1000 and <= 1799;
-    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
+    private static bool CacheInitialized(BattleSnapshot snapshot) => BinaryPrimitives.ReadUInt16LittleEndian(snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x2000E, 2)) is >= 1000 and <= 1799;
+    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
     private static int MaximumCounter(NativeBattleOriginalEffectState? effect, uint callback) => AllTasks(effect, callback).Select(task => (int)task.ReadWord(0xC)).DefaultIfEmpty(0).Max();
     private static IEnumerable<NativeBattleModulePoolTask> AllTasks(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => task.Callback == callback) ?? [];
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback) => AllTasks(effect, callback).Where(task => (task.Flags & 1) != 0);
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 199, Binding.Entry: 0x5A8750 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null, Binding.Effect: 199, Binding.Entry: 0x5A8750 } effect ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, string RgbaSha256);
     private sealed record FormulaBoundary(long BeforeCallback, long AfterCallback, int BeforeHp, int AfterHp, ushort Amount, ushort ContactFlags, NativeCrtRandomState? BeforeCrt, NativeCrtRandomState? AfterCrt);

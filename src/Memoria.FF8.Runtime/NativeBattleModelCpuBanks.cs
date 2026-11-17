@@ -297,38 +297,34 @@ public sealed record NativeBattleModelCpuBanks(ImmutableArray<NativeBattleModelC
         return result;
     }
 
-    internal NativeBattleModelCpuBanks RebindPresentationEnemies(BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleEnemyModelOwner> retired, NativeBattleModelAliases replacementAliases)
+    internal NativeBattleModelCpuBanks RebindPresentationRoster(BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleModelOwner> retired, NativeBattleModelAliases replacementAliases)
     {
         ArgumentNullException.ThrowIfNull(replacementAliases);
         Validate();
-        _ = ValidatePresentationEnemyRebind(PresentationRoster, expected, replacement, retired);
+        HashSet<BattleModelOwner> retiredOwners = ValidatePresentationRebind(PresentationRoster, expected, replacement, retired);
         NativeBattlePartyLoadPlan.RequireMatchingRoster(replacement, replacementAliases.Roster);
-        foreach (BattlePartyModelOwner owner in replacement.Party)
+        ImmutableDictionary<BattlePartyModelOwner, int> owners = PartyBankOwners.RemoveRange(retiredOwners.OfType<BattlePartyModelOwner>());
+        foreach ((BattlePartyModelOwner owner, int existing) in owners)
         {
-            int existing = PartyBankIndex(owner);
             if (replacementAliases.TryEncodeExact(owner, out byte operand) ? existing != operand : !NativeBattlePresentationCpuBanks.IsExtension(existing))
             {
-                throw new InvalidDataException("An enemy roster rebind cannot change a party CPU bank placement.");
+                throw new InvalidDataException("A roster rebind cannot change a retained party CPU bank placement.");
             }
         }
-        return this with { PresentationRoster = replacement };
+        return this with { PresentationRoster = replacement, PartyBankOwners = owners };
     }
 
-    internal static HashSet<BattleEnemyModelOwner> ValidatePresentationEnemyRebind(BattleModelRoster? current, BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleEnemyModelOwner> retired)
+    internal static HashSet<BattleModelOwner> ValidatePresentationRebind(BattleModelRoster? current, BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleModelOwner> retired)
     {
         ArgumentNullException.ThrowIfNull(expected);
         ArgumentNullException.ThrowIfNull(replacement);
         ArgumentNullException.ThrowIfNull(retired);
         NativeBattlePartyLoadPlan.RequireMatchingRoster(current, expected);
-        if (!expected.Party.SequenceEqual(replacement.Party))
-        {
-            throw new InvalidDataException("An enemy roster rebind must preserve the ordered party owners.");
-        }
-        HashSet<BattleEnemyModelOwner> retiredOwners = retired.ToHashSet();
+        HashSet<BattleModelOwner> retiredOwners = retired.ToHashSet();
         if (retiredOwners.Any(owner => owner is null || !expected.Contains(owner) || replacement.Contains(owner)) ||
-            expected.Enemies.Any(owner => !replacement.Contains(owner) && !retiredOwners.Contains(owner)))
+            expected.Owners.Any(owner => !replacement.Contains(owner) && !retiredOwners.Contains(owner)))
         {
-            throw new InvalidDataException("An enemy roster rebind requires exactly the removed enemy owners.");
+            throw new InvalidDataException("A roster rebind requires exactly the removed owners.");
         }
         return retiredOwners;
     }

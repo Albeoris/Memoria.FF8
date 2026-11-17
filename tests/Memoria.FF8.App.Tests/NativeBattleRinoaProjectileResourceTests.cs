@@ -78,7 +78,7 @@ public sealed class NativeBattleRinoaProjectileResourceTests
 
     private static void AssertProjectileResources(BattleSnapshot snapshot, int slot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         BattleModelOwner actor = graphics.ModuleEffects.ReadRinoaPhysicalHit(graphics.Effects.StorageContract, graphics.NativeBindings.CaptureAliases(graphics.ActorModels)).Actor;
         NativeBattleGraphicsModel before = graphics.ActorModels.Get(actor);
         NativeBattleGraphicsState drawn = Draw(snapshot, graphics);

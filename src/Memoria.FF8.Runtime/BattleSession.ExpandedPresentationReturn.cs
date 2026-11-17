@@ -8,7 +8,7 @@ public sealed partial class BattleSession
         {
             return NativeBattleRetainedMemory.Capture(logical, coldExecutableSha256);
         }
-        NativeBattleRetainedMemory retained = new(nativeActionPackets.ExportRetained(), nativeScriptState.AllocationControl, nativePartyStatusMirrors, nativeActionScratch with { ComponentCompletion = null }, null, coldExecutableSha256)
+        NativeBattleRetainedMemory retained = new(nativeActionPackets.ExportRetained(), nativeScriptState.AllocationControl, nativePartyStatusMirrors, nativeActionScratch, null, coldExecutableSha256)
         {
             PresentationStatusMemory = nativePresentationStatusMemory.State,
             ElementAttack = nativeElementAttack,

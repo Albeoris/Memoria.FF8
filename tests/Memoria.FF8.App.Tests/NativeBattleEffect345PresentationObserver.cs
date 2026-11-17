@@ -29,11 +29,11 @@ internal sealed class NativeBattleEffect345PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleEffect345State state = current.NativeEffectMemory!.Effect345!;
+        NativeBattleEffect345State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect345!;
         NativeBattleEffect345Resources resources = effect.Binding.Effect345Resources!;
         state.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> before = Tasks(prior);
@@ -65,7 +65,7 @@ internal sealed class NativeBattleEffect345PresentationObserver
             }
             if (scanned)
             {
-                Assert.Equal(JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()), JsonSerializer.Serialize(current.NativeEffectMemory.SharedEffectView2793E58));
+                Assert.Equal(JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.SharedEffectView2793E58));
                 Assert.Equal(0x2793E58u, state.ReadDword(0x2557208));
                 Assert.Equal(0x2793E58u, state.ReadDword(ScratchCursorGlobal));
                 copiedView = true;
@@ -74,7 +74,7 @@ internal sealed class NativeBattleEffect345PresentationObserver
                 uint first = source + (parity == 0 ? 0xE000u : 0);
                 uint end = state.ReadDword(PrimaryCursorGlobal);
                 Assert.True(end >= first);
-                NativeBattleLogicalCommand[] commands = current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= (long)first - 0x20DFAB8 && command.Packet.ByteOffset < (long)end - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+                NativeBattleLogicalCommand[] commands = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= (long)first - 0x20DFAB8 && command.Packet.ByteOffset < (long)end - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
                 foreach (NativeBattleLogicalCommand command in commands)
                 {
                     opcodes.Add(command.Opcode);
@@ -110,7 +110,7 @@ internal sealed class NativeBattleEffect345PresentationObserver
             Assert.Equal(NativeBattleEffect345Resources.ModelAddress, model.ResourceAddress);
             Assert.Equal(28, model.DecodedPose!.Bones.Length);
             NativeBattleEffectOwnedModel.Validate(task, model, resources.Model);
-            NativeBattleEffectArena skeleton = NativeBattleTemporaryMemory.ReadView(current.NativeFileStaging!, NativeBattleEffectOwnedModelRendering.SkeletonAddress(resources.Model), resources.Model.PoseSource.Skeleton.Length);
+            NativeBattleEffectArena skeleton = NativeBattleTemporaryMemory.ReadView(current.ReadFixturePresentation().NativeFileStaging!, NativeBattleEffectOwnedModelRendering.SkeletonAddress(resources.Model), resources.Model.PoseSource.Skeleton.Length);
             NativeBattleDecodedPose staged = NativeBattleArenaPose.ReadCurrentPose(skeleton, 0, 28);
             Assert.Equal(JsonSerializer.Serialize(model.DecodedPose), JsonSerializer.Serialize(staged));
             modelAnimations.Add(task.ReadByte(0x9C));
@@ -131,7 +131,7 @@ internal sealed class NativeBattleEffect345PresentationObserver
             }
             if (before.TryGetValue(address, out NativeBattleModulePoolTask? previous) && previous.Callback == 0x706130 && previous.ReadByte(0x29) is 2 or 3)
             {
-                uint[] colors = new[] { prior.NativeStage!.ModelColors!.Color40, current.NativeStage!.ModelColors!.Color40 }.Distinct().ToArray();
+                uint[] colors = new[] { prior.ReadFixturePresentation().NativeStage!.ModelColors!.Color40, current.ReadFixturePresentation().NativeStage!.ModelColors!.Color40 }.Distinct().ToArray();
                 short fade = unchecked((short)task.ReadWord(0x13A));
                 Assert.Contains(colors, color => Material(color, fade) == task.ReadDword(0x58));
                 material = true;
@@ -181,27 +181,27 @@ internal sealed class NativeBattleEffect345PresentationObserver
                 }
             }
         }
-        if (current.NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
+        if (current.ReadFixturePresentation().NativeCamera?.ControlResource is { } control && control.Source.Identity == resources.Camera.Identity)
         {
             cameraRegistered = true;
-            if (effect.ReturnedDescriptor > 0 && current.NativeGraphics.ActionGraphics?.UseActionCamera is bool decision)
+            if (effect.ReturnedDescriptor > 0 && current.ReadFixturePresentation().NativeGraphics.ActionGraphics?.UseActionCamera is bool decision)
             {
                 cameraDecision ??= decision;
                 Assert.Equal(cameraDecision, decision);
             }
-            bool track = current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[324..]));
+            bool track = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[324..]));
             cameraTrack |= track;
-            cameraChanged |= track && JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778());
+            cameraChanged |= track && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
         }
-        if (prior.NativeGraphics?.OriginalEffect?.ReturnedDescriptor > 0 && effect.ReturnedDescriptor == 0)
+        if (prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor > 0 && effect.ReturnedDescriptor == 0)
         {
             Assert.Empty(effect.Pools);
             Assert.All(state.BankStorage, bank => Assert.NotNull(bank));
             detached = true;
             Mark("effect345-eight-physical-banks-detached", current, cold);
         }
-        (byte[] temporary, bool[] known) = current.NativeFileStaging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + 0x44, 4);
-        observations.Add(new { current.Frame, current.NativeGraphics.Callback, effect.ReturnedDescriptor, RootScanned = scanned, RootParityAfter = root.Value?.ReadWord(0x5C), Primary = state.ReadDword(PrimaryCursorGlobal), Secondary = state.ReadDword(SecondaryCursorGlobal), Models = state.OwnedModels.Count, Appearance = appearanceGeometry, Normal = normalGeometry, Relocated = relocated.Order().ToArray(), MutableGeometry = mutableGeometry, RetainedTemporary44 = temporary, RetainedTemporary44Known = known, TemporaryWitness = "Post-callback physical bytes; later bone and particle helpers may have overwritten the earlier quad input" });
+        (byte[] temporary, bool[] known) = current.ReadFixturePresentation().NativeFileStaging!.ReadSnapshot(NativeBattleTemporaryMemory.Address + 0x44, 4);
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, RootScanned = scanned, RootParityAfter = root.Value?.ReadWord(0x5C), Primary = state.ReadDword(PrimaryCursorGlobal), Secondary = state.ReadDword(SecondaryCursorGlobal), Models = state.OwnedModels.Count, Appearance = appearanceGeometry, Normal = normalGeometry, Relocated = relocated.Order().ToArray(), MutableGeometry = mutableGeometry, RetainedTemporary44 = temporary, RetainedTemporary44Known = known, TemporaryWitness = "Post-callback physical bytes; later bone and particle helpers may have overwritten the earlier quad input" });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -246,7 +246,7 @@ internal sealed class NativeBattleEffect345PresentationObserver
         return result;
     }
 
-    private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots.Select((task, index) => (Address: checked(pool.BankAddress + (uint)(index * pool.Stride)), Task: task))).Where(pair => pair.Task.Callback != 0).ToDictionary(pair => pair.Address, pair => pair.Task) ?? [];
+    private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots.Select((task, index) => (Address: checked(pool.BankAddress + (uint)(index * pool.Stride)), Task: task))).Where(pair => pair.Task.Callback != 0).ToDictionary(pair => pair.Address, pair => pair.Task) ?? [];
 
     private void Mark(string name, BattleSnapshot snapshot, Action<string, BattleSnapshot> cold)
     {

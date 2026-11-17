@@ -70,7 +70,7 @@ public sealed class NativeBattleFirePresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         if (!casting)
         {
             AssertNativeFileIoHostPump(before);
@@ -79,9 +79,9 @@ public sealed class NativeBattleFirePresentationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } });
+        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -139,7 +139,7 @@ public sealed class NativeBattleFirePresentationTests
                 continue;
             }
             sawSprites = true;
-            BattleSnapshot snapshot = battle.Capture();
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
             byte[] visible;
             try
             {
@@ -150,17 +150,17 @@ public sealed class NativeBattleFirePresentationTests
                 if (!string.IsNullOrWhiteSpace(evidence))
                 {
                     Directory.CreateDirectory(evidence);
-                    string name = evidenceId + "-unsupported-callback" + snapshot.NativeGraphics!.Callback;
+                    string name = evidenceId + "-unsupported-callback" + snapshot.ReadFixturePresentation().NativeGraphics!.Callback;
                     File.WriteAllText(Path.Combine(evidence, name + ".battle.json"), JsonSerializer.Serialize(snapshot));
-                    File.WriteAllText(Path.Combine(evidence, name + "-details.json"), JsonSerializer.Serialize(new { exception.Message, snapshot.Frame, snapshot.NativeGraphics.Callback, Meshes = snapshot.NativeGraphics.ModuleDraws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh).Select(draw => new { draw.MeshId, draw.MeshFlags }) }));
+                    File.WriteAllText(Path.Combine(evidence, name + "-details.json"), JsonSerializer.Serialize(new { exception.Message, snapshot.Frame, snapshot.ReadFixturePresentation().NativeGraphics.Callback, Meshes = snapshot.ReadFixturePresentation().NativeGraphics.ModuleDraws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh).Select(draw => new { draw.MeshId, draw.MeshFlags }) }));
                 }
                 throw;
             }
-            NativeBattleGraphicsState currentGraphics = snapshot.NativeGraphics!;
+            NativeBattleGraphicsState currentGraphics = snapshot.ReadFixturePresentation().NativeGraphics!;
             NativeBattlePrimitiveFrame currentFrame = currentGraphics.PrimitiveFrame ?? throw new InvalidDataException("Native Fire pixel comparison requires its actual executed primitive frame.");
             HashSet<int> spriteDraws = currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.Kind == NativeBattleModuleDrawKind.Sprite).Select(pair => pair.index).ToHashSet();
             NativeBattlePrimitiveFrame withoutSpritePackets = currentFrame with { LastCommands = currentFrame.LastCommands.Where(command => command.Command.ModuleDraw is not int drawIndex || !spriteDraws.Contains(drawIndex)).ToImmutableArray() };
-            BattleSession withoutSprites = BattleSession.Restore(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutSpritePackets } });
+            BattleSession withoutSprites = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutSpritePackets } }));
             byte[] plain = scene.Render(withoutSprites, 320, 224).ToArray();
             int changedPixels = DifferentPixels(visible, plain);
             if (changedPixels > peakDifferencePixels)
@@ -190,7 +190,7 @@ public sealed class NativeBattleFirePresentationTests
         {
             PublishEvidence(evidence, evidenceId + "-peak", BattleSession.Restore(peakSnapshot!), peakVisible!);
             PublishPixels(evidence, evidenceId + "-peak-without-sprites", peakPlain!);
-            File.WriteAllText(Path.Combine(evidence, evidenceId + "-peak-details.json"), JsonSerializer.Serialize(new { ChangedPixels = peakDifferencePixels, Callback = peakSnapshot!.NativeGraphics!.Callback, SpriteCount = peakSnapshot.NativeGraphics.ModuleDraws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite) }));
+            File.WriteAllText(Path.Combine(evidence, evidenceId + "-peak-details.json"), JsonSerializer.Serialize(new { ChangedPixels = peakDifferencePixels, Callback = peakSnapshot!.ReadFixturePresentation().NativeGraphics!.Callback, SpriteCount = peakSnapshot.ReadFixturePresentation().NativeGraphics.ModuleDraws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite) }));
         }
         Assert.True(checkedNextFrame, "No visible mid-effect snapshot made a subsequent continuation check.");
         Assert.True(cameraProgramCompleted, "Actual DED5FC camera control program did not register and finish.");
@@ -256,7 +256,7 @@ public sealed class NativeBattleFirePresentationTests
     {
         //A controlled pending IO row isolates the outer scheduler from effect/model requests; the live battle stays unchanged.
         NativeBattleFileIoState pending = NativeBattleFileIoState.FromColdProcess().Queue482610(40960, 0x508470, null);
-        BattleSession probe = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1 });
+        BattleSession probe = BattleSession.Restore(entry.WithFixturePresentation(facts => facts with { NativeFileIo = pending, NativeEffectIoResult = -1 }));
         long callback = probe.Presentation!.Graphics.Callback;
         probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
         Assert.Equal(callback + 1, probe.Presentation!.Graphics.Callback);
@@ -276,17 +276,17 @@ public sealed class NativeBattleFirePresentationTests
         Assert.Equal(callback + 3, probe.Presentation!.Graphics.Callback);
         Assert.Equal((short)0, probe.Presentation!.NativeFileIo.ActiveCount);
         Assert.Equal((short)-1, probe.Presentation!.NativeFileIo.Rows[0].Countdown);
-        NativeBattleGraphicsState graphics = entry.NativeGraphics!;
+        NativeBattleGraphicsState graphics = entry.ReadFixturePresentation().NativeGraphics!;
         NativeBattleUiServices services = graphics.UiServices!;
-        BattleSession paused = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1, NativeGraphics = graphics with { UiServices = services with { Flags942 = (ushort)(services.Flags942 | 2), PauseDE9 = true } } });
+        BattleSession paused = BattleSession.Restore(entry.WithFixturePresentation(facts => facts with { NativeFileIo = pending, NativeEffectIoResult = -1, NativeGraphics = graphics with { UiServices = services with { Flags942 = (ushort)(services.Flags942 | 2), PauseDE9 = true } } }));
         paused.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(paused));
         Assert.Equal(callback, paused.Presentation!.Graphics.Callback);
         Assert.Equal((short)2, paused.Presentation!.NativeFileIo!.Rows[0].Countdown);
         Assert.Equal(-1, paused.NativeEffectIoResult);
-        BattleSession old = BattleSession.Restore(entry with { NativeFileIo = null });
+        BattleSession old = BattleSession.Restore(entry.WithFixturePresentation(facts => facts with { NativeFileIo = null }));
         Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(old)));
         Assert.Null(old.Presentation?.NativeFileIo);
-        Assert.Equal(entry.NativeGraphics!.Callback, old.Presentation!.Graphics.Callback);
+        Assert.Equal(entry.ReadFixturePresentation().NativeGraphics!.Callback, old.Presentation!.Graphics.Callback);
     }
 
     private static TimeSpan NextGraphicsCallback(BattleSession battle)

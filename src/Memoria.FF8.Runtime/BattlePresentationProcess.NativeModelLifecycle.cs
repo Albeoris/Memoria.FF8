@@ -102,7 +102,7 @@ public sealed partial class BattlePresentationProcess
                     GlobalRandom = NextNativeGlobalRandom,
                     BindModelRing90 = (current, selector) =>
                     {
-                        models = NativeBattleModelRings.Bind90(models.Set(owner, current), owner, selector, graphics.NativeBindings);
+                        models = NativeBattleModelRings.Bind90(models.Set(owner, current), owner, selector, graphics.NativeBindings, ReadSourceBindings(graphics, owner));
                         graphics = graphics with { ActorModels = models };
                         return models.Get(owner);
                     },
@@ -168,7 +168,7 @@ public sealed partial class BattlePresentationProcess
                     ScheduleModelMotion = (current, opcode, first, second, fraction, duration) =>
                     {
                         graphics = graphics with { ActorModels = models.Set(owner, current) };
-                        BattleModelOwner target = opcode == 0x9E ? graphics.NativeBindings.DecodeLiteral(first, models) : (graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
+                        BattleModelOwner target = opcode == 0x9E ? ResolveSourceModelOperand(graphics, owner, first) : (graphics.ActionContext?.ResolveTarget(graphics.ActorModels, graphics.NativeBindings) ?? throw new NotSupportedException("Native AD/AE requires its retained50D300 target identity."));
                         (NativeBattleAuxiliaryState auxiliary, bool allocated) = graphics.Auxiliary.AppendModelMotion(opcode, owner, target, first, second, fraction, duration, graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
                         graphics = graphics with { Auxiliary = auxiliary };
                         if (allocated && opcode != 0x9E)

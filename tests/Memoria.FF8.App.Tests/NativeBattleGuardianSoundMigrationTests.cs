@@ -17,7 +17,7 @@ public sealed class NativeBattleGuardianSoundMigrationTests
         byte[] bytes = File.ReadAllBytes(source!);
         byte[] hash = SHA256.HashData(bytes);
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
-        NativeBattleOriginalEffectState effect = original.NativeGraphics!.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         Assert.Equal((ushort)116, effect.Binding.Effect);
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
         Assert.NotNull(retained);
@@ -37,11 +37,9 @@ public sealed class NativeBattleGuardianSoundMigrationTests
         int index = effect.Binding.Effect - 1;
         Assert.Equal(JsonSerializer.Serialize(retained), JsonSerializer.Serialize(original.Definition.NativeEffectCatalog[index].NativeQuezacotlResources));
         NativeBattleQuezacotlResources migratedResources = retained with { Frame65Sound = authenticated.Frame65Sound, FlashColors = authenticated.FlashColors };
-        BattleSnapshot migrated = original with
+        BattleSnapshot migrated = (original with
         {
-            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, original.Definition.NativeEffectCatalog[index] with { NativeQuezacotlResources = migratedResources }) },
-            NativeGraphics = original.NativeGraphics with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = migratedResources } } }
-        };
+            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, original.Definition.NativeEffectCatalog[index] with { NativeQuezacotlResources = migratedResources }) }        }).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = migratedResources } } } });
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(migrated))!);
@@ -54,6 +52,6 @@ public sealed class NativeBattleGuardianSoundMigrationTests
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(source!)));
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(target!))!).Capture()));
-        Console.WriteLine($"Authenticated sound/flash metadata migration preserves frame{original.Frame}/callback{original.NativeGraphics.Callback}; one-callback result={boundary}");
+        Console.WriteLine($"Authenticated sound/flash metadata migration preserves frame{original.Frame}/callback{original.ReadFixturePresentation().NativeGraphics.Callback}; one-callback result={boundary}");
     }
 }

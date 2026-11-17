@@ -87,7 +87,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native cinematic requires its four stage groups.");
             NativeStage = stage with { Groups = stage.Groups.SetItem(index, stage.Groups[index] with { ColorDepth = depth, ColorFlags = color }) };
             return current;
-        }, current => ReadCinematicHeader(current, effect.Parameters, entryCaster), () => nativeActionPackets, () => graphics.NativeBindings.CaptureAliases(graphics.ActorModels), graphics.Effects.StorageContract);
+        }, current => ReadCinematicHeader(current, effect.Parameters, entryCaster), () => nativeActionPackets, () => CaptureScriptAuthoredOperands(graphics, entryCaster ?? effect.Parameters?.Source), graphics.Effects.StorageContract);
         NativeBattleScriptedCallbackServices services = new(ReadInstruction, ExecuteInstruction, UpdateSlot, DrawSlots, ClearOrderingTable, PublishFocal) { ReadCurrentFocal = _ => NativeCamera?.FocalLength ?? throw new NotSupportedException("Native cinematic requires its current scratch focal WORD after script execution.") };
         NativeBattleGuardianFormPresentation? continuation = graphics.GuardianFormPresentation;
         bool attachedContinuation = continuation is { Mode: GuardianFormInvocationMode.FinisherWithoutEntry, Phase: 4 } &&
@@ -806,7 +806,7 @@ public sealed partial class BattlePresentationProcess
                         return current;
                     }
                     ushort? encounter = this.resources.EncounterId is int sourceEncounter ? checked((ushort)sourceEncounter) : presentationSourceResource is not null ? null : throw new NotSupportedException("Native encounter correction requires its current source encounter.");
-                    return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, () => graphics.NativeBindings.DecodeLiteral(3, graphics.ActorModels), graphics.ActorModels.Get, context));
+                    return NativeBattleBrothersTargetCommand.Execute(current, program, new(encounter, () => RequireWaterMemory().ScriptedTarget2796D40 ?? throw new NotSupportedException("Native Brothers target branch requires its retained2796D40 byte."), value => NativeEffectMemory = RequireWaterMemory() with { ScriptedTarget2796D40 = value }, () => context.CaptureAliases().DecodeAuthoredOperand(3), graphics.ActorModels.Get, context));
                 default:
                     throw new NotSupportedException($"Native cinematic instruction{current.ReadTemporaryWord(0x14A):X4} at{pc:X} requires its selected command contract.");
             }

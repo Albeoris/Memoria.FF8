@@ -7,6 +7,111 @@ public sealed record BattleNativeDuelChoice(byte MoveSetId, byte ActionId, strin
 
 public static class NativeBattleDuelRules
 {
+    public static BattleNativeDuelState AcknowledgeWidgetReady(BattleNativeDuelState state)
+    {
+        return state with
+        {
+            Phase = BattleNativeDuelPhase.Ready,
+            Selection1D28DEF = 254,
+            WidgetPhase = 0,
+            WidgetRevealQ12 = 0,
+            Ui = new(BattleTimedInputUiPhase.Opening),
+            InputRing = Enumerable.Repeat((ushort)0, 8).ToImmutableArray(),
+            InputCursor = 0,
+            PendingPulse = 0
+        };
+    }
+
+    public static BattleNativeDuelState AdvanceWidget(BattleNativeDuelState state, bool frame33, ushort rawPulse, bool automatic, IReadOnlyList<BattleNativeDuelChoice> choices, Func<ushort> nextUiRandom)
+    {
+        if (state.WidgetClosed || state.Phase == BattleNativeDuelPhase.Opening)
+        {
+            return state;
+        }
+        byte latch = frame33 ? (byte)4 : (byte)Math.Max(0, state.PublicationLatch - 1);
+        state = state with { PublicationLatch = latch };
+        switch (state.WidgetPhase)
+        {
+            case 0:
+                return frame33 ? state with { WidgetPhase = 1 } : state;
+            case 1:
+                return Reveal(state, 1024);
+            case 2:
+                return Reveal(state, checked((ushort)(state.WidgetRevealQ12 + 1024)));
+            case 3:
+                state = state with { WidgetPhase = 4, AutomaticCountdown = 120 };
+                break;
+            case 4:
+                break;
+            case 9:
+                return state;
+            case 11:
+                return frame33 ? state with { WidgetPhase = 12, ClosingCountdown = 24, WidgetRevealQ12 = 0 } : state with { WidgetRevealQ12 = 0 };
+            case 12:
+                short closing = unchecked((short)(state.ClosingCountdown - 1));
+                return closing < 0 && frame33 ? state with { WidgetPhase = 13, ClosingCountdown = closing, Ui = new(BattleTimedInputUiPhase.Closed) } : state with { ClosingCountdown = closing };
+            default:
+                throw new InvalidDataException("Duel widget has an unsupported callback phase.");
+        }
+        if (latch != 0)
+        {
+            state = state with { RemainingTimer = checked((short)(state.RemainingTimer - 1)), AutomaticCountdown = unchecked((short)(state.AutomaticCountdown - 1)) };
+            if (state.RemainingTimer <= 0)
+            {
+                return RequestWidgetClose(state);
+            }
+        }
+        if (automatic)
+        {
+            if (state.AutomaticCountdown != 30)
+            {
+                return state;
+            }
+            BattleNativeDuelChoice[] learned = choices.Where(choice => choice.Learned).ToArray();
+            if (learned.Length == 0)
+            {
+                return Select(state, choices[0]);
+            }
+            int index = nextUiRandom() / (0x8000 / learned.Length);
+            if (index >= learned.Length)
+            {
+                throw new NotSupportedException("Native Duel's automatic draw reached an uninitialized choice byte.");
+            }
+            return Select(state, learned[index]);
+        }
+        if (rawPulse != 0)
+        {
+            byte cursor = (byte)((state.InputCursor + 1) & 7);
+            state = state with { InputCursor = cursor, InputRing = state.InputRing.SetItem(cursor, rawPulse) };
+        }
+        BattleNativeDuelChoice? match = choices.FirstOrDefault(choice => Matches(choice, state.InputRing, state.InputCursor));
+        return match is null ? state : Select(state, match);
+    }
+
+    public static BattleNativeDuelState RequestWidgetClose(BattleNativeDuelState state)
+    {
+        return state with { Selection1D28DEF = 255, Phase = BattleNativeDuelPhase.Finisher, WidgetPhase = 11, Ui = new(BattleTimedInputUiPhase.Closing) };
+    }
+
+    private static BattleNativeDuelState Reveal(BattleNativeDuelState state, ushort value)
+    {
+        bool complete = value == 4096;
+        return state with { WidgetPhase = complete ? (byte)3 : (byte)2, WidgetRevealQ12 = value, Ui = complete ? new(BattleTimedInputUiPhase.Active) : new(BattleTimedInputUiPhase.Opening, value / 1024) };
+    }
+
+    private static BattleNativeDuelState Select(BattleNativeDuelState state, BattleNativeDuelChoice choice)
+    {
+        return state with
+        {
+            MoveSetId = choice.MoveSetId,
+            Selection1D28DEF = choice.MoveSetId,
+            Phase = choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect,
+            WidgetPhase = choice.Finisher ? (byte)11 : (byte)9,
+            WidgetRevealQ12 = choice.Finisher ? state.WidgetRevealQ12 : (ushort)0,
+            Ui = choice.Finisher ? new(BattleTimedInputUiPhase.Closing) : state.Ui
+        };
+    }
+
     public static BattleNativeAction Control(ushort actionId, ushort effect)
     {
         if (actionId == 65530 ? effect is < 6 or > 9 : actionId != 65532 || effect != 0)

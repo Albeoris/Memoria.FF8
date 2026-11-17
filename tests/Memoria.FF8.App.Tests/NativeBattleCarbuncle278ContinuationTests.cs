@@ -18,14 +18,14 @@ public sealed class NativeBattleCarbuncle278ContinuationTests
         Assert.True(initialCounter is 3 or 38);
         if (initialCounter == 38)
         {
-            NativeBattleModulePoolTask sourceRoot = source.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
+            NativeBattleModulePoolTask sourceRoot = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
             uint primary = sourceRoot.ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
-            NativeBattleCarbuncle278State state = source.NativeEffectMemory!.Carbuncle278!;
+            NativeBattleCarbuncle278State state = source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!;
             Assert.Equal(state.ModelBuffer81F8 + primary, state.PacketCursor81BC);
         }
-        Assert.Equal((byte)31, source.NativeGraphics!.StageResourceIndex98990);
-        byte[] firstPrivate = source.NativeEffectMemory!.Arena!.Read(0x3ECC, 112);
-        byte[] secondPrivate = source.NativeEffectMemory.Arena.Read(0x13ECC, 112);
+        Assert.Equal((byte)31, source.ReadFixturePresentation().NativeGraphics!.StageResourceIndex98990);
+        byte[] firstPrivate = source.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x3ECC, 112);
+        byte[] secondPrivate = source.ReadFixturePresentation().NativeEffectMemory.Arena.Read(0x13ECC, 112);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         using BattleAssets assets = new(directory!);
@@ -39,15 +39,15 @@ public sealed class NativeBattleCarbuncle278ContinuationTests
         {
             first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
             second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-            BattleSnapshot current = first.Capture();
+            BattleSnapshot current = first.CaptureForContinuation();
             Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(second.Capture()));
-            Assert.Equal(firstPrivate, current.NativeEffectMemory!.Arena!.Read(0x3ECC, 112));
-            Assert.Equal(secondPrivate, current.NativeEffectMemory.Arena.Read(0x13ECC, 112));
-            NativeBattleModulePoolTask root = current.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
+            Assert.Equal(firstPrivate, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x3ECC, 112));
+            Assert.Equal(secondPrivate, current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(0x13ECC, 112));
+            NativeBattleModulePoolTask root = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
             uint primary = root.ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
-            NativeBattleCarbuncle278State state = current.NativeEffectMemory.Carbuncle278!;
+            NativeBattleCarbuncle278State state = current.ReadFixturePresentation().NativeEffectMemory.Carbuncle278!;
             Assert.Equal(state.ModelBuffer81F8 + primary, state.PacketCursor81BC);
-            Assert.NotNull(current.NativeEffectMemory.PrimitiveProcess!.CommonPacketMemory);
+            Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.CommonPacketMemory);
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
             ushort counter = Counter(current);
@@ -56,11 +56,11 @@ public sealed class NativeBattleCarbuncle278ContinuationTests
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 88 ? "before-sparkle-boundary" : "master-" + counter, current, pixels);
             }
         }
-        BattleSnapshot boundary = first.Capture();
+        BattleSnapshot boundary = first.CaptureForContinuation();
         Assert.Equal((ushort)88, Counter(boundary));
-        Assert.Equal((ushort)86, boundary.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0].ReadWord(0xC));
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-window-complete", boundary.Frame, NativeCallback = boundary.NativeGraphics.Callback, Counter = Counter(boundary) }));
+        Assert.Equal((ushort)86, boundary.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0].ReadWord(0xC));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "creature-window-complete", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics.Callback, Counter = Counter(boundary) }));
 
-        static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
+        static ushort Counter(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }
 }

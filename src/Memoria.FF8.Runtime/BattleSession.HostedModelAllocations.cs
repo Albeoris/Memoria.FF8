@@ -36,7 +36,7 @@ public sealed partial class BattleSession
 
     private ImmutableArray<HostedModelLoadAdmission> PrepareExpandedModelLoadAdmissions(BattlePresentationProcess process, int firstOperation = 0)
     {
-        var unloadChecks = new List<(HostedDispatchControl.LoadEnemy Load, ImmutableHashSet<BattleModelOwner> LaterOwners)>();
+        var unloadChecks = new List<(HostedDispatchControl.LoadModel Load, ImmutableHashSet<BattleModelOwner> LaterOwners)>();
         HashSet<BattleModelOwner> laterOwners = [];
         for (int i = expandedOperationCursor.Operations.Length - 1; i >= firstOperation; i--)
         {
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
                 case ExpandedHostedDescriptor { Control: HostedDispatchControl.Model model }:
                     laterOwners.Add(model.Owner);
                     break;
-                case ExpandedHostedDescriptor { Control: HostedDispatchControl.LoadEnemy load }:
+                case ExpandedHostedDescriptor { Control: HostedDispatchControl.LoadModel load }:
                     unloadChecks.Add((load, laterOwners.ToImmutableHashSet()));
                     break;
             }
@@ -72,24 +72,34 @@ public sealed partial class BattleSession
         }
     }
 
-    private HostedModelLoadAdmission PrepareHostedModelLoadAdmission(BattlePresentationProcess process, HostedDispatchControl.LoadEnemy load, ImmutableHashSet<BattleModelOwner> protectedOwners)
+    private HostedModelLoadAdmission PrepareHostedModelLoadAdmission(BattlePresentationProcess process, HostedDispatchControl.LoadModel load, ImmutableHashSet<BattleModelOwner> protectedOwners)
     {
-        BattleCombatant actor = GetActor(load.Owner.Actor.ActorId);
-        NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
-        if (load.Owner != CreatePresentationModelOwner(actor) || load.Slot.Side != BattleSide.Enemies || actor.Slot != load.Slot ||
-            (load.OriginalSlot is { } original && actor.NativeActorIndex != original.Offset) ||
-            actor.SceneSlot != allocation.SceneSlot || actor.SourceDefinition.SceneSlot != allocation.SceneSlot ||
-            load.SceneSlot != allocation.SceneSlot || load.ModelId != actor.ModelId)
+        BattleCombatant actor = GetActor(RequireCanonicalGraphicsActorId(load.ModelOwner));
+        if (load.ModelOwner != CreatePresentationModelOwner(actor) || actor.Slot != load.Slot ||
+            load.OriginalSlot is { } original && actor.NativeActorIndex != original.Offset)
         {
-            throw new InvalidDataException("A staged model load requires its exact native allocation and original scene prototype.");
+            throw new InvalidDataException("A staged model load requires its current typed slot and actual original alias.");
         }
-        NativeBattleGraphicsBinding binding = PrepareModelBinding(load.Owner, load.Slot);
-        if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + 16)) ||
+        bool usesOriginalSceneResource = false;
+        BattleEnemyRosterSource? source = null;
+        if (load is HostedDispatchControl.LoadEnemy enemy)
+        {
+            NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
+            if (load.Slot.Side != BattleSide.Enemies || actor.SceneSlot != allocation.SceneSlot || actor.SourceDefinition.SceneSlot != allocation.SceneSlot ||
+                enemy.SceneSlot != allocation.SceneSlot || enemy.ModelId != actor.ModelId)
+            {
+                throw new InvalidDataException("A staged enemy model load requires its exact native allocation and original scene prototype.");
+            }
+            usesOriginalSceneResource = allocation.ResolvedDefinition is null && allocation.DonorSource is null;
+            source = allocation.DonorSource;
+        }
+        NativeBattleGraphicsBinding binding = PrepareModelBinding(load.ModelOwner, load.Slot);
+        if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + (actor.IsPlayer ? 0 : 16))) ||
             binding.Resource.AnimationFrames.IsDefaultOrEmpty || binding.Resource.ModelLoadSources is not { IsDefaultOrEmpty: false })
         {
             throw new InvalidDataException("The installed model binding does not match its staged allocation.");
         }
         binding.Resource.Validate();
-        return new(load, binding, protectedOwners, allocation.ResolvedDefinition is null);
+        return new(load, binding, protectedOwners, usesOriginalSceneResource) { Source = source };
     }
 }

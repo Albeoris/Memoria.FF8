@@ -85,6 +85,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public System.Collections.Immutable.ImmutableSortedDictionary<int, BattleEnemyRosterSource>? AddedEnemySources { get; init; }
+    public System.Collections.Immutable.ImmutableArray<BattlePartyOccupancyChange> PartyOccupancyChanges { get; init; } = [];
 
     public void Validate()
     {
@@ -93,6 +94,13 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
+        if (PartyOccupancyChanges.IsDefault || PartyOccupancyChanges.Any(change => change is null || change.Slot.Side != BattleSide.Allies ||
+            change.Slot.Position >= ExpandedBattleFormation.MaximumAllies || change.OutgoingRow >= NativeCharacterVitals.ExtendedRecordCount ||
+            change.IncomingRow is byte incoming && (Encounter.Formation != 511 || incoming >= NativeCharacterVitals.NativeRecordCount || incoming == change.OutgoingRow)) ||
+            !PartyOccupancyChanges.IsEmpty && RewardPolicy != BattleRewardPolicy.NativeCombat)
+        {
+            throw new InvalidDataException("Battle outcome requires ordered native party occupancy facts.");
+        }
         int addedCount = AddedEnemySources?.Count ?? 0;
         if (Party is null || Party.Length is < 1 or > ExpandedBattleFormation.MaximumAllies ||
             EnemySlotCount < 1 || EnemySlotCount > ExpandedBattleFormation.MaximumRewardSlots ||

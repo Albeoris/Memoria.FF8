@@ -33,10 +33,10 @@ public sealed class NativeBattleEffect80AllocationTests
         Assert.True(File.Exists(Path.Combine(output!, "source-before-entry.battle.json")));
         Assert.True(File.Exists(Path.Combine(output!, "fresh-source-origin.json")));
         Assert.True(File.Exists(Path.Combine(output!, "participant-release-receipt.json")));
-        Assert.Null(saved.NativeGraphics!.OriginalEffect);
+        Assert.Null(saved.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         Assert.Null(saved.ActiveAction);
         Assert.Empty(saved.QueuedActions);
         Assert.Contains(saved.Events, entry => entry.Kind == "NativeSpawn");
-        File.WriteAllText(Path.Combine(output!, "allocation-result.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Original-resource controlled allocation and activation prerequisite; no effect80 execution or ordinary preceding death/AI/formula admission", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))), ReadySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(output!, "allocation-ready.battle.json")))), FormationId = 511, StageId = 142, CasterActorIndex = caster, TargetActorIndex = target, saved.Frame, NativeCallback = saved.NativeGraphics!.Callback }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output!, "allocation-result.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Original-resource controlled allocation and activation prerequisite; no effect80 execution or ordinary preceding death/AI/formula admission", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source!))), ReadySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(output!, "allocation-ready.battle.json")))), FormationId = 511, StageId = 142, CasterActorIndex = caster, TargetActorIndex = target, saved.Frame, NativeCallback = saved.ReadFixturePresentation().NativeGraphics!.Callback }, new JsonSerializerOptions { WriteIndented = true }));
     }
 }

@@ -92,7 +92,7 @@ public sealed class NativeBattleRetainedMemoryTests
         GameState source = process.State;
         NativeBattleRetainedMemory memory = source.NativeBattleMemory!;
         NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(source.Battle!, memory.ColdExecutableSha256);
-        Assert.Same(source.Battle!.NativeEffectMemory, memory.EffectMemory);
+        Assert.Same(source.Battle!.ReadFixturePresentation().NativeEffectMemory, memory.EffectMemory);
         Assert.Same(memory.EffectMemory, observed.EffectMemory);
         Assert.Equal(memory, observed);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(observed)));

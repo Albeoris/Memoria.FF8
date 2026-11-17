@@ -20,8 +20,8 @@ public sealed class NativeBattleGuardianSoundOwnerMigrationTests
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(bytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(149L, original.Frame);
-        Assert.Equal(229L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal(229L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
         Assert.Equal((ushort)89, Phase(original));
         Assert.Null(original.NativeGlobalSoundProcess);
         Assert.Null(original.Definition.NativeGlobalSoundProcess);
@@ -69,5 +69,5 @@ public sealed class NativeBattleGuardianSoundOwnerMigrationTests
         Console.WriteLine($"GF17 sound-owner migration: only live unknown history added; source{sourceHash}, output{Convert.ToHexString(SHA256.HashData(migratedBytes))}. Saved149/229/89; independent actual continuation frame{first.Frame}/callback230/phase90 and before/after renders agree. Output={Path.GetFullPath(output!)}");
     }
 
-    private static ushort Phase(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
+    private static ushort Phase(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
 }

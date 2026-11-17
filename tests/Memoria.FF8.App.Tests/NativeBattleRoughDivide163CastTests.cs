@@ -36,7 +36,7 @@ public sealed class NativeBattleRoughDivide163CastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "rough-divide-163-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Rough Divide evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         bool initial = false;
         bool selected = false;
         bool drawn = false;
@@ -67,7 +67,7 @@ public sealed class NativeBattleRoughDivide163CastTests
                 NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
                 if (!initial && graphics.OriginalEffect is { Binding.Effect: 160, ReturnedDescriptor: > 0 })
                 {
-                    Assert.True(battle.Capture().NativeEffectMemory!.Renzokuken160!.InitialControl);
+                    Assert.True(battle.CaptureForContinuation().ReadFixturePresentation().NativeEffectMemory!.Renzokuken160!.InitialControl);
                     Assert.Equal(finisherIndex, battle.GetNativeRenzokuken("party")!.FinisherActionId);
                     CompareNext("initial-control");
                     initial = true;
@@ -83,11 +83,11 @@ public sealed class NativeBattleRoughDivide163CastTests
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot captured = battle.Capture();
-                        NativeBattleGraphicsState frozenGraphics = captured.NativeGraphics!;
+                        BattleSnapshot captured = battle.CaptureForContinuation();
+                        NativeBattleGraphicsState frozenGraphics = captured.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame frozenFrame = frozenGraphics.PrimitiveFrame!;
                         NativeBattlePrimitiveFrame withoutEffect = frozenFrame with { LastCommands = frozenFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(captured with { NativeGraphics = frozenGraphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(captured.WithFixturePresentation(facts => facts with { NativeGraphics = frozenGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -117,7 +117,7 @@ public sealed class NativeBattleRoughDivide163CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

@@ -73,13 +73,9 @@ public sealed class NativeBattleEnemySnapshotCompatibilityTests
             }, BattleAtbMode.Normal);
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-            snapshot = snapshot with
+            snapshot = (snapshot with
             {
-                Definition = snapshot.Definition with { NativeGraphics = new(rules, [], []) },
-                NativeGraphics = OriginalGraphics([]),
-                NativePartyPresentation = new([null, null, null]),
-                NativeModelCpuResources = cpu
-            };
+                Definition = snapshot.Definition with { NativeGraphics = new(rules, [], []) },                NativePartyPresentation = new([null, null, null])            }).WithFixturePresentation(facts => facts with { NativeGraphics = OriginalGraphics([]), NativeModelCpuResources = cpu });
             historical = historical with { Battle = snapshot, NativeBattleMemory = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256) };
             using JsonDocument battleJson = JsonDocument.Parse(JsonSerializer.Serialize(snapshot, options));
             JsonElement current = battleJson.RootElement;
@@ -116,7 +112,7 @@ public sealed class NativeBattleEnemySnapshotCompatibilityTests
             Assert.Equal(new byte[] { 0xA1, 0xB2 }, NativeBattleModelEnemyHeap.Read(restored, loaded.NativeBattleMemory.FileStaging!, restored.Rows[0].Require(12), 2));
             if (idleBattle)
             {
-                Assert.Null(loaded.Battle!.NativeModelCpuResources!.EnemyResources);
+                Assert.Null(loaded.Battle!.ReadFixturePresentation().NativeModelCpuResources!.EnemyResources);
                 Assert.Null(loaded.Battle.Definition.NativeRetainedMemory!.ModelCpuResources!.EnemyResources);
             }
             Assert.Equal(source, File.ReadAllBytes(path));

@@ -57,7 +57,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         Assert.Null(source.ActiveAction);
         Assert.Empty(source.Definition.GuardianForces);
         Assert.Empty(source.GuardianForces);
-        Assert.False(source.NativeGraphics!.Descriptors.Queue.Any(index => source.NativeGraphics.Descriptors.Packets[index].Command == 104));
+        Assert.False(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104));
         BattleNativeAction kernel = Assert.Single(assets.NativeActions, action => action.Command == 245 && action.ActionId == selectedAction);
         Assert.Equal(selectedEffect, kernel.MagicId);
         Assert.Equal((byte)11, kernel.AttackType);
@@ -94,7 +94,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             NativeSavedBattleFlags = immune ? (byte)8 : source.Definition.NativeSavedBattleFlags,
             NativeSavedBattleFlagsKnownMask = immune ? (byte)255 : source.Definition.NativeSavedBattleFlagsKnownMask
         };
-        NativeBattleEffectMemory memory = source.NativeEffectMemory ?? throw new InvalidDataException("The fixture requires its existing effect process.");
+        NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("The fixture requires its existing effect process.");
         NativeBattleGilgameshProcess retained = Assert.IsType<NativeBattleGilgameshProcess>(memory.Gilgamesh);
         retained.Validate();
         Assert.Null(retained.Entry);
@@ -104,24 +104,17 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         {
             Assert.NotNull(definition.NativeBattleSpeed);
         }
-        BattleSnapshot prepared = source with
+        BattleSnapshot prepared = (source with
         {
-            Definition = definition,
-            NativeSupport = immune ? new(true, 0, 0) : source.NativeSupport,
-            GuardianForces = immune ? guardianProfile : source.GuardianForces,
-            NativeClock = immune ? source.NativeClock ?? throw new InvalidDataException("The fixture requires its actual battle clock owners.") : source.NativeClock,
-            Combatants = immune ? source.Combatants.Select(combatant =>
+            Definition = definition,            NativeSupport = immune ? new(true, 0, 0) : source.NativeSupport,            GuardianForces = immune ? guardianProfile : source.GuardianForces,            NativeClock = immune ? source.NativeClock ?? throw new InvalidDataException("The fixture requires its actual battle clock owners.") : source.NativeClock,            Combatants = immune ? source.Combatants.Select(combatant =>
             {
                 NativeBattleAtbState gauge = combatant.NativeAtb ?? throw new InvalidDataException("The fixture requires its current physical ATB gauge.");
                 Assert.Equal(combatant.Atb, gauge.Display);
                 return combatant with { NativeAtb = gauge };
-            }).ToArray() : source.Combatants,
-            Random = immune ? random : source.Random,
-            NativeEffectMemory = memory
-        };
+            }).ToArray() : source.Combatants,            Random = immune ? random : source.Random        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = memory });
         if (!immune)
         {
-            string controlledTargetId = ReadOriginalModelActorId(source.NativeGraphics, 3) ?? throw new InvalidDataException("The post-formula component requires its existing physical target3.");
+            string controlledTargetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 3) ?? throw new InvalidDataException("The post-formula component requires its existing physical target3.");
             BattleCombatantSnapshot target = prepared.Combatants.Single(actor => actor.Id == controlledTargetId);
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The post-formula component requires its actual target status banks.");
             Assert.Equal((ushort)0, status.Saved);
@@ -132,15 +125,11 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
             (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 3, 9, 0, 1, 0, 0x10000), null));
             (packets, _) = packets.Publish(1);
-            NativeBattleGraphicsState graphics = prepared.NativeGraphics!;
+            NativeBattleGraphicsState graphics = prepared.ReadFixturePresentation().NativeGraphics!;
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-            prepared = prepared with
+            prepared = (prepared with
             {
-                NativeActionPackets = packets,
-                Outcome = BattleOutcome.Victory,
-                Combatants = prepared.Combatants.Select(actor => actor.Id == controlledTargetId ? actor with { CurrentHp = 0, NativeStatus = postFormulaStatus } : actor).ToArray(),
-                NativeGraphics = graphics with { Descriptors = descriptors }
-            };
+                NativeActionPackets = packets,                Outcome = BattleOutcome.Victory,                Combatants = prepared.Combatants.Select(actor => actor.Id == controlledTargetId ? actor with { CurrentHp = 0, NativeStatus = postFormulaStatus } : actor).ToArray()            }).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         }
         string preparedBoundary = immune ? "prepared-support" : "prepared-post-formula";
         NativeBattleRestorationPresentationTests.Publish(output, preparedBoundary, prepared, null);
@@ -151,9 +140,9 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             Changes = immune ? new[] { "Installed native kernel actions and action definitions", "Explicit controlled acquired GF0 HP1000/1000 and level10 profile, shared by definition and snapshot; same profile as IndependentGuardianItemTests", $"Selected original effect{selectedEffect} catalog resources", "Explicit portable RGB555/no-alpha 640x480 PC framebuffer capture device profile", "Installed kernel ATB speed and support cooldown rules", "Explicit active battle clock with original UI admission and action-pause owners", "Existing physical ATB gauges and HUD values preserved", immune ? "Existing saved message-speed BYTE required and preserved" : "Explicit controlled message-speed configuration selected from an external standalone snapshot; no historical recovery claim", "Known saved support flags8", "Explicit periodic support entry initialized, cooldown0, GilgameshUsed0", "Explicit battle RNG indexes/lane0 selected by actual chance and quartile table", "Preserved existing authenticated Gilgamesh model/flare/trail and PC request owners without replacing them" } : new[] { "Selected original327 catalog and native kernel metadata", "Explicit portable framebuffer capture profile", "Explicit separately selected saved message-speed configuration", "Declared post-formula target494410 output HP0/SavedDeath1/Battle10000 and following47E2D0 cached mirror", "Declared physical header245/action10/effect327 and target3 death contact: Sequence3, Flags2=9 (status-success1 plus enemy-death8), HitFlags3=0, Amount0, Saved1, Battle10000", "Queued original action104 through physical Prepare/AppendContact/Publish APIs", "Host OutcomeVictory follows declared sole-enemy SavedDeath1; retained native outcome container unchanged, no outcome callback or postbattle admission claim", "Existing native clock, physical gauges, RNG, support, GF and global party mirrors preserved unchanged" },
             MessageConfiguration = new { ConfigurationSha256 = configurationSha256, Value = messageSpeed, OriginalSourceValue = source.Definition.NativeMessageSpeed, ExplicitControlledSelection = !immune, HistoricalRecovery = false },
             SourceGilgameshSha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(memory.Gilgamesh))),
-            PreparedGilgameshSha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(prepared.NativeEffectMemory!.Gilgamesh))),
+            PreparedGilgameshSha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(prepared.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh))),
             SourcePcRenderRequest = memory.PcRenderRequest,
-            PreparedPcRenderRequest = prepared.NativeEffectMemory.PcRenderRequest,
+            PreparedPcRenderRequest = prepared.ReadFixturePresentation().NativeEffectMemory.PcRenderRequest,
             SourceGuardianForces = source.GuardianForces,
             PreparedGuardianForces = immune ? guardianProfile : source.GuardianForces,
             AcquiredGuardianLevels = immune ? new[] { new { Id = 0, Level = 10 } } : [],
@@ -166,7 +155,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
         BattleSession battle = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, preparedBoundary + ".battle.json")));
         BattleScenePresentation scene = new(assets, definition);
         int initialEventCount = battle.Events.Count;
-        string targetId = ReadOriginalModelActorId(source.NativeGraphics, 3)!;
+        string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 3)!;
         var originalTarget = source.Combatants.Single(actor => actor.Id == targetId);
         int initialTargetHp = originalTarget.CurrentHp;
         Assert.True(initialTargetHp > 1);
@@ -257,8 +246,8 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             }
             for (; callbacks < 2048; callbacks++)
             {
-                BattleSnapshot before = battle.Capture();
-                NativeBattleOriginalEffectState? effect = before.NativeGraphics?.OriginalEffect;
+                BattleSnapshot before = battle.CaptureForContinuation();
+                NativeBattleOriginalEffectState? effect = before.ReadFixturePresentation().NativeGraphics?.OriginalEffect;
                 NativeBattleModulePoolTask[] tasks = effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0).ToArray() ?? [];
                 NativeBattleModulePoolTask? contactTask = tasks.SingleOrDefault(task => immune ? task.Callback == attackCallback && task.ReadWord(12) == 16 : task.Callback == 0x58E570 && unchecked((short)task.ReadWord(0x16)) <= 0 && task.ReadWord(12) == 40);
                 NativeBattleModulePoolTask? directorTask = tasks.SingleOrDefault(task => task.Callback == 0x592300);
@@ -280,7 +269,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     string pixelHash = Convert.ToHexString(SHA256.HashData(pixels));
                     phasePixelHashes.Add(boundary, pixelHash);
-                    phaseFrames.Add(new { Boundary = boundary, Callback = before.NativeGraphics!.Callback, RgbaSha256 = pixelHash, Commands = before.NativeGraphics.PrimitiveFrame!.LastCommands.Length });
+                    phaseFrames.Add(new { Boundary = boundary, Callback = before.ReadFixturePresentation().NativeGraphics!.Callback, RgbaSha256 = pixelHash, Commands = before.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Length });
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-before", before, pixels);
                     cold = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, boundary + "-before.battle.json")));
                     Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(cold.Capture()));
@@ -297,15 +286,15 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 }
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 cold?.AdvanceNativeGraphicsPresentation(Callback);
-                BattleSnapshot after = battle.Capture();
+                BattleSnapshot after = battle.CaptureForContinuation();
                 ObserveFormula(after);
                 if (tasks.Any(task => task.Callback is 0x58E120 or 0x58E570 or 0x58F940))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = NativeBattleAquaPresentationTests.AquaPacketReferences(before, after);
                     if (!owned.IsEmpty)
                     {
-                        NativeBattlePrimitiveFrame frame = after.NativeGraphics!.PrimitiveFrame!;
-                        BattleSnapshot without = after with { NativeGraphics = after.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
+                        NativeBattlePrimitiveFrame frame = after.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
+                        BattleSnapshot without = after.WithFixturePresentation(facts => facts with { NativeGraphics = after.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changed = 0;
@@ -328,13 +317,13 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     }
                 }
                 int createdText = 0;
-                for (int slot = 0; slot < after.NativeGraphics!.Effects.Slots.Length; slot++)
+                for (int slot = 0; slot < after.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask current = after.NativeGraphics.Effects.Slots[slot];
-                    NativeBattleEffectTask previous = before.NativeGraphics!.Effects.Slots[slot];
+                    NativeBattleEffectTask current = after.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    NativeBattleEffectTask previous = before.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
                     if ((current.Flags0 & 1) != 0 && current.Kind == NativeBattleEffectKind.DamageText5069B0 && current.Frame == 1 && !((previous.Flags0 & 1) != 0 && previous.Kind == current.Kind && previous.Frame == 1))
                     {
-                        Assert.Equal(RequireOriginalModelOwner(after.NativeGraphics, 3), current.ModelOwner);
+                        Assert.Equal(RequireOriginalModelOwner(after.ReadFixturePresentation().NativeGraphics, 3), current.ModelOwner);
                         Assert.True(immune, "The successful status-only contact suppresses damage text through Flags2 bit0.");
                         Assert.Equal(new byte[] { 16, 0 }, current.Glyphs.ToArray());
                         Assert.Equal((short)8, current.HalfWidth);
@@ -343,10 +332,10 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     }
                 }
                 damageTextPublications += createdText;
-                if (contactTask is not null && (before.NativeGraphics!.Flags & 0x201) == 0)
+                if (contactTask is not null && (before.ReadFixturePresentation().NativeGraphics!.Flags & 0x201) == 0)
                 {
                     Assert.False(sawContactPresentation);
-                    NativeBattleModulePoolTask advancedContact = Assert.Single(after.NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => task.Callback == contactTask.Callback);
+                    NativeBattleModulePoolTask advancedContact = Assert.Single(after.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => task.Callback == contactTask.Callback);
                     Assert.Equal((ushort)(immune ? 17 : 41), advancedContact.ReadWord(12));
                     NativeBattleContactHalf half = formulaHalf ?? throw new InvalidDataException("Presentation contact preceded the actual formula packet.");
                     Assert.Equal(immune ? 1 : 0, createdText);
@@ -354,24 +343,24 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     contactsPresented.Add(new { CounterBefore = contactTask.ReadWord(12), CounterAfter = advancedContact.ReadWord(12), half.Recipient, half.Sequence, half.Amount6, half.Flags2, half.HitFlags, DamageTextPublications = createdText });
                     sawContactPresentation = true;
                 }
-                if (after.NativeEffectMemory?.Gilgamesh?.VibrationHandle is int currentHandle && currentHandle > 0 && after.NativeVibrationProcess!.IsPlaying(currentHandle))
+                if (after.ReadFixturePresentation().NativeEffectMemory?.Gilgamesh?.VibrationHandle is int currentHandle && currentHandle > 0 && after.NativeVibrationProcess!.IsPlaying(currentHandle))
                 {
                     sawVibrationStart = true;
                 }
-                if (directorTask?.ReadWord(12) == 324 && (before.NativeGraphics!.Flags & 0x201) == 0)
+                if (directorTask?.ReadWord(12) == 324 && (before.ReadFixturePresentation().NativeGraphics!.Flags & 0x201) == 0)
                 {
-                    int handle = before.NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value;
+                    int handle = before.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh!.VibrationHandle!.Value;
                     Assert.True(before.NativeVibrationProcess!.IsPlaying(handle));
                     Assert.False(after.NativeVibrationProcess!.IsPlaying(handle));
                     sawVibrationStop = true;
                 }
-                if (directorTask?.ReadWord(12) is 8 or 76 && (before.NativeGraphics!.Flags & 0x201) == 0)
+                if (directorTask?.ReadWord(12) is 8 or 76 && (before.ReadFixturePresentation().NativeGraphics!.Flags & 0x201) == 0)
                 {
                     bool set = directorTask.ReadWord(12) == 76;
                     for (int group = 0; group < 4; group++)
                     {
-                        byte previous = before.NativeStage!.Groups[group].Flags;
-                        Assert.Equal(set ? (byte)(previous | 2) : (byte)(previous & ~2), after.NativeStage!.Groups[group].Flags);
+                        byte previous = before.ReadFixturePresentation().NativeStage!.Groups[group].Flags;
+                        Assert.Equal(set ? (byte)(previous | 2) : (byte)(previous & ~2), after.ReadFixturePresentation().NativeStage!.Groups[group].Flags);
                     }
                     sawStageSet |= set;
                     sawStageClear |= !set;
@@ -380,8 +369,8 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 {
                     Assert.Equal((byte)10, invocation.Level);
                 }
-                produced |= after.NativeGraphics!.Descriptors.Queue.Any(index => after.NativeGraphics.Descriptors.Packets[index].Command == 104);
-                initialized |= after.NativeGraphics.OriginalEffect is { Binding.Effect: var initializedEffect, ReturnedDescriptor: > 0 } && initializedEffect == selectedEffect;
+                produced |= after.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => after.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+                initialized |= after.ReadFixturePresentation().NativeGraphics.OriginalEffect is { Binding.Effect: var initializedEffect, ReturnedDescriptor: > 0 } && initializedEffect == selectedEffect;
                 if (cold is not null)
                 {
                     Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(cold.Capture()));
@@ -389,7 +378,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     NativeBattleRestorationPresentationTests.Publish(output, boundary + "-after", after, scene.Render(battle, 320, 224));
                     boundaries.Add(boundary!);
                 }
-                if (initialized && after.NativeGraphics.OriginalEffect is { Binding.Effect: var finishedEffect, ReturnedDescriptor: 0 } && finishedEffect == selectedEffect && !after.NativeGraphics.Descriptors.Queue.Any(index => after.NativeGraphics.Descriptors.Packets[index].Command == 104))
+                if (initialized && after.ReadFixturePresentation().NativeGraphics.OriginalEffect is { Binding.Effect: var finishedEffect, ReturnedDescriptor: 0 } && finishedEffect == selectedEffect && !after.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => after.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104))
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattleRestorationPresentationTests.Publish(output, "completed-before", after, pixels);
@@ -471,7 +460,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             Assert.False(battle.NativeVibrationProcess!.IsPlaying(battle.Presentation!.Memory.Gilgamesh!.VibrationHandle!.Value));
             for (int group = 0; group < 4; group++)
             {
-                Assert.Equal((byte)(source.NativeStage!.Groups[group].Flags | 2), battle.Presentation!.Stage.Groups[group].Flags);
+                Assert.Equal((byte)(source.ReadFixturePresentation().NativeStage!.Groups[group].Flags | 2), battle.Presentation!.Stage.Groups[group].Flags);
                 Assert.Equal((short)0, battle.Presentation!.Stage.Groups[group].ColorDepth);
                 Assert.Equal(0u, battle.Presentation!.Stage.Groups[group].ColorFlags);
             }
@@ -502,7 +491,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                 Assert.NotNull(peakPlain);
                 NativeBattleRestorationPresentationTests.Publish(output, "visible", peakSnapshot, peakPixels);
                 NativeBattleRestorationPresentationTests.Publish(output, "without-effect", peakWithout, peakPlain);
-                File.WriteAllText(Path.Combine(output, "visible-packet-ownership.json"), JsonSerializer.Serialize(new { Effect = selectedEffect, peakSnapshot.Frame, NativeCallback = peakSnapshot.NativeGraphics!.Callback, ChangedRgb = peakEffectRgb, Packets = peakPackets!.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset) }));
+                File.WriteAllText(Path.Combine(output, "visible-packet-ownership.json"), JsonSerializer.Serialize(new { Effect = selectedEffect, peakSnapshot.Frame, NativeCallback = peakSnapshot.ReadFixturePresentation().NativeGraphics!.Callback, ChangedRgb = peakEffectRgb, Packets = peakPackets!.OrderBy(packet => packet.Bank).ThenBy(packet => packet.Buffer).ThenBy(packet => packet.ByteOffset) }));
                 BattleSession directPeak = BattleSession.Restore(peakSnapshot);
                 BattleSession coldPeak = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "visible.battle.json")));
                 Assert.Equal(JsonSerializer.Serialize(peakSnapshot), JsonSerializer.Serialize(coldPeak.Capture()));

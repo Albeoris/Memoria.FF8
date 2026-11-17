@@ -27,7 +27,7 @@ public sealed class NativeBattleBio22PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
+        NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(source.NativeActionPackets);
         int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
@@ -46,7 +46,7 @@ public sealed class NativeBattleBio22PresentationTests
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[21]));
         NativeBattleBio22Resources resources = game.ReadNativeBio22Resources();
         resources.Validate();
-        NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(source.NativeEffectMemory);
+        NativeBattleEffectMemory memory = Assert.IsType<NativeBattleEffectMemory>(source.ReadFixturePresentation().NativeEffectMemory);
         Assert.Equal(resources.MeshBaseline.Bytes.ToArray(), Assert.IsType<NativeBattleBio22Geometry>(memory.Bio22Geometry).Bytes.ToArray());
         Assert.Equal(resources.SecondMeshBaseline.Bytes.ToArray(), Assert.IsType<NativeBattleBio22Geometry>(memory.Bio22SecondaryGeometry).Bytes.ToArray());
         Assert.Equal(resources.ThirdMeshBaseline.Bytes.ToArray(), Assert.IsType<NativeBattleBio22Geometry>(memory.Bio22ThirdGeometry).Bytes.ToArray());
@@ -107,8 +107,8 @@ public sealed class NativeBattleBio22PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? after = Selected(current);
                 initialized |= after?.ReturnedDescriptor is > 0;
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
@@ -129,18 +129,18 @@ public sealed class NativeBattleBio22PresentationTests
                 particleCallbacks.UnionWith(tasks.Where(IsParticle).Select(task => task.Callback));
                 particlePeak = Math.Max(particlePeak, tasks.Count(IsParticle));
                 geometryPeak = Math.Max(geometryPeak, tasks.Count(task => task.Callback is 0x89AAE0 or 0x89C270));
-                NativeBattleEffectMemory currentMemory = current.NativeEffectMemory!;
+                NativeBattleEffectMemory currentMemory = current.ReadFixturePresentation().NativeEffectMemory!;
                 firstChanged |= Changed(currentMemory.Bio22Geometry, resources.MeshBaseline.Bytes);
                 secondChanged |= Changed(currentMemory.Bio22SecondaryGeometry, resources.SecondMeshBaseline.Bytes);
                 thirdChanged |= Changed(currentMemory.Bio22ThirdGeometry, resources.ThirdMeshBaseline.Bytes);
                 fourthChanged |= Changed(currentMemory.Bio22FourthGeometry, resources.FourthMeshBaseline.Bytes);
                 paletteChanged |= currentMemory.Bio22Palette is { } palette && !palette.Bytes.SequenceEqual(resources.PaletteBaseline.Data);
-                if (current.NativeStage is { } stage)
+                if (current.ReadFixturePresentation().NativeStage is { } stage)
                 {
                     stageDepths.Add(stage.Groups[0].ColorDepth);
                 }
-                commonIo |= current.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
-                packetCallbacks += current.NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
+                commonIo |= current.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
+                packetCallbacks += current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
                 if (independent is not null)
                 {
                     independent.AdvanceNativeGraphicsPresentation(Callback);
@@ -148,7 +148,7 @@ public sealed class NativeBattleBio22PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     required.Remove(name!);
                 }
             }
@@ -229,7 +229,7 @@ public sealed class NativeBattleBio22PresentationTests
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> required, NativeBattleBio22Resources resources)
     {
         NativeBattleOriginalEffectState? effect = Selected(snapshot);
-        if (effect?.ReturnedDescriptor is not > 0 || snapshot.NativeEffectMemory is not { } memory)
+        if (effect?.ReturnedDescriptor is not > 0 || snapshot.ReadFixturePresentation().NativeEffectMemory is not { } memory)
         {
             return null;
         }
@@ -241,13 +241,13 @@ public sealed class NativeBattleBio22PresentationTests
             ("overlay-live", tasks.Any(task => task.Callback == 0x89C650 && task.ReadWord(0x24) > 0)),
             ("first-mesh-morph", tasks.Any(task => task.Callback == 0x89AAE0) && Changed(memory.Bio22Geometry, resources.MeshBaseline.Bytes)),
             ("first-deformed", tasks.Any(task => task.Callback == 0x89AAE0 && task.ReadWord(0x94) != 0)),
-            ("stage-peak", snapshot.NativeStage?.Groups.All(group => group.ColorDepth == 1024) == true),
+            ("stage-peak", snapshot.ReadFixturePresentation().NativeStage?.Groups.All(group => group.ColorDepth == 1024) == true),
             ("fourth-mesh-morph", tasks.Any(task => task.Callback == 0x89C270 && task.ReadDword(0x4C) == 0x161F750) && Changed(memory.Bio22FourthGeometry, resources.FourthMeshBaseline.Bytes)),
             ("palette-live", tasks.Any(task => task.Callback == 0x89CA70 && task.ReadByte(0x29) == 1) && memory.Bio22Palette is { } palette && !palette.Bytes.SequenceEqual(resources.PaletteBaseline.Data)),
             ("particle-live", tasks.Any(task => (task.Callback is 0x89C930 or 0x89BD20 or 0x89BF20) && task.ReadByte(0x29) == 1 && task.ReadWord(0x50) > 0)),
             ("later-particle-live", tasks.Any(task => (task.Callback is 0x89CE60 or 0x89D120) && task.ReadByte(0x29) == 1 && task.ReadWord(0x50) > 0)),
             ("final-actor-live", tasks.Any(task => (task.Callback is 0x89D3D0 or 0x89D460) && task.ReadWord(0x24) > 0)),
-            ("stage-falling", tasks.Any(task => task.Callback == 0x89B8A0 && task.ReadByte(0x29) == 4) && snapshot.NativeStage?.Groups.Any(group => group.ColorDepth is > 0 and < 1024) == true)
+            ("stage-falling", tasks.Any(task => task.Callback == 0x89B8A0 && task.ReadByte(0x29) == 4) && snapshot.ReadFixturePresentation().NativeStage?.Groups.Any(group => group.ColorDepth is > 0 and < 1024) == true)
         ];
         return candidates.Where(item => item.Ready && required.Contains(item.Name)).Select(item => item.Name).FirstOrDefault();
     }
@@ -255,7 +255,7 @@ public sealed class NativeBattleBio22PresentationTests
     private static bool Changed(NativeBattleBio22Geometry? geometry, ImmutableArray<byte> baseline) => geometry is not null && !geometry.Bytes.SequenceEqual(baseline);
     private static bool IsParticle(NativeBattleModulePoolTask task) => task.Callback is 0x89C930 or 0x89BD20 or 0x89BF20 or 0x89CE60 or 0x89D120;
     private static NativeBattleModulePoolTask[] Tasks(NativeBattleOriginalEffectState? effect) => effect is null ? [] : effect.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0).ToArray();
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 22 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 22 } effect ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(index => battle.Presentation!.Graphics.Descriptors.Packets[index].Command == 104);
     private sealed record Boundary(string Name, long Before, long After, string RgbaSha256);
 }

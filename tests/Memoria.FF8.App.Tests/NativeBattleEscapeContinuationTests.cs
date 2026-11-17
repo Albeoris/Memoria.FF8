@@ -107,12 +107,12 @@ public sealed class NativeBattleEscapeContinuationTests
 
         string Publish(string name)
         {
-            BattleSnapshot snapshot = battle.Capture();
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
             string path = Path.Combine(output!, name + ".battle.json");
             File.WriteAllBytes(path, JsonSerializer.SerializeToUtf8Bytes(snapshot));
             using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(scene.Render(battle, 320, 224).ToArray(), 320, 224);
             bitmap.Save(Path.Combine(output!, name + ".png"));
-            Console.WriteLine($"{name}: field {source.FieldId}; frame {snapshot.Frame}; native callback {snapshot.NativeGraphics!.Callback}; outcome {snapshot.Outcome}");
+            Console.WriteLine($"{name}: field {source.FieldId}; frame {snapshot.Frame}; native callback {snapshot.ReadFixturePresentation().NativeGraphics!.Callback}; outcome {snapshot.Outcome}");
             return path;
         }
     }

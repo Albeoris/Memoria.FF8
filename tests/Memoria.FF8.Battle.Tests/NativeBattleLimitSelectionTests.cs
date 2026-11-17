@@ -59,7 +59,6 @@ public sealed class NativeBattleLimitSelectionTests
                 Assert.True(restored.CanChoosePlayerCommand(actorId));
             }
             Assert.Equal(2, restored.ReadyPlayerCommandOrder.Count);
-            _ = restored.SelectedPlayerCommandActorId;
         }
 
         Assert.Equal(snapshot, JsonSerializer.Serialize(restored.Capture()));

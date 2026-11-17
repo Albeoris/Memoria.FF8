@@ -7,6 +7,7 @@ public static partial class NativeBattleEffect251Profile
     public const ushort Effect = 251;
     public const uint Entry = 0x6F44D0;
     public const uint Initializer = 0x5755C0;
+    public const byte TrailModelOperand = 4;
     public const uint RootCallback = 0x6F4580;
     public const uint MainCallback = 0x6F5000;
     public const uint BurstCallback = 0x6F4890;

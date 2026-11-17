@@ -135,6 +135,7 @@ public sealed record BattleCombatantDefinition
     public ImmutableArray<ushort> NativeRenzokukenMagicIds { get; init; } = [];
     public BattleNativeAction? NativeAttack { get; init; }
     public BattleNativePlayerStatRules? NativePlayerStatRules { get; init; }
+    public bool NativeStartsWithFullGauge { get; init; }
     public ushort NativeRetainedStatusBits { get; init; }
     public ushort NativeStatus0 { get; init; }
     public ushort? NativeDeathCount { get; init; }
@@ -209,6 +210,9 @@ public sealed record BattleDefinition
     public BattleCombatantDefinition[] Combatants { get; init; } = [];
 
     [JsonIgnore]
+    public ImmutableDictionary<byte, BattleCombatantDefinition> PartyReplacementCandidates { get; init; } = ImmutableDictionary<byte, BattleCombatantDefinition>.Empty;
+
+    [JsonIgnore]
     public int EnemySlotCount => UsesOriginalEnemySlots
         ? NativeBattleSlots.FormationSlotCount + (AddedEnemySources?.Count ?? 0)
         : Combatants.Count(actor => !actor.IsPlayer);
@@ -272,7 +276,6 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
     public BattleSmartAttackPreview? SmartAttack { get; init; }
     [JsonIgnore]
     public BattleActionHeaderReference? NativeHeader { get; init; }
-    public BattleNativeCallback? NativeCallback { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
@@ -296,7 +299,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
     public BattleNativeEventOwner? NativeEventOwner { get; init; }
     public byte? NativeSequence { get; init; }
 }
-public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, [property: JsonIgnore] BattleTargetRequest TargetRequest, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false)
+public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, [property: JsonIgnore] BattleTargetRequest TargetRequest, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false)
 {
     [JsonIgnore]
     internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
@@ -379,6 +382,10 @@ public sealed record BattleSnapshot
     internal BattlePresentationSnapshot? PresentationContinuation { get; init; }
     [JsonIgnore]
     internal BattleSession.BattleLogicalContinuation? LogicalContinuation { get; init; }
+    [JsonIgnore]
+    internal ImmutableArray<BattlePartyOccupancyChange> PartyOccupancyChanges { get; init; } = [];
+    [JsonIgnore]
+    internal ImmutableArray<PartyReplacementDescriptor> PendingPartyReplacements { get; init; } = [];
 
     public BattleScanKnowledge ScanKnowledge { get; init; } = new();
     public BattleEncounterAllocationState? EncounterAllocation { get; init; }
@@ -402,22 +409,7 @@ public sealed record BattleSnapshot
     public NativeGlobalSoundProcess? NativeGlobalSoundProcess { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMusicProcessState? NativeMusicProcess { get; init; }
-    public NativeBattleFileIoState? NativeFileIo { get; init; }
     public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
-    public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }
-    public NativeBattleModelLoader? NativeModelLoader { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBattleFileStaging? NativeFileStaging { get; init; }
-    public NativeBattleModelCpuResources? NativeModelCpuResources { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public NativeBattleCommandBanks? NativeCommandBanks { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public int? NativeEffectIoResult { get; init; }
-    [System.Text.Json.Serialization.JsonRequired]
-    public NativeBattleEffectMemory? NativeEffectMemory { get; init; }
-    public NativeBattleStageState? NativeStage { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleActionMemory? NativeActionMemory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -438,9 +430,7 @@ public sealed record BattleSnapshot
     public NativeBattleSupportState? NativeSupport { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattlePendingEnemyDraw? PendingEnemyDraw { get; init; }
-    public NativeBattleGraphicsState? NativeGraphics { get; init; }
     public NativeBattleTimedAction? NativeTimedAction { get; init; }
-    public NativeBattleCameraState? NativeCamera { get; init; }
     public byte? NativeEntryAdvantage { get; init; }
     public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
     public ulong NativeGlobalRandomCalls { get; init; }

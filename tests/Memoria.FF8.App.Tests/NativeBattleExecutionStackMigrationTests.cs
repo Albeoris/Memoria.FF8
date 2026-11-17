@@ -104,7 +104,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         NativeBattleExecutionStack profile = Assert.IsType<NativeBattleExecutionStack>(session.State.NativeBattleMemory?.EffectMemory?.ExecutionStack);
         if (session.State.Battle is { } active)
         {
-            Assert.Equal(profile, active.NativeEffectMemory!.ExecutionStack);
+            Assert.Equal(profile, active.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
         }
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         string quickDirectory = Path.Combine(evidence!, "quick-roundtrip-" + Guid.NewGuid().ToString("N"));
@@ -115,7 +115,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         GameSession independent = new(saves.Load(0));
         if (independent.State.Battle is { } restoredBattle)
         {
-            Assert.Equal(profile, restoredBattle.NativeEffectMemory!.ExecutionStack);
+            Assert.Equal(profile, restoredBattle.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
         }
         Assert.Equal(profile, independent.State.NativeBattleMemory!.EffectMemory!.ExecutionStack);
         using GameWorld clone = NativeBattleProductionEffectAdmissionTests.RestoreWorld(independent, directory);
@@ -141,7 +141,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         saves.Save(0, session);
         Assert.NotEqual(quickPath, saves.GetPath(0));
         Assert.True(File.Exists(quickPath));
-        Assert.Equal(profile, saves.Load(0).Battle!.NativeEffectMemory!.ExecutionStack);
+        Assert.Equal(profile, saves.Load(0).Battle!.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, "selected-stack-quick-roundtrip-proof", new { Source = source, QuickPath = quickPath, NextQuickPath = saves.GetPath(0), Profile = profile, Frame = world.Battle.Frame, Callback = world.Battle.Presentation!.Graphics.Callback });
     }
 
@@ -190,10 +190,10 @@ public sealed class NativeBattleExecutionStackMigrationTests
         NativeBattleProductionEffectAdmissionTests.Publish(evidence, id, migrated);
         string migratedPath = Path.Combine(evidence!, id + ".json");
         GameState saved = GameSession.Load(migratedPath);
-        Assert.Equal((byte)4, saved.Battle!.NativeGraphics!.EntryLifecycle);
-        Assert.Equal((ushort)116, saved.Battle.NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal(profile, saved.Battle.NativeEffectMemory!.ExecutionStack);
-        NativeBattleStackFrame callbackStack = NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(profile, saved.Battle.NativeGraphics.EntryLifecycle);
+        Assert.Equal((byte)4, saved.Battle!.ReadFixturePresentation().NativeGraphics!.EntryLifecycle);
+        Assert.Equal((ushort)116, saved.Battle.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal(profile, saved.Battle.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
+        NativeBattleStackFrame callbackStack = NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(profile, saved.Battle.ReadFixturePresentation().NativeGraphics.EntryLifecycle);
         GameSession session = new(saved);
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         BattleSnapshot originalBattle = GameSession.Load(sourcePath!).Battle!;

@@ -46,7 +46,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         Assert.Same(game.ReadNativeBladeShot12Resources(), binding.BladeShot12Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(9, casterDefinition.ModelId);
         Assert.Equal(31, casterResource.PoseSource!.BoneCount);
         Assert.Equal(31, NativeBattleBodyBoneMatrices.Require(casterModel, casterResource.PoseSource).Length);
@@ -62,7 +62,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         Assert.InRange(casterModel.ActiveResourceRow100!.Value, 0, 10);
         BattleCombatantDefinition recipientDefinition = source.Definition.Combatants.Single(actor => actor.IsPlayer);
         NativeBattleGraphicsResource recipientResource = assets.ReadNativeGraphicsResource(recipientDefinition);
-        NativeBattleGraphicsModel recipientModel = ReadOriginalModelCell(source.NativeGraphics!, 0);
+        NativeBattleGraphicsModel recipientModel = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 0);
         Assert.Equal(0, recipientDefinition.ModelId);
         Assert.Equal((int?)1, recipientModel.ActiveResourceRow100);
         Assert.Equal((int?)2, recipientModel.LinkedTextureResourceIndex);

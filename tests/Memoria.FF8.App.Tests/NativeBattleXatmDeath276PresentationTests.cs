@@ -26,7 +26,7 @@ public sealed class NativeBattleXatmDeath276PresentationTests
         Assert.Equal(92, placement.ModelId);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 145 && row.MagicId == 276);
         Assert.Equal((byte)19, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(92, placement.Level), action));
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Null(graphics.OriginalEffect);
         int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint argument = graphics.Descriptors.Packets[descriptor].Argument;

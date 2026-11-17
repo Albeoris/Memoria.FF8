@@ -45,7 +45,7 @@ public sealed class NativeBattleMeltEye158PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(24, casterSource.ModelId);
-        Assert.Equal((byte?)40, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)40, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([158])[157];
         Assert.Equal(NativeBattleMeltEye158Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleMeltEye158Profile.Initializer, binding.Initializer);

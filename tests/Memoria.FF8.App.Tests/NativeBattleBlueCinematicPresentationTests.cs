@@ -17,7 +17,7 @@ public sealed class NativeBattleBlueCinematicPresentationTests
 
         void ObserveCallback(BattleSnapshot before, BattleSnapshot after)
         {
-            trace.Add(new(after.Frame, after.NativeGraphics!.Callback, ReadScript(before), ReadScript(after)));
+            trace.Add(new(after.Frame, after.ReadFixturePresentation().NativeGraphics!.Callback, ReadScript(before), ReadScript(after)));
             string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_BLUE_CINEMATIC_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the Blue Magic cinematic component.");
             File.WriteAllText(Path.Combine(output, "script-trace.json"), JsonSerializer.Serialize(trace));
         }
@@ -75,13 +75,13 @@ public sealed class NativeBattleBlueCinematicPresentationTests
             }
         }
         Assert.Equal((byte)3, slot.Actor);
-        NativeBattleOriginalEffectState effect = after.NativeGraphics!.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         BattleActionHeaderReference headerIndex = effect.Parameters?.Header ?? throw new NotSupportedException("The contact boundary requires its captured physical header.");
         Assert.Equal(checked(0x1D280C4u + (uint)(headerIndex.Ordinal * 20)), current.HeaderAddress);
         NativeBattleActionHeaderSlot header = after.NativeActionPackets!.ReadHeader(headerIndex);
         BattleContactCursor first = header.FirstContact;
         Assert.Equal(slot.Actor, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, after.NativeActionPackets.ReadContact(first).Primary.Recipient));
-        NativeBattleEffectArena arena = after.NativeEffectMemory!.Arena!;
+        NativeBattleEffectArena arena = after.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         int source = checked((int)(current.File0Address - 0x20DFAB8));
         if (current.Effect == 229)
         {
@@ -107,13 +107,13 @@ public sealed class NativeBattleBlueCinematicPresentationTests
 
     private static ScriptTrace? ReadScript(BattleSnapshot snapshot)
     {
-        if (snapshot.NativeEffectMemory?.Cinematic is not { Effect: 229 or 230 } selected || snapshot.NativeGraphics?.OriginalEffect is not { } effect || effect.Binding.Effect != selected.Effect)
+        if (snapshot.ReadFixturePresentation().NativeEffectMemory?.Cinematic is not { Effect: 229 or 230 } selected || snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } effect || effect.Binding.Effect != selected.Effect)
         {
             return null;
         }
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(selected.Effect);
-        NativeBattleScriptedEffectMemory core = snapshot.NativeEffectMemory.ScriptedEffects ?? throw new NotSupportedException("The active cinematic requires its current scripted-effect owner.");
-        NativeBattleEffectArena arena = snapshot.NativeEffectMemory.Arena ?? throw new NotSupportedException("The active cinematic requires its current arena owner.");
+        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects ?? throw new NotSupportedException("The active cinematic requires its current scripted-effect owner.");
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena ?? throw new NotSupportedException("The active cinematic requires its current arena owner.");
         NativeBattleEffectResourcePointer source = Assert.Single(effect.ResourcePointers, item => item.GlobalAddress == profile.File0Publication);
         uint file0 = checked(0x20DFAB8u + (uint)source.ArenaOffset);
         uint manager = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));

@@ -67,7 +67,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
                 battle.Tick();
                 current = battle.Capture();
                 NativeBattleOriginalEffectState? after = Selected(current);
-                if (current.NativeEffectMemory?.Textures?.LiveTextureSources is { } sources)
+                if (current.ReadFixturePresentation().NativeEffectMemory?.Textures?.LiveTextureSources is { } sources)
                 {
                     foreach (NativeBattleTextureSourceRegion source in sources)
                     {
@@ -80,11 +80,11 @@ public sealed class JunctionEffectNativePresentationInstalledTests
                     initialized = true;
                     ColdNext("initialized", current);
                 }
-                if (after?.ReturnedDescriptor is > 0 && requiredFixtures.Any(fixtureId => !changedFixtures.Contains(fixtureId)) && current.NativeEffectMemory?.Textures?.LiveTextureSources?.Any(source => source.Origin.Role == NativeBattleTextureRole.Pixels) == true)
+                if (after?.ReturnedDescriptor is > 0 && requiredFixtures.Any(fixtureId => !changedFixtures.Contains(fixtureId)) && current.ReadFixturePresentation().NativeEffectMemory?.Textures?.LiveTextureSources?.Any(source => source.Origin.Role == NativeBattleTextureRole.Pixels) == true)
                 {
                     boundary = "actual-native-texture-presentation";
                     var owned = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, effectId, game);
-                    int ownedDraws = current.NativeGraphics!.PrimitiveFrame!.LastCommands.Count(command => owned.Contains(command.Command.Packet));
+                    int ownedDraws = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Count(command => owned.Contains(command.Command.Packet));
                     if (ownedDraws > largestNativeDrawCount)
                     {
                         largestNativeDrawCount = ownedDraws;
@@ -103,7 +103,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
                             continue;
                         }
                         changedFixtures.Add(selected);
-                        observations.Add(new { fixture = selected, current.Frame, callback = current.NativeGraphics!.Callback, changedRgbPixels = changed, originalSha256 = Hash(original), enabledSha256 = Hash(pixels), nativeSources = nativeSources.Order().ToArray() });
+                        observations.Add(new { fixture = selected, current.Frame, callback = current.ReadFixturePresentation().NativeGraphics!.Callback, changedRgbPixels = changed, originalSha256 = Hash(original), enabledSha256 = Hash(pixels), nativeSources = nativeSources.Order().ToArray() });
                         NativeBattleRestorationPresentationTests.Publish(input.OutputDirectory, selected + "-original", current, original);
                         NativeBattleRestorationPresentationTests.Publish(input.OutputDirectory, selected + "-enabled", current, pixels);
                     }
@@ -134,7 +134,7 @@ public sealed class JunctionEffectNativePresentationInstalledTests
             ColdNext("completed", current!);
             Write("result.json", new { status = "completed", effectId, requiredFixtures, initialized, callbacks, diagnosticMaximumCallbacks = 4096, completions, restored, observations, initialHitPoints = hitPoints, finalHitPoints = current!.Combatants.ToDictionary(actor => actor.Id, actor => actor.CurrentHp), nativeSources = nativeSources.Order(), nativeOrigins = nativeOrigins.Values, diagnostics = host.Mods.Diagnostics, input.ArchiveHashes, scope = "Original-resource controlled guardian component with the actual deferred Boost formula, texture-only host toggles, actual CPU scene pixels and independent cold next callbacks; no ordinary command/UI or gameplay-route admission." });
 
-            NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == effectId ? effect : null;
+            NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == effectId ? effect : null;
 
             void Select(params string[] enabled)
             {
@@ -203,8 +203,8 @@ public sealed class JunctionEffectNativePresentationInstalledTests
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeEffectMemory!.Active == 0 && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104) && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
+        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104) && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 
     private static int CountRgbChanges(byte[] first, byte[] second)

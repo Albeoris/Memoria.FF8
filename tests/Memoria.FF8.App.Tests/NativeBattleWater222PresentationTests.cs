@@ -29,8 +29,8 @@ public sealed class NativeBattleWater222PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        int descriptor = Assert.Single(original.NativeGraphics!.Descriptors.Queue, index => original.NativeGraphics.Descriptors.Packets[index].Command == 104);
-        uint offset = unchecked(original.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
+        int descriptor = Assert.Single(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => original.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+        uint offset = unchecked(original.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.NativeActionPackets);
@@ -42,7 +42,7 @@ public sealed class NativeBattleWater222PresentationTests
         Assert.Equal((byte)0, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((ushort)100, original.NativePartyPresentation!.Rows[0]!.HitPoints);
-        NativeBattleEffectMemory inherited = Assert.IsType<NativeBattleEffectMemory>(original.NativeEffectMemory);
+        NativeBattleEffectMemory inherited = Assert.IsType<NativeBattleEffectMemory>(original.ReadFixturePresentation().NativeEffectMemory);
         Assert.Null(inherited.ScriptedEffects);
         Assert.Null(inherited.ScriptedGraphics);
         Assert.Null(inherited.Water222);
@@ -61,12 +61,9 @@ public sealed class NativeBattleWater222PresentationTests
             replacement = replacement.AppendContacts(actionPackets.ReadHeaderContacts(reference));
             (replacement, _) = replacement.Publish(slot.ReadContactCount());
         }
-        BattleSnapshot source = original with
+        BattleSnapshot source = (original with
         {
-            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(221, binding) },
-            NativeActionPackets = replacement,
-            NativeEffectMemory = inherited with { ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() }
-        };
+            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(221, binding) },            NativeActionPackets = replacement        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = inherited with { ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } });
         NativeBattleRestorationPresentationTests.Publish(output, "controlled-input", source, null);
         File.WriteAllText(Path.Combine(output, "fixture-selection.json"), JsonSerializer.Serialize(new
         {
@@ -75,7 +72,7 @@ public sealed class NativeBattleWater222PresentationTests
             Scenario = "Controlled command240/action5/header effect100 changed to222 with seven-HP contact; original Water command and formula admission remain separate.",
             ChangedFields = new[] { $"NativeActionPackets.Headers[{headerIndex}].Payload[6..7]: 100 to222", "Definition.NativeEffectCatalog[221]: installed authenticated Water binding/resources", "NativeEffectMemory.ScriptedEffects: explicitly declared fresh process BSS owner", "NativeEffectMemory.ScriptedGraphics: explicitly declared fresh process owner followed by InitGeom56BAA0" },
             InheritedBodyMatrices = "Supplied component's explicitly migrated current-body-matrix owners retained unchanged; no recomputation or missing-owner hydration",
-            InitializedZsf3 = source.NativeEffectMemory!.ScriptedGraphics!.Zsf3,
+            InitializedZsf3 = source.ReadFixturePresentation().NativeEffectMemory!.ScriptedGraphics!.Zsf3,
             OrdinaryWaterAdmission = false
         }, new JsonSerializerOptions { WriteIndented = true }));
         BattleSession battle = BattleSession.Restore(source);
@@ -117,8 +114,8 @@ public sealed class NativeBattleWater222PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? after = Effect(current);
                 initialized |= after?.ReturnedDescriptor is > 0;
                 if (before?.ReturnedDescriptor is > 0 && after?.ReturnedDescriptor == 0)
@@ -134,32 +131,32 @@ public sealed class NativeBattleWater222PresentationTests
                     contacts++;
                 }
                 Assert.True(hpAfter is 100 or 93);
-                if (current.NativeEffectMemory?.Water222 is not null)
+                if (current.ReadFixturePresentation().NativeEffectMemory?.Water222 is not null)
                 {
-                    NativeBattleScriptedEffectMemory core = current.NativeEffectMemory.ScriptedEffects!;
+                    NativeBattleScriptedEffectMemory core = current.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!;
                     peakSlots = Math.Max(peakSlots, Word(core, 0x27970A0));
                     foreach ((byte kind, int slot) in DrawSlots(current))
                     {
                         drawKinds.Add(kind);
                     }
                     byte busy = core.Read(0x2798219, 1)[0];
-                    byte previousBusy = prior.NativeEffectMemory?.Water222 is null ? (byte)0 : prior.NativeEffectMemory.ScriptedEffects!.Read(0x2798219, 1)[0];
+                    byte previousBusy = prior.ReadFixturePresentation().NativeEffectMemory?.Water222 is null ? (byte)0 : prior.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!.Read(0x2798219, 1)[0];
                     if (busy != 0 && previousBusy == 0)
                     {
                         uint manager = Dword(core, 0x27973EC);
                         uint destination = Dword(core, manager + 0xB4);
-                        byte[] copied = current.NativeEffectMemory.Arena!.Read(ArenaOffset(destination), 0x8000);
+                        byte[] copied = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(ArenaOffset(destination), 0x8000);
                         NativeBattleArchiveFile file = Assert.Single(ioResources.Files, item => item.Bytes.AsSpan().SequenceEqual(copied));
                         files.Add(checked((short)file.FileId));
-                        Assert.Contains(current.NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback == 0xAA0ED0 && row.FileResult == 0x8000);
+                        Assert.Contains(current.ReadFixturePresentation().NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback == 0xAA0ED0 && row.FileResult == 0x8000);
                     }
                     if (previousBusy != 0 && busy == 0)
                     {
                         ioCompletions++;
                     }
-                    changedArena |= current.NativeEffectMemory.Cursor > resources.Files.Sum(file => file.Data.Length);
+                    changedArena |= current.ReadFixturePresentation().NativeEffectMemory.Cursor > resources.Files.Sum(file => file.Data.Length);
                 }
-                packetCallbacks += current.NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
+                packetCallbacks += current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
                 scene.Render(battle, 320, 224);
                 if (cold is not null)
                 {
@@ -168,7 +165,7 @@ public sealed class NativeBattleWater222PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     required.Remove(name!);
                 }
             }
@@ -237,13 +234,13 @@ public sealed class NativeBattleWater222PresentationTests
 
     private static string? BoundaryName(BattleSnapshot snapshot, HashSet<string> requested)
     {
-        if (snapshot.NativeEffectMemory?.Water222 is null || Effect(snapshot)?.ReturnedDescriptor is not > 0)
+        if (snapshot.ReadFixturePresentation().NativeEffectMemory?.Water222 is null || Effect(snapshot)?.ReturnedDescriptor is not > 0)
         {
             return null;
         }
-        NativeBattleScriptedEffectMemory core = snapshot.NativeEffectMemory.ScriptedEffects!;
+        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!;
         (byte Kind, int Slot)[] slots = DrawSlots(snapshot).ToArray();
-        NativeBattleEffectArena arena = snapshot.NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena!;
         (string Name, bool Ready)[] candidates =
         [
             ("initialized", true),
@@ -261,8 +258,8 @@ public sealed class NativeBattleWater222PresentationTests
 
     private static IEnumerable<(byte Kind, int Slot)> DrawSlots(BattleSnapshot snapshot)
     {
-        NativeBattleScriptedEffectMemory core = snapshot.NativeEffectMemory!.ScriptedEffects!;
-        NativeBattleEffectArena arena = snapshot.NativeEffectMemory.Arena!;
+        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena!;
         uint manager = Dword(core, 0x27973EC);
         int slotBase = ArenaOffset(Dword(core, manager + 0x90));
         for (int i = 0; i < 128; i++)
@@ -278,7 +275,7 @@ public sealed class NativeBattleWater222PresentationTests
         throw new InvalidDataException("Water evidence requires its bounded terminated draw-order owner.");
     }
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(index => battle.Presentation!.Graphics.Descriptors.Packets[index].Command == 104);
-    private static NativeBattleOriginalEffectState? Effect(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 222 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Effect(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 222 } effect ? effect : null;
     private static uint Dword(NativeBattleScriptedEffectMemory core, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(core.Read(address, 4));
     private static ushort Word(NativeBattleScriptedEffectMemory core, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(core.Read(address, 2));
     private static int ArenaOffset(uint pointer) => checked((int)(pointer - 0x20DFAB8u));

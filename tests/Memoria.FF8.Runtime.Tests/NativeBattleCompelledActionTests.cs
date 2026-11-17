@@ -28,7 +28,7 @@ public sealed class NativeBattleCompelledActionTests
         Assert.Equal((byte)2, battle.ActiveAction!.NativeQueuedCommand);
         Assert.Equal((ushort)0x80F8, ReadOriginalTargetWord(battle, battle.ActiveAction.TargetRequest));
         Assert.True(battle.ActiveAction.FreeNativeMagic);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }
@@ -78,7 +78,7 @@ public sealed class NativeBattleCompelledActionTests
         Assert.Equal((byte)2, battle.ActiveAction!.NativeQueuedCommand);
         AssertSilencedMagicAttempt(battle);
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();

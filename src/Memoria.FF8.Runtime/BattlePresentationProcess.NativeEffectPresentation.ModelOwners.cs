@@ -27,7 +27,7 @@ public sealed partial class BattlePresentationProcess
         NativeEffectMemory = memory with { Textures = textures };
         if (HasBattleEntry)
         {
-            hostedModelRegistry = new(roster, ImmutableDictionary<BattleEnemyActorModel, HostedModelLoadAdmission>.Empty);
+            hostedModelRegistry = new(roster, ImmutableDictionary<BattleModelOwner, HostedModelLoadAdmission>.Empty);
         }
         if (useRetainedModelOwners)
         {
@@ -92,7 +92,7 @@ public sealed partial class BattlePresentationProcess
 
     private static NativeBattleGraphicsBinding? FindHostedAllocationBinding(HostedModelRegistry? registry, BattleModelOwner owner)
     {
-        return owner is BattleEnemyActorModel enemy && registry?.Loads.TryGetValue(enemy, out HostedModelLoadAdmission? admission) == true ? admission.Binding : null;
+        return registry?.Loads.TryGetValue(owner, out HostedModelLoadAdmission? admission) == true ? admission.Binding : null;
     }
 
     private bool OwnsHostedEnemyPoseRow(BattleModelOwner owner, NativeBattleGraphicsModel model)

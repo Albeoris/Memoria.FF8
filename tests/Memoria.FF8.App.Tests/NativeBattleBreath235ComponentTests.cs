@@ -63,9 +63,9 @@ public sealed class NativeBattleBreath235ComponentTests
             {
                 prior = battle.Capture();
                 battle.AdvanceNativeGraphicsPresentation(Callback);
-                BattleSnapshot current = battle.Capture();
-                NativeBattleGraphicsState currentGraphics = current.NativeGraphics!;
-                entered |= current.NativeEffectMemory?.Cinematic?.Effect == 235 && currentGraphics.OriginalEffect?.ReturnedDescriptor is > 0;
+                BattleSnapshot current = battle.CaptureForContinuation();
+                NativeBattleGraphicsState currentGraphics = current.ReadFixturePresentation().NativeGraphics!;
+                entered |= current.ReadFixturePresentation().NativeEffectMemory?.Cinematic?.Effect == 235 && currentGraphics.OriginalEffect?.ReturnedDescriptor is > 0;
                 NativeBattlePrimitiveFrame? frame = currentGraphics.PrimitiveFrame;
                 if (entered && frame is { LastCommands.IsEmpty: false })
                 {
@@ -73,7 +73,7 @@ public sealed class NativeBattleBreath235ComponentTests
                     if (references.Count != 0)
                     {
                         byte[] rendered = scene.Render(battle, 320, 224).ToArray();
-                        BattleSession background = BattleSession.Restore(current with { NativeGraphics = currentGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                        BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !references.Contains(command.Command.Packet)).ToImmutableArray() } } }));
                         byte[] plain = new BattleScenePresentation(assets, component.Definition).Render(background, 320, 224).ToArray();
                         int changed = 0;
                         for (int offset = 0; offset < rendered.Length; offset += 4)
@@ -120,7 +120,7 @@ public sealed class NativeBattleBreath235ComponentTests
         BattleSnapshot PrepareComponent()
         {
             BattleSnapshot source = sourcePath is null ? CreateOriginalOwnerFixture(game, assets) : JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(sourcePath))!;
-            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.NativeGraphics);
+            NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
             if (graphics.OriginalEffect is { } loaded)
             {
                 Assert.Equal(235, loaded.RequestedEffect);
@@ -148,7 +148,7 @@ public sealed class NativeBattleBreath235ComponentTests
             (packets, _) = packets.Publish(1);
             Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(header)).Callback);
             (NativeBattleDescriptorState descriptors, _) = NativeBattleDescriptorState.Clear().EnqueueAction(128, header);
-            return source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } };
+            return (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } });
         }
 
         void Publish(string name, BattleSnapshot snapshot) => NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());

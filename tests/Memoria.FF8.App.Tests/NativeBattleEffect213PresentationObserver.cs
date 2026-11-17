@@ -33,12 +33,12 @@ internal sealed class NativeBattleEffect213PresentationObserver
     {
         CurrentCommands = [];
         CurrentMeshCommands = [];
-        if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.NativeGraphics;
-        NativeBattleEffect213State state = current.NativeEffectMemory!.Effect213!;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleEffect213State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect213!;
         NativeBattleEffect213Resources resources = effect.Binding.Effect213Resources!;
         state.Validate();
         Assert.False(state.MutableStreamPending);
@@ -65,15 +65,15 @@ internal sealed class NativeBattleEffect213PresentationObserver
                 Assert.Equal(shape.Capacity, pool.Slots.Length);
             }
         }
-        NativeBattleEffectAnimationRegisters? animation = current.NativeEffectMemory.Textures?.Animation;
-        if (animation?.Source.Identity == resources.Camera.Identity && current.NativeCamera?.ControlResource?.Source.Identity == resources.Camera.Identity)
+        NativeBattleEffectAnimationRegisters? animation = current.ReadFixturePresentation().NativeEffectMemory.Textures?.Animation;
+        if (animation?.Source.Identity == resources.Camera.Identity && current.ReadFixturePresentation().NativeCamera?.ControlResource?.Source.Identity == resources.Camera.Identity)
         {
             Assert.Equal(8, animation.StreamOffset);
             Assert.Equal(32, animation.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(animation), JsonSerializer.Serialize(current.NativeCamera.ControlResource));
+            Assert.Equal(JsonSerializer.Serialize(animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.ControlResource));
             registered = true;
-            cameraTrack |= current.NativeCamera.Order.Any(slot => current.NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
-            cameraViewChanged |= JsonSerializer.Serialize(prior.NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.NativeCamera.CapturePackedView1D97778());
+            cameraTrack |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
+            cameraViewChanged |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
             Mark("effect213-camera-control-and-current-tracks", current, cold);
         }
         if (age is 1 or 8 or 20 or 24 or 25 or 29 or 30 or 33 or 35 or 42 or 64 or 69 or 74 or 75)
@@ -111,10 +111,10 @@ internal sealed class NativeBattleEffect213PresentationObserver
         }
         if (arena != 0 && effect.Pools.Any(pool => pool.DescriptorAddress == MainDescriptor))
         {
-            NativeBattleEffectArena common = current.NativeEffectMemory.Arena!;
+            NativeBattleEffectArena common = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
             byte[] copied = common.Read(checked((int)(arena - 0x20DFAB8 + StreamCopyOffset)), MutableStreamLength);
             sourceCopy = true;
-            byte[] currentVertices = current.NativeFileStaging!.Read(MutableStreamAddress, MutableStreamLength);
+            byte[] currentVertices = current.ReadFixturePresentation().NativeFileStaging!.Read(MutableStreamAddress, MutableStreamLength);
             byte[] original = resources.OriginalMutableVertices.ToArray();
             for (int index = 0; index < StreamVertexCount; index++)
             {
@@ -149,7 +149,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];
-            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            if ((task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(graphics, task.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
                 Mark("effect213-current-contact-glyph", current, cold);
@@ -185,7 +185,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
                 Mark("effect213-current-stream-source-UV-RGB-SXY-SZ", current, cold);
             }
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Cursor = cursor, CurrentCommands = CurrentCommands.Length, SourceStreamCommands = CurrentMeshCommands.Length, Contacts, ContactGlyphs, CameraCursor = current.NativeCamera?.ControlCursor, CurrentSourceBound = state.MutableStreamPending == false, Distance = main?.ReadDword(0x30), Programme = main?.ReadDword(0x64) });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, PreviousAge = oldAge, Cursor = cursor, CurrentCommands = CurrentCommands.Length, SourceStreamCommands = CurrentMeshCommands.Length, Contacts, ContactGlyphs, CameraCursor = current.ReadFixturePresentation().NativeCamera?.ControlCursor, CurrentSourceBound = state.MutableStreamPending == false, Distance = main?.ReadDword(0x30), Programme = main?.ReadDword(0x64) });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -208,8 +208,8 @@ internal sealed class NativeBattleEffect213PresentationObserver
         Assert.Contains(0x6A0C80u, callbacks);
         Assert.Equal(1, Contacts);
         Assert.Equal(1, ContactGlyphs);
-        Assert.All(completed.NativeEffectMemory!.Effect213!.FixedBanks.Values, bank => Assert.NotNull(bank));
-        Assert.False(completed.NativeEffectMemory.Effect213.MutableStreamPending);
+        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect213!.FixedBanks.Values, bank => Assert.NotNull(bank));
+        Assert.False(completed.ReadFixturePresentation().NativeEffectMemory.Effect213.MutableStreamPending);
         File.WriteAllText(Path.Combine(output, "effect213-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Callbacks = callbacks.Order(), PacketBanks = packetBanks.Order(), Programmes = programmes.Order(), Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, SourceCopy = sourceCopy, SortedContacts = sortedContacts, StreamChanged = streamChanged, Morph = morph, StreamGeometry = streamGeometry, MainRetired = mainRetired, Contacts, ContactGlyphs, Observations = observations }));
     }
 
@@ -273,7 +273,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
     private static Dictionary<uint, NativeBattleModulePoolTask> Tasks(BattleSnapshot snapshot)
     {
         Dictionary<uint, NativeBattleModulePoolTask> result = [];
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return result;
         }

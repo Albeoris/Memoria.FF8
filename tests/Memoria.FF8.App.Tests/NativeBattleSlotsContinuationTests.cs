@@ -22,10 +22,10 @@ public sealed class NativeBattleSlotsContinuationTests
         string target = battle.Combatants.First(actor => !actor.IsPlayer && actor.IsActive && actor.IsAlive).Id;
         battle.QueueAction(actorId, target, BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat(target, casts).ToArray());
         battle.Tick();
-        BattleSnapshot produced = battle.Capture();
+        BattleSnapshot produced = battle.CaptureForContinuation();
         Assert.Equal(casts, produced.NativeActionPackets!.ActionCount);
         Assert.Equal(casts - 1, produced.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
-        NativeBattleDescriptorState descriptors = produced.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = produced.ReadFixturePresentation().NativeGraphics!.Descriptors;
         Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
         Assert.Equal(JsonSerializer.Serialize(produced), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(produced))!).Capture()));
     }
@@ -63,24 +63,24 @@ public sealed class NativeBattleSlotsContinuationTests
             {
                 before = battle.Capture();
                 battle.AdvanceNativeGraphicsPresentation(callback);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 if (!produced && current.NativeActionPackets!.ActionCount != 0)
                 {
                     Assert.Equal(3, current.NativeActionPackets.ActionCount);
                     Assert.Equal(2, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
-                    NativeBattleDescriptorState descriptors = current.NativeGraphics!.Descriptors;
+                    NativeBattleDescriptorState descriptors = current.ReadFixturePresentation().NativeGraphics!.Descriptors;
                     Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
                     produced = true;
                 }
-                if (current.NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
+                if (current.ReadFixturePresentation().NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
                 {
                     Assert.Equal(0, context.Header.Ordinal);
                 }
                 if (count % 8 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.NativeGraphics?.Descriptors.Queue.Select(index => current.NativeGraphics.Descriptors.Packets[index].Command).ToArray() }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command).ToArray() }));
                 }
-                if (!restoredMidpoint && current.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
+                if (!restoredMidpoint && current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
                 {
                     string midpoint = Path.Combine(evidence!, "midpoint.battle.json");
                     File.WriteAllBytes(midpoint, JsonSerializer.SerializeToUtf8Bytes(current));
@@ -102,7 +102,7 @@ public sealed class NativeBattleSlotsContinuationTests
                     Assert.True(restoredMidpoint);
                     using var bitmap = Memoria.FF8.GameUi.BattlePreviewCanvas.BitmapFromRgba(scene.Render(battle, 640, 448).ToArray(), 640, 448);
                     bitmap.Save(Path.Combine(evidence!, "completed.png"));
-                    Console.WriteLine($"Completed battle frame {current.Frame}, callback {current.NativeGraphics?.Callback}");
+                    Console.WriteLine($"Completed battle frame {current.Frame}, callback {current.ReadFixturePresentation().NativeGraphics?.Callback}");
                     return;
                 }
             }

@@ -51,7 +51,7 @@ public sealed class NativeBattleRestorationPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Set MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT to a concrete controlled restoration cast.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
-        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.RestorationResources is not null);
+        NativeBattleEffectBinding binding = source.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.RestorationResources is not null);
         Assert.True(binding.Effect is 24 or 27 or 57 or 67);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         RunCurrentCast(source, assets, binding.Effect, false);
@@ -65,17 +65,17 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
-        Assert.True(source.NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27 or 57 or 67);
+        Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27 or 57 or 67);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(Callback);
         second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(source.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
         Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE"), "restoration-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
-        Console.WriteLine($"Restoration checkpoint effect{source.NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, wholeJSON/copiedpixels agree.");
+        Console.WriteLine($"Restoration checkpoint effect{source.ReadFixturePresentation().NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, wholeJSON/copiedpixels agree.");
     }
 
     internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false, ushort? descriptorEffect = null)
@@ -138,7 +138,7 @@ public sealed class NativeBattleRestorationPresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         Publish(entryEvidence, entryId + "-after", before, new BattleScenePresentation(assets, definition).Render(battle, 320, 224));
         // The controlled producer edits one restored graph, including its physical status and packet owners.
         before = NativeBattleStorageSnapshots.Restore(before);
@@ -168,7 +168,7 @@ public sealed class NativeBattleRestorationPresentationTests
         ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(1), native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(graphics, 1);
         uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, priorBattle);
         //Controlled prior display status is newly added to this healthy-entry model:509D30..47 resets exactly its added timer bytes.
@@ -184,7 +184,7 @@ public sealed class NativeBattleRestorationPresentationTests
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 1), targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
         if (effect == 24)
         {
-            BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics }));
+            BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
             BattleScenePresentation idleScene = new(assets, definition);
             string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
             string id = "restoration-poison-idle-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -192,7 +192,7 @@ public sealed class NativeBattleRestorationPresentationTests
             idle.AdvanceNativeGraphicsPresentation(Callback);
             before = NativeBattleStorageSnapshots.Restore(idle.Capture());
             packets = before.NativeActionPackets!;
-            graphics = before.NativeGraphics!;
+            graphics = before.ReadFixturePresentation().NativeGraphics!;
             byte[] withIcons = idleScene.Render(idle, 320, 224).ToArray();
             Publish(evidence, id + "-after", before, withIcons);
             Assert.Equal(0u, graphics.Flags & 0x410);
@@ -201,13 +201,13 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeBattlePrimitiveFrame iconFrame = graphics.PrimitiveFrame!;
             Assert.Contains(iconFrame.LastCommands, command => command.Command.ModuleDraw == iconIndex);
             NativeBattlePrimitiveFrame plainFrame = iconFrame with { LastCommands = iconFrame.LastCommands.Where(command => command.Command.ModuleDraw != iconIndex).ToImmutableArray() };
-            BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } }));
+            BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } })));
             int iconRgb = DifferentRgb(withIcons, idleScene.Render(plain, 320, 224));
             PublishJson(evidence, id + "-details", new { before.Frame, graphics.Callback, PoisonIconRgbPixels = iconRgb });
             Assert.True(iconRgb > 0, "Original poison icon packets changed no RGB pixels in the ordinary callback before104.");
         }
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture(before with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } }));
+        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, bool requireCasting)
@@ -223,9 +223,9 @@ public sealed class NativeBattleRestorationPresentationTests
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
         string id = $"restoration{effect}-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         Publish(evidence, id + "-before", initial, scene.Render(battle, 320, 224));
-        bool selectedCasting = initial.NativeGraphics?.ActionGraphics?.Callback == 0x50A9A0;
-        bool selectedEffect = initial.NativeGraphics?.OriginalEffect?.Binding.Entry == profile.Entry;
-        bool cleared = initial.NativeGraphics?.OriginalEffect?.Restoration?.Geometry is not null;
+        bool selectedCasting = initial.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Callback == 0x50A9A0;
+        bool selectedEffect = initial.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Entry == profile.Entry;
+        bool cleared = initial.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Restoration?.Geometry is not null;
         bool clonePassed = false;
         bool faded = false;
         int statusTransitions = 0;
@@ -235,7 +235,7 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (effect == 27 && expectedStatusTransitions != 0)
         {
-            NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(initial.NativeGraphics!, 1);
+            NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics!, 1);
             NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             Assert.Equal(2u, targetModel.Flags8!.Value & 2);
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, targetModel.TextureAllocationMask, 0, 0);
@@ -248,14 +248,14 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleSession? clone = null;
         for (int callback = 0; callback < 1024 && HasDescriptor(battle); callback++)
         {
-            BattleSnapshot before = battle.Capture();
+            BattleSnapshot before = battle.CaptureForContinuation();
             try
             {
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 audio.Update(battle);
                 audio.Update(battle);
-                BattleSnapshot after = battle.Capture();
-                NativeBattleGraphicsState graphics = after.NativeGraphics!;
+                BattleSnapshot after = battle.CaptureForContinuation();
+                NativeBattleGraphicsState graphics = after.ReadFixturePresentation().NativeGraphics!;
                 if (effect == 57)
                 {
                     captured57Geometry += NativeBattleRecoveryCaptureAssertions.AssertOwnedGeometry(after, 57);
@@ -266,7 +266,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 if (!cleared && graphics.OriginalEffect?.Restoration is { Emitters: int emitters, Geometry: int geometry })
                 {
                     Assert.Equal(emitters + profile.EmitterBytes, geometry);
-                    Assert.All(after.NativeEffectMemory!.Arena!.Read(emitters, profile.EmitterBytes + profile.GeometryBytes), value => Assert.Equal((byte)0, value));
+                    Assert.All(after.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(emitters, profile.EmitterBytes + profile.GeometryBytes), value => Assert.Equal((byte)0, value));
                     Assert.Equal(before.NativeCrtRandom, after.NativeCrtRandom);
                     cleared = true;
                 }
@@ -280,7 +280,7 @@ public sealed class NativeBattleRestorationPresentationTests
                     if (expectedContactCopy is { } copy)
                     {
                         NativeBattleEffectVramCopy expected = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);
-                        Assert.Contains(after.NativeEffectMemory!.Textures!.Slots, slot => slot?.Kind == 3 && slot.Copy == expected);
+                        Assert.Contains(after.ReadFixturePresentation().NativeEffectMemory!.Textures!.Slots, slot => slot?.Kind == 3 && slot.Copy == expected);
                     }
                     statusTransitions++;
                 }
@@ -311,7 +311,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 }
                 byte[] visible = scene.Render(battle, 320, 224).ToArray();
                 NativeBattlePrimitiveFrame plainFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(after with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } }));
+                BattleSession plain = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(after.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = plainFrame } })));
                 int rgb = DifferentRgb(visible, scene.Render(plain, 320, 224));
                 if (rgb > peakRgb)
                 {
@@ -330,8 +330,8 @@ public sealed class NativeBattleRestorationPresentationTests
             }
             catch (Exception error)
             {
-                Publish(evidence, id + "-before-unsupported-callback" + before.NativeGraphics!.Callback, before, null);
-                PublishJson(evidence, id + "-unsupported-details", new { Effect = effect, before.Frame, Callback = before.NativeGraphics!.Callback, Error = error.ToString() });
+                Publish(evidence, id + "-before-unsupported-callback" + before.ReadFixturePresentation().NativeGraphics!.Callback, before, null);
+                PublishJson(evidence, id + "-unsupported-details", new { Effect = effect, before.Frame, Callback = before.ReadFixturePresentation().NativeGraphics!.Callback, Error = error.ToString() });
                 throw;
             }
         }
@@ -370,8 +370,8 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.Equal(heardBeforeRestore, heard.Count);
         Publish(evidence, id + "-peak", peak!, peakPixels);
         Publish(evidence, id + "-after", battle.Capture(), scene.Render(battle, 320, 224));
-        PublishJson(evidence, id + "-details", new { Effect = effect, PeakRgbPixels = peakRgb, PeakFrame = peak!.Frame, PeakCallback = peak.NativeGraphics!.Callback, FinishedFrame = battle.Frame, FinishedCallback = battle.Presentation!.Graphics.Callback, StatusTransitions = statusTransitions, HpTransitions = hpTransitions, OriginalSound = resources.Sound });
-        Console.WriteLine($"Restoration{effect}: RGBpeak{peakRgb}, frame{peak.Frame}/callback{peak.NativeGraphics!.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, status contacts{statusTransitions}, HP contacts{hpTransitions}, evidence{evidence ?? "disabled"}.");
+        PublishJson(evidence, id + "-details", new { Effect = effect, PeakRgbPixels = peakRgb, PeakFrame = peak!.Frame, PeakCallback = peak.ReadFixturePresentation().NativeGraphics!.Callback, FinishedFrame = battle.Frame, FinishedCallback = battle.Presentation!.Graphics.Callback, StatusTransitions = statusTransitions, HpTransitions = hpTransitions, OriginalSound = resources.Sound });
+        Console.WriteLine($"Restoration{effect}: RGBpeak{peakRgb}, frame{peak.Frame}/callback{peak.ReadFixturePresentation().NativeGraphics!.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, status contacts{statusTransitions}, HP contacts{hpTransitions}, evidence{evidence ?? "disabled"}.");
     }
 
     private static bool HasDescriptor(BattleSession battle)

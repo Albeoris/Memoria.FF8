@@ -25,11 +25,11 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Assert.True(session.NativeEntryReady);
         Assert.Equal(0, source.Frame);
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
-        NativeBattleEffectMemory memory = source.NativeEffectMemory!;
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
+        NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory!;
         Assert.Equal(0, memory.Active);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 3);
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 3)!);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 3)!);
         Assert.Equal(109, caster.ModelId);
         Assert.Equal((byte)125, model.ModelId4);
         NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(caster).PoseSource ?? throw new NotSupportedException("The source requires its current skeleton.");
@@ -204,7 +204,7 @@ public sealed class NativeBattleEffect290SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Current snapshot pose and first selected fragment recipe only; no effect execution, future pose, pool or complete action claim", source.Frame, source.NativeGraphics.Callback, Caster = 3, Bones = bones.Length, Geometry = geometry.PhysicalAddress, Skeleton = skeleton.PhysicalAddress, Scratch = scratch, ScratchMaximum = maximum, Script = script, SelectedBones = selected, Limit = limit, Speed = speed, Scale = scale, Threshold = threshold, ProcessGateDraws = draws, FirstSelectedFace = chosen }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Current snapshot pose and first selected fragment recipe only; no effect execution, future pose, pool or complete action claim", source.Frame, source.ReadFixturePresentation().NativeGraphics.Callback, Caster = 3, Bones = bones.Length, Geometry = geometry.PhysicalAddress, Skeleton = skeleton.PhysicalAddress, Scratch = scratch, ScratchMaximum = maximum, Script = script, SelectedBones = selected, Limit = limit, Speed = speed, Scale = scale, Threshold = threshold, ProcessGateDraws = draws, FirstSelectedFace = chosen }));
 
         byte[] Read(NativeBattleModelCpuReference reference, int offset, int length) => NativeBattleModelEnemyHeap.Read(cpu, staging, reference with { Offset = checked(reference.Offset + offset) }, length);
         short I16(int offset) => BinaryPrimitives.ReadInt16LittleEndian(Read(geometry, offset, 2));

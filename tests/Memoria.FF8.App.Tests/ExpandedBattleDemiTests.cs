@@ -35,12 +35,11 @@ public sealed class ExpandedBattleDemiTests
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
         Assert.True(battle.SupportsExpandedAction(demi));
-        Assert.Null(battle.Presentation?.Graphics);
+        Assert.Same(process, battle.Presentation);
 
-        BattleSession presentation = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == CasterId);
         BattleCombatant ally = battle.Combatants.Single(actor => actor.Id == AddedAllyId);
-        NativeBattleModelAliases aliases = presentation.NativeActionPackets.ModelAliases;
+        NativeBattleModelAliases aliases = process.ActionPackets.ModelAliases;
         BattleCombatant enemy = battle.Combatants.First(actor => !actor.IsPlayer && BattleSession.IsValidSelectedActionTarget(caster, demi, actor) && !aliases.TryEncodeExact(battle.ReadPresentationModelOwner(actor.Id), out _));
         Assert.False(aliases.TryEncodeExact(battle.ReadPresentationModelOwner(ally.Id), out _));
         Assert.False(aliases.TryEncodeExact(battle.ReadPresentationModelOwner(enemy.Id), out _));
@@ -78,7 +77,7 @@ public sealed class ExpandedBattleDemiTests
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             Assert.Same(process, battle.Presentation);
-            NativeBattleActionPacketsState packets = presentation.NativeActionPackets;
+            NativeBattleActionPacketsState packets = process.ActionPackets;
             if (expectedOccurrences is null)
             {
                 var headers = packets.PublishedHeaders().Where(entry => entry.Slot.Source == sourceOwner && entry.Slot.Effect == DemiEffect).ToArray();

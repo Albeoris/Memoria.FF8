@@ -106,17 +106,17 @@ public sealed class NativeBattleSlotsDealTests
         Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
         BattleCombatant actor = battle.Combatants[0];
         actor.NativeStatus1 |= 0x880000;
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         // The limit bank has eleven reserved physical entries and cannot admit another command.
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => battle.SubmitNativeSlotsCard(deal.Id));
         Assert.Contains("exhausted", error.Message);
         Assert.Null(battle.PendingSlotsDeal);
         Assert.Empty(battle.QueuedActions);
         Assert.Equal(JsonSerializer.Serialize(banks), JsonSerializer.Serialize(battle.NativeCommandBanks));
-        BattleSnapshot after = battle.Capture();
+        BattleSnapshot after = battle.CaptureForContinuation();
         Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(after.Random));
         Assert.Equal(JsonSerializer.Serialize(before.Combatants), JsonSerializer.Serialize(after.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(before.NativeGraphics), JsonSerializer.Serialize(after.NativeGraphics));
+        Assert.Equal(JsonSerializer.Serialize(before.ReadFixturePresentation().NativeGraphics), JsonSerializer.Serialize(after.ReadFixturePresentation().NativeGraphics));
         Assert.Equal(before.Events, after.Events);
         Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
         battle.CloseNativeActionMenu();

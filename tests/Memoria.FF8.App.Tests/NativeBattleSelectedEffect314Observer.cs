@@ -19,7 +19,7 @@ internal sealed class NativeBattleSelectedEffect314Observer
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 314);
-        if (current.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return;
         }
@@ -37,7 +37,7 @@ internal sealed class NativeBattleSelectedEffect314Observer
             Assert.NotNull(after);
             Assert.Equal(unchecked((ushort)(age + 1)), after.ReadWord(12));
             int amplitude = age < 8 ? age * 125 : age > 218 ? (226 - age) * 125 : 1000;
-            Assert.Equal(unchecked((uint)amplitude), current.NativeEffectMemory!.Effect314!.ReadDword(AmplitudeGlobal));
+            Assert.Equal(unchecked((uint)amplitude), current.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(AmplitudeGlobal));
         }
         int fragments = Count(after, FragmentOffset + 6, FragmentStride, FragmentCapacity);
         int sparks = Count(after, SparkOffset + 6, SparkStride, SparkCapacity);
@@ -46,14 +46,14 @@ internal sealed class NativeBattleSelectedEffect314Observer
         if (age == 226)
         {
             terminal = true;
-            uint caster = current.NativeEffectMemory!.Effect314!.ReadDword(CasterGlobal);
+            uint caster = current.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(CasterGlobal);
             int physical = checked((int)((caster - 0x1D972C0) / 156));
-            Assert.Equal(before.ReadDword(0x14), ReadOriginalModelCell(current.NativeGraphics, physical).Color44);
-            Assert.Equal(before.ReadDword(0x18), ReadOriginalModelCell(current.NativeGraphics, physical + 1).Color44);
-            Assert.Equal(0, ReadOriginalModelCell(current.NativeGraphics, physical).Flags0 & 8);
-            Assert.Equal(0, ReadOriginalModelCell(current.NativeGraphics, physical + 1).Flags0 & 8);
+            Assert.Equal(before.ReadDword(0x14), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical).Color44);
+            Assert.Equal(before.ReadDword(0x18), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical + 1).Color44);
+            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical).Flags0 & 8);
+            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical + 1).Flags0 & 8);
         }
-        observations.Add(new { current.Frame, ProcessedAge = age, Fragments = fragments, Sparks = sparks, LocalRandomBefore = prior.NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), LocalRandomAfter = current.NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), CrtBefore = prior.NativeCrtRandom!.Seed, CrtAfter = current.NativeCrtRandom!.Seed, RootAge = effect.Pools.IsEmpty ? (int?)null : effect.Pools[0].Slots[0].ReadWord(12) });
+        observations.Add(new { current.Frame, ProcessedAge = age, Fragments = fragments, Sparks = sparks, LocalRandomBefore = prior.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), LocalRandomAfter = current.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), CrtBefore = prior.NativeCrtRandom!.Seed, CrtAfter = current.NativeCrtRandom!.Seed, RootAge = effect.Pools.IsEmpty ? (int?)null : effect.Pools[0].Slots[0].ReadWord(12) });
         if (age is 16 or 66 or 100 or 140 or 210 or 226)
         {
             Save($"effect314-age{age:D3}-before", prior);
@@ -86,7 +86,7 @@ internal sealed class NativeBattleSelectedEffect314Observer
 
     private static NativeBattleModulePoolTask? FindMainTask(BattleSnapshot snapshot, bool active)
     {
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect } effect)
         {
             return null;
         }

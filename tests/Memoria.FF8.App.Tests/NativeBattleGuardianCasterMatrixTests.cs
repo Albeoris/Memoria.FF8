@@ -260,11 +260,11 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             battle.Tick();
             restored.Tick();
 
-            BattleSnapshot observed = battle.Capture();
-            BattleSnapshot continued = restored.Capture();
+            BattleSnapshot observed = battle.CaptureForContinuation();
+            BattleSnapshot continued = restored.CaptureForContinuation();
             Assert.Equal(observed.Frame, continued.Frame);
-            Assert.Equal(observed.NativeGraphics!.Callback, continued.NativeGraphics!.Callback);
-            Assert.Equal(observed.NativeGraphics.OriginalEffect?.ReturnedDescriptor, continued.NativeGraphics.OriginalEffect?.ReturnedDescriptor);
+            Assert.Equal(observed.ReadFixturePresentation().NativeGraphics!.Callback, continued.ReadFixturePresentation().NativeGraphics!.Callback);
+            Assert.Equal(observed.ReadFixturePresentation().NativeGraphics.OriginalEffect?.ReturnedDescriptor, continued.ReadFixturePresentation().NativeGraphics.OriginalEffect?.ReturnedDescriptor);
             Assert.Equivalent(observed.Combatants, continued.Combatants, strict: true);
             Assert.Equal(observed.Random!.Lane, continued.Random!.Lane);
             Assert.Equal(observed.Random.Indexes.ToArray(), continued.Random.Indexes.ToArray());

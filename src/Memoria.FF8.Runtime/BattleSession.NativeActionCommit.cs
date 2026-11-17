@@ -11,49 +11,12 @@ public sealed partial class BattleSession
         nativeReactionOrder = 0;
     }
 
-    private bool HasNativePendingReactions => false;
+    private bool HasNativePendingReactions => combatants.Any(actor => actor.NativePendingReaction.Stage is 2 or 3);
 
     private void SetNativeReactionActionGate(bool value)
     {
         NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new NotSupportedException("Native DF9 mutation requires the retained DF9/DFD allocation gate owner.");
         nativeScriptState = nativeScriptState with { AllocationControl = control with { ActionGate = value } };
-    }
-
-    private void ResolveActionTransaction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
-    {
-        if (nativeActionCommitDepth == 0 && nativeProductionContext is null)
-        {
-            BeginNativeReactionBatch();
-            //TODO(TD-009): Generic components project ordinary player bank2 admission; retain the real event lane instead of the previous INIT callback.
-            SetNativeActionEvent(actor, actor.IsPlayer ? (byte)2 : (byte)0);
-        }
-        nativeActionCommitDepth++;
-        bool completed = false;
-        try
-        {
-            nativeAffinityAction = null;
-            BattleNativeAction? invocation = command.NativeAction ?? (command.Ability == BattleAbility.Magic ? FindAction(BattleAbility.Magic, command.ActionId).NativeAction : null);
-            bool silencedMagic = invocation is not null && NativeMagicInvocationSilenced(actor, command, invocation);
-            ResolveAction(actor, target, command);
-            CompleteNativeActionOwners(actor, command, silencedMagic);
-            completed = true;
-        }
-        finally
-        {
-            nativeActionCommitDepth--;
-            if (nativeActionCommitDepth == 0 && completed)
-            {
-                if (nativeProductionContext is null)
-                {
-                    //Generic fixture actions have no original native event/header admission.
-                    CompleteNativeOrdinaryCommandCost(actor, command);
-                    CompleteNativeActionStatuses(actor);
-                    FlushNativeReactions();
-                }
-                RefreshNativeKnownMagicStocks();
-                RefreshNativeEnemyDrawSlots();
-            }
-        }
     }
 
     private void CompleteNativeActionOwners(BattleCombatant actor, BattleActionPresentation command, bool silencedMagic)
@@ -68,14 +31,13 @@ public sealed partial class BattleSession
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
     {
-        if (actor.NativeAi is null && !actor.IsPlayer || (nativeReactionOrder is null ||
-            (actor.IsPlayer ? stage == 2 && (ExpandedAngeloLearned(actor) & 3) == 0 : actor.NativeAi?.Scripts[stage].Length is not > 0)))
-        {
-            return;
-        }
         if (stage is not (2 or 3))
         {
             throw new InvalidDataException("Native494410 only produces pending stages2/3.");
+        }
+        if (nativeReactionOrder is null || !actor.IsPlayer && actor.NativeAi is null)
+        {
+            return;
         }
         if (stage == 2 && (nativeContactWorking?.CommittingSecondary == true || (resolvingNativeAction?.NativeQueuedCommand ?? resolvingNativeAction?.NativeAction?.Command) is 0 or 14 || !actor.IsPlayer && nativeActionScratch.EventLane == 0))
         {
@@ -93,27 +55,18 @@ public sealed partial class BattleSession
         nativeReactionOrder = null;
         foreach (BattleCombatant actor in combatants.Where(actor => actor.NativePendingReaction is { Stage: 2 or 3, Order: byte order } && order < count).OrderBy(actor => actor.NativePendingReaction.Order))
         {
-            byte stage = actor.NativePendingReaction.Stage!.Value;
+            NativeBattlePendingReaction pending = actor.NativePendingReaction;
+            byte stage = pending.Stage!.Value;
             actor.NativePendingReaction = new(0, 0);
             if (actor.IsActive && (stage == 3 || (NativeSavedStatusBits(actor) & 1) == 0))
             {
-                if (actor.IsPlayer)
+                if (actor.IsPlayer && stage == 2 && (!allies.Any(IsNativeBattleCapable) || !enemies.Any(IsNativeBattleCapable)))
                 {
-                    if (stage == 3 || allies.Any(IsNativeBattleCapable) && enemies.Any(IsNativeBattleCapable))
-                    {
-                        RunExpandedAngeloReaction(actor, stage);
-                    }
+                    continue;
                 }
-                else
-                {
-                    QueueExpandedAiCallback(actor, stage);
-                }
+                QueueExpandedAiCallback(actor, stage, pending);
             }
         }
     }
 
-    private void FlushNativeReactions()
-    {
-            return;
-    }
 }

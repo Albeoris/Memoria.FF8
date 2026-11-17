@@ -29,15 +29,15 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
         Assert.Equal(24, source.Definition.StageId);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
-        NativeBattleGraphicsState graphics = source.NativeGraphics!;
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         if (cold)
         {
             Assert.Null(graphics.OriginalEffect);
         }
-        NativeBattleEffect31State state = Assert.IsType<NativeBattleEffect31State>(source.NativeEffectMemory.Effect31);
+        NativeBattleEffect31State state = Assert.IsType<NativeBattleEffect31State>(source.ReadFixturePresentation().NativeEffectMemory.Effect31);
         state.Validate();
         Assert.Equal(7, state.FixedBanks.Count);
         Assert.Equal(7, state.FixedQueues.Count);
@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
                 Assert.Equal(23, definition.ModelId);
                 Assert.Equal((byte)39, model.ModelId4);
                 Assert.Equal(0, definition.SceneSlot);
-                resource = NativeBattleEnemyResourceView.Resolve(source.NativeModelCpuResources!, source.NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
+                resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);
             }
             NativeBattlePoseSource pose = Assert.IsType<NativeBattlePoseSource>(resource.PoseSource);
             pose.Validate();
@@ -92,8 +92,8 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
         {
             Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
         }
-        Assert.Equal(4, source.NativeStage!.Groups.Length);
-        Assert.All(source.NativeStage.Groups, group =>
+        Assert.Equal(4, source.ReadFixturePresentation().NativeStage!.Groups.Length);
+        Assert.All(source.ReadFixturePresentation().NativeStage.Groups, group =>
         {
             Assert.Equal(2, group.Source!.BoneCount);
             Assert.Equal(2, group.Matrices.Length);

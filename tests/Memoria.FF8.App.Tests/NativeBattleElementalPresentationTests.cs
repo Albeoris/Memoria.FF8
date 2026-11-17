@@ -23,7 +23,7 @@ public sealed class NativeBattleElementalPresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState initialGraphics = source.NativeGraphics ?? throw new InvalidDataException("The fixture lacks its native graphics owner.");
+        NativeBattleGraphicsState initialGraphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks its native graphics owner.");
         NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks its physical action packets.");
         int descriptorSlot = Assert.Single(initialGraphics.Descriptors.Queue, slot => initialGraphics.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(initialGraphics.Descriptors.Packets[descriptorSlot].Argument - 0x1D280C4u);
@@ -81,7 +81,7 @@ public sealed class NativeBattleElementalPresentationTests
                 prior = battle.Capture();
                 NativeBattleOriginalEffectState? beforeEffect = Selected(prior, spec);
                 NativeBattleModulePoolTask? controller = Controller(beforeEffect, spec);
-                bool paused = (prior.NativeGraphics!.Flags & 0x201) != 0;
+                bool paused = (prior.ReadFixturePresentation().NativeGraphics!.Flags & 0x201) != 0;
                 int? phase = controller is null ? null : unchecked((short)controller.ReadWord(12));
                 bool boundary = !paused && phase is int value && requested.Contains(value);
                 BattleSession? independent = null;
@@ -94,11 +94,11 @@ public sealed class NativeBattleElementalPresentationTests
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                 }
                 ushort? rootCounter = RootCounter(beforeEffect, spec);
-                long nativeBefore = prior.NativeGraphics.Callback;
+                long nativeBefore = prior.ReadFixturePresentation().NativeGraphics.Callback;
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(nativeBefore + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(nativeBefore + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 audio.Update(battle);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current, spec);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
@@ -149,14 +149,14 @@ public sealed class NativeBattleElementalPresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                     Assert.NotEqual(phase, Controller(afterEffect, spec) is { } afterController ? unchecked((short)afterController.ReadWord(12)) : null);
-                    NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                     int packetCount = frame.LastCommands.Count(command => command.Command.Packet.Bank == "20DFAB8");
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = without } });
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
                     int changedRgb = Enumerable.Range(0, pixels.Length / 4).Count(pixel => !pixels.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                     NativeBattleRestorationPresentationTests.Publish(output, "phase-" + phase!.Value + "-after", current, pixels);
-                    boundaries.Add(new(phase.Value, prior.Frame, current.Frame, current.NativeGraphics.Callback, packetCount, changedRgb, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(phase.Value, prior.Frame, current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, packetCount, changedRgb, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(phase.Value);
                 }
             }
@@ -205,7 +205,7 @@ public sealed class NativeBattleElementalPresentationTests
         }
     }
 
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, EffectCase spec) => snapshot.NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == spec.Effect && effect.Binding.Entry == spec.Entry ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot, EffectCase spec) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not null } effect && effect.Binding.Effect == spec.Effect && effect.Binding.Entry == spec.Entry ? effect : null;
     private static NativeBattleModulePoolTask? Controller(NativeBattleOriginalEffectState? effect, EffectCase spec) => effect?.Pools.SingleOrDefault(pool => pool.DescriptorAddress == spec.ChildDescriptor)?.Slots.SingleOrDefault(task => (task.Flags & 1) != 0 && task.Callback == spec.ControllerCallback && task.ReadWord(14) == 0);
     private static bool ChildrenLive(NativeBattleOriginalEffectState effect, EffectCase spec) => effect.Pools.Any(pool => (pool.DescriptorAddress == spec.ChildDescriptor || spec.AdditionalChildDescriptors?.Contains(pool.DescriptorAddress) == true) && pool.Head is not null);
     private static ushort? RootCounter(NativeBattleOriginalEffectState? effect, EffectCase spec) => effect?.Pools.Single(pool => pool.DescriptorAddress == spec.MainDescriptor).Slots.Single(task => task.Callback == spec.RootCallback).ReadWord(12);

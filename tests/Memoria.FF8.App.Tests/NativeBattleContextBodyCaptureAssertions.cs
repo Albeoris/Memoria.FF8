@@ -6,7 +6,7 @@ internal static class NativeBattleContextBodyCaptureAssertions
 {
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         if (graphics.OriginalEffect is not { } selected || selected.Binding.Effect != effect || graphics.PrimitiveFrame is null)
         {
             return 0;

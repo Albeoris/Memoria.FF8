@@ -48,7 +48,7 @@ public sealed partial class BattleSession
         }
 
         ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
-        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+        BattleModelRoster planned = allocations.IsEmpty ? process.PlannedModelRoster : new(process.PlannedModelRoster.Owners.Concat(allocations.Select(plan => plan.Load.ModelOwner)));
         candidate.ValidateExpandedHostedInvocations(planned);
         ImmutableArray<ExpandedHostedOperation> suffix = candidate.expandedOperationCursor.Operations.RemoveAt(0);
         ImmutableArray<HostedDispatchHeader> headers = suffix.OfType<ExpandedHostedInvocation>().Select(write => new HostedDispatchHeader(write.Header, write.Contacts.Select(contact => contact.Packet).ToImmutableArray())).ToImmutableArray();

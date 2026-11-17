@@ -46,7 +46,7 @@ public sealed class NativeBattlePoisonGas171PresentationTests
         Assert.Same(game.ReadNativePoisonGas171Resources(), binding.PoisonGas171Resources);
         BattleCombatantDefinition casterDefinition = source.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
         NativeBattleGraphicsResource casterResource = assets.ReadNativeGraphicsResource(casterDefinition);
-        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.NativeGraphics!, 3);
+        NativeBattleGraphicsModel casterModel = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal(36, casterDefinition.ModelId);
         Assert.Equal(42, casterResource.PoseSource!.BoneCount);
         Assert.Equal(42, NativeBattleBodyBoneMatrices.Require(casterModel, casterResource.PoseSource).Length);

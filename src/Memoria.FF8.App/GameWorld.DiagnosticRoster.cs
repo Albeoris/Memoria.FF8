@@ -51,27 +51,35 @@ internal sealed partial class GameWorld
         {
             return ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty;
         }
-        IEnumerable<BattleEnemyRosterSource> selected = roster.Donors;
-        if (roster.DonorCount is int count)
+        int count = roster.DonorCount ?? roster.Donors.Length;
+        var selected = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
+        HashSet<int> models = SelectDiagnosticRosterOriginals(encounter, roster, reserveSlots).Where(enemy => enemy.Enabled).Select(enemy => enemy.ModelId).ToHashSet();
+        foreach (BattleEnemyRosterSource source in roster.Donors)
         {
-            HashSet<int> models = SelectDiagnosticRosterOriginals(encounter, roster, reserveSlots).Select(enemy => enemy.ModelId).ToHashSet();
-            selected = roster.Donors.Where(IsEligible).Take(count).ToArray();
-            if (selected.Count() != count)
+            if (source.Formation >= BattleResources.FormationCount || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException($"Diagnostic roster has fewer than {count} eligible independent installed donor models.");
+                throw new InvalidDataException("The diagnostic candidate differs from its installed source formation.");
+            }
+            BattleEncounter formation = BattleResources.LoadEncounter(source.Formation);
+            BattleDonorGroup? group = ReadEligibleDonorGroups(formation, encounter.Id).SingleOrDefault(candidate => candidate.Root.Slot == source.SceneSlot);
+            int[] groupModels = group?.Members.Where(actor => actor.Enabled).Select(actor => actor.ModelId).ToArray() ?? [];
+            if (group is null || group.Members.Length > count - selected.Count || groupModels.Distinct().Count() != groupModels.Length || groupModels.Any(models.Contains))
+            {
+                if (roster.DonorCount is null)
+                {
+                    throw new NotSupportedException($"Diagnostic source formation {source.Formation}, slot {source.SceneSlot} has no compatible complete donor group within its roster.");
+                }
+                continue;
             }
 
-            bool IsEligible(BattleEnemyRosterSource source)
+            AddDonorGroup(selected, formation, group);
+            models.UnionWith(groupModels);
+            if (selected.Count == count)
             {
-                if (source.Formation >= BattleResources.FormationCount || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidDataException("The diagnostic candidate differs from its installed source formation.");
-                }
-                BattleEnemyPlacement? candidate = BattleResources.LoadEncounter(source.Formation).Enemies.FirstOrDefault(enemy => enemy.Slot == source.SceneSlot);
-                return candidate is not null && !models.Contains(candidate.ModelId) && IsEligibleAdditionalEnemyPlacement(candidate, encounter.Id) && models.Add(candidate.ModelId);
+                return selected.ToImmutable();
             }
         }
-        return selected.Select((source, ordinal) => KeyValuePair.Create(ExpandedBattleFormation.OriginalEnemyPrototypeCount + ordinal, source)).ToImmutableSortedDictionary();
+        throw new NotSupportedException($"Diagnostic roster has fewer than {count} eligible installed donor placements with complete source groups.");
     }
 
     private static NativeCharacterVitals PrepareDiagnosticRosterVitals(NativeCharacterVitals initial)

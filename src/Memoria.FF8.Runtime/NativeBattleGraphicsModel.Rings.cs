@@ -40,16 +40,23 @@ public static class NativeBattleModelRings
 
     public static BattleActorModels Bind90(BattleActorModels models, BattleModelOwner source, byte selector, NativeBattleModelBoundary boundary)
     {
+        return Bind90(models, source, selector, boundary, null);
+    }
+
+    internal static BattleActorModels Bind90(BattleActorModels models, BattleModelOwner source, byte selector, NativeBattleModelBoundary boundary, BattleSourceBindings? bindings)
+    {
         ArgumentNullException.ThrowIfNull(boundary);
         NativeBattleGraphicsModel sourceModel = models.Get(source);
         if (selector >= 16)
         {
-            BattleModelEntry<BattleEnemyModelOwner>? target = models.Enemies.Entries.FirstOrDefault(entry => entry.State.ModelId4 == selector);
-            return target is null ? models : models.Set(source, sourceModel.WriteLinkedModel(target.Owner));
+            BattleEnemyModelOwner? target = bindings is null
+                ? models.Enemies.Entries.FirstOrDefault(entry => entry.State.ModelId4 == selector)?.Owner
+                : bindings.FindFirstModel(selector);
+            return target is null ? models : models.Set(source, sourceModel.WriteLinkedModel(target));
         }
         if (selector >= 3)
         {
-            return models.Set(source, sourceModel.WriteLinkedModel(boundary.DecodeLiteral(selector, models)));
+            return models.Set(source, sourceModel.WriteLinkedModel(bindings?.DecodeLiteral(selector) ?? boundary.DecodeLiteral(selector, models)));
         }
         List<BattleModelOwner> ring = [];
         BattleModelOwner current = source;

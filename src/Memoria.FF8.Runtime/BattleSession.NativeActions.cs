@@ -47,18 +47,6 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(command, id, crisis);
     }
 
-    private bool QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, AiTargetSelection selected)
-    {
-        BattleNativeAction native = FindNativeCommandAction(actor, command, id);
-        ValidateNativeActionContract(native);
-        actor.PreviousAiTarget = selected.PreviousTarget;
-        byte flags = command is 2 or 4 ? native.TargetFlags.GetValueOrDefault() : (byte)0;
-        BattleTargetRequest request = ApplyOriginalAiTargetFlags(selected, flags, EnemyActionTargetsKnockedOutAllies(native));
-        BattleCombatant target = ReadOriginalAiAnchor(selected) ?? actor;
-        BattleAttackCommand queued = new(actor.Id, target.Id, request, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence };
-        return EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", diagnosticSelection: selected.Request);
-    }
-
     private bool NativeAiRejectedEmptyTarget(byte? callback, BattleTargetRequest request)
     {
         return callback is not null && request.Selection is NativeBattleTargetRequestAdapter.DeferredOperands { IsEmpty: true } && nativeActionScratch.TargetUnavailableB0E == true;
@@ -101,67 +89,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native action lacks its effective hit count or source records.");
         }
-    }
-
-    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, bool queueGraphics = true, Action<BattleCombatant>? collectReflection = null, BattleModelOwner? reflectionSource = null)
-    {
-        NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
-        int? miniMogFailure = action.NativeAction!.Command == 38 ? PrepareNativeMiniMog() : null;
-        NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction, miniMogFailure is not null);
-        if (reflectionSource is { } source)
-        {
-            header = PrepareReflectedHeader(header, source);
-        }
-        (nativeActionPackets, BattleActionHeaderReference headerIndex) = nativeActionPackets.Prepare(header);
-        ObserveDiagnosticPreparedHeader(headerIndex);
-        nativeActionScratch = nativeActionScratch with { ActorIndex = ProjectOriginalActionActor(actor), Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
-        NativeBattleActionProductionResult produced;
-        BattleActionHeaderReference? previousDiagnosticHeader = diagnosticCounterProducingHeader;
-        BattleActionHeaderReference? previousEncounterHeader = encounterProducingHeaderIndex;
-        encounterProducingHeaderIndex = headerIndex;
-        diagnosticCounterProducingHeader = ObservingDiagnosticCounter ? headerIndex : null;
-        try
-        {
-            produced = ProduceNativeActionFacts(actor, target, command, action, header, context, miniMogFailure is not null, collectReflection);
-        }
-        finally
-        {
-            diagnosticCounterProducingHeader = previousDiagnosticHeader;
-            encounterProducingHeaderIndex = previousEncounterHeader;
-        }
-        foreach (NativeBattleContactPacket packet in produced.Contacts)
-        {
-            (nativeActionPackets, BattleContactOccurrence occurrence) = nativeActionPackets.AppendContact(packet);
-            ObserveDiagnosticCounterAppend(packet, occurrence);
-        }
-        bool rejectedEmptyAiTarget = NativeAiRejectedEmptyTarget(command.NativeAiCallbackStage, command.TargetRequest);
-        if (rejectedEmptyAiTarget)
-        {
-            (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
-        }
-        else
-        {
-            PublishNativeSingleActionHeader(produced.PublishedTargetCount);
-        }
-        ObserveDiagnosticPublishedReflectionHeader(headerIndex);
-        RecordPublishedNativeTargetCount(produced.PublishedTargetCount);
-        int? miniMogMessage = miniMogFailure ?? (header.Command == 38 && produced.Contacts.Length != 0 ? 54 : null);
-        if (miniMogMessage is int message)
-        {
-            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
-        }
-        nativeProductionContext = context;
-        //48E830's abort decrements the repeat counter before485610 increments it.
-        //The physical header and its pre-admission target population still remain published.
-        if (nativeAiDepth == 0 && context.MultiCastMode != 0 && !produced.RepeatAborted)
-        {
-            nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
-        }
-        if (collectReflection is null && produced.Reflector is { } reflector)
-        {
-            ResolveNativeReflection(actor, GetActor(RequireCanonicalGraphicsActorId(reflector)), command, action.NativeAction!, headerIndex);
-        }
-        return !produced.RepeatAborted && produced.PublishedTargetCount != 0;
     }
 
     private int? PrepareNativeMiniMog()

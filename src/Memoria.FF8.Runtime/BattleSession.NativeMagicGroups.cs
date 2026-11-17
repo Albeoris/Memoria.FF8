@@ -115,28 +115,6 @@ public sealed partial class BattleSession
         return candidate is null ? null : FindTargetActor(candidate);
     }
 
-    private void ResolveNativeMagicGroup(BattleCombatant actor, BattleActionPresentation command)
-    {
-        BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
-        List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer && command.MagicCasts.Length > 1 && nativeDispatchCommandLocation is not null ? [] : null;
-        ResolveMagicGroupInvocations(actor, command, action, (invocation, index) =>
-        {
-            BattleCombatant target = ReadMagicPreflightAnchor(invocation, requireActive: true);
-            if (!target.IsAlive && (command.SmartAttack is not null || !combatants.Any(candidate => candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer)))
-            {
-                return false;
-            }
-            BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
-            //485610 submits one104 for the group; the effect consumes the following headers itself.
-            return ResolveInstalledNativeAction(actor, target, cast, action, queueGraphics: index == 0,
-                collectReflection: reflections is null ? null : reflector => reflections.Add(new(cast, reflector)));
-        });
-        if (reflections is { Count: > 0 })
-        {
-            WriteNativeRepeatReflectionPacket(actor, action.NativeAction!, reflections);
-        }
-    }
-
     private void ResolveMagicGroupInvocations(BattleCombatant actor, BattleActionPresentation command, BattleActionDefinition action, Func<BattleMagicCastInvocation, int, bool> publish)
     {
         uint statuses = EncounterMulticastStatusBits(actor);
@@ -292,7 +270,7 @@ public sealed partial class BattleSession
 
         if (hosted)
         {
-            ActiveAction = command with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1, MagicReservationId = null };
+            ActiveAction = command with { Phase = BattleActionPhase.Recovery, MagicReservationId = null };
             return;
         }
         foreach ((BattleActionPresentation cast, ImmutableArray<ExpandedBattleContact> contacts) in componentImpacts)

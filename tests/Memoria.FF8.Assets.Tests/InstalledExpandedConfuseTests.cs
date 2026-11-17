@@ -63,7 +63,7 @@ public sealed class InstalledExpandedConfuseTests
         Assert.Equal(command, battle.ActiveAction!.NativeQueuedCommand);
         Assert.Equal(id, battle.ActiveAction.ActionId);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
             restored.Tick();

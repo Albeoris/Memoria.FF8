@@ -24,7 +24,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         using GameAssets game = new(gameDirectory!);
         using BattleAssets assets = new(gameDirectory!);
         BattleSnapshot source = NativeBattleChainGun190Fixture.Prepare(game, assets, contactCount, output);
-        NativeBattleGraphicsState initialGraphics = source.NativeGraphics!;
+        NativeBattleGraphicsState initialGraphics = source.ReadFixturePresentation().NativeGraphics!;
         for (int actor = 0; actor < 3; actor++)
         {
             NativeBattleGraphicsModel model = ReadOriginalModelCell(initialGraphics, actor);
@@ -63,14 +63,14 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 NativeBattleModulePoolTask? oldMain = MainTask(prior);
                 boundary = "native-callback";
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleOriginalEffectState? after = Selected(current);
                 NativeBattleModulePoolTask? main = MainTask(current);
                 Assert.Equal(logical, LogicalOwners(current));
-                Assert.NotNull(current.NativeCamera?.Projection?.View);
+                Assert.NotNull(current.ReadFixturePresentation().NativeCamera?.Projection?.View);
                 if (after?.ReturnedDescriptor is > 0)
                 {
-                    uint cursor = current.NativeEffectMemory!.ChainGun190!.ReadDword(CursorGlobal);
+                    uint cursor = current.ReadFixturePresentation().NativeEffectMemory!.ChainGun190!.ReadDword(CursorGlobal);
                     Assert.InRange(cursor, PacketBase, PacketBase + PacketBytes);
                     packetBanks.Add(checked((int)((cursor - PacketBase) / PacketBankBytes)));
                 }
@@ -78,11 +78,11 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 {
                     setup = true;
                     AssertSetupRecords(current, contactCount);
-                    NativeBattleChainGun190State state = current.NativeEffectMemory!.ChainGun190!;
-                    Assert.NotNull(current.NativeEffectMemory.GeometryRegisters);
-                    Assert.NotNull(current.NativeEffectMemory.ScriptedColorRegisters);
-                    Assert.Equal(JsonSerializer.Serialize(game.ReadNativeChainGun190Resources().Camera), JsonSerializer.Serialize(current.NativeEffectMemory.Textures!.Animation!.Source));
-                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.NativeActionPackets!.ExportRetained().Contacts[2], CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.NativeEffectMemory.GeometryRegisters, ColorRegistersAfterTick = current.NativeEffectMemory.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
+                    NativeBattleChainGun190State state = current.ReadFixturePresentation().NativeEffectMemory!.ChainGun190!;
+                    Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters);
+                    Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters);
+                    Assert.Equal(JsonSerializer.Serialize(game.ReadNativeChainGun190Resources().Camera), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation!.Source));
+                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.NativeActionPackets!.ExportRetained().Contacts[2], CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters, ColorRegistersAfterTick = current.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
                     ColdNext("setup-main1", current);
                 }
                 if (!beforeContacts && main?.ReadWord(12) == 30)
@@ -94,12 +94,12 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 {
                     contactCrossings++;
                     Assert.Equal(contactCount, current.NativeActionPackets!.ReadHeaderContacts(after!.Parameters!.Header).Length);
-                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.NativeActionPackets.ReadHeaderContacts(after.Parameters.Header) });
+                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.NativeActionPackets.ReadHeaderContacts(after.Parameters.Header) });
                 }
-                for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
+                for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0 || text.ModelOwner is not BattlePartyModelOwner)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0 || text.ModelOwner is not BattlePartyModelOwner)
                     {
                         continue;
                     }
@@ -114,11 +114,11 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                     Assert.Equal(expected.HalfWidth, text.HalfWidth);
                     glyphs[targetOrdinal]++;
                 }
-                if (!rendered && current.NativeGraphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleChainGun190PacketArena.PacketBank))
+                if (!rendered && current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is { } frame && frame.LastCommands.Any(command => command.Command.Packet.Bank == NativeBattleChainGun190PacketArena.PacketBank))
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame plainFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != NativeBattleChainGun190PacketArena.PacketBank).ToImmutableArray() };
-                    BattleSnapshot plain = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = plainFrame } };
+                    BattleSnapshot plain = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = plainFrame } });
                     byte[] without = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(plain), 320, 224).ToArray();
                     int changed = CountRgbChanges(pixels, without);
                     if (changed > 0)
@@ -133,8 +133,8 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 {
                     completions++;
                     Assert.Empty(after.Pools);
-                    Assert.NotNull(current.NativeEffectMemory!.ChainGun190!.RootBankStorage);
-                    Assert.NotNull(current.NativeEffectMemory.ChainGun190.ChildBankStorage);
+                    Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.ChainGun190!.RootBankStorage);
+                    Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.ChainGun190.ChildBankStorage);
                     ColdNext("root-drained", current);
                 }
                 if (setup && Released(current))
@@ -202,7 +202,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         {
             Assert.Equal(new byte[24], NativeBattleContactPacketCodec.Encode(packets.ExportRetained().Contacts[2]!));
         }
-        NativeBattleChainGun190State state = snapshot.NativeEffectMemory!.ChainGun190!;
+        NativeBattleChainGun190State state = snapshot.ReadFixturePresentation().NativeEffectMemory!.ChainGun190!;
         int middle = contactCount == 2 ? 0 : 1;
         int high = contactCount == 2 ? 1 : 2;
         AssertInterpolated(2, middle, high);
@@ -213,8 +213,8 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         }
         void AssertInterpolated(int start, int from, int to)
         {
-            NativeBattleVector first = ReadOriginalModelCell(snapshot.NativeGraphics!, from).Transform!.Position28;
-            NativeBattleVector last = ReadOriginalModelCell(snapshot.NativeGraphics!, to).Transform!.Position28;
+            NativeBattleVector first = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, from).Transform!.Position28;
+            NativeBattleVector last = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, to).Transform!.Position28;
             short stepX = unchecked((short)((last.X - first.X) / 3));
             short stepZ = unchecked((short)((last.Z - first.Z) / 3));
             for (int index = 0; index < 2; index++)
@@ -228,10 +228,10 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         }
     }
 
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 190 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 190 } effect ? effect : null;
     private static NativeBattleModulePoolTask? MainTask(BattleSnapshot snapshot) => Selected(snapshot)?.Pools.SingleOrDefault(pool => pool.DescriptorAddress == ChildDescriptor)?.Slots.FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback == MainCallback);
     private static string LogicalOwners(BattleSnapshot snapshot) => JsonSerializer.Serialize(snapshot.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, MaximumHp = snapshot.Definition.Combatants.Single(definition => definition.Id == actor.Id).MaximumHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle }));
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeEffectMemory!.Active == 0 && !snapshot.NativeGraphics!.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104) && Selected(snapshot) is { ReturnedDescriptor: 0, Pools.IsEmpty: true };
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && Selected(snapshot) is { ReturnedDescriptor: 0, Pools.IsEmpty: true };
 
     private static int CountRgbChanges(byte[] first, byte[] second)
     {

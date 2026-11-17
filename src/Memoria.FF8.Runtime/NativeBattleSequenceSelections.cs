@@ -26,6 +26,11 @@ public static class NativeBattleSequenceSelections
 
     public static (BattleModelOwner Source, BattleModelTargets Targets, bool SourceHasNonActorSelectors) GeometryArguments92(BattleActorModels models, BattleModelOwner current, byte selector, NativeBattleActionGeometry? retained, NativeBattleModelBoundary boundary)
     {
+        return GeometryArguments92(models, current, selector, retained, boundary, null);
+    }
+
+    internal static (BattleModelOwner Source, BattleModelTargets Targets, bool SourceHasNonActorSelectors) GeometryArguments92(BattleActorModels models, BattleModelOwner current, byte selector, NativeBattleActionGeometry? retained, NativeBattleModelBoundary boundary, BattleSourceBindings? bindings)
+    {
         ArgumentNullException.ThrowIfNull(boundary);
         if (!models.Contains(current))
         {
@@ -34,11 +39,16 @@ public static class NativeBattleSequenceSelections
         NativeBattleActionGeometry context = retained ?? throw new NotSupportedException("Native92 requires its retained50D300 geometry context.");
         bool literal = selector < NativeBattleModelBoundary.CellCount;
         BattleModelOwner source = literal ? context.ResolveSource(models, boundary) : current;
-        BattleModelTargets targets = literal ? BattleModelTargets.From([boundary.DecodeLiteral(selector, models)]) : context.SourceTargets.Resolve(models, boundary);
+        BattleModelTargets targets = literal ? BattleModelTargets.From([bindings?.DecodeLiteral(selector) ?? boundary.DecodeLiteral(selector, models)]) : context.SourceTargets.Resolve(models, boundary);
         return (source, targets, !literal && context.SourceHasNonActorSelectors);
     }
 
     public static BattleModelTargets SelectModels93(BattleActorModels models, BattleModelOwner current, byte selector, NativeBattleModelBoundary boundary)
+    {
+        return SelectModels93(models, current, selector, boundary, null);
+    }
+
+    internal static BattleModelTargets SelectModels93(BattleActorModels models, BattleModelOwner current, byte selector, NativeBattleModelBoundary boundary, BattleSourceBindings? bindings)
     {
         ArgumentNullException.ThrowIfNull(boundary);
         if (!models.Contains(current))
@@ -51,15 +61,16 @@ public static class NativeBattleSequenceSelections
             {
                 throw new NotSupportedException("Native93 selects an adjacent record outside the seven-model bank.");
             }
-            return BattleModelTargets.From([boundary.DecodeLiteral(selector, models)]);
+            return BattleModelTargets.From([bindings?.DecodeLiteral(selector) ?? boundary.DecodeLiteral(selector, models)]);
         }
         List<BattleModelOwner> selected = [];
-        foreach (BattleModelEntry<BattleModelOwner> entry in models.Entries)
+        IEnumerable<BattleModelOwner> candidates = bindings is null ? models.Owners : bindings.FindModels(selector);
+        foreach (BattleModelOwner owner in candidates)
         {
-            NativeBattleGraphicsModel model = entry.State;
-            if ((model.Flags0 & 2) != 0 && entry.Owner != current && (model.ModelId4 ?? throw new NotSupportedException("Native93 requires its loaded model BYTE4 identity.")) == selector)
+            NativeBattleGraphicsModel model = models.Get(owner);
+            if ((model.Flags0 & 2) != 0 && owner != current && (model.ModelId4 ?? throw new NotSupportedException("Native93 requires its loaded model BYTE4 identity.")) == selector)
             {
-                selected.Add(entry.Owner);
+                selected.Add(owner);
             }
         }
         return BattleModelTargets.From(selected);

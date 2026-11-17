@@ -27,9 +27,9 @@ public sealed class NativeBattleMiniPulseCannon286AllocationTests
         _ = NativeBattleEffectFixtureExporter.Export(request, directory!, Path.Combine(output!, "baseline"));
         BattleSnapshot baseline = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output!, "baseline", "before-entry.battle.json"));
         Assert.Equal(431, baseline.Definition.EncounterId);
-        Assert.Null(baseline.NativeGraphics!.OriginalEffect);
+        Assert.Null(baseline.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         (BattleSnapshot ready, int actualActor) = NativeBattleMiniPulseCannon286FixturePreparation.Prepare(game, assets, baseline, output!);
-        NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The actual activated allocation requires its graphics owner.");
+        NativeBattleGraphicsState graphics = ready.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The actual activated allocation requires its graphics owner.");
         Assert.Null(graphics.OriginalEffect);
         BattleSession session = BattleSession.Restore(ready);
         BattleCombatantDefinition definition = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, actualActor) ?? throw new InvalidDataException("The actual activated allocation requires its actor identity."));

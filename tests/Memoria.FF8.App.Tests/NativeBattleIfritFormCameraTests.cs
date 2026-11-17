@@ -28,8 +28,8 @@ public sealed class NativeBattleIfritFormCameraTests
         Assert.NotNull(battle.ActiveAction);
         if (restoreDuringAttack)
         {
-            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!;
-            Assert.True(snapshot.NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending);
+            BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.CaptureForContinuation()))!;
+            Assert.True(snapshot.ReadFixturePresentation().NativeGraphics!.GuardianFormPresentation!.IdleCameraRestorePending);
             battle = BattleSession.Restore(snapshot);
         }
         WaitFor(() => battle.Events.Any(item => item.Kind == "Damage" && item.ActorId == "party") && battle.ActiveAction is null && !battle.Presentation!.Graphics.GuardianFormPresentation!.IdleCameraRestorePending);

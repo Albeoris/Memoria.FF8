@@ -28,7 +28,7 @@ public sealed class NativeBattleThundaga105PresentationTests
         using BattleAssets assets = new(directory);
         BattleNativeAction kernel = Assert.Single(assets.NativeActions, action => action.Command == 2 && action.ActionId == 9 && action.MagicId == 105);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        NativeBattleGraphicsState initial = source.NativeGraphics!;
+        NativeBattleGraphicsState initial = source.ReadFixturePresentation().NativeGraphics!;
         int descriptor = Assert.Single(initial.Descriptors.Queue, slot => initial.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(initial.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -108,8 +108,8 @@ public sealed class NativeBattleThundaga105PresentationTests
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 audio.Update(battle);
-                BattleSnapshot current = battle.Capture();
-                Assert.Equal(prior.NativeGraphics!.Callback + 1, current.NativeGraphics!.Callback);
+                BattleSnapshot current = battle.CaptureForContinuation();
+                Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
                 initialized |= afterEffect?.ReturnedDescriptor is > 0;
                 if (beforeEffect?.ReturnedDescriptor is > 0 && afterEffect?.ReturnedDescriptor == 0)
@@ -142,12 +142,12 @@ public sealed class NativeBattleThundaga105PresentationTests
                         NativeBattleModulePoolTask next = afterEffect.Pools[2].Slots[index];
                         if ((previous.Flags & 1) != 0 && (next.Flags & 1) == 0)
                         {
-                            NativeBattleStaticMeshResource mesh = current.NativeEffectMemory!.Thundaga105!.MutableFragments.Single(mesh => mesh.Address == previous.ReadDword(0x38));
+                            NativeBattleStaticMeshResource mesh = current.ReadFixturePresentation().NativeEffectMemory!.Thundaga105!.MutableFragments.Single(mesh => mesh.Address == previous.ReadDword(0x38));
                             fragmentFaces += NativeBattleIceMeshVertices.Group(mesh.Bytes.AsSpan(), 2).Count + NativeBattleIceMeshVertices.Group(mesh.Bytes.AsSpan(), 6).Count;
                         }
                     }
                 }
-                NativeBattlePrimitiveFrame? primitive = current.NativeGraphics.PrimitiveFrame;
+                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame;
                 if (primitive is not null)
                 {
                     privatePackets += primitive.LastCommands.Count(command => command.Command.Packet.Bank == "20DFAB8");
@@ -160,13 +160,13 @@ public sealed class NativeBattleThundaga105PresentationTests
                 }
                 if (Primary(beforeEffect)?.ReadWord(0xC) == 28)
                 {
-                    NativeBattleThundaga105CaptureMemory memory = current.NativeEffectMemory!.Thundaga105Capture!;
+                    NativeBattleThundaga105CaptureMemory memory = current.ReadFixturePresentation().NativeEffectMemory!.Thundaga105Capture!;
                     Assert.Equal(0xE30402C0u, Dword(memory.Read(0x64, 4)));
                     Assert.Equal(0xE405FF3Fu, Dword(memory.Read(0x68, 4)));
                     Assert.Equal(0xE50802C0u, Dword(memory.Read(0x4C, 4)));
                     captureStatics = true;
-                    byte[] beforeVram = prior.NativeEffectMemory!.Textures!.ReadVram();
-                    byte[] afterVram = current.NativeEffectMemory.Textures!.ReadVram();
+                    byte[] beforeVram = prior.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
+                    byte[] afterVram = current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram();
                     for (int y = 256; y < 384; y++)
                     {
                         for (int x = 704; x < 832; x++)
@@ -187,7 +187,7 @@ public sealed class NativeBattleThundaga105PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, prior.NativeGraphics.Callback, current.NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
                 }
             }
@@ -268,15 +268,15 @@ public sealed class NativeBattleThundaga105PresentationTests
         {
             return 0;
         }
-        byte[] bank = snapshot.NativeEffectMemory!.Arena!.Read(0x2A24, 310 * 0x50);
+        byte[] bank = snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x2A24, 310 * 0x50);
         return Enumerable.Range(0, 310).Count(index => BinaryPrimitives.ReadInt16LittleEndian(bank.AsSpan(index * 0x50 + 6)) != 0);
     }
 
     private static uint Dword(byte[] bytes) => BinaryPrimitives.ReadUInt32LittleEndian(bytes);
-    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
+    private static bool CommonIo(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
     private static NativeBattleModulePoolTask? Primary(NativeBattleOriginalEffectState? effect) => Tasks(effect, 0x6D43B0).FirstOrDefault();
     private static IEnumerable<NativeBattleModulePoolTask> Tasks(NativeBattleOriginalEffectState? effect, uint callback) => effect?.Pools.SelectMany(pool => pool.Slots).Where(task => (task.Flags & 1) != 0 && task.Callback == callback) ?? [];
-    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { Binding.Effect: 105, Binding.Entry: 0x6D3DB0 } effect ? effect : null;
+    private static NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 105, Binding.Entry: 0x6D3DB0 } effect ? effect : null;
     private static bool HasAction(BattleSession battle) => battle.Presentation!.Graphics.Descriptors.Queue.Any(slot => battle.Presentation!.Graphics.Descriptors.Packets[slot].Command == 104);
     private sealed record Boundary(string Name, long BeforeCallback, long AfterCallback, string RgbaSha256);
 }

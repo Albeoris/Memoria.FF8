@@ -71,16 +71,16 @@ public sealed class NativeBattleHeroPresentationTests
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
             BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(fixture, "queued-action104.battle.json"));
             Assert.Null(Selected(source));
-            NativeBattleEffectMemory memory = source.NativeEffectMemory ?? throw new InvalidDataException("The fresh exporter omitted effect memory.");
+            NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("The fresh exporter omitted effect memory.");
             memory = memory with { ExecutionStack = stack.ExecutionStack, HeroCrtStack = stack.HeroCrtStackContract };
             NativeBattleRetainedMemory retained = source.Definition.NativeRetainedMemory ?? throw new InvalidDataException("The fresh exporter omitted its retained definition mirror.");
-            source = source with { NativeEffectMemory = memory, Definition = source.Definition with { NativeRetainedMemory = retained with { EffectMemory = memory } } };
+            source = (source with { Definition = source.Definition with { NativeRetainedMemory = retained with { EffectMemory = memory } } }).WithFixturePresentation(facts => facts with { NativeEffectMemory = memory });
             prior = source;
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
             Assert.True(exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(effectId, exported.Selection.ShellEffect);
-            int descriptor = Assert.Single(source.NativeGraphics!.Descriptors.Queue, index => source.NativeGraphics.Descriptors.Packets[index].Command == 104);
-            uint headerOffset = checked(source.NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
+            int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+            uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal(action.Command, header.Command);
@@ -90,8 +90,8 @@ public sealed class NativeBattleHeroPresentationTests
             {
                 Assert.Equal((ushort)20, action.ActionId);
                 Assert.Equal((byte)4, action.Command);
-                Assert.NotNull(ReadOriginalModelActorId(source.NativeGraphics!, 3));
-                Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.NativeGraphics, 3).Flags0 & 6));
+                Assert.NotNull(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));
+                Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3).Flags0 & 6));
                 Assert.Null(source.ActiveAction);
                 Assert.Empty(source.QueuedActions);
                 Assert.Null(source.NativeActionPackets.ActiveHeader);
@@ -153,7 +153,7 @@ public sealed class NativeBattleHeroPresentationTests
                 prior = battle.Capture();
                 NativeBattleOriginalEffectState? before = Selected(prior);
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleOriginalEffectState? after = Selected(current);
                 if (before is { ReturnedDescriptor: > 0 } && after is not null && before.Pools[0].Slots[0].ReadDword(16) != after.Pools[0].Slots[0].ReadDword(16))
                 {
@@ -204,10 +204,10 @@ public sealed class NativeBattleHeroPresentationTests
                         ColdNext("contact-" + contacts, current);
                     }
                 }
-                for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
+                for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && contactPackets.Any(packet => packet.Primary.Recipient == text.ModelOwner) && (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) == 0)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && contactPackets.Any(packet => packet.Primary.Recipient == text.ModelOwner) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) == 0)
                     {
                         Assert.True(expectedTexts.TryGetValue(text.ModelOwner!, out NativeBattleEffectTask? expectedText));
                         Assert.NotNull(expectedText);
@@ -221,12 +221,12 @@ public sealed class NativeBattleHeroPresentationTests
                     NativeBattleHeroState state = State(current);
                     int start = checked(state.WorkingArenaOffset + profile.FirstDrawOffset + (after.Pools[0].Slots[0].ReadDword(16) != 0 ? 0x10000 : 0));
                     Assert.InRange(end, start, NativeBattleEffectArena.Length);
-                    NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = frame.LastCommands.Where(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Packet.Buffer == 0 && command.Command.Packet.ByteOffset >= start && command.Command.Packet.ByteOffset < end).Select(command => command.Command.Packet).ToImmutableHashSet();
                     if (!owned.IsEmpty)
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot without = current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } };
+                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                         byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(Restore(without), 320, 224).ToArray();
                         measuredPacketFrames++;
                         int changed = CountRgbChanges(pixels, plain);
@@ -237,7 +237,7 @@ public sealed class NativeBattleHeroPresentationTests
                             peakWithout = without;
                             peakPixels = pixels;
                             peakPlain = plain;
-                            metadataPeak = new { ChangedRgb = changed, current.Frame, NativeCallback = current.NativeGraphics.Callback, HarnessCallback = callbacks, Bank = "20DFAB8", Buffer = 0, Start = start, End = end, Packets = owned };
+                            metadataPeak = new { ChangedRgb = changed, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, HarnessCallback = callbacks, Bank = "20DFAB8", Buffer = 0, Start = start, End = end, Packets = owned };
                         }
                         if (!live && changed > 0)
                         {
@@ -256,7 +256,7 @@ public sealed class NativeBattleHeroPresentationTests
                 }
             }
             boundary = "acceptance";
-            BattleSnapshot completed = battle.Capture();
+            BattleSnapshot completed = battle.CaptureForContinuation();
             Assert.True(initialized);
             Assert.True(live, "No visible contribution from the exact Hero private packet cursor reached cold continuation.");
             Assert.True(visibleChangedRgb > 0);
@@ -288,7 +288,7 @@ public sealed class NativeBattleHeroPresentationTests
             File.WriteAllText(Path.Combine(output!, "visible-packet-owner.json"), JsonSerializer.Serialize(metadataPeak));
             ColdNext("peak", peakSnapshot);
             ColdNext("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Fresh original-resource controlled seven-HP component; no ordinary Item formula, inventory or target-policy claim", Effect = effectId, TargetActors = contactPackets.Select(packet => packet.Primary.Recipient), childBirthCallbacks, contactCallbacks, distinctLiveChildren, exported.Selection, callbacks, heroCallbacks, DiagnosticMaximumCallbacks = 4096, contacts, glyphs, completions, visibleChangedRgb, measuredPacketFrames, metadataPeak, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Fresh original-resource controlled seven-HP component; no ordinary Item formula, inventory or target-policy claim", Effect = effectId, TargetActors = contactPackets.Select(packet => packet.Primary.Recipient), childBirthCallbacks, contactCallbacks, distinctLiveChildren, exported.Selection, callbacks, heroCallbacks, DiagnosticMaximumCallbacks = 4096, contacts, glyphs, completions, visibleChangedRgb, measuredPacketFrames, metadataPeak, RestoredBoundaries = restoredBoundaries, completed.Frame, NativeCallback = completed.ReadFixturePresentation().NativeGraphics!.Callback }));
 
             BattleSession Restore(BattleSnapshot snapshot)
             {
@@ -327,14 +327,14 @@ public sealed class NativeBattleHeroPresentationTests
             throw;
         }
 
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } selected && selected.Binding.Effect == effectId ? selected : null;
-        NativeBattleHeroState State(BattleSnapshot snapshot) => effectId == 309 ? snapshot.NativeEffectMemory!.Hero309! : snapshot.NativeEffectMemory!.Hero310!;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } selected && selected.Binding.Effect == effectId ? selected : null;
+        NativeBattleHeroState State(BattleSnapshot snapshot) => effectId == 309 ? snapshot.ReadFixturePresentation().NativeEffectMemory!.Hero309! : snapshot.ReadFixturePresentation().NativeEffectMemory!.Hero310!;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
-        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeEffectMemory!.Active == 0 && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104) && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
+        return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104) && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 
     private static int CountRgbChanges(byte[] first, byte[] second)

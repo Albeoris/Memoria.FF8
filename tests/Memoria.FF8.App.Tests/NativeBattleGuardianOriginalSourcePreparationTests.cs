@@ -95,16 +95,16 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             selection = new(128, 0, ai.LevelBand, slot, 236, checked((ushort)actionId), checked((byte)sequence), 200);
             return session.CanSubmitDiagnosticEnemyAbility(casterDefinition.Id, selection);
         }, "original-initialization-and-readiness");
-        BattleSnapshot ready = session.Capture();
-        Assert.True(ReadOriginalModelCells(ready.NativeGraphics!).Length >= 7);
-        Assert.Equal((byte)144, ReadOriginalModelCell(ready.NativeGraphics!, 3).ModelId4);
-        Assert.Equal((byte)98, ReadOriginalModelCell(ready.NativeGraphics!, 4).ModelId4);
+        BattleSnapshot ready = session.CaptureForContinuation();
+        Assert.True(ReadOriginalModelCells(ready.ReadFixturePresentation().NativeGraphics!).Length >= 7);
+        Assert.Equal((byte)144, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte)98, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, 4).ModelId4);
         Save("after-entry", ready);
         session.SubmitDiagnosticEnemyAbility(casterDefinition.Id, selection!, checked((ushort)effect));
         Pump(Queued, "normal-native-action104");
-        BattleSnapshot queued = session.Capture();
-        NativeBattleOriginalEffectState? admitted = queued.NativeGraphics!.OriginalEffect;
-        int[] descriptors = queued.NativeGraphics.Descriptors.Queue.Where(index => queued.NativeGraphics.Descriptors.Packets[index].Command == 104).ToArray();
+        BattleSnapshot queued = session.CaptureForContinuation();
+        NativeBattleOriginalEffectState? admitted = queued.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
+        int[] descriptors = queued.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Where(index => queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104).ToArray();
         int headerIndex;
         if (admitted is not null)
         {
@@ -119,12 +119,12 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         else
         {
             int descriptor = Assert.Single(descriptors);
-            uint argument = queued.NativeGraphics.Descriptors.Packets[descriptor].Argument;
+            uint argument = queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument;
             headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
         }
         foreach (int descriptor in descriptors)
         {
-            Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.NativeGraphics.Descriptors.Packets[descriptor].Argument);
+            Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument);
         }
         NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(effect, header.Effect);
@@ -132,21 +132,21 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));
-        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.ReadFixturePresentation().NativeGraphics.Callback }));
 
         return queued;
 
         bool Queued()
         {
-            BattleSnapshot snapshot = session.Capture();
-            if (snapshot.NativeGraphics!.OriginalEffect is { } admitted)
+            BattleSnapshot snapshot = session.CaptureForContinuation();
+            if (snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { } admitted)
             {
                 Assert.Equal(effect, admitted.RequestedEffect);
                 Assert.Null(admitted.ReturnedDescriptor);
                 Assert.Empty(admitted.Pools);
                 return admitted.Parameters is not null;
             }
-            return snapshot.NativeGraphics.Descriptors.Queue.Any(index => snapshot.NativeGraphics.Descriptors.Packets[index].Command == 104);
+            return snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
         }
 
         void Save(string name, BattleSnapshot snapshot)

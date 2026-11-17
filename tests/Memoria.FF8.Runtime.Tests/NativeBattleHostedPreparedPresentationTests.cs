@@ -22,14 +22,13 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         var before = owner.Combatants.Select(actor => (actor.Id, actor.Name, actor.CurrentHp, actor.Atb)).ToArray();
 
-        child.RefreshHostedPreparedPresentation(owner, services);
+        Publish(child, services);
 
         NativeBattlePreparedPresentation first = Assert.IsType<NativeBattlePreparedPresentation>(child.PreparedPresentation);
         Assert.Equal(17, first.Frame);
         Assert.Equal(11, first.Callback);
         Assert.Equal(22, first.StageResourceId);
-        Assert.Same(child.Presentation!.Memory.Textures, first.Textures);
-        Assert.Empty(child.Combatants);
+        Assert.Same(child.Memory.Textures, first.Textures);
         Assert.Null(owner.PreparedPresentation);
         NativeBattlePreparedActor ally = Assert.Single(first.Actors, actor => actor.Id == "ally-3");
         Assert.Equal(("Fourth ally", true, 1, 2, (int?)5, (int?)null), (ally.Name, ally.IsPlayer, ally.ModelId, ally.Costume, ally.WeaponId, ally.SceneSlot));
@@ -43,7 +42,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
 
         alias.SetNativeDisplayName(null);
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics with { Callback = 12 });
-        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(roster));
+        Publish(child, owner.CaptureModelLifecycleServices(roster));
 
         NativeBattlePreparedPresentation second = Assert.IsType<NativeBattlePreparedPresentation>(child.PreparedPresentation);
         Assert.Equal(first.Frame, second.Frame);
@@ -64,7 +63,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         graphics = graphics with { Flags = 4 };
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
-        MethodInfo retain = typeof(BattleSession).GetMethod("RetainNativeSceneReplaySource", PrivateInstance)!;
+        MethodInfo retain = typeof(BattlePresentationProcess).GetMethod("RetainNativeSceneReplaySource", PrivateInstance)!;
         using IDisposable visible = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         TargetInvocationException missing = Assert.Throws<TargetInvocationException>(() => retain.Invoke(child, [graphics]));
         Assert.IsType<InvalidOperationException>(missing.InnerException);
@@ -73,7 +72,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         NativeBattleGraphicsState retained = (NativeBattleGraphicsState)retain.Invoke(child, [graphics])!;
         Field(child, "hostedFrameServices", null);
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), retained);
-        child.RefreshHostedPreparedPresentation(owner, services);
+        Publish(child, services);
 
         NativeBattlePreparedPrimitiveFrame frame = child.PreparedPresentation!.Primitives;
         NativeBattleSceneReplaySource replay = Assert.Single(frame.SceneReplaySources!).Value;
@@ -91,23 +90,22 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         enemy.SetNativeDisplayName(0);
         NativeBattleScanProcess scan = NativeBattleScanProcess.FromColdProcess();
         NativeBattleOriginalEffectState effect = new(40, 39, new(40, 0x84D030, 0x575540), null, null) { ScanSelectedModel = Enemy };
-        (NativeBattleEffectMemory memory, uint extraTextAddress) = NativeBattlePresentationTaskStorage.ReserveByteRange(child.Presentation!.Memory, effect, graphics.ActorModels.Roster, 24);
+        (NativeBattleEffectMemory memory, uint extraTextAddress) = NativeBattlePresentationTaskStorage.ReserveByteRange(child.Memory, effect, graphics.ActorModels.Roster, 24);
         scan = scan with
         {
             Text = scan.Text with { Initialized = true },
             Results = scan.Results with { ExtraTextBindings = [new(extraTextAddress, Enemy, 24)] }
         };
-        Set(child, nameof(BattleSession.NativeEffectMemory), memory with { Scan = scan });
+        Set(child, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Scan = scan });
         graphics = graphics with { OriginalEffect = effect, UiServices = NativeBattleUiServices.Initialize() };
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
 
-        child.RefreshHostedPreparedPresentation(owner, owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster));
+        Publish(child, owner.CaptureModelLifecycleServices(graphics.ActorModels.Roster));
 
         NativeBattlePreparedScan prepared = Assert.IsType<NativeBattlePreparedScan>(child.PreparedPresentation!.Scan);
         Assert.Equal(new NativeBattlePreparedScanActor(61, "Known alias", false, true), prepared.Actor);
         Assert.Equal((byte)65, prepared.BoundEnemyExtra[extraTextAddress].ReadByte(0));
         Assert.Equal(new[] { 3, 4, 5, 6 }, prepared.EnemyExtra.Keys.Order());
-        Assert.Empty(child.Combatants);
         enemy.SetNativeDisplayName(null);
         Assert.Equal("Known alias", prepared.Actor!.Name);
         Assert.Equal((byte)65, prepared.BoundEnemyExtra[extraTextAddress].ReadByte(0));
@@ -120,19 +118,19 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleModelLifecycleServices services = owner.CaptureModelLifecycleServices(roster);
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
-        child.RefreshHostedPreparedPresentation(owner, services);
+        Publish(child, services);
         NativeBattlePreparedPresentation? previous = child.PreparedPresentation;
 
-        Assert.Throws<InvalidOperationException>(() => child.RefreshHostedPreparedPresentation(owner, new(services.Facts)));
+        Assert.Throws<InvalidOperationException>(() => Publish(child, new(services.Facts)));
         Assert.Same(previous, child.PreparedPresentation);
         owner.Combatants.Single(actor => actor.Id == "enemy-4").BindRosterSlot(null, bindNative: false);
         var (nextRoster, nextAliases) = owner.ReadBattlePresentationPacketBindings();
         Field(child, "nativeActionPackets", child.NativeActionPackets.WithRoster(nextRoster, nextAliases));
-        Assert.Throws<InvalidDataException>(() => child.RefreshHostedPreparedPresentation(owner, services));
+        Assert.Throws<InvalidDataException>(() => Publish(child, services));
         Assert.Same(previous, child.PreparedPresentation);
     }
 
-    private static (BattleSession Owner, BattleSession Child, NativeBattleGraphicsState Graphics) Fixture()
+    private static (BattleSession Owner, BattlePresentationProcess Child, NativeBattleGraphicsState Graphics) Fixture()
     {
         byte[] name = new byte[24];
         name[0] = 65;
@@ -143,14 +141,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 5).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", ModelId = 61 }).ToArray();
         enemies[4] = enemies[4] with { Name = "Extra enemy", NativeAi = ai };
         BattleSession owner = new(new BattleDefinition { Combatants = [.. allies, .. enemies] }, BattleAtbMode.TurnBased);
-        BattleSession child = new(new BattleDefinition { Combatants = [allies[0], enemies[0]] }, BattleAtbMode.TurnBased);
-        ((List<BattleCombatant>)typeof(BattleSession).GetField("combatants", PrivateInstance)!.GetValue(child)!).Clear();
-        ((Dictionary<string, BattleCombatant>)typeof(BattleSession).GetField("byId", PrivateInstance)!.GetValue(child)!).Clear();
-        Field(child, "hostedBattlePresentation", true);
-        Set(child, "NativeStage", NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
-        Set(child, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         var (roster, aliases) = owner.ReadBattlePresentationPacketBindings();
-        Field(child, "nativeActionPackets", child.NativeActionPackets.WithRoster(roster, aliases));
         NativeBattleModelTextureBinding body = new(new byte?[16].ToImmutableArray().SetItem(0, 1));
         NativeBattleModelTextureBinding linked = new(new byte?[16].ToImmutableArray().SetItem(0, 2));
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, modelOwner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with
@@ -158,16 +149,32 @@ public sealed class NativeBattleHostedPreparedPresentationTests
             BodyTextureSlots = modelOwner == Ally || modelOwner == Enemy ? body : null,
             LinkedTextureSlots = modelOwner == Ally ? linked : null
         }) with { Callback = 11, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(owner, graphics);
+        Set(child, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
+        Set(child, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         return (owner, child, graphics);
     }
 
-    private static void Set(BattleSession session, string property, object? value)
+    private static void Publish(BattlePresentationProcess process, NativeBattleModelLifecycleServices services)
     {
-        typeof(BattleSession).GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session, value);
+        MethodInfo publish = typeof(BattlePresentationProcess).GetMethod("PublishPreparedPresentation", PrivateInstance)!;
+        try
+        {
+            publish.Invoke(process, [services, null]);
+        }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(error.InnerException);
+        }
     }
 
-    private static void Field(BattleSession session, string name, object? value)
+    private static void Set(object session, string property, object? value)
     {
-        typeof(BattleSession).GetField(name, PrivateInstance)!.SetValue(session, value);
+        session.GetType().GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(session, value);
+    }
+
+    private static void Field(object session, string name, object? value)
+    {
+        session.GetType().GetField(name, PrivateInstance)!.SetValue(session, value);
     }
 }

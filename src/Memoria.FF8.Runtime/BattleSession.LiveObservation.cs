@@ -27,7 +27,8 @@ public sealed record BattleLiveObservation
         int recordCount = snapshot.Definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount;
         BattleLiveMaximumHp Observe(BattleCombatantSnapshot actor)
         {
-            BattleCombatantDefinition? source = snapshot.Definition.Combatants.SingleOrDefault(candidate => candidate.Id == actor.Id);
+            BattleCombatantDefinition? source = snapshot.Definition.Combatants.SingleOrDefault(candidate => candidate.Id == actor.Id)
+                ?? snapshot.Definition.PartyReplacementCandidates.Values.SingleOrDefault(candidate => candidate.Id == actor.Id);
             bool transformed = snapshot.GuardianForms?.Forms.Any(form => form.ActorId == actor.Id && (form.Phase is BattleGuardianFormPhase.Active or BattleGuardianFormPhase.Finishing)) == true;
             return MaximumHp(actor.Id, actor.NativeParticipant, source, recordCount, transformed);
         }
@@ -36,7 +37,7 @@ public sealed record BattleLiveObservation
             EncounterId = snapshot.Definition.EncounterId,
             NativeEntry = snapshot.Definition.NativeEntry is not null,
             DebugOutcome = snapshot.DebugOutcome,
-            NativeResult = snapshot.NativeGraphics?.NativeOutcome?.ResultByte6E7,
+            NativeResult = snapshot.Definition.NativeEntry is null ? null : BattleSession.ReadNativeResult(snapshot.Outcome),
             Timer = snapshot.NativeExamTimer,
             Vibration = snapshot.NativeVibrationProcess,
             Sound = snapshot.NativeGlobalSoundProcess,

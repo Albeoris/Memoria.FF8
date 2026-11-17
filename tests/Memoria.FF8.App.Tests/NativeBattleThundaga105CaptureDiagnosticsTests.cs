@@ -20,7 +20,7 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         BattleSession battle = BattleSession.Restore(snapshot);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
-        NativeBattleOriginalEffectState effect = snapshot.NativeGraphics!.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         Assert.Equal((ushort)105, effect.Binding.Effect);
         Assert.Equal(0x6D3DB0u, effect.Binding.Entry);
         NativeBattleThundaga105Resources resources = effect.Binding.Thundaga105Resources!;
@@ -30,20 +30,20 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         uint actorDelta = unchecked(actorAddress - 0x1D972C0u);
         Assert.True(actorDelta % 156 == 0 && actorDelta / 156 < 7);
         int actor = (int)(actorDelta / 156);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.NativeGraphics, actor);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actor);
         Assert.True(model.ModelId4 < 16);
         Assert.Null(model.ActiveStagedResourceRow100);
         Assert.Null(model.ResourceMagicId);
-        NativeBattlePoseSource actorPose = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(snapshot.NativeGraphics, actor)).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
+        NativeBattlePoseSource actorPose = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics, actor)).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
         NativeBattleVector xyz = NativeBattlePoseMatrices.ReadBone(model, actorPose, 241, 0);
-        short angle = ReadOriginalModelCell(snapshot.NativeGraphics, actor).Transform!.Angle36;
+        short angle = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actor).Transform!.Angle36;
         byte[] anchor = new byte[8];
         BinaryPrimitives.WriteInt16LittleEndian(anchor, xyz.X);
         BinaryPrimitives.WriteInt16LittleEndian(anchor.AsSpan(2), xyz.Y);
         BinaryPrimitives.WriteInt16LittleEndian(anchor.AsSpan(4), xyz.Z);
         BinaryPrimitives.WriteInt16LittleEndian(anchor.AsSpan(6), angle);
         int ownerScale = unchecked((int)primary.ReadDword(0x18));
-        NativeBattleThundaga105State retained = snapshot.NativeEffectMemory!.Thundaga105!;
+        NativeBattleThundaga105State retained = snapshot.ReadFixturePresentation().NativeEffectMemory!.Thundaga105!;
         NativeBattleEffectTaskPool secondary = effect.Pools.Single(pool => pool.DescriptorAddress == NativeBattleThundaga105Controller.SecondaryDescriptor);
         NativeCrtRandomState random = snapshot.NativeCrtRandom!;
         NativeBattleThundaga105Bounds bounds = NativeBattleThundaga105Bounds.Begin6D5FA0();
@@ -62,9 +62,9 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
             random = initialized.Random;
             fragments.Add(new { Index = index, Allocated = true, Slot = slot, initialized.Task, initialized.Bounds, MeshSha256 = Convert.ToHexString(SHA256.HashData(initialized.Mesh.Bytes.AsSpan())) });
         }
-        NativeBattleCameraProjection priorProjection = snapshot.NativeCamera!.Projection!;
+        NativeBattleCameraProjection priorProjection = snapshot.ReadFixturePresentation().NativeCamera!.Projection!;
         NativeBattleThundaga105CaptureTransform capture = NativeBattleThundaga105CaptureGeometry.Transform6D5620(anchor.ToImmutableArray(), bounds, priorProjection);
-        NativeBattleStageState stage = snapshot.NativeStage!;
+        NativeBattleStageState stage = snapshot.ReadFixturePresentation().NativeStage!;
         stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = 0, ColorFlags = 0 }).ToImmutableArray() };
         ImmutableArray<NativeBattleRawMesh> geometry = snapshot.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("The diagnostic requires original stage geometry.");
         NativeBattleSummonColors colors = snapshot.Definition.NativeGraphics!.Rules.SummonColors!;
@@ -194,7 +194,7 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
             return new { StageGroup = groupIndex, selectedGroup.Flags, selectedGroup.Animation, selectedGroup.Counter, selectedGroup.PoseFlags, CaptureWorldXZBounds = new { MinimumX = minX, MaximumX = maxX, MinimumZ = minZ, MaximumZ = maxZ, Contract = "Inverse axis-aligned capture projection at Z=H; bounding-box overlap only, not polygon intersection" }, SourceFaces = faces.Count, FaceBoundsOverlappingCapture = overlaps, ProjectionRejections = classifications, EmittedPackets = emitted, SurvivingSoftwareClip = survivedSoftwareClip, Faces = faces };
         }
 
-        var receipt = new { Kind = "ExistingCSharpSnapshotInputReceiptNotNativeExecution", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), NativeCallback = snapshot.NativeGraphics.Callback, Actor = actor, ActorAddress = actorAddress, Anchor241 = xyz, Angle36 = angle, AnchorRaw8 = anchor, OwnerScale = ownerScale, CrtBefore = snapshot.NativeCrtRandom, CrtAfterFragmentSetup = random, AggregateBounds = bounds, Capture = capture, SourceStageGroup0 = new { group0.Animation, group0.Counter, group0.PoseFlags, group0.Flags, VertexCount = worldVertices.Count, WorldBounds = new { Minimum = new { X = worldVertices.Min(vertex => vertex.X), Y = worldVertices.Min(vertex => vertex.Y), Z = worldVertices.Min(vertex => vertex.Z) }, Maximum = new { X = worldVertices.Max(vertex => vertex.X), Y = worldVertices.Max(vertex => vertex.Y), Z = worldVertices.Max(vertex => vertex.Z) } }, WorldCoordinateContract = "Existing StageBoneMatrices plus RotateLong56C600 and matrix translation; before capture camera composition" }, GroupAnalyses = groupAnalyses, Fragments = fragments, CapturedPackets = packets, CapturedPacketCount = packets.Count, Boundary = "No presentation callback or original native call executed; snapshot bone state used directly, fragment setup runs in local copies only; no pixel or native-equivalence claim" };
+        var receipt = new { Kind = "ExistingCSharpSnapshotInputReceiptNotNativeExecution", SourceSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath!))), NativeCallback = snapshot.ReadFixturePresentation().NativeGraphics.Callback, Actor = actor, ActorAddress = actorAddress, Anchor241 = xyz, Angle36 = angle, AnchorRaw8 = anchor, OwnerScale = ownerScale, CrtBefore = snapshot.NativeCrtRandom, CrtAfterFragmentSetup = random, AggregateBounds = bounds, Capture = capture, SourceStageGroup0 = new { group0.Animation, group0.Counter, group0.PoseFlags, group0.Flags, VertexCount = worldVertices.Count, WorldBounds = new { Minimum = new { X = worldVertices.Min(vertex => vertex.X), Y = worldVertices.Min(vertex => vertex.Y), Z = worldVertices.Min(vertex => vertex.Z) }, Maximum = new { X = worldVertices.Max(vertex => vertex.X), Y = worldVertices.Max(vertex => vertex.Y), Z = worldVertices.Max(vertex => vertex.Z) } }, WorldCoordinateContract = "Existing StageBoneMatrices plus RotateLong56C600 and matrix translation; before capture camera composition" }, GroupAnalyses = groupAnalyses, Fragments = fragments, CapturedPackets = packets, CapturedPacketCount = packets.Count, Boundary = "No presentation callback or original native call executed; snapshot bone state used directly, fragment setup runs in local copies only; no pixel or native-equivalence claim" };
         File.WriteAllText(Path.Combine(output, "capture-input-receipt.json"), JsonSerializer.Serialize(receipt, new JsonSerializerOptions { WriteIndented = true }));
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
     }

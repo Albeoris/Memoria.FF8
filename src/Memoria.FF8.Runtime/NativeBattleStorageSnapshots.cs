@@ -59,7 +59,10 @@ internal static class NativeBattleStorageSnapshots
         NativeBattleStorageRestoreContext context = new(purpose);
         if (value is BattleSnapshot snapshot)
         {
-            NativeBattleRetainedSourceAliases.Validate(snapshot);
+            if (snapshot.PresentationContinuation?.Native is { } native)
+            {
+                NativeBattleRetainedSourceAliases.Validate(native);
+            }
             context.PrepareStorageGraph(snapshot);
         }
         else if (value is NativeBattleRetainedMemory retained)
@@ -67,10 +70,18 @@ internal static class NativeBattleStorageSnapshots
             NativeBattleRetainedSourceAliases.Validate(retained);
             context.PrepareStorageGraph(retained);
         }
-        T result = context.Map(value);
-        if (result is BattleSnapshot restored)
+        else if (value is BattlePresentationSnapshot capturedPresentation)
         {
-            return (T)(object)NativeBattleRetainedSourceAliases.Rebind(restored);
+            NativeBattleRetainedSourceAliases.Validate(capturedPresentation.Native);
+        }
+        T result = context.Map(value);
+        if (result is BattleSnapshot { PresentationContinuation: { } presentation } restored)
+        {
+            return (T)(object)(restored with { PresentationContinuation = presentation with { Native = NativeBattleRetainedSourceAliases.Rebind(presentation.Native) } });
+        }
+        if (result is BattlePresentationSnapshot restoredPresentation)
+        {
+            return (T)(object)(restoredPresentation with { Native = NativeBattleRetainedSourceAliases.Rebind(restoredPresentation.Native) });
         }
         return result is NativeBattleRetainedMemory restoredRetained ? (T)(object)NativeBattleRetainedSourceAliases.Rebind(restoredRetained) : result;
     }
@@ -215,7 +226,8 @@ internal abstract class NativeBattleStorageContext
             return null;
         }
         Type type = value.GetType();
-        if (IsLeaf(type))
+        // Installed presentation inputs are shared. Entry materializes its retained bytes through RestoreForNewBattle.
+        if (value is BattlePresentationResources || IsLeaf(type))
         {
             return value;
         }

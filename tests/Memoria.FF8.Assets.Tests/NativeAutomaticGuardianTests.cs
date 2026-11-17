@@ -32,7 +32,7 @@ public sealed class NativeAutomaticGuardianTests
         }
         Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
         BattleSession restored = RestoreGuardianBattle(battle);
-        for (int tick = 0; tick <= BattleSession.AttackWindupFrames; tick++)
+        for (int tick = 0; tick < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); tick++)
         {
             battle.Tick();
             restored.Tick();

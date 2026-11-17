@@ -21,7 +21,7 @@ public sealed class NativeScanCheckpointTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        Assert.Equal(snapshot.NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         AssertReleased(first.Capture());
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -32,14 +32,14 @@ public sealed class NativeScanCheckpointTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "scan-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         }
-        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
+        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
 
         BattleSnapshot Read() => JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
     }
 
     private static void AssertReleased(BattleSnapshot snapshot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         Assert.Equal((ushort)40, graphics.OriginalEffect!.Binding.Effect);
         Assert.Equal(0u, graphics.OriginalEffect.ReturnedDescriptor);
         Assert.Null(snapshot.ActiveAction);
@@ -49,7 +49,7 @@ public sealed class NativeScanCheckpointTests
         Assert.All(graphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal(0, task.Flags & 1));
         Assert.Equal(0, graphics.UiServices!.Flags942 & 0x200);
         Assert.Equal(0x100, graphics.UiServices.Flags942 & 0x100);
-        NativeBattleScanPresentationMemory presentation = snapshot.NativeEffectMemory!.Scan!.Presentation;
+        NativeBattleScanPresentationMemory presentation = snapshot.ReadFixturePresentation().NativeEffectMemory!.Scan!.Presentation;
         for (int index = 0; index < 7; index++)
         {
             if (presentation.Selection269A1BC.ReadDword(index * 4) == 1)

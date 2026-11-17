@@ -32,11 +32,21 @@ public static class NativeBattleEffectCatalogReader
                 InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3,
                 InitializerResource = initializerResources.Length == 1 ? initializerResources[0] : null,
                 InitializerResources = initializerResources.Length > 1 ? initializerResources : null,
-                RequiresOriginalCasterCompanion = (entry, initializer) is
+                CasterRelativeModels = (entry, initializer) switch
+                {
                     (NativeBattleEffect210Profile.Entry, NativeBattleEffect210Profile.Initializer) or
                     (NativeBattleEffect314Profile.Entry, NativeBattleEffect314Profile.Initializer) or
                     (NativeBattleEffect315Profile.Entry, NativeBattleEffect315Profile.Initializer) or
-                    (NativeBattleEffect326Profile.Entry, NativeBattleEffect326Profile.Initializer)
+                    (NativeBattleEffect326Profile.Entry, NativeBattleEffect326Profile.Initializer) => [1],
+                    (NativeBattleEffect308Profile.Entry, NativeBattleEffect308Profile.Initializer) => [1, 2],
+                    _ => []
+                },
+                AuthoredModelOperands = (entry, initializer) switch
+                {
+                    (NativeBattleEffect20Profile.Entry, NativeBattleEffect20Profile.Initializer) => [NativeBattleEffect20Profile.DeferredModelOperand],
+                    (NativeBattleEffect251Profile.Entry, NativeBattleEffect251Profile.Initializer) => [NativeBattleEffect251Profile.TrailModelOperand],
+                    _ => []
+                }
             });
         }
         return result.MoveToImmutable();

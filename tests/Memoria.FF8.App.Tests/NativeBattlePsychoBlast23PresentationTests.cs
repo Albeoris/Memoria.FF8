@@ -37,7 +37,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         string input = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_SOURCE") ?? throw new InvalidDataException("Psycho Blast requires an explicitly selected standalone.");
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_PSYCHO_BLAST23_EVIDENCE") ?? throw new InvalidDataException("Select a distinct evidence directory.");
-        File.WriteAllText(Path.Combine(output, "standalone-input.json"), JsonSerializer.Serialize(new { Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))), source.Frame, NativeCallback = source.NativeGraphics?.Callback, Scenario = "Original activated caster standalone; controlled seven-HP post-formula packet; no ordinary action or formula claim" }));
+        File.WriteAllText(Path.Combine(output, "standalone-input.json"), JsonSerializer.Serialize(new { Sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input))), source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics?.Callback, Scenario = "Original activated caster standalone; controlled seven-HP post-formula packet; no ordinary action or formula claim" }));
         return PrepareActivatedSource(game, assets, request, source);
     }
 
@@ -46,7 +46,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         Assert.Equal(63, source.Definition.EncounterId);
         Assert.Null(source.ActiveAction);
         Assert.Empty(source.QueuedActions);
-        NativeBattleGraphicsState graphics = source.NativeGraphics ?? throw new InvalidDataException("The standalone lacks its current graphics process.");
+        NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The standalone lacks its current graphics process.");
         Assert.False(graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104));
         Assert.False(graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30));
         Assert.Equal(new byte?[] { 0x54, 0x61, 0x60, 0x5D }, ReadOriginalModelCells(graphics).Skip(3).Take(4).Select(model => model.ModelId4).ToArray());
@@ -60,7 +60,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         Assert.Equal((byte)0, ReadOriginalModelCell(graphics, 6).Kind5);
         Assert.Equal((ushort)2, (ushort)(ReadOriginalModelCell(graphics, 6).Flags0 & 6));
         Assert.Contains(source.Events, item => item.Kind == "Activated" && item.ActorId == caster.Id);
-        NativeBattleEffectMemory memory = source.NativeEffectMemory ?? throw new InvalidDataException("The standalone lacks its current retained effect process.");
+        NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory ?? throw new InvalidDataException("The standalone lacks its current retained effect process.");
         Assert.Equal(0, memory.Active);
         _ = memory.RequirePsychoBlast23();
         NativeBattleOriginalEffectState previous = graphics.OriginalEffect ?? throw new InvalidDataException("The standalone must retain its completed original producer.");
@@ -82,9 +82,9 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         packets.Validate();
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleRetainedMemory retained = source.Definition.NativeRetainedMemory ?? throw new InvalidDataException("The standalone lacks its retained definition mirror.");
-        BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors }, Definition = source.Definition with { NativeEffectCatalog = catalog, NativeRetainedMemory = retained with { ActionPackets = packets.ExportRetained() } } };
+        BattleSnapshot prepared = (source with { NativeActionPackets = packets,Definition = source.Definition with { NativeEffectCatalog = catalog, NativeRetainedMemory = retained with { ActionPackets = packets.ExportRetained() } } }).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(source.Combatants), JsonSerializer.Serialize(prepared.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(source.NativeEffectMemory), JsonSerializer.Serialize(prepared.NativeEffectMemory));
+        Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.NativeGlobalRandom), JsonSerializer.Serialize(prepared.NativeGlobalRandom));
         return prepared;
     }

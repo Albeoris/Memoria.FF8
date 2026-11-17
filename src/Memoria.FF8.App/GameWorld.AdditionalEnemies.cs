@@ -29,34 +29,6 @@ internal sealed partial class GameWorld
         return IsEnemyPrototype(slot) && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
     }
 
-    private ExpandedAiAdmission[] EnemyAdmissions(int model, int formation, ISet<int> explicitEnemyModels, ISet<BattleEncounterRosterRestrictionReason> rosterRestrictions)
-    {
-        NativeBattleAiDefinition program = BattleResources.ReadEnemyAi(model, 0);
-        ImmutableArray<NativeBattleEffectBinding> effectCatalog = assets.ReadNativeEffectCatalog();
-        return Enumerable.Range(0, 3).Select(band => NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, BattleResources.NativeActions, formation,
-            explicitEnemyModelReferences: explicitEnemyModels, rosterModel: model, rosterRestrictions: rosterRestrictions,
-            admitsDonorEffect: CanBindIndependentEffect)).ToArray();
-
-        bool CanBindIndependentEffect(ushort effect)
-        {
-            if (effect == 0)
-            {
-                return true;
-            }
-            int index = effect - 1;
-            if (index >= effectCatalog.Length)
-            {
-                return false;
-            }
-            NativeBattleEffectBinding selected = effectCatalog[index];
-            if (selected.Entry == 0)
-            {
-                selected = effectCatalog[0];
-            }
-            return selected.Entry != 0 && !selected.RequiresOriginalCasterCompanion;
-        }
-    }
-
     internal static (HashSet<int> Slots, BattleEncounterRosterAdmission Admission) InspectEncounterRoster(BattleEncounter encounter, Func<int, NativeBattleAiDefinition> readEnemyAi, IReadOnlyList<BattleNativeAction> actions)
     {
         HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
@@ -112,22 +84,196 @@ internal sealed partial class GameWorld
         return placements;
     }
 
-    private BattleEnemyPlacement[] EligibleAdditionalEnemyPlacements(BattleEncounter candidate, int destinationFormation)
+    // The original authored model operand bank puts the enemy aliases after the three party aliases.
+    private const int FirstEnemyModelOperand = 3;
+    private const int OriginalEnemyAliasCount = ExpandedBattleFormation.MaximumEnemies - ExpandedBattleFormation.MaximumAddedEnemies;
+
+    private sealed record BattleDonorGroup(BattleEnemyPlacement Root, ImmutableArray<BattleEnemyPlacement> Members);
+
+    private readonly Dictionary<int, BattleDonorGroup[]> donorGroups = [];
+    private BattleAssets? donorGroupAssets;
+    private int? donorGroupDestination;
+
+    private BattleDonorGroup[] ReadEligibleDonorGroups(BattleEncounter source, int destination)
     {
-        return candidate.Enemies.Where(enemy => IsEligibleAdditionalEnemyPlacement(enemy, destinationFormation)).ToArray();
+        if (!ReferenceEquals(donorGroupAssets, BattleResources) || donorGroupDestination != destination)
+        {
+            donorGroups.Clear();
+            donorGroupAssets = BattleResources;
+            donorGroupDestination = destination;
+        }
+        if (!donorGroups.TryGetValue(source.Id, out BattleDonorGroup[]? groups))
+        {
+            groups = source.Enemies.Where(IsOrdinaryEnemyPlacement).Select(root => TryReadDonorGroup(source, root, destination)).OfType<BattleDonorGroup>().ToArray();
+            donorGroups.Add(source.Id, groups);
+        }
+        return groups;
     }
 
-    private bool IsEligibleAdditionalEnemyPlacement(BattleEnemyPlacement enemy, int destinationFormation)
+    private BattleDonorGroup? TryReadDonorGroup(BattleEncounter source, BattleEnemyPlacement root, int destination)
     {
-        if (!IsOrdinaryEnemyPlacement(enemy))
+        try
         {
-            return false;
+            return ReadDonorGroup(source, root, destination);
         }
-        HashSet<int> explicitEnemyModels = [];
-        HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
-        return EnemyAdmissions(enemy.ModelId, destinationFormation, explicitEnemyModels, restrictions).All(admission => admission == ExpandedAiAdmission.Supported) &&
-            explicitEnemyModels.Count == 0 && restrictions.Count == 0 &&
-            BattleResources.LoadEnemy(enemy.ModelId).Sequences?.CanCloneIndependently() == true;
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private BattleDonorGroup ReadDonorGroup(BattleEncounter source, BattleEnemyPlacement root, int destination)
+    {
+        BattleEnemyPlacement[] original = source.Enemies.OrderBy(placement => placement.Slot).Take(OriginalEnemyAliasCount).ToArray();
+        var placements = source.Slots.ToDictionary(placement => placement.Slot);
+        Dictionary<int, BattleEnemyPlacement> members = [];
+        Queue<BattleEnemyPlacement> pending = new();
+        HashSet<byte> unresolvedOperands = [];
+        HashSet<int> reservedSlots = [];
+        ImmutableArray<NativeBattleEffectBinding> effects = assets.ReadNativeEffectCatalog();
+        Add(root);
+        while (pending.TryDequeue(out BattleEnemyPlacement? actor))
+        {
+            HashSet<int> references = [];
+            HashSet<int> reserves = [];
+            HashSet<byte> operands = [];
+            HashSet<ushort> reachedEffects = [];
+            HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
+            NativeBattleAiDefinition ai = BattleResources.ReadEnemyAi(actor.ModelId, 0);
+            for (int band = 0; band < 3; band++)
+            {
+                ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(ai with { LevelBand = band }, BattleResources.NativeActions, destination, originalEnemySlots: true,
+                    reserveSceneSlots: reserves, explicitEnemyModelReferences: references, rosterModel: actor.ModelId, rosterRestrictions: restrictions,
+                    reachedEffects: reachedEffects, originalModelOperands: operands);
+                if (admission != ExpandedAiAdmission.Supported)
+                {
+                    throw new NotSupportedException($"Source formation {source.Id}, model {actor.NativeModelId} requires {admission}.");
+                }
+            }
+            if (restrictions.Count != 0)
+            {
+                throw new NotSupportedException($"Source formation {source.Id}, model {actor.NativeModelId} requires authored party membership.");
+            }
+
+            foreach (int reserve in reserves)
+            {
+                if (!placements.TryGetValue(reserve, out BattleEnemyPlacement? prototype) || !IsEnemyPrototype(prototype))
+                {
+                    throw new NotSupportedException($"Source formation {source.Id} has no installed reserve for scene slot {reserve}.");
+                }
+                reservedSlots.Add(reserve);
+                Add(prototype);
+            }
+            foreach (int model in references)
+            {
+                BattleEnemyPlacement[] matches = original.Where(candidate => candidate.NativeModelId == model).ToArray();
+                if (matches.Length == 0 && !placements.Values.Any(candidate => reservedSlots.Contains(candidate.Slot) && candidate.NativeModelId == model))
+                {
+                    throw new NotSupportedException($"Source formation {source.Id} has no member for AI model operand {model}.");
+                }
+                foreach (BattleEnemyPlacement matched in matches)
+                {
+                    Add(matched);
+                }
+            }
+            foreach (byte operand in operands)
+            {
+                AddOperand(operand);
+            }
+            BattleModel modelResource = BattleResources.LoadEnemy(actor.ModelId);
+            BattleSequenceSet programs = modelResource.Sequences ?? throw new NotSupportedException($"Model {actor.NativeModelId} has no original sequence resource.");
+            foreach (NativeBattleSequenceReference reference in programs.ReadModelReferences())
+            {
+                if (reference.Kind == NativeBattleSequenceReferenceKind.OriginalSlot)
+                {
+                    AddOperand(reference.Operand);
+                    continue;
+                }
+                IEnumerable<BattleEnemyPlacement> matches = original.Where(candidate => candidate.NativeModelId == reference.Operand);
+                if (reference.Kind == NativeBattleSequenceReferenceKind.FirstMatchingModel)
+                {
+                    matches = matches.Take(1);
+                }
+                foreach (BattleEnemyPlacement matched in matches)
+                {
+                    Add(matched);
+                }
+            }
+            foreach (ushort effect in reachedEffects.Where(effect => effect != 0))
+            {
+                int effectIndex = effect - 1;
+                if (effectIndex >= effects.Length || effects.IsEmpty)
+                {
+                    throw new NotSupportedException($"Source formation {source.Id} requests absent native effect {effect}.");
+                }
+                NativeBattleEffectBinding binding = effects[effectIndex].Entry == 0 ? effects[0] : effects[effectIndex];
+                if (binding.Entry == 0)
+                {
+                    throw new NotSupportedException($"Source formation {source.Id} cannot bind native effect {effect}.");
+                }
+                foreach (byte operand in binding.AuthoredModelOperands)
+                {
+                    AddOperand(operand);
+                }
+                int actorOrdinal = Array.FindIndex(original, member => member.Slot == actor.Slot);
+                if (actorOrdinal < 0 && !binding.CasterRelativeModels.IsEmpty)
+                {
+                    throw new NotSupportedException($"Source formation {source.Id} requires a proved allocated slot for effect {effect}.");
+                }
+                foreach (byte relative in binding.CasterRelativeModels)
+                {
+                    AddOperand(checked((byte)(FirstEnemyModelOperand + actorOrdinal + relative)));
+                }
+            }
+        }
+        if (unresolvedOperands.Count != 0 && reservedSlots.Count == 0)
+        {
+            throw new NotSupportedException($"Source formation {source.Id} has no live or allocated model for original operand {unresolvedOperands.Min()}.");
+        }
+        return new(root, [root, .. members.Values.Where(actor => actor.Slot != root.Slot).OrderBy(actor => actor.Slot)]);
+
+        void Add(BattleEnemyPlacement placement)
+        {
+            RequireEnemyStatisticsContract(placement);
+            if (members.TryAdd(placement.Slot, placement))
+            {
+                pending.Enqueue(placement);
+            }
+        }
+
+        void AddOperand(byte operand)
+        {
+            int index = operand - FirstEnemyModelOperand;
+            if (index < 0)
+            {
+                return;
+            }
+            if (index >= OriginalEnemyAliasCount)
+            {
+                throw new NotSupportedException($"Source formation {source.Id} references original model operand {operand} outside the available aliases.");
+            }
+            if (index >= original.Length)
+            {
+                unresolvedOperands.Add(operand);
+                return;
+            }
+            Add(original[index]);
+        }
+    }
+
+    private void AddDonorGroup(ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Builder sources, BattleEncounter source, BattleDonorGroup group)
+    {
+        int first = ExpandedBattleFormation.OriginalEnemyPrototypeCount + sources.Count;
+        BattleSourceGroupId identity = new(first);
+        string hash = BattleResources.FormationSourceHash(source.Id);
+        foreach (BattleEnemyPlacement actor in group.Members)
+        {
+            sources.Add(ExpandedBattleFormation.OriginalEnemyPrototypeCount + sources.Count, new(source.Id, actor.Slot, hash)
+            {
+                Group = identity,
+                OriginalEnemyOrdinal = ReadDonorOriginalOrdinal(source, actor)
+            });
+        }
     }
 
     private ImmutableArray<ushort>? ReadLocalEnemyFormations()
@@ -149,9 +295,9 @@ internal sealed partial class GameWorld
         return null;
     }
 
-    private List<(int Formation, BattleEnemyPlacement[] Enemies)> BuildAdditionalEnemyDonorPool(BattleEncounter encounter)
+    private List<(BattleEncounter Source, BattleDonorGroup[] Groups)> BuildAdditionalEnemyDonorPool(BattleEncounter encounter)
     {
-        List<(int Formation, BattleEnemyPlacement[] Enemies)> pool = [];
+        List<(BattleEncounter, BattleDonorGroup[])> pool = [];
         foreach (int formation in (ReadLocalEnemyFormations() ?? []).Distinct())
         {
             if (formation >= BattleResources.FormationCount)
@@ -159,50 +305,58 @@ internal sealed partial class GameWorld
                 continue;
             }
             BattleEncounter candidate = BattleResources.LoadEncounter(formation);
-            BattleEnemyPlacement[] enemies = EligibleAdditionalEnemyPlacements(candidate, encounter.Id);
-            if (enemies.Length != 0)
+            BattleDonorGroup[] groups = ReadEligibleDonorGroups(candidate, encounter.Id);
+            if (groups.Length != 0)
             {
-                pool.Add((formation, enemies));
+                pool.Add((candidate, groups));
             }
         }
         if (pool.Count == 0)
         {
-            BattleEnemyPlacement[] enemies = EligibleAdditionalEnemyPlacements(encounter, encounter.Id);
-            if (enemies.Length != 0)
+            BattleDonorGroup[] groups = ReadEligibleDonorGroups(encounter, encounter.Id);
+            if (groups.Length != 0)
             {
-                pool.Add((encounter.Id, enemies));
+                pool.Add((encounter, groups));
             }
         }
         return pool;
     }
 
-    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed)
+    private ImmutableSortedDictionary<int, BattleEnemyRosterSource> SelectAdditionalEnemies(BattleEncounter encounter, int count, byte seed, int originalReserveCount)
     {
-        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - encounter.Enemies.Count);
-        ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Builder sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
+        int available = Math.Min(count, ExpandedBattleFormation.MaximumEnemies - encounter.Enemies.Count - originalReserveCount);
+        var sources = ImmutableSortedDictionary.CreateBuilder<int, BattleEnemyRosterSource>();
         if (available <= 0)
         {
             return sources.ToImmutable();
         }
         // Selection is replayable from the entry seed and does not spend battle or exploration RNG.
         NativeBattleRandomState random = NativeBattleRandomState.ForecastPhase(seed);
-        List<(int Formation, BattleEnemyPlacement[] Enemies)> pool = BuildAdditionalEnemyDonorPool(encounter);
+        List<(BattleEncounter Source, BattleDonorGroup[] Groups)> pool = BuildAdditionalEnemyDonorPool(encounter);
         while (pool.Count != 0 && sources.Count < available)
         {
-            List<(int Formation, BattleEnemyPlacement[] Enemies)> round = [.. pool];
+            int previousCount = sources.Count;
+            List<(BattleEncounter Source, BattleDonorGroup[] Groups)> round = [.. pool];
             while (round.Count != 0 && sources.Count < available)
             {
                 int formationIndex = DrawIndex(round.Count);
-                (int formation, BattleEnemyPlacement[] enemies) = round[formationIndex];
+                (BattleEncounter source, BattleDonorGroup[] groups) = round[formationIndex];
                 round.RemoveAt(formationIndex);
-                string hash = BattleResources.FormationSourceHash(formation);
-                List<BattleEnemyPlacement> placements = [.. enemies];
-                while (placements.Count != 0 && sources.Count < available)
+                List<BattleDonorGroup> remaining = [.. groups];
+                while (remaining.Count != 0 && sources.Count < available)
                 {
-                    int enemyIndex = DrawIndex(placements.Count);
-                    sources.Add(ExpandedBattleFormation.OriginalEnemyPrototypeCount + sources.Count, new(formation, placements[enemyIndex].Slot, hash));
-                    placements.RemoveAt(enemyIndex);
+                    int groupIndex = DrawIndex(remaining.Count);
+                    BattleDonorGroup group = remaining[groupIndex];
+                    remaining.RemoveAt(groupIndex);
+                    if (group.Members.Length <= available - sources.Count)
+                    {
+                        AddDonorGroup(sources, source, group);
+                    }
                 }
+            }
+            if (sources.Count == previousCount)
+            {
+                break;
             }
         }
         return sources.ToImmutable();
@@ -224,7 +378,8 @@ internal sealed partial class GameWorld
         }
     }
 
-    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies, bool originalSlots = false, IReadOnlyList<BattleEnemyPlacement>? originalPlacements = null, bool diagnosticRoster = false)
+    private BattleEnemyPlacement[] ResolveExpandedEnemyPlacements(BattleEncounter encounter, ImmutableSortedDictionary<int, BattleEnemyRosterSource> addedEnemies,
+        out ImmutableSortedDictionary<int, BattleEnemyRosterSource> boundSources, bool originalSlots = false, IReadOnlyList<BattleEnemyPlacement>? originalPlacements = null, bool diagnosticRoster = false)
     {
         List<BattleEnemyPlacement> placements = originalSlots ? [.. originalPlacements ?? encounter.Slots] : encounter.Enemies.Select((enemy, index) => enemy with { Slot = index }).ToList();
         if (originalSlots && (placements.Any(enemy => (uint)enemy.Slot >= ExpandedBattleFormation.OriginalEnemyPrototypeCount) ||
@@ -239,34 +394,74 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("The added enemy roster does not use the required contiguous scene slots.");
         }
-        Dictionary<int, BattleEnemyPlacement[]> donors = addedEnemies.Count == 0
-            ? []
-            : diagnosticRoster
-                ? addedEnemies.Values.Select(source => source.Formation).Distinct().ToDictionary(formation => formation, formation => EligibleAdditionalEnemyPlacements(BattleResources.LoadEncounter(formation), encounter.Id))
-                : BuildAdditionalEnemyDonorPool(encounter).ToDictionary(donor => donor.Formation, donor => donor.Enemies);
-        foreach ((int slot, BattleEnemyRosterSource source) in addedEnemies)
+        foreach (BattleEnemyRosterSource source in addedEnemies.Values)
         {
             if (source is null)
             {
                 throw new InvalidDataException("The added enemy roster has no selected placement source.");
             }
             source.Validate();
-            if (!donors.TryGetValue(source.Formation, out BattleEnemyPlacement[]? eligible))
-            {
-                throw new InvalidDataException($"Added enemy source formation {source.Formation} is outside the suspended exploration encounter table's eligible pool and its destination fallback.");
-            }
             if (source.Formation >= BattleResources.FormationCount || !BattleResources.FormationSourceHash(source.Formation).Equals(source.FormationHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("The added enemy roster disagrees with its installed source formation.");
             }
-            BattleEnemyPlacement enemy = eligible.SingleOrDefault(candidate => candidate.Slot == source.SceneSlot)
-                ?? throw new InvalidDataException("The added enemy no longer has an eligible independent installed placement.");
-            if (diagnosticRoster && placements.Any(candidate => candidate.Enabled && candidate.ModelId == enemy.ModelId))
-            {
-                throw new InvalidDataException("Diagnostic roster donors must have distinct models and exclude the required enemy's model.");
-            }
-            placements.Add(enemy with { Slot = slot });
         }
+        Dictionary<int, BattleEncounter> donors = addedEnemies.Count == 0
+            ? []
+            : diagnosticRoster
+                ? addedEnemies.Values.Select(source => source.Formation).Distinct().ToDictionary(formation => formation, BattleResources.LoadEncounter)
+                : BuildAdditionalEnemyDonorPool(encounter).ToDictionary(donor => donor.Source.Id, donor => donor.Source);
+        var bound = addedEnemies.ToBuilder();
+        foreach (var group in addedEnemies.GroupBy(pair => pair.Value.Group ?? new BattleSourceGroupId(pair.Key)))
+        {
+            var members = group.OrderBy(pair => pair.Key).ToArray();
+            BattleEnemyRosterSource seed = members[0].Value;
+            if (group.Key.Slot != members[0].Key || members.Any(pair => pair.Value.Formation != seed.Formation))
+            {
+                throw new InvalidDataException("An added enemy group must be owned by its first slot and one source formation.");
+            }
+            if (!donors.TryGetValue(seed.Formation, out BattleEncounter? formation))
+            {
+                throw new InvalidDataException($"Added enemy source formation {seed.Formation} is outside the suspended exploration encounter table's pool and its destination fallback.");
+            }
+            BattleDonorGroup resolved = ReadEligibleDonorGroups(formation, encounter.Id).SingleOrDefault(candidate => candidate.Root.Slot == seed.SceneSlot)
+                ?? throw new NotSupportedException($"Added enemy source formation {seed.Formation}, slot {seed.SceneSlot} has no supported model bindings.");
+            if (!members.Select(pair => pair.Value.SceneSlot).SequenceEqual(resolved.Members.Select(placement => placement.Slot)))
+            {
+                throw new InvalidDataException("The added enemy roster does not contain its complete authored source group in order.");
+            }
+            for (int index = 0; index < members.Length; index++)
+            {
+                (int slot, BattleEnemyRosterSource source) = members[index];
+                BattleEnemyPlacement enemy = resolved.Members[index];
+                int? originalOrdinal = ReadDonorOriginalOrdinal(formation, enemy);
+                if (source.OriginalEnemyOrdinal is int supplied && supplied != originalOrdinal)
+                {
+                    throw new InvalidDataException("An added enemy source has a different original model ordinal from its installed formation.");
+                }
+                if (diagnosticRoster && enemy.Enabled && placements.Any(candidate => candidate.Enabled && candidate.ModelId == enemy.ModelId))
+                {
+                    throw new InvalidDataException("Diagnostic roster donors must have distinct models and exclude the required enemy's model.");
+                }
+                bound[slot] = source with { Group = group.Key, OriginalEnemyOrdinal = originalOrdinal };
+                placements.Add(enemy with { Slot = slot });
+            }
+        }
+        boundSources = bound.ToImmutable();
         return placements.ToArray();
+    }
+
+    private static int? ReadDonorOriginalOrdinal(BattleEncounter source, BattleEnemyPlacement actor)
+    {
+        int ordinal = 0;
+        foreach (BattleEnemyPlacement placement in source.Enemies.OrderBy(placement => placement.Slot).Take(OriginalEnemyAliasCount))
+        {
+            if (placement.Slot == actor.Slot)
+            {
+                return ordinal;
+            }
+            ordinal++;
+        }
+        return null;
     }
 }

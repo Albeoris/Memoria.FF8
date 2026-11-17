@@ -172,7 +172,7 @@ public sealed class MagicBattleReservationTests
 
     private static void Advance(BattleSession battle)
     {
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames + 2; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)
         {
             battle.Tick();
         }

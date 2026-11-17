@@ -15,7 +15,7 @@ public sealed class NativeBattleRetainedModelColorTests
         NativeBattleGraphicsState graphics = GraphicsWithColors(snapshot, modelSeed);
         BattleModelOwner party = snapshot.NativeActionPackets!.ModelAliases.DecodeLiteral(0);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(party, graphics.ActorModels.Get(party) with { Flags0 = 3 }) };
-        snapshot = snapshot with { NativeGraphics = graphics };
+        snapshot = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
         NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
         ImmutableArray<NativeBattleGraphicsModel> next = OriginalCells(restored);
@@ -39,7 +39,7 @@ public sealed class NativeBattleRetainedModelColorTests
         Assert.All(OriginalCells(legacy), model => Assert.Null(model.Color40));
         NativeBattleRetainedMemory modelSeed = legacy with { ModelColors40 = [1u, 2u, 3u, 4u, 5u, 6u, 7u] };
         BattleSnapshot snapshot = Snapshot(legacy);
-        snapshot = snapshot with { NativeGraphics = GraphicsWithColors(snapshot, modelSeed) };
+        snapshot = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = GraphicsWithColors(snapshot, modelSeed) });
         NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot, null);
         Assert.Null(captured.ModelColors40);
     }
@@ -52,7 +52,7 @@ public sealed class NativeBattleRetainedModelColorTests
         Assert.Null(models[2].Color40);
         Assert.Equal(0x00FEDCBAu, models[6].Color40);
         BattleSnapshot snapshot = Snapshot(retained);
-        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot with { NativeGraphics = GraphicsWithColors(snapshot, retained) }, null);
+        NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = GraphicsWithColors(snapshot, retained) }), null);
         NativeBattleRetainedMemory restored = JsonSerializer.Deserialize<NativeBattleRetainedMemory>(JsonSerializer.Serialize(captured))!;
         ImmutableArray<uint?> colors = restored.ModelColors40 ?? throw new InvalidDataException("The retained model-color owner was lost.");
         Assert.Null(colors[2]);

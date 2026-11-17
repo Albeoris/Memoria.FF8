@@ -35,8 +35,8 @@ internal static class NativeBattlePsychoBlastComponentSource
             for (; callbacks < 4096; callbacks++)
             {
                 active.Tick();
-                BattleSnapshot current = active.Capture();
-                if (current.NativeGraphics!.OriginalEffect is { Binding.Effect: 20, ReturnedDescriptor: 0 } prior && prior.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)) && current.NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0 && active.ObserveDiagnosticDrainBlockers().Count == 0)
+                BattleSnapshot current = active.CaptureForContinuation();
+                if (current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 20, ReturnedDescriptor: 0 } prior && prior.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0)) && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0 && active.ObserveDiagnosticDrainBlockers().Count == 0)
                 {
                     completed = current;
                     break;
@@ -49,7 +49,7 @@ internal static class NativeBattlePsychoBlastComponentSource
         }
         NativeEffectFixtureRequest request = (NativeEffectFixtureRequest)Invoke(typeof(NativeBattlePsychoBlast23PresentationTests), "SelectOriginalFixture", assets, effect)!;
         BattleSnapshot prepared = NativeBattlePsychoBlast23PresentationTests.PrepareActivatedSource(game, assets, request, NativeBattleStorageSnapshots.Capture(completed));
-        File.WriteAllText(Path.Combine(output, "activation-preparation.json"), JsonSerializer.Serialize(new { Scope = "Original effect20 activation followed by existing Psycho Blast component preparation; no ordinary AI or formula admission", CarrierEffect = 20, CarrierCallbacks = callbacks + 1, completed.Frame, NativeCallback = completed.NativeGraphics!.Callback, Effect = effect, request.EncounterId, request.CasterActorIndex }));
+        File.WriteAllText(Path.Combine(output, "activation-preparation.json"), JsonSerializer.Serialize(new { Scope = "Original effect20 activation followed by existing Psycho Blast component preparation; no ordinary AI or formula admission", CarrierEffect = 20, CarrierCallbacks = callbacks + 1, completed.Frame, NativeCallback = completed.ReadFixturePresentation().NativeGraphics!.Callback, Effect = effect, request.EncounterId, request.CasterActorIndex }));
         return prepared;
     }
 

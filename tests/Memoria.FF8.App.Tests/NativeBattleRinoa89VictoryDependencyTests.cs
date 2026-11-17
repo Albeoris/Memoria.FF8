@@ -17,9 +17,9 @@ public sealed class NativeBattleRinoa89VictoryDependencyTests
         Directory.CreateDirectory(output!);
         byte[] original = File.ReadAllBytes(source!);
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(original)!;
-        Assert.Equal((ushort)89, snapshot.NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, snapshot.NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Equal((byte)4, snapshot.NativeGraphics.NativeOutcome!.ResultByte6E7);
+        Assert.Equal((ushort)89, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal(0u, snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal((byte)4, snapshot.ReadFixturePresentation().NativeGraphics.NativeOutcome!.ResultByte6E7);
         Assert.Null(snapshot.NativeTimedAction);
         Assert.Empty(snapshot.NativeLimits);
         Assert.Null(snapshot.Definition.NativeVictoryFile);
@@ -36,7 +36,7 @@ public sealed class NativeBattleRinoa89VictoryDependencyTests
             stream.Write(migratedBytes);
         }
         Assert.Equal(original, File.ReadAllBytes(source!));
-        File.WriteAllText(Path.Combine(output!, "migration.json"), JsonSerializer.Serialize(new { Status = "pending-validation", Source = source, SourceSha256 = Convert.ToHexString(SHA256.HashData(original)), Migrated = path, MigratedSha256 = Convert.ToHexString(SHA256.HashData(migratedBytes)), ChangedPaths = new[] { "Definition.NativeVictoryFile" }, VictoryFileId = victory.FileId, snapshot.Frame, NativeCallback = snapshot.NativeGraphics!.Callback }));
+        File.WriteAllText(Path.Combine(output!, "migration.json"), JsonSerializer.Serialize(new { Status = "pending-validation", Source = source, SourceSha256 = Convert.ToHexString(SHA256.HashData(original)), Migrated = path, MigratedSha256 = Convert.ToHexString(SHA256.HashData(migratedBytes)), ChangedPaths = new[] { "Definition.NativeVictoryFile" }, VictoryFileId = victory.FileId, snapshot.Frame, NativeCallback = snapshot.ReadFixturePresentation().NativeGraphics!.Callback }));
         Console.WriteLine("Wishing Star victory dependency migration: " + path);
         BattleSession battle = Restore(migrated);
         BattleSession independent = Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path))!);
@@ -50,13 +50,13 @@ public sealed class NativeBattleRinoa89VictoryDependencyTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(independent, 320, 224).ToArray());
         }
-        BattleSnapshot after = battle.Capture();
-        Assert.Equal(0u, after.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+        BattleSnapshot after = battle.CaptureForContinuation();
+        Assert.Equal(0u, after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Null(after.NativeTimedAction);
         Assert.Empty(after.NativeLimits);
         Assert.Equal(snapshot.Events.Count(item => item.Kind == "Damage"), after.Events.Count(item => item.Kind == "Damage"));
         NativeBattleRestorationPresentationTests.Publish(output!, "victory-file-bound-next", after, scene.Render(battle, 320, 224).ToArray());
-        File.WriteAllText(Path.Combine(output!, "migration.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, SourceSha256 = Convert.ToHexString(SHA256.HashData(original)), Migrated = path, MigratedSha256 = Convert.ToHexString(SHA256.HashData(migratedBytes)), ChangedPaths = new[] { "Definition.NativeVictoryFile" }, VictoryFileId = victory.FileId, snapshot.Frame, NativeCallback = snapshot.NativeGraphics!.Callback, AfterFrame = after.Frame, AfterCallback = after.NativeGraphics!.Callback, Validation = "Two actual host polls; independent JSON and RGBA agree; no effect entry or damage replay." }));
+        File.WriteAllText(Path.Combine(output!, "migration.json"), JsonSerializer.Serialize(new { Status = "passed", Source = source, SourceSha256 = Convert.ToHexString(SHA256.HashData(original)), Migrated = path, MigratedSha256 = Convert.ToHexString(SHA256.HashData(migratedBytes)), ChangedPaths = new[] { "Definition.NativeVictoryFile" }, VictoryFileId = victory.FileId, snapshot.Frame, NativeCallback = snapshot.ReadFixturePresentation().NativeGraphics!.Callback, AfterFrame = after.Frame, AfterCallback = after.ReadFixturePresentation().NativeGraphics!.Callback, Validation = "Two actual host polls; independent JSON and RGBA agree; no effect entry or damage replay." }));
 
         BattleSession Restore(BattleSnapshot state)
         {

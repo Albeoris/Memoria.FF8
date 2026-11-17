@@ -76,7 +76,7 @@ public sealed class NativeBattleMugTests
     private static void Hit(BattleSession battle)
     {
         battle.QueueNativePlayerCommand("party-0", "enemy", 12, 0);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Events.Any(item => item.Kind == "EffectContact")); frame++)
         {
             battle.Tick();
         }

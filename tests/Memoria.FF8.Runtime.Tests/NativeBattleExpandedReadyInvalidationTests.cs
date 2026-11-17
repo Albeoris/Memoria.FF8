@@ -142,11 +142,10 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         BattleAttackCommand callback = new("ally-0", "ally-0", Target("ally-0")) { NativeCallback = new(0, 7) };
         BattleAttackCommand reaction = new(Fourth, "enemy", Target("enemy")) { NativePlayerReaction = BattleNativePlayerReaction.Counter };
         BattleAttackCommand header = new(Fourth, "enemy", Target("enemy")) { NativeHeader = new BattleActionHeaderReference(0) };
-        BattleAttackCommand descriptor = new(Fourth, Fourth, BattleTargetRequest.None) { ExpandedAiDescriptor = new(BattleExpandedAiDescriptorKind.Barrier) };
         BattleAttackCommand other = new(Eleventh, "enemy", Target("enemy"));
         BattleAttackCommand charged = new(Fourth, "enemy", Target("enemy"), BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
         BattleAttackCommand renzokuken = new(Fourth, "enemy", Target("enemy"), BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
-        foreach (BattleAttackCommand command in new[] { callback, item, reaction, magic, other, header, charged, descriptor, renzokuken })
+        foreach (BattleAttackCommand command in new[] { callback, item, reaction, magic, other, header, charged, renzokuken })
         {
             queue.Enqueue(command);
         }
@@ -155,19 +154,19 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         typeof(BattleSession).GetField("expandedHostedActionToken", PrivateInstance)!.SetValue(session, 3L);
 
         Publish(session, roster, Half(FourthModel, saved: 1), caster: Fourth);
-        Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
+        Assert.Equal(new[] { callback, reaction, other, header }, queue.ToArray());
         Assert.Equal(new BattleStock(1, 2), Assert.Single(session.Items));
         Assert.Empty(session.MagicVitals!.MagicSystem.Reservations);
         Assert.Equal(new BattleStock(1, 3), Assert.Single(Actor(session, Fourth).MagicStocks));
         Assert.Same(active, session.ActiveAction);
         Assert.Equal(3L, Field<long?>(session, "expandedHostedActionToken"));
         Publish(session, roster, Half(FourthModel, saved: 1), caster: Fourth);
-        Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
+        Assert.Equal(new[] { callback, reaction, other, header }, queue.ToArray());
         Assert.Equal(new BattleStock(1, 2), Assert.Single(session.Items));
         Assert.Empty(session.MagicVitals!.MagicSystem.Reservations);
 
         Publish(session, roster, Half(session.ReadPresentationModelOwner(callback.ActorId), saved: 1));
-        Assert.Equal(new[] { callback, reaction, other, header, descriptor }, queue.ToArray());
+        Assert.Equal(new[] { callback, reaction, other, header }, queue.ToArray());
     }
 
     [Fact]

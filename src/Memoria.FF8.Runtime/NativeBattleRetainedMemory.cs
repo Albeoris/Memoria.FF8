@@ -82,23 +82,15 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
         NativeBattleActionPacketsState packets = snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner.");
-        NativeBattleRetainedMemory result = new(packets.ExportRetained(), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256)
+        NativeBattleRetainedMemory result = new(packets.ExportRetained(), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch, null, coldExecutableSha256)
         {
             PresentationStatusMemory = snapshot.NativePresentationStatusMemory,
             ElementAttack = snapshot.NativeElementAttack,
-            EffectMemory = snapshot.NativeEffectMemory,
-            Stage = snapshot.NativeStage,
-            ModelTextureCache = snapshot.NativeModelTextureCache,
-            ModelLoader = snapshot.NativeModelLoader,
-            FileStaging = snapshot.NativeFileStaging,
-            ModelCpuResources = snapshot.NativeModelCpuResources,
-            Camera = snapshot.NativeCamera,
-            FileIo = snapshot.NativeFileIo,
             VibrationProcess = snapshot.NativeVibrationProcess,
             MusicProcess = snapshot.NativeMusicProcess,
             ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.")
         };
-        result = result.WithEntryState(snapshot.Definition.NativeRetainedMemory, snapshot.NativeGraphics, snapshot.Outcome);
+        result = result.WithEntryState(snapshot.Definition.NativeRetainedMemory, null, snapshot.Outcome);
         return result with { StorageGraph = NativeBattleStorageGraphProjection.Retained(result, snapshot) };
     }
 
@@ -128,7 +120,7 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
 
     public void Validate()
     {
-        if (ActionPackets is null || PartyStatusMirrors is null || ActionScratch is null || ElementAttack.IsDefault || ElementAttack.Length != 7 || ActionScratch.ComponentCompletion is not null || ColdExecutableSha256 is not null && (ColdExecutableSha256.Length != 64 || !ColdExecutableSha256.All(Uri.IsHexDigit)))
+        if (ActionPackets is null || PartyStatusMirrors is null || ActionScratch is null || ElementAttack.IsDefault || ElementAttack.Length != 7 || ColdExecutableSha256 is not null && (ColdExecutableSha256.Length != 64 || !ColdExecutableSha256.All(Uri.IsHexDigit)))
         {
             throw new InvalidDataException("Native retained battle memory lacks its physical owners or valid cold-image provenance.");
         }

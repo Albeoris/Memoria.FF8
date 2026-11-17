@@ -13,6 +13,8 @@ public sealed partial class BattlePresentationProcess
             EffectIoResult = NativeEffectIoResult,
             CameraMask = NativeCamera?.Mask,
             SoundBusy = graphics is null ? (bool?)null : NativeOriginalSoundBusy(),
+            Effect101 = graphics?.OriginalEffect is { RequestedEffect: 101 } effect101 ? ObserveEffect101Owners(effect101) : null,
+            ScriptedEffect = graphics?.OriginalEffect?.RequestedEffect is 77 or 211 ? ObserveScriptedEffectOwners() : null,
             Graphics = graphics is null ? null : new
             {
                 graphics.Callback,

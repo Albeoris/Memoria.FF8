@@ -14,17 +14,17 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
     {
         JsonNode battleNode = root["Battle"] ?? throw new InvalidDataException("Migration requires the named active battle component.");
         BattleSnapshot battle = battleNode.Deserialize<BattleSnapshot>()!;
-        NativeBattleGraphicsState graphics = battle.NativeGraphics ?? throw new InvalidDataException("Migration requires its physical model bank.");
+        NativeBattleGraphicsState graphics = battle.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("Migration requires its physical model bank.");
         Assert.Equal(4, graphics.EntryLifecycle);
         Assert.Null(graphics.OriginalEffect);
         Assert.Null(graphics.NativeOutcome);
-        Assert.Null(battle.NativeModelLoader?.Task);
-        Assert.Equal(0, battle.NativeEffectMemory!.Active);
-        Assert.Null(battle.NativeEffectMemory.Entry21DFEC0);
-        NativeBattleModelCpuResources cpu = battle.NativeModelCpuResources ?? throw new InvalidDataException("Migration must retain the actual party CPU banks.");
+        Assert.Null(battle.ReadFixturePresentation().NativeModelLoader?.Task);
+        Assert.Equal(0, battle.ReadFixturePresentation().NativeEffectMemory!.Active);
+        Assert.Null(battle.ReadFixturePresentation().NativeEffectMemory.Entry21DFEC0);
+        NativeBattleModelCpuResources cpu = battle.ReadFixturePresentation().NativeModelCpuResources ?? throw new InvalidDataException("Migration must retain the actual party CPU banks.");
         Assert.Null(cpu.EnemyCursor);
-        NativeBattleFileStaging staging = battle.NativeFileStaging ?? throw new InvalidDataException("Migration must retain its current shared party/file memory.");
-        NativeBattleModelTextureCache cache = battle.NativeModelTextureCache ?? throw new InvalidDataException("Migration requires the actual resource row material bindings.");
+        NativeBattleFileStaging staging = battle.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("Migration must retain its current shared party/file memory.");
+        NativeBattleModelTextureCache cache = battle.ReadFixturePresentation().NativeModelTextureCache ?? throw new InvalidDataException("Migration requires the actual resource row material bindings.");
         NativeBattleGraphicsDefinition definition = battle.Definition.NativeGraphics!;
         BattleActorModels models = graphics.ActorModels;
         var bindings = definition.Bindings.ToBuilder();

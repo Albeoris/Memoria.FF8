@@ -165,16 +165,16 @@ public static class DiagnosticCounterCycleValidation
                 {
                     throw new InvalidDataException("Counter callback observation crossed its actual attempt boundary.");
                 }
-                ValidateCallbackPacket(observation.Queue);
-                if (observation.Queue.Callback > observation.Callback || observation.Actor.Index != observation.Queue.ActorIndex || observation.Actor.Variables.IsDefault || observation.Actor.Variables.Length != 8 || attempt.Callbacks.Any(other => other.Queue.Epoch == observation.Queue.Epoch && !SameQueue(other.Queue, observation.Queue)))
+                ValidateCallbackOwner(observation.Queue);
+                if (observation.Queue.Callback > observation.Callback || observation.Actor.Id != observation.Queue.ActorId || observation.Actor.Index != observation.Queue.ActorIndex || observation.Actor.Variables.IsDefault || observation.Actor.Variables.Length != 8 || attempt.Callbacks.Any(other => other.Queue.Epoch == observation.Queue.Epoch && !SameQueue(other.Queue, observation.Queue)))
                 {
-                    throw new InvalidDataException("Counter callback phase changed its physical source epoch or actor state owner.");
+                    throw new InvalidDataException("Counter callback phase changed its typed source epoch or actor state owner.");
                 }
                 if (observation.Phase == BattleDiagnosticCounterCallbackPhase.Queued)
                 {
                     if (observation.Queue.Epoch <= previousEpoch)
                     {
-                        throw new InvalidDataException("Counter physical callback queue epoch regressed.");
+                        throw new InvalidDataException("Counter callback queue epoch regressed.");
                     }
                     previousEpoch = observation.Queue.Epoch;
                     if (observation.Queue.ActorIndex == receipt.TargetIndex && observation.Queue.Stage == 2)
@@ -245,11 +245,12 @@ public static class DiagnosticCounterCycleValidation
         }
     }
 
-    private static void ValidateCallbackPacket(BattleDiagnosticCounterCallback queue)
+    private static void ValidateCallbackOwner(BattleDiagnosticCounterCallback queue)
     {
-        if (queue.Epoch <= 0 || queue.Callback < 0 || queue.Location is null || queue.Location.Bank >= 3 || queue.Location.Slot >= 11 || queue.ActorIndex >= 7 || queue.Packet.IsDefault || queue.Packet.Length != 12 || (queue.UnknownByteMask & ~0xFFF) != 0 || (queue.UnknownByteMask & 0x33) != 0 || queue.Packet[0] != queue.ActorIndex || queue.Packet[1] != 255 || (queue.Packet[4] | queue.Packet[5] << 8) != queue.Stage)
+        if (queue.Epoch <= 0 || queue.Callback < 0 || string.IsNullOrWhiteSpace(queue.ActorId) || queue.ActorIndex is < 3 or >= 7 ||
+            queue.Slot != BattleRosterSlot.Enemy(queue.ActorIndex - 3) || queue.Stage is not (0 or 1 or 2 or 3))
         {
-            throw new InvalidDataException("Counter callback lacks its actual physical bank/slot/epoch callback packet.");
+            throw new InvalidDataException("Counter callback lacks its actual typed actor, roster position and callback epoch.");
         }
     }
 
@@ -273,9 +274,9 @@ public static class DiagnosticCounterCycleValidation
         var contacts = attempt.Contacts.Where(value => value.Primary.Serial == primarySerial).ToArray();
         if (contacts.Length != 1 || contacts[0].Primary.Preliminary || queue.PendingOrder != contacts[0].Primary.Recipient.PendingReaction.Order || queue.Callback < contacts[0].Primary.Callback || command.HeaderGeneration <= contacts[0].Primary.HeaderGeneration)
         {
-            throw new InvalidDataException("Counter physical callback epoch does not own its actual committed reaction order.");
+            throw new InvalidDataException("Counter callback epoch does not own its actual committed reaction order.");
         }
-        BattleDiagnosticCounterCallbackPhase[] phases = [BattleDiagnosticCounterCallbackPhase.Queued, BattleDiagnosticCounterCallbackPhase.Taken, BattleDiagnosticCounterCallbackPhase.Started, BattleDiagnosticCounterCallbackPhase.AiEntered];
+        BattleDiagnosticCounterCallbackPhase[] phases = [BattleDiagnosticCounterCallbackPhase.Queued, BattleDiagnosticCounterCallbackPhase.Started, BattleDiagnosticCounterCallbackPhase.AiEntered];
         int cursor = -1;
         foreach (var phase in phases)
         {
@@ -291,7 +292,7 @@ public static class DiagnosticCounterCycleValidation
             }
             if (next < 0 || attempt.Callbacks.Count(observed => observed.Queue.Epoch == queue.Epoch && observed.Phase == phase && (phase != BattleDiagnosticCounterCallbackPhase.AiEntered || observed.AiScope == command.AiScope)) != 1)
             {
-                throw new InvalidDataException("Counter queue/take/callback/admission source phases are incomplete or out of order.");
+                throw new InvalidDataException("Counter queue/callback/admission source phases are incomplete or out of order.");
             }
             cursor = next;
         }
@@ -404,7 +405,7 @@ public static class DiagnosticCounterCycleValidation
 
     private static bool SameJson<T>(T left, T right) => System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(left), System.Text.Json.JsonSerializer.SerializeToElement(right));
 
-    private static bool SameQueue(BattleDiagnosticCounterCallback left, BattleDiagnosticCounterCallback right) => left.Epoch == right.Epoch && left.Callback == right.Callback && left.Location == right.Location && left.ActorIndex == right.ActorIndex && left.Stage == right.Stage && left.PendingOrder == right.PendingOrder && left.PrimarySerial == right.PrimarySerial && left.UnknownByteMask == right.UnknownByteMask && left.Packet.AsSpan().SequenceEqual(right.Packet.AsSpan());
+    private static bool SameQueue(BattleDiagnosticCounterCallback left, BattleDiagnosticCounterCallback right) => left == right;
 
     private static bool SameSha(string? left, string? right) => left is not null && right is not null && string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 }

@@ -18,7 +18,7 @@ public sealed class NativeBattleEffect233ProjectionResourceTests
         BattleSnapshot initial = NativeBattleEffectFamilyRunner.LoadSnapshot(source!);
         NativeBattleEffect233SourceAdmissionTests.ValidateSource(initial, assets);
         BattleSession battle = NativeBattleEffect233PresentationTests.Restore(NativeBattleEffect233PresentationTests.QueueComponent(initial, game, assets), game);
-        BattleScenePresentation scene = new(assets, initial.Definition, true) { SmoothCompatibleMotion = true };
+        BattleScenePresentation scene = new(assets, initial.Definition) { SmoothCompatibleMotion = true };
         HashSet<byte> saturatedProducers = [];
         bool restored = false;
         int groundQuads = 0;

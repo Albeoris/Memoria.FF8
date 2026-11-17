@@ -46,18 +46,23 @@ public sealed partial class BattleSession
         {
             return (actor, 4 * (variable - 211));
         }
-        if ((!UsesOriginalEnemySlots || !HasNativeRosterSlot(actor)))
+        int? sourceIndex = actor.NativeActorIndex;
+        if (ReadDonorSource(actor)?.OriginalEnemyOrdinal is int ordinal)
         {
-            throw new NotSupportedException($"Expanded battle AI variable {variable} requires a physical actor-bank alias.");
+            sourceIndex = ordinal + NativeBattleSlots.AllyCount;
         }
-        int offset = checked(actor.RequireNativeActorIndex() * 208 + 4 * (variable - 211));
+        if (sourceIndex is not int alias)
+        {
+            throw new NotSupportedException($"Native AI variable {variable} requires an actor-bank alias in its source group.");
+        }
+        int offset = checked(alias * 208 + 4 * (variable - 211));
         if (offset < 0)
         {
             throw new NotSupportedException($"Native battle AI variable {variable} aliases memory before the retained actor bank.");
         }
         int index = offset / 208;
         int member = offset % 208;
-        BattleCombatant? owner = FindAllocatedNativeActor(index);
+        BattleCombatant? owner = FindSourceOriginalActor(actor, index);
         bool owned = member is >= 36 and <= 64 || member is >= 144 and <= 180 && owner?.MutableNativeStatusResistances.Length == 40;
         if (owner is null || !owned)
         {

@@ -23,15 +23,15 @@ public sealed class NativeBattleEffect54HeaderAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Assert.True(session.NativeEntryReady);
         Assert.Equal(0, source.Frame);
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics!, 3)!);
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!);
         Assert.Equal(56, caster.ModelId);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 223 && row.MagicId == 54 && row.KernelSection == 3 && row.KernelIndex == 223);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleActionPacketsState original = source.NativeActionPackets ?? throw new NotSupportedException("The source requires its current action packet owners.");
         NativeBattleRetainedActionHeaderSlot retained = original.ExportRetained().Headers[original.ActionCount];
         Assert.Equal((byte)0, retained.ReadOriginalByte(17));
-        string targetId = ReadOriginalModelActorId(source.NativeGraphics!, 0) ?? throw new NotSupportedException("The source requires its current physical target.");
+        string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0) ?? throw new NotSupportedException("The source requires its current physical target.");
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus ?? throw new NotSupportedException("The target requires its actual saved and battle status owners.");
         (NativeBattleActionPacketsState packets, BattleActionHeaderReference headerIndex) = original.Prepare(new(original.ModelAliases.DecodeLiteral(3), 8, 11, unchecked((sbyte)action.RawRecord[4]), 223, 54, null));
         Assert.Equal(retained.ReadOriginalByte(17), packets.ReadHeader(headerIndex).ReadRepeatModeMinusOne());

@@ -33,7 +33,7 @@ public sealed class ExpandedEnemyDeathCallbackTests
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(queuedRestore.Capture()));
         BattleSession activeRestore = RoundTrip(battle);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames + 2; frame++)
+        for (int frame = 0; frame < 1200 && !(battle.Outcome != BattleOutcome.Active); frame++)
         {
             battle.Tick();
             queuedRestore.Tick();

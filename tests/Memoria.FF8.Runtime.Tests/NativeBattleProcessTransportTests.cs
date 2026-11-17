@@ -33,7 +33,7 @@ public sealed class NativeBattleProcessTransportTests
     public void Missing_old_snapshot_processes_remain_unknown_and_are_not_recreated_from_definition()
     {
         BattleSession fresh = new(Definition() with { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess() }, BattleAtbMode.Normal);
-        BattleSnapshot missing = fresh.Capture() with { NativeFileIo = null, NativeVibrationProcess = null };
+        BattleSnapshot missing = (fresh.Capture() with { NativeVibrationProcess = null }).WithFixturePresentation(facts => facts with { NativeFileIo = null });
         BattleSession restored = BattleSession.Restore(missing);
         Assert.Null(restored.Presentation?.NativeFileIo);
         Assert.Null(restored.NativeVibrationProcess);

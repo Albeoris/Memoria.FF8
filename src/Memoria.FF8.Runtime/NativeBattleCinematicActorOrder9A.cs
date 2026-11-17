@@ -18,10 +18,15 @@ public static class NativeBattleCinematicActorOrder9A
         for (int index = 0; index < count; index++)
         {
             byte literal = NativeBattleScriptedCommandReads.Program(frame, program, 0, 1)[0];
-            actors.Add(aliases.DecodeLiteral(literal));
-            if (original || index < 6)
+            BattleModelOwner actor = aliases.DecodeAuthoredOperand(literal);
+            actors.Add(actor);
+            if (original)
             {
                 frame = frame with { Core = frame.Core.Write(header + 0x48 + (uint)index, [literal]) };
+            }
+            else if (index < 6)
+            {
+                frame = frame with { Core = NativeBattleWaterContextCommands.WriteActor(frame.Core, header + 0x48 + (uint)index, actor, aliases) };
             }
             frame = NativeBattleScriptedCommandReads.Advance(frame, 2);
         }

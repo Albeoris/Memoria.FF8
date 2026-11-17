@@ -155,8 +155,8 @@ public sealed class NativeBattleRemainingItemPresentationTests
             {
                 prior = battle.Capture();
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                BattleSnapshot current = battle.CaptureForContinuation();
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 selected |= graphics.OriginalEffect?.RequestedEffect == native.MagicId;
                 NativeBattleActionPacketsState packets = current.NativeActionPackets!;
                 if (packets.ContactCount > 0)
@@ -186,7 +186,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 {
                     byte[] rendered = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSnapshot withoutEffect = current with { NativeGraphics = graphics with { PrimitiveFrame = withoutFrame } };
+                    BattleSnapshot withoutEffect = current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = withoutFrame } });
                     byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(withoutEffect), 320, 224).ToArray();
                     int changedRgb = CountRgbChanges(rendered, plain);
                     visibleSamples++;
@@ -237,7 +237,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     break;
                 }
             }
-            BattleSnapshot completed = battle.Capture();
+            BattleSnapshot completed = battle.CaptureForContinuation();
             Assert.True(selected, "The actual item command never selected its original effect.");
             Assert.True(restoredLive, "No live effect task with primitive commands reached disk restoration.");
             if (native.MagicId is 7 or 50 or 51 or 52 || statusCure)
@@ -269,9 +269,9 @@ public sealed class NativeBattleRemainingItemPresentationTests
             Assert.Single(battle.Events, item => item.Kind == "Windup" && item.ActorId == "party");
             Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "party");
             Assert.True(Released(completed), "Item action, pause, descriptors and effect tasks must all release.");
-            Assert.Equal((byte)0, completed.NativeEffectMemory!.Active);
+            Assert.Equal((byte)0, completed.ReadFixturePresentation().NativeEffectMemory!.Active);
             VerifyContinuation("completed", completed);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", itemId, native.MagicId, native.AttackType, native.Power, expectedHp, callbacks, transitions, statusTransitions, initialSavedStatus, initialBattleStatus, selected, restoredLive, contact, peakChangedRgb, visibleSamples, VisibleFrame = peakVisible?.Frame, VisibleCallback = peakVisible?.NativeGraphics?.Callback, completed.Frame, Callback = completed.NativeGraphics!.Callback }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", itemId, native.MagicId, native.AttackType, native.Power, expectedHp, callbacks, transitions, statusTransitions, initialSavedStatus, initialBattleStatus, selected, restoredLive, contact, peakChangedRgb, visibleSamples, VisibleFrame = peakVisible?.Frame, VisibleCallback = peakVisible?.ReadFixturePresentation().NativeGraphics?.Callback, completed.Frame, Callback = completed.ReadFixturePresentation().NativeGraphics!.Callback }));
         }
         catch (Exception error)
         {
@@ -338,7 +338,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        NativeBattleGraphicsState graphics = snapshot.NativeGraphics!;
+        NativeBattleGraphicsState graphics = snapshot.ReadFixturePresentation().NativeGraphics!;
         return snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 }

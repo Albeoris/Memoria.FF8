@@ -25,12 +25,12 @@ public sealed class Holy175CapturePresentationTests
         NativeBattleHoly175Resources resources = game.ReadNativeHoly175Resources();
         BattleSnapshot snapshot = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         BattleSnapshot working = NativeBattleStorageSnapshots.Restore(snapshot);
-        NativeBattlePrimitiveProcess retained = working.NativeEffectMemory!.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess retained = working.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         NativeBattleSoftwarePrimitiveState software = retained.Software! with { ViewportInputs = new(640, 480, 0, 0) };
         NativeBattlePrimitiveProcess process = (retained with { Software = software }).Reset500900(4);
-        NativeBattleCameraProjection projection = working.NativeCamera!.Projection!;
+        NativeBattleCameraProjection projection = working.ReadFixturePresentation().NativeCamera!.Projection!;
         NativeBattleGraphicsDefinition graphics = working.Definition.NativeGraphics!;
-        Component initial = NativeBattleStorageSnapshots.Capture(new Component(process, working.NativeStage!, working.NativeEffectMemory.Textures!, new(resources.CaptureBlackPackets!.Data, 0, 0), resources, working.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("Native Holy capture requires its retained stage geometry."), projection.View!, projection, graphics.Rules.SummonColors!, graphics.PrimitiveTables!, graphics.SoftwarePrimitiveTable!, graphics.PrimitiveCapabilities!));
+        Component initial = NativeBattleStorageSnapshots.Capture(new Component(process, working.ReadFixturePresentation().NativeStage!, working.ReadFixturePresentation().NativeEffectMemory.Textures!, new(resources.CaptureBlackPackets!.Data, 0, 0), resources, working.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("Native Holy capture requires its retained stage geometry."), projection.View!, projection, graphics.Rules.SummonColors!, graphics.PrimitiveTables!, graphics.SoftwarePrimitiveTable!, graphics.PrimitiveCapabilities!));
         Prepared? prepared = null;
         Executed? executed = null;
         int changed = 0;

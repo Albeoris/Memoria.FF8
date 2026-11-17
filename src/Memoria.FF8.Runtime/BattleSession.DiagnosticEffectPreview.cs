@@ -7,7 +7,7 @@ public sealed partial class BattleSession
 
     public void ConfigureDiagnosticEffectPreview()
     {
-        if (Frame != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any(command => command.NativeCallback?.Stage != 0))
+        if (Frame != 0 || ActiveAction is not null || actions.Count != 0)
         {
             throw new InvalidOperationException("Graphical preview must be configured before arena callbacks.");
         }

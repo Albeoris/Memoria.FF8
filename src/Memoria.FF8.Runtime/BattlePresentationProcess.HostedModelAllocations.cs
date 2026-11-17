@@ -4,8 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    internal sealed record HostedModelLoadAdmission(HostedDispatchControl.LoadEnemy Load, NativeBattleGraphicsBinding Binding, ImmutableHashSet<BattleModelOwner> LaterOwners, bool UsesOriginalSceneResource);
-    internal sealed record HostedModelRegistry(BattleModelRoster Roster, ImmutableDictionary<BattleEnemyActorModel, HostedModelLoadAdmission> Loads);
+    internal sealed record HostedModelLoadAdmission(HostedDispatchControl.LoadModel Load, NativeBattleGraphicsBinding Binding, ImmutableHashSet<BattleModelOwner> LaterOwners, bool UsesOriginalSceneResource)
+    {
+        internal BattleEnemyRosterSource? Source { get; init; }
+    }
+    internal sealed record HostedModelRegistry(BattleModelRoster Roster, ImmutableDictionary<BattleModelOwner, HostedModelLoadAdmission> Loads);
     internal sealed record PreparedHostedModelRegistry(HostedModelRegistry Original, HostedModelRegistry Replacement, NativeBattleModelCpuResources Cpu, NativeBattleModelTextureCache Cache, NativeBattleEffectMemory Memory);
 
     private HostedModelRegistry? hostedModelRegistry;
@@ -24,22 +27,22 @@ public sealed partial class BattlePresentationProcess
         var loads = original.Loads.ToBuilder();
         foreach (HostedModelLoadAdmission admission in additions)
         {
-            if (original.Roster.Contains(admission.Load.Owner) || !loads.TryAdd(admission.Load.Owner, admission))
+            if (original.Roster.Contains(admission.Load.ModelOwner) || !loads.TryAdd(admission.Load.ModelOwner, admission))
             {
                 throw new InvalidDataException("Hosted allocation cannot publish the same planned generation twice.");
             }
         }
-        BattleModelRoster roster = new(original.Roster.Owners.Concat(additions.Select(plan => plan.Load.Owner)));
+        BattleModelRoster roster = new(original.Roster.Owners.Concat(additions.Select(plan => plan.Load.ModelOwner)));
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels, roster);
         NativeBattleModelCpuResources cpu = PrepareHostedAllocationCpu(original.Roster, roster, [], aliases);
-        NativeBattleModelTextureCache cache = (NativeModelTextureCache ?? throw new InvalidOperationException("Hosted allocation requires its model texture cache.")).RebindPresentationEnemies(original.Roster, roster, []);
+        NativeBattleModelTextureCache cache = (NativeModelTextureCache ?? throw new InvalidOperationException("Hosted allocation requires its model texture cache.")).RebindPresentationRoster(original.Roster, roster, []);
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidOperationException("Hosted allocation requires its native effect memory.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new InvalidOperationException("Hosted allocation requires its per-model texture banks.");
         NativeBattlePcTextureWindowCache template = memory.PrimitiveProcess?.TextureWindowCache ?? throw new InvalidOperationException("Hosted allocation requires its initialized texture cache.");
         NativeBattleEffectTextureState leaf = textures with { PresentationTextures = null, Count = 0, Slots = NativeBattleEffectTextureState.FromColdProcess().Slots, Animation = null };
         foreach (HostedModelLoadAdmission admission in additions)
         {
-            textures = textures.WithPresentationTexture(ReadGraphicsPresentationId(admission.Load.Owner), new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(template)));
+            textures = textures.WithPresentationTexture(ReadGraphicsPresentationId(admission.Load.ModelOwner), new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(template)));
         }
         return new(original, new(roster, loads.ToImmutable()), cpu, cache, memory with { Textures = textures });
     }
@@ -55,10 +58,10 @@ public sealed partial class BattlePresentationProcess
         }
     }
 
-    private NativeBattleModelCpuResources PrepareHostedAllocationCpu(BattleModelRoster expected, BattleModelRoster roster, BattleEnemyModelOwner[] retired, NativeBattleModelAliases aliases)
+    private NativeBattleModelCpuResources PrepareHostedAllocationCpu(BattleModelRoster expected, BattleModelRoster roster, BattleModelOwner[] retired, NativeBattleModelAliases aliases)
     {
         NativeBattleModelCpuResources owner = NativeModelCpuResources ?? throw new InvalidOperationException("Hosted allocation requires its model CPU banks.");
-        NativeBattleModelCpuBanks cpu = owner.Cpu.RebindPresentationEnemies(expected, roster, retired, aliases);
+        NativeBattleModelCpuBanks cpu = owner.Cpu.RebindPresentationRoster(expected, roster, retired, aliases);
         int capacity = NativeBattleModelResourceRowAddress.CapacityForRoster(roster);
         ImmutableArray<NativeBattleModelCpuResourceRow> rows = owner.Rows;
         if (rows.Length < capacity)
@@ -71,26 +74,35 @@ public sealed partial class BattlePresentationProcess
     private bool TryRebindHostedAllocationModel(NativeBattleGraphicsState graphics, NativeBattleDescriptorModelSubject.PlannedLoad plan, int descriptorSlot, out NativeBattleGraphicsState rebound)
     {
         HostedModelRegistry registry = hostedModelRegistry ?? throw new InvalidOperationException("Hosted model load requires its planned roster.");
-        if (plan.Owner is not BattleEnemyActorModel owner || !registry.Loads.TryGetValue(owner, out HostedModelLoadAdmission? admission) ||
+        BattleModelOwner owner = plan.Owner;
+        if (!registry.Loads.TryGetValue(owner, out HostedModelLoadAdmission? admission) ||
             plan.OriginalSlot != admission.Load.OriginalSlot || !ReferenceEquals(plan.Binding, admission.Binding))
         {
             throw new InvalidDataException("Hosted native 102 does not belong to the admitted generation.");
         }
-        NativeBattleModelSlot slot = admission.Load.OriginalSlot ?? throw new InvalidDataException("Rebinding an original model requires its original slot.");
-        BattleEnemyModelOwner? retired = graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) as BattleEnemyModelOwner;
+        NativeBattleModelSlot? slot = admission.Load.OriginalSlot;
+        BattleModelOwner? retired = slot is { } original ? graphics.NativeBindings.FindOriginalOwner(original, graphics.ActorModels) : null;
+        if (admission.Load is HostedDispatchControl.LoadParty party)
+        {
+            if (slot is not null && retired != party.Outgoing || !graphics.ActorModels.Contains(party.Outgoing))
+            {
+                throw new InvalidDataException("Party replacement lost its outgoing model owner.");
+            }
+            retired = party.Outgoing;
+        }
         if (retired is not null)
         {
             if (retired == owner)
             {
-                throw new InvalidDataException($"Hosted native 102 already bound its incoming generation {owner} to original slot {slot.Offset}.");
+                throw new InvalidDataException($"Hosted native 102 already bound its incoming generation {owner}.");
             }
             if (admission.LaterOwners.Contains(retired))
             {
-                throw new InvalidDataException($"Hosted native 102 would retire {retired} in slot {slot.Offset} before its later captured work in staged operations.");
+                throw new InvalidDataException($"Hosted native 102 would retire {retired} before its later captured work in staged operations.");
             }
             if (FindFutureHostedModelWork(graphics, descriptorSlot, retired) is { } pending)
             {
-                throw new InvalidDataException($"Hosted native 102 would retire {retired} in slot {slot.Offset} before its later captured work in queued descriptor {pending.Command} serial {pending.Serial}.");
+                throw new InvalidDataException($"Hosted native 102 would retire {retired} before its later captured work in queued descriptor {pending.Command} serial {pending.Serial}.");
             }
             if (HasRunningHostedModelWork(graphics, retired))
             {
@@ -99,20 +111,24 @@ public sealed partial class BattlePresentationProcess
             }
         }
 
-        (NativeBattleModelBoundary boundary, BattleActorModels models) = graphics.NativeBindings.BindOriginalSlot(slot, owner, graphics.ActorModels);
-        BattleEnemyModelOwner[] retiredOwners = retired is null ? [] : [retired];
+        (NativeBattleModelBoundary boundary, BattleActorModels models) = slot is { } bindingSlot
+            ? graphics.NativeBindings.BindOriginalSlot(bindingSlot, owner, graphics.ActorModels)
+            : retired is { } outgoing
+                ? (graphics.NativeBindings, graphics.ActorModels.Remove(outgoing).Add(owner, graphics.ActorModels.Get(outgoing)))
+                : throw new InvalidDataException("A model rebind requires an outgoing owner or original slot.");
+        BattleModelOwner[] retiredOwners = retired is null ? [] : [retired];
         BattleModelRoster roster = retired is null ? registry.Roster : new(registry.Roster.Owners.Where(owned => owned != retired));
         NativeBattleModelAliases aliases = boundary.CaptureAliases(models, roster);
         NativeBattleActionPacketsState packets = nativeActionPackets.WithRoster(roster, aliases);
         NativeBattleModelCpuResources cpu = PrepareHostedAllocationCpu(registry.Roster, roster, retiredOwners, aliases);
-        NativeBattleModelTextureCache cache = NativeModelTextureCache!.RebindPresentationEnemies(registry.Roster, roster, retiredOwners);
+        NativeBattleModelTextureCache cache = NativeModelTextureCache!.RebindPresentationRoster(registry.Roster, roster, retiredOwners);
         NativeBattleEffectMemory memory = NativeEffectMemory!;
         if (retired is not null)
         {
             NativeBattleEffectTextureState textures = memory.Textures!;
             memory = memory with { Textures = textures with { PresentationTextures = textures.PresentationTextures!.Remove(ReadGraphicsPresentationId(retired)) } };
         }
-        ImmutableDictionary<BattleEnemyActorModel, HostedModelLoadAdmission> loads = retired is BattleEnemyActorModel retiredActor ? registry.Loads.Remove(retiredActor) : registry.Loads;
+        ImmutableDictionary<BattleModelOwner, HostedModelLoadAdmission> loads = retired is { } retiredActor ? registry.Loads.Remove(retiredActor) : registry.Loads;
         hostedModelRegistry = new(roster, loads);
         nativeActionPackets = packets;
         NativeModelCpuResources = cpu;

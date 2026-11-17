@@ -49,8 +49,8 @@ public sealed class NativeBattleEffect303PresentationTests
         List<object> loaded = [];
         foreach ((byte index, int modelId, byte nativeId) in new[] { ((byte)3, 11, (byte)27), ((byte)4, 12, (byte)28) })
         {
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, index);
-            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, index));
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, index);
+            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, index));
             Assert.Equal(modelId, definition.ModelId);
             Assert.Equal(index - 3, definition.SceneSlot);
             Assert.Equal(nativeId, model.ModelId4);

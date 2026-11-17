@@ -61,16 +61,14 @@ public sealed partial class BattleSession
         }
         if ((battle & 0x10000) != 0)
         {
-            actor.NativeStatus1 &= ~0x10000u;
-            actor.NativeStatus0 = (ushort)((actor.NativeStatus0 & ~0x20) | 1);
-            actor.NativeCombatantFlags = 0;
+            EjectPartyOccupant(actor);
         }
         RefreshNativePresentationStatus(actor);
     }
 
     private bool IsExpandedQueuedReadyInput(BattleAttackCommand command, string actorId)
     {
-        if (command.ActorId != actorId || command.NativeCallback is not null || command.NativeHeader is not null || command.RosterOperation is not null || command.NativePlayerReaction is not null)
+        if (command.ActorId != actorId || command.NativeHeader is not null || command.RosterOperation is not null || command.NativePlayerReaction is not null)
         {
             return false;
         }

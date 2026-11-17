@@ -92,7 +92,7 @@ public sealed class ExpandedBattleReturnTests
         BattleSession battle = Enter(world, session);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleEncounterOccurrence occurrence = Assert.IsType<BattleEncounterOccurrence>(session.State.PendingBattleEncounter);
-        Assert.Null(battle.Presentation?.Graphics);
+        Assert.Same(process, battle.Presentation);
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant[] activeEnemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();
         Assert.Equal(5, activeEnemies.Length);
@@ -161,12 +161,10 @@ public sealed class ExpandedBattleReturnTests
         Assert.Null(battle.DebugOutcome);
         Assert.Single(battle.Events, item => item.Kind == "Outcome");
 
-        BattleSession child = Assert.IsType<BattleSession>(typeof(BattlePresentationProcess).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(process));
-        Assert.Equal(child.Presentation!.CurrentCrtRandom, battle.Presentation!.CurrentCrtRandom);
-        Assert.Equal(child.NativeGlobalRandomChange, battle.NativeGlobalRandomChange);
-        Assert.Same(child.NativeMusicProcess, battle.NativeMusicProcess);
-        Assert.Same(child.NativeGlobalSoundProcess, battle.NativeGlobalSoundProcess);
-        Assert.Same(child.NativeVibrationProcess, battle.NativeVibrationProcess);
+                Assert.Equal(process.NativeGlobalRandomChange, battle.NativeGlobalRandomChange);
+        Assert.Same(process.NativeMusicProcess, battle.NativeMusicProcess);
+        Assert.Same(process.NativeGlobalSoundProcess, battle.NativeGlobalSoundProcess);
+        Assert.Same(process.NativeVibrationProcess, battle.NativeVibrationProcess);
         NativeExamTimerState finalTimer = Assert.IsType<NativeExamTimerState>(battle.NativeExamTimer);
         Assert.True(finalTimer.HasSameClock(Assert.IsType<NativeExamTimerState>(process.Timer)));
         Assert.True(finalTimer.HasSameClock(session.ExamTimer!));

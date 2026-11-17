@@ -21,11 +21,11 @@ public sealed class NativeBattleCameraScratchMigrationTests
         Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(bytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(255L, original.Frame);
-        Assert.Equal(545L, original.NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, original.NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Equal((byte)0, original.NativeEffectMemory!.Active);
-        Assert.Null(original.NativeCamera!.ViewTranslationScratch);
+        Assert.Equal(545L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal(0u, original.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal((byte)0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
+        Assert.Null(original.ReadFixturePresentation().NativeCamera!.ViewTranslationScratch);
         JsonNode originalNode = JsonNode.Parse(bytes)!;
         JsonNode migratedNode = originalNode.DeepClone();
         JsonObject camera = migratedNode["NativeCamera"]!.AsObject();

@@ -73,6 +73,7 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal ImmutableArray<NativeBattlePresentationReceipt> ReadOrderedReceipts() => receipts.ToImmutable();
 
     internal void Emit(NativeBattleModelLifecycleReceipt receipt) => receipts.Add(receipt);
+    internal void EmitPartyReplacement(NativeBattlePartyReplacementReached receipt) => receipts.Add(receipt);
 
     internal void EmitShotWidget(NativeBattleShotWidgetUpdated update) => receipts.Add(update);
 

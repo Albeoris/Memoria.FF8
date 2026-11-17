@@ -50,10 +50,10 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             }
         }
         Assert.True(entered);
-        BattleSnapshot source = battle.Capture();
+        BattleSnapshot source = battle.CaptureForContinuation();
         ushort initialCounter = Counter(source);
         Assert.InRange(initialCounter, (ushort)0, (ushort)1);
-        Assert.NotEqual(0u, source.NativeEffectMemory!.Diablos325!.ModelBuffer5208);
+        Assert.NotEqual(0u, source.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.ModelBuffer5208);
         BattleScenePresentation scene = new(assets, definition);
         NativeBattleRestorationPresentationTests.Publish(output, "entry", source, scene.Render(battle, 320, 224).ToArray());
         BattleSession first = BattleSession.Restore(source);
@@ -67,20 +67,20 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
             Assert.Equal(scene.Render(first, 320, 224).ToArray(), scene.Render(second, 320, 224).ToArray());
         }
-        BattleSnapshot boundary = first.Capture();
+        BattleSnapshot boundary = first.CaptureForContinuation();
         byte[] boundaryPixels = scene.Render(first, 320, 224).ToArray();
         NativeBattleRestorationPresentationTests.Publish(output, "before-attached-trails", boundary, boundaryPixels);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        BattleSnapshot continued = first.Capture();
-        Assert.Equal(boundary.NativeGraphics!.Callback + 1, continued.NativeGraphics!.Callback);
+        BattleSnapshot continued = first.CaptureForContinuation();
+        Assert.Equal(boundary.ReadFixturePresentation().NativeGraphics!.Callback + 1, continued.ReadFixturePresentation().NativeGraphics!.Callback);
         Assert.Equal((ushort)(Counter(boundary) + 1), Counter(continued));
         Assert.Equal(JsonSerializer.Serialize(continued), JsonSerializer.Serialize(second.Capture()));
         byte[] continuedPixels = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(continuedPixels, scene.Render(second, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(output, "attached-trails-next", continued, continuedPixels);
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-opening-and-attached-trail-continuation-validated", continued.Frame, NativeCallback = continued.NativeGraphics.Callback, Counter = Counter(continued), Boundary = "6559D3-next-callback" }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-opening-and-attached-trail-continuation-validated", continued.Frame, NativeCallback = continued.ReadFixturePresentation().NativeGraphics.Callback, Counter = Counter(continued), Boundary = "6559D3-next-callback" }));
 
-        static ushort Counter(BattleSnapshot snapshot) => snapshot.NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Entry.MainDescriptor).Slots[0].ReadWord(0xC);
+        static ushort Counter(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }
 }

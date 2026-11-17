@@ -35,6 +35,13 @@ public sealed partial class BattleSession
             }
             owner.CopyCandidateState(candidate, state, preparedExpandedAction: true);
             published = true;
+            if (candidate.participantCallbackObservations is { } observations)
+            {
+                foreach (BattleParticipantCallbackReceipt observation in observations)
+                {
+                    owner.ObserveDiagnosticParticipantCallback(observation);
+                }
+            }
         }
     }
 
@@ -43,8 +50,11 @@ public sealed partial class BattleSession
         BattleSession candidate = RestoreSnapshot(snapshot, proof);
         candidate.preparingExpandedHostedAction = true;
         candidate.stagingExpandedHostedGuardianForms = true;
+        candidate.preparePresentationModelBinding = preparePresentationModelBinding;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
+        candidate.expandedPartyReadyStatusMirrors = expandedPartyReadyStatusMirrors;
         candidate.nativeAffinityAction = nativeAffinityAction;
+        candidate.participantCallbackObservations = ObservingDiagnosticCounter ? [] : null;
         if (expandedPresentationProcess is { } process)
         {
             candidate.readHostedAiHeapMessage = process.ReadAiHeapMessage;
@@ -75,7 +85,7 @@ public sealed partial class BattleSession
             // Routed ordinary counters can publish only after their source mirror and its actual completion are staged.
             candidate.FlushEncounterCounterCommands();
             ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
-            BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+            BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.ModelOwner)));
             candidate.ValidateExpandedHostedInvocations(admittedRoster);
             ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form);
             admission = prefix.Dispatch;

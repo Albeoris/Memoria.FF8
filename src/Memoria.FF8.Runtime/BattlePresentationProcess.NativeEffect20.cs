@@ -22,7 +22,10 @@ public sealed partial class BattlePresentationProcess
             return graphics with { OriginalEffect = frame.Effect };
         }
         NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Effect20 requires its current camera.");
-        NativeBattleEffect20Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), PoseSource, Execute, AdvanceOverlay);
+        NativeBattleEffect20Inputs inputs = new(nativeActionPackets, camera.CapturePackedView1D97778(), actor => graphics.ActorModels.Get(actor), PoseSource, Execute, AdvanceOverlay)
+        {
+            AuthoredOperand = operand => ResolveSourceModelOperand(graphics, effect.Parameters!.Source, operand)
+        };
         frame = NativeBattleEffect20Controller.Advance(frame, resources, inputs);
         if (frame.Effect.ReturnedDescriptor == 0)
         {

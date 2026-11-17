@@ -3,12 +3,10 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private sealed record EncounterImmediateCounter(BattleCombatant Actor, NativeContactWorking? Contact, BattleActionPresentation? Action, bool Suppressed, bool Death, bool Secondary);
-    private sealed record EncounterCounterCommand(BattleCombatant Actor, BattleAttackCommand Command, string Name, bool PlayerInput, BattleTargetRequest? DiagnosticSelection, BattleActionHeaderReference? SourceHeader, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation? ExpandedSource);
+    private sealed record EncounterCounterCommand(BattleAttackCommand Command, NativeBattleActionProductionContext? Context, ExpandedAiInvocationReservation Source);
     private readonly Queue<EncounterCounterCommand> encounterCounterCommands = [];
     private bool capturingEncounterCounterCommands;
     private bool flushingEncounterCounterCommands;
-    private BattleActionHeaderReference? encounterProducingHeaderIndex;
-    private BattleActionHeaderReference? encounterProducingCommandFirstHeader;
 
     private void RunEncounterImmediateCounter(BattleCombatant actor, bool death = false)
     {
@@ -59,13 +57,7 @@ public sealed partial class BattleSession
                 {
                     invocation.Actor.NativeStatus0 |= 1;
                 }
-                try
-                {
-                    RunNativeAi(invocation.Actor, 4);
-                }
-                finally
-                {
-                }
+                RunNativeAi(invocation.Actor, 4);
                 if (invocation.Death)
                 {
                     MarkExpandedDeathContactMirror(invocation.Actor, invocation.Secondary);
@@ -87,16 +79,15 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool CaptureEncounterCounterCommand(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput, BattleTargetRequest? diagnosticSelection)
+    private bool CaptureEncounterCounterCommand(BattleAttackCommand command)
     {
         if (!capturingEncounterCounterCommands)
         {
             return false;
         }
-        ExpandedAiInvocationReservation? expandedSource = producingExpandedAiCallback
-            ? producingExpandedAiInvocation ?? throw new InvalidDataException("A captured expanded counter requires its actual source invocation reservation.")
-            : null;
-        encounterCounterCommands.Enqueue(new(actor, command, name, playerInput, diagnosticSelection, encounterProducingCommandFirstHeader ?? encounterProducingHeaderIndex ?? resolvingNativeAction?.NativeHeader, nativeProductionContext, expandedSource));
+        ExpandedAiInvocationReservation source = producingExpandedAiInvocation
+            ?? throw new InvalidDataException("A captured encounter counter requires its current typed invocation reservation.");
+        encounterCounterCommands.Enqueue(new(command, nativeProductionContext, source));
         return true;
     }
 
@@ -112,8 +103,7 @@ public sealed partial class BattleSession
         {
             while (encounterCounterCommands.TryPeek(out EncounterCounterCommand? pending))
             {
-                if (pending.ExpandedSource is { } reservation ? !IsStagedExpandedAiInvocation(reservation) :
-                    pending.SourceHeader is BattleActionHeaderReference header && (!nativeActionPackets.HasPublishedHeader(header) || ActiveAction?.NativeHeader != header && !actions.Any(command => command.NativeHeader == header)))
+                if (!IsStagedExpandedAiInvocation(pending.Source))
                 {
                     return;
                 }
@@ -129,26 +119,8 @@ public sealed partial class BattleSession
                 nativeAiCallbackStage = pending.Command.NativeAiCallbackStage;
                 try
                 {
-                    BattleAttackCommand command = pending.Command;
-                    if (pending.ExpandedSource is not null)
-                    {
-                        producingExpandedAiCallback = true;
-                        ProduceExpandedAiCallbackCommand(command);
-                        continue;
-                    }
-                    if (pending.SourceHeader is not null)
-                    {
-                        byte sourceIndex = nativeActionScratch.EventActorB0F ?? throw new InvalidDataException("Deferred counter lacks its native source-event actor.");
-                        BattleCombatant sourceActor = combatants.Single(actor => actor.NativeActorIndex == sourceIndex);
-                        BattleModelOwner sourceOwner = CreatePresentationModelOwner(sourceActor);
-                        BattleActionHeaderReference? sourceHeader = nativeActionPackets.PublishedHeaders().Where(header => header.Slot.Source == sourceOwner).Select(header => (BattleActionHeaderReference?)header.Reference).FirstOrDefault();
-                        if (sourceHeader is null)
-                        {
-                            throw new InvalidDataException("Deferred counter lacks its accepted source-event header.");
-                        }
-                        command = command with { NativeEventOwner = new(sourceActor.Id, sourceHeader.Value) };
-                    }
-                    EnqueueNativePacket(pending.Actor, command, pending.Name, pending.PlayerInput, pending.DiagnosticSelection);
+                    producingExpandedAiCallback = true;
+                    ProduceExpandedAiCallbackCommand(pending.Command);
                 }
                 finally
                 {

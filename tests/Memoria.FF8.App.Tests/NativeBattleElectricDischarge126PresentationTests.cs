@@ -44,8 +44,8 @@ public sealed class NativeBattleElectricDischarge126PresentationTests
         Assert.Equal(NativeBattleElectricDischarge126Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleElectricDischarge126Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag125.tim", NativeBattleElectricDischarge126Profile.InitializerGlobal), binding.InitializerResource);
-        Assert.True(source.NativeEffectMemory!.ElectricDischarge126!.ColdSourcesPending);
-        Assert.Null(source.NativeEffectMemory.ElectricDischarge126.FlashThreshold);
+        Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.ElectricDischarge126!.ColdSourcesPending);
+        Assert.Null(source.ReadFixturePresentation().NativeEffectMemory.ElectricDischarge126.FlashThreshold);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

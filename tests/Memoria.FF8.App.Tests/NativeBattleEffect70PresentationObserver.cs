@@ -27,12 +27,12 @@ internal sealed class NativeBattleEffect70PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect70State state = current.NativeEffectMemory!.Effect70!;
+        NativeBattleEffect70State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect70!;
         state.Validate();
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
@@ -51,10 +51,10 @@ internal sealed class NativeBattleEffect70PresentationObserver
             Contacts++;
             Mark("effect70-contact252", current, cold);
         }
-        for (int index = 0; index < current.NativeGraphics.Effects.Slots.Length; index++)
+        for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics.Effects.Slots.Length; index++)
         {
-            NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[index];
-            if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 0) && (prior.NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
+            NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+            if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 0) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
             {
                 ContactGlyphs++;
             }
@@ -78,7 +78,7 @@ internal sealed class NativeBattleEffect70PresentationObserver
                 callbacks.UnionWith(pool.Slots.Where(task => (task.Flags & 1) != 0).Select(task => task.Callback));
                 if (index != 0)
                 {
-                    Assert.All(current.NativeEffectMemory.Arena!.ReadSnapshot(checked((int)(pool.BankAddress - ArenaAddress)), pool.Stride * pool.Slots.Length).Known, value => Assert.False(value));
+                    Assert.All(current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(checked((int)(pool.BankAddress - ArenaAddress)), pool.Stride * pool.Slots.Length).Known, value => Assert.False(value));
                 }
             }
             if (main is not null && (main.Flags & 1) != 0)
@@ -90,7 +90,7 @@ internal sealed class NativeBattleEffect70PresentationObserver
                 {
                     Mark("effect70-main-age-" + age, current, cold);
                 }
-                NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+                NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
                 if (!sparks && Enumerable.Range(0, 128).Any(index => arena.Read(SparkOffset + index * 16 + 15, 1)[0] != 0))
                 {
                     sparks = true;
@@ -130,7 +130,7 @@ internal sealed class NativeBattleEffect70PresentationObserver
             Assert.NotNull(state.RootBankStorage);
             Mark("effect70-physical-banks-released", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.NativeGraphics.Callback, Age = main?.ReadWord(12), Pools = effect.Pools.Length, PrimaryCursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Depth = state.ReadDword(DepthGlobal), current.NativeCrtRandom, Contacts, ContactGlyphs, Packets = CurrentCommands.Length });
+        observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics.Callback, Age = main?.ReadWord(12), Pools = effect.Pools.Length, PrimaryCursor = state.ReadDword(CursorGlobal), SecondaryCursor = state.ReadDword(SecondaryCursorGlobal), Depth = state.ReadDword(DepthGlobal), current.NativeCrtRandom, Contacts, ContactGlyphs, Packets = CurrentCommands.Length });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -153,7 +153,7 @@ internal sealed class NativeBattleEffect70PresentationObserver
         Assert.Contains("effect70-main-age-252", markers);
         Assert.Contains("effect70-main-age-262", markers);
         Assert.Contains("effect70-physical-banks-released", markers);
-        Assert.Equal(0u, completed.NativeEffectMemory!.Effect70!.ReadDword(DepthGlobal));
+        Assert.Equal(0u, completed.ReadFixturePresentation().NativeEffectMemory!.Effect70!.ReadDword(DepthGlobal));
         foreach (uint sound in completed.Definition.NativeEffectCatalog[69].Effect70Resources!.Sounds.Values)
         {
             Assert.Contains(completed.Events, item => item.NativeModuleSound?.Sound == sound);
@@ -163,8 +163,8 @@ internal sealed class NativeBattleEffect70PresentationObserver
 
     internal static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
     {
-        NativeBattleEffect70State? state = current.NativeEffectMemory?.Effect70;
-        if (state is null || current.NativeGraphics?.OriginalEffect?.Binding.Effect != Effect)
+        NativeBattleEffect70State? state = current.ReadFixturePresentation().NativeEffectMemory?.Effect70;
+        if (state is null || current.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect != Effect)
         {
             return [];
         }
@@ -180,10 +180,10 @@ internal sealed class NativeBattleEffect70PresentationObserver
             int start = FirstPacketOffset + ((end - FirstPacketOffset - 1) / 0x10000) * 0x10000;
             return offset >= start && offset < end;
         }
-        return current.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && (Contains(command.Packet.ByteOffset, primary) || Contains(command.Packet.ByteOffset, secondary))).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && (Contains(command.Packet.ByteOffset, primary) || Contains(command.Packet.ByteOffset, secondary))).ToArray();
     }
 
-    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == MainCallback) : null;
+    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => task.Callback == MainCallback) : null;
 
     private void Mark(string name, BattleSnapshot snapshot, Action<string, BattleSnapshot> cold)
     {

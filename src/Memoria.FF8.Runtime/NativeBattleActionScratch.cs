@@ -33,11 +33,10 @@ public sealed record NativeBattleActionScratch
     public byte? EventLane { get; init; }
     //TODO(TD-009): Without the descriptor bank this retains its single pending10 callback until component presentation completes.
     [JsonRequired]
-    public uint? ComponentCompletion { get; init; }
 
     public void Validate()
     {
-        if (ActorIndex >= 7 || EventActorB0F >= 7 || EventLane >= 3 || ComponentCompletion is not null and not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (ActorIndex >= 7 || EventActorB0F >= 7 || EventLane >= 3)
         {
             throw new InvalidDataException("Native action scratch contradicts its physical actor, event lane or completion callback.");
         }

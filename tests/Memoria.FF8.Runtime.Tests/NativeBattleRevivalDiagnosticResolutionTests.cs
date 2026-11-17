@@ -19,7 +19,7 @@ public sealed class NativeBattleRevivalDiagnosticResolutionTests
         battle.DiagnosticResolution += resolutions.Add;
         cold.DiagnosticResolution += coldResolutions.Add;
 
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(resolutions.Count != 0); frame++)
         {
             battle.Tick();
             unobserved.Tick();

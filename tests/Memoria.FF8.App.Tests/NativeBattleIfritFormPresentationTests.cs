@@ -68,11 +68,11 @@ public sealed class NativeBattleIfritFormPresentationTests
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             if (statusStanding)
             {
-                BattleSnapshot active = battle.Capture();
-                NativeBattleGraphicsState graphics = active.NativeGraphics!;
+                BattleSnapshot active = battle.CaptureForContinuation();
+                NativeBattleGraphicsState graphics = active.ReadFixturePresentation().NativeGraphics!;
                 NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, 0);
                 Assert.Equal((byte)1, model.SequenceState!.Default2);
-                battle = BattleSession.Restore(active with { NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 0), model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } });
+                battle = BattleSession.Restore(active.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 0), model with { Flags8 = model.Flags8!.Value | 0x1000000 }) } }));
             }
             AssertVisibility();
             AssertCommonTexture();
@@ -348,8 +348,8 @@ public sealed class NativeBattleIfritFormPresentationTests
             battle.Tick();
         }
         Assert.True(battle.CanRequestGuardianForm("party", 2));
-        BattleSnapshot uninvoked = battle.Capture();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(uninvoked with { NativeGraphics = uninvoked.NativeGraphics! with { GuardianFormHumanFocalToRestore = 512 } }));
+        BattleSnapshot uninvoked = battle.CaptureForContinuation();
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(uninvoked.WithFixturePresentation(facts => facts with { NativeGraphics = uninvoked.ReadFixturePresentation().NativeGraphics! with { GuardianFormHumanFocalToRestore = 512 } })));
         battle.RequestGuardianForm("party", 2);
         bool restoredEmergence = false;
         int emergenceCallbacks = 0;
@@ -372,8 +372,8 @@ public sealed class NativeBattleIfritFormPresentationTests
             }
         }
         Assert.True(restoredEmergence);
-        BattleSnapshot landed = battle.Capture();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(landed with { NativeGraphics = landed.NativeGraphics! with { GuardianFormPresentation = landed.NativeGraphics.GuardianFormPresentation! with { HumanFocalLength = 0 } } }));
+        BattleSnapshot landed = battle.CaptureForContinuation();
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(landed.WithFixturePresentation(facts => facts with { NativeGraphics = landed.ReadFixturePresentation().NativeGraphics! with { GuardianFormPresentation = landed.ReadFixturePresentation().NativeGraphics.GuardianFormPresentation! with { HumanFocalLength = 0 } } })));
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("party")?.Phase);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
@@ -424,8 +424,8 @@ public sealed class NativeBattleIfritFormPresentationTests
         for (int callback = 0; callback < 4096; callback++)
         {
             battle.Tick();
-            BattleSnapshot snapshot = battle.Capture();
-            if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: 201, ReturnedDescriptor: > 0 })
+            BattleSnapshot snapshot = battle.CaptureForContinuation();
+            if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 201, ReturnedDescriptor: > 0 })
             {
                 if (entered)
                 {
@@ -434,7 +434,7 @@ public sealed class NativeBattleIfritFormPresentationTests
                 continue;
             }
             entered = true;
-            NativeBattleEffectMemory memory = snapshot.NativeEffectMemory!;
+            NativeBattleEffectMemory memory = snapshot.ReadFixturePresentation().NativeEffectMemory!;
             NativeBattleScriptedEffectMemory core = memory.ScriptedEffects!;
             NativeBattleEffectArena arena = memory.Arena!;
             uint bank = Read(Read(0x27973EC) + 0x90);

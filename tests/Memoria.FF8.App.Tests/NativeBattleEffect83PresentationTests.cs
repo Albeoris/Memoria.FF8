@@ -39,17 +39,17 @@ public sealed class NativeBattleEffect83PresentationTests
         BattleSession continuation = BattleSession.Restore(original);
         continuation.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         continuation.Tick();
-        BattleSnapshot continued = continuation.Capture();
-        Assert.Equal(original.NativeGraphics!.Callback + 1, continued.NativeGraphics!.Callback);
-        Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory!.Effect83), JsonSerializer.Serialize(continued.NativeEffectMemory!.Effect83));
+        BattleSnapshot continued = continuation.CaptureForContinuation();
+        Assert.Equal(original.ReadFixturePresentation().NativeGraphics!.Callback + 1, continued.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Effect83), JsonSerializer.Serialize(continued.ReadFixturePresentation().NativeEffectMemory!.Effect83));
         NativeBattleRestorationPresentationTests.Publish(output, "source-owner-next", continued, null);
-        NativeBattleGraphicsState graphics = original.NativeGraphics ?? throw new InvalidDataException("The selected component requires its current native graphics owner.");
+        NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The selected component requires its current native graphics owner.");
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0u, graphics.OriginalEffect!.ReturnedDescriptor);
-        Assert.NotNull(original.NativeEffectMemory!.Effect83);
-        original.NativeEffectMemory.Effect83.Validate();
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect83State.FromColdProcess())), JsonSerializer.Serialize(original.NativeEffectMemory.Effect83));
+        Assert.NotNull(original.ReadFixturePresentation().NativeEffectMemory!.Effect83);
+        original.ReadFixturePresentation().NativeEffectMemory.Effect83.Validate();
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect83State.FromColdProcess())), JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory.Effect83));
         List<object> loaded = [];
         foreach ((byte actor, int modelId, byte nativeId) in new[] { ((byte)3, 123, (byte)139), ((byte)4, 122, (byte)138) })
         {
@@ -103,10 +103,10 @@ public sealed class NativeBattleEffect83PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag082.tim", NativeBattleEffect83Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(NativeBattleEffect83Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeEffect83Resources(), binding.Effect83Resources);
-        BattleSnapshot source = original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(82, binding) }, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(82, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.NativeGraphics)));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory.Arena), JsonSerializer.Serialize(source.NativeEffectMemory!.Arena));
+        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics)));
+        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory.Arena), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory!.Arena));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original effect83 renderer and lifecycle from a preserved standalone formation509/stage142 carrier; caster4/model122/native138, command8/action336/sequence16. Explicit aliveparty0 post-formula renderer/lifecycle input preserves sourceHP100, rawSaved768/Battle0 and retainedPresentation768/0. Original AI opcode38 criterion0 requires allocated deadparty; this alive target is not ordinarily eligible. This component excludes ordinary AI/dead-target/KO/formula admission and does not mutate sourceHP/status to fabricate eligibility.", Loaded = loaded, header = packets.ReadHeader(header), Contact = contact }));
         return source;

@@ -29,13 +29,13 @@ internal sealed class NativeBattleEffect303PresentationObserver
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         capturedPrimitives += NativeBattleRecovery32CaptureAssertions.AssertFrame(current, 303);
-        NativeBattleOriginalEffectState? before = prior.NativeGraphics!.OriginalEffect;
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? before = prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != 303 || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect303State state = current.NativeEffectMemory!.Effect303!;
+        NativeBattleEffect303State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect303!;
         if (effect.ReturnedDescriptor is > 0)
         {
             Assert.Null(state.RootBankStorage);
@@ -97,9 +97,9 @@ internal sealed class NativeBattleEffect303PresentationObserver
             {
                 Mark("effect303-packet-bank-" + bank, current, cold);
             }
-            if (current.NativeEffectMemory.EffectIo?.BaseOffset == NativeBattleEffect303Profile.IoOffset)
+            if (current.ReadFixturePresentation().NativeEffectMemory.EffectIo?.BaseOffset == NativeBattleEffect303Profile.IoOffset)
             {
-                byte[] io = current.NativeEffectMemory.Arena!.Read(NativeBattleEffect303Profile.IoOffset, 16);
+                byte[] io = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(NativeBattleEffect303Profile.IoOffset, 16);
                 if (io[3] != 0)
                 {
                     queued = true;
@@ -119,19 +119,19 @@ internal sealed class NativeBattleEffect303PresentationObserver
         if (!target.Hidden && !target.Suspended && !target.Untargetable)
         {
             activated = true;
-            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.NativeGraphics, 4));
+            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics, 4));
             Mark("effect303-native-recipient-activation", current, cold);
         }
         else
         {
             Assert.False(activated);
         }
-        observations.Add(new { current.Frame, current.NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(NativeBattleEffect303Profile.CursorGlobal), target.Hidden, target.Suspended, target.Untargetable, Activated = activated });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(NativeBattleEffect303Profile.CursorGlobal), target.Hidden, target.Suspended, target.Untargetable, Activated = activated });
     }
 
     public bool ActivationCompleted(BattleSnapshot current)
     {
-        NativeBattleDescriptorState descriptors = current.NativeGraphics!.Descriptors;
+        NativeBattleDescriptorState descriptors = current.ReadFixturePresentation().NativeGraphics!.Descriptors;
         return activated && !descriptors.Queue.Any(index => descriptors.Packets[index].Command == 113) && !descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Callback502F30);
     }
 
@@ -165,7 +165,7 @@ internal sealed class NativeBattleEffect303PresentationObserver
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
     {
-        uint cursor = current.NativeEffectMemory!.Effect303!.ReadDword(NativeBattleEffect303Profile.CursorGlobal);
+        uint cursor = current.ReadFixturePresentation().NativeEffectMemory!.Effect303!.ReadDword(NativeBattleEffect303Profile.CursorGlobal);
         if (cursor == 0)
         {
             return [];
@@ -173,7 +173,7 @@ internal sealed class NativeBattleEffect303PresentationObserver
         int end = checked((int)(cursor - NativeBattleEffect303Profile.ArenaAddress));
         int start = end >= NativeBattleEffect303Profile.SecondPacketOffset ? NativeBattleEffect303Profile.SecondPacketOffset : NativeBattleEffect303Profile.FirstPacketOffset;
         Assert.InRange(end, start, start + NativeBattleEffect303Profile.PacketBankBytes);
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= start && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
     }
 
     private void Mark(string name, BattleSnapshot current, Action<string, BattleSnapshot> cold)

@@ -24,13 +24,13 @@ public sealed partial class BattleSession
         BattleModelOwner owner = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);
         if (command.NativeGraphic is { } graphic)
         {
-            byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1, hostedPresentation: true);
+            byte sequence = ResolveNativeDispatchSequence(actor, 252, command.NativeSequence ?? 0, 1);
             return new(owner, 252, sequence, -1, 1, graphic.MagicId, null);
         }
-        return BuildNativeActionHeaderPreparation(actor, command, native, miniMogFailed, hostedPresentation: true);
+        return BuildNativeActionHeaderPreparation(actor, command, native, miniMogFailed);
     }
 
-    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed, bool hostedPresentation = false)
+    private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native, bool miniMogFailed)
     {
         BattleModelOwner owner = CreatePresentationModelOwner(actor);
         if (miniMogFailed)
@@ -58,14 +58,14 @@ public sealed partial class BattleSession
         if (command.NativeDraw is { } draw)
         {
             byte drawCommand = draw.Failed ? (byte)0 : (byte)6;
-            byte drawSequence = draw.Failed ? (byte)10 : ResolveNativeDispatchSequence(actor, command.DrawCast ? (byte)9 : (byte)10, command.NativeSequence ?? 0, native.ActionId, hostedPresentation: hostedPresentation);
+            byte drawSequence = draw.Failed ? (byte)10 : ResolveNativeDispatchSequence(actor, command.DrawCast ? (byte)9 : (byte)10, command.NativeSequence ?? 0, native.ActionId);
             ushort drawAction = draw.Failed ? (ushort)9 : draw.Selection;
             ushort drawEffect = draw.Failed ? (ushort)0 : command.DrawCast ? native.MagicId : (ushort)15;
             NativeBattleActionDataReference drawTitle = command.DrawCast && !draw.Failed ? new(0x495280, 0) { FormattedText = NativeDrawResultText(actor, draw, true) } : new(0x47EBD0, 6) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(6) };
             return new(owner, drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
         }
         byte original = NativeHeaderCommand(actor, command, native);
-        byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId, hostedPresentation: hostedPresentation);
+        byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
         ushort action = original == 14 ? checked((ushort)(native.ActionId + 101)) : native.ActionId;
         ushort effect = original is 0 or 1 or 12 or 28 ? (ushort)0 : native.MagicId;
         sbyte camera = -1;
@@ -158,62 +158,18 @@ public sealed partial class BattleSession
         return new(owner, original, sequence, camera, action, effect, data);
     }
 
-    private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action, bool hostedPresentation = false)
+    private byte ResolveNativeDispatchSequence(BattleCombatant actor, byte command, byte supplied, ushort action)
     {
         byte sequence = supplied;
         if (actor.GuardianFormVitals is not null && command is 1 or 12 or 28 && GetGuardianForm(actor.Id) is { } form)
         {
             sequence = GuardianFormResources(form.GuardianForceId).PhysicalSequence;
         }
-        if ((hostedPresentation ? actor.IsPlayer : actor.NativeActorIndex is < 3) && actor.GuardianFormVitals is null)
+        if (actor.IsPlayer && actor.GuardianFormVitals is null)
         {
             sequence = NativeBattleActionGraphics.ResolvePlayerSequence(command, supplied, action, definition.NativeCommandSequences);
         }
         return command is 244 or 254 && action is 15 or 70 ? (byte)11 : sequence;
-    }
-
-    private BattleAttackCommand ProduceNativeQueuedCommand(BattleCombatant actor, BattleCombatant target, BattleAttackCommand command)
-    {
-        if (command.NativeHeader is not null || !HasInstalledNativeAction(actor, command))
-        {
-            return command;
-        }
-        command = EnsureMagicReservation(actor, command);
-        BattleActionHeaderReference firstHeader = nativeActionPackets.NextHeader;
-        BattleActionHeaderReference? previousEncounterCommand = encounterProducingCommandFirstHeader;
-        encounterProducingCommandFirstHeader ??= firstHeader;
-        BattleActionPresentation presentation = NativeCommandPresentation(command);
-        NativeBattleActionProductionContext? previousContext = nativeProductionContext;
-        if (previousContext is null && nativeActionCommitDepth == 0)
-        {
-            BeginNativeReactionBatch();
-        }
-        byte original = command.NativeQueuedCommand ?? command.NativeAction?.Command ?? (byte)1;
-        byte lane = command.NativeAiCallbackStage is not null || command.NativePlayerReaction is not null ? (byte)0 : original is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 254 ? (byte)1 : (byte)2;
-        if (previousContext is null)
-        {
-            SetNativeActionEvent(actor, lane);
-        }
-        nativeProductionContext ??= new(0, lane, command.DrawCast, command.NativeAiCallbackStage == 1 || lane != 0 ? 0x47DE70u : 0x47DDA0u);
-        try
-        {
-            ResolveActionTransaction(actor, target, presentation);
-            if (nativeActionPackets.NextHeader == firstHeader)
-            {
-                throw new NotSupportedException("Native invocation did not produce its original48E830 factual header.");
-            }
-            if (nativeProductionContext is { MultiCastMode: not 0, RepeatMode: > 1 } group)
-            {
-                nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(firstHeader, group.RepeatMode);
-            }
-            ObserveDiagnosticCounterPublishedHeaders(firstHeader);
-            return command with { NativeHeader = firstHeader, NativeSequence = nativeActionPackets.ReadHeader(firstHeader).Sequence };
-        }
-        finally
-        {
-            nativeProductionContext = previousContext;
-            encounterProducingCommandFirstHeader = previousEncounterCommand;
-        }
     }
 
     private bool HasInstalledNativeAction(BattleCombatant actor, BattleAttackCommand command)
@@ -235,10 +191,8 @@ public sealed partial class BattleSession
         _ = slot.ReadContactCount();
     }
 
-
-
     private static BattleActionPresentation NativeCommandPresentation(BattleAttackCommand command)
     {
-        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, 0, command.TargetRequest, command.Ability, command.ActionId, command.DrawCast) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeader = command.NativeHeader, NativeEventOwner = command.NativeEventOwner, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, MagicCasts = command.MagicCasts, NativeMagicCastMode = command.NativeMagicCastMode, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, command.TargetRequest, command.Ability, command.ActionId, command.DrawCast) { MagicReservationId = command.MagicReservationId, SmartAttack = command.SmartAttack, NativeHeader = command.NativeHeader, NativeEventOwner = command.NativeEventOwner, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, MagicCasts = command.MagicCasts, NativeMagicCastMode = command.NativeMagicCastMode, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, GuardianFormAction = command.GuardianFormAction, GuardianFormInvocation = command.GuardianFormInvocation, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
     }
 }

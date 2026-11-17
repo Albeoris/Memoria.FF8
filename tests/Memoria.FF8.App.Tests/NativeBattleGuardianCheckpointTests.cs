@@ -19,7 +19,7 @@ public sealed class NativeBattleGuardianCheckpointTests
         string second = Advance(clone);
         Assert.Equal(first, second);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
-        Console.WriteLine($"Saved frame={snapshot.Frame}; callback={snapshot.NativeGraphics!.Callback}; one-callback result={first}");
+        Console.WriteLine($"Saved frame={snapshot.Frame}; callback={snapshot.ReadFixturePresentation().NativeGraphics!.Callback}; one-callback result={first}");
     }
 
     internal static string Advance(BattleSession battle)

@@ -27,10 +27,10 @@ public sealed class NativeBattleEffect287SourceAdmissionTests
         Assert.Equal(0, source.Frame);
         Assert.Equal(431, source.Definition.EncounterId);
         Assert.Equal(126, source.Definition.StageId);
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics, 3);
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics, 3)!);
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 3)!);
         Assert.Equal(109, caster.ModelId);
         Assert.Equal(1, caster.SceneSlot);
         Assert.Equal((byte)125, model.ModelId4);
@@ -47,11 +47,11 @@ public sealed class NativeBattleEffect287SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh source input domain only; current canonical composition and GTE arithmetic, no effect execution or later-pose claim", source.Frame, source.NativeGraphics.Callback, PhysicalCaster = 3, Bones = local.Length, CurrentWorld = model.GeometryWorldMatrix, LocalBone1 = local[1], WorldComposedBone1 = composed[1], Triangles = results }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh source input domain only; current canonical composition and GTE arithmetic, no effect execution or later-pose claim", source.Frame, source.ReadFixturePresentation().NativeGraphics.Callback, PhysicalCaster = 3, Bones = local.Length, CurrentWorld = model.GeometryWorldMatrix, LocalBone1 = local[1], WorldComposedBone1 = composed[1], Triangles = results }));
 
         void Observe(string kind, ImmutableArray<NativeBattleActionMatrix> bones)
         {
-            NativeBattleGeometryRegisterStep step = new(source.NativeEffectMemory.GeometryRegisters!, source.NativeEffectMemory.ScriptedColorRegisters!);
+            NativeBattleGeometryRegisterStep step = new(source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters!, source.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters!);
             int[] endpoint = Transform(resources.ReadStatic(0x13FAEA0, 8));
             for (int index = 0; index < 13; index++)
             {

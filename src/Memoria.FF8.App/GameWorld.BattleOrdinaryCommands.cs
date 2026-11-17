@@ -9,7 +9,8 @@ internal sealed partial class GameWorld
         List<BattleNativeDeathCountChange> changes = [];
         foreach (BattleCombatant actor in battle.Combatants.Where(actor => actor.IsPlayer))
         {
-            ushort? before = snapshot.Definition.Combatants.Single(source => source.Id == actor.Id).NativeDeathCount;
+            byte row = checked((byte)(actor.MagicRecordId ?? throw new InvalidDataException("Native party death count requires its admitted row.")));
+            ushort? before = ReadAdmittedPartyMember(snapshot.Definition, row).NativeDeathCount;
             if (before == actor.NativeDeathCount)
             {
                 continue;
@@ -18,7 +19,6 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidDataException("Native party death counter lost its exact battle entry or exit WORD.");
             }
-            byte row = byte.Parse(actor.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
             changes.Add(new(row, initial, after));
         }
         return changes.ToArray();

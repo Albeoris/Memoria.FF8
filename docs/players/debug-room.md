@@ -45,7 +45,7 @@ The Battle section shows whether actions target a **Game battle** or **Laborator
 
 Opening the laboratory initializes its editor from the current party and a recent eligible opponent. If there is no eligible encounter, it selects an enemy from the installed catalog. At the title, party defaults come from New Game data. Laboratory edits remain separate from the running game's state.
 
-Use Scenario, Participants and Presets to keep the editor compact. Select an actor to edit Identity, Vitals and stats, Equipment and abilities, or Status effects. Status timing fields appear for enabled effects. Preset Save and Load are explicit actions. Loading a preset updates the editor and does not start a battle. The three preset slots use `battle-presets.json`, separate from ordinary game snapshots.
+Use Scenario, Participants and Presets to keep the editor compact. Select an actor to edit Identity, Vitals and stats, Equipment and abilities, or Status effects. Status controls set the actor's starting conditions. Preset Save and Load are explicit actions. Loading a preset updates the editor and does not start a battle. The three preset slots use `battle-presets.json`, separate from ordinary game snapshots.
 
 The laboratory exposes implemented battle behavior. It does not establish full original combat parity or support for every original statistic and ability.
 

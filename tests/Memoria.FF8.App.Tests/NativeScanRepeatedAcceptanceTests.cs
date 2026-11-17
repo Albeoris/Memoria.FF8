@@ -77,7 +77,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                     restored.PublishNativeScanMappedButtons(0);
                 }
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 foreach (BattleSession restored in continuations)
                 {
                     restored.Tick();
@@ -85,7 +85,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                     Assert.Equal(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(restored, 320, 224));
                 }
                 continuations.Clear();
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 if (graphics.OriginalEffect is { Binding.Effect: 40 } effect)
                 {
                     selected = true;
@@ -131,7 +131,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
                         }
                     }
                     NativeBattleModulePoolTask? result = live.FirstOrDefault(task => task.Callback == 0x850FD0);
-                    NativeBattleScanProcess process = current.NativeEffectMemory!.Scan!;
+                    NativeBattleScanProcess process = current.ReadFixturePresentation().NativeEffectMemory!.Scan!;
                     pageCount = Math.Max(pageCount, process.Results.Count);
                     if (result is not null && result.ReadByte(0x29) == 2 && pages.Add(result.ReadWord(0x6C)))
                     {
@@ -185,7 +185,7 @@ public sealed class NativeScanRepeatedAcceptanceTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-failure", prior, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = error.ToString(), prior.Frame, Callback = prior.NativeGraphics?.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = error.ToString(), prior.Frame, Callback = prior.ReadFixturePresentation().NativeGraphics?.Callback }));
             throw;
         }
 
@@ -201,14 +201,14 @@ public sealed class NativeScanRepeatedAcceptanceTests
 
         int VisiblePacketChanges(BattleSnapshot snapshot, Func<NativeBattleLogicalResolvedCommand, bool> matches)
         {
-            NativeBattlePrimitiveFrame primitive = snapshot.NativeGraphics!.PrimitiveFrame!;
+            NativeBattlePrimitiveFrame primitive = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
             HashSet<NativeBattlePrimitiveReference> packets = primitive.LastCommands.Where(matches).Select(command => command.Command.Packet).ToHashSet();
             if (packets.Count == 0)
             {
                 return 0;
             }
             NativeBattlePrimitiveFrame removed = primitive with { LastCommands = primitive.LastCommands.Where(command => !packets.Contains(command.Command.Packet)).ToImmutableArray() };
-            BattleSession background = BattleSession.Restore(snapshot with { NativeGraphics = snapshot.NativeGraphics with { PrimitiveFrame = removed } });
+            BattleSession background = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = removed } }));
             byte[] normal = scene.Render(battle, 320, 224);
             byte[] comparison = new BattleScenePresentation(assets, source.Definition).Render(background, 320, 224);
             return Enumerable.Range(0, normal.Length / 4).Count(pixel => !normal.AsSpan(pixel * 4, 3).SequenceEqual(comparison.AsSpan(pixel * 4, 3)));
@@ -231,5 +231,5 @@ public sealed class NativeScanRepeatedAcceptanceTests
         }
     }
 
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
 }

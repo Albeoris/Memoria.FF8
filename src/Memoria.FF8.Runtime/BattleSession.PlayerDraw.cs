@@ -121,46 +121,9 @@ public sealed partial class BattleSession
         return NativeBattleDrawRules.Quantity(actor.Level, source.Level, actor.Magic, drawResist, resistance, random);
     }
 
-    private void ResolvePlayerDraw(BattleCombatant actor, BattleCombatant source, BattleActionPresentation command)
-    {
-        BattleNativeDrawContext result = command.NativeDraw ?? throw new InvalidDataException("Dispatched Draw requires its prepared native result.");
-        if (command.DrawCast && !result.Failed)
-        {
-            BattleCombatant recipient = GetActor(command.DrawCastTargetId ?? throw new InvalidDataException("Draw Cast lacks its selected recipient."));
-            BattleActionDefinition spell = FindAction(BattleAbility.Magic, result.Selection);
-            if (spell.NativeAction is not null)
-            {
-                ResolveInstalledNativeAction(actor, recipient, command, spell);
-            }
-            else
-            {
-                ResolveAction(actor, recipient, command with { Ability = BattleAbility.Magic, NativeDraw = null });
-            }
-            return;
-        }
-        if (nativeProductionContext is not null)
-        {
-            //48D200/48FE20 Stock is an executable zero contact, including GF IDs without a magic record.
-            BattleNativeAction stock = NativeStockDrawAction(result);
-            ResolveInstalledNativeAction(actor, source, command, new(BattleAbility.Draw, result.Selection, "Draw", BattleActionEffect.Native, 0, false) { NativeAction = stock });
-        }
-        else
-        {
-            ApplyDamage(actor, source, 0, "Draw");
-        }
-    }
-
     private static BattleNativeAction NativeStockDrawAction(BattleNativeDrawContext result)
     {
         return new(result.Failed ? (byte)0 : (byte)6, result.Failed ? (ushort)9 : result.Selection, -1, -1) { Name = "Draw", MagicId = result.Failed ? (ushort)0 : (ushort)15, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty, SupplementalRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty };
-    }
-
-    private void PublishNativeDrawComponentResult(BattleActionPresentation command)
-    {
-        if (command.NativeDraw is { } result)
-        {
-            PresentNativeDrawResult(GetActor(command.ActorId), GetActor(command.TargetId), result, command.DrawCast);
-        }
     }
 
     private void PresentNativeDrawResult(BattleCombatant actor, BattleCombatant source, BattleNativeDrawContext result, bool cast)

@@ -19,21 +19,21 @@ public sealed class NativeBattleEffect209FollowingActionTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
-        Assert.Equal(209, source.NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, source.NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Equal(0, source.NativeEffectMemory!.Active);
-        Assert.Null(source.NativeCamera!.ControlCursor);
-        Assert.Empty(source.NativeCamera.Order);
+        Assert.Equal(209, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
+        Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 319 && row.MagicId == 209 && row.KernelSection == 3 && row.KernelIndex == 319);
-        string targetId = ReadOriginalModelActorId(source.NativeGraphics, 0)!;
+        string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 0)!;
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 13, -1, 319, 209, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = source.NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        BattleSnapshot prepared = source with { NativeActionPackets = packets, NativeGraphics = source.NativeGraphics with { Descriptors = descriptors } };
+        (NativeBattleDescriptorState descriptors, _) = source.ReadFixturePresentation().NativeGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
+        BattleSnapshot prepared = (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = source.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } });
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-before-entry", prepared, null);
         BattleSession battle = Restore(prepared);
         bool registered = false;
@@ -43,16 +43,16 @@ public sealed class NativeBattleEffect209FollowingActionTests
         for (; callbacks < 400; callbacks++)
         {
             battle.Tick();
-            BattleSnapshot current = battle.Capture();
-            poses.Add(JsonSerializer.Serialize(current.NativeCamera!.CapturePackedView1D97778()));
-            if (!registered && current.NativeGraphics!.OriginalEffect is { Binding.Effect: 209, ReturnedDescriptor: > 0 } && current.NativeCamera.ControlCursor is not null)
+            BattleSnapshot current = battle.CaptureForContinuation();
+            poses.Add(JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()));
+            if (!registered && current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 209, ReturnedDescriptor: > 0 } && current.ReadFixturePresentation().NativeCamera.ControlCursor is not null)
             {
-                NativeBattleEffectAnimationRegisters control = current.NativeCamera.ControlResource!;
+                NativeBattleEffectAnimationRegisters control = current.ReadFixturePresentation().NativeCamera.ControlResource!;
                 Assert.Equal(8, control.StreamOffset);
                 Assert.Equal(32, control.ModelTableOffset);
                 Assert.Equal(game.ReadNativeEffect209Resources().Camera.Data.ToArray(), control.Source.Data.ToArray());
-                Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.NativeEffectMemory!.Textures!.Animation));
-                Assert.NotEmpty(current.NativeCamera.Order);
+                Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
+                Assert.NotEmpty(current.ReadFixturePresentation().NativeCamera.Order);
                 NativeBattleRestorationPresentationTests.Publish(output!, "following-action-camera-entry", current, null);
                 BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(current))!);
                 battle.Tick();
@@ -60,14 +60,14 @@ public sealed class NativeBattleEffect209FollowingActionTests
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 registered = true;
             }
-            if (registered && current.NativeGraphics!.OriginalEffect is { Binding.Effect: 209, ReturnedDescriptor: 0 } && current.NativeEffectMemory!.Active == 0)
+            if (registered && current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 209, ReturnedDescriptor: 0 } && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0)
             {
-                Assert.Null(current.NativeCamera.ControlCursor);
-                Assert.Empty(current.NativeCamera.Order);
+                Assert.Null(current.ReadFixturePresentation().NativeCamera.ControlCursor);
+                Assert.Empty(current.ReadFixturePresentation().NativeCamera.Order);
                 Assert.Null(current.ActiveAction);
                 Assert.Empty(current.QueuedActions);
                 Assert.Equal(source.Combatants.Select(actor => actor.CurrentHp), current.Combatants.Select(actor => actor.CurrentHp));
-                Assert.Equal(source.NativeStage!.Extended!.Stage137.Variants!.Index + 1, current.NativeStage!.Extended!.Stage137.Variants!.Index);
+                Assert.Equal(source.ReadFixturePresentation().NativeStage!.Extended!.Stage137.Variants!.Index + 1, current.ReadFixturePresentation().NativeStage!.Extended!.Stage137.Variants!.Index);
                 NativeBattleRestorationPresentationTests.Publish(output!, "following-action-completed", current, new BattleScenePresentation(assets, current.Definition).Render(battle, 320, 224).ToArray());
                 completed = true;
                 break;
@@ -76,8 +76,8 @@ public sealed class NativeBattleEffect209FollowingActionTests
         Assert.True(registered);
         Assert.True(completed);
         Assert.True(poses.Count > 1);
-        BattleSnapshot result = battle.Capture();
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original115 Amount0 action after effect209 cleanup; warm state and resources preserved", Registered = registered, Completed = completed, DistinctViewMatrices = poses.Count, Callbacks = result.NativeGraphics!.Callback - source.NativeGraphics.Callback, result.Frame, NativeCallback = result.NativeGraphics.Callback }));
+        BattleSnapshot result = battle.CaptureForContinuation();
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original115 Amount0 action after effect209 cleanup; warm state and resources preserved", Registered = registered, Completed = completed, DistinctViewMatrices = poses.Count, Callbacks = result.ReadFixturePresentation().NativeGraphics!.Callback - source.ReadFixturePresentation().NativeGraphics.Callback, result.Frame, NativeCallback = result.ReadFixturePresentation().NativeGraphics.Callback }));
 
         BattleSession Restore(BattleSnapshot snapshot)
         {

@@ -58,7 +58,6 @@ public sealed class ExpandedBattleNestedRecomputeTests
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
         Assert.True(process.EntryReady);
-        BattleSession child = ReadField<BattleSession>(process, "presentation");
         BattleCombatant counter = battle.Combatants.Single(actor => actor.Id == selected.Id);
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == (guardian ? FourthAlly : "party-0"));
         BattleCombatant demiTarget = battle.Combatants.Single(actor => actor.Id == FourthAlly);
@@ -145,9 +144,9 @@ public sealed class ExpandedBattleNestedRecomputeTests
 
             if (process.ActiveActionToken is long token && admitted.Add(token))
             {
-                BattlePresentationProcess.HostedPresentationInvocation invocation = ReadField<BattlePresentationProcess.HostedPresentationInvocation>(child, "hostedPresentationInvocation");
-                NativeBattleActionHeaderSlot header = child.NativeActionPackets.ReadHeader(invocation.Header);
-                Assert.Equal((ushort)104, child.Presentation!.Graphics.Descriptors.Packets[invocation.DescriptorSlot].Command);
+                BattlePresentationProcess.HostedPresentationInvocation invocation = ReadField<BattlePresentationProcess.HostedPresentationInvocation>(process, "hostedPresentationInvocation");
+                NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(invocation.Header);
+                Assert.Equal((ushort)104, process.Graphics.Descriptors.Packets[invocation.DescriptorSlot].Command);
                 if (outerToken is null && header.Source == source && (guardian ? header.Command == 254 : header.Command is 1 or 12))
                 {
                     outerToken = token;

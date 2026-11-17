@@ -52,9 +52,9 @@ public sealed class NativeBattleMagmaBreath48PresentationTests
         List<object> originalActors = [];
         for (int index = 3; index <= 4; index++)
         {
-            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.NativeGraphics!, index));
+            BattleCombatantDefinition definition = source.Definition.Combatants.Single(actor => actor.Id == ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, index));
             NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(definition);
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, index);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, index);
             Assert.Equal(93, definition.ModelId);
             Assert.Equal(index - 3, definition.SceneSlot);
             Assert.Equal(2, model.Flags0 & 2);
@@ -70,7 +70,7 @@ public sealed class NativeBattleMagmaBreath48PresentationTests
             Assert.Equal(86, mesh.Polygons.Count(face => face.Quad));
             originalActors.Add(new { Actor = index, Definition = definition.Id, definition.ModelId, definition.SceneSlot, model.Flags0, model.Rotation14, ResourceRow100 = NativeBattleModelResourceRow.Address100(model), Bones = model.CurrentBodyBoneMatrices, World = model.GeometryWorldMatrix });
         }
-        Assert.NotEqual(ReadOriginalModelActorId(source.NativeGraphics!, 3), ReadOriginalModelActorId(source.NativeGraphics!, 4));
+        Assert.NotEqual(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3), ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 4));
         NativeBattleActionPacketsState packets = source.NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);

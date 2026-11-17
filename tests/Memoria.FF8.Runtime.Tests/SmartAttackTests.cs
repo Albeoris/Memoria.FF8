@@ -175,7 +175,7 @@ public sealed class SmartAttackTests
         Assert.Equal(0, battle.GetAvailableMagicCasts("party", 1));
         BattleSession restored = BattleSession.Restore(saved);
         Assert.Single(restored.MagicVitals!.MagicSystem.Reservations);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 1200 && !(restored.ActiveAction is null && restored.QueuedActions.Count == 0); frame++)
         {
             restored.Tick();
         }

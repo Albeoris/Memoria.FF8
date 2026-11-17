@@ -26,15 +26,15 @@ internal sealed class NativeBattleEffect83PresentationObserver
 
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
-        NativeBattleOriginalEffectState? effect = current.NativeGraphics!.OriginalEffect;
+        NativeBattleOriginalEffectState? effect = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
         if (effect?.Binding.Effect != Effect || effect.ReturnedDescriptor is null)
         {
             return;
         }
-        NativeBattleEffect83State state = current.NativeEffectMemory!.Effect83!;
+        NativeBattleEffect83State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect83!;
         state.Validate();
-        Assert.Equal((byte)138, ReadOriginalModelCell(current.NativeGraphics, 4).ModelId4);
-        Assert.Equal((byte)139, ReadOriginalModelCell(current.NativeGraphics, 3).ModelId4);
+        Assert.Equal((byte)138, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         if (effect.ReturnedDescriptor is > 0)
@@ -72,10 +72,10 @@ internal sealed class NativeBattleEffect83PresentationObserver
                         {
                             Mark("effect83-main-phase-" + phase, current, cold);
                         }
-                        NativeBattleModulePoolTask? previous = prior.NativeGraphics!.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(item => item.Callback == 0x797A90);
+                        NativeBattleModulePoolTask? previous = prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(item => item.Callback == 0x797A90);
                         if (phase == 2 && previous?.ReadByte(0x29) == 1 && !contactHandshake)
                         {
-                            Assert.Equal((ushort)1, prior.NativeEffectMemory!.Effect83!.ReadWord(TargetAddress + 0x48));
+                            Assert.Equal((ushort)1, prior.ReadFixturePresentation().NativeEffectMemory!.Effect83!.ReadWord(TargetAddress + 0x48));
                             contactHandshake = true;
                             Mark("effect83-contact-handshake", current, cold);
                         }
@@ -86,7 +86,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
             {
                 Assert.Equal(ViewAddress, state.ReadDword(0x25CA080));
                 Assert.Equal(ViewAddress, state.ReadDword(0x25CFA40));
-                Assert.NotNull(current.NativeEffectMemory.SharedEffectView2793E58);
+                Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.SharedEffectView2793E58);
             }
             if (state.ReadDword(NodeSourceAddress) == 1 && !relocated)
             {
@@ -112,7 +112,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
                 NativeBattleLogicalCommand[] privateCommands = commands.Where(command => command.Packet.Bank == "20DFAB8").ToArray();
                 if (privateCommands.Length != 0)
                 {
-                    NativeBattleEffectArena arena = current.NativeEffectMemory.Arena!;
+                    NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
                     int end = checked((int)(state.ReadDword(0x25C9F74) - 0x20DFAB8u));
                     int linkedEnd = privateCommands.Max(command => command.Packet.ByteOffset + checked((1 + (int)(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(command.Packet.ByteOffset, 4)) >> 24)) * 4));
                     Assert.Equal(end, linkedEnd);
@@ -138,14 +138,14 @@ internal sealed class NativeBattleEffect83PresentationObserver
                 }
             }
         }
-        if (prior.NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
+        if (prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.ReturnedDescriptor is > 0 && effect.ReturnedDescriptor == 0)
         {
             Assert.Empty(effect.Pools);
             Assert.All(state.BankStorage, bank => Assert.NotNull(bank));
             detached = true;
             Mark("effect83-physical-banks-detached", current, cold);
         }
-        observations.Add(new { current.Frame, current.NativeGraphics.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25CA850), GeometryCursor = state.ReadWord(0x25CFA38), EmitterPass = state.ReadWord(0x25CFA3A), GeometryPass = state.ReadWord(0x25CFA28), Random = current.NativeCrtRandom, Relocated = relocated, OwnedModel = decodedModel });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25CA850), GeometryCursor = state.ReadWord(0x25CFA38), EmitterPass = state.ReadWord(0x25CFA3A), GeometryPass = state.ReadWord(0x25CFA28), Random = current.NativeCrtRandom, Relocated = relocated, OwnedModel = decodedModel });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -171,12 +171,12 @@ internal sealed class NativeBattleEffect83PresentationObserver
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot prior, BattleSnapshot current)
     {
         ImmutableHashSet<NativeBattlePrimitiveReference> prefix = NativeBattleAquaPresentationTests.AquaPacketReferences(prior, current);
-        return EffectCommands(current).Concat(current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => prefix.Contains(item.Command.Packet)).Select(item => item.Command)).Distinct().ToArray();
+        return EffectCommands(current).Concat(current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => prefix.Contains(item.Command.Packet)).Select(item => item.Command)).Distinct().ToArray();
     }
 
     public static NativeBattleLogicalCommand[] EffectCommands(BattleSnapshot current)
     {
-        NativeBattleEffect83State state = current.NativeEffectMemory!.Effect83!;
+        NativeBattleEffect83State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect83!;
         uint source = state.ReadDword(InitializerGlobal);
         uint cursor = state.ReadDword(0x25C9F74);
         if (source == 0 || cursor == 0)
@@ -187,7 +187,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
         uint start = cursor >= source + 0x8000 ? source + 0x8000 : source;
         int first = checked((int)(start - 0x20DFAB8u));
         int end = checked((int)(cursor - 0x20DFAB8u));
-        return current.NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= first && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == "20DFAB8" && item.Command.Packet.Buffer == 0 && item.Command.Packet.ByteOffset >= first && item.Command.Packet.ByteOffset < end).Select(item => item.Command).ToArray();
     }
 
     private void Mark(string name, BattleSnapshot current, Action<string, BattleSnapshot> cold)

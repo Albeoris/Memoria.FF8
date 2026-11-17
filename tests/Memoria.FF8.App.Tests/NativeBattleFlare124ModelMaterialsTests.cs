@@ -120,8 +120,8 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        BattleSnapshot fresh = battle.Capture();
-        battle = BattleSession.Restore(fresh with { NativeGraphics = fresh.NativeGraphics! with { NativeOutcome = new NativeBattleOutcomeState() } });
+        BattleSnapshot fresh = battle.CaptureForContinuation();
+        battle = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = fresh.ReadFixturePresentation().NativeGraphics! with { NativeOutcome = new NativeBattleOutcomeState() } }));
         for (int tick = 0; tick < 400 && !battle.NativeEntryReady; tick++)
         {
             battle.Tick();

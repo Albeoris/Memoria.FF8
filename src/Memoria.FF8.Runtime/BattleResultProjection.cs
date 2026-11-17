@@ -37,15 +37,18 @@ public static partial class BattleResultProjection
                 party = reportedRows;
             }
         }
-        if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
+        byte[] entryRows = party;
+        (byte[] participatingRows, byte[] finalRows) = ReadPartyOccupancy(result, sourceVitals, admittedBattle, entryRows);
+        if (!participatingRows.SequenceEqual(result.Party.Select(member => member.Row)))
         {
-            throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
+            throw new InvalidDataException($"Battle result party does not match its admitted character rows: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", participatingRows.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
         }
         if (admittedBattle is not null && sourceVitals.AdditionalCombatParty is null)
         {
-            sourceVitals = ExpandedBattlePartyRows.RecoverSelection(sourceVitals, party);
+            sourceVitals = ExpandedBattlePartyRows.RecoverSelection(sourceVitals, entryRows);
         }
-        if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !party.Contains(row)) || result.RemainingEnemyExperience.Any(enemy => !currentEnemyRewards.ContainsKey(enemy.Slot)))
+        party = finalRows;
+        if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !participatingRows.Contains(row)) || result.RemainingEnemyExperience.Any(enemy => !currentEnemyRewards.ContainsKey(enemy.Slot)))
         {
             throw new InvalidDataException("Battle defeat reward facts require their current formation and actual party credit owners.");
         }
@@ -150,6 +153,10 @@ public static partial class BattleResultProjection
             records[change.Row] = records[change.Row] with { GuardianForceCompatibility = change.After.ToArray() };
         }
         vitals = vitals with { Records = ApplyNativeGrowthChanges(result, ApplyNativeDeathCounts(result, records)) };
+        foreach (BattlePartyOccupancyChange change in result.PartyOccupancyChanges)
+        {
+            vitals = change.ApplySavedBinding(vitals);
+        }
         foreach (byte id in result.NativeScriptEffects.AcquiredGuardianForces)
         {
             vitals = vitals.AcquireGuardianForce(id);

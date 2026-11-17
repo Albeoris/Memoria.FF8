@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticTextureTask(int Slot, ushort Flags, ushort State, int? Next, NativeBattleAuxiliaryKind Kind, uint UnknownByteMask, int PayloadLength, uint? ModelPointer, byte? CapturedSequence, int? ProgramOffset, int? ProgramLength, byte? Deadline, int? ModelIndex, ushort? ModelFlags0, ushort? ResourceFlags44, byte? ModelSequence);
-public sealed record BattleDiagnosticTerminalTextureAttempt(BattleDiagnosticInvocationRelease Completion, BattleDiagnosticTerminalHoldState Hold, int BornCallbackCount, BattleDiagnosticNoOpPlayerCallback? BornNoOpCallback, int BoundCommands, int QueuedActions, bool ActiveAction, bool PhysicalBanksMatch, ImmutableArray<BattleDiagnosticCommandBankClosure> CommandBanks, BattleDiagnosticTextureQuiescence Textures, ImmutableArray<string> FailedGuards, string Result)
+public sealed record BattleDiagnosticTerminalTextureAttempt(BattleDiagnosticInvocationRelease Completion, BattleDiagnosticTerminalHoldState Hold, int QueuedActions, bool ActiveAction, BattleDiagnosticTextureQuiescence Textures, ImmutableArray<string> FailedGuards, string Result)
 {
     public BattleDiagnosticNaturalVictory? NaturalVictory { get; init; }
 }
@@ -39,6 +39,11 @@ public sealed partial class BattleSession
 
     public BattleDiagnosticTerminalTextureAttempt? LastDiagnosticTerminalTextureAttempt { get; private set; }
 
+    private static bool DiagnosticTextureOtherOwnersReleased(BattleDiagnosticInvocationOwners owners)
+    {
+        return owners.DescriptorPackets == 0 && owners.NonPumpDescriptorTasks == 0 && owners.PendingContacts == 0 && owners.Effects == 0 && !owners.EffectHead && owners.Modules == 0 && !owners.ModuleHead && owners.Files == 0 && owners.ReturnedTaskPointer == 0 && !owners.DetachedReturnedTask && owners.CameraMask == 0 && !owners.SoundBusy && !owners.ReplacementResource && !owners.TimedOrReaction && owners.ActionHeaders == 0 && owners.ContactRows == 0 && owners.ObservedOriginalEffect && owners.SelectedReturnedDescriptor == 0 && !owners.HeaderGraphicsBusy && !owners.OriginalPools.IsDefault && owners.OriginalPools.All(pool => pool.ActiveRows == 0 && !pool.Head && !pool.Tail);
+    }
+
     private BattleDiagnosticInvocationRelease? TrySealDiagnosticTerminalTextures(BattleDiagnosticInvocationRelease release, NativeBattleGraphicsState graphics)
     {
         BattleDiagnosticNaturalVictory? naturalVictory = DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory, Phase: BattleDiagnosticTerminalHoldPhase.Armed, Sequence: 0, Rearms: 0, HeldCallback: null, HeldFrame: null, Receipts.IsEmpty: true } ? new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, DetermineOutcome(), NativeEntryReady, (HasPendingExpandedTerminal || HasPendingExpandedEscape), DebugOutcome is not null || nativeEscape.Completed || nativeScriptState.ScriptedExitRequested || encounterPolicies?.TerminalReached == true, combatants.Select(actor => new BattleDiagnosticVictoryCombatant(actor.Id, actor.NativeActorIndex ?? NativeBattleSlots.Unassigned, actor.IsPlayer, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.CurrentHp)).ToImmutableArray()) : null;
@@ -46,8 +51,6 @@ public sealed partial class BattleSession
         if (LastDiagnosticTerminalTextureAttempt is null && DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory } declared && diagnosticInvocationPolicy is { Command: 16, ActionId: 53 or 56 } && release.Boundary == BattleDiagnosticInvocationRelease.GraphicsFrameBoundary)
         {
             BattleDiagnosticTextureQuiescence observedTextures = CaptureDiagnosticTextureQuiescence(graphics);
-            int boundCommands = nativeCommandBanks.BoundCommands.Count();
-            bool physicalBanksMatch = DiagnosticPhysicalCommandBanksMatch(null);
             ImmutableArray<string>.Builder failures = ImmutableArray.CreateBuilder<string>();
             void Require(bool condition, string reason)
             {
@@ -60,17 +63,14 @@ public sealed partial class BattleSession
             Require(release.PacketRemoved && release.ExecutingCompletion is not null && release.NativeEventCompleted && release.PresentationAcknowledged && release.HeaderCapturedBeforeReset && release.CurrentCompletionPacketGuaranteedRemoval, "same-frame-completion-witness");
             Require(release.Dispatch.NativeCommand == 16 && release.Dispatch.ActionId is 53 or 56, "slots-native-action");
             Require(declared.Declaration.PartyActorIds.Length == 1 && declared.Declaration.PartyActorIds[0] == release.Dispatch.ActorId, "declared-focal-party");
-            Require(diagnosticFocalCallbackCount == 0, "zero-born-callbacks");
             Require(ActiveAction is null && actions.Count == 0, "no-active-or-queued-actions");
-            Require(boundCommands == 0, "zero-bound-commands");
-            Require(physicalBanksMatch, "empty-physical-command-banks");
             Require(release.Blockers.Length == 1 && release.Blockers[0] == "effect-or-auxiliary-task" && release.Owners.AuxiliaryHead, "sole-auxiliary-owner");
-            Require(DiagnosticNonAftercareOwnersReleased(release.Owners) && !release.Owners.ActionOrCommand, "other-native-owners-released");
+            Require(DiagnosticTextureOtherOwnersReleased(release.Owners) && !release.Owners.ActionOrCommand, "other-native-owners-released");
             Require(observedTextures.IsTerminalQuiescent, "terminal-texture-quiescence");
             Require(observedTextures.Tasks.All(task => task.ModelIndex == release.Dispatch.NativeActorIndex), "focal-texture-model");
-            LastDiagnosticTerminalTextureAttempt = NativeBattleStorageSnapshots.Capture(new BattleDiagnosticTerminalTextureAttempt(release, declared, diagnosticFocalCallbackCount, diagnosticBornNoOpCallback, boundCommands, actions.Count, ActiveAction is not null, physicalBanksMatch, CaptureDiagnosticCommandBanks(), observedTextures, failures.ToImmutable(), "pending") { NaturalVictory = naturalVictory });
+            LastDiagnosticTerminalTextureAttempt = NativeBattleStorageSnapshots.Capture(new BattleDiagnosticTerminalTextureAttempt(release, declared, actions.Count, ActiveAction is not null, observedTextures, failures.ToImmutable(), "pending") { NaturalVictory = naturalVictory });
         }
-        if (!admittedOrProspectiveVictory || DiagnosticTerminalHold is not { Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || diagnosticFocalCallbackCount != 0 || ActiveAction is not null || actions.Count != 0 || nativeCommandBanks.BoundCommands.Any() || !DiagnosticPhysicalCommandBanksMatch(null) || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticNonAftercareOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
+        if (!admittedOrProspectiveVictory || DiagnosticTerminalHold is not { Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || ActiveAction is not null || actions.Count != 0 || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticTextureOtherOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
         {
             return null;
         }
@@ -79,7 +79,7 @@ public sealed partial class BattleSession
         {
             return null;
         }
-        return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold, CaptureDiagnosticCommandBanks()) { NaturalVictory = naturalVictory } });
+        return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold) { NaturalVictory = naturalVictory } });
     }
 
     private static BattleDiagnosticTextureQuiescence CaptureDiagnosticTextureQuiescence(NativeBattleGraphicsState graphics)

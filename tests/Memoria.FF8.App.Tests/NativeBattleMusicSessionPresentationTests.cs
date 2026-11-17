@@ -44,8 +44,8 @@ public sealed class NativeBattleMusicSessionPresentationTests
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession ready = Ready(CreateDefinition(game, assets));
-        BattleSnapshot source = ready.Capture();
-        source = source with { NativeMusicProcess = ready.NativeMusicProcess!.QueueGain501B10(0, 92), NativeGraphics = source.NativeGraphics! with { Flags = flags } };
+        BattleSnapshot source = ready.CaptureForContinuation();
+        source = (source with { NativeMusicProcess = ready.NativeMusicProcess!.QueueGain501B10(0, 92)}).WithFixturePresentation(facts => facts with { NativeGraphics = source.ReadFixturePresentation().NativeGraphics! with { Flags = flags } });
         BattleSession first = Restore(source);
         BattleSession independent = Restore(source);
         List<NativeBattleMusicCommandReceipt> heard = [];

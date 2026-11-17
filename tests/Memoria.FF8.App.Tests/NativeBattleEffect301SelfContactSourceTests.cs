@@ -32,7 +32,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
             byte actualCaster = ReadOriginalModelOperand(packets.ModelAliases, header.Source);
             Assert.InRange(actualCaster, (byte)3, (byte)6);
-            Assert.Equal((byte)110, ReadOriginalModelCell(source.NativeGraphics!, actualCaster).ModelId4);
+            Assert.Equal((byte)110, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, actualCaster).ModelId4);
             Assert.Equal((byte)8, header.Command);
             Assert.Equal((byte)16, header.Sequence);
             Assert.Equal((ushort)265, header.Action);
@@ -44,8 +44,8 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Equal(self.NativeStatus!.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(self.NativeStatus.Presentation.Battle, contact.Primary.BattleStatuses8);
             Assert.True(NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(headerIndex)).TargetActors.Resolve(packets.ModelAliases).IsSingle(packets.ModelAliases.DecodeLiteral(checked((byte)actualCaster))));
-            Assert.True(source.NativeEffectMemory!.Effect301!.ScriptSourcePending);
-            Assert.Equal(JsonSerializer.Serialize(original.NativeEffectMemory!.Effect301), JsonSerializer.Serialize(source.NativeEffectMemory.Effect301));
+            Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.Effect301!.ScriptSourcePending);
+            Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Effect301), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory.Effect301));
             string frozen = JsonSerializer.Serialize(source);
             BattleSession direct = BattleSession.Restore(source);
             BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);
@@ -71,7 +71,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Empty(direct.ObserveDiagnosticDrainBlockers());
             Assert.Empty(cold.ObserveDiagnosticDrainBlockers());
             BattleDiagnosticEffectDispatch actual = Assert.Single(directDispatches, dispatch => dispatch.ExecutedEffect == 301);
-            outputWriter.WriteLine(JsonSerializer.Serialize(new { ActualDispatch = actual, Callbacks = callbacks, SourceCallback = source.NativeGraphics!.Callback, Blockers = direct.ObserveDiagnosticDrainBlockers() }));
+            outputWriter.WriteLine(JsonSerializer.Serialize(new { ActualDispatch = actual, Callbacks = callbacks, SourceCallback = source.ReadFixturePresentation().NativeGraphics!.Callback, Blockers = direct.ObserveDiagnosticDrainBlockers() }));
             Assert.Equal((byte)0, actual.NativeAiCallbackStage);
             Assert.Equal((byte)8, actual.NativeCommand);
             Assert.Equal(265, actual.ActionId);

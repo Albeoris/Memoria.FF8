@@ -20,8 +20,8 @@ public sealed class NativeBattleTonberryProgramMigrationTests
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
         Assert.Equal(205L, retained.Frame);
-        Assert.Equal(285L, retained.NativeGraphics!.Callback);
-        NativeBattleTonberry90Resources resources = retained.NativeGraphics.OriginalEffect!.Binding.Tonberry90Resources!;
+        Assert.Equal(285L, retained.ReadFixturePresentation().NativeGraphics!.Callback);
+        NativeBattleTonberry90Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Tonberry90Resources!;
         Assert.NotNull(resources.CreatureModel);
         Assert.NotNull(resources.CreatureEntrySound);
         Assert.Null(resources.CreatureProgramSource);

@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed class NativeBattleModelAliases
 {
     private readonly ImmutableDictionary<NativeBattleModelSlot, BattleModelOwner> ownersBySlot;
+    private readonly NativeBattleModelAliases? authoredOperands;
 
     public NativeBattleModelAliases(BattleModelRoster roster, IEnumerable<(NativeBattleModelSlot Slot, BattleModelOwner Owner)> mappings)
     {
@@ -24,6 +25,13 @@ public sealed class NativeBattleModelAliases
         }
         Roster = roster;
         ownersBySlot = slots.ToImmutable();
+    }
+
+    private NativeBattleModelAliases(NativeBattleModelAliases physical, NativeBattleModelAliases authored)
+    {
+        Roster = physical.Roster;
+        ownersBySlot = physical.ownersBySlot;
+        authoredOperands = authored;
     }
 
     internal BattleModelRoster Roster { get; }
@@ -112,5 +120,25 @@ public sealed class NativeBattleModelAliases
     internal BattleModelOwner? FindOriginalOwner(NativeBattleModelSlot slot)
     {
         return ownersBySlot.GetValueOrDefault(slot);
+    }
+
+    internal NativeBattleModelAliases WithAuthoredOperands(NativeBattleModelAliases operands)
+    {
+        return new(this, operands);
+    }
+
+    internal BattleModelOwner DecodeAuthoredOperand(byte operand)
+    {
+        return (authoredOperands ?? this).DecodeLiteral(operand);
+    }
+
+    internal BattleModelOwner? ReadAuthoredOperandOrOriginalCell(NativeBattleModelSlot slot)
+    {
+        return authoredOperands is not null && slot.Side == BattleSide.Enemies ? authoredOperands.DecodeLiteral(slot.Offset) : FindOriginalOwner(slot);
+    }
+
+    internal bool TryGetAuthoredOperand(BattleModelOwner owner, out byte operand)
+    {
+        return (authoredOperands ?? this).TryEncodeExact(owner, out operand);
     }
 }

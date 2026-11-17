@@ -14,12 +14,12 @@ public sealed partial class NativeBattleDuel112CastTests
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_OUTPUT");
         Assert.SkipUnless(input is not null && File.Exists(input) && output is not null, "Select the original cold Duel opening input and a separate migration output directory.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(input!))!;
-        Assert.Null(source.NativeGraphics!.OriginalEffect);
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         Assert.Null(source.ActiveAction);
         Assert.Equal(0, source.Frame);
         NativeBattleRetainedMemory retained = source.Definition.NativeRetainedMemory!;
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, retained.ColdExecutableSha256);
-        NativeBattleEffectMemory process = RequireCold(source.NativeEffectMemory!);
+        NativeBattleEffectMemory process = RequireCold(source.ReadFixturePresentation().NativeEffectMemory!);
         NativeBattleEffectMemory definitionMemory = RequireCold(retained.EffectMemory!);
         NativeBattleEffectBinding previous = source.Definition.NativeEffectCatalog[273];
         Assert.Equal((ushort)274, previous.Effect);
@@ -33,13 +33,13 @@ public sealed partial class NativeBattleDuel112CastTests
         Assert.NotNull(current.InitializerResource);
         Assert.NotNull(current.InitializerAsset);
         current.Duel274Resources!.Validate();
-        BattleSnapshot migrated = source with { NativeEffectMemory = process with { Duel274 = NativeBattleDuel274State.FromColdProcess() }, Definition = source.Definition with { NativeRetainedMemory = retained with { EffectMemory = definitionMemory with { Duel274 = NativeBattleDuel274State.FromColdProcess() } }, NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(273, current) } };
+        BattleSnapshot migrated = (source with { Definition = source.Definition with { NativeRetainedMemory = retained with { EffectMemory = definitionMemory with { Duel274 = NativeBattleDuel274State.FromColdProcess() } }, NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(273, current) } }).WithFixturePresentation(facts => facts with { NativeEffectMemory = process with { Duel274 = NativeBattleDuel274State.FromColdProcess() } });
         Directory.CreateDirectory(output!);
         string destination = Path.Combine(output!, "migrated-cold-duel-opening.battle.json");
         File.WriteAllText(destination, JsonSerializer.Serialize(migrated));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(destination))!);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(restored.Capture()));
-        File.WriteAllText(Path.Combine(output!, "migration-receipt.json"), JsonSerializer.Serialize(new { Status = "restore-validated", Input = input, Output = destination, OriginalSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(input!))), MigratedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(destination))), source.Frame, NativeCallback = source.NativeGraphics.Callback, Changes = new[] { "NativeEffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeRetainedMemory.EffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeEffectCatalog[273]: original authenticated initializer asset and Duel274 resources" }, Continuation = "Installed_Duel112_completes_original_action_and_independent_standalones(true) with MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT set to the migrated output" }));
+        File.WriteAllText(Path.Combine(output!, "migration-receipt.json"), JsonSerializer.Serialize(new { Status = "restore-validated", Input = input, Output = destination, OriginalSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(input!))), MigratedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(destination))), source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics.Callback, Changes = new[] { "NativeEffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeRetainedMemory.EffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeEffectCatalog[273]: original authenticated initializer asset and Duel274 resources" }, Continuation = "Installed_Duel112_completes_original_action_and_independent_standalones(true) with MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT set to the migrated output" }));
 
         static NativeBattleEffectMemory RequireCold(NativeBattleEffectMemory memory)
         {
@@ -67,7 +67,7 @@ public sealed partial class NativeBattleDuel112CastTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(input!))!;
-        ushort selectedEffectId = source.NativeGraphics?.OriginalEffect?.Binding.Effect ?? 112;
+        ushort selectedEffectId = source.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect ?? 112;
         Assert.Contains(selectedEffectId, new ushort[] { 112, 212, 215, 216 });
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
@@ -80,7 +80,7 @@ public sealed partial class NativeBattleDuel112CastTests
             {
                 if (battle.Presentation?.Graphics?.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == selectedEffectId && effect.Pools[1].Slots[0].ReadWord(12) >= phase)
                 {
-                    BattleSnapshot selected = battle.Capture();
+                    BattleSnapshot selected = battle.CaptureForContinuation();
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected", selected, scene.Render(battle, 320, 224).ToArray());
                     BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, "selected.battle.json")))!);
                     clone.AttachNativeEffectResourceResolver(effectId => game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1]);
@@ -92,7 +92,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.NativeGraphics.Callback }));
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.ReadFixturePresentation().NativeGraphics.Callback }));
                     return;
                 }
                 before = battle.Capture();
@@ -150,7 +150,7 @@ public sealed partial class NativeBattleDuel112CastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "duel-" + effectId + "-" + (duelCommandRoute ? "command-" : "raw-") + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Duel evidence: " + output);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         int captured28Frames = 0;
         int captured274Frames = 0;
         BattleNativeDuelState? savedDuel = namedSource?.NativeLimits.SingleOrDefault(owner => owner.ActorId == "party")?.Duel;
@@ -224,7 +224,7 @@ public sealed partial class NativeBattleDuel112CastTests
                         }
                     }
                 }
-                if (effectId == 112 && graphics.OriginalEffect is { Binding.Effect: 112 } captureEffect && (captureEffect.ReturnedDescriptor is > 0 || before.NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+                if (effectId == 112 && graphics.OriginalEffect is { Binding.Effect: 112 } captureEffect && (captureEffect.ReturnedDescriptor is > 0 || before.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     if (NativeBattleExplicitComponentCapture.AssertFrame(battle.Capture(), 112) > 0)
                     {
@@ -246,10 +246,10 @@ public sealed partial class NativeBattleDuel112CastTests
                     if (!drawn && graphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot backgroundSource = battle.Capture();
-                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.NativeGraphics!;
+                        BattleSnapshot backgroundSource = battle.CaptureForContinuation();
+                        NativeBattleGraphicsState backgroundGraphics = backgroundSource.ReadFixturePresentation().NativeGraphics!;
                         NativeBattlePrimitiveFrame withoutEffect = backgroundGraphics.PrimitiveFrame! with { LastCommands = backgroundGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(backgroundSource with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } });
+                        BattleSession background = BattleSession.Restore(backgroundSource.WithFixturePresentation(facts => facts with { NativeGraphics = backgroundGraphics with { PrimitiveFrame = withoutEffect } }));
                         byte[] backgroundPixels = new BattleScenePresentation(assets, definition).Render(background, 320, 224).ToArray();
                         drawn = Enumerable.Range(0, pixels.Length / 4).Any(index => !pixels.AsSpan(index * 4, 3).SequenceEqual(backgroundPixels.AsSpan(index * 4, 3)));
                     }
@@ -291,7 +291,7 @@ public sealed partial class NativeBattleDuel112CastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-boundary", before, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, before.Frame, NativeCallback = before.NativeGraphics?.Callback, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", duelCommandRoute, requiredBasicAction, basicQueued, basicObserved, basicMidpoint, duelInputs, queuedChoice, selected, drawn, midpoint, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, Error = error.ToString() }));
             throw;
         }
 

@@ -17,8 +17,8 @@ public sealed class NativeBattleEffect287PointServiceTests
         {
             NativeBattleEffectArena input = NativeBattleEffectArena.Clear().Write(0, BitConverter.GetBytes((short)0)).Write(2, BitConverter.GetBytes((short)0)).Write(4, BitConverter.GetBytes((short)-10000)).Write(6, BitConverter.GetBytes((short)1));
             NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 16).Write(12, BitConverter.GetBytes(0xA55AA55Au));
-            NativeBattleEffect287MacStep result = Invoke<NativeBattleEffect287MacStep>(session, "NativeEffect287PointMac", source.NativeGraphics!, frame, input, retained);
-            NativeBattleActionMatrix bone = ReadOriginalModelCell(source.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices[1];
+            NativeBattleEffect287MacStep result = Invoke<NativeBattleEffect287MacStep>(session, "NativeEffect287PointMac", source.ReadFixturePresentation().NativeGraphics!, frame, input, retained);
+            NativeBattleActionMatrix bone = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices[1];
             NativeBattleFullMacVertex expected = NativeBattleGfMatrices.TransformMac460840(bone, new(0, 0, -10000));
             Assert.Equal(expected.X, BinaryPrimitives.ReadInt32LittleEndian(result.Output16.Read(0, 4)));
             Assert.Equal(expected.Y, BinaryPrimitives.ReadInt32LittleEndian(result.Output16.Read(4, 4)));
@@ -34,8 +34,8 @@ public sealed class NativeBattleEffect287PointServiceTests
     {
         WithSource((session, assets, source, frame) =>
         {
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.NativeGraphics!, 3);
-            BattleCombatantDefinition actor = session.GetCombatantDefinition(ReadOriginalModelActorId(source.NativeGraphics!, 3)!);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
+            BattleCombatantDefinition actor = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!);
             NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(actor).PoseSource!;
             short parent = BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(16 + 27 * 48, 2));
             short length = parent < 0 ? (short)0 : BinaryPrimitives.ReadInt16LittleEndian(pose.Skeleton.AsSpan().Slice(18 + parent * 48, 2));
@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect287PointServiceTests
             frame = frame with { Staging = frame.Staging!.MarkUnknown(allocation.Address + 0x3A, 2).Write(allocation.Address + 0x3A, new byte[] { 0xA5 }) };
             (byte[] priorBytes, bool[] priorKnown) = frame.Staging.ReadSnapshot(allocation.Address, 60);
             NativeBattleEffectArena retained = NativeBattleEffectArena.Clear().MarkUnknown(0, 8).Write(6, BitConverter.GetBytes((ushort)0x5AA5));
-            NativeBattleEffect287PointStep result = Invoke<NativeBattleEffect287PointStep>(session, "NativeEffect287LocalPoint", source.NativeGraphics!, frame, RequireOriginalModelOwner(source.NativeGraphics!, 3), 27, retained);
+            NativeBattleEffect287PointStep result = Invoke<NativeBattleEffect287PointStep>(session, "NativeEffect287LocalPoint", source.ReadFixturePresentation().NativeGraphics!, frame, RequireOriginalModelOwner(source.ReadFixturePresentation().NativeGraphics!, 3), 27, retained);
             Assert.Equal(unchecked((short)expected.X), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(0, 2)));
             Assert.Equal(unchecked((short)expected.Y), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(2, 2)));
             Assert.Equal(unchecked((short)expected.Z), BinaryPrimitives.ReadInt16LittleEndian(result.Output8.Read(4, 2)));
@@ -87,10 +87,10 @@ public sealed class NativeBattleEffect287PointServiceTests
         string unchanged = JsonSerializer.Serialize(source);
         BattleSession session = BattleSession.Restore(source);
         Assert.True(session.NativeEntryReady);
-        Assert.Equal((byte)125, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
-        Assert.Equal(28, ReadOriginalModelCell(source.NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
+        Assert.Equal((byte)125, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
+        Assert.Equal(28, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([287])[286];
-        NativeBattleEffect287Frame frame = new(source.NativeEffectMemory!, new(287, 286, binding, null, null), source.NativeCrtRandom!, source.NativeEffectMemory!.Effect287!.WriteDword(NativeBattleEffect287Profile.CasterGlobal, 0x1D972C0u + 3 * 156u)) { Staging = source.NativeFileStaging };
+        NativeBattleEffect287Frame frame = new(source.ReadFixturePresentation().NativeEffectMemory!, new(287, 286, binding, null, null), source.NativeCrtRandom!, source.ReadFixturePresentation().NativeEffectMemory!.Effect287!.WriteDword(NativeBattleEffect287Profile.CasterGlobal, 0x1D972C0u + 3 * 156u)) { Staging = source.ReadFixturePresentation().NativeFileStaging };
         NativeBattleEffect287Frame result = check(session, assets, source, frame);
         result.Memory.GeometryRegisters!.Validate();
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));

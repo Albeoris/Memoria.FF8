@@ -9,12 +9,12 @@ internal static class NativeBattleControl18CastingAssertions
 {
     internal static bool HasCasting(BattleSnapshot snapshot)
     {
-        return snapshot.NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && NativeBattleControl18Presentation.IsCasting(task.Kind));
+        return snapshot.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && NativeBattleControl18Presentation.IsCasting(task.Kind));
     }
 
     internal static void AssertTasks(BattleSnapshot snapshot)
     {
-        NativeBattleModuleState modules = snapshot.NativeGraphics!.ModuleEffects;
+        NativeBattleModuleState modules = snapshot.ReadFixturePresentation().NativeGraphics!.ModuleEffects;
         NativeBattleCastingPresentationState? presentation = modules.CastingPresentation;
         foreach ((NativeBattleModuleTask task, int slot) in modules.Slots.Select((task, slot) => (task, slot)).Where(item => (item.task.Flags & 1) != 0))
         {
@@ -29,11 +29,11 @@ internal static class NativeBattleControl18CastingAssertions
             Assert.True(entry.Identity.Generation > 0 && entry.Identity.Generation < presentation.NextBirth);
             Assert.Equal((ushort)18, entry.Parent.Effect);
             NativeBattleControl18Presentation.Validate(entry.Source);
-            Assert.Equal(RequireOriginalModelOwner(snapshot.NativeGraphics!, 0), entry.Source.Actor);
+            Assert.Equal(RequireOriginalModelOwner(snapshot.ReadFixturePresentation().NativeGraphics!, 0), entry.Source.Actor);
             Assert.Equal(30, entry.Source.Sequence);
             Assert.Equal(0x90, entry.Source.ScriptOffset);
             Assert.Equal((ushort)18, entry.Source.Identity.Effect);
-            NativeBattleOriginalEffectState selected = snapshot.NativeGraphics.OriginalEffect!;
+            NativeBattleOriginalEffectState selected = snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect!;
             NativeBattleEffectResourcePointer pointer = Assert.Single(selected.ResourcePointers, item => NativeBattleEffectNodeMemory.ArenaAddress + item.ArenaOffset == entry.Source.FileAddress);
             NativeBattleEffectInitializerAsset asset = Assert.Single(NativeBattleEffectInitializerPolicy.Assets(selected.Binding), item => item.Name == "mag017_b.00");
             Assert.Equal(0x42, BinaryPrimitives.ReadUInt16LittleEndian(asset.Data.AsSpan(entry.Source.ScriptOffset, 2)));
@@ -48,10 +48,10 @@ internal static class NativeBattleControl18CastingAssertions
 
     internal static NativeBattleLogicalCommand[] Commands(BattleSnapshot snapshot)
     {
-        NativeBattleOriginalEffectState effect = snapshot.NativeGraphics!.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         NativeBattleCinematicPacketScope? scope = effect.PresentationPacketScope;
         ImmutableHashSet<NativeBattlePrimitiveReference> auxiliary = effect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-        return snapshot.NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Owned).ToArray();
+        return snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Owned).ToArray();
 
         bool Owned(NativeBattleLogicalCommand command)
         {

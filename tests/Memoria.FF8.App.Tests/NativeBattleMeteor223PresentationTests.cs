@@ -61,7 +61,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath);
             BattleSnapshot beforeInput = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(sourcePath))!, "before-ordinary-input.battle.json"));
             prior = source;
-            NativeBattleGraphicsState graphics = source.NativeGraphics!;
+            NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -113,14 +113,14 @@ public sealed class NativeBattleMeteor223PresentationTests
                 {
                     battle.Tick();
                 }
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(hp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(1, Stock(current, caster, action.ActionId));
                 int newTexts = 0;
-                for (int slot = 0; slot < current.NativeGraphics!.Effects.Slots.Length; slot++)
+                for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.NativeGraphics.Effects.Slots[slot];
-                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.NativeGraphics!, text.ModelOwner, 3) || (prior.NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) || (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
                     }
@@ -129,7 +129,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                     Assert.Equal(expected.Glyphs.ToArray(), text.Glyphs.ToArray());
                     Assert.Equal(expected.Color, text.Color);
                     Assert.Equal(expected.HalfWidth, text.HalfWidth);
-                    textCallbacks.Add(current.NativeGraphics.Callback);
+                    textCallbacks.Add(current.ReadFixturePresentation().NativeGraphics.Callback);
                     newTexts++;
                 }
                 Assert.InRange(newTexts, 0, 1);
@@ -147,16 +147,16 @@ public sealed class NativeBattleMeteor223PresentationTests
                 {
                     completions++;
                 }
-                NativeBattlePrimitiveFrame frame = current.NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
                 HashSet<NativeBattlePrimitiveReference> gridPackets = frame.LastCommands.GroupBy(command => command.Command.Packet).Where(group => group.Any(command => command.Command.WordOffset == 3 && (command.Command.Opcode & 0xFC) == 0x3C) && group.Any(command => command.Command.WordOffset == 1 && command.Command.Opcode == 0xE2) && group.Any(command => command.Command.WordOffset == 15 && command.Command.Opcode == 0xE2)).Select(group => group.Key).ToHashSet();
                 bool packets = gridPackets.Count > 0;
                 gridPacketsSeen |= packets;
-                maximumTextureQueue = Math.Max(maximumTextureQueue, current.NativeEffectMemory?.Textures?.Count ?? 0);
+                maximumTextureQueue = Math.Max(maximumTextureQueue, current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Count ?? 0);
                 if (peakChanged == 0 && packets)
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame removed = frame with { LastCommands = frame.LastCommands.Where(command => !gridPackets.Contains(command.Command.Packet)).ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current with { NativeGraphics = current.NativeGraphics with { PrimitiveFrame = removed } });
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = removed } }));
                     peakChanged = DifferentRgb(pixels, scene.Render(plain, 320, 224));
                     if (peakChanged > 0)
                     {
@@ -164,7 +164,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                         peakPixels = pixels;
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.NativeEffectMemory!.Active == 0 && !current.NativeGraphics.Descriptors.Queue.Any(index => current.NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }
@@ -213,7 +213,7 @@ public sealed class NativeBattleMeteor223PresentationTests
             throw;
         }
 
-        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect is { } selected && selected.Binding.Effect == 223 ? selected : null;
+        NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } selected && selected.Binding.Effect == 223 ? selected : null;
 
         void Report(string status, string? blocker)
         {
@@ -223,7 +223,7 @@ public sealed class NativeBattleMeteor223PresentationTests
 
     private static Pacing? ReadPacing(BattleSnapshot snapshot)
     {
-        if (snapshot.NativeGraphics?.OriginalEffect is not { Binding.Effect: 223, ReturnedDescriptor: > 0 } || snapshot.NativeEffectMemory is not { ScriptedEffects: { } core, Arena: { } arena })
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 223, ReturnedDescriptor: > 0 } || snapshot.ReadFixturePresentation().NativeEffectMemory is not { ScriptedEffects: { } core, Arena: { } arena })
         {
             return null;
         }

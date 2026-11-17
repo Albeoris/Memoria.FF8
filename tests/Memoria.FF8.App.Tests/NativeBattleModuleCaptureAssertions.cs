@@ -6,7 +6,7 @@ internal static class NativeBattleModuleCaptureAssertions
 {
     internal static int AssertPrivateGeometry(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
         {
             return 0;
         }
@@ -14,13 +14,13 @@ internal static class NativeBattleModuleCaptureAssertions
         uint end;
         if (effect == 54)
         {
-            NativeBattleEffect54State state = snapshot.NativeEffectMemory!.Effect54!;
+            NativeBattleEffect54State state = snapshot.ReadFixturePresentation().NativeEffectMemory!.Effect54!;
             first = state.ReadDword(NativeBattleEffect54Profile.InitializerGlobal);
             end = first == 0 ? 0 : checked(first + 0x10000);
         }
         else if (effect == 63)
         {
-            NativeBattleEffect63State state = snapshot.NativeEffectMemory!.Effect63!;
+            NativeBattleEffect63State state = snapshot.ReadFixturePresentation().NativeEffectMemory!.Effect63!;
             uint arena = state.ReadDword(NativeBattleEffect63Profile.WorkGlobal);
             first = arena == 0 ? 0 : checked(arena + NativeBattleEffect63Profile.FirstPacketOffset);
             end = arena == 0 ? 0 : checked(arena + NativeBattleEffect63Profile.MorphOffset);

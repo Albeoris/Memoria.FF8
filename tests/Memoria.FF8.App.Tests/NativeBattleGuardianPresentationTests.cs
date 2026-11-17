@@ -62,10 +62,10 @@ public sealed class NativeBattleGuardianPresentationTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        BattleSnapshot before = battle.Capture();
+        BattleSnapshot before = battle.CaptureForContinuation();
         Assert.NotNull(before.NativeClock);
         Assert.Contains(before.Combatants, actor => actor.NativeAtb is { Current: > 0 } gauge && gauge.Current < gauge.Maximum);
-        NativeBattleLogicalResolvedCommand[] entryCommands = before.NativeGraphics!.PrimitiveFrame!.LastCommands.ToArray();
+        NativeBattleLogicalResolvedCommand[] entryCommands = before.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.ToArray();
         NativeBattleLogicalResolvedCommand[] shadowModes = entryCommands.Where(command => command.Command.Opcode == 0xE1 && command.Command.Words[0] is 0xE1000620 or 0xE1000640).ToArray();
         foreach (NativeBattleLogicalResolvedCommand command in shadowModes)
         {
@@ -76,7 +76,7 @@ public sealed class NativeBattleGuardianPresentationTests
         {
             Assert.NotEmpty(shadowModes);
         }
-        NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.NativeGraphics).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
+        NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.ReadFixturePresentation().NativeGraphics).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
         Assert.All(visibleModels, model => Assert.NotNull(model.GeometryBounds52));
         Console.WriteLine($"Native entry: visiblemodels{visibleModels.Length}, shadowdrawmodes{shadowModes.Length}; zero modes is permitted when the actual camera culls every shadow.");
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
@@ -90,10 +90,10 @@ public sealed class NativeBattleGuardianPresentationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
-        NativeBattleGraphicsState graphics = before.NativeGraphics!;
+        NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         //The declared cold/manual-header component never invokes48E830/48EB40. This explicit input preserves native actor3's authenticated BSS byte; old snapshots receive no default.
-        BattleSnapshot pendingSource = before with { Combatants = coldActors, NativeActionPackets = packets, NativeGraphics = graphics with { Descriptors = descriptors } };
+        BattleSnapshot pendingSource = (before with { Combatants = coldActors,NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(new uint[] { 0x84, 0x85, 0x86 }, pendingSource.Definition.NativeMusicProcess!.Entry!.Sounds.Select(sound => sound.Sound));
         Assert.NotNull(pendingSource.NativeGlobalSoundProcess!.Rotation);
         Assert.All(pendingSource.NativeGlobalSoundProcess.OriginalEffectIds, value => Assert.NotNull(value));
@@ -102,10 +102,10 @@ public sealed class NativeBattleGuardianPresentationTests
         BattleSnapshot sourceFromFile = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(sourceOutput))!;
         Assert.Equal(JsonSerializer.Serialize(pendingSource), JsonSerializer.Serialize(sourceFromFile));
         battle = BattleSession.Restore(sourceFromFile);
-        Console.WriteLine($"Fresh GF pending104 source: {Path.GetFullPath(sourceOutput)}; frame{sourceFromFile.Frame}/callback{sourceFromFile.NativeGraphics!.Callback}.");
+        Console.WriteLine($"Fresh GF pending104 source: {Path.GetFullPath(sourceOutput)}; frame{sourceFromFile.Frame}/callback{sourceFromFile.ReadFixturePresentation().NativeGraphics!.Callback}.");
         NativeBattleAtbState[] animationGauges = sourceFromFile.Combatants.Select(actor => actor.NativeAtb!).ToArray();
-        uint initialUiCounter = sourceFromFile.NativeGraphics!.UiServices!.Counter;
-        long initialGraphicsCallback = sourceFromFile.NativeGraphics.Callback;
+        uint initialUiCounter = sourceFromFile.ReadFixturePresentation().NativeGraphics!.UiServices!.Counter;
+        long initialGraphicsCallback = sourceFromFile.ReadFixturePresentation().NativeGraphics.Callback;
         TimeSpan frame = TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond));
         bool selected = false;
         bool restoredBeforeEntry = false;
@@ -131,7 +131,7 @@ public sealed class NativeBattleGuardianPresentationTests
                 AssertFrozenGauges(battle.Capture());
                 restoredBeforeEntry = true;
             }
-            BattleSnapshot beforeStep = battle.Capture();
+            BattleSnapshot beforeStep = battle.CaptureForContinuation();
             if (ChildPhase(beforeStep) == 319)
             {
                 prefixSnapshot = beforeStep;
@@ -158,12 +158,12 @@ public sealed class NativeBattleGuardianPresentationTests
                 streamClone = null;
                 break;
             }
-            if (beforeStep.NativeGuardianBoost is { Phase: 4, Remaining: 1 })
+            if (beforeStep.ReadFixturePresentation().NativeGuardianBoost is { Phase: 4, Remaining: 1 })
             {
                 beforeBoost = beforeStep;
             }
             battle.AdvanceNativeGraphicsPresentation(frame);
-            BattleSnapshot afterStep = battle.Capture();
+            BattleSnapshot afterStep = battle.CaptureForContinuation();
             AssertFrozenGauges(afterStep);
             if (streamClone is not null)
             {
@@ -177,7 +177,7 @@ public sealed class NativeBattleGuardianPresentationTests
             if (phaseBefore is 69 or 212 or 318 && ChildPhase(afterStep) != phaseBefore)
             {
                 NativeBattleModuleSound sound = Assert.Single(afterStep.Events.Skip(beforeStep.Events.Length).Select(entry => entry.NativeModuleSound).OfType<NativeBattleModuleSound>(), sound => sound is { Flags: 0, RawPan: 128, Volume: 127 });
-                NativeBattleSummonStreamState stream = afterStep.NativeEffectMemory!.SummonStream!;
+                NativeBattleSummonStreamState stream = afterStep.ReadFixturePresentation().NativeEffectMemory!.SummonStream!;
                 Assert.NotNull(stream.Number);
                 Assert.NotNull(stream.SourceAddress);
                 Assert.Equal(unchecked((uint)stream.Number.Value), sound.Sound);
@@ -203,7 +203,7 @@ public sealed class NativeBattleGuardianPresentationTests
         {
             PublishStandalone(boundaryOutput, prefixSnapshot);
             Assert.Equal(JsonSerializer.Serialize(prefixSnapshot), JsonSerializer.Serialize(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(boundaryOutput))!));
-            Console.WriteLine($"Fresh GF bounded prefix snapshot: {Path.GetFullPath(boundaryOutput)}; frame{prefixSnapshot.Frame}/callback{prefixSnapshot.NativeGraphics!.Callback}; phase{ChildPhase(prefixSnapshot)}.");
+            Console.WriteLine($"Fresh GF bounded prefix snapshot: {Path.GetFullPath(boundaryOutput)}; frame{prefixSnapshot.Frame}/callback{prefixSnapshot.ReadFixturePresentation().NativeGraphics!.Callback}; phase{ChildPhase(prefixSnapshot)}.");
         }
         Assert.True(selected);
         Assert.True(restoredBeforeEntry);
@@ -227,7 +227,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240039, Flags: 1, Pan: 128 });
         Assert.Equal(0, battle.Presentation!.Memory.QuezacotlTargetY1774);
-        Assert.Equal(26, NativeBattleQuezacotlWorkspace.ReadExecutable(battle.Presentation?.Memory).Frame);
+        Assert.Equal(26, NativeBattleQuezacotlWorkspace.ReadExecutable(battle.Presentation!.Memory).Frame);
         NativeBattleQuezacotlResources streamResources = battle.Presentation!.Graphics.OriginalEffect.Binding.NativeQuezacotlResources!;
         uint playedStream = StreamNumber(510);
         uint loadedStream = StreamNumber(524);
@@ -257,11 +257,11 @@ public sealed class NativeBattleGuardianPresentationTests
         uint StreamNumber(short fileId) => unchecked((uint)(BinaryPrimitives.ReadInt32LittleEndian(streamResources.Files.Single(file => file.FileId == fileId).Data.AsSpan()) + 690000));
         Assert.NotNull(prefixSnapshot);
         Assert.Null(prefixSnapshot.ActiveAction);
-        Assert.Null(prefixSnapshot.NativeGuardianBoost);
+        Assert.Null(prefixSnapshot.ReadFixturePresentation().NativeGuardianBoost);
         Assert.NotNull(beforeBoost);
-        NativeBattleGuardianBoost boost = beforeBoost.NativeGuardianBoost!;
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeGuardianBoost = boost with { ActionId = 65 } }));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeGuardianBoost = boost with { ComponentSubframeTicks = 1 } }));
+        NativeBattleGuardianBoost boost = beforeBoost.ReadFixturePresentation().NativeGuardianBoost!;
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost.WithFixturePresentation(facts => facts with { NativeGuardianBoost = boost with { ActionId = 65 } })));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost.WithFixturePresentation(facts => facts with { NativeGuardianBoost = boost with { ComponentSubframeTicks = 1 } })));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(beforeBoost with { NativeActionScratch = beforeBoost.NativeActionScratch! with { GuardianFormulaE1E = true } }));
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GF_EVIDENCE");
         if (!string.IsNullOrEmpty(evidence))
@@ -275,7 +275,7 @@ public sealed class NativeBattleGuardianPresentationTests
 
     private static ushort? ChildPhase(BattleSnapshot snapshot)
     {
-        return snapshot.NativeGraphics?.OriginalEffect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == 0x2521738)?.Slots.Single().ReadWord(12);
+        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == 0x2521738)?.Slots.Single().ReadWord(12);
     }
 
     private static NativeBattleModuleSound[] StreamSounds(BattleSnapshot snapshot)

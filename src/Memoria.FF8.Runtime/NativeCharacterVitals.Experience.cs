@@ -12,6 +12,20 @@ public sealed record NativeBattleExperienceDefinition(string KernelSha256, Immut
             throw new InvalidDataException("Battle experience requires the actual current character ability kernel flags.");
         }
     }
+
+    public uint ReadCharacterAbilityFlags(uint equippedAbilities)
+    {
+        uint flags = 0;
+        for (int slot = 0; slot < 4; slot++)
+        {
+            byte ability = unchecked((byte)(equippedAbilities >> (8 * slot)));
+            if (ability is >= 58 and < 78)
+            {
+                flags |= CharacterAbilityFlags[ability - 58];
+            }
+        }
+        return flags;
+    }
 }
 
 public sealed partial record NativeCharacterVitals
@@ -47,15 +61,7 @@ public sealed partial record NativeCharacterVitals
             int levelsGained = level - previousLevel;
             if (previousLevel != 100 && levelsGained > 0)
             {
-                uint flags = 0;
-                for (int slot = 0; slot < 4; slot++)
-                {
-                    byte ability = unchecked((byte)(character.Junction.Abilities >> (8 * slot)));
-                    if (ability is >= 58 and < 78)
-                    {
-                        flags |= definition.CharacterAbilityFlags[ability - 58];
-                    }
-                }
+                uint flags = definition.ReadCharacterAbilityFlags(character.Junction.Abilities);
                 if ((flags & 0x80) != 0)
                 {
                     hitPointGain = 30 * levelsGained;

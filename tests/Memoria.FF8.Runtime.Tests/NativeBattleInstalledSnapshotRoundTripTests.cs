@@ -15,9 +15,9 @@ public sealed class NativeBattleInstalledSnapshotRoundTripTests
         JsonElement expected = JsonSerializer.SerializeToElement(snapshot);
         BattleSession first = BattleSession.Restore(snapshot);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(expected.GetRawText())!);
-        BattleSnapshot firstRestored = first.Capture();
+        BattleSnapshot firstRestored = first.CaptureForContinuation();
         BattleSnapshot secondRestored = second.Capture();
-        Assert.True(JsonElement.DeepEquals(expected.GetProperty("NativeEffectMemory").GetProperty("Arena"), JsonSerializer.SerializeToElement(firstRestored.NativeEffectMemory!.Arena)), "Restoring a task bank must preserve the captured physical arena.");
+        Assert.True(JsonElement.DeepEquals(expected.GetProperty("NativeEffectMemory").GetProperty("Arena"), JsonSerializer.SerializeToElement(firstRestored.ReadFixturePresentation().NativeEffectMemory!.Arena)), "Restoring a task bank must preserve the captured physical arena.");
         Assert.True(JsonElement.DeepEquals(expected, JsonSerializer.SerializeToElement(firstRestored)), "Restoring an installed effect must preserve the complete captured battle.");
         Assert.True(JsonElement.DeepEquals(expected, JsonSerializer.SerializeToElement(secondRestored)), "A second restoration must use independent owners and preserve the captured battle.");
         Assert.True(JsonElement.DeepEquals(expected, JsonSerializer.SerializeToElement(snapshot)), "Restoration must not mutate its source snapshot.");

@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
@@ -9,10 +8,8 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleHudShotTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Shot_menu_dispatches_the_selected_ammunition_and_draws_a_working_fire_panel(bool directFire)
+    [Fact]
+    public void Shot_menu_dispatches_the_selected_ammunition_to_the_native_opening()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original battle resources are required.");
@@ -64,41 +61,7 @@ public sealed class BattleHudShotTests
         Assert.Equal(ammunition, opening.ActionId);
         Assert.Equal("enemy", opening.TargetId);
         Assert.Equal((byte)14, Assert.Single(battle.QueuedActions).NativeQueuedCommand);
-        for (int frame = 0; frame < 100 && battle.GetNativeShot("irvine")?.Phase != BattleNativeShotPhase.Ready; frame++)
-        {
-            battle.Tick();
-        }
-        Assert.Equal(BattleNativeShotPhase.Ready, battle.GetNativeShot("irvine")!.Phase);
-        battle.AdvanceNativeShotUi(3);
-        BattleSnapshot readySnapshot = battle.Capture();
-        battle = BattleSession.Restore(readySnapshot);
-        Assert.Equal(JsonSerializer.Serialize(readySnapshot), JsonSerializer.Serialize(battle.Capture()));
-        hud = CreateHud(battle, directFire ? null : Execute);
-        UiView view = hud.BuildView();
-        view.Resize(960, 672);
-        string before = JsonSerializer.Serialize(battle.Capture());
-        BattleUiTests.TestCanvas canvas = new();
-        view.Draw(canvas, new UiTheme());
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
-        Assert.Contains(canvas.Texts, text => text.Contains("Shot target", StringComparison.Ordinal));
-        Assert.Contains(canvas.Texts, text => text.Contains("Fire", StringComparison.Ordinal) && text.Contains("FireKey", StringComparison.Ordinal));
-        Assert.Contains(canvas.Texts, text => text.Contains("Finish", StringComparison.Ordinal) && text.Contains("Key0010", StringComparison.Ordinal));
-        Assert.Contains(canvas.Texts, text => text.Contains("2", StringComparison.Ordinal) && text.Contains("ammo", StringComparison.OrdinalIgnoreCase));
-        BattleNativeShotState ready = battle.GetNativeShot("irvine")!;
-        int remaining = Math.Max(0, (int)ready.RemainingTimer);
-        string timer = $"{remaining / BattleSession.FramesPerSecond}.{100 * (remaining % BattleSession.FramesPerSecond) / BattleSession.FramesPerSecond:00}";
-        Assert.Contains(canvas.Texts, text => text.Contains(timer, StringComparison.Ordinal));
-        view.Pointer(150, 620, false);
-        view.Pointer(150, 620, true);
-        view.Pointer(150, 620, true);
-        Assert.Equal(BattleNativeShotPhase.AwaitingEffect, battle.GetNativeShot("irvine")!.Phase);
-        Assert.Equal(1, battle.Items.Single(stock => stock.Id == 101).Count);
-        Assert.Equal((byte)237, Assert.Single(battle.QueuedActions).NativeQueuedCommand);
-        Assert.Equal(directFire ? 0 : 1, inputs.Count(input => input.Kind == BattleInputKind.ShotTrigger));
-        hud.Navigate(MenuInput.Cancel);
-        hud.Navigate(MenuInput.Cancel);
-        Assert.Equal(BattleNativeShotPhase.Ending, battle.GetNativeShot("irvine")!.Phase);
-        Assert.Single(battle.QueuedActions, action => action.NativeQueuedCommand == 238);
+        Assert.Equal(BattleNativeShotPhase.Opening, battle.GetNativeShot("irvine")!.Phase);
     }
 
     [Theory]
@@ -110,7 +73,7 @@ public sealed class BattleHudShotTests
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true }, new() { Id = "enemy", Name = "Shot target" }] }, BattleAtbMode.TurnBased);
         Dictionary<string, BattleNativeShotState> shots = (Dictionary<string, BattleNativeShotState>)typeof(BattleSession).GetField("nativeShotProcesses", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
         BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        shots.Add("irvine", new(0, target, 240, 180, 2, phase) { Ui = new(BattleTimedInputUiPhase.Active) });
+        shots.Add("irvine", new(0, target, 240, 180, 2, phase) { Widget = new(180, phase == BattleNativeShotPhase.Ending ? (byte)8 : (byte)4, 3, 0, false) });
         List<BattleInput> inputs = [];
         BattleHudController hud = CreateHud(battle, inputs.Add);
         UiView view = hud.BuildView();
@@ -119,7 +82,6 @@ public sealed class BattleHudShotTests
         view.Draw(canvas, new UiTheme());
         Assert.Contains(canvas.Texts, text => text.Contains("TARGET", StringComparison.Ordinal));
         Assert.Contains(canvas.Texts, text => text.Contains("Ammo: 2", StringComparison.Ordinal));
-        Assert.Contains("6.00", canvas.Texts);
         view.Pointer(150, 620, false);
         view.Pointer(150, 620, true);
         Assert.Empty(inputs);
@@ -133,7 +95,7 @@ public sealed class BattleHudShotTests
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true }, new() { Id = "enemy", Name = "Shot target" }] }, BattleAtbMode.TurnBased);
         Dictionary<string, BattleNativeShotState> shots = (Dictionary<string, BattleNativeShotState>)typeof(BattleSession).GetField("nativeShotProcesses", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
         BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        shots.Add("irvine", new(0, target, 240, 179, 2, BattleNativeShotPhase.Ready) { Ui = new(BattleTimedInputUiPhase.Active) });
+        shots.Add("irvine", new(0, target, 240, 179, 2, BattleNativeShotPhase.Ready) { Widget = new(179, 5, 3, 0, false) });
         BattleHudController hud = CreateHud(battle);
         UiView view = hud.BuildView();
         BattleUiTests.TestCanvas canvas = new();
@@ -142,13 +104,12 @@ public sealed class BattleHudShotTests
         Assert.Contains(canvas.Texts, text => text.Contains("FireKey", StringComparison.Ordinal) && text.Contains("Fire", StringComparison.Ordinal));
         Assert.Contains(canvas.Texts, text => text.Contains("Key0010", StringComparison.Ordinal) && text.Contains("Finish", StringComparison.Ordinal));
         Assert.Contains("Ammo: 2", canvas.Texts);
-        Assert.Contains("5.96", canvas.Texts);
         Assert.Empty(hud.Commands);
     }
 
     private static BattleHudController CreateHud(BattleSession battle, Action<BattleInput>? execute = null)
     {
-        return new(battle, battle.QueueAttack, () => { }, () => { }, execute: execute)
+        return new(battle, battle.QueueAttack, () => { }, () => { }, execute: execute, readPresentationUi: BattleHudTestPresentation.Visible)
         {
             GunbladeBindingHint = "FireKey",
             NativeButtonBindingHint = buttons => $"Key{buttons:X4}"

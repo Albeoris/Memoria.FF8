@@ -59,8 +59,8 @@ public sealed class NativeAutomaticGuardianPreparationTests
             entry.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(333_334));
         }
         Assert.True(entry.NativeEntryReady);
-        BattleSnapshot saved = entry.Capture();
-        Assert.Empty(saved.NativeGraphics!.Descriptors.Queue);
+        BattleSnapshot saved = entry.CaptureForContinuation();
+        Assert.Empty(saved.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue);
         Assert.Equal((byte)0, saved.NativeActionPackets!.ActionCount);
         NativeBattleRetainedActionPackets retained = saved.NativeActionPackets.ExportRetained();
         NativeBattleRetainedActionHeaderSlot retainedHeader = retained.Headers[0];

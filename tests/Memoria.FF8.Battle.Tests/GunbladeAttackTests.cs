@@ -52,7 +52,7 @@ public sealed class GunbladeAttackTests
         Assert.Equal(2, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
         Assert.False(session.TriggerGunblade());
-        for (int frame = 0; frame < BattleSession.AttackRecoveryFrames; frame++)
+        for (int frame = 0; frame < 1200 && session.ActiveAction is not null; frame++)
         {
             session.Tick();
         }
@@ -180,7 +180,7 @@ public sealed class GunbladeAttackTests
 
     private static void DispatchToContact(BattleSession session)
     {
-        while (session.Frame <= BattleSession.AttackWindupFrames)
+        for (int callback = 0; callback < 1200 && !session.Events.Any(item => item.Kind == "GunbladeTrigger"); callback++)
         {
             session.Tick();
         }

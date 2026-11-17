@@ -11,7 +11,10 @@ public sealed partial class BattlePresentationProcess
         internal sealed record Barrier : HostedDispatchControl;
         internal sealed record ResetCounts : HostedDispatchControl;
         internal sealed record Model(ushort Command, BattleModelOwner Owner) : HostedDispatchControl;
-        internal sealed record LoadEnemy(BattleEnemyActorModel Owner, BattleRosterSlot Slot, NativeBattleModelSlot? OriginalSlot, int SceneSlot, int ModelId) : HostedDispatchControl;
+        internal abstract record LoadModel(BattleModelOwner ModelOwner, BattleRosterSlot Slot, NativeBattleModelSlot? OriginalSlot) : HostedDispatchControl;
+        internal sealed record LoadEnemy(BattleEnemyActorModel Owner, BattleRosterSlot Slot, NativeBattleModelSlot? OriginalSlot, int SceneSlot, int ModelId) : LoadModel(Owner, Slot, OriginalSlot);
+        internal sealed record LoadParty(BattlePartyActorModel Owner, BattlePartyActorModel Outgoing, BattleRosterSlot Slot, NativeBattleModelSlot? OriginalSlot, byte SavedHighBit0) : LoadModel(Owner, Slot, OriginalSlot);
+        internal sealed record PartyReplacement(PartyReplacementDescriptor Descriptor) : HostedDispatchControl;
         internal sealed record AllocationStatistics : HostedDispatchControl;
         internal sealed record ActivateOriginal(NativeBattleModelSlot Slot) : HostedDispatchControl;
         internal sealed record AllocationGate : HostedDispatchControl;
@@ -29,6 +32,7 @@ public sealed partial class BattlePresentationProcess
         internal HostedDuelPoll? DuelPoll { get; init; }
         internal HostedRenzokukenOwner? Renzokuken { get; init; }
         internal BattleActionHeaderReference? RenzokukenHeader { get; init; }
+        internal PartyReplacementDescriptor? PartyReplacement { get; init; }
     }
     private ImmutableArray<HostedControlPacket> hostedControlPackets = [];
     internal sealed record HostedDispatchAction(HostedPresentationInvocation Invocation, BattleModelOwner SourceOwner, NativeBattleGraphicsResource Source, byte? ModelId, bool IsParty, int PartyActorCount);
@@ -53,20 +57,24 @@ public sealed partial class BattlePresentationProcess
         internal PreparedHostedModelRegistry? Registry { get; } = registry;
         internal NativeBattleDuelSelectionReached? DuelSelection { get; } = duelSelection;
         internal NativeBattleRenzokukenFinisherReached? RenzokukenFinisher { get; } = renzokukenFinisher;
+        internal bool PublishesPartyReplacement { get; init; }
     }
 
     internal PreparedHostedDispatch PrepareHostedDispatch(ImmutableArray<HostedDispatchHeader> append, BattleActionHeaderReference? headerReference = null, bool dispatchAppended = false, HostedDispatchCompletion? completion = null, PreparedHostedCompletionAck? acknowledgment = null, bool freshActionPackets = false, HostedDispatchControls? controls = null, bool publishEventHeaders = false, ImmutableArray<HostedModelLoadAdmission> allocations = default, NativeBattleDuelSelectionReached? duelSelection = null, HostedRenzokukenFinisherReplacement? renzokukenFinisher = null, PreparedHostedGuardianFormChange? guardianForm = null, BattlePresentationInvocationProvenance provenance = BattlePresentationInvocationProvenance.Gameplay)
     {
+        bool publishesPartyReplacement = controls is { BeforeAction.IsEmpty: false, AfterAction.IsEmpty: true } &&
+            controls.BeforeAction.All(operation => operation is HostedDispatchControl.PartyReplacement or HostedDispatchControl.LoadParty);
         if (!HasBattleEntry || NativeGraphics is not { EntryReady: true } graphics ||
-            hostedFrameServices is not null || hostedPresentationInvocation is not null || hostedCompletionInvocation is not null && acknowledgment is null ||
+            hostedFrameServices is not null || !publishesPartyReplacement && (hostedPresentationInvocation is not null || hostedCompletionInvocation is not null && acknowledgment is null) ||
             !ReferenceEquals(pendingHostedDuelSelection, duelSelection) ||
             !ReferenceEquals(pendingHostedRenzokukenFinisher, renzokukenFinisher?.Receipt) ||
-            !HostedControlPrefixRetired && (controls is not null || acknowledgment is null || headerReference is not null || dispatchAppended || completion is not null))
+            !HostedControlPrefixRetired && !publishesPartyReplacement && (controls is not null || acknowledgment is null || headerReference is not null || dispatchAppended || completion is not null))
         {
             throw new InvalidOperationException("Hosted dispatch requires an idle presentation process after entry.");
         }
         if (append.IsDefault || freshActionPackets && acknowledgment is not null || dispatchAppended && (append.IsEmpty || headerReference is not null) ||
             completion is not null && controls is not null ||
+            publishesPartyReplacement && (!append.IsEmpty || headerReference is not null || acknowledgment is not null || guardianForm is not null) ||
             headerReference is null && !dispatchAppended && completion is null && acknowledgment is null && controls is null)
         {
             throw new InvalidDataException("Hosted dispatch requires explicit headers and a dispatch or acknowledgement.");
@@ -145,7 +153,11 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleGraphicsState admitted = ReferenceEquals(graphics.Descriptors, descriptors) ? graphics : graphics with { Descriptors = descriptors };
         ImmutableArray<HostedControlPacket> prefix = HostedControlPrefixRetired ? queuedControls.ToImmutable() : hostedControlPackets;
-        return new(this, originalGraphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection, renzokukenFinisher?.Receipt, guardianForm);
+        if (publishesPartyReplacement && !HostedControlPrefixRetired)
+        {
+            prefix = hostedControlPackets.Where(packet => !packet.Retired).Concat(queuedControls).ToImmutableArray();
+        }
+        return new(this, originalGraphics, original, hostedPreparationEpoch, checked(hostedPreparationEpoch + 1), lastHostedActionIssued, lastHostedCompletionIssued, admitted, packets, action, nextCompletion, acknowledgment, appended, prefix, allocationRegistry, duelSelection, renzokukenFinisher?.Receipt, guardianForm) { PublishesPartyReplacement = publishesPartyReplacement };
 
         void EnqueueControls(ImmutableArray<HostedDispatchControl> operations)
         {
@@ -155,6 +167,7 @@ public sealed partial class BattlePresentationProcess
                 HostedDuelPoll? duelPoll = null;
                 HostedRenzokukenOwner? renzokuken = null;
                 BattleActionHeaderReference? renzokukenHeader = null;
+                PartyReplacementDescriptor? partyReplacement = null;
                 switch (operation)
                 {
                     case HostedDispatchControl.Complete finish:
@@ -166,13 +179,37 @@ public sealed partial class BattlePresentationProcess
                     case HostedDispatchControl.ResetCounts:
                         (descriptors, slot) = descriptors.Enqueue(10, 128, 0x47DD90);
                         break;
+                    case HostedDispatchControl.PartyReplacement replacement:
+                        partyReplacement = replacement.Descriptor;
+                        if (partyReplacement.Stage == PartyReplacementStage.Bind)
+                        {
+                            graphics = SetPartyReplacementVitals(graphics, partyReplacement.Change.Slot, false);
+                        }
+                        (descriptors, slot) = descriptors.Enqueue(10, 128, partyReplacement.Callback);
+                        break;
                     case HostedDispatchControl.Model model when model.Command is 105 or 106 or 113 && roster.Contains(model.Owner):
                         uint argument = model.Command == 113 ? 0x487670u : 0;
                         (descriptors, slot) = descriptors.EnqueueModel(model.Command, 128, argument, model.Owner, aliases);
                         break;
-                    case HostedDispatchControl.LoadEnemy load when registry?.Loads.TryGetValue(load.Owner, out HostedModelLoadAdmission? admission) == true && admission.Load == load:
-                        NativeBattleDescriptorModelSubject.PlannedLoad plan = new(load.Owner, load.OriginalSlot, admission.Binding);
+                    case HostedDispatchControl.LoadModel load when registry?.Loads.TryGetValue(load.ModelOwner, out HostedModelLoadAdmission? admission) == true && admission.Load == load:
+                        NativeBattleDescriptorModelSubject.PlannedLoad plan = new(load.ModelOwner, load.OriginalSlot, admission.Binding);
+                        if (load is HostedDispatchControl.LoadParty { OriginalSlot: { } statusSlot } party)
+                        {
+                            (descriptors, _) = descriptors.Enqueue(118, 240, 0, checked((ushort)statusSlot.Offset), (ushort)(8 | party.SavedHighBit0 << 8));
+                        }
                         (descriptors, slot) = descriptors.EnqueuePlannedLoad(102, 128, load.OriginalSlot is { } original ? NativeParticipantAddress(original.Offset) : 0, plan, admission.Binding.ModelId);
+                        if (load is HostedDispatchControl.LoadParty)
+                        {
+                            NativeBattleDescriptorPacket loader = descriptors.Packets[slot];
+                            queuedControls.Add(new(slot, loader.Serial, loader.Command, null));
+                            (descriptors, int completeSlot) = descriptors.EnqueuePlannedLoad(103, 128, 0, plan, 0);
+                            NativeBattleDescriptorPacket complete = descriptors.Packets[completeSlot];
+                            queuedControls.Add(new(completeSlot, complete.Serial, complete.Command, null));
+                            (descriptors, int waitSlot) = descriptors.Enqueue(14, 128, 0);
+                            NativeBattleDescriptorPacket wait = descriptors.Packets[waitSlot];
+                            queuedControls.Add(new(waitSlot, wait.Serial, wait.Command, null));
+                            (descriptors, slot) = descriptors.Enqueue(112, 128, 0);
+                        }
                         break;
                     case HostedDispatchControl.AllocationStatistics:
                         (descriptors, slot) = descriptors.Enqueue(113, 128, 0x48AD10);
@@ -212,7 +249,7 @@ public sealed partial class BattlePresentationProcess
                         throw new InvalidDataException("Hosted dispatch control lacks its original command or loaded model owner.");
                 }
                 NativeBattleDescriptorPacket packet = descriptors.Packets[slot];
-                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null) { DuelPoll = duelPoll, Renzokuken = renzokuken, RenzokukenHeader = renzokukenHeader });
+                queuedControls.Add(new(slot, packet.Serial, packet.Command, packet.Command == 10 ? packet.Argument : null) { DuelPoll = duelPoll, Renzokuken = renzokuken, RenzokukenHeader = renzokukenHeader, PartyReplacement = partyReplacement });
             }
         }
 
@@ -308,11 +345,11 @@ public sealed partial class BattlePresentationProcess
             !ReferenceEquals(prepared.OriginalPackets, nativeActionPackets) || prepared.Epoch != hostedPreparationEpoch ||
             prepared.IssuedAction != lastHostedActionIssued || prepared.IssuedCompletion != lastHostedCompletionIssued ||
             prepared.Registry is { } registry && !ReferenceEquals(registry.Original, hostedModelRegistry) ||
-            !HasBattleEntry || hostedFrameServices is not null || hostedPresentationInvocation is not null ||
+            !HasBattleEntry || hostedFrameServices is not null || !prepared.PublishesPartyReplacement && hostedPresentationInvocation is not null ||
             !ReferenceEquals(pendingHostedDuelSelection, prepared.DuelSelection) ||
             !ReferenceEquals(pendingHostedRenzokukenFinisher, prepared.RenzokukenFinisher) ||
-            hostedCompletionInvocation is not null && prepared.Acknowledgment is null ||
-            !HostedControlPrefixRetired && (prepared.Acknowledgment is null || prepared.Controls != hostedControlPackets))
+            !prepared.PublishesPartyReplacement && (hostedCompletionInvocation is not null && prepared.Acknowledgment is null ||
+                !HostedControlPrefixRetired && (prepared.Acknowledgment is null || prepared.Controls != hostedControlPackets)))
         {
             throw new InvalidOperationException("The prepared dispatch no longer belongs to this idle hosted process.");
         }
@@ -354,7 +391,10 @@ public sealed partial class BattlePresentationProcess
         {
             lastHostedCompletionAcknowledged = ack.Invocation.Request.Token;
         }
-        hostedCompletionInvocation = prepared.Completion;
+        if (!prepared.PublishesPartyReplacement)
+        {
+            hostedCompletionInvocation = prepared.Completion;
+        }
         if (prepared.Completion is { } completion)
         {
             lastHostedCompletionIssued = completion.Request.Token;

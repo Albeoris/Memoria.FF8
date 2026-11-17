@@ -13,7 +13,7 @@ public static class NativeBattleCinematicActorIdentityB5
         }
         BattleModelOwner actor = NativeBattleCinematicActorAccess.ReadSlotActor(frame);
         ushort expected = BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleScriptedCommandReads.Program(frame, program, 2, 2));
-        if (!aliases.TryEncodeExact(actor, out byte original) || original != expected)
+        if (!aliases.TryGetAuthoredOperand(actor, out byte original) || original != expected)
         {
             return NativeBattleScriptedCommandReads.Advance(frame, 6);
         }

@@ -62,16 +62,16 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return result;
     }
 
-    internal NativeBattleModelTextureCache RebindPresentationEnemies(BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleEnemyModelOwner> retired)
+    internal NativeBattleModelTextureCache RebindPresentationRoster(BattleModelRoster expected, BattleModelRoster replacement, IEnumerable<BattleModelOwner> retired)
     {
         Validate();
-        HashSet<BattleEnemyModelOwner> retiredOwners = NativeBattleModelCpuBanks.ValidatePresentationEnemyRebind(PresentationRoster, expected, replacement, retired);
+        HashSet<BattleModelOwner> retiredOwners = NativeBattleModelCpuBanks.ValidatePresentationRebind(PresentationRoster, expected, replacement, retired);
         ImmutableDictionary<int, BattleModelOwner> currentOwners = PresentationActors!;
         var owners = currentOwners.ToBuilder();
         var rows = Rows.ToBuilder();
         foreach ((int index, BattleModelOwner owner) in currentOwners)
         {
-            if (owner is BattleEnemyModelOwner enemy && retiredOwners.Contains(enemy))
+            if (retiredOwners.Contains(owner))
             {
                 rows[index] = rows[index] with { Kind = 0 };
                 owners.Remove(index);

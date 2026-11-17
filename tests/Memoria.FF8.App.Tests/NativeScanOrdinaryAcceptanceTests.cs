@@ -47,7 +47,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
         bool resultText = false;
         bool sentExit = false;
         int rgbChanges = 0;
-        string originalCamera = JsonSerializer.Serialize(source.NativeCamera);
+        string originalCamera = JsonSerializer.Serialize(source.ReadFixturePresentation().NativeCamera);
         BattleSnapshot prior = source;
         try
         {
@@ -64,7 +64,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     restored.PublishNativeScanMappedButtons(buttons);
                 }
                 battle.Tick();
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 foreach (BattleSession restored in continuations)
                 {
                     restored.Tick();
@@ -74,18 +74,18 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                 continuations.Clear();
                 audio.Update(battle);
                 audio.Update(battle);
-                NativeBattleGraphicsState graphics = current.NativeGraphics!;
+                NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 if (graphics.OriginalEffect is { Binding.Effect: 40 } effect)
                 {
                     selected = true;
-                    cameraChanged |= JsonSerializer.Serialize(current.NativeCamera) != originalCamera;
+                    cameraChanged |= JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera) != originalCamera;
                     if (effect.ReturnedDescriptor != 0)
                     {
                         Assert.Equal((byte)2, current.NativeActionScratch!.Command);
                         Assert.Equal((ushort)action.Id, current.NativeActionScratch.Action);
                         Boundary("opening");
                     }
-                    NativeBattleScanProcess process = current.NativeEffectMemory!.Scan!;
+                    NativeBattleScanProcess process = current.ReadFixturePresentation().NativeEffectMemory!.Scan!;
                     NativeBattleScanTextFrame frame = process.Text.ReadFrame(graphics.UiServices!.Flags942);
                     IReadOnlyList<NativeScanWindowText> windows = NativeScanWindowTextProjection.ProjectForViewport(frame, battle.Presentation!.CreateNativeScanTextExpansionServices(), new(0, 0, 320, 224), game.Resources.Source.Language);
                     TextCanvas canvas = new();
@@ -124,7 +124,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
                     if (rgbChanges == 0 && primitive.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8"))
                     {
                         NativeBattlePrimitiveFrame plain = primitive with { LastCommands = primitive.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                        BattleSession background = BattleSession.Restore(current with { NativeGraphics = graphics with { PrimitiveFrame = plain } });
+                        BattleSession background = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { PrimitiveFrame = plain } }));
                         rgbChanges = RgbChanges(scene.Render(battle, 320, 224), new BattleScenePresentation(assets, source.Definition).Render(background, 320, 224));
                         if (rgbChanges > 0)
                         {
@@ -178,7 +178,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "before-failure", prior, null);
             NativeBattleRestorationPresentationTests.Publish(output, "failed", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = error.ToString(), prior.Frame, Callback = prior.NativeGraphics?.Callback }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", Exception = error.ToString(), prior.Frame, Callback = prior.ReadFixturePresentation().NativeGraphics?.Callback }));
             throw;
         }
 
@@ -187,7 +187,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
         ushort Input(BattleSnapshot snapshot, int callback)
         {
             NativeBattleModulePoolTask? result = Result(snapshot);
-            uint count = snapshot.NativeEffectMemory?.Scan?.Results.Count ?? 0;
+            uint count = snapshot.ReadFixturePresentation().NativeEffectMemory?.Scan?.Results.Count ?? 0;
             if (description && resultText && count > 1 && pages.Count >= count && callback > 400)
             {
                 sentExit = true;
@@ -218,9 +218,9 @@ public sealed class NativeScanOrdinaryAcceptanceTests
         }
     }
 
-    private static NativeBattleModulePoolTask? Result(BattleSnapshot snapshot) => snapshot.NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback is 0x84FAF0 or 0x850FD0);
+    private static NativeBattleModulePoolTask? Result(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback is 0x84FAF0 or 0x850FD0);
 
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
 
     private static int RgbChanges(byte[] first, byte[] second)
     {

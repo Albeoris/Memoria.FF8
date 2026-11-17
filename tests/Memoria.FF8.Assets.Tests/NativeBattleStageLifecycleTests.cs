@@ -50,7 +50,7 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.Equal(0, battle.Presentation!.Stage.Rotation);
         Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((byte)1, group.Counter));
         Assert.False(NativeBattleStorageSnapshots.Capture(battle.Presentation!.Memory.Textures!).VramRegions.IsEmpty);
-        BattleSnapshot boundary = battle.Capture();
+        BattleSnapshot boundary = battle.CaptureForContinuation();
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(boundary))!);
         if (source.NativeSource!.Callback!.UpdateTexture0 == true)
         {
@@ -62,7 +62,7 @@ public sealed class NativeBattleStageLifecycleTests
         if (source.NativeSource.Callback!.UpdateTexture0 == true)
         {
             Assert.Equal(NativeBattleStageTextureMotion.Advance50CB20(source.NativeSource.TextureAnimations, 0).Source.ToArray(), battle.Presentation!.Stage.TextureAnimations!.Value.ToArray());
-            BattleSession frozenTexture = BattleSession.Restore(boundary with { NativeStage = boundary.NativeStage! with { Flags = boundary.NativeStage.Flags | 2 } });
+            BattleSession frozenTexture = BattleSession.Restore(boundary.WithFixturePresentation(facts => facts with { NativeStage = boundary.ReadFixturePresentation().NativeStage! with { Flags = boundary.ReadFixturePresentation().NativeStage.Flags | 2 } }));
             frozenTexture.Tick();
             Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.Presentation!.Stage.TextureAnimations!.Value.ToArray());
             Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.Presentation!.Stage.Rotation);
@@ -78,11 +78,11 @@ public sealed class NativeBattleStageLifecycleTests
             Assert.Equal(source.NativeSource!.ModelColors!.Color40, model.Color40);
             Assert.Equal(source.NativeSource.ModelColors.Color44, model.Color44);
         });
-        BattleSnapshot completed = battle.Capture();
+        BattleSnapshot completed = battle.CaptureForContinuation();
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
-        Assert.Same(completed.NativeStage, retained.Stage);
+        Assert.Same(completed.ReadFixturePresentation().NativeStage, retained.Stage);
         Assert.NotSame(battle.Presentation?.Stage, retained.Stage);
-        BattleSession unknown = BattleSession.Restore(boundary with { NativeStage = null });
+        BattleSession unknown = BattleSession.Restore(boundary.WithFixturePresentation(facts => facts with { NativeStage = null }));
         Assert.Throws<NotSupportedException>(() => unknown.Tick());
     }
 
@@ -141,9 +141,9 @@ public sealed class NativeBattleStageLifecycleTests
         Assert.True(battle.NativeEntryReady);
         Assert.NotEmpty(battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands);
         AssertResumesNextCallback(battle);
-        BattleSnapshot completed = battle.Capture();
+        BattleSnapshot completed = battle.CaptureForContinuation();
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.Capture(completed, NativeFieldRuntimeProfile.FF8EnExecutableHash);
-        Assert.Same(completed.NativeStage, retained.Stage);
+        Assert.Same(completed.ReadFixturePresentation().NativeStage, retained.Stage);
         Assert.NotSame(battle.Presentation?.Stage, retained.Stage);
     }
 
@@ -175,8 +175,8 @@ public sealed class NativeBattleStageLifecycleTests
         {
             state = NativeBattleStage37.Dispatch518A80(state, service == 1 ? 100 : 102);
         }
-        BattleSnapshot boundary = battle.Capture();
-        battle = BattleSession.Restore(boundary with { NativeStage = boundary.NativeStage! with { Extended = extended with { Stage37 = state } } });
+        BattleSnapshot boundary = battle.CaptureForContinuation();
+        battle = BattleSession.Restore(boundary.WithFixturePresentation(facts => facts with { NativeStage = boundary.ReadFixturePresentation().NativeStage! with { Extended = extended with { Stage37 = state } } }));
         short shake = battle.Presentation!.Camera.ScreenOffsetScratchY ?? 0;
         NativeBattleStage37Step expected = NativeBattleStage37.Advance518F50(state, 1, battle.Presentation!.Stage.RotationSpeed, shake);
         Assert.Single(expected.Draws);

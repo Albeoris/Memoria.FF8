@@ -20,8 +20,8 @@ public sealed class NativeBattleGuardianAnchorMigrationTests
         Assert.Equal(expectedHash, Convert.ToHexString(SHA256.HashData(originalBytes)));
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(originalBytes)!;
         Assert.Equal(217L, original.Frame);
-        Assert.Equal(297L, original.NativeGraphics!.Callback);
-        NativeBattleOriginalEffectState effect = original.NativeGraphics.OriginalEffect!;
+        Assert.Equal(297L, original.ReadFixturePresentation().NativeGraphics!.Callback);
+        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics.OriginalEffect!;
         Assert.Equal((ushort)116, effect.Binding.Effect);
         Assert.Equal((ushort)157, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;

@@ -45,14 +45,14 @@ public sealed class NativeBattleOilBlast137PresentationTests
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(99, casterSource.ModelId);
-        Assert.Equal((byte?)115, ReadOriginalModelCell(source.NativeGraphics!, 3).ModelId4);
+        Assert.Equal((byte?)115, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([137])[136];
         Assert.Equal(NativeBattleOilBlast137Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleOilBlast137Profile.Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag136.tim", NativeBattleOilBlast137Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(167968, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeOilBlast137Resources(), binding.OilBlast137Resources);
-        Assert.True(source.NativeEffectMemory!.OilBlast137!.ColdMatrixSourcePending);
+        Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.OilBlast137!.ColdMatrixSourcePending);
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

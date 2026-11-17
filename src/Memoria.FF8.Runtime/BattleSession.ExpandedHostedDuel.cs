@@ -23,7 +23,7 @@ public sealed partial class BattleSession
     {
         BattleActionPresentation mirror = proof.Event.ActivePresentation;
         HostedDuelFrameOwner frame = proof.Selection.Frame;
-        if (!ReferenceEquals(snapshot, proof.Snapshot) || snapshot.NativeGraphics is not null ||
+        if (!ReferenceEquals(snapshot, proof.Snapshot) ||
             snapshot.Outcome != BattleOutcome.Active || mirror.NativeDuel is null || snapshot.ActiveAction is not null && !ReferenceEquals(snapshot.ActiveAction, mirror) ||
             !ReferenceEquals(proof.Event.DuelPoll, frame.Poll) || mirror.ActorId != frame.Poll.ActorId || proof.Event.CompletionOwner != frame.Poll.Owner ||
             frame.Widget.Selection1D28DEF is not byte selection || selection == 254 ||
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
             Selection1D28DEF = 254,
             Ui = new(BattleTimedInputUiPhase.Opening)
         });
-        BattleActionPresentation mirror = NativeCommandPresentation(command) with { Phase = BattleActionPhase.Recovery, RemainingFrames = 1 };
+        BattleActionPresentation mirror = NativeCommandPresentation(command) with { Phase = BattleActionPhase.Recovery };
         candidate.ActiveAction = mirror;
         candidate.BeginNativeBattleActionPause();
         candidate.BeginNativeReactionBatch();
@@ -120,7 +120,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        BattleActionPresentation formulaCommand = new(actor.Id, targets[0].Id, BattleActionPhase.Recovery, 1, request, BattleAbility.LimitBreak, native.Command << 16 | native.ActionId)
+        BattleActionPresentation formulaCommand = new(actor.Id, targets[0].Id, BattleActionPhase.Recovery, request, BattleAbility.LimitBreak, native.Command << 16 | native.ActionId)
         {
             NativeQueuedCommand = native.Command,
             NativeAction = native,
@@ -170,7 +170,7 @@ public sealed partial class BattleSession
         }
         ImmutableArray<HostedModelLoadAdmission> allocations = candidate.PrepareExpandedModelLoadAdmissions(process);
         BattleModelRoster roster = process.PlannedModelRoster;
-        BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.Owner)));
+        BattleModelRoster admittedRoster = allocations.IsEmpty ? roster : new(roster.Owners.Concat(allocations.Select(plan => plan.Load.ModelOwner)));
         candidate.ValidateExpandedHostedInvocations(admittedRoster);
         PreparedHostedGuardianFormChange? form = PrepareStagedHostedGuardianForm(process, candidate);
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form, duelSelection: proof?.Selection);

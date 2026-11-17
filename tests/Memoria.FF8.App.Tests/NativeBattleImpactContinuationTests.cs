@@ -44,10 +44,10 @@ public sealed class NativeBattleImpactContinuationTests
             {
                 before = battle.Capture();
                 battle.AdvanceNativeGraphicsPresentation(Callback);
-                BattleSnapshot current = battle.Capture();
+                BattleSnapshot current = battle.CaptureForContinuation();
                 if (callbacks % 16 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { callbacks, current.Frame, NativeCallback = current.NativeGraphics?.Callback, Active = current.ActiveAction?.ActionId, Queue = current.QueuedActions.Length, Impact = HasImpact(current) }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { callbacks, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics?.Callback, Active = current.ActiveAction?.ActionId, Queue = current.QueuedActions.Length, Impact = HasImpact(current) }));
                 }
                 impactSeen |= HasImpact(current);
                 if (!comparedMidpoint && HasImpact(current))
@@ -58,7 +58,7 @@ public sealed class NativeBattleImpactContinuationTests
                 if (impactSeen && comparedMidpoint && Released(current))
                 {
                     CompareNext("completed", current);
-                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", SourceFrame = initial.Frame, SourceNativeCallback = initial.NativeGraphics?.Callback, current.Frame, NativeCallback = current.NativeGraphics?.Callback, Callbacks = callbacks + 1, impactSeen, comparedMidpoint }));
+                    File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "passed", SourceFrame = initial.Frame, SourceNativeCallback = initial.ReadFixturePresentation().NativeGraphics?.Callback, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics?.Callback, Callbacks = callbacks + 1, impactSeen, comparedMidpoint }));
                     return;
                 }
                 if (!impactSeen && Released(current))
@@ -73,7 +73,7 @@ public sealed class NativeBattleImpactContinuationTests
             File.WriteAllText(Path.Combine(output, "failure.txt"), error.ToString());
             Publish("before-boundary", before, false);
             Publish("failed-live", battle.Capture(), false);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", callbacks, before.Frame, NativeCallback = before.NativeGraphics?.Callback, impactSeen, comparedMidpoint, Error = error.ToString() }));
+            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "failed", callbacks, before.Frame, NativeCallback = before.ReadFixturePresentation().NativeGraphics?.Callback, impactSeen, comparedMidpoint, Error = error.ToString() }));
             throw;
         }
 
@@ -101,7 +101,7 @@ public sealed class NativeBattleImpactContinuationTests
         {
             string path = Path.Combine(output, name + ".battle.json");
             File.WriteAllBytes(path, JsonSerializer.SerializeToUtf8Bytes(snapshot));
-            Console.WriteLine($"{name}: {path}; field {source?.FieldId}; battle frame {snapshot.Frame}; native callback {snapshot.NativeGraphics?.Callback}");
+            Console.WriteLine($"{name}: {path}; field {source?.FieldId}; battle frame {snapshot.Frame}; native callback {snapshot.ReadFixturePresentation().NativeGraphics?.Callback}");
             if (render)
             {
                 byte[] pixels = scene.Render(Restore(snapshot), 320, 224).ToArray();
@@ -114,11 +114,11 @@ public sealed class NativeBattleImpactContinuationTests
 
     private static bool HasImpact(BattleSnapshot snapshot)
     {
-        return snapshot.NativeGraphics?.ModuleEffects?.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.Impact570860) == true;
+        return snapshot.ReadFixturePresentation().NativeGraphics?.ModuleEffects?.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.Impact570860) == true;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        return !HasImpact(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
+        return !HasImpact(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }

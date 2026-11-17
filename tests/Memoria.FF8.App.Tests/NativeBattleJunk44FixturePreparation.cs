@@ -40,9 +40,9 @@ internal static class NativeBattleJunk44FixturePreparation
         BattleCombatantDefinition[] actors = [.. baseline.Definition.Combatants, prototype];
         BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation), NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        BattleSnapshot fresh = session.Capture();
-        NativeBattleGraphicsState freshGraphics = fresh.NativeGraphics ?? throw new InvalidDataException("The original allocation component requires its fresh graphics owner.");
-        session = BattleSession.Restore(fresh with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } });
+        BattleSnapshot fresh = session.CaptureForContinuation();
+        NativeBattleGraphicsState freshGraphics = fresh.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original allocation component requires its fresh graphics owner.");
+        session = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } }));
         Directory.CreateDirectory(output);
         Save("allocation-before-entry", session.Capture());
         int entryCallbacks = 0;
@@ -73,7 +73,7 @@ internal static class NativeBattleJunk44FixturePreparation
             ExceptionDispatchInfo.Capture(inner).Throw();
             throw;
         }
-        BattleSnapshot pending = session.Capture();
+        BattleSnapshot pending = session.CaptureForContinuation();
         NativeBattleEnemyAllocation allocation = Assert.Single(pending.NativeAllocations);
         Assert.Equal(placement.Slot, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
@@ -83,7 +83,7 @@ internal static class NativeBattleJunk44FixturePreparation
         Assert.InRange(actualIndex, 3, 6);
         Assert.True(pendingParticipant.AllocationPendingStatistics);
         Assert.True(pending.NativeScriptState.AllocationControl!.ActionGate);
-        NativeBattleGraphicsState pendingGraphics = pending.NativeGraphics ?? throw new InvalidDataException("The pending original allocation lacks its graphics owner.");
+        NativeBattleGraphicsState pendingGraphics = pending.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The pending original allocation lacks its graphics owner.");
         Assert.Contains(pendingGraphics.Descriptors.Queue, slot => pendingGraphics.Descriptors.Packets[slot].Command == 102);
         Save("allocation-pending", pending);
 
@@ -96,7 +96,7 @@ internal static class NativeBattleJunk44FixturePreparation
             ready = session.Capture();
             BattleCombatantSnapshot actor = Assert.Single(ready.Combatants, candidate => candidate.Id == allocated.Id);
             NativeBattleParticipantSnapshot participant = actor.NativeParticipant ?? throw new InvalidDataException("The actual allocation lost its native participant.");
-            if (participant.Active && !participant.AllocationPendingStatistics && ready.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && ready.NativeGraphics!.Descriptors.Queue.IsEmpty)
+            if (participant.Active && !participant.AllocationPendingStatistics && ready.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && ready.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty)
             {
                 break;
             }
@@ -118,7 +118,7 @@ internal static class NativeBattleJunk44FixturePreparation
         Assert.Equal(prototype.InitialHidden, currentDefinition.InitialHidden);
         Assert.Equal(prototype.InitialUntargetable, currentDefinition.InitialUntargetable);
         Assert.Equal(prototype.InitialSuspended, currentDefinition.InitialSuspended);
-        NativeBattleGraphicsState graphics = ready.NativeGraphics ?? throw new InvalidDataException("The activated original actor lost its graphics owner.");
+        NativeBattleGraphicsState graphics = ready.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The activated original actor lost its graphics owner.");
         Assert.Equal(allocated.Id, ReadOriginalModelActorId(graphics, actualIndex));
         NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, actualIndex);
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(currentDefinition);
