@@ -23,13 +23,12 @@ public sealed partial class BattleSession
     public BattleSession ForkForContinuation()
     {
         RequireExpandedPresentationDispatchIdle();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         if (Presentation is null)
         {
-            return Restore(Capture(), customHandlers);
+            return Restore(Capture());
         }
         BattleSnapshot snapshot = CaptureForContinuation();
-        BattleSession clone = Restore(snapshot, customHandlers);
+        BattleSession clone = Restore(snapshot);
         clone.AttachRestoredPresentation(snapshot.PresentationContinuation!.Resources, snapshot, preparePresentationModelBinding);
         return clone;
     }

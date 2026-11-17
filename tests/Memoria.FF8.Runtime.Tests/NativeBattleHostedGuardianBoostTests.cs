@@ -102,7 +102,6 @@ public sealed class NativeBattleHostedGuardianBoostTests
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Boost fixture", BattleActionEffect.Native, 44, false) { NativeAction = native, NativeGuardianBoostAvailable = learned };
         BattleSession child = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeBattleUiRandom = new(1),
             ActionDefinitions = [action],
             Combatants = [new() { Id = "first", Name = "First", IsPlayer = true }, new() { Id = "second", Name = "Second", IsPlayer = true }, new() { Id = "third", Name = "Third", IsPlayer = true }, new() { Id = "fourth", Name = "Fourth", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]

@@ -20,7 +20,7 @@ public sealed class GuardianForceResultTests
         ushort[] compatibilityBefore = vitals.Records[row].GuardianForceCompatibility!.ToArray();
         ushort[] compatibilityAfter = compatibilityBefore.ToArray();
         compatibilityAfter[0] = (ushort)(compatibilityAfter[0] == 6000 ? 5999 : compatibilityAfter[0] + 1);
-        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { GuardianForceChanges = [new(0, before, after)], GuardianForceCompatibilityChanges = [new(row, compatibilityBefore, compatibilityAfter)] };
+        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { EnemySlotCount = 1, GuardianForceChanges = [new(0, before, after)], GuardianForceCompatibilityChanges = [new(row, compatibilityBefore, compatibilityAfter)] };
         string unchanged = JsonSerializer.Serialize(vitals);
         BattleResultOwners Project(NativeCharacterVitals source)
         {

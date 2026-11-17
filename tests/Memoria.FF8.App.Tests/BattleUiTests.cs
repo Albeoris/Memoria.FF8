@@ -21,7 +21,6 @@ public sealed class BattleUiTests
         {
             Abilities = [BattleAbility.Attack, ability],
             NativeStatus0 = nativeSilence ? (ushort)0x10 : (ushort)0,
-            StatusEffects = effectSilence ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Silence, DurationFrames = 60 }] : [],
             MagicStocks = [new(1, 10)]
         };
         definition.Combatants[1] = definition.Combatants[1] with { NativeDrawSlots = [new(1, 0), new(0, 0), new(0, 0), new(0, 0)] };
@@ -307,7 +306,6 @@ public sealed class BattleUiTests
         BattleNativeAction spell = new(2, 1, 1, 1) { Name = "Fire", MagicId = 2, AttackType = 2, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 20, false) { NativeAction = spell }],
             Combatants =
             [
@@ -370,21 +368,18 @@ public sealed class BattleUiTests
     }
 
     [Fact]
-    public void Ready_sleeping_player_waits_for_automatic_status_expiry_before_command_selection()
+    public void Ready_sleeping_player_does_not_open_command_selection()
     {
         BattleDefinition definition = Definition();
-        definition.Combatants[0] = definition.Combatants[0] with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 1 }] };
+        definition.Combatants[0] = definition.Combatants[0] with { NativeStatus1 = 1 };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), readPresentationUi: BattleHudTestPresentation.Visible);
         Assert.Null(hud.SelectedActor);
         Assert.Empty(hud.Commands);
         hud.SelectParty("party-0");
         Assert.Null(hud.SelectedActor);
-        session.Tick();
-        Assert.Equal(1, session.Frame);
-        Assert.Equal("party-0", hud.SelectedActor!.Id);
         hud.Navigate(MenuInput.Confirm);
-        Assert.True(hud.SelectingTarget);
+        Assert.False(hud.SelectingTarget);
     }
 
     [Fact]

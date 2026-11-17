@@ -235,16 +235,7 @@ public sealed partial class BattleSession
         _ = slot.ReadContactCount();
     }
 
-    private void CompleteNativeComponentPacketPresentation(BattleActionPresentation command)
-    {
-        if (ReferenceEquals(ActiveAction, command) && command.NativeHeader is not null && !actions.Any(queued => queued.NativeHeader is not null))
-        {
-            //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10.
-            nativeActionScratch = nativeActionScratch with { ComponentCompletion = nativeActionScratch.ComponentCompletion ?? 0x47DDA0 };
-            ActiveAction = null;
-            TryCompleteNativeComponentCommand();
-        }
-    }
+
 
     private static BattleActionPresentation NativeCommandPresentation(BattleAttackCommand command)
     {

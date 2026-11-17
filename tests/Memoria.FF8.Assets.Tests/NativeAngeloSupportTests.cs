@@ -262,7 +262,6 @@ public sealed class NativeAngeloSupportTests
             NativeSavedBattleFlags = savedFlags,
             NativeSavedBattleFlagsKnownMask = 255,
             LimitProgress = game.ReadNewGameLimitProgress() with { AngeloFlags = learned },
-            UsesExpandedRoster = expanded,
             NativeStatusRules = expanded ? assets.ReadNativeStatusRules(0) : null,
             NativeSupportRules = periodic ? assets.ReadNativeSupportRules() : null,
             NativeCrtRandom = periodic ? NativeCrtRandomState.FromColdProcess() : null,

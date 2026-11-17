@@ -40,7 +40,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(32, loaded.StatusTimers.Length);
         Assert.All(loaded.StatusTimers, value => Assert.Equal((byte)0, value));
 
-        NativeBattleSummonColors colors = selected.NativeGraphics.Rules.SummonColors!;
+        NativeBattleSummonColors colors = selected.NativeGraphics!.Rules.SummonColors!;
         NativeBattleStageColors stage = process.Stage.ModelColors!;
         NativeBattleGraphicsModel pulse = NativeBattleModelStatusColors.Advance50A1C0(loaded with { Flags8 = 0x100 }, colors with { Transition = stage.Color40, Normal = stage.Color44 });
         Assert.Equal((byte)1, pulse.StatusTimers[18]);
@@ -321,7 +321,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             observed.Observe(process.Graphics);
             if (!observed.AppearanceCompleted && process.Graphics.EntryGatePhase == 2)
             {
-                foreach (BattlePartyModelOwner owner in logical.ReadBattlePresentationRoster().Party)
+                foreach (BattlePartyModelOwner owner in process.Graphics.ActorModels.Roster.Party)
                 {
                     NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
                     Assert.True((model.Flags0 & 2) != 0, $"Appearance completed before {owner} was loaded.");
@@ -459,7 +459,6 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             Name = "Installed roster entry",
             EncounterId = encounter.Id,
             StageId = encounter.StageId,
-            UsesExpandedRoster = expanded,
             UsesOriginalEnemySlots = expanded && addedCount != 0,
             AddedEnemySources = addedCount == 0 ? null : added,
             Combatants = actors,

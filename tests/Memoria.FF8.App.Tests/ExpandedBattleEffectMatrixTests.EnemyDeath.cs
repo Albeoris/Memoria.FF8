@@ -61,25 +61,21 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             ushort formation = checked((ushort)routes.Key);
             BattleActionDefinition? trigger = routes.Any(route => IsTriFacePoisonGasDeath(route.Script)) ? ReadTriFaceLethalSpell(assets) : null;
-            using GameWorld world = StartBattle(directory, field, formation, trigger, requireExpanded: false);
+            using GameWorld world = StartBattle(directory, field, formation, trigger, requireMaximumParty: false);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            EnemyRouteResult result = new("blocked", "The scene retained its original roster.", "enemy-death-formation-entry");
-            if (battle.UsesExpandedRoster)
+            var owners = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable && actor.NativeAi is not null)
+                .Select(actor => (Actor: actor, Scripts: routes.Select(route => route.Script).Where(script => script.ModelId == actor.ModelId && script.LevelBand == actor.NativeAi!.LevelBand).Distinct().ToArray()))
+                .Where(owner => owner.Scripts.Length > 0)
+                .GroupBy(owner => (owner.Actor.ModelId, owner.Actor.NativeAi!.LevelBand))
+                .SelectMany(group => group.Take(3)).ToArray();
+            EnemyRouteResult result = new("blocked", "The roster has no matching living scene owner and level band.", "enemy-death-owner");
+            foreach (var owner in owners)
             {
-                var owners = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable && actor.NativeAi is not null)
-                    .Select(actor => (Actor: actor, Scripts: routes.Select(route => route.Script).Where(script => script.ModelId == actor.ModelId && script.LevelBand == actor.NativeAi!.LevelBand).Distinct().ToArray()))
-                    .Where(owner => owner.Scripts.Length > 0)
-                    .GroupBy(owner => (owner.Actor.ModelId, owner.Actor.NativeAi!.LevelBand))
-                    .SelectMany(group => group.Take(3)).ToArray();
-                result = new("blocked", "The expanded roster has no matching living scene owner and level band.", "enemy-death-owner");
-                foreach (var owner in owners)
+                Assert.Equal(assets.ReadEnemyAi(owner.Actor.ModelId, owner.Actor.Level).Scripts[3], owner.Actor.NativeAi!.Scripts[3]);
+                result = ObserveEnemyDeath(world, battle, effect, owner.Actor, owner.Scripts, owner.Scripts.Any(IsTriFacePoisonGasDeath) ? trigger : null);
+                if (result.Status is "native" or "logical")
                 {
-                    Assert.Equal(assets.ReadEnemyAi(owner.Actor.ModelId, owner.Actor.Level).Scripts[3], owner.Actor.NativeAi!.Scripts[3]);
-                    result = ObserveEnemyDeath(world, battle, effect, owner.Actor, owner.Scripts, owner.Scripts.Any(IsTriFacePoisonGasDeath) ? trigger : null);
-                    if (result.Status is "native" or "logical")
-                    {
-                        return result with { Detail = $"Formation {formation}, {result.Detail}" };
-                    }
+                    return result with { Detail = $"Formation {formation}, {result.Detail}" };
                 }
             }
             firstBlocker ??= result;

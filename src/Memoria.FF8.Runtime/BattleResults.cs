@@ -77,22 +77,14 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     public BattleGuardianForceChange[] GuardianForceChanges { get; init; } = [];
     public BattleGuardianForceCompatibilityChange[] GuardianForceCompatibilityChanges { get; init; } = [];
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool UsesExpandedRoster { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? ExpandedEnemyCount { get; init; }
+    [JsonRequired]
+    public int EnemySlotCount { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesOriginalEnemySlots { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public System.Collections.Immutable.ImmutableSortedDictionary<int, BattleEnemyRosterSource>? AddedEnemySources { get; init; }
-
-    [JsonIgnore]
-    public int EffectiveEnemySlotCount => UsesExpandedRoster && !UsesOriginalEnemySlots
-        ? ExpandedEnemyCount ?? ExpandedBattleFormation.DefaultEnemyCount(Party.Length)
-        : NativeBattleSlots.FormationSlotCount + (AddedEnemySources?.Count ?? 0);
 
     public void Validate()
     {
@@ -102,20 +94,18 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         }
         Encounter.Validate();
         int addedCount = AddedEnemySources?.Count ?? 0;
-        int originalEnemyCount = (ExpandedEnemyCount ?? NativeBattleSlots.FormationSlotCount) - addedCount;
-        if (UsesExpandedRoster
-            ? Party is null || (UsesOriginalEnemySlots
-                ? Party.Length is < 1 or > ExpandedBattleFormation.MaximumAllies || originalEnemyCount is < 1 or > NativeBattleSlots.FormationSlotCount || addedCount > 0 && ExpandedEnemyCount is null
-                : !ExpandedBattleFormation.SupportsRoster(Party.Length, ExpandedEnemyCount ?? EffectiveEnemySlotCount))
-            : ExpandedEnemyCount.HasValue || UsesOriginalEnemySlots || AddedEnemySources is not null)
+        if (Party is null || Party.Length is < 1 or > ExpandedBattleFormation.MaximumAllies ||
+            EnemySlotCount < 1 || EnemySlotCount > ExpandedBattleFormation.MaximumRewardSlots ||
+            UsesOriginalEnemySlots && EnemySlotCount != NativeBattleSlots.FormationSlotCount + addedCount ||
+            !UsesOriginalEnemySlots && EnemySlotCount > ExpandedBattleFormation.MaximumEnemies)
         {
-            throw new InvalidDataException("Battle outcome has invalid expanded roster dimensions.");
+            throw new InvalidDataException("Battle outcome has an invalid actor or reward slot domain.");
         }
         if (AddedEnemySources is not null)
         {
             if (addedCount > ExpandedBattleFormation.MaximumAddedEnemies ||
                 UsesOriginalEnemySlots && !AddedEnemySources.Keys.SequenceEqual(Enumerable.Range(NativeBattleSlots.FormationSlotCount, addedCount)) ||
-                AddedEnemySources.Any(entry => entry.Key < 1 || entry.Key >= EffectiveEnemySlotCount || entry.Value is null))
+                AddedEnemySources.Any(entry => entry.Key < 1 || entry.Key >= EnemySlotCount || entry.Value is null))
             {
                 throw new InvalidDataException("Battle outcome has invalid added enemy placements.");
             }
@@ -177,7 +167,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         {
             throw new InvalidDataException("Battle script item rewards require their observed native combat owner.");
         }
-        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit or BattleOutcome.Escaped) || Party is null || Party.Length < 1 || Party.Length > (UsesExpandedRoster ? NativeCharacterVitals.ExtendedRecordCount : 3) || Party.Any(member => member is null || member.Row >= NativeCharacterVitals.ExtendedRecordCount || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => (uint)slot >= EffectiveEnemySlotCount) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped) && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
+        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit or BattleOutcome.Escaped) || Party is null || Party.Length < 1 || Party.Length > NativeCharacterVitals.ExtendedRecordCount || Party.Any(member => member is null || member.Row >= NativeCharacterVitals.ExtendedRecordCount || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => (uint)slot >= EnemySlotCount) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome is not (BattleOutcome.Victory or BattleOutcome.Escaped) && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
         {
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
@@ -210,20 +200,20 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         HashSet<int> logicalSourceSlots = [];
         foreach (BattleEnemyRemainingExperience enemy in RemainingEnemyExperience)
         {
-            if (enemy is null || enemy.Slot >= EffectiveEnemySlotCount)
+            if (enemy is null || enemy.Slot >= EnemySlotCount)
             {
                 throw new InvalidDataException(invalidAllocations);
             }
             enemy.Validate();
             if (enemy.NativeIndex is int index)
             {
-                if (UsesExpandedRoster && !UsesOriginalEnemySlots || !physicalIndices.Add(index))
+                if (!physicalIndices.Add(index))
                 {
                     throw new InvalidDataException(invalidAllocations);
                 }
                 physicalSourceSlots.Add(enemy.Slot);
             }
-            else if (!UsesExpandedRoster || !logicalSourceSlots.Add(enemy.Slot))
+            else if (!logicalSourceSlots.Add(enemy.Slot))
             {
                 throw new InvalidDataException(invalidAllocations);
             }

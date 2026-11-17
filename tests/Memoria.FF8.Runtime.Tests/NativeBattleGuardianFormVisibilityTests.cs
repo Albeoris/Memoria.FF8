@@ -42,8 +42,8 @@ public sealed class NativeBattleGuardianFormVisibilityTests
         Return(battle);
         Assert.Null(battle.Presentation!.Graphics.GuardianFormPresentation);
         AssertVisibility(battle.Presentation?.Graphics, presentation);
-        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0);
-        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags2);
+        Assert.Equal(presentation.HumanModel.Flags0, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0);
+        Assert.Equal(presentation.HumanModel.Flags2, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags2);
     }
 
     [Fact]

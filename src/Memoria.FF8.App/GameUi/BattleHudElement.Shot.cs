@@ -7,22 +7,23 @@ internal sealed partial class BattleHudElement
 {
     private void DrawNativeShot(IUiCanvas canvas, UiTheme theme, BattleNativeShotState state)
     {
-        BattleTimedInputUi ui = controller.ShotUi ?? new(BattleTimedInputUiPhase.Active);
-        float reveal = ui.Reveal(BattlePresentationTiming.ShotInputTicksPerSecond);
-        if (reveal <= 0)
+        if (state.Widget is not { Visible: true } widget)
         {
             return;
         }
         // TODO(TD-009): Present the selected native target mask; interactive native aiming remains a separate widget contract.
-        canvas.PushClip(Rect(36, 492, 726 * reveal, 156 * reveal));
+        canvas.PushClip(Rect(36, 492, 726, 156));
         try
         {
             theme.Panel(canvas, Rect(36, 492, 726, 156));
             string targets = string.Join(", ", controller.ShotTargets.Select(controller.CombatantDisplayName));
             Text(canvas, theme, controller.SystemText("battle.hud.target", "TARGET") + ": " + targets, 54, 504, 540, 30);
-            int timer = Math.Max(0, (int)state.RemainingTimer);
-            int rate = BattlePresentationTiming.ShotInputTicksPerSecond;
-            Text(canvas, theme, $"{timer / rate}.{100 * (timer % rate) / rate:00}", 636, 504, 108, 30);
+            theme.Panel(canvas, Rect(636, 512, 108, 12));
+            float fraction = Math.Clamp(widget.RemainingTimer / (float)state.InitialTimer, 0, 1);
+            if (fraction > 0)
+            {
+                canvas.Fill(Rect(638, 514, 104 * fraction, 8), theme.Highlight);
+            }
             Text(canvas, theme, controller.FormatSystemText("battle.ui.shot.ammo", "Ammo: {0}", state.RemainingAmmo), 54, 540, 480, 28);
             bool ready = state.Phase == BattleNativeShotPhase.Ready && state.RemainingTimer > 0 && state.RemainingAmmo > 0;
             theme.Panel(canvas, Rect(42, 576, 342, 60));

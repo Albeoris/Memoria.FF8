@@ -41,7 +41,7 @@ public sealed class ExpandedBattleHostTests
 
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.Normal, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.True(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         Assert.Null(battle.Presentation?.Graphics);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleDefinition definition = battle.ReadDefinition();
@@ -121,7 +121,7 @@ public sealed class ExpandedBattleHostTests
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
 
         BattleDefinition definition = world.CreateEncounterBattle(formation);
-        Assert.True(definition.UsesExpandedRoster);
+        Assert.True(definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || definition.AddedEnemySources is { Count: > 0 });
         Assert.Equal(rows.Select(row => (int?)row), definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId));
         Assert.Equal(0, definition.Combatants.Single(actor => actor.MagicRecordId == rows[^1]).CurrentHp);
         Assert.Equal(rows, ExpandedBattlePartyRows.ReadBoundRows(definition, vitals));
@@ -220,7 +220,7 @@ public sealed class ExpandedBattleHostTests
         session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.True(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
         Assert.Equal(guardianFormsEnabled, battle.ReadDefinition().GuardianFormsEnabled);
         BattleCombatant[] enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive).ToArray();

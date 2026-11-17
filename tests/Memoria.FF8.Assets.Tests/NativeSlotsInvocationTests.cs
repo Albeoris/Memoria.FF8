@@ -178,7 +178,7 @@ public sealed class NativeSlotsInvocationTests
         BattleCombatantDefinition[] combatants = expanded
             ? [selphie, .. Enumerable.Range(1, 3).Select(index => selphie with { Id = $"ally-{index}", NativeLimit = null, InitialAtb = 0 }), .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" })]
             : [selphie, enemy];
-        BattleSession battle = new(new BattleDefinition { SelphieCardSlots = cardSlots, NativeGlobalRandom = new(12345), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, UsesExpandedRoster = expanded, InitialRandom = initial, Combatants = combatants }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { SelphieCardSlots = cardSlots, NativeGlobalRandom = new(12345), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, InitialRandom = initial, Combatants = combatants }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", crisis)] });
     }
 

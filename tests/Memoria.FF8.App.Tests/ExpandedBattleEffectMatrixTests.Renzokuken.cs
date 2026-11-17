@@ -76,12 +76,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             {
                 break;
             }
-            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireExpanded: !originalAllocation);
+            using GameWorld world = StartBattle(directory, field, checked((ushort)formation), limit: squall, nativeSeed: (byte)seed, prepareHigherBand: true, requireMaximumParty: !originalAllocation);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            if (!battle.UsesExpandedRoster)
-            {
-                return ("blocked", $"Formation {formation} remains on its original battle host because the expanded host cannot execute all required encounter services.");
-            }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == casterId);
             if (effect == 335 && !AdvanceAuthoredModelActivation(world, battle, out _))
             {

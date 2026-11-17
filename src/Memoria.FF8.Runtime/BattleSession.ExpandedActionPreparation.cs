@@ -38,9 +38,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleSession CreatePreparedHostedActionCandidate(BattleSnapshot snapshot, IBattleStatusEffectHandler[] customHandlers, HostedCandidateProof? proof = null)
+    private BattleSession CreatePreparedHostedActionCandidate(BattleSnapshot snapshot, HostedCandidateProof? proof = null)
     {
-        BattleSession candidate = RestoreSnapshot(snapshot, customHandlers, proof);
+        BattleSession candidate = RestoreSnapshot(snapshot, proof);
         candidate.preparingExpandedHostedAction = true;
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
@@ -56,13 +56,12 @@ public sealed partial class BattleSession
     {
         BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
         BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CaptureState());
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before);
         candidate.CommitExpandedAction(command);
-        PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, command, process);
+        PublishPreparedExpandedActionCandidate(before, candidate, command, process);
     }
 
-    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate, BattleActionPresentation command, BattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, BattleSession candidate, BattleActionPresentation command, BattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
@@ -83,7 +82,7 @@ public sealed partial class BattleSession
             candidate.BindExpandedHostedPrefix(prefix, admission.Packets.Roster);
             hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token, CompletionOwner: completionOwner);
         }
-        PreparedActionPublication publication = new(this, candidate, Restore(before, customHandlers));
+        PreparedActionPublication publication = new(this, candidate, Restore(before));
         if (admission is not null)
         {
             process.ValidatePreparedDispatch(admission);

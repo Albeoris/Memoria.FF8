@@ -204,7 +204,6 @@ public sealed class ExpandedBattleSceneLayoutTests
         {
             StageId = encounter.StageId,
             EncounterId = encounter.Id,
-            UsesExpandedRoster = sources.Count > 0,
             UsesOriginalEnemySlots = sources.Count > 0,
             AddedEnemySources = sources.Count > 0 ? sources : null,
             Combatants = [.. party, .. authored, .. sources.Keys.Select(slot => CreateEnemy(donor, slot, 15))]

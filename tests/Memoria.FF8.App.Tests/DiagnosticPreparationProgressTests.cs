@@ -94,7 +94,7 @@ public sealed class DiagnosticPreparationProgressTests(ITestOutputHelper output)
                 milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds, bounded_failure = boundedFailure, observations, dispatches, events,
                 last_native_spawn = events.LastOrDefault(value => value.Kind == "NativeSpawn"),
                 last_native_transition = events.LastOrDefault(value => value.Kind is "NativeSpawn" or "Activated" or "NativeSequence"),
-                actors, expected_target = request.Target, drain_blockers = active.ObserveDiagnosticDrainBlockers(), invocation_owners = active.ObserveDiagnosticInvocationOwners()
+                actors, expected_target = request.Target, drain_blockers = active.ObserveDiagnosticDrainBlockers(), invocation_owners = active.ObserveDiagnosticOwners()
             };
             string serialized = JsonSerializer.Serialize(result, json);
             output.WriteLine(serialized);

@@ -65,7 +65,7 @@ public sealed class ExpandedAiInstalledAdmissionTests
         });
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true, EncounterId = formation, Combatants = [.. party, enemy, .. remainingEnemies],
+            EncounterId = formation, Combatants = [.. party, enemy, .. remainingEnemies],
             NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(3)
         }, BattleAtbMode.TurnBased);
         Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(enemy.Id), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);

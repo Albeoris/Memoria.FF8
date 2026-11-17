@@ -124,9 +124,8 @@ public sealed partial class BattleHudController
         return string.Empty;
     }
 
-    private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetShotUi(actor.Id) is { OwnsInput: true });
+    private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
     public BattleNativeShotState? NativeShotState => NativeShotActor is { } actor ? session.GetNativeShot(actor.Id) : null;
-    internal BattleTimedInputUi? ShotUi => NativeShotActor is { } actor ? session.GetShotUi(actor.Id) : null;
     internal IReadOnlyList<BattleCombatant> ShotTargets => NativeShotActor is { } actor ? session.GetNativeShotTargets(actor.Id) : [];
 
     public void FireNativeShot()

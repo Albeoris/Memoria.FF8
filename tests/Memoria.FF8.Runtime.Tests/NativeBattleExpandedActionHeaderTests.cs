@@ -136,7 +136,6 @@ public sealed class NativeBattleExpandedActionHeaderTests
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, expanded ? 5 : 1).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy" }).ToArray();
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = expanded,
             Combatants = [.. party, .. enemies],
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeCommandNames = names,

@@ -41,7 +41,6 @@ public sealed class BattleRosterCapabilityTests
         NativeKnownMagic known = new(NativeInputConfiguration.OriginalInitHash, ImmutableArray.Create<uint>(0, 0));
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = allies > 3 || enemies > 1,
             MagicVitals = vitals,
             NativeKnownMagic = known.Add(1),
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
@@ -128,7 +127,6 @@ public sealed class BattleRosterCapabilityTests
         BattleEnemyRewardDefinition rewards = new(0, 0, 20, 30, 255, false, 255, [.. Enumerable.Range(0, 12).Select(index => new BattleStock(index % 4 + 1, 1))]);
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             NativeEntry = new(0, entry.NativeEntry!.EncounterAbilityFlags),
             InitialRandom = random,
             RareItem = entry.RareItem,

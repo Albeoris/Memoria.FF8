@@ -218,7 +218,6 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         }).ToArray();
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [.. party, new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, CurrentHp = 500, MaximumHp = 1000 }, new() { Id = "other-enemy", Name = "Enemy", SceneSlot = 1, CurrentHp = 500, MaximumHp = 1000 }, new() { Id = "sparse-enemy", Name = "Enemy", SceneSlot = 2, CurrentHp = 500, MaximumHp = 1000 }],
             GuardianForces = [new(0, 100, 200)],
             Items = [new(1, 2)],

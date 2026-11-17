@@ -42,8 +42,8 @@ public sealed class AdditionalEnemyRosterTests
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).ToArray();
         Assert.Equal(allies, definition.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(original.Enemies.Select(enemy => enemy.ModelId), enemies.Take(original.Enemies.Count).Select(enemy => enemy.ModelId));
-        Assert.True(Math.Min(11, original.Enemies.Count + requested) == enemies.Length, $"Expanded={definition.UsesExpandedRoster}, original slots={definition.UsesOriginalEnemySlots}, sources={definition.AddedEnemySources?.Count}, field rate={world.Field?.RandomEncounters?.Rate}, alive enemy allocations={enemies.Length}.");
-        Assert.Equal(requested > 0, battle.UsesExpandedRoster);
+        Assert.True(Math.Min(11, original.Enemies.Count + requested) == enemies.Length, $"original slots={definition.UsesOriginalEnemySlots}, sources={definition.AddedEnemySources?.Count}, field rate={world.Field?.RandomEncounters?.Rate}, alive enemy allocations={enemies.Length}.");
+        Assert.NotNull(battle.Presentation);
         if (requested == 0)
         {
             Assert.Null(definition.AddedEnemySources);

@@ -65,11 +65,10 @@ public sealed partial class BattleCombatant
 
 public sealed partial class BattleSession
 {
-    private bool HasNativeUiServiceClock => false;
     private NativeBattleUiServices? expandedTurnClockObservation;
     private NativeBattleUiServices? ExpandedClockUi => expandedPresentationProcess?.Graphics.UiServices ?? expandedTurnClockObservation;
     private NativeBattleUiServices? BattleClockUi => ExpandedClockUi;
-    private bool HasPolledNativeBattleClock => HasNativeUiServiceClock || nativeBattleClock is not null && (expandedPresentationProcess is not null || expandedTurnClockObservation is not null);
+    private bool HasPolledNativeBattleClock => nativeBattleClock is not null && (expandedPresentationProcess is not null || expandedTurnClockObservation is not null);
     private bool HasGraphicsClockOwner => expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
 
 

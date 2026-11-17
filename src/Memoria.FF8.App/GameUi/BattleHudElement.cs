@@ -258,10 +258,6 @@ internal sealed partial class BattleHudElement : UiElement
         {
             DrawMagicList(canvas, theme);
         }
-        if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
-        {
-            Text(canvas, theme, controller.SystemText("battle.hud.trigger", "TRIGGER!"), 372, 100, 280, 48, 30);
-        }
     }
 
     private void DrawNativeParty(IUiCanvas canvas, UiTheme theme, IReadOnlyList<BattleCombatant> party, bool compactParty, BattleCombatant? selectedActor, bool canAttack)

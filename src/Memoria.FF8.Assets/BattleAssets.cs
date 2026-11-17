@@ -192,73 +192,7 @@ public sealed partial class BattleAssets : IDisposable
     public BattleEnemyNativeStats ReadEnemyNativeStats(int modelId) => BattleEnemyNativeStats.ReadMonster(Read($"c0m{modelId:000}.dat"));
     public BattleEnemyRewardDefinition ReadEnemyRewards(int modelId) => BattleEnemyRewards.Read(Read($"c0m{modelId:000}.dat"));
 
-    public (int Power, int DrainPercent) ReadEnemyPrimitiveAttack(int modelId, int level)
-    {
-        byte[] bytes = Read($"c0m{modelId:000}.dat");
-        if (System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes) != 11)
-        {
-            throw new NotSupportedException("Enemy primitive action requires its original ability bank.");
-        }
-        int information = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
-        if (information < 0 || information > bytes.Length - 284)
-        {
-            throw new InvalidDataException("Enemy ability bank exceeds its information section.");
-        }
-        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
-        // TODO(TD-009): Native487DF0 enemy AI is not executed; this bounded dispatcher uses the first installed enemy-attack command in its actual level band.
-        for (int slot = 0; slot < 16; slot++)
-        {
-            int offset = information + 52 + band * 64 + slot * 4;
-            if (bytes[offset] != 8)
-            {
-                continue;
-            }
-            int id = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2));
-            if (id >= battleKernel.EnemyAttacks.Count)
-            {
-                throw new InvalidDataException("Enemy ability references an absent kernel attack.");
-            }
-            var attack = battleKernel.EnemyAttacks[id];
-            if (attack.AttackType != 1 || attack.Element != 0 || attack.Statuses0 != 0 || (attack.Statuses1 & ~0x8000u) != 0)
-            {
-                throw new NotSupportedException($"Enemy model {modelId} primitive action {id} requires an unsupported attack contract.");
-            }
-            return (attack.AttackPower, (attack.Statuses1 & 0x8000) != 0 ? attack.StatusAttack : 0);
-        }
-        throw new NotSupportedException("Enemy level band has no primitive physical attack command.");
-    }
-
     public BattleModel LoadEnemy(int modelId) => LoadModel($"c0m{modelId:000}.dat");
-
-    public int ReadEnemyAttackSequence(int modelId)
-    {
-        byte[] bytes = Read($"c0m{modelId:000}.dat");
-        using BinaryReader reader = new(new MemoryStream(bytes, false));
-        int sections = reader.ReadInt32();
-        if (sections != 11)
-        {
-            throw new NotSupportedException("A renderable enemy requires its original eleven-section monster directory.");
-        }
-        reader.BaseStream.Position = 28;
-        int information = reader.ReadInt32();
-        int informationEnd = reader.ReadInt32();
-        if (information < 0 || informationEnd > bytes.Length || informationEnd - information < 244)
-        {
-            throw new InvalidDataException("Enemy ability records exceed their original information section.");
-        }
-        // Native487DF0 reads command/sequence/id at info+52+4*(16*levelBand+ability),
-        // preserving byte+53 as48D200's enemy sequence argument. Command8 selects enemy attacks.
-        // TODO(TD-009): The scaffold presents the first installed enemy-attack entry, not native AI/level-band selection.
-        for (int ability = 0; ability < 48; ability++)
-        {
-            int offset = information + 52 + ability * 4;
-            if (bytes[offset] == 8)
-            {
-                return bytes[offset + 1];
-            }
-        }
-        throw new NotSupportedException($"Enemy model {modelId} has no installed enemy-attack sequence binding.");
-    }
 
     public BattleModel LoadPlayer(int characterId, int costume = 0)
     {

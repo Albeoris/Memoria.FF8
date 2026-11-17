@@ -419,29 +419,24 @@ public sealed class BattleDebugController
                 }
             }) { ReadLabel = () => FormatSystemText("debug.addactor.label.0.ability.1", "{0}Ability: {1}", DisplayActorPrefix(actor.IsPlayer, index), AbilityLabel(ability)), ReadValue = () => enabled ? SystemText("debug.addactor.value.on", "On") : SystemText("debug.addactor.value.off", "Off"), ReadHelp = () => ability == BattleAbility.Attack ? SystemText("debug.addactor.help.attack.is.required.by.this.battle.dispatcher", "Attack is required by this battle dispatcher.") : SystemText("debug.addactor.help.toggle.this.explicit.scenario.command.magic.and.item", "Toggle this explicit scenario command. Magic and Item require owned stock; GF requires junction and availability.") });
         }
-        foreach (BattleStatusKind kind in new[] { BattleStatusKind.Poison, BattleStatusKind.Regen, BattleStatusKind.Haste, BattleStatusKind.Slow })
-        {
-            BattleStatusKind selected = kind;
-            bool enabled = actor.StatusEffects.Any(effect => effect.Kind == kind);
-            rows.Add(new(prefix + kind, enabled ? "On" : "Off", "Toggle the implemented scenario status hook. Duration and periodic parameters appear below when enabled.", _ =>
-            {
-                actors[index] = actor with { StatusEffects = enabled ? actor.StatusEffects.Where(effect => effect.Kind != selected).ToArray() : [.. actor.StatusEffects, new BattleStatusEffectDefinition { Kind = selected }] };
-            }) { ReadLabel = () => DisplayActorPrefix(actor.IsPlayer, index) + StatusLabel(kind), ReadValue = () => enabled ? SystemText("debug.addactor.value.on", "On") : SystemText("debug.addactor.value.off", "Off"), ReadHelp = () => SystemText("debug.addactor.help.toggle.the.implemented.scenario.status.hook.duration.and", "Toggle the implemented scenario status hook. Duration and periodic parameters appear below when enabled.") });
-            if (enabled)
-            {
-                BattleStatusEffectDefinition effect = actor.StatusEffects.Single(effect => effect.Kind == kind);
-                AddNumber(prefix + kind + " duration", effect.DurationFrames, 1, 18_000, 30, value => SetEffect(actors, index, effect with { DurationFrames = value }), readLabel: () => FormatSystemText("debug.actor.label.0.1.duration", "{0}{1} duration", DisplayActorPrefix(actor.IsPlayer, index), StatusLabel(kind)));
-                if (kind is BattleStatusKind.Poison or BattleStatusKind.Regen)
-                {
-                    AddNumber(prefix + kind + " interval", effect.TickIntervalFrames, 1, 900, 5, value => SetEffect(actors, index, effect with { TickIntervalFrames = value }), readLabel: () => FormatSystemText("debug.actor.label.0.1.interval", "{0}{1} interval", DisplayActorPrefix(actor.IsPlayer, index), StatusLabel(kind)));
-                    AddNumber(prefix + kind + " amount", effect.Magnitude, 0, 9999, 5, value => SetEffect(actors, index, effect with { Magnitude = value }), readLabel: () => FormatSystemText("debug.actor.label.0.1.amount", "{0}{1} amount", DisplayActorPrefix(actor.IsPlayer, index), StatusLabel(kind)));
-                }
-            }
-        }
+        AddStatus(BattleStatusKind.Poison, 2, 0);
+        AddStatus(BattleStatusKind.Regen, 0, 16);
+        AddStatus(BattleStatusKind.Haste, 0, 2);
+        AddStatus(BattleStatusKind.Slow, 0, 4);
         BattleDebugRow[] details = rows.Skip(firstDetail).Where(row => InActorGroup(row.Label[prefix.Length..])).ToArray();
         rows.RemoveRange(firstDetail, rows.Count - firstDetail);
         rows.AddRange(details);
 
+        void AddStatus(BattleStatusKind kind, ushort savedMask, uint battleMask)
+        {
+            bool enabled = (actor.NativeStatus0 & savedMask) != 0 || (actor.NativeStatus1 & battleMask) != 0;
+            rows.Add(new(prefix + kind, enabled ? "On" : "Off", "Set the actor's starting battle status.", _ =>
+            {
+                ushort saved = (ushort)(actor.NativeStatus0 ^ savedMask);
+                uint battle = actor.NativeStatus1 ^ battleMask;
+                actors[index] = actor with { NativeStatus0 = saved, NativeStatus1 = battle };
+            }) { ReadLabel = () => DisplayActorPrefix(actor.IsPlayer, index) + StatusLabel(kind), ReadValue = () => enabled ? SystemText("debug.addactor.value.on", "On") : SystemText("debug.addactor.value.off", "Off"), ReadHelp = () => SystemText("debug.addactor.help.set.the.actors.starting.battle.status", "Set the actor's starting battle status.") });
+        }
     }
 
     private bool InActorGroup(string label)
@@ -460,10 +455,7 @@ public sealed class BattleDebugController
         rows.Add(new(label, value.ToString(), "Adjust the explicit debug scenario value.", direction => apply(Math.Clamp(value + direction * step, min, max))) { ReadLabel = () => readLabel?.Invoke() ?? label, ReadValue = () => value.ToString(), ReadHelp = () => SystemText("debug.addnumber.help.adjust.the.explicit.debug.scenario.value", "Adjust the explicit debug scenario value.") });
     }
 
-    private static void SetEffect(List<BattleCombatantDefinition> actors, int index, BattleStatusEffectDefinition changed)
-    {
-        actors[index] = actors[index] with { StatusEffects = actors[index].StatusEffects.Select(effect => effect.Kind == changed.Kind ? changed : effect).ToArray() };
-    }
+
 }
 
 internal sealed record BattleDebugRow(string Label, string Value, string Help, Action<int> Adjust)

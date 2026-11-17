@@ -119,7 +119,6 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 100, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);
         BattleSession logical = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = true,
             NativeClockRules = new(1),
             NativeBattleSpeed = 0,
@@ -168,14 +167,13 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
 
     private static BattlePresentationProcess.HostedModelLoadAdmission Admission()
     {
-        return new(new(New, Slot, 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
+        return new(new(New, Slot, NativeBattleModelSlot.Decode(3), 0, 0), new("native-allocation-1", 16, new([0, 0])) { InitialPosition = new(0, 0, 0) }, ImmutableHashSet<BattleModelOwner>.Empty, UsesOriginalSceneResource: true);
     }
 
     private static BattlePresentationProcess Fixture()
     {
         BattleSession logical = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
         BattleModelRoster roster = new([Ally, Old]);

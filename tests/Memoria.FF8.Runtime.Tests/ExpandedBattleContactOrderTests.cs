@@ -29,7 +29,7 @@ public sealed class ExpandedBattleContactOrderTests
         {
             Id = $"enemy-{index}", Name = $"Enemy {index}", MaximumHp = 1000, CurrentHp = 1000, Speed = 1
         }).ToArray();
-        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], ActionDefinitions = [action], NativeActions = [native], Items = [new(actionId, 2)] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { Combatants = [.. allies, .. enemies], ActionDefinitions = [action], NativeActions = [native], Items = [new(actionId, 2)] }, BattleAtbMode.Normal);
         Assert.True(battle.SupportsExpandedAction(action));
         battle.QueueAction(allies[^1].Id, enemies[^1].Id, ability, actionId);
         BattleSession restored = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
@@ -59,7 +59,7 @@ public sealed class ExpandedBattleContactOrderTests
         {
             Id = $"enemy-{index}", Name = $"Enemy {index}", MaximumHp = 1000, CurrentHp = 1000, Speed = 1
         }).ToArray();
-        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeStatusRules = new(0, [.. Enumerable.Repeat((byte)30, 14)]) }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { Combatants = [.. allies, .. enemies], NativeStatusRules = new(0, [.. Enumerable.Repeat((byte)30, 14)]) }, BattleAtbMode.Normal);
         BattleSnapshot snapshot = battle.Capture();
         BattleCombatantSnapshot[] combatants = snapshot.Combatants.ToArray();
         int index = Array.FindIndex(combatants, actor => actor.Id == "ally-10");

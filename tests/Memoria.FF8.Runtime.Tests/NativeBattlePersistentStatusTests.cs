@@ -46,7 +46,7 @@ public sealed class NativeBattlePersistentStatusTests
     public void FactualOutcomesCountPetrifiedSurvivorsAsUnableToBattle(BattleOutcome outcome, ushort status, bool valid)
     {
         BattleEncounterOccurrence encounter = new("native-status-component", 512, new string('A', 64), SceneKind.Field, 74, 0, new string('B', 64), null);
-        BattleResult result = new(encounter, outcome, [new(0, 0, 100, 20, 0xF8DE, status, [])], [], [], [], true, BattleRewardPolicy.DebugNoRewards, []);
+        BattleResult result = new(encounter, outcome, [new(0, 0, 100, 20, 0xF8DE, status, [])], [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { EnemySlotCount = 1 };
         if (outcome == BattleOutcome.Defeat)
         {
             result = result with { DebugVictory = false, RewardPolicy = BattleRewardPolicy.NativeCombat };

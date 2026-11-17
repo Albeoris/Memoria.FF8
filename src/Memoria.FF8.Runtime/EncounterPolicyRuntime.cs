@@ -74,6 +74,19 @@ public sealed record EncounterPolicyDecision(string PolicyId, string RuleId, ulo
 
 public static class EncounterPolicyRuntime
 {
+    public static string ResolveTemplateSourceRole(EncounterCompiledDefinition definition, string role)
+    {
+        for (int remaining = definition.Templates.Count; definition.Templates.TryGetValue(role, out EncounterCompiledTemplate? template); remaining--)
+        {
+            if (remaining == 0)
+            {
+                throw new InvalidDataException("Encounter actor-template inheritance contains a cycle.");
+            }
+            role = template.InheritFrom;
+        }
+        return role;
+    }
+
     // Canonical spell identities index the selected kernel spell table, independently of localized display names.
     private static readonly ImmutableDictionary<string, ushort> MagicIds = new Dictionary<string, ushort>(StringComparer.Ordinal)
     {

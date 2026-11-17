@@ -105,7 +105,7 @@ public sealed class NativeBattleCoverTests
         {
             actors.Add(new() { Id = "donor", Name = "Donor", MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = new byte[40] });
         }
-        BattleSession battle = new(new BattleDefinition { UsesExpandedRoster = expanded, NativeActions = assets.NativeActions.ToArray(), Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
         BattleTargetRequest request = expanded
             ? new(new BattleTargetSelection.Explicit([new BattlePartyActorReference($"party{target}")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None)
             : NativeBattleTargetRequestAdapter.Decode(checked((ushort)(1 << target)), BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);

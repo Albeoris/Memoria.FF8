@@ -157,7 +157,6 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
-        Assert.Empty(party.StatusEffects);
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Curaga component requires its live party status words.");
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
@@ -281,7 +280,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.False(HasActionDescriptor(battle), "Original Curaga104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
-        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0 & 4);
         Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         Assert.Equal(before.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(before.Random, battle.Capture().Random);

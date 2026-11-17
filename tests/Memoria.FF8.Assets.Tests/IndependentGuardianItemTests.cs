@@ -284,7 +284,6 @@ public sealed class IndependentGuardianItemTests
         BattleCombatantDefinition enemy = definition.Combatants[2];
         return new(definition with
         {
-            UsesExpandedRoster = true,
             NativeItemInventory = Enumerable.Range(0, 198).Select(index => index == 0 ? new NativeItemStock(checked((byte)item), 2) : new NativeItemStock(0, 0)).ToArray(),
             NativePocketStation = pocket,
             NativeChocoboName = NativePocketStationText.ChocoboName(pocket),

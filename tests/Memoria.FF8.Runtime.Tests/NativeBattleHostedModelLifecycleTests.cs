@@ -224,7 +224,6 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = expanded,
             Combatants = Enumerable.Range(0, expanded ? 11 : 1).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true })
                 .Concat(Enumerable.Range(0, expanded ? 14 : 1).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", ModelId = 30 + index })).ToArray(),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
@@ -257,7 +256,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
     private static NativeBattleGraphicsState Graphics(BattleSession session)
     {
         var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
-        return NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0), session.UsesExpandedRoster ? BattleContactTaskStorageContract.ExpandableArena : BattleContactTaskStorageContract.OriginalArena);
+        return NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0), BattleContactTaskStorageContract.ExpandableArena);
     }
 
     private static NativeBattleGraphicsModel Sequenced(byte modelId)

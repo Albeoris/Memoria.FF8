@@ -170,7 +170,7 @@ public static class NativeBattleSequenceMachine
             for (int instruction = 0; instruction < 100_000; instruction++)
             {
                 int origin = position;
-                byte opcode = ReadByte();
+                byte opcode = NativeBattleSequenceEncoding.ReadOpcode(resource.SequenceSection, ref position);
                 if (opcode >= 0xC0)
                 {
                     NativeBattleScriptExpressions.Execute(opcode, origin, ref position, expression, ReadByte, ReadVariable, WriteVariable);
@@ -396,7 +396,7 @@ public static class NativeBattleSequenceMachine
                     case 0xB8:
                         byte sound = ReadByte();
                         byte attribute = ReadByte();
-                        NativeBattleSequenceCue soundCue = new(opcode is 0x98 or 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, (attribute & 2) != 0 ? ReadByte() << 8 : 0) { OverrideSoundOnContact4 = opcode is 0x97 or 0x98 };
+                        NativeBattleSequenceCue soundCue = new(opcode is 0x98 or 0xB8 ? NativeBattleSequenceCueKind.SystemSound : NativeBattleSequenceCueKind.ActorSound, sound, attribute, NativeBattleSequenceEncoding.SoundOperandWidth(attribute) == 3 ? ReadByte() << 8 : 0) { OverrideSoundOnContact4 = opcode is 0x97 or 0x98 };
                         cues.Add(soundCue);
                         inputs.PlaySound?.Invoke(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state }, soundCue);
                         break;

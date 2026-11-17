@@ -21,7 +21,7 @@ public sealed class BattleResultsSequenceTests
         NativeCharacterVital[] records = vitals.Records.Select((record, row) => record with { CharacterId = (byte)row, MemberFlags = 1 }).ToArray();
         vitals = (vitals with { Records = records, CombatParty = partyRows[..3] }).WithBattleParty(partyRows, partyRows.Length);
         BattleCombatantDefinition[] partyDefinitions = partyRows.Select(row => new BattleCombatantDefinition { Id = $"member-{100 + row}", Name = $"Member {row}", IsPlayer = true, MagicRecordId = row, ModelId = row }).ToArray();
-        BattleDefinition definition = new() { Combatants = [.. partyDefinitions, new() { Id = "opponent", Name = "Opponent" }], UsesExpandedRoster = true, MagicVitals = vitals };
+        BattleDefinition definition = new() { Combatants = [.. partyDefinitions, new() { Id = "opponent", Name = "Opponent" }], MagicVitals = vitals };
         BattleCharacterRewardPresentation[] growth = partyRows.Select(row => new BattleCharacterRewardPresentation(row, (uint)(1000 + 100 * row), (uint)(1020 + 101 * row), 5, 6, 50, (uint)(200 + row))).ToArray();
         BattleRewardSummary rewards = Summary() with
         {

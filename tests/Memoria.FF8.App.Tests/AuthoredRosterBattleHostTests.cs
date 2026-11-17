@@ -605,7 +605,7 @@ public sealed class AuthoredRosterBattleHostTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Seed));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.NotNull(battle.Presentation);
-        Assert.True(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         BattleCombatant[] participants = battle.Combatants.Where(actor => actor.IsActive).ToArray();
         BattleCombatant[] party = participants.Where(actor => actor.IsPlayer).ToArray();
         BattleCombatant[] enemies = participants.Where(actor => !actor.IsPlayer).ToArray();

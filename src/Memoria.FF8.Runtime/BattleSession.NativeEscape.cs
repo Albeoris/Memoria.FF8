@@ -140,7 +140,7 @@ public sealed partial class BattleSession
     {
         get
         {
-                return ActiveAction is not null || ExpandedTimedLimitOwnsInput || HasExpandedAiDescriptors || enemies.Any(HasExpandedEnemyDeathAction);
+                return ActiveAction is not null || ExpandedTimedLimitOwnsInput || HasQueuedRosterOperations || enemies.Any(HasExpandedEnemyDeathAction);
         }
     }
 

@@ -175,7 +175,6 @@ public sealed class NativeBattleHostedContactReplacementTests
     {
         BattleSession logical = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
         BattleModelRoster roster = new([Ally, Enemy]);

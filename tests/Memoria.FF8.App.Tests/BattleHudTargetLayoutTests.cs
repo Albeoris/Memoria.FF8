@@ -283,7 +283,6 @@ public sealed class BattleHudTargetLayoutTests
     {
         return new()
         {
-            UsesExpandedRoster = enemies > 4 || allies > 3,
             Combatants =
             [
                 .. Enumerable.Range(1, allies).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = $"Ally {index}", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack] }),

@@ -87,7 +87,7 @@ public sealed partial class BattleSession
         if (UsesOriginalEnemySlots && actor.NativeAi?.DeathSequenceReleasesAllocation == true)
         {
             // TODO(TD-009): The expanded host retains sequence 3's allocation release in the graphics FIFO.
-            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.DeathRelease));
+            StageOrQueueRosterOperation(new BattleRosterMutation.Operation.DeathRelease(TargetActorReference(actor)));
         }
     }
 

@@ -53,14 +53,14 @@ public sealed class BattleSmartRecoveryTargetTests
     }
 
     [Fact]
-    public void RecoveryQuerySeesProjectedStatusEffects()
+    public void RecoveryQueryReadsNativeSlowStatus()
     {
         BattleActionDefinition action = Action(battle: 4);
         BattleSession original = Create(action, 0);
         BattleDefinition definition = original.Capture().Definition;
         BattleSession session = new(definition with
         {
-            Combatants = [definition.Combatants[0], definition.Combatants[1] with { StatusEffects = [new() { Kind = BattleStatusKind.Slow }] }, definition.Combatants[2]]
+            Combatants = [definition.Combatants[0], definition.Combatants[1] with { NativeStatus1 = 4 }, definition.Combatants[2]]
         }, BattleAtbMode.TurnBased);
         Assert.Equal(new BattleStatusPresentation(0, 4), session.ReadRemovableRecoveryStatuses("patient", action));
         Assert.Equal("patient", Open(session, BattleAbility.Magic).SelectedTarget!.Id);

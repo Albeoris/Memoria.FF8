@@ -64,11 +64,7 @@ public sealed partial class BattleSession
         {
             command = PrepareIndependentGuardianItem(actor, command);
         }
-        ActiveAction = NativeCommandPresentation(command) with
-        {
-            RemainingFrames = NativeActionWindupFrames(actor, command.NativeSequence),
-            NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0
-        };
+        ActiveAction = NativeCommandPresentation(command);
         if (OwnsExpandedHostedInvocation)
         {
             BeginNativeBattleActionPause();
@@ -89,41 +85,17 @@ public sealed partial class BattleSession
             CompleteActionPresentation(command, "GF returned before the action was committed.");
             return;
         }
-        if (command.NativeSequenceFrame is int frame && NativeControlTrack(actor, command.NativeSequence) is { } track && frame < track.CompletionFrame)
-        {
-            command = AdvanceNativeControlSequence(command);
-            ActiveAction = command;
-            if (command.NativeSequenceFrame < track.CompletionFrame)
-            {
-                return;
-            }
-        }
-        else if (command.RemainingFrames > 1)
-        {
-            ActiveAction = command with { RemainingFrames = command.RemainingFrames - 1 };
-            return;
-        }
         PrepareAndPublishExpandedAction(command);
     }
 
     private void CommitExpandedAction(BattleActionPresentation command)
     {
-        bool hosted = OwnsExpandedHostedInvocation;
-        if (hosted)
-        {
             RequireOrdinaryExpandedHostedCommand(command);
-        }
         BattleCombatant actor = GetActor(command.ActorId);
         BattleCombatant target = GetActor(command.TargetId);
         if (IsDuelCallback(command.NativeLimitCallback))
         {
             CompleteExpandedDuelMove(command);
-            return;
-        }
-        if (!hosted && command.NativeLimitCallback is (NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEnding))
-        {
-            Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeLimitCallback == NativeLimitCallback.ShotOpening ? "Shot started." : "Shot ended.");
-            CompleteExpandedProducedCommand(command, "Shot control completed.");
             return;
         }
         if (!command.MagicCasts.IsDefaultOrEmpty)
@@ -135,7 +107,7 @@ public sealed partial class BattleSession
         BattleCombatant[] recipients = ExpandedActionTargets(actor, command.TargetId, command.Ability, command.ActionId, command.TargetRequest, graphicAction ?? command.NativeAction);
         bool silencedMagic = (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2) && (NativeSavedStatusBits(actor) & 0x10) != 0;
         if (!CanExecuteExpandedAction(actor, command.NativeAiCallbackStage, command.TargetRequest) && !CanNativeSupportCommandAct(actor, command.NativePlayerReaction) ||
-            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: hosted) || graphicAction is null && recipients.Length == 0 || !hosted && silencedMagic)
+            !CanExecuteMagicReservation(actor, new(command.ActorId, command.TargetId, command.TargetRequest, command.Ability, command.ActionId) { MagicReservationId = command.MagicReservationId }, admitSilencedInvocation: true) || graphicAction is null && recipients.Length == 0)
         {
             if (silencedMagic && (command.FreeNativeMagic && HasNativeAngelWing(actor) || command.TargetRequest.Eligibility == BattleTargetEligibility.CompelledAction) && CanNativeBattleActorAct(actor))
             {
@@ -145,21 +117,9 @@ public sealed partial class BattleSession
             CompleteExpandedProducedCommand(command, "Expanded action cancelled.");
             return;
         }
-        if (!hosted && graphicAction is not null && recipients.Length == 0)
-        {
-            CompleteExpandedProducedCommand(command, "Native graphical effect completed.");
-            return;
-        }
         if (command.Ability == BattleAbility.Attack && actor.NativeAttack is null)
         {
-            if (hosted)
-            {
                 throw new NotSupportedException("Hosted ordinary Attack requires its installed native attack record.");
-            }
-            CommitExpandedEnemyDraw(target.Id, ref pendingEnemyDraw);
-            ResolveAction(actor, target, command);
-            CompleteExpandedProducedCommand(command, "Attack completed.");
-            return;
         }
         BattleActionDefinition? drawSpell = null;
         BattleActionDefinition? stockDraw = null;
@@ -187,14 +147,6 @@ public sealed partial class BattleSession
         }
 
         int? independentFailure = command.IndependentGuardian?.FailureMessage;
-        if (!hosted && independentFailure is int failureMessage)
-        {
-            PublishIndependentGuardianFailure(actor, target, failureMessage);
-            CompleteNativeActionInventory(actor, command, false);
-            CompleteNativeActionStatuses(actor);
-            CompleteExpandedProducedCommand(command, "Guardian item completed.");
-            return;
-        }
         BattleActionDefinition action = graphicAction is null
             ? stockDraw ?? drawSpell ?? ExpandedActionDefinition(actor, command)
             : new(BattleAbility.EnemyAbility, graphicAction.ActionId, graphicAction.Name!, BattleActionEffect.Native, 0, false) { NativeAction = graphicAction };
@@ -208,7 +160,7 @@ public sealed partial class BattleSession
             PrepareDoomExpiration(actor);
         }
         BattleNativeAction native = originalNative;
-        NativeBattleDeferredContactKind deferred = hosted ? NativeDeferredContact(actor, command, native) : NativeBattleDeferredContactKind.None;
+        NativeBattleDeferredContactKind deferred = NativeDeferredContact(actor, command, native);
         bool hostedGunblade = deferred == NativeBattleDeferredContactKind.OrdinaryGunblade;
         bool hostedShotControl = deferred == NativeBattleDeferredContactKind.ShotControl;
         if (!hostedGunblade && command.GuardianFormAction is null && IsGunbladeAttack(actor, command.Ability))
@@ -219,25 +171,10 @@ public sealed partial class BattleSession
         }
         bool miniMog = IsExpandedMiniMogAction(native);
         int? miniMogFailure = miniMog ? PrepareNativeMiniMog() : null;
-        if (!hosted && miniMogFailure is int miniMogMessage)
-        {
-            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(miniMogMessage), BattleTextIdentity.Global(miniMogMessage));
-            CompleteNativeActionStatuses(actor);
-            CompleteExpandedProducedCommand(command, "MiniMog failed.");
-            return;
-        }
         if (command.Ability == BattleAbility.NativeCommand && IsExpandedTargetedSpecial(native))
         {
             // The expanded host prepares and applies the contact at the same callback, after windup revalidation.
             BattleNativeSpecialContext special = PrepareNativeSpecialTarget(recipients.Single(), native.AttackType);
-            if (!hosted && special.Failed)
-            {
-                int message = native.AttackType == 17 ? 50 : 112;
-                QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message), BattleTextIdentity.Global(message));
-                CompleteNativeActionStatuses(actor);
-                CompleteExpandedProducedCommand(command, $"{action.Name} failed.");
-                return;
-            }
             command = command with { NativeSpecial = special };
         }
         if (command.Ability == BattleAbility.GuardianForce && command.TargetRequest.Selection is BattleTargetSelection.RandomOnSide)
@@ -246,9 +183,9 @@ public sealed partial class BattleSession
             recipients = [recipient];
             command = command with { TargetId = recipient.Id, TargetRequest = SelectBattleTarget(recipient, command.TargetRequest.AllowsKnockedOutAllies, command.TargetRequest.Eligibility) };
         }
-        bool hostedSilence = hosted && NativeMagicInvocationSilenced(actor, command, originalNative);
-        bool failedSpecial = hosted && (independentFailure.HasValue || miniMogFailure.HasValue || NativeSpecialInvocationFailed(command, originalNative));
-        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(command, originalNative, miniMogFailure.HasValue) : null;
+        bool hostedSilence = NativeMagicInvocationSilenced(actor, command, originalNative);
+        bool failedSpecial = (independentFailure.HasValue || miniMogFailure.HasValue || NativeSpecialInvocationFailed(command, originalNative));
+        NativeBattleActionHeaderPreparation? hostedHeader = BuildExpandedActionHeaderPreparation(command, originalNative, miniMogFailure.HasValue);
         bool hostedGuardian = command.Ability == BattleAbility.GuardianForce && hostedHeader is { Command: 254 };
         if (hostedGuardian)
         {
@@ -331,7 +268,7 @@ public sealed partial class BattleSession
             {
                 QueueNativeSpecialText(actor, target, NativeBattleGlobalText(100));
             }
-            deferringExpandedImpacts = hosted && !hostedContextOnly;
+            deferringExpandedImpacts = !hostedContextOnly;
             NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, formulaCommand, formulaAction, formulaCommand.NativeAction!, hitPlan, preliminary: hostedGunblade || hostedGuardian || hostedShotControl);
             contacts = ToHostedContacts(produced);
             deferringExpandedImpacts = false;
@@ -362,11 +299,7 @@ public sealed partial class BattleSession
             }
             if (phoenixPinion)
             {
-                phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved, hosted);
-            }
-            if (!hosted && !independentSupport)
-            {
-                CompleteNativeActionStatuses(actor);
+                phoenixRevival = ResolveExpandedPhoenixRevival(actor, resolved, true);
             }
         }
         finally
@@ -377,7 +310,7 @@ public sealed partial class BattleSession
             resolvingNativeAction = null;
         }
         BattlePendingEnemyDraw? hostedDraw = null;
-        if (hosted && !hostedContextOnly)
+        if (!hostedContextOnly)
         {
             if (!contacts.IsEmpty || !reflectedContacts.IsEmpty)
             {
@@ -391,10 +324,6 @@ public sealed partial class BattleSession
             {
                 CommitExpandedEnemyDraw(first.RecipientId, ref pendingEnemyDraw);
             }
-        }
-        if (!hosted)
-        {
-            FlushExpandedEnemyReactions();
         }
         if (hostedHeader is not null)
         {

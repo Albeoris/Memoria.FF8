@@ -59,7 +59,7 @@ public sealed class NativeBattleGraphicsEntryTests
             Assert.True(battle.Presentation!.Graphics.EntryReady);
             Assert.True(battle.Capture().NativeGlobalRandomCalls >= 13);
             Assert.Equal((byte)255, battle.Presentation!.Graphics.EntryBarrierCompletion);
-            Assert.All(ReadOriginalModelCells(battle.Presentation?.Graphics).Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
+            Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics).Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
             Assert.Equal(0, battle.Frame);
         }
     }

@@ -243,7 +243,7 @@ public sealed partial class ExpandedBattleMassTargetTests
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, fieldId, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 0));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            Assert.True(battle.UsesExpandedRoster);
+            Assert.NotNull(battle.Presentation);
             Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
             return world;
         }

@@ -115,7 +115,7 @@ public sealed class ExpandedBattleGuestProgressTests
             BattleSession expanded = Start(world, session, formation);
             BattleCombatant guest = Assert.Single(expanded.Combatants, actor => actor.IsPlayer && actor.ModelId == guestId);
             BattleCombatant fallen = Assert.Single(expanded.Combatants, actor => actor.IsPlayer && actor.ModelId == fallenId);
-            Assert.True(expanded.UsesExpandedRoster);
+            Assert.NotNull(expanded.Presentation);
             Assert.Equal(11, expanded.Combatants.Count(actor => actor.IsPlayer));
             Assert.False(fallen.IsAlive);
             Assert.Equal(guestId, guest.NativeLimit!.CharacterId);
@@ -211,7 +211,7 @@ public sealed class ExpandedBattleGuestProgressTests
         resumedWorld.EnsureField();
         resumedWorld.ConfigureGameplayPreferences(resumed.State.GameplayPreferences with { BattleAllyCount = 11 });
         BattleSession expandedAgain = Start(resumedWorld, resumed, formation);
-        Assert.True(expandedAgain.UsesExpandedRoster);
+        Assert.NotNull(expandedAgain.Presentation);
         Assert.Equal(11, expandedAgain.Combatants.Count(actor => actor.IsPlayer));
         BattleCombatant resumedGuest = Assert.Single(expandedAgain.Combatants, actor => actor.IsPlayer && actor.ModelId == guestId);
         Assert.Contains(guardianForce, resumedGuest.EquipmentIds);

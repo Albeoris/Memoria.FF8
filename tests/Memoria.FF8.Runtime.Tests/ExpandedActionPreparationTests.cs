@@ -497,7 +497,6 @@ public sealed class ExpandedActionPreparationTests
         }
         return new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             DrawOncePerSpell = true,
             MagicVitals = vitals,
             NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0]),

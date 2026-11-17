@@ -31,7 +31,7 @@ public sealed class AdditionalEnemyFallbackTests
         NativeCrtRandomState? crt = session.State.CrtRandom;
         BattleDefinition definition = world.CreateEncounterBattle(Destination, Seed);
         BattleEncounter original = world.BattleResources.LoadEncounter(Destination);
-        Assert.True(definition.UsesExpandedRoster);
+        Assert.True(definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || definition.AddedEnemySources is { Count: > 0 });
         Assert.True(definition.UsesOriginalEnemySlots);
         Assert.Equal(new[] { "party-0", "party-1", "party-2", "party-3" }, definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
         Assert.Equal(original.Enemies.Select(enemy => enemy.ModelId), definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive && actor.SceneSlot < 8).Select(actor => actor.ModelId));

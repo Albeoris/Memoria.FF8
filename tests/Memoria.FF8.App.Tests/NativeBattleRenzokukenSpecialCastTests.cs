@@ -193,7 +193,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                 {
                     capturedFrames++;
                 }
-                targetAnimated |= ReadOriginalModelCells(battle.Presentation?.Graphics).Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
+                targetAnimated |= ReadOriginalModelCells(battle.Presentation!.Graphics).Any(target => target.ResourceMagicId == effectId && target.ResourceRenzokukenTargetBank == 0 && target.SequenceState is not null);
                 if (battle.Presentation!.Graphics.OriginalEffect is { ReturnedDescriptor: > 0 } effect && effect.Binding.Effect == effectId)
                 {
                     Assert.NotNull(battle.Presentation!.Memory.Textures!.Animation);
@@ -219,7 +219,7 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
                     }
                     Assert.True(capturedMidpoint);
                     Assert.True(targetAnimated, "The special native target must execute its own embedded animation sequence.");
-                    Assert.All(ReadOriginalModelCells(battle.Presentation?.Graphics), target => Assert.Null(target.ResourceRenzokukenTargetBank));
+                    Assert.All(ReadOriginalModelCells(battle.Presentation!.Graphics), target => Assert.Null(target.ResourceRenzokukenTargetBank));
                     Assert.True(registeredCamera);
                     Assert.True(interpolatedCurrentStageColor, "Renzokuken must interpolate the current stage transition color into model DWORD40 without changing the shadow command in DWORD44.");
                     Assert.Equal(priorDamage + contacts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "party" && entry.TargetId == "enemy"));

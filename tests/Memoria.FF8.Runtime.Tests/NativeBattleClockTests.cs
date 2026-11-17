@@ -18,7 +18,6 @@ public sealed class NativeBattleClockTests
         };
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeBattleSpeed = nativeClock ? (byte)0 : null,
             NativeClockRules = nativeClock ? new(1) : null,
             Combatants =
@@ -47,7 +46,6 @@ public sealed class NativeBattleClockTests
     {
         BattleSession owner = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeBattleSpeed = 0,
             NativeClockRules = new(1),
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
@@ -78,7 +76,6 @@ public sealed class NativeBattleClockTests
     {
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeBattleSpeed = 0,
             NativeClockRules = new(1),
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]

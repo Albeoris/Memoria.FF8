@@ -145,7 +145,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
             battle.RequestGuardianForm("party", 2);
             WaitFor(() => battle.GetGuardianForm("party")?.Phase == BattleGuardianFormPhase.Active);
             Assert.Equal(RequireOriginalModelOwner(battle.Presentation!.Graphics, slot), battle.Presentation!.Graphics.GuardianFormPresentation!.Actor);
-            Assert.Equal((byte)77, ReadOriginalModelCell(battle.Presentation?.Graphics, slot).ModelId4);
+            Assert.Equal((byte)77, ReadOriginalModelCell(battle.Presentation!.Graphics, slot).ModelId4);
             Assert.Equal(character, battle.Combatants.Single(actor => actor.Id == "party").ModelId);
             NativeBattleCameraPose formCamera = battle.Presentation!.Camera.CurrentPose!;
             foreach (BattleGuardianFormAction action in new[] { BattleGuardianFormAction.Attack, BattleGuardianFormAction.Fire })

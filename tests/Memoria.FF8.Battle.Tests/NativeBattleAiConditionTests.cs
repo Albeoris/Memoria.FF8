@@ -34,18 +34,18 @@ public sealed class NativeBattleAiConditionTests
     }
 
     [Theory]
-    [InlineData(1, BattleStatusKind.Poison)]
-    [InlineData(3, BattleStatusKind.Blind)]
-    [InlineData(4, BattleStatusKind.Silence)]
-    [InlineData(16, BattleStatusKind.Sleep)]
-    [InlineData(17, BattleStatusKind.Haste)]
-    [InlineData(18, BattleStatusKind.Slow)]
-    [InlineData(20, BattleStatusKind.Regen)]
-    [InlineData(21, BattleStatusKind.Protect)]
-    [InlineData(22, BattleStatusKind.Shell)]
-    public void GroupStatusUsesBothNativeBanksAndIgnoresDeadAndInactiveActors(int status, BattleStatusKind kind)
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(18)]
+    [InlineData(20)]
+    [InlineData(21)]
+    [InlineData(22)]
+    public void GroupStatusUsesBothNativeBanksAndIgnoresDeadAndInactiveActors(int status)
     {
-        BattleCombatantDefinition affected = Enemy("affected", 28) with { StatusEffects = [new() { Kind = kind, Permanent = true }] };
+        BattleCombatantDefinition affected = Enemy("affected", 28) with { NativeStatus0 = status < 16 ? (ushort)(1 << status) : (ushort)0, NativeStatus1 = status >= 16 ? 1u << (status - 16) : 0 };
         Assert.Equal(1u, Create(44, 0, status, Party("party", 0), Enemy("unaffected", 28), affected).Capture().NativeAiVariables![0]);
         Assert.Equal(0u, Create(44, 0, status, Party("party", 0), affected with { NativeStatus0 = 1, CurrentHp = 0 }).Capture().NativeAiVariables![0]);
         Assert.Equal(0u, Create(44, 0, status, Party("party", 0), affected with { InitialActive = false, SceneSlot = 0 }).Capture().NativeAiVariables![0]);

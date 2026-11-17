@@ -363,7 +363,6 @@ public sealed class ExpandedAiCallbackEventTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             EncounterMod = encounter,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeFieldBattleRules = 0,

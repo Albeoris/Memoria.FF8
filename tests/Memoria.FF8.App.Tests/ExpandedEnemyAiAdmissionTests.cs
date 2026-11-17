@@ -44,7 +44,7 @@ public sealed class ExpandedEnemyAiAdmissionTests
         PreparePendingEncounter(world, session, OrdinaryFormation);
 
         BattleDefinition definition = world.CreateEncounterBattle(OrdinaryFormation, nativeSeed: 4);
-        Assert.True(definition.UsesExpandedRoster);
+        Assert.True(definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || definition.AddedEnemySources is { Count: > 0 });
         Assert.Equal(new int?[] { 0, 1, 2, 3 }, definition.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.MagicRecordId));
         Assert.All(definition.Combatants.Where(actor => !actor.IsPlayer), actor =>
         {
@@ -65,7 +65,7 @@ public sealed class ExpandedEnemyAiAdmissionTests
         using GameWorld world = new(session, directory);
         PreparePendingEncounter(world, session, OrdinaryFormation);
         BattleDefinition frozen = world.CreateEncounterBattle(OrdinaryFormation, nativeSeed: 4);
-        Assert.True(frozen.UsesExpandedRoster);
+        Assert.True(frozen.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || frozen.AddedEnemySources is { Count: > 0 });
         BattleCombatantDefinition enemy = frozen.Combatants.First(actor => !actor.IsPlayer);
         BattleDefinition legacy = frozen with { Combatants = frozen.Combatants.Select(actor => actor == enemy ? actor with { NativeAi = null } : actor).ToArray() };
 

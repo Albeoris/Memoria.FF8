@@ -30,7 +30,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
         Assert.False(blocked.Complete);
         Assert.Equal(1, fixture.Session.Presentation!.Memory.Active);
         // Controlled post500900 poll boundary: the released descriptor clears the canonical process pointer.
-        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.Presentation?.Memory with { ReturnedTaskPointer1D96AAC = 0 });
+        Set(fixture.Session, nameof(BattleSession.NativeEffectMemory), fixture.Session.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 0 });
         var done = Poll(fixture.Session, fixture.Graphics, 3);
         Assert.True(done.Complete);
         Assert.Equal(0u, done.Graphics.Flags & 0x10);

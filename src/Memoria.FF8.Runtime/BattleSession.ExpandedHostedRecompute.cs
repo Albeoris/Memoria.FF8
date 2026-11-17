@@ -17,11 +17,10 @@ public sealed partial class BattleSession
         ExpandedInvocationProgress progress = expandedInvocationProgress ?? throw new InvalidDataException("Hosted recompute has no published contact owner.");
         int acknowledged = progress.Occurrences.Count;
         BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         HostedRenzokukenCandidateProof? renzokuken = hostedEvent.Renzokuken is not null && invocation.Header.Command == 5 && trigger is not null
             ? new(before, hostedEvent, trigger, null)
             : null;
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers, renzokuken);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, renzokuken);
         if (renzokuken is not null)
         {
             candidate.expandedHostedEvent = hostedEvent;
@@ -58,7 +57,7 @@ public sealed partial class BattleSession
         NativeBattleEffectContactBridge<string>? bridge = PrepareExpandedHostedContactBridge(resolved, roster);
         ImmutableArray<ExpandedHostedOperation> updated = BindExpandedRecomputeSuffix(originalOperations.SetItem(current, resolved), suffix, replacement, replacement.ReplacementPackets.Roster);
 
-        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, renzokuken));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, renzokuken));
         if (expandedOperationCursor.Operations != originalOperations || expandedOperationCursor.Current != current || expandedOperationCursor.Next != next ||
             !ReferenceEquals(expandedHostedEvent, hostedEvent) || expandedHostedActionToken != token ||
             !ReferenceEquals(expandedInvocationProgress, progress) || progress.Occurrences.Count != (renzokuken is null ? 0 : acknowledged))

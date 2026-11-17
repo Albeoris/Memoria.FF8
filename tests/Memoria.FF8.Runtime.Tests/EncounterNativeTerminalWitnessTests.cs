@@ -3,28 +3,30 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class EncounterNativeTerminalWitnessTests
 {
+    private static readonly EncounterNativeEventBinding Binding = new("source", 88, 2, 3, 1, 10, 4, new([], [], [], []));
+
     [Theory]
     [InlineData(207, 15)]
     [InlineData(264, 17)]
     public void Recognizes_only_accepted_original_terminal_command_at_its_native_marker(int actionId, byte sequence)
     {
         NativeBattleActionHeaderSlot action = Header(actionId, sequence);
-        Assert.True(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", action, OriginalOwner(3), sequence, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "fourth", action, OriginalOwner(4), sequence, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", action, OriginalOwner(3), sequence, false, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", action, OriginalOwner(3), sequence, true, false));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", null, OriginalOwner(3), sequence, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", Header(actionId, sequence, 2), OriginalOwner(3), sequence, true, true));
+        Assert.True(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, action, OriginalOwner(3), sequence, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "fourth", 88, action, OriginalOwner(4), sequence, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, action, OriginalOwner(3), sequence, false, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, action, OriginalOwner(3), sequence, true, false));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, null, OriginalOwner(3), sequence, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, Header(actionId, sequence, 2), OriginalOwner(3), sequence, true, true));
     }
 
     [Fact]
     public void Does_not_turn_cosmetic_taunts_or_unrelated_removals_into_a_terminal_result()
     {
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", Header(205, 13), OriginalOwner(3), 13, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", Header(207, 17), OriginalOwner(3), 17, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", Header(264, 15), OriginalOwner(3), 15, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches("another.encounter", "source", "source", Header(264, 17), OriginalOwner(3), 17, true, true));
-        Assert.False(EncounterNativeTerminalWitness.Matches(EncounterBindingResolver.Disc1Edea, "source", "source", null, OriginalOwner(3), 17, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, Header(205, 13), OriginalOwner(3), 13, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, Header(207, 17), OriginalOwner(3), 17, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, Header(264, 15), OriginalOwner(3), 15, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 89, Header(264, 17), OriginalOwner(3), 17, true, true));
+        Assert.False(EncounterNativeTerminalWitness.Matches(Binding, "source", 88, null, OriginalOwner(3), 17, true, true));
     }
 
     private static NativeBattleActionHeaderSlot Header(int id, byte sequence, byte command = 8)

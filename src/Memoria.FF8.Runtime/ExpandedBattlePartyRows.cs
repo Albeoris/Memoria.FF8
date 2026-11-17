@@ -7,7 +7,7 @@ public static class ExpandedBattlePartyRows
         NativeCharacterVitals frozen = definition.MagicVitals ?? throw new InvalidDataException("Expanded battle has no frozen character records.");
         frozen.Validate();
         byte[] nativeRows = vitals.GetBattlePartyRows(NativeBattleSlots.AllyCount);
-        if (!definition.UsesExpandedRoster || vitals.DreamEnabled != frozen.DreamEnabled || !nativeRows.SequenceEqual(frozen.GetBattlePartyRows(NativeBattleSlots.AllyCount)))
+        if (vitals.DreamEnabled != frozen.DreamEnabled || !nativeRows.SequenceEqual(frozen.GetBattlePartyRows(NativeBattleSlots.AllyCount)))
         {
             throw new InvalidDataException("Expanded battle disagrees with the saved native party.");
         }

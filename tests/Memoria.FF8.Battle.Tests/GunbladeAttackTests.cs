@@ -170,7 +170,7 @@ public sealed class GunbladeAttackTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [
-                new() { Id = "party-0", Name = "Gunblade user", IsPlayer = true, ModelId = model, WeaponId = 0, Attack = 20, PhysicalPower = 20, NativeAttack = model is 0 or 6 || nativeWeapon ? attack : null, InitialAtb = BattleSession.AtbMaximum, StatusEffects = blind ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Blind }] : [] },
+                new() { Id = "party-0", Name = "Gunblade user", IsPlayer = true, ModelId = model, WeaponId = 0, Attack = 20, PhysicalPower = 20, NativeAttack = model is 0 or 6 || nativeWeapon ? attack : null, InitialAtb = BattleSession.AtbMaximum, NativeStatus0 = blind ? (ushort)8 : (ushort)0 },
                 new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 1_000, CurrentHp = 1_000, Defense = 5, NativeStatus1 = targetStatus }
             ]
         }, BattleAtbMode.TurnBased);

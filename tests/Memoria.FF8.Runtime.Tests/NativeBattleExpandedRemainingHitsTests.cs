@@ -10,7 +10,6 @@ public sealed class NativeBattleExpandedRemainingHitsTests
     {
         BattleSession session = new(new()
         {
-            UsesExpandedRoster = true,
             Combatants =
             [
                 new() { Id = "caster", Name = "Caster", IsPlayer = true },

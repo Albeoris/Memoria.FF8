@@ -257,7 +257,7 @@ public sealed class NativeAutomaticGuardianTests
         BattleCombatantDefinition[] party = Enumerable.Range(0, 4).Select(index => new BattleCombatantDefinition { Id = $"party-{index}", Name = $"Party {index}", IsPlayer = true, ModelId = index, MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }).ToArray();
         byte[] resistances = assets.ReadEnemyNativeStatusData(4).Resistances.ToArray();
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 6).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = $"Enemy {index}", ModelId = 4, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }).ToArray();
-        return Definition(game, assets, flags, [.. party, .. enemies]) with { UsesExpandedRoster = true, NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(phase) };
+        return Definition(game, assets, flags, [.. party, .. enemies]) with { NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(phase) };
     }
 
     private static BattleSession RestoreGuardianBattle(BattleSession battle)

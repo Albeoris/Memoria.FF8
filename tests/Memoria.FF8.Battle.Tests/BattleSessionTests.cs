@@ -87,22 +87,6 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void TurnBasedReadySleepingPlayerDoesNotPauseStatusExpiry()
-    {
-        BattleCombatantDefinition sleeping = Player(initialAtb: BattleSession.AtbMaximum) with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 2 }] };
-        BattleSession session = new(Definition(sleeping, Enemy(speed: 1)), BattleAtbMode.TurnBased);
-        Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "enemy"));
-        session.Tick();
-        Assert.Equal(2, session.Frame);
-        Assert.Empty(session.Combatants[0].StatusEffects);
-        Assert.True(session.Combatants[0].IsReady);
-        session.Tick();
-        Assert.Equal(2, session.Frame);
-        session.QueueAttack("player", "enemy");
-        Assert.Single(session.QueuedActions);
-    }
-
-    [Fact]
     public void TurnBasedReadyEnemyDispatchesWhilePlayerWaitsForCommand()
     {
         BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum)), BattleAtbMode.TurnBased);
@@ -150,31 +134,6 @@ public sealed class BattleSessionTests
         Assert.True(session.Combatants[1].IsReady);
         session.Tick();
         Assert.Equal(10, session.Frame);
-    }
-
-    [Fact]
-    public void AdvanceTurnMatchesNormalGaugeAndEffectTimeWithoutPresentingTheNextAction()
-    {
-        BattleCombatantDefinition player = Player(speed: 100) with
-        {
-            CurrentHp = 80,
-            StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Regen, Magnitude = 3, TickIntervalFrames = 2, DurationFrames = 90 }]
-        };
-        BattleDefinition definition = Definition(player, Enemy(speed: 400));
-        BattleSession turn = new(definition, BattleAtbMode.TurnBased);
-        BattleSession normal = new(definition, BattleAtbMode.Normal);
-        int frames = turn.AdvanceTurn();
-        Dispatch(normal, frames);
-        normal.SetMode(BattleAtbMode.TurnBased);
-        Assert.Equal(normal.Frame, turn.Frame);
-        Assert.Equal(normal.Combatants[0].Atb, turn.Combatants[0].Atb);
-        Assert.Equal(normal.Combatants[0].CurrentHp, turn.Combatants[0].CurrentHp);
-        Assert.Equal(normal.Combatants[0].StatusEffects, turn.Combatants[0].StatusEffects);
-        Assert.True(turn.Combatants[1].IsReady);
-        Assert.Null(turn.ActiveAction);
-        Assert.Empty(turn.QueuedActions);
-        Assert.Equal(25, frames);
-        Assert.Equal(100, turn.Combatants[0].CurrentHp);
     }
 
     [Fact]
@@ -232,28 +191,6 @@ public sealed class BattleSessionTests
         Assert.True(session.Combatants[0].IsBusy);
     }
 
-    [Fact]
-    public void DefeatedActorCannotResolveQueuedAttackAndPoisonUsesSharedClock()
-    {
-        BattleCombatantDefinition doomed = Player(initialAtb: BattleSession.AtbMaximum) with
-        {
-            CurrentHp = 1,
-            StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Poison, Magnitude = 1, TickIntervalFrames = 1 }]
-        };
-        BattleCombatantDefinition ally = Player() with { Id = "ally", Name = "Ally" };
-        BattleSession session = new(Definition(doomed, ally, Enemy(speed: 1)), BattleAtbMode.Normal);
-        session.QueueAttack("player", "enemy");
-        session.Tick();
-        Assert.False(session.Combatants[0].IsAlive);
-        Assert.Equal(0, session.Combatants[0].Atb);
-        Assert.False(session.Combatants[0].IsBusy);
-        Assert.Empty(session.QueuedActions);
-        Assert.Null(session.ActiveAction);
-        Assert.Equal(100, session.Combatants[2].CurrentHp);
-        Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "enemy"));
-        AssertEquivalent(session, BattleSession.Restore(session.Capture()));
-    }
-
     [Theory]
     [InlineData(true, BattleOutcome.Victory)]
     [InlineData(false, BattleOutcome.Defeat)]
@@ -280,22 +217,9 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void StatusExpiryAndAtbModifiersAreDispatchedPerFrame()
-    {
-        BattleCombatantDefinition player = Player(speed: 100) with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Haste, DurationFrames = 2 }] };
-        BattleSession session = new(Definition(player, Enemy(speed: 1)), BattleAtbMode.Normal);
-        Dispatch(session, 2);
-        Assert.Equal(400, session.Combatants[0].Atb);
-        Assert.Empty(session.Combatants[0].StatusEffects);
-        session.Tick();
-        Assert.Equal(500, session.Combatants[0].Atb);
-    }
-
-    [Fact]
-    public void UnsupportedAbilityAndStatusFailBeforePublishingSession()
+    public void UnsupportedAbilityFailsBeforePublishingSession()
     {
         Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { Abilities = [BattleAbility.Attack, (BattleAbility)255] }, Enemy()), BattleAtbMode.Normal));
-        Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { StatusEffects = [new BattleStatusEffectDefinition { Kind = (BattleStatusKind)255 }] }, Enemy()), BattleAtbMode.Normal));
     }
 
     [Fact]
@@ -358,20 +282,6 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void TypedEffectHandlerUsesSameClockAndRestoresWithExplicitHandler()
-    {
-        BattleDefinition definition = Definition(Player() with { CurrentHp = 80, StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Protect, TickIntervalFrames = 1, DurationFrames = 2 }] }, Enemy(speed: 1));
-        BattleSession session = new(definition, BattleAtbMode.Normal, [new ProtectDemoHandler()]);
-        session.Tick();
-        Assert.Equal(81, session.Combatants[0].CurrentHp);
-        BattleSession restored = BattleSession.Restore(session.Capture(), [new ProtectDemoHandler()]);
-        restored.Tick();
-        session.Tick();
-        AssertEquivalent(session, restored);
-        Assert.Throws<NotSupportedException>(() => BattleSession.Restore(session.Capture()));
-    }
-
-    [Fact]
     public void DebugVictoryClearsActionsPreservesPartyHpAndRestores()
     {
         BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum) with { CurrentHp = 73 }, Enemy()), BattleAtbMode.TurnBased);
@@ -413,18 +323,6 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void SnapshotRejectsInconsistentPeriodicStatusTimer()
-    {
-        BattleSession session = new(Definition(Player() with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Poison, TickIntervalFrames = 5 }] }, Enemy()), BattleAtbMode.Normal);
-        session.Tick();
-        BattleSnapshot snapshot = session.Capture();
-        BattleCombatantSnapshot actor = snapshot.Combatants[0];
-        BattleCombatantSnapshot invalidActor = actor with { StatusEffects = [actor.StatusEffects[0] with { UntilTickFrames = 1 }] };
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Combatants = [invalidActor, snapshot.Combatants[1]] }));
-        AssertEquivalent(session, BattleSession.Restore(snapshot));
-    }
-
-    [Fact]
     public void CostumeIsValidatedExposedAndRoundTrips()
     {
         BattleSession session = new(Definition(Player() with { Costume = 2 }, Enemy()), BattleAtbMode.Normal);
@@ -448,14 +346,11 @@ public sealed class BattleSessionTests
     [Fact]
     public void ExposedCombatantCollectionsAndPresentationCannotMutateOwningState()
     {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum) with { EquipmentIds = [4], StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Haste }] }, Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum) with { EquipmentIds = [4], NativeStatus1 = 2 }, Enemy(speed: 1)), BattleAtbMode.TurnBased);
         BattleCombatant actor = session.Combatants[0];
         Assert.Throws<NotSupportedException>(() => ((IList<BattleCombatant>)session.Combatants)[0] = session.Combatants[1]);
         Assert.Throws<NotSupportedException>(() => ((IList<int>)actor.EquipmentIds)[0] = 42);
         Assert.Throws<NotSupportedException>(() => ((IList<BattleAbility>)actor.Abilities)[0] = BattleAbility.Magic);
-        BattleStatusSnapshot[] exposedStatuses = (BattleStatusSnapshot[])actor.StatusEffects;
-        exposedStatuses[0] = exposedStatuses[0] with { RemainingFrames = 1 };
-        Assert.Equal(300, actor.StatusEffects[0].RemainingFrames);
         session.QueueAttack("player", "enemy");
         BattleAttackCommand[] exposedQueue = (BattleAttackCommand[])session.QueuedActions;
         exposedQueue[0] = new BattleAttackCommand("enemy", "player", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("player")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None));
@@ -464,20 +359,6 @@ public sealed class BattleSessionTests
         BattleActionPresentation altered = session.ActiveAction! with { RemainingFrames = 1 };
         Assert.Equal(1, altered.RemainingFrames);
         Assert.Equal(BattleSession.AttackWindupFrames, session.ActiveAction!.RemainingFrames);
-    }
-
-    [Fact]
-    public void RejectedRestoreCannotDispatchHandlersOrChangeOriginalSession()
-    {
-        ProtectDispatchSpy handler = new();
-        BattleSession original = new(Definition(Player() with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Protect }] }, Enemy(speed: 1)), BattleAtbMode.Normal, [handler]);
-        original.Tick();
-        string before = JsonSerializer.Serialize(original.Capture());
-        BattleSnapshot snapshot = original.Capture();
-        BattleCombatantSnapshot invalid = snapshot.Combatants[0] with { Atb = -1 };
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Combatants = [invalid, snapshot.Combatants[1]] }, [handler]));
-        Assert.Equal(1, handler.DispatchCalls);
-        Assert.Equal(before, JsonSerializer.Serialize(original.Capture()));
     }
 
     [Fact]
@@ -525,40 +406,4 @@ public sealed class BattleSessionTests
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
     }
 
-    private sealed class ProtectDemoHandler : IBattleStatusEffectHandler
-    {
-        public BattleStatusKind Kind => BattleStatusKind.Protect;
-        public int AtbRatePercent => 100;
-
-        public void Validate(BattleStatusEffectDefinition definition)
-        {
-            Assert.True(definition.DurationFrames > 0 && definition.TickIntervalFrames > 0);
-        }
-
-        public void Dispatch(BattleEffectContext context)
-        {
-            if (context.IsPeriodicTick)
-            {
-                context.Heal(1);
-            }
-        }
-    }
-
-    private sealed class ProtectDispatchSpy : IBattleStatusEffectHandler
-    {
-        public BattleStatusKind Kind => BattleStatusKind.Protect;
-        public int AtbRatePercent => 100;
-        public int DispatchCalls { get; private set; }
-
-        public void Validate(BattleStatusEffectDefinition definition)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(definition.DurationFrames);
-        }
-
-        public void Dispatch(BattleEffectContext context)
-        {
-            // Observation only: no counter influences simulation state or future dispatch behavior.
-            DispatchCalls++;
-        }
-    }
 }

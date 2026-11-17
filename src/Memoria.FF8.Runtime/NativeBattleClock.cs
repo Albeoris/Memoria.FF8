@@ -66,7 +66,7 @@ public sealed partial class BattleSession
     private void DispatchNativePeriodicSupport(bool componentClockAdmitted, bool explicitTurnAdvance = false)
     {
         //47CCB0 checks the last4842B0 DEB admission again after action/request dispatch, before482F80.
-        if ((nativeBattleClock is { AtbAdmitted: 1 } clock && (clock.ActionPause == 0 || explicitTurnAdvance) || ComponentSupportClockAdmitted(componentClockAdmitted)) && !NativeScriptAllocationPaused && Outcome == BattleOutcome.Active)
+        if ((nativeBattleClock is { AtbAdmitted: 1 } clock && (clock.ActionPause == 0 || explicitTurnAdvance)) && !NativeScriptAllocationPaused && Outcome == BattleOutcome.Active)
         {
             AdvanceNativeSupportCallbacks();
         }

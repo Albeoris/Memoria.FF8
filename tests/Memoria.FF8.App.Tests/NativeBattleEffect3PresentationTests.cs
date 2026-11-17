@@ -71,7 +71,6 @@ public sealed class NativeBattleEffect3PresentationTests
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
         BattleCombatantSnapshot party = before.Combatants.Single(actor => actor.Id == "party");
-        Assert.Empty(party.StatusEffects);
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Effect3 component requires its live party status words.");
         //494410 calls47E2D0 before publishing this contact: party B90/B18 copy directly to B92/B1C.
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.

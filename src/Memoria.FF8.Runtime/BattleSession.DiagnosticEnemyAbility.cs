@@ -76,16 +76,8 @@ public sealed partial class BattleSession
         long? callback = NativeHostCallbacks;
         if (selection.UseTurnScript)
         {
-            if (HasNativeUiServiceClock)
-            {
-                QueueNativeCallback(actor, 1, 2);
-                actor.NativeCombatantFlags &= ~0x200u;
-            }
-            else
-            {
-                actor.Atb = 0;
-                QueueNativeCallback(actor, 1, 2);
-            }
+            actor.Atb = 0;
+            QueueNativeCallback(actor, 1, 2);
             LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, null);
             return;
         }

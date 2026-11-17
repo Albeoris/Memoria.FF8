@@ -100,16 +100,6 @@ public sealed class BattleActionTests
         Assert.Contains(restored.Events, entry => entry.Kind == "Healing" && entry.TargetId == "fallen");
     }
 
-    [Fact]
-    public void CastStatusUsesSharedTimersAndSurvivesRestore()
-    {
-        BattleSession session = Create();
-        session.QueueAction("party", "party", BattleAbility.Magic, 35);
-        Resolve(session);
-        Assert.Contains(session.Combatants[0].StatusEffects, effect => effect.Kind == BattleStatusKind.Haste);
-        Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(BattleSession.Restore(session.Capture()).Capture()));
-    }
-
     private static BattleSession Create()
     {
         return new BattleSession(new BattleDefinition

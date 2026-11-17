@@ -161,7 +161,7 @@ public sealed class DiagnosticPetrifyRepeatTests
                 }
                 ticks++;
             }
-            Assert.True(condition(), $"Petrify repeat did not reach its normal native boundary. Owners: {JsonSerializer.Serialize(battle.ObserveDiagnosticInvocationOwners(), json)}");
+            Assert.True(condition(), $"Petrify repeat did not reach its normal native boundary. Owners: {JsonSerializer.Serialize(battle.ObserveDiagnosticOwners(), json)}");
         }
     }
 }

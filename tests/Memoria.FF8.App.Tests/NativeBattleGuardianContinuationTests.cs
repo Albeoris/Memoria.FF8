@@ -27,7 +27,7 @@ public sealed class NativeBattleGuardianContinuationTests
             battle.AdvanceNativeGraphicsPresentation(callback);
             independent.AdvanceNativeGraphicsPresentation(callback);
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
-            colors.Add($"{battle.Presentation!.Graphics.Callback}:{ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Color40:X8}");
+            colors.Add($"{battle.Presentation!.Graphics.Callback}:{ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Color40:X8}");
         }
         BattleSnapshot after = battle.Capture();
         Assert.Equal(snapshot.NativeGraphics.Callback + 16, after.NativeGraphics!.Callback);

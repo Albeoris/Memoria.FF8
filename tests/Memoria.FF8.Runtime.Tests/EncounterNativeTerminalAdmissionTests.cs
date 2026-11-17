@@ -95,7 +95,7 @@ public sealed class EncounterNativeTerminalAdmissionTests
             ImmutableDictionary<string, EncounterCompiledEventGate>.Empty.Add("taunts", new("original", "nativeTaunts", 5)),
             ImmutableDictionary<string, EncounterCompiledPlacement>.Empty,
             ImmutableDictionary<string, double>.Empty,
-            new([new(0, 1)], [new(1, 1), new(2, 1)], [new(3, 1)], [new(4, 1)]));
+            new("original", 88, 2, 3, 1, 10, 4, new([new(0, 1)], [new(1, 1), new(2, 1)], [new(3, 1)], [new(4, 1)])));
         BattleNativeAction terminal = new(8, 207, 0, 207) { MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = 0, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, Statuses0 = 0, Statuses1 = 0, StatusAttack = 0, RawRecord = [0], SupplementalRecord = [] };
         BattleDefinition definition = new()
         {

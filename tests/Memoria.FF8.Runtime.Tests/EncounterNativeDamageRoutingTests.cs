@@ -142,20 +142,6 @@ public sealed class EncounterNativeDamageRoutingTests
     }
 
     [Fact]
-    public void PeriodicPositiveDamageRoutesWithoutCopyingTheOriginalPoisonState()
-    {
-        BattleSession battle = Create(100, poison: true);
-        battle.Tick();
-        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "original").CurrentHp);
-        Assert.All(battle.EncounterAllocation!.ActorIds, id =>
-        {
-            BattleCombatant copy = battle.Combatants.Single(actor => actor.Id == id);
-            Assert.Equal(950, copy.CurrentHp);
-            Assert.Empty(copy.StatusEffects);
-        });
-    }
-
-    [Fact]
     public void ExpiredDoomKeepsOriginalTerminalCallbackAndRetiresCopiesOnceAcrossRestore()
     {
         BattleSession battle = Create(100);
@@ -190,34 +176,6 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         battle.Tick();
         Assert.Equal(2, battle.Events.Count(entry => entry.Kind == "NativeModelRemoved"));
-    }
-
-    [Fact]
-    public void PeriodicRoutedLethalDamageCanAdmitAnIndependentNativeDeathCounter()
-    {
-        BattleSnapshot snapshot = Create(100, poison: true, fourthCounter: true).Capture();
-        EncounterCompiledDefinition mod = snapshot.Definition.EncounterMod!;
-        snapshot = snapshot with
-        {
-            Definition = snapshot.Definition with
-            {
-                EncounterMod = mod with { DamageRoutes = mod.DamageRoutes.SetItem("share", new("share", "original", ["fourth"])) },
-                Combatants = snapshot.Definition.Combatants.Select(actor => actor.Id == "fourth" ? actor with { NativeCombatantFlags = 0x31 } : actor).ToArray()
-            },
-            Combatants = snapshot.Combatants.Select(actor => actor.Id == "fourth" ? actor with { CurrentHp = 1, NativeParticipant = actor.NativeParticipant! with { NativeCombatantFlags = 0x31 } } : actor).ToArray()
-        };
-        BattleSession battle = BattleSession.Restore(snapshot);
-        battle.Tick();
-        Assert.Equal(1u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
-        Assert.Null(battle.ActiveAction?.NativeEventOwner);
-        Assert.All(battle.QueuedActions, command => Assert.Null(command.NativeEventOwner));
-        for (int frame = 0; frame < 30 && battle.NativeActionPackets.ActionCount == 0; frame++)
-        {
-            battle.Tick();
-        }
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)4, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(0));
-        Assert.Equal(990, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
     }
 
     [Fact]
@@ -379,7 +337,7 @@ public sealed class EncounterNativeDamageRoutingTests
         return battle.NativeActionPackets.ReadHeaderContacts(new BattleActionHeaderReference(0)).ToArray();
     }
 
-    private static BattleSession Create(int damage, bool allTargets = false, int maximumHp = 1000, bool drain = false, bool poison = false, bool fourthCounter = false)
+    private static BattleSession Create(int damage, bool allTargets = false, int maximumHp = 1000, bool drain = false, bool fourthCounter = false)
     {
         byte power = checked((byte)((damage + 99) / 100));
         byte hit = checked((byte)(power * 100 - damage));
@@ -405,7 +363,7 @@ public sealed class EncounterNativeDamageRoutingTests
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1000, CurrentHp = drain ? 500 : 1000, InitialAtb = BattleSession.AtbMaximum, NativeCommands = [new(8, "Hit", targetFlags, 1)] },
-                new() { Id = "original", Name = "Original", ModelId = 88, SceneSlot = 0, MaximumHp = maximumHp, CurrentHp = maximumHp, Speed = 10, Level = 1, NativeAi = ai, NativeTemplate = template, StatusEffects = poison ? [new() { Kind = BattleStatusKind.Poison, DurationFrames = 60, TickIntervalFrames = 1, Magnitude = 101 }] : [] },
+                new() { Id = "original", Name = "Original", ModelId = 88, SceneSlot = 0, MaximumHp = maximumHp, CurrentHp = maximumHp, Speed = 10, Level = 1, NativeAi = ai, NativeTemplate = template },
                 .. (fourthCounter ? new BattleCombatantDefinition[] { new() { Id = "fourth", Name = "Fourth", SceneSlot = 1, MaximumHp = 1000, CurrentHp = 1000, NativeAi = counterAi, NativeCombatantFlags = 0x11 } } : [])
             ]
         };

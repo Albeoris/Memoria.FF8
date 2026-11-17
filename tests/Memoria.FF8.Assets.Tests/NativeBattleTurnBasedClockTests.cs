@@ -95,8 +95,7 @@ public sealed class NativeBattleTurnBasedClockTests
         BattleCombatantSnapshot[] actors = active.Combatants.ToArray();
         actors[0] = player with
         {
-            NativeStatus = player.NativeStatus with { Battle = player.NativeStatus.Battle | 0x20u, Timers = timers },
-            StatusEffects = [new(BattleStatusKind.Regen, 600, 60, new() { Kind = BattleStatusKind.Regen, DurationFrames = 600, TickIntervalFrames = 60 })]
+            NativeStatus = player.NativeStatus with { Battle = player.NativeStatus.Battle | 0x20u, Timers = timers }
         };
         battle = BattleSession.Restore(active with { Combatants = actors, NativeGraphics = active.NativeGraphics! with { UiServices = active.NativeGraphics.UiServices! with { Menu957 = -1 } } });
         BattleSession restored = Resume(battle);
@@ -110,7 +109,6 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.Frame + 1, after.Frame);
         Assert.Equal(before.Combatants.Select(actor => actor.NativeAtb!.Current), after.Combatants.Select(actor => actor.NativeAtb!.Current));
         Assert.Equal(before.Combatants[0].NativeStatus!.Timers, after.Combatants[0].NativeStatus!.Timers);
-        Assert.Equal(before.Combatants[0].StatusEffects, after.Combatants[0].StatusEffects);
         Assert.Equal(before.NativeGraphics.Callback + 1, after.NativeGraphics!.Callback);
         Assert.NotEqual(NativeBattleSnapshotJson.Serialize(before.NativeGraphics), NativeBattleSnapshotJson.Serialize(after.NativeGraphics));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(after), NativeBattleSnapshotJson.Serialize(restored.Capture()));

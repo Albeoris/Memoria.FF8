@@ -178,114 +178,18 @@ public sealed partial class BattleSession
         }
         if (command.Ability == BattleAbility.Attack)
         {
-            if (actor.NativeAttack is { } attack)
-            {
-                BattleNativeAction nativeAttack = IsGunbladeAttack(actor, command.Ability) ? attack with { Command = 253, AttackType = 10, Critical = 0 } : attack;
-                BattleActionDefinition installedAttack = new(BattleAbility.Attack, 0, attack.Name ?? "Attack", BattleActionEffect.Native, nativeAttack.Power, false) { NativeAction = nativeAttack };
-                // The original deferred gunblade callback owns type10; its current contact projection is recorded underTD-009.
-                ResolveInstalledNativeAction(actor, target, command, installedAttack);
-                return;
-            }
-            if (ResolveBattleTargets(command.TargetRequest).SingleOrDefault() is not { } attackTarget)
-            {
-                return;
-            }
-            target = attackTarget;
-            // Original492C40/48F600 physical integer damage and mitigation.
-            bool gunblade = IsGunbladeAttack(actor, command.Ability);
-            int strength = EffectiveStat(actor, BattleStatId.Strength);
-            int vitality = EffectiveStat(target, BattleStatId.Vitality);
-            int damage = gunblade ? NativeGunbladeAttack.Damage(strength, vitality, actor.PhysicalPower, NextRandomByte(), ResolveGunbladeTiming(actor, target, command)) : NativeBattleDamage.Physical(strength, vitality, actor.PhysicalPower, NextRandomByte());
-            if (actor.ElementAttack != 0)
-            {
-                int element = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.ElementAttack);
-                damage += damage * actor.ElementAttackPercent * (800 - target.ElementDefenses[element]) / 10000;
-            }
-            if (HasStatus(target, BattleStatusKind.Protect))
-            {
-                damage = Math.Max(1, damage / 2);
-            }
-            if (!gunblade && HasStatus(actor, BattleStatusKind.Blind) && NextRandomByte() < 128)
-            {
-                Log("Miss", actor.Id, target.Id, 0, $"{actor.Name}: Attack missed.");
-                return;
-            }
-            int beforeHp = target.CurrentHp;
-            ApplySignedDamage(actor, target, damage, "Attack");
-            if (actor.DrainPercent > 0 && target.CurrentHp < beforeHp)
-            {
-                ApplyHealing(actor, (beforeHp - target.CurrentHp) * actor.DrainPercent / 100, "Drain");
-            }
-            target.Effects.RemoveAll(effect => effect.Definition.Kind == BattleStatusKind.Sleep);
+            BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Attack requires its installed native action.");
+            BattleNativeAction prepared = IsGunbladeAttack(actor, command.Ability) ? attack with { Command = 253, AttackType = 10, Critical = 0 } : attack;
+            BattleActionDefinition installed = new(BattleAbility.Attack, 0, attack.Name ?? "Attack", BattleActionEffect.Native, prepared.Power, false) { NativeAction = prepared };
+            ResolveInstalledNativeAction(actor, target, command, installed);
             return;
         }
-        BattleActionDefinition action = FindAction(command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability, command.ActionId);
-        if (action.NativeAction is not null)
+        BattleActionDefinition action = FindAction(command.Ability, command.ActionId);
+        if (action.NativeAction is null)
         {
-            ResolveInstalledNativeAction(actor, target, command, action);
-            return;
+            throw new NotSupportedException("Action requires its installed native record.");
         }
-        IEnumerable<BattleCombatant> targets = ResolveBattleTargets(command.TargetRequest).Where(candidate => action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive);
-        foreach (BattleCombatant recipient in targets)
-        {
-            switch (action.Effect)
-            {
-                case BattleActionEffect.Damage:
-                    // Original491AD0/48FE20 magic and GF damage over current native statistic inputs.
-                    int spirit = EffectiveStat(recipient, BattleStatId.Spirit);
-                    int damage = command.Ability == BattleAbility.GuardianForce ? NativeBattleDamage.GuardianForce(spirit, action.Power, action.Level, action.LevelPowerCoefficient, action.ConstantPower, action.DamagePercent, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, spirit, action.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
-                    if (HasStatus(recipient, BattleStatusKind.Shell))
-                    {
-                        damage >>= 1;
-                    }
-                    if (action.Element != 0)
-                    {
-                        int element = System.Numerics.BitOperations.TrailingZeroCount((uint)action.Element);
-                        damage = damage * (900 - recipient.ElementDefenses[element]) / 100;
-                    }
-                    if (command.DrawCast)
-                    {
-                        damage = damage * (NextRandomByte() + 10) / 150;
-                    }
-                    ApplySignedDamage(actor, recipient, damage, action.Name);
-                    break;
-                case BattleActionEffect.Heal:
-                    int healing = command.Ability == BattleAbility.Item ? action.Power * 50 : NativeBattleDamage.Cure(actor.Magic, action.Power, NextRandomByte());
-                    if (command.DrawCast)
-                    {
-                        healing = healing * (NextRandomByte() + 10) / 150;
-                    }
-                    ApplyHealing(recipient, Math.Min(9999, healing), action.Name);
-                    break;
-                case BattleActionEffect.FullHeal:
-                    ApplyHealing(recipient, recipient.MaximumHp * action.Power / 16, action.Name);
-                    break;
-                case BattleActionEffect.Revive:
-                    recipient.NativeStatus0 &= 0xFFFE;
-                    recipient.CurrentHp = action.Power == 0 ? Math.Max(1, recipient.MaximumHp / 8) : recipient.MaximumHp;
-                    Log("Healing", actor.Id, recipient.Id, recipient.CurrentHp, $"{action.Name}: {recipient.Name} revived.");
-                    break;
-                case BattleActionEffect.Scan:
-                    Log("Scan", actor.Id, recipient.Id, 0, $"{recipient.Name} Lv {recipient.Level} HP {recipient.CurrentHp}/{recipient.MaximumHp}.");
-                    break;
-            }
-            foreach (BattleStatusKind status in action.Statuses ?? [])
-            {
-                ApplyProjectedStatus(actor, recipient, status, action.Name, action.Effect);
-            }
-        }
-    }
-
-    private void ApplyProjectedStatus(BattleCombatant actor, BattleCombatant recipient, BattleStatusKind status, string name, BattleActionEffect effectKind)
-    {
-        recipient.Effects.RemoveAll(effect => effect.Definition.Kind == status);
-        if (effectKind is BattleActionEffect.Status or BattleActionEffect.Damage)
-        {
-            // TODO(TD-009): Duration and periodic magnitude are bounded scaffold status tuning.
-            BattleStatusEffectDefinition effect = new() { Kind = status, DurationFrames = 300, TickIntervalFrames = 30, Magnitude = Math.Max(1, recipient.MaximumHp / 20), Permanent = status != BattleStatusKind.Sleep };
-            recipient.Effects.Add(new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames));
-        }
-        Log("Status", actor.Id, recipient.Id, 0, $"{name}: {status}.");
+        ResolveInstalledNativeAction(actor, target, command, action);
     }
 
     private void ApplySignedDamage(BattleCombatant actor, BattleCombatant target, int damage, string source)
@@ -299,10 +203,7 @@ public sealed partial class BattleSession
             ApplyDamage(actor, target, damage, source);
         }
     }
-    private bool IsRevive(BattleAbility ability, int id)
-    {
-        return ability is BattleAbility.Magic or BattleAbility.Item && IsNativeRevive(FindAction(ability, id));
-    }
+
 
     private int NextRandomByte()
     {

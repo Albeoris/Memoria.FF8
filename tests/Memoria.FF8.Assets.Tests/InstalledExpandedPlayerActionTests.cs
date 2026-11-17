@@ -79,7 +79,6 @@ public sealed class InstalledExpandedPlayerActionTests
         }).ToArray();
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [.. party, .. enemies],
             ActionDefinitions = [spell],
             NativeActions = assets.NativeActions.Where(action => action.ActionId == spell.Id && action.Command is 2 or 247).ToArray(),

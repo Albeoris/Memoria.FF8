@@ -260,7 +260,6 @@ internal sealed partial class GameWorld
         definition = definition with
         {
             EncounterRosterAdmission = rosterAdmission,
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = useOriginalEnemySlots,
             AddedEnemySources = addedEnemySources,
             NativeGil = new(entryEconomy.Gil, entryEconomy.PastGil),
@@ -365,28 +364,42 @@ internal sealed partial class GameWorld
         }
         if (definition.EncounterMod is { } mod)
         {
-            ValidateExpandedEncounterPolicy(mod, definition.NativeEffectCatalog);
+            ValidateEncounterPolicy(mod, definition.NativeEffectCatalog);
         }
         return definition;
     }
 
-    private static void ValidateExpandedEncounterPolicy(EncounterCompiledDefinition mod, ImmutableArray<NativeBattleEffectBinding> effects)
+    private static void ValidateEncounterPolicy(EncounterCompiledDefinition mod, ImmutableArray<NativeBattleEffectBinding> effects)
     {
-        bool nativeTaunts = mod is { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } && mod.EventGates.Count <= 1 &&
-            mod.EventGates.Values.All(gate => gate is { Actor: "original", Event: "nativeTaunts" });
-        if (mod.NormalActionPolicies.Count != 0 &&
-            (!nativeTaunts && (mod.NativeEvents is not null || mod.EventGates.Count != 0 || mod.Templates.Count != 0) ||
-                mod.Policies.Values.Any(policy => policy.Rules.Any(rule => !SupportsAction(policy.Id, rule.Action)))))
+        if (mod.NativeEvents is { } nativeEvents && nativeEvents.ActorId != mod.OriginalActorId)
         {
-            throw new NotSupportedException($"Encounter policy '{mod.Encounter}' requires encounter AI and its native event callbacks, which are unavailable for an expanded roster.");
+            throw new InvalidDataException("Encounter events require the verified original actor's resource binding.");
         }
-
-        bool SupportsAction(string policyId, EncounterCompiledAction action)
+        foreach (var group in mod.EventGates.Values.GroupBy(gate => gate.Actor, StringComparer.Ordinal))
         {
-            return action.Kind == EncounterCompiledActionKind.SummonGroup
-                ? nativeTaunts && mod.NormalActionPolicies.GetValueOrDefault("original") == policyId && mod.Templates.Values.All(template => template.NormalActionPolicy != policyId) &&
-                    action.Spawns.Length is >= 1 and <= 3 && action.Spawns.All(spawn => mod.Templates.TryGetValue(spawn.Template, out EncounterCompiledTemplate? template) && template.InheritFrom == "original")
-                : BattleSession.SupportsHostedEncounterSpellRule(action, effects);
+            EncounterCompiledEventGate gate = group.SingleOrDefault() ?? throw new InvalidDataException("An encounter actor requires one native event gate per event.");
+            if (gate.Event != "nativeTaunts" || mod.NativeEvents is null || EncounterPolicyRuntime.ResolveTemplateSourceRole(mod, gate.Actor) != "original")
+            {
+                throw new NotSupportedException($"Encounter actor role '{gate.Actor}' lacks a verified native event binding for '{gate.Event}'.");
+            }
+        }
+        foreach (EncounterCompiledRule rule in mod.Policies.Values.SelectMany(policy => policy.Rules))
+        {
+            EncounterCompiledAction action = rule.Action;
+            if (action.Kind == EncounterCompiledActionKind.SummonGroup)
+            {
+                if (action.Spawns.IsDefaultOrEmpty || action.Spawns.Length > ExpandedBattleFormation.MaximumEnemies ||
+                    action.Spawns.Any(spawn => !mod.Templates.ContainsKey(spawn.Template) || !mod.Placements.ContainsKey(spawn.Anchor)))
+                {
+                    throw new InvalidDataException($"Encounter rule '{rule.Id}' requires declared cast templates and placement within the supported enemy roster.");
+                }
+                continue;
+            }
+            if (!BattleSession.SupportsHostedEncounterSpellRule(action with { Dispel = null }, effects) ||
+                action.Dispel is { } dispel && !BattleSession.SupportsHostedEncounterSpellRule(action with { Spells = [dispel], Dispel = null }, effects))
+            {
+                throw new NotSupportedException($"Encounter rule '{rule.Id}' requires a spell record and effect supported by the current battle action contract.");
+            }
         }
     }
 
@@ -698,7 +711,7 @@ internal sealed partial class GameWorld
             {
                 row = boundRow;
             }
-            else if (active.UsesExpandedRoster || !player.Id.StartsWith("party-", StringComparison.Ordinal) ||
+            else if (!player.Id.StartsWith("party-", StringComparison.Ordinal) ||
                 !int.TryParse(player.Id.AsSpan("party-".Length), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out row) ||
                 (uint)row >= vitals.Records.Length || !vitals.CombatParty.Contains((byte)row))
             {
@@ -739,16 +752,15 @@ internal sealed partial class GameWorld
         bool debugVictory = active.Events.Any(entry => entry.Kind == "debug-victory");
         int[] defeated = debugVictory ? [] : active.EnemyDefeats.Select(defeat => defeat.Slot).Distinct().ToArray();
         int[] eligible = active.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && !debugVictory ? CaptureRewardEligibleGuardianForces(vitals, party, completed) : [];
-        int? expandedEnemyCount = active.UsesExpandedRoster ? completed.Definition.Combatants.Count(actor => !actor.IsPlayer) : null;
-        BattleResult result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory, debugVictory ? BattleRewardPolicy.DebugNoRewards : BattleRewardPolicy.NativeCombat, debugVictory ? [] : active.EnemyDefeats.ToArray()) { UsesExpandedRoster = active.UsesExpandedRoster, ExpandedEnemyCount = expandedEnemyCount, NativeResult = debugVictory ? null : active.NativeResult, Tuning = completed.Definition.Tuning, ChocoboRewardsBefore = completed.Definition.ChocoboRewards, ChocoboRewardsAfter = completed.ChocoboRewards, NativeKnownMagicBefore = completed.Definition.NativeKnownMagic, NativeKnownMagicAfter = completed.NativeKnownMagic, NativeScannedModelsBefore = completed.Definition.NativeScannedModels, NativeScannedModelsAfter = completed.NativeScannedModels, NativeItemInventoryAfter = completed.NativeItemInventory!.ToArray(), GuardianForceCompatibilityChanges = CaptureGuardianForceCompatibilityChanges(completed, party), GuardianForceCounterChanges = active.GuardianForceCounterChanges, GuardianForceChanges = active.GuardianForces.Where(gf => gf.HitPoints != completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints).Select(gf => new BattleGuardianForceChange(gf.Id, completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints, gf.HitPoints)).ToArray(), ScriptedItems = debugVictory ? [] : active.ScriptedRewards.ToArray(), NativeRewardItems = debugVictory ? [] : active.NativeRewardItems.ToArray(), PersistentAiVariablesBefore = debugVictory ? null : completed.Definition.PersistentAiVariables?.ToArray(), PersistentAiVariablesAfter = debugVictory ? null : completed.PersistentAiVariables?.ToArray(), NativeScriptEffects = debugVictory ? new() : active.NativeScriptState, NativeGrowthChanges = CaptureNativeGrowthChanges(active, completed), NativeDeathCountChanges = CaptureNativeDeathCounts(active, completed), NativeCardChange = completed.NativeCards is { } cards && completed.Definition.NativeCards is { } beforeCards ? new(beforeCards.DeepCopy(), cards.DeepCopy()) : null, NativeCrtRandomBefore = completed.Definition.NativeCrtRandom, NativeCrtRandomAfter = completed.NativeCrtRandom, NativeGlobalRandomChange = active.NativeGlobalRandomChange };
+        BattleResult result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory, debugVictory ? BattleRewardPolicy.DebugNoRewards : BattleRewardPolicy.NativeCombat, debugVictory ? [] : active.EnemyDefeats.ToArray()) { EnemySlotCount = completed.Definition.EnemySlotCount, NativeResult = debugVictory ? null : active.NativeResult, Tuning = completed.Definition.Tuning, ChocoboRewardsBefore = completed.Definition.ChocoboRewards, ChocoboRewardsAfter = completed.ChocoboRewards, NativeKnownMagicBefore = completed.Definition.NativeKnownMagic, NativeKnownMagicAfter = completed.NativeKnownMagic, NativeScannedModelsBefore = completed.Definition.NativeScannedModels, NativeScannedModelsAfter = completed.NativeScannedModels, NativeItemInventoryAfter = completed.NativeItemInventory!.ToArray(), GuardianForceCompatibilityChanges = CaptureGuardianForceCompatibilityChanges(completed, party), GuardianForceCounterChanges = active.GuardianForceCounterChanges, GuardianForceChanges = active.GuardianForces.Where(gf => gf.HitPoints != completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints).Select(gf => new BattleGuardianForceChange(gf.Id, completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints, gf.HitPoints)).ToArray(), ScriptedItems = debugVictory ? [] : active.ScriptedRewards.ToArray(), NativeRewardItems = debugVictory ? [] : active.NativeRewardItems.ToArray(), PersistentAiVariablesBefore = debugVictory ? null : completed.Definition.PersistentAiVariables?.ToArray(), PersistentAiVariablesAfter = debugVictory ? null : completed.PersistentAiVariables?.ToArray(), NativeScriptEffects = debugVictory ? new() : active.NativeScriptState, NativeGrowthChanges = CaptureNativeGrowthChanges(active, completed), NativeDeathCountChanges = CaptureNativeDeathCounts(active, completed), NativeCardChange = completed.NativeCards is { } cards && completed.Definition.NativeCards is { } beforeCards ? new(beforeCards.DeepCopy(), cards.DeepCopy()) : null, NativeCrtRandomBefore = completed.Definition.NativeCrtRandom, NativeCrtRandomAfter = completed.NativeCrtRandom, NativeGlobalRandomChange = active.NativeGlobalRandomChange };
         result = result with { UsesOriginalEnemySlots = completed.Definition.UsesOriginalEnemySlots, AddedEnemySources = completed.Definition.AddedEnemySources };
         if (completed.Definition.NativeGil is { } gilBefore && completed.NativeGil is { } gilAfter && gilBefore != gilAfter)
         {
             result = result with { NativeGilChange = new(gilBefore, gilAfter) };
         }
-        if (!debugVictory && completed is { EncounterPolicies: { TerminalStarted: true, TerminalReached: true, CleanedUp: true }, Definition.EncounterMod: { Encounter: EncounterBindingResolver.Disc1Edea, NativeEvents: not null } terminalMod })
+        if (!debugVictory && completed is { EncounterPolicies: { TerminalStarted: true, TerminalReached: true, CleanedUp: true }, Definition.EncounterMod: { NativeEvents: { } nativeEvents } terminalMod })
         {
-            BattleCombatantSnapshot original = completed.Combatants.Single(actor => actor.Id == terminalMod.OriginalActorId);
+            BattleCombatantSnapshot original = completed.Combatants.Single(actor => actor.Id == nativeEvents.ActorId);
             if ((original.NativeStatus!.Saved & 1) == 0 || (original.NativeParticipant!.NativeCombatantFlags!.Value & 0x40) == 0)
             {
                 throw new InvalidDataException("The completed encounter terminal lost its native original actor witness.");
@@ -789,7 +801,7 @@ internal sealed partial class GameWorld
             }
             party.Add(new BattlePartyResult(row, member.CharacterId, member.HitPoints.Minimum, member.HitPoints.Minimum, member.Status, member.Status, []));
         }
-        BattleResult result = new(encounter, BattleOutcome.Victory, party.ToArray(), [], BattleResources.LoadEncounter(encounter.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.ResearchAutomaticApOnly, []) { Tuning = session.State.GameplayPreferences.Tuning };
+        BattleResult result = new(encounter, BattleOutcome.Victory, party.ToArray(), [], BattleResources.LoadEncounter(encounter.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.ResearchAutomaticApOnly, []) { EnemySlotCount = ExpandedBattleFormation.OriginalEnemyPrototypeCount, UsesOriginalEnemySlots = true, Tuning = session.State.GameplayPreferences.Tuning };
         result.Validate();
         return result;
     }
@@ -855,8 +867,8 @@ internal sealed partial class GameWorld
     private BattleResultOwners ProjectBattleResult(BattleResult result, BattleDefinition? admittedDefinition = null)
     {
         BattleEncounter formation = BattleResources.LoadEncounter(result.Encounter.Formation);
-        BattleDefinition? admittedBattle = admittedDefinition ?? (result.UsesExpandedRoster ? battle?.ReadDefinition() : null);
-        if (admittedBattle is not null && (admittedBattle.EncounterId != result.Encounter.Formation || admittedBattle.UsesExpandedRoster != result.UsesExpandedRoster ||
+        BattleDefinition? admittedBattle = admittedDefinition ?? (result.RewardPolicy != BattleRewardPolicy.ResearchAutomaticApOnly && battle is { } live && live.EncounterId == result.Encounter.Formation ? live.ReadDefinition() : null);
+        if (admittedBattle is not null && (admittedBattle.EncounterId != result.Encounter.Formation || admittedBattle.EnemySlotCount != result.EnemySlotCount ||
             admittedBattle.UsesOriginalEnemySlots != result.UsesOriginalEnemySlots || (admittedBattle.AddedEnemySources is null) != (result.AddedEnemySources is null) ||
             admittedBattle.AddedEnemySources is { } admittedSources && !admittedSources.SequenceEqual(result.AddedEnemySources!)))
         {
@@ -864,10 +876,9 @@ internal sealed partial class GameWorld
         }
         IReadOnlyList<BattleEnemyPlacement> slots = result.AddedEnemySources is { } sources
             ? ResolveExpandedEnemyPlacements(formation, sources, originalSlots: result.UsesOriginalEnemySlots)
-            : result.UsesExpandedRoster && !result.UsesOriginalEnemySlots
-                ? throw new NotSupportedException("Legacy expanded rewards require admitted enemy placement provenance.")
-                : formation.Slots;
-        if (result.AddedEnemySources is not null && slots.Count != result.EffectiveEnemySlotCount)
+            : result.UsesOriginalEnemySlots ? formation.Slots
+            : throw new InvalidDataException("Battle rewards require their admitted enemy placement sources.");
+        if (slots.Count != result.EnemySlotCount)
         {
             throw new InvalidDataException("Battle result size disagrees with its selected enemy placements.");
         }

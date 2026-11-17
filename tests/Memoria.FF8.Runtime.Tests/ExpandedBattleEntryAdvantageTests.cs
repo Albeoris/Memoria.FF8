@@ -154,7 +154,6 @@ public sealed class ExpandedBattleEntryAdvantageTests
         BattleCombatantDefinition[] roster = includeReserve ? [.. allies, .. enemies, new() { Id = "reserve", Name = "Reserve enemy", SceneSlot = 4, InitialActive = false, InitialAtb = 4321, NativeTemplate = template with { Information254 = null } }, added] : [.. allies, .. enemies, added];
         return new()
         {
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = includeReserve,
             AddedEnemySources = includeReserve ? ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty.Add(8, new(1, 0, new string('a', 64))) : null,
             NativeEntry = new(0, 0),

@@ -16,7 +16,7 @@ public sealed class EncounterAllocationRetirementTests
     [Fact]
     public void PublishedCopyHeaderRetainsResourcesUntilItsEventCountsReset()
     {
-        EncounterAllocationRetirement retirement = new(4);
+        EncounterAllocationRetirement retirement = new(BattleRosterSlot.Enemy(1), 4);
         NativeBattleActionPacketsState packets = Header(Copy, Party);
         NativeBattleGraphicsState graphics = Graphics();
         Assert.True(retirement.HasAcceptedConsumers("copy", packets, graphics));
@@ -27,7 +27,7 @@ public sealed class EncounterAllocationRetirementTests
     [Fact]
     public void UnrelatedFourthActorCannotStarveRetirementButAcceptedCopyContactsRetainIt()
     {
-        EncounterAllocationRetirement retirement = new(4);
+        EncounterAllocationRetirement retirement = new(BattleRosterSlot.Enemy(1), 4);
         BattleRetainedModelReference target = BattleRetainedModelReference.Capture(Party, Aliases);
         BattleRetainedModelSelection selection = BattleRetainedModelSelection.From([target]);
         NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(BattleRetainedModelReference.Capture(Fourth, Aliases), selection, false) { TargetActors = selection, Target = target } };

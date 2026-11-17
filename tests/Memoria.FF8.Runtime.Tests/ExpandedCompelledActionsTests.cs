@@ -27,7 +27,6 @@ public sealed class ExpandedCompelledActionsTests
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 11).Select(i => Combatant($"enemy-{i}")).ToArray();
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [.. party, .. enemies],
             InitialRandom = NativeBattleRandomState.ForecastPhase(phase),
             NativeFieldBattleRules = 0,
@@ -59,7 +58,6 @@ public sealed class ExpandedCompelledActionsTests
         BattleNativeAction item = new(4, 1, 5, 1) { Name = "Potion", MagicId = 0, AttackType = 3, Power = 20, HitCount = 1, TargetFlags = 0x10, AttackFlags = 2, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [.. new byte[24]], SupplementalRecord = [] };
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [Combatant("caster") with { IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Item] }, Combatant("enemy")],
             ActionDefinitions = [new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Native, 20, true) { NativeAction = item }],
             NativeActions = [item],
@@ -92,7 +90,6 @@ public sealed class ExpandedCompelledActionsTests
         };
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [caster, Combatant("enemy")],
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 22, false) { NativeAction = spell }],
             NativeActions = [spell],
@@ -128,7 +125,6 @@ public sealed class ExpandedCompelledActionsTests
         BattleNativeAction unavailable = item with { Command = 2, KernelSection = 1, AttackType = 14, TargetFlags = 0x50 };
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [Combatant("caster") with { IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Attack, BattleAbility.Item], NativeCommandSlots = [2, 2, 2, 2], MagicStocks = [new(1, 1)] }, Combatant("enemy")],
             ActionDefinitions = [new(BattleAbility.Item, 1, "Potion", BattleActionEffect.Native, 20, true) { NativeAction = item }],
             NativeActions = [item, unavailable],

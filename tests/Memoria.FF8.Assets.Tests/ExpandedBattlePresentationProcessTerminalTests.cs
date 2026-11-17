@@ -213,12 +213,12 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
         using BattleAssets assets = new(game.GameDirectory);
         var (battle, process) = Enter(game, assets, BattleAtbMode.TurnBased, missingText: true);
         NativeBattleGraphicsState before = process.Graphics;
-        Assert.Throws<NotSupportedException>(() => process.PrepareTerminal(BattleOutcome.Defeat, battle.EscapeFlags));
+        Assert.Throws<NotSupportedException>(() => process.PrepareTerminal(BattleOutcome.Defeat, battle.Capture().EscapeFlags));
         Assert.Same(before, process.Graphics);
         Assert.Null(process.Graphics.NativeOutcome?.ResultByte6E7);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         var (_, foreign) = Enter(game, assets, BattleAtbMode.TurnBased, missingText: false);
-        BattlePresentationProcess.PreparedTerminal stale = process.PrepareTerminal(BattleOutcome.Victory, battle.EscapeFlags);
+        BattlePresentationProcess.PreparedTerminal stale = process.PrepareTerminal(BattleOutcome.Victory, battle.Capture().EscapeFlags);
         Assert.Throws<InvalidOperationException>(() => foreign.ValidateTerminal(stale));
         battle.Tick();
         Assert.Throws<InvalidOperationException>(() => process.ValidateTerminal(stale));

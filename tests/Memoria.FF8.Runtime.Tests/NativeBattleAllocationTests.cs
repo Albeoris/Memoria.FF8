@@ -299,7 +299,7 @@ public sealed class NativeBattleAllocationTests
             Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, PowerModifier = null,
             LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
-        BattleDefinition definition = new() { UsesExpandedRoster = true, UsesOriginalEnemySlots = true, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = combatants, NativeActions = [action] };
+        BattleDefinition definition = new() { UsesOriginalEnemySlots = true, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = combatants, NativeActions = [action] };
         if (levelCommands)
         {
             combatants[0] = combatants[0] with { InitialAtb = BattleSession.AtbMaximum, NativeCommands = [new(33, "Level Down", 0x50, 0), new(34, "Level Up", 0x50, 0)] };

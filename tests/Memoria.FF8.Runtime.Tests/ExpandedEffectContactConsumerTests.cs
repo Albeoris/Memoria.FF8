@@ -83,7 +83,6 @@ public sealed class ExpandedEffectContactConsumerTests
     {
         return new(new()
         {
-            UsesExpandedRoster = true,
             Combatants =
             [
                 new() { Id = "caster", Name = "Caster", IsPlayer = true, MaximumHp = 2000, CurrentHp = 2000 },

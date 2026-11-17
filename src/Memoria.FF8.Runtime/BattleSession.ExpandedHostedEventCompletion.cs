@@ -42,8 +42,7 @@ public sealed partial class BattleSession
             !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
         BattleSnapshot seed = NativeBattleStorageSnapshots.CapturePrivate(retainCommittedMirror ? before with { ActiveAction = null } : before);
         HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(seed, customHandlers, proof);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(seed, proof);
         if (hostedEvent.Command.NativeDuel is not null || hostedEvent.Renzokuken is not null)
         {
             // A timed Limit retains this exact owner while the native aftercare suffix is pending.
@@ -107,7 +106,7 @@ public sealed partial class BattleSession
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
 
-        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed, customHandlers, proof));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed, proof));
         process.ValidatePreparedDispatch(dispatch);
         HostedEncounterLoadCheckpoint? encounterLoad = process.PrepareEncounterLoad(candidate.EncounterAllocation, dispatch);
         publication.Publish();

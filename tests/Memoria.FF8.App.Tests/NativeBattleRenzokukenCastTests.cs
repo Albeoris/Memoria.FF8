@@ -68,13 +68,13 @@ public sealed class NativeBattleRenzokukenCastTests
         Assert.True(battle.CanChoosePlayerCommand("party"));
         if (effectId == 160)
         {
-            Assert.False(battle.UsesExpandedRoster);
+            Assert.NotNull(battle.Presentation);
             Assert.Equal(new[] { 0, 1, 2 }, battle.Combatants.Where(ally => ally.IsPlayer).Select(ally => ally.ModelId));
             string[] partyIds = ["party", "party-1", "party-2"];
             for (byte slot = 0; slot < partyIds.Length; slot++)
             {
                 BattleModelOwner owner = battle.ReadPresentationModelOwner(partyIds[slot]);
-                Assert.Same(battle.Presentation!.Graphics.ActorModels.Get(owner), ReadOriginalModelCell(battle.Presentation?.Graphics, slot));
+                Assert.Same(battle.Presentation!.Graphics.ActorModels.Get(owner), ReadOriginalModelCell(battle.Presentation!.Graphics, slot));
                 Assert.True(battle.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte alias));
                 Assert.Equal(slot, alias);
             }

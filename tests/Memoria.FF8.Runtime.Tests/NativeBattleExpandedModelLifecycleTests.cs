@@ -32,7 +32,6 @@ public sealed class NativeBattleExpandedModelLifecycleTests
             NativeGlobalRandom = new(123),
             NativeRetainedMemory = retained with { EffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() } }
         };
-        session.PublishHostedEntryMusic(resources.NativeMusicProcess!);
         session.AttachPresentation(new(resources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(session.Presentation);
         Assert.Null(process.ActiveActionToken);
@@ -134,7 +133,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     {
         BattleCombatantDefinition[] party = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }).ToArray();
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 14).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", Information246 = 0 }).ToArray();
-        BattleDefinition definition = new() { UsesExpandedRoster = true, Combatants = [.. party, .. enemies], NativeGlobalRandom = new(123) };
+        BattleDefinition definition = new() { Combatants = [.. party, .. enemies], NativeGlobalRandom = new(123) };
         if (witness)
         {
             definition = definition with
@@ -142,7 +141,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
                 EncounterMod = new(EncounterBindingResolver.Disc1Edea, "Classic", "generation", "enemy-0", 11,
                     ImmutableDictionary<string, EncounterCompiledPolicy>.Empty, ImmutableDictionary<string, string>.Empty, ImmutableDictionary<string, EncounterCompiledTemplate>.Empty,
                     ImmutableDictionary<string, ImmutableArray<string>>.Empty, ImmutableDictionary<string, EncounterCompiledPresentation>.Empty, ImmutableDictionary<string, EncounterCompiledDamageRoute>.Empty,
-                    ImmutableDictionary<string, EncounterCompiledEventGate>.Empty, ImmutableDictionary<string, EncounterCompiledPlacement>.Empty, ImmutableDictionary<string, double>.Empty, new([], [], [], []))
+                    ImmutableDictionary<string, EncounterCompiledEventGate>.Empty, ImmutableDictionary<string, EncounterCompiledPlacement>.Empty, ImmutableDictionary<string, double>.Empty, new("enemy-0", 0, 2, 3, 1, 10, 4, new([], [], [], [])))
             };
         }
         return new BattleSession(definition, BattleAtbMode.TurnBased);

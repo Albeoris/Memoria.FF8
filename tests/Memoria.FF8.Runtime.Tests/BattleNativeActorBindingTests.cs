@@ -174,7 +174,7 @@ public sealed class BattleNativeActorBindingTests
         BattleCombatantDefinition[] party = Party(4).Select((actor, row) => actor with { MagicRecordId = row }).ToArray();
         return new(new BattleDefinition
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true, MagicVitals = frozen,
+            UsesOriginalEnemySlots = true, MagicVitals = frozen,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [.. party, enemy, reserve], NativeActions = [action]
         }, BattleAtbMode.Normal);
     }

@@ -43,6 +43,7 @@ public sealed class BattleComponentEscapeResultTests
         BattleEncounterOccurrence occurrence = new("escape-result-component", 512, new string('A', 64), SceneKind.Field, 74, 0, new string('B', 64), null);
         BattleResult result = new(occurrence, BattleOutcome.Escaped, [new(0, player.CharacterId, player.HitPoints.Minimum, (ushort)(player.HitPoints.Minimum - 10), player.Status, player.Status, [])], [new(1, potionCount, 1)], [0], [0], false, BattleRewardPolicy.NativeCombat, [new(0, Level(vitals), BattleDefeatCredit.Character, 0, null, false, 0)])
         {
+            EnemySlotCount = 2,
             RemainingEnemyExperience = [new(1, Level(vitals), 100, 50, 4)]
         };
         string beforeVitals = JsonSerializer.Serialize(vitals);

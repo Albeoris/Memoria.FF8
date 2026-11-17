@@ -22,34 +22,14 @@ public sealed class BattleTurnBasedTimeTests
     }
 
     [Fact]
-    public void ExplicitPassStopsWhenAnAlreadyFullSleepingAllyWakes()
-    {
-        BattleCombatantDefinition sleeping = Actor("ally", true, 100) with
-        {
-            InitialAtb = BattleSession.AtbMaximum,
-            StatusEffects = [new() { Kind = BattleStatusKind.Sleep, DurationFrames = 2 }]
-        };
-        BattleSession battle = Create(Actor("player", true, 100) with { InitialAtb = BattleSession.AtbMaximum }, sleeping, Actor("enemy", false, 1));
-
-        Assert.Equal(2, battle.AdvanceTurn());
-
-        Assert.True(battle.Combatants[0].IsReady);
-        Assert.True(battle.Combatants[1].IsReady);
-        Assert.Equal(2, battle.Combatants[2].Atb);
-    }
-
-    [Fact]
     public void ReadyAllyHoldsPoisonRegenAndOtherGaugesWhileAnActionContinues()
     {
         BattleCombatantDefinition ally = Actor("ally", true, 100) with
         {
             InitialAtb = BattleSession.AtbMaximum,
             CurrentHp = 500,
-            StatusEffects =
-            [
-                new() { Kind = BattleStatusKind.Poison, Magnitude = 3, TickIntervalFrames = 1 },
-                new() { Kind = BattleStatusKind.Regen, Magnitude = 1, TickIntervalFrames = 1 }
-            ]
+            NativeStatus0 = 2,
+            NativeStatus1 = 0x10
         };
         BattleSession battle = Create(Actor("caster", true, 100) with { InitialAtb = BattleSession.AtbMaximum }, ally, Actor("enemy", false, 1));
         battle.QueueAttack("caster", "enemy");
@@ -66,7 +46,7 @@ public sealed class BattleTurnBasedTimeTests
 
         Assert.Equal(before.Combatants.Select(actor => actor.Atb), battle.Combatants.Select(actor => actor.Atb));
         Assert.Equal(500, battle.Combatants[1].CurrentHp);
-        Assert.Equal(before.Combatants[1].StatusEffects, battle.Capture().Combatants[1].StatusEffects);
+        Assert.Equal(before.Combatants[1].NativeStatus!.Timers, battle.Capture().Combatants[1].NativeStatus!.Timers);
         Assert.Equal(before.ActiveAction!.RemainingFrames - 5, battle.ActiveAction!.RemainingFrames);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
@@ -90,65 +70,6 @@ public sealed class BattleTurnBasedTimeTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         battle.Tick();
         Assert.Equal(before.RemainingFrames - 1, battle.ActiveAction!.RemainingFrames);
-    }
-
-    [Fact]
-    public void LogicalSkipPresentsProducedRegenThenDispatchesPoisonAndNativeDoomBeforeNextReadiness()
-    {
-        BattleCombatantDefinition doomed = Actor("doomed", true, 1000) with { NativeStatus1 = 0x400, NativeDeathCount = 0 };
-        BattleCombatantDefinition ally = Actor("ally", true, 500) with
-        {
-            CurrentHp = 500,
-            NativeStatus1 = 0x10,
-            StatusEffects = [new() { Kind = BattleStatusKind.Poison, Magnitude = 1, TickIntervalFrames = 2 }]
-        };
-        BattleSession battle = Create(doomed, ally, Actor("enemy", false, 1));
-        BattleSnapshot seed = battle.Capture();
-        BattleCombatantSnapshot[] actors = seed.Combatants.ToArray();
-        short[] doomTimers = actors[0].NativeStatus!.Timers.ToArray();
-        short[] regenTimers = actors[1].NativeStatus!.Timers.ToArray();
-        doomTimers[10] = 2;
-        regenTimers[4] = 60;
-        actors[0] = actors[0] with { NativeStatus = actors[0].NativeStatus! with { Timers = doomTimers } };
-        actors[1] = actors[1] with { NativeStatus = actors[1].NativeStatus! with { Timers = regenTimers } };
-        battle = BattleSession.Restore(seed with { Combatants = actors });
-        BattleSession restored = Resume(battle);
-
-        battle.Tick();
-        restored.Tick();
-
-        Assert.Equal(1, battle.Frame);
-        BattleAttackCommand regen = Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
-        Assert.Equal("ally", regen.ActorId);
-        Assert.Equal("ally", regen.TargetId);
-        Assert.NotNull(regen.NativeHeader);
-        Assert.True(regen.NativeAction is { Command: 0, ActionId: 4 });
-        // Header production commits the contact before this graphicsless command's presentation completes.
-        Assert.Equal(550, battle.Combatants[1].CurrentHp);
-        Assert.Equal(58, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
-        // A passive Regen callback must not spend the actor's partially filled turn gauge.
-        Assert.Equal(ally.Speed, battle.Combatants[1].Atb);
-        Assert.False(battle.Combatants[1].IsReady);
-        Assert.Contains(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:") && item.Amount == 50);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        for (int callback = 0; callback < 100 && !battle.Combatants[1].IsReady; callback++)
-        {
-            battle.Tick();
-            restored.Tick();
-            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        }
-        int readinessTicks = (BattleSession.AtbMaximum + ally.Speed - 1) / ally.Speed;
-        Assert.True(battle.Frame > 1 + readinessTicks);
-        Assert.False(battle.Combatants[0].IsAlive);
-        Assert.True(battle.Combatants[1].IsReady);
-        Assert.Equal(540, battle.Combatants[1].CurrentHp);
-        Assert.Equal(60 - 2 * readinessTicks, battle.Capture().Combatants[1].NativeStatus!.Timers[4]);
-        Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.Message.StartsWith("Doom:"));
-        Assert.Contains(battle.Events, item => item.Kind == "Healing" && item.Message.StartsWith("Regen:"));
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        BattleSnapshot waiting = battle.Capture();
-        battle.Tick();
-        Assert.Equal(JsonSerializer.Serialize(waiting), JsonSerializer.Serialize(battle.Capture()));
     }
 
     private static BattleCombatantDefinition Actor(string id, bool player, int speed)

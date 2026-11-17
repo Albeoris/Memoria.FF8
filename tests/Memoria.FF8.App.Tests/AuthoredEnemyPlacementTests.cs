@@ -35,7 +35,7 @@ public sealed class AuthoredEnemyPlacementTests
 
         BattleDefinition legacy = new()
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true,
+            UsesOriginalEnemySlots = true,
             Combatants = encounter.Slots.Take(3).Select(slot => new BattleCombatantDefinition { Id = $"enemy-{slot.Slot}", Name = "Enemy", SceneSlot = slot.Slot, ModelId = slot.ModelId, InitialActive = slot.Enabled }).ToArray()
         };
         Assert.Equal(new[] { (0, 33), (1, 33), (2, 71) }, Placements(world, encounter, legacy).Select(slot => (slot.Slot, slot.ModelId)));

@@ -24,7 +24,7 @@ public sealed class EncounterPolicyEntryTests
         world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 4));
         BattleSession battle = world.PrepareBattleEntry(136, 0, 4, BattleAtbMode.TurnBased).Battle;
         BattleDefinition definition = battle.ReadDefinition();
-        Assert.Equal(expanded, definition.UsesExpandedRoster);
+        Assert.Equal(expanded, definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount);
         Assert.Equal(allies, definition.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allies), definition.AddedEnemySources?.Count ?? 0);
         Assert.Equal(expanded, definition.NativeGraphics is null);
@@ -80,7 +80,7 @@ public sealed class EncounterPolicyEntryTests
         world.EnsureField();
 
         BattleDefinition definition = world.CreateEncounterBattle(136, 4);
-        Assert.True(definition.UsesExpandedRoster);
+        Assert.True(definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || definition.AddedEnemySources is { Count: > 0 });
         Assert.Equal(12, definition.EncounterMod!.Camera!.ElevationDegrees);
         Assert.Null(world.Battle);
     }

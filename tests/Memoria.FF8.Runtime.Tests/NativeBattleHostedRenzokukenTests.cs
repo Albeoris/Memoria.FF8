@@ -10,7 +10,6 @@ public sealed class NativeBattleHostedRenzokukenTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants =
             [
                 new() { Id = "squall", Name = "Squall", IsPlayer = true },

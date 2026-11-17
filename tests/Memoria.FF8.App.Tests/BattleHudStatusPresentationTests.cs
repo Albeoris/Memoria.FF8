@@ -20,7 +20,7 @@ public sealed class BattleHudStatusPresentationTests
     public void GaugeUsesNativeStatusPrecedenceAndHorizontalColorEndpoints(uint statuses, bool ready, byte leftR, byte leftG, byte leftB, byte rightR, byte rightG, byte rightB)
     {
         BattleSession battle = CreateBattle(statuses, ready);
-        BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }));
+        BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible));
 
         var fills = canvas.Fills.Where(fill => fill.Bounds.Y == 541 && fill.Bounds.Height == 8).ToArray();
         Assert.Equal(16, fills.Length);
@@ -31,12 +31,11 @@ public sealed class BattleHudStatusPresentationTests
     }
 
     [Fact]
-    public void ExistingMightyGuardStatusesAreIdentifiedAndDoNotNeedScaffoldEffects()
+    public void ExistingMightyGuardStatusesAreIdentifiedAfterLogicalRestore()
     {
         BattleSession battle = CreateBattle(0x2062, false);
-        Assert.Empty(battle.Combatants[0].StatusEffects);
         BattleSnapshot before = NativeBattleStorageSnapshots.Capture(battle.Capture());
-        BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }));
+        BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible));
 
         foreach (string name in new[] { "Haste", "Protect", "Shell", "Float" })
         {
@@ -45,7 +44,7 @@ public sealed class BattleHudStatusPresentationTests
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(battle.Capture()));
         BattleSession restored = BattleSession.Restore(before);
         Assert.Equal(new BattleStatusPresentation(0, 0x2062), restored.ReadStatusPresentation("party"));
-        BattleUiTests.TestCanvas restoredCanvas = Draw(new(restored, (_, _) => { }, () => { }, () => { }));
+        BattleUiTests.TestCanvas restoredCanvas = Draw(new(restored, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible));
         Assert.Equal(canvas.Texts, restoredCanvas.Texts);
     }
 
@@ -70,25 +69,6 @@ public sealed class BattleHudStatusPresentationTests
         var label = Assert.Single(canvas.TextDraws, draw => draw.Text == name);
         Assert.True(label.Bounds.X < 496);
         Assert.Contains(canvas.Images, image => image.Source == new UiImageSource(UiImageKind.Icon, icon) && image.Bounds.Y == label.Bounds.Y);
-    }
-
-    [Fact]
-    public void ExplicitSyntheticEffectsUseTheSameStatusProjection()
-    {
-        BattleSession battle = new(new BattleDefinition
-        {
-            Combatants =
-            [
-                new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum / 2, StatusEffects = [new() { Kind = BattleStatusKind.Haste }, new() { Kind = BattleStatusKind.Protect }] },
-                new() { Id = "enemy", Name = "Enemy" }
-            ]
-        }, BattleAtbMode.Normal);
-
-        Assert.Equal(new BattleStatusPresentation(0, 34), battle.ReadStatusPresentation("party"));
-        BattleUiTests.TestCanvas canvas = Draw(new(battle, (_, _) => { }, () => { }, () => { }));
-        Assert.Contains("Haste", canvas.Texts);
-        Assert.Contains("Protect", canvas.Texts);
-        Assert.Contains(canvas.Fills, fill => fill.Bounds.Y == 541 && fill.Color == new UiColor(240, 5, 58));
     }
 
     private static BattleSession CreateBattle(uint partyStatus, bool ready, ushort enemySaved = 0, uint enemyStatus = 0)

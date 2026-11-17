@@ -238,7 +238,6 @@ public sealed class BattleHudPartyLayoutTests
         BattleActionDefinition[] spells = magic ? Enumerable.Range(1, 8).Select(Spell).ToArray() : [];
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = count >= 4,
             Combatants =
             [
                 .. Enumerable.Range(0, count).Select(index => new BattleCombatantDefinition

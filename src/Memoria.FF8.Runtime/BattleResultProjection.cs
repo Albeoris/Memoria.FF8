@@ -21,15 +21,15 @@ public static partial class BattleResultProjection
         sourceEconomy.Validate();
         byte[] nativeRows = sourceVitals.GetBattlePartyRows(NativeBattleSlots.AllyCount);
         byte[] party = nativeRows;
-        if (result.UsesExpandedRoster && admittedBattle is not null)
+        if (admittedBattle is not null)
         {
-            if (admittedBattle.EncounterId != result.Encounter.Formation)
+            if (admittedBattle.EncounterId != result.Encounter.Formation || admittedBattle.EnemySlotCount != result.EnemySlotCount)
             {
-                throw new InvalidDataException("Expanded battle result disagrees with its admitted formation.");
+                throw new InvalidDataException("Battle result disagrees with its admitted formation.");
             }
             party = ExpandedBattlePartyRows.ReadBoundRows(admittedBattle, sourceVitals);
         }
-        else if (result.UsesExpandedRoster && result.Party.Length >= nativeRows.Length)
+        else
         {
             byte[] reportedRows = result.Party.Select(member => member.Row).ToArray();
             if (ExpandedBattlePartyRows.IsSelectedParty(sourceVitals, reportedRows))
@@ -41,7 +41,7 @@ public static partial class BattleResultProjection
         {
             throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
         }
-        if (result.UsesExpandedRoster && admittedBattle is not null && sourceVitals.AdditionalCombatParty is null)
+        if (admittedBattle is not null && sourceVitals.AdditionalCombatParty is null)
         {
             sourceVitals = ExpandedBattlePartyRows.RecoverSelection(sourceVitals, party);
         }

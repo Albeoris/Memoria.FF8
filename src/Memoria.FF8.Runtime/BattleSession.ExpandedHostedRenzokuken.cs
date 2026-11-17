@@ -73,7 +73,7 @@ public sealed partial class BattleSession
 
     private static void ValidateExpandedHostedRenzokukenProof(BattleSnapshot snapshot, HostedRenzokukenCandidateProof proof)
     {
-        if (!ReferenceEquals(snapshot, proof.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
+        if (!ReferenceEquals(snapshot, proof.Snapshot) || snapshot.NativeGraphics is not null || snapshot.Outcome != BattleOutcome.Active ||
             proof.Event is not { Renzokuken: { } owner, LogicallyComplete: false } || !ReferenceEquals(snapshot.ActiveAction, proof.Event.ActivePresentation) ||
             snapshot.NativeTimedAction is not { } timed || !ReferenceEquals(timed.Command, proof.Event.ActivePresentation) ||
             snapshot.NativeLimits.SingleOrDefault(limit => limit.ActorId == owner.ActorId)?.Renzokuken is not { } state || state.MagicId != owner.MagicId ||
@@ -110,8 +110,7 @@ public sealed partial class BattleSession
         }
 
         BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before);
         if (!candidate.actions.TryDequeue(out BattleAttackCommand? prepared) || prepared != command)
         {
             throw new InvalidDataException("The hosted Renzokuken candidate lost its original FIFO input.");
@@ -173,7 +172,7 @@ public sealed partial class BattleSession
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, guardianForm: form);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        PreparedActionPublication publication = new(this, candidate, Restore(before, customHandlers));
+        PreparedActionPublication publication = new(this, candidate, Restore(before));
         process.ValidatePreparedDispatch(dispatch);
         publication.Publish();
         PublishStagedHostedOperations(candidate);
@@ -361,8 +360,7 @@ public sealed partial class BattleSession
         NativeBattleActionPacketsState packets = process.ActionPackets;
         BattleSnapshot before = Capture();
         HostedRenzokukenCandidateProof proof = new(before, hostedEvent, null, receipt);
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers, proof);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, proof);
         candidate.expandedHostedEvent = hostedEvent;
         candidate.expandedOperationCursor = expandedOperationCursor with { Current = null };
         candidate.producingExpandedAiCallback = true;
@@ -384,7 +382,7 @@ public sealed partial class BattleSession
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form, renzokukenFinisher: replacement);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, proof));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, proof));
         process.ValidatePreparedDispatch(dispatch);
         publication.Publish();
         PublishStagedHostedOperations(candidate);

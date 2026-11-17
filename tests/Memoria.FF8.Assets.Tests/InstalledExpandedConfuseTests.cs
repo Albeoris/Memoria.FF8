@@ -43,7 +43,6 @@ public sealed class InstalledExpandedConfuseTests
         BattleNativePlayerStatistics projected = stats.Project(stocks, growth);
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 1, CurrentHp = projected.MaximumHp / 2, MaximumHp = projected.MaximumHp, Speed = projected.Speed, Magic = projected.Magic, InitialAtb = BattleSession.AtbMaximum,

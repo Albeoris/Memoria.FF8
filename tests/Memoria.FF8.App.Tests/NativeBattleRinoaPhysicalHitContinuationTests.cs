@@ -60,7 +60,7 @@ public sealed class NativeBattleRinoaPhysicalHitContinuationTests
                     Assert.True(ribbon);
                     Assert.True(restoredFlight);
                     Assert.True(battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp < initialHp);
-                    Assert.Equal(ReadOriginalModelCell(input.NativeGraphics!, 0).Flags0 & 0x200, ReadOriginalModelCell(battle.Presentation?.Graphics, 0).Flags0 & 0x200);
+                    Assert.Equal(ReadOriginalModelCell(input.NativeGraphics!, 0).Flags0 & 0x200, ReadOriginalModelCell(battle.Presentation!.Graphics, 0).Flags0 & 0x200);
                     CompareNext("completed");
                     for (int wait = 0; wait < 400 && !battle.CanChoosePlayerCommand("party"); wait++)
                     {

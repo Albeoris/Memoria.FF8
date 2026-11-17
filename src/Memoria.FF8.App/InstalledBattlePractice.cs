@@ -27,7 +27,6 @@ internal static class InstalledBattlePractice
         BattleDefinition definition = source with
         {
             EncounterId = null,
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = false,
             AddedEnemySources = null,
             NativeGraphics = null,

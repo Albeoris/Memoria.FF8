@@ -125,7 +125,7 @@ public sealed class HostedAutomaticBattleTests
         NativeCharacterVitals vitals = session.State.CharacterVitals!;
         BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
         using BattleAssets assets = new(TestResources.GameDirectory);
-        BattleResult result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []);
+        BattleResult result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []) { EnemySlotCount = NativeBattleSlots.FormationSlotCount, UsesOriginalEnemySlots = true };
         string before = JsonSerializer.Serialize(session.State);
         Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(random, result));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));

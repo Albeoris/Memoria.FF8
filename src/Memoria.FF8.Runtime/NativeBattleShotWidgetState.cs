@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleShotWidgetState(short RemainingTimer, byte Phase, byte PublicationLatch, byte ClosingPolls, bool Rearmed)
 {
     public bool Visible => Phase is >= 3 and <= 8;
+    public bool Closing => Phase is >= 8 and < 12;
     public bool Closed => Phase == 12;
 
     public static NativeBattleShotWidgetState Register(short initialTimer)

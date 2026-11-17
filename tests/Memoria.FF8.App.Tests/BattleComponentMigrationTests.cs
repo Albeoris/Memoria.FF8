@@ -19,7 +19,6 @@ public sealed class BattleComponentMigrationTests
         Assert.Equal(512, original.Definition.EncounterId);
         Assert.Empty(original.QueuedActions);
         Assert.Null(original.ActiveAction);
-        Assert.All(original.Combatants, actor => Assert.Empty(actor.StatusEffects));
         using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom() });

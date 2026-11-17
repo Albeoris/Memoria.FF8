@@ -122,7 +122,7 @@ public sealed class NativeBattleFirePresentationTests
             selected |= battle.Presentation!.Graphics.ActionGraphics?.Callback == (casting ? 0x50A9A0 : 0x50B190);
             cameraProgramCompleted |= battle.Presentation?.Camera is { ControlCursor: null, ControlResource.Source.Identity: "FF8_EN:DED5FC" };
             sawCastingLoadWait |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 3);
-            sawCastingReady |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (ReadOriginalModelCell(battle.Presentation?.Graphics, 0).ResourceFlags44 & 0x20) != 0;
+            sawCastingReady |= battle.Presentation!.Graphics.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 4) && (ReadOriginalModelCell(battle.Presentation!.Graphics, 0).ResourceFlags44 & 0x20) != 0;
             if (restored is not null)
             {
                 restored.AdvanceNativeGraphicsPresentation(Callback);

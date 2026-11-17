@@ -199,7 +199,7 @@ public sealed class ExpandedNumericAiTargetTests
         }).ToArray();
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = originalEnemySlots, MagicVitals = frozen, Combatants = [.. allies, .. enemies],
+            UsesOriginalEnemySlots = originalEnemySlots, MagicVitals = frozen, Combatants = [.. allies, .. enemies],
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), InitialRandom = NativeBattleRandomState.ForecastPhase(3), NativeActions = [Action()]
         }, BattleAtbMode.Normal);
         DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);

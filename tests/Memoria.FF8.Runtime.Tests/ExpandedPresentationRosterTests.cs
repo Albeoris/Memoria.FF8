@@ -202,7 +202,6 @@ public sealed class ExpandedPresentationRosterTests
         }).ToArray();
         return new(new()
         {
-            UsesExpandedRoster = expanded,
             NativeRetainedMemory = retained,
             Combatants = [.. party, .. opponents],
             NativeActions = native is null ? [] : [native],

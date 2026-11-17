@@ -23,7 +23,7 @@ public sealed partial class BattleSession
     {
         BattleActionPresentation mirror = proof.Event.ActivePresentation;
         HostedDuelFrameOwner frame = proof.Selection.Frame;
-        if (!ReferenceEquals(snapshot, proof.Snapshot) || !snapshot.Definition.UsesExpandedRoster || snapshot.NativeGraphics is not null ||
+        if (!ReferenceEquals(snapshot, proof.Snapshot) || snapshot.NativeGraphics is not null ||
             snapshot.Outcome != BattleOutcome.Active || mirror.NativeDuel is null || snapshot.ActiveAction is not null && !ReferenceEquals(snapshot.ActiveAction, mirror) ||
             !ReferenceEquals(proof.Event.DuelPoll, frame.Poll) || mirror.ActorId != frame.Poll.ActorId || proof.Event.CompletionOwner != frame.Poll.Owner ||
             frame.Widget.Selection1D28DEF is not byte selection || selection == 254 ||
@@ -74,8 +74,7 @@ public sealed partial class BattleSession
         }
 
         BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before);
         if (!candidate.actions.TryDequeue(out BattleAttackCommand? prepared) || prepared != command)
         {
             throw new InvalidDataException("The prepared Duel candidate does not retain the admitted FIFO input.");
@@ -111,7 +110,7 @@ public sealed partial class BattleSession
         }
         candidate.StageExpandedHostedControl(new HostedDispatchControl.DuelSelection(poll));
         candidate.Log("Windup", source.Id, target.Id, 0, control.Name ?? "Duel");
-        PublishExpandedHostedDuelCandidate(before, customHandlers, candidate, process, hostedEvent);
+        PublishExpandedHostedDuelCandidate(before, candidate, process, hostedEvent);
     }
 
     private bool StageExpandedHostedDuelMove(BattleCombatant actor, BattleNativeAction native, BattleTargetRequest request, NativeLimitCallback? callback, bool resetCounts)
@@ -158,7 +157,7 @@ public sealed partial class BattleSession
         return true;
     }
 
-    private void PublishExpandedHostedDuelCandidate(BattleSnapshot before, IBattleStatusEffectHandler[] customHandlers, BattleSession candidate,
+    private void PublishExpandedHostedDuelCandidate(BattleSnapshot before, BattleSession candidate,
         BattlePresentationProcess process, ExpandedHostedEvent hostedEvent, HostedDuelCandidateProof? proof = null)
     {
         foreach (ExpandedHostedInvocation invocation in candidate.expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>())
@@ -177,7 +176,7 @@ public sealed partial class BattleSession
         ExpandedHostedPrefix prefix = candidate.PrepareExpandedHostedPrefix(process, allocations: allocations, guardianForm: form, duelSelection: proof?.Selection);
         PreparedHostedDispatch dispatch = prefix.Dispatch;
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
-        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, customHandlers, proof));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, proof));
         process.ValidatePreparedDispatch(dispatch);
         publication.Publish();
         PublishStagedHostedOperations(candidate);
@@ -235,8 +234,7 @@ public sealed partial class BattleSession
         BattleSnapshot current = CaptureState();
         BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CanNativeBattleActorAct(actor) ? current : current with { ActiveAction = null });
         HostedDuelCandidateProof proof = new(before, hostedEvent, receipt);
-        IBattleStatusEffectHandler[] handlersForCandidate = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, handlersForCandidate, proof);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before, proof);
         candidate.ActiveAction = hostedEvent.ActivePresentation;
         BattleCombatant source = candidate.GetActor(actor.Id);
         byte action = selection == 255 ? (byte)255 : NativeBattleDuelRules.ActionId(source.NativeLimit!, selection);
@@ -276,6 +274,6 @@ public sealed partial class BattleSession
             }
             candidate.StageExpandedHostedControl(new HostedDispatchControl.DuelSelection(nextEvent.DuelPoll!));
         }
-        PublishExpandedHostedDuelCandidate(before, handlersForCandidate, candidate, process, nextEvent, proof);
+        PublishExpandedHostedDuelCandidate(before, candidate, process, nextEvent, proof);
     }
 }

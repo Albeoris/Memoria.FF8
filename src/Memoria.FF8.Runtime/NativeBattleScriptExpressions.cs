@@ -9,6 +9,27 @@ public sealed class NativeBattleScriptExpressionState
 
 public static class NativeBattleScriptExpressions
 {
+    internal static bool IsBranch(byte opcode) => opcode is >= 0xE6 and <= 0xF3;
+
+    internal static bool IsUnconditionalBranch(byte opcode) => opcode is 0xE6 or 0xED;
+
+    internal static byte OperandWidth(byte opcode)
+    {
+        return opcode switch
+        {
+            >= 0xC0 and < 0xE4 => (opcode & 3) == 0 ? (byte)2 : (byte)1,
+            0xE4 => 0,
+            >= 0xE5 and < 0xED => 1,
+            >= 0xED and <= 0xF3 => 2,
+            _ => byte.MaxValue
+        };
+    }
+
+    internal static int ReadRelativeOffset(byte opcode, ReadOnlySpan<byte> operands)
+    {
+        return OperandWidth(opcode) == 1 ? unchecked((sbyte)operands[0]) : unchecked((short)(operands[0] | operands[1] << 8));
+    }
+
     /// <summary>Shared50DB40 C0..F3 dispatch. Cursor initially follows the opcode; branches use its original address.</summary>
     public static void Execute(byte opcode, int origin, ref int cursor, NativeBattleScriptExpressionState state, Func<byte> nextByte, Func<byte, NativeBattleScriptValue> readVariable, Action<byte, NativeBattleScriptValue> writeVariable)
     {
@@ -59,11 +80,11 @@ public static class NativeBattleScriptExpressions
             }
             return;
         }
-        if (opcode is >= 0xE6 and <= 0xF3)
+        if (IsBranch(opcode))
         {
             int kind = (opcode - 0xE6) % 7;
-            bool take = kind == 0 || Current().TakeBranch(kind);
-            int relative = opcode < 0xED ? unchecked((sbyte)nextByte()) : unchecked((short)(nextByte() | nextByte() << 8));
+            bool take = IsUnconditionalBranch(opcode) || Current().TakeBranch(kind);
+            int relative = OperandWidth(opcode) == 1 ? unchecked((sbyte)nextByte()) : unchecked((short)(nextByte() | nextByte() << 8));
             if (take)
             {
                 cursor = checked(origin + relative);

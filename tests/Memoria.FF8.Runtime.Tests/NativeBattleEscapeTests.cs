@@ -146,7 +146,6 @@ public sealed class NativeBattleEscapeTests
         BattleEnemyRewardDefinition rewards = new(0, 1, 20, 30, 255, false, 0, [.. Enumerable.Repeat(new BattleStock(0, 0), 12)]);
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             ExpandedFormationFlags = 0,
             NativeGlobalMessages = ["", "Escape!"],
             NativeMessageSpeed = 2,

@@ -173,7 +173,6 @@ public sealed class ExpandedBattleActionCompletionTests
         BattleNativeAction spell = new(2, 1, 1, 1) { Name = "Fire", MagicId = 2, AttackType = 2, Power = 10, HitCount = 1, TargetFlags = 0x50, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = rawSpell.ToImmutableArray(), SupplementalRecord = [] };
         return new()
         {
-            UsesExpandedRoster = true,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0]),
             NativeActions = [spell],

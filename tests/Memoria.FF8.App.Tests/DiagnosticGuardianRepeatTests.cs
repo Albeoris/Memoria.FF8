@@ -133,7 +133,7 @@ public sealed class DiagnosticGuardianRepeatTests
 
         void Record(string boundary)
         {
-            boundaries.Add(JsonSerializer.SerializeToElement(new { Boundary = boundary, Owners = battle.ObserveDiagnosticInvocationOwners() }));
+            boundaries.Add(JsonSerializer.SerializeToElement(new { Boundary = boundary, Owners = battle.ObserveDiagnosticOwners() }));
         }
 
         void Fail(string reason)

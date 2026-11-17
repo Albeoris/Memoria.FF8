@@ -101,24 +101,16 @@ public sealed partial class BattleAssets
             }
         }
         int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
-        System.Collections.Immutable.ImmutableArray<NativeBattleSequenceTrack> tracks = [];
         bool? deathSequenceReleasesAllocation = includeDeathLifecycle ? false : null;
-        if (sections == 11)
+        if (includeDeathLifecycle && sections == 11)
         {
-            int sequenceStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
-            int sequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > sequenceStart).DefaultIfEmpty(bytes.Length).Min();
-            BattleSequenceSet sequencePrograms = new(bytes[sequenceStart..sequenceEnd]);
-            tracks = System.Collections.Immutable.ImmutableArray.CreateRange(abilities.Select(ability => ability.Sequence).Where(sequence => sequence != 0).Distinct().Select(sequencePrograms.ReadLocalControlTrack).OfType<NativeBattleSequenceTrack>());
-            if (includeDeathLifecycle)
-            {
-                int modelSequenceStart = NativeBattleDatDirectory.Section(bytes, 4);
-                int modelSequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > modelSequenceStart).DefaultIfEmpty(bytes.Length).Min();
-                deathSequenceReleasesAllocation = new BattleSequenceSet(bytes[modelSequenceStart..modelSequenceEnd]).DeathSequenceRequestsAllocationRelease();
-            }
+            int modelSequenceStart = NativeBattleDatDirectory.Section(bytes, 4);
+            int modelSequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > modelSequenceStart).DefaultIfEmpty(bytes.Length).Min();
+            deathSequenceReleasesAllocation = new BattleSequenceSet(bytes[modelSequenceStart..modelSequenceEnd]).DeathSequenceRequestsAllocationRelease();
         }
         return new NativeBattleAiDefinition(scripts, abilities, band, texts)
         {
-            NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks, DeathSequenceReleasesAllocation = deathSequenceReleasesAllocation,
+            NameBuffers = nameBuffers, DisplayNames = displayNames, DeathSequenceReleasesAllocation = deathSequenceReleasesAllocation,
             HeapTextDirectory = sections == 11 && textIndices == text && text == loadedEnd ? new(text - section, resources.Source.Language) : null
         };
     }

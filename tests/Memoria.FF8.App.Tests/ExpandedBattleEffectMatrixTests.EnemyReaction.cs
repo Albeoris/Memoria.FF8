@@ -46,33 +46,29 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 continue;
             }
 
-            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false);
+            using GameWorld world = StartBattle(directory, field, formation, requireMaximumParty: false);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            EnemyRouteResult result = new("blocked", "The scene retained its original roster.", "enemy-reaction-formation-entry");
-            if (battle.UsesExpandedRoster)
+            var owners = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable && actor.NativeAi is not null)
+                .Select(actor => (Actor: actor, Scripts: routes.Select(route => route.Script).Where(script => actor.ModelId == script.ModelId && actor.NativeAi!.LevelBand == script.LevelBand).Distinct().ToArray()))
+                .Where(owner => owner.Scripts.Length > 0)
+                .GroupBy(owner => (owner.Actor.ModelId, owner.Actor.NativeAi!.LevelBand))
+                .Select(group => group.First()).ToArray();
+            EnemyRouteResult result = new("blocked", "The roster has no matching living scene owner and level band.", "enemy-reaction-owner");
+            foreach (var owner in owners)
             {
-                var owners = battle.Combatants.Reverse().Where(actor => !actor.IsPlayer && actor.IsAlive && actor.IsActive && !actor.Untargetable && actor.NativeAi is not null)
-                    .Select(actor => (Actor: actor, Scripts: routes.Select(route => route.Script).Where(script => actor.ModelId == script.ModelId && actor.NativeAi!.LevelBand == script.LevelBand).Distinct().ToArray()))
-                    .Where(owner => owner.Scripts.Length > 0)
-                    .GroupBy(owner => (owner.Actor.ModelId, owner.Actor.NativeAi!.LevelBand))
-                    .Select(group => group.First()).ToArray();
-                result = new("blocked", "The expanded roster has no matching living scene owner and level band.", "enemy-reaction-owner");
-                foreach (var owner in owners)
+                bool oilboyleOwner = oilboyle && owner.Scripts.Any(IsOilboyleCounter);
+                if (oilboyle && !oilboyleOwner)
                 {
-                    bool oilboyleOwner = oilboyle && owner.Scripts.Any(IsOilboyleCounter);
-                    if (oilboyle && !oilboyleOwner)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    NativeBattleAiDefinition original = assets.ReadEnemyAi(owner.Actor.ModelId, owner.Actor.Level);
-                    Assert.Equal(original.Scripts[2], owner.Actor.NativeAi!.Scripts[2]);
-                    EnemyScenarioScriptedAction[] ownerScripts = oilboyleOwner ? owner.Scripts.Where(IsOilboyleCounter).ToArray() : owner.Scripts;
-                    result = ObserveEnemyReaction(world, battle, effect, owner.Actor, ownerScripts, oilboyleOwner);
-                    if (result.Status is "native" or "logical")
-                    {
-                        return result with { Detail = $"Formation {formation}, {result.Detail}" };
-                    }
+                NativeBattleAiDefinition original = assets.ReadEnemyAi(owner.Actor.ModelId, owner.Actor.Level);
+                Assert.Equal(original.Scripts[2], owner.Actor.NativeAi!.Scripts[2]);
+                EnemyScenarioScriptedAction[] ownerScripts = oilboyleOwner ? owner.Scripts.Where(IsOilboyleCounter).ToArray() : owner.Scripts;
+                result = ObserveEnemyReaction(world, battle, effect, owner.Actor, ownerScripts, oilboyleOwner);
+                if (result.Status is "native" or "logical")
+                {
+                    return result with { Detail = $"Formation {formation}, {result.Detail}" };
                 }
             }
 

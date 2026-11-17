@@ -100,7 +100,7 @@ public sealed partial class BattleSession
                 ammunition = checked((byte)(ammunition - 1));
             }
         }
-        BattleNativeShotPhase phase = step.Widget.Phase >= 8 ? BattleNativeShotPhase.Ending
+        BattleNativeShotPhase phase = step.Widget.Closing || step.Widget.Closed ? BattleNativeShotPhase.Ending
             : step.Fired ? BattleNativeShotPhase.AwaitingEffect : step.Ready ? BattleNativeShotPhase.Ready : live.Phase;
         BattleTimedInputUiPhase ui = step.Unregistered ? BattleTimedInputUiPhase.Closed
             : step.Widget.Visible && phase != BattleNativeShotPhase.Ending ? BattleTimedInputUiPhase.Active

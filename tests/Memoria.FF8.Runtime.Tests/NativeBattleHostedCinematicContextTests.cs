@@ -68,7 +68,6 @@ public sealed class NativeBattleHostedCinematicContextTests
     {
         BattleSession candidate = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
         typeof(BattleSession).GetField("preparingExpandedHostedAction", Private)!.SetValue(candidate, true);

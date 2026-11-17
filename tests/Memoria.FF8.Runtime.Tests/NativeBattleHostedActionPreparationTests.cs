@@ -142,7 +142,6 @@ public sealed class NativeBattleHostedActionPreparationTests
 
     private static BattleDefinition Definition(string allyId = "ally") => new()
     {
-        UsesExpandedRoster = true,
         Combatants = [new() { Id = allyId, Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
         NativeGlobalRandom = new(123)
     };

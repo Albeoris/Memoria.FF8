@@ -88,12 +88,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidDataException($"Formation {encounter.Id} model {placement.NativeModelId} references unallocated reserve slot {slot}.");
                 }
-                if (!prototype.IsEnemyModel)
-                {
-                    // The scene can name a character model, but its allocation requires character statistics rather than the enemy load service.
-                    restrictions.Add(new(BattleEncounterRosterRestriction.UnsupportedEnemyLifecycle, placement.ModelId, SceneSlot: slot));
-                    continue;
-                }
+                RequireEnemyStatisticsContract(prototype);
                 pending.Enqueue(prototype);
             }
         }

@@ -151,7 +151,7 @@ public sealed class NativeBattleRewardDistributionTests
         }).ToArray();
         byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
         BattleEncounterOccurrence encounter = new("numeric-reward", 0, new string('A', 64), SceneKind.Field, 0, 0, new string('B', 64), null);
-        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [0], BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.NativeCombat, [new(0, level, BattleDefeatCredit.Character, 0, null, false, -1)]) { Tuning = new() { ApMultiplier = multiplier } };
+        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [0], BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.NativeCombat, [new(0, level, BattleDefeatCredit.Character, 0, null, false, -1)]) { EnemySlotCount = 1, Tuning = new() { ApMultiplier = multiplier } };
         result = JsonSerializer.Deserialize<BattleResult>(JsonSerializer.Serialize(result))!;
         string before = JsonSerializer.Serialize(vitals);
         BattleResultOwners Project() => BattleResultProjection.Apply(result, vitals, assets.ReadNewGameEconomy(), new Dictionary<int, int> { [0] = 4 }, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, assets.ReadNativeBattleExperienceDefinition(), null, false);

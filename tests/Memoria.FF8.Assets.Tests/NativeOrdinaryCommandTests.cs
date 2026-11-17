@@ -237,7 +237,6 @@ public sealed class NativeOrdinaryCommandTests
             ChocoboRewards = amulet ? new() { AcquiredUniqueRewardIds = ImmutableHashSet.Create("mogs_amulet") } : new(),
             NativeGil = gil,
             GuardianForces = [new(0, 500, 1000), new(1, 960, 1000), new(2, 500, 1000)],
-            UsesExpandedRoster = expanded,
             NativeStatusRules = expanded ? assets.ReadNativeStatusRules(0) : null,
             Combatants = roster
         }, BattleAtbMode.Normal);
@@ -357,7 +356,6 @@ public sealed class NativeOrdinaryCommandTests
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}" }).ToArray();
         BattleSession battle = new(original with
         {
-            UsesExpandedRoster = true,
             Combatants = [caster, ally with { Id = "ally-1", ModelId = 1, CurrentHp = 1000, NativeStatus0 = 0 }, ally with { Id = "ally-2", ModelId = 2, CurrentHp = 1000, NativeStatus0 = 0 }, ally, .. enemies]
         }, BattleAtbMode.Normal);
 
@@ -437,7 +435,6 @@ public sealed class NativeOrdinaryCommandTests
         NativeCardInventory cards = NativeCardInventory.CreateNewGame();
         BattleSession battle = new(original with
         {
-            UsesExpandedRoster = true,
             NativeCards = cards,
             NativeCardNames = Enumerable.Range(0, 110).Select(id => (string?)$"Card {id}").ToArray(),
             InitialRandom = NativeBattleRandomState.ForecastPhase(0),
@@ -491,7 +488,6 @@ public sealed class NativeOrdinaryCommandTests
         };
         BattleSession battle = new(original with
         {
-            UsesExpandedRoster = true,
             NativeDevourEffects = effects,
             InitialRandom = NativeBattleRandomState.ForecastPhase(0),
             Combatants = [caster, ally, ally with { Id = "ally-2", ModelId = 2 }, ally with { Id = "ally-3", ModelId = 3 },

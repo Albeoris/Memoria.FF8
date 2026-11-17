@@ -19,7 +19,6 @@ public sealed class NativeBattleHostedStandingResourceTests
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown();
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
         byte[] originalBytes = new byte[30];

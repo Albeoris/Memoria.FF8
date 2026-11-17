@@ -275,7 +275,7 @@ public sealed class ExpandedBattleAiTests
             Id = $"enemy-{i}", Name = $"Enemy {i}", ModelId = 28, Level = 10, CurrentHp = 1000, MaximumHp = 1000, Speed = 1, Attack = 30,
             NativeAi = i == 10 ? counter : null
         }).ToArray();
-        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = 0 }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { Combatants = [.. allies, .. enemies], NativeActions = [Physical], NativeSeed = 0 }, BattleAtbMode.Normal);
         DetachedExpandedAiFixture.DispatchCallback(battle, "enemy-10", 0);
         battle.QueueAttack("ally-10", "enemy-10");
         DetachedExpandedAiFixture.AdvanceTo(battle, () => battle.QueuedActions.Any(command => command.ExpandedAiCallback is { Stage: 2 }), "The native hit must publish its enemy callback.");
@@ -319,7 +319,7 @@ public sealed class ExpandedBattleAiTests
             InitialAtb = i == 4 ? BattleSession.AtbMaximum : 0, NativeAi = i == 4 ? Ai(turn) : null,
             ExpandedEnemyBaseStatistics = turn[0] == 40 ? [-20, 0, 0, 0, 1, 0] : null
         }).ToArray();
-        BattleSession battle = new(new() { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [native ?? Physical], NativeSeed = seed }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { Combatants = [.. allies, .. enemies], NativeActions = [native ?? Physical], NativeSeed = seed }, BattleAtbMode.Normal);
         DetachedExpandedAiFixture.DispatchCallback(battle, "enemy-4", 0);
         BattleCombatant callbackOwner = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-4");
         DetachedExpandedAiFixture.AdvanceTo(battle, () => callbackOwner.AiTurnCount == 1, "The ready enemy must interpret its typed turn callback.");

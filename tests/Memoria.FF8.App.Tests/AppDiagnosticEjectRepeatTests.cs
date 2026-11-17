@@ -184,7 +184,7 @@ public sealed class AppDiagnosticEjectRepeatTests
                 audio.Update(battle);
                 ticks++;
             }
-            Assert.True(condition(), $"Eject repeat did not reach its native boundary: {JsonSerializer.Serialize(battle.ObserveDiagnosticInvocationOwners(), json)}");
+            Assert.True(condition(), $"Eject repeat did not reach its native boundary: {JsonSerializer.Serialize(battle.ObserveDiagnosticOwners(), json)}");
         }
     }
 

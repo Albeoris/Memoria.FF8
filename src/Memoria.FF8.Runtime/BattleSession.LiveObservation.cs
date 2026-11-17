@@ -24,13 +24,12 @@ public sealed record BattleLiveObservation
 
     internal static BattleLiveObservation FromSnapshot(BattleSnapshot snapshot)
     {
-        bool expanded = snapshot.Definition.UsesExpandedRoster;
-        int recordCount = expanded ? snapshot.Definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount : NativeCharacterVitals.ExtendedRecordCount;
+        int recordCount = snapshot.Definition.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount;
         BattleLiveMaximumHp Observe(BattleCombatantSnapshot actor)
         {
             BattleCombatantDefinition? source = snapshot.Definition.Combatants.SingleOrDefault(candidate => candidate.Id == actor.Id);
             bool transformed = snapshot.GuardianForms?.Forms.Any(form => form.ActorId == actor.Id && (form.Phase is BattleGuardianFormPhase.Active or BattleGuardianFormPhase.Finishing)) == true;
-            return MaximumHp(actor.Id, actor.NativeParticipant, source, expanded, recordCount, transformed);
+            return MaximumHp(actor.Id, actor.NativeParticipant, source, recordCount, transformed);
         }
         return new()
         {
@@ -53,10 +52,10 @@ public sealed record BattleLiveObservation
         };
     }
 
-    private static BattleLiveMaximumHp MaximumHp(string id, NativeBattleParticipantSnapshot? participant, BattleCombatantDefinition? definition, bool expanded, int recordCount, bool transformed)
+    private static BattleLiveMaximumHp MaximumHp(string id, NativeBattleParticipantSnapshot? participant, BattleCombatantDefinition? definition, int recordCount, bool transformed)
     {
         bool maximum = participant is { Active: true, Suspended: false, MaximumHitPoints: 9999 } && !transformed && definition is { IsPlayer: true, NativePlayerStatRules: not null };
-        bool admittedAlly = expanded || participant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount };
+        bool admittedAlly = definition is { IsPlayer: true };
         return MaximumHp(id, definition?.MagicRecordId, maximum, admittedAlly, recordCount);
     }
 

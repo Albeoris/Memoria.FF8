@@ -76,7 +76,6 @@ public sealed class NativeBattleHostedEncounterControlTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "party", IsPlayer = true, Name = "Party" }, new() { Id = "reserve", Name = "Reserve", ModelId = 77 }],
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess()

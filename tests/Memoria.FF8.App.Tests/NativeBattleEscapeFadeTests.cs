@@ -17,7 +17,6 @@ public sealed class NativeBattleEscapeFadeTests
         BattleDefinition definition = new()
         {
             StageId = 0,
-            UsesExpandedRoster = true,
             ExpandedFormationFlags = 0,
             InitialRandom = NativeBattleRandomState.ForecastPhase(1),
             Combatants =

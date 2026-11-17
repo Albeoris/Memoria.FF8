@@ -45,11 +45,11 @@ public sealed class ExpandedBattleResultTests
     }
 
     [Theory]
-    [InlineData(4, null, 6)]
-    [InlineData(8, null, 8)]
-    [InlineData(11, null, 8)]
-    [InlineData(11, 11, 11)]
-    public void EnemySlotsSurviveSerializationAndUseTheRecordedRosterSize(int allyCount, int? recordedEnemyCount, int expectedEnemyCount)
+    [InlineData(4, 6)]
+    [InlineData(8, 8)]
+    [InlineData(11, 8)]
+    [InlineData(11, 11)]
+    public void EnemySlotsSurviveSerializationAndUseTheRecordedRosterSize(int allyCount, int expectedEnemyCount)
     {
         string hash = new('0', 64);
         BattleEncounterOccurrence encounter = new("random-expanded", 0, hash, SceneKind.Field, 74, 1, hash, null);
@@ -57,33 +57,25 @@ public sealed class ExpandedBattleResultTests
         BattleEnemyDefeat[] defeats = Enumerable.Range(0, expectedEnemyCount).Select(slot => new BattleEnemyDefeat(slot, 1, BattleDefeatCredit.Unattributed, null, null, false, -1)).ToArray();
         BattleResult result = new(encounter, BattleOutcome.Victory, party, [], defeats.Select(defeat => defeat.Slot).ToArray(), [], false, BattleRewardPolicy.NativeCombat, defeats)
         {
-            UsesExpandedRoster = true,
-            ExpandedEnemyCount = recordedEnemyCount,
+            EnemySlotCount = expectedEnemyCount,
             NativeRewardItems = []
         };
 
         string json = JsonSerializer.Serialize(result);
         BattleResult restored = JsonSerializer.Deserialize<BattleResult>(json)!;
         restored.Validate();
-        Assert.Equal(expectedEnemyCount, restored.EffectiveEnemySlotCount);
+        Assert.Equal(expectedEnemyCount, restored.EnemySlotCount);
         Assert.Equal(expectedEnemyCount - 1, restored.EnemyDefeats[^1].Slot);
-        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = expectedEnemyCount - 1 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = ExpandedBattleFormation.MaximumEnemies + 1 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (restored with { EnemySlotCount = expectedEnemyCount - 1 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (restored with { EnemySlotCount = ExpandedBattleFormation.MaximumEnemies + 1 }).Validate());
         if (expectedEnemyCount < ExpandedBattleFormation.MaximumEnemies)
         {
-            BattleResult largerRoster = restored with { ExpandedEnemyCount = expectedEnemyCount + 1 };
+            BattleResult largerRoster = restored with { EnemySlotCount = expectedEnemyCount + 1 };
             largerRoster.Validate();
-            Assert.Equal(expectedEnemyCount + 1, largerRoster.EffectiveEnemySlotCount);
+            Assert.Equal(expectedEnemyCount + 1, largerRoster.EnemySlotCount);
             Assert.Equal(defeats, largerRoster.EnemyDefeats);
         }
-        if (recordedEnemyCount == 11)
-        {
-            Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = null }).Validate());
-        }
-        else
-        {
-            Assert.DoesNotContain(nameof(BattleResult.ExpandedEnemyCount), json);
-        }
+        Assert.Throws<InvalidDataException>(() => (restored with { EnemySlotCount = 0 }).Validate());
     }
 
     private static BattleDefinition Definition(NativeCharacterVitals vitals, byte[] rows)
@@ -92,9 +84,8 @@ public sealed class ExpandedBattleResultTests
         {
             Name = "Expanded battle",
             EncounterId = 0,
-            UsesExpandedRoster = true,
             MagicVitals = vitals.DeepCopy(),
-            Combatants = rows.Select(row => new BattleCombatantDefinition { Id = $"party-{row}", Name = $"Character {row}", IsPlayer = true, MagicRecordId = row, ModelId = vitals.Records[row].CharacterId }).ToArray()
+            Combatants = [.. rows.Select(row => new BattleCombatantDefinition { Id = $"party-{row}", Name = $"Character {row}", IsPlayer = true, MagicRecordId = row, ModelId = vitals.Records[row].CharacterId }), new() { Id = "enemy", Name = "Enemy" }]
         };
     }
 
@@ -105,7 +96,7 @@ public sealed class ExpandedBattleResultTests
         BattlePartyResult[] party = rows.Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, 0, 0, [])).ToArray();
         return new BattleResult(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, [])
         {
-            UsesExpandedRoster = true,
+            EnemySlotCount = 1,
             NativeRewardItems = []
         };
     }

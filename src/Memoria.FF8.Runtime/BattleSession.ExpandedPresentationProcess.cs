@@ -83,7 +83,6 @@ public sealed partial class BattleSession
             NativeExamTimerState? presentedTimer = process.Timer;
             RequireSameHostedTimerClock(presentedTimer, NativeExamTimer);
             NativeExamTimer = presentedTimer;
-            RefreshPreparedPresentation();
 
             void DispatchExpandedCore()
             {

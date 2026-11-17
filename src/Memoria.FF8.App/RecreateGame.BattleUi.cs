@@ -166,12 +166,11 @@ internal sealed partial class RecreateGame
             return true;
         }
         battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
-        active.AdvanceNativeShotPresentation(elapsed);
         active.AdvanceNativeDuelPresentation(elapsed, ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
         ObserveDiagnosticDuelUi(active);
         active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
-        BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetShotUi(actor.Id) is { OwnsInput: true });
+        BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
         bool shotInput = !slotsOwned && !duelOwned && keyboard.GunbladeTriggerRequested && shotActor is not null;
         if (shotInput)
         {

@@ -169,7 +169,7 @@ public sealed class StoryBattleRosterTests
             Assert.Same(process, battle.Presentation);
         }
 
-        Assert.True(enemyRinoa.CurrentHp == 0, $"Expanded={battle.UsesExpandedRoster}, frame={battle.Frame}, callbacks={battle.NativeHostCallbacks}, outcome={battle.Outcome}, Squall HP={squall.CurrentHp}, busy={squall.IsBusy}, Rinoa HP={enemyRinoa.CurrentHp}/{enemyRinoa.MaximumHp}, attacks={issuedAttacks}, pending={battle.QueuedActions.Count}/{battle.ActiveAction?.ActionId}, events={string.Join(", ", battle.Events.Skip(eventStart).TakeLast(8).Select(item => $"{item.Kind}:{item.ActorId}>{item.TargetId}({item.Amount})"))}.");
+        Assert.True(enemyRinoa.CurrentHp == 0, $"frame={battle.Frame}, callbacks={battle.NativeHostCallbacks}, outcome={battle.Outcome}, Squall HP={squall.CurrentHp}, busy={squall.IsBusy}, Rinoa HP={enemyRinoa.CurrentHp}/{enemyRinoa.MaximumHp}, attacks={issuedAttacks}, pending={battle.QueuedActions.Count}/{battle.ActiveAction?.ActionId}, events={string.Join(", ", battle.Events.Skip(eventStart).TakeLast(8).Select(item => $"{item.Kind}:{item.ActorId}>{item.TargetId}({item.Amount})"))}.");
         Assert.Single(battle.Events.Skip(eventStart), item => item.Kind == "Defeated" && item.TargetId == enemyRinoa.Id);
         Assert.True(partyRinoa.IsAlive);
         Assert.True(adel.IsAlive);
@@ -194,7 +194,7 @@ public sealed class StoryBattleRosterTests
         }
         else
         {
-            Assert.True(world.Battle is null, $"Scripted result1 with saved mode 0x{branch.PersistentFlags182:X4} must settle through native field75 abandonment (expanded={battle.UsesExpandedRoster}, original fade={battle.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C}).");
+            Assert.True(world.Battle is null, $"Scripted result1 with saved mode 0x{branch.PersistentFlags182:X4} must settle through native field75 abandonment (original fade={battle.Presentation?.Graphics?.NativeOutcome?.FadeDurationB0C}).");
             Assert.Equal(75, session.State.FieldId);
             NativeBattleAbandonment abandoned = Assert.Single(session.State.AbandonedNativeBattles!, entry => entry.Encounter.OccurrenceId == encounter.OccurrenceId);
             Assert.Equal(abandonments + 1, session.State.AbandonedNativeBattles!.Length);
@@ -294,7 +294,7 @@ public sealed class StoryBattleRosterTests
 
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         Assert.NotNull(battle.Presentation?.Graphics);
         Assert.Equal(new byte[] { 1, 0, 5 }, session.State.CharacterVitals!.CombatParty);
         AssertTowerSlots(battle);
@@ -313,7 +313,7 @@ public sealed class StoryBattleRosterTests
         Assert.Equal((ushort)136, original.Events.PendingInteractiveBattle!.Encounter);
         original.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(original.Battle);
-        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         Assert.NotNull(battle.Presentation?.Graphics);
         original.ApplyBattleInput(new(BattleInputKind.InstantVictory));
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -389,7 +389,7 @@ public sealed class StoryBattleRosterTests
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, NativeSeed: 0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         Assert.Equal(811, battle.EncounterId);
-        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         Assert.NotNull(battle.Presentation?.Graphics);
         Assert.Equal(combatParty, session.State.CharacterVitals!.CombatParty);
         BattleCombatant[] allies = battle.Combatants.Where(actor => actor.IsPlayer).ToArray();
@@ -401,8 +401,8 @@ public sealed class StoryBattleRosterTests
 
     private static void AssertOriginalStoryState(BattleSession original, BattleSession candidate, IEnumerable<byte> combatParty)
     {
-        Assert.False(original.UsesExpandedRoster);
-        Assert.False(candidate.UsesExpandedRoster);
+        Assert.NotNull(original.Presentation);
+        Assert.NotNull(candidate.Presentation);
         Assert.NotNull(original.Presentation?.Graphics);
         Assert.NotNull(candidate.Presentation?.Graphics);
         Assert.Equal(original.EncounterId, candidate.EncounterId);

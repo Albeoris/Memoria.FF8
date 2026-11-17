@@ -566,7 +566,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireExpanded = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, int examSeconds = 600)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireMaximumParty = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, int examSeconds = 600)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -645,9 +645,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             session.SetRandomEncounters(new(true, NativeRandomEncounterState.FromColdProcess(), new(SceneKind.Field, 133, world.Events.Frame, formation, source)));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: nativeSeed));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            if (requireExpanded || battle.UsesExpandedRoster)
+            if (requireMaximumParty)
             {
-                Assert.True(battle.UsesExpandedRoster);
+                Assert.NotNull(battle.Presentation);
                 Assert.Equal(11, battle.Combatants.Count(actor => actor.IsPlayer));
                 int enemies = battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive);
                 Assert.InRange(enemies, 1, ExpandedBattleFormation.MaximumEnemies);

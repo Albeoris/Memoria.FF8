@@ -13,7 +13,6 @@ public sealed class BattleGuardianFormLifecycleTests
         BattleNativeAction hellFire = Native(254, 66, 11, 20, 0x40) with { KernelSection = 2, KernelIndex = 2, PowerModifier = 10, LevelModifier = 10, RawRecord = [.. new byte[128]] };
         BattleDefinition definition = initial with
         {
-            UsesExpandedRoster = true,
             NativeBattleSpeed = 0,
             NativeActions = [.. initial.NativeActions, hellFire],
             ActionDefinitions = [initial.ActionDefinitions[0], initial.ActionDefinitions[1] with { NativeAction = hellFire }],
@@ -147,13 +146,13 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal(37, Actor(beforeEntry).CurrentHp);
         AssertCasterStatistics(Actor(beforeEntry));
 
-        BattleSession active = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 100, TickIntervalFrames = 1, Magnitude = 100 });
+        BattleSession active = Active();
         BattleSnapshot saved = active.Capture();
         Assert.Equal(humanElements, saved.Definition.Combatants[0].ElementDefenses);
         Assert.Equal(humanElements, saved.Combatants[0].NativeParticipant!.ElementDefenses);
         Assert.Equal(Enumerable.Repeat((byte)0, 40), saved.Combatants[0].NativeStatus!.Resistances);
         BattleSession restored = RoundTrip(saved);
-        restored.Tick();
+        restored.InstantVictory();
         Assert.Null(restored.GetGuardianForm("actor"));
         Assert.Equal(humanElements, Actor(restored).ElementDefenses);
         Assert.Equal(23, Actor(restored).Attack);
@@ -203,38 +202,6 @@ public sealed class BattleGuardianFormLifecycleTests
         resources = missingElements ? resources with { ElementDefenses = [] } : resources with { StatusResistances = [] };
         saved = saved with { Definition = saved.Definition with { GuardianFormResources = [resources] } };
         Assert.Throws<NotSupportedException>(() => BattleSession.Restore(saved));
-    }
-
-    [Theory]
-    [InlineData(BattleStatusKind.Poison, 10, 70)]
-    [InlineData(BattleStatusKind.Regen, 10, 90)]
-    public void PeriodicDamageAndHealingUseTheCanonicalGuardianPool(BattleStatusKind kind, int amount, int expected)
-    {
-        BattleStatusEffectDefinition effect = new() { Kind = kind, DurationFrames = 100, TickIntervalFrames = 1, Magnitude = amount };
-        BattleSession battle = Active(effect);
-        battle.Tick();
-        Assert.Equal(expected, Actor(battle).CurrentHp);
-        Assert.Equal(expected, Assert.Single(battle.GuardianForces).HitPoints);
-        Assert.Equal(37, battle.Capture().Combatants.Single(item => item.Id == "actor").CurrentHp);
-        Assert.Equal(99, Assert.Single(Actor(battle).StatusEffects).RemainingFrames);
-        BattleSession restored = RoundTrip(battle.Capture());
-        Assert.Equal(expected, Actor(restored).CurrentHp);
-        Assert.Equal(Actor(battle).StatusEffects, Actor(restored).StatusEffects);
-    }
-
-    [Fact]
-    public void GuardianDepletionReturnsHumanHpWithoutHeroDeathOrStatusCleansing()
-    {
-        BattleSession battle = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 100, TickIntervalFrames = 1, Magnitude = 100 });
-        battle.Tick();
-        Assert.Null(battle.GetGuardianForm("actor"));
-        Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(100, Actor(battle).MaximumHp);
-        Assert.Equal(0, Assert.Single(battle.GuardianForces).HitPoints);
-        Assert.True(Actor(battle).IsAlive);
-        Assert.Equal(BattleStatusKind.Poison, Assert.Single(Actor(battle).StatusEffects).Kind);
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "Defeated" && item.TargetId == "actor");
-        Assert.Equal(37, Actor(RoundTrip(battle.Capture())).CurrentHp);
     }
 
     [Fact]
@@ -296,111 +263,6 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.DoesNotContain(damage.Amount, Enumerable.Range(0, 256).Select(random => NativeBattleDamage.Magic(31, 5, 18, random, true)));
         Assert.Equal(37, battle.Capture().Combatants.Single(item => item.Id == "actor").CurrentHp);
         Assert.Equal(80, Assert.Single(battle.GuardianForces).HitPoints);
-    }
-
-    [Fact]
-    public void DepletionRetainsOneCommittedFireThroughReturningAndJsonRestoration()
-    {
-        BattleSession battle = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 2, TickIntervalFrames = 2, Magnitude = 100 }, ready: true);
-        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
-        battle.Tick();
-        BattleActionPresentation admitted = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
-        Assert.NotNull(admitted.NativeHeader);
-        Assert.Equal(BattleGuardianFormAction.Fire, admitted.GuardianFormAction);
-        int enemyHp = battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp;
-        Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor" && item.TargetId == "enemy");
-        battle.Tick();
-        Assert.Equal(BattleGuardianFormPhase.Returning, battle.GetGuardianForm("actor")!.Phase);
-        Assert.Equal(0, Assert.Single(battle.GuardianForces).HitPoints);
-        Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(admitted.NativeHeader, battle.ActiveAction!.NativeHeader);
-        BattleSession restored = RoundTrip(battle.Capture());
-        Assert.Equal(BattleGuardianFormPhase.Returning, restored.GetGuardianForm("actor")!.Phase);
-        Assert.Equal(admitted.NativeHeader, restored.ActiveAction!.NativeHeader);
-        for (int tick = 0; tick < 100 && (restored.ActiveAction is not null || restored.GetGuardianForm("actor") is not null); tick++)
-        {
-            restored.Tick();
-        }
-        Assert.Null(restored.ActiveAction);
-        Assert.Null(restored.GetGuardianForm("actor"));
-        Assert.Empty(restored.QueuedActions);
-        Assert.False(Actor(restored).IsBusy);
-        Assert.Equal(37, Actor(restored).CurrentHp);
-        Assert.Equal(enemyHp, restored.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.Single(restored.Events, item => item.Kind == "Damage" && item.ActorId == "actor" && item.TargetId == "enemy");
-        Assert.Single(restored.Events, item => item.Kind == "GuardianFormReturned");
-        Assert.Empty(Actor(restored).MagicStocks);
-    }
-
-    [Fact]
-    public void DepletionDiscardsUncommittedFireWithoutAContactOrOffensiveTransaction()
-    {
-        BattleSession battle = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 1, TickIntervalFrames = 1, Magnitude = 100 }, ready: true);
-        battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
-        Assert.Null(Assert.Single(battle.QueuedActions).NativeHeader);
-        battle.Tick();
-        Assert.Null(battle.GetGuardianForm("actor"));
-        Assert.Empty(battle.QueuedActions);
-        Assert.Null(battle.ActiveAction);
-        Assert.Equal(0, battle.NativeActionPackets.ActionCount);
-        Assert.False(Actor(battle).IsBusy);
-        Assert.Equal(0, Actor(battle).Atb);
-        Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor");
-        Assert.Empty(RoundTrip(battle.Capture()).QueuedActions);
-    }
-
-    [Fact]
-    public void AdmittedCounterRetainsItsBodyUntilRecoveryCompletesAfterDepletion()
-    {
-        BattleDefinition definition = Definition();
-        NativeCharacterVitals vitals = MagicSystemFixture.Create();
-        byte[] character = new byte[36];
-        for (int offset = 12; offset < 36; offset += 4)
-        {
-            character[offset + 1] = 1;
-            character[offset + 2] = 100;
-            character[offset + 3] = 1;
-        }
-        BattleNativePlayerStatRules rules = new(0, 1, character.ToImmutableArray(), new byte[12].ToImmutableArray(), Enumerable.Range(0, 57).Select(_ => new byte[60].ToImmutableArray()).ToImmutableArray(), Enumerable.Range(0, 19).Select(_ => new byte[8].ToImmutableArray()).ToImmutableArray(), new byte[20].ToImmutableArray(), 0, vitals.Definitions) { NativeStatusPassiveFlags = 4 };
-        BattleNativeCharacterGrowth growth = new(90, new byte[6].ToImmutableArray());
-        Assert.Equal(definition.Combatants[0].MaximumHp, rules.Project([], growth).MaximumHp);
-        definition.Combatants[0] = definition.Combatants[0] with { NativePlayerStatRules = rules, NativeGrowth = growth, NativeStatusResistances = rules.ProjectStatusResistances([]).ToArray(), StatusEffects = [new() { Kind = BattleStatusKind.Poison, DurationFrames = 1, TickIntervalFrames = 1, Magnitude = 100 }] };
-        BattleSnapshot snapshot = new BattleSession(definition, BattleAtbMode.Normal).Capture();
-        Assert.Equal(100, snapshot.Combatants[0].NativeParticipant!.MaximumHitPoints);
-        // The active form owns GF vitals rather than the human maximum-HP projection.
-        snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeParticipant = snapshot.Combatants[0].NativeParticipant! with { MaximumHitPoints = null } };
-        NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
-        (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 1, 12, -1, 0, 0, null));
-        (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 4, 0, 0, 0), null));
-        (packets, _) = packets.Publish(1);
-        BattleNativeAction counter = definition.GuardianFormResources[0].PhysicalAction with { Command = 1, DispatchCommand = 1, ActionId = 0, Name = "Attack" };
-        // A factual Counter has already resolved its contact and now owns only its remaining recovery presentation.
-        BattleActionPresentation admitted = new("actor", "enemy", BattleActionPhase.Recovery, 2, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0)
-        {
-            NativeHeader = new BattleActionHeaderReference(0),
-            NativeQueuedCommand = 1,
-            NativeSequence = 12,
-            NativeAction = counter,
-            NativePlayerReaction = BattleNativePlayerReaction.Counter
-        };
-        BattleSession battle = BattleSession.Restore(snapshot with { NativeActionPackets = packets, ActiveAction = admitted, GuardianForms = new(true, 1, [new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 73) { EntryCompleted = true }]) });
-        Assert.Null(battle.Capture().Combatants[0].NativeParticipant!.MaximumHitPoints);
-        battle.Tick();
-        Assert.Equal(BattleGuardianFormPhase.Returning, battle.GetGuardianForm("actor")!.Phase);
-        Assert.Equal(BattleNativePlayerReaction.Counter, battle.ActiveAction!.NativePlayerReaction);
-        Assert.Equal(61, battle.GetGuardianFormVisual("actor"));
-        battle = RoundTrip(battle.Capture());
-        Assert.Equal(BattleGuardianFormPhase.Returning, battle.GetGuardianForm("actor")!.Phase);
-        battle.Tick();
-        Assert.Null(battle.GetGuardianForm("actor"));
-        Assert.Null(battle.ActiveAction);
-        Assert.Equal(37, Actor(battle).CurrentHp);
-        Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "actor");
-        Assert.Single(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "actor");
-        Assert.Equal(100, battle.Capture().Combatants[0].NativeParticipant!.MaximumHitPoints);
     }
 
     [Fact]
@@ -487,7 +349,7 @@ public sealed class BattleGuardianFormLifecycleTests
     [Fact]
     public void ExplicitActorKoReturnsWithNoRetainedHumanRevival()
     {
-        BattleSnapshot saved = Active(new() { Kind = BattleStatusKind.Poison, DurationFrames = 100, TickIntervalFrames = 1, Magnitude = 100 }, secondOwner: true).Capture();
+        BattleSnapshot saved = Active(secondOwner: true).Capture();
         BattleCombatantSnapshot actor = saved.Combatants[0];
         Assert.NotNull(actor.NativeStatus);
         saved.Combatants[0] = actor with { NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | 1) } };
@@ -553,10 +415,10 @@ public sealed class BattleGuardianFormLifecycleTests
         return battle.Combatants.Single(actor => actor.Id == "actor");
     }
 
-    private static BattleSession Active(BattleStatusEffectDefinition? effect = null, bool ready = false, bool secondOwner = false, bool berserk = false)
+    private static BattleSession Active(bool ready = false, bool secondOwner = false, bool berserk = false)
     {
         BattleDefinition definition = Definition();
-        definition.Combatants[0] = definition.Combatants[0] with { InitialAtb = ready ? BattleSession.AtbMaximum : 0, StatusEffects = effect is null ? [] : [effect] };
+        definition.Combatants[0] = definition.Combatants[0] with { InitialAtb = ready ? BattleSession.AtbMaximum : 0 };
         if (berserk)
         {
             definition.Combatants[0] = definition.Combatants[0] with { NativeStatus0 = 0x20, NativeAttack = Native(1, 0, 10, 255, null), MagicStocks = [new(1, 3)] };

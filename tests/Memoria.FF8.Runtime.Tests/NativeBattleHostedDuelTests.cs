@@ -9,7 +9,6 @@ public sealed class NativeBattleHostedDuelTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [

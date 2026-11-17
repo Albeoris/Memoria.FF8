@@ -73,7 +73,7 @@ public sealed class NativeBattleSemanticTargetRequestTests
             Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 1, "Contact count", BattleActionEffect.Native, 1, false, true) { NativeAction = native };
-        BattleSession seed = new(new() { UsesExpandedRoster = true, Combatants = [casterDefinition, .. enemyDefinitions] }, BattleAtbMode.Normal);
+        BattleSession seed = new(new() { Combatants = [casterDefinition, .. enemyDefinitions] }, BattleAtbMode.Normal);
         BattleSession battle = BattleSession.Restore(seed.Capture() with
         {
             NativeActionScratch = new() { Command = 8, Action = 1, EventLane = 2, DeferredEffectsE00 = false }

@@ -54,13 +54,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 _ => null
             };
             Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = effect.Effect == 186 ? vitals => PrepareHigherBandParty(directory, vitals, BlasterPartyLevel) : null;
-            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireExpanded: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, examSeconds: effect.Effect == 167 ? 0 : 600);
+            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireMaximumParty: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, examSeconds: effect.Effect == 167 ? 0 : 600);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            if (!battle.UsesExpandedRoster)
-            {
-                attempted.Add($"formation {formation} retained its original roster");
-                continue;
-            }
 
             Dictionary<string, EnemyScenarioScriptedAction[]> actors = [];
             foreach (BattleCombatantDefinition actor in battle.ReadDefinition().Combatants.Where(actor => !actor.IsPlayer && actor.NativeAi is not null))

@@ -91,7 +91,7 @@ public sealed class ExpandedBattleProcessResourcesTests
 
         BattleSession logical = Assert.IsType<BattleSession>(world.Battle);
         BattleDefinition entry = logical.ReadDefinition();
-        Assert.True(entry.UsesExpandedRoster);
+        Assert.True(entry.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || entry.AddedEnemySources is { Count: > 0 });
         Assert.True(entry.UsesOriginalEnemySlots);
         Assert.Null(entry.NativeGraphics);
         Assert.Equal(world.BattleResources.LoadEncounter(formation).Flags, entry.NativeEntry!.FormationFlags);
@@ -183,7 +183,6 @@ public sealed class ExpandedBattleProcessResourcesTests
         ImmutableSortedDictionary<int, BattleEnemyRosterSource> sources = ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty.Add(8, new(87, donor.Slot, assets.FormationSourceHash(87)));
         BattleDefinition frozen = new()
         {
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = true,
             AddedEnemySources = sources,
             MagicVitals = session.State.CharacterVitals,

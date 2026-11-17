@@ -170,7 +170,7 @@ public sealed class EncounterNativeModelAllocationTests
         {
             NativeBattleEnemyAllocation allocation = battle.Capture().NativeAllocations.Single(allocation => allocation.Id == id);
             Assert.True(allocation.Retirement!.ResourcesReleased);
-            Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, allocation.Retirement.PhysicalIndex).Flags0 & 3);
+            Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, allocation.Retirement.OriginalIndex!.Value).Flags0 & 3);
         }
         Assert.All(copyRows.Append(originalRow), row => Assert.Equal((byte)0, battle.Presentation!.ModelTextureCache.Rows[row].Kind));
         Assert.Equal((byte)3, battle.Presentation!.ModelTextureCache.Rows[ReadOriginalModelCell(battle.Presentation!.Graphics, 6).TextureResourceIndex!.Value].Kind);

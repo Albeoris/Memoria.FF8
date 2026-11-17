@@ -118,7 +118,7 @@ public sealed class MixedBattleRosterTests
     public void NativeAndLegacyGeneralRostersKeepTheirOriginalSlotRules()
     {
         BattleDefinition definition = MixedDefinition(3, 4, 4, 0);
-        BattleSession native = Start(definition with { UsesExpandedRoster = false, UsesOriginalEnemySlots = false, AddedEnemySources = null });
+        BattleSession native = Start(definition with { UsesOriginalEnemySlots = false, AddedEnemySources = null });
         Assert.Equal(Enumerable.Range(0, 7), native.Capture().Combatants.Select(actor => actor.NativeParticipant!.ActorIndex));
         AssertNextCallbackAfterRestore(native);
 
@@ -145,14 +145,14 @@ public sealed class MixedBattleRosterTests
         BattleEnemyDefeat[] defeats = Enumerable.Range(8, 10).Select(slot => new BattleEnemyDefeat(slot, 5, BattleDefeatCredit.Unattributed, null, null, false, -1)).ToArray();
         BattleResult victory = new(occurrence, BattleOutcome.Victory, party, [], defeats.Select(defeat => defeat.Slot).ToArray(), [], false, BattleRewardPolicy.NativeCombat, defeats)
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true, ExpandedEnemyCount = 18, AddedEnemySources = Sources(8, 10)
+            UsesOriginalEnemySlots = true, EnemySlotCount = 18, AddedEnemySources = Sources(8, 10)
         };
         BattleResult restored = JsonSerializer.Deserialize<BattleResult>(JsonSerializer.Serialize(victory))!;
         restored.Validate();
-        Assert.Equal(18, restored.EffectiveEnemySlotCount);
+        Assert.Equal(18, restored.EnemySlotCount);
         Assert.Equal(caller, restored.Encounter.ScriptedOwner);
-        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = 19 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (restored with { ExpandedEnemyCount = 10 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (restored with { EnemySlotCount = 19 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (restored with { EnemySlotCount = 10 }).Validate());
         Assert.Throws<InvalidDataException>(() => (restored with { AddedEnemySources = Sources(9, 10) }).Validate());
         Assert.Throws<InvalidDataException>(() => (restored with { DefeatedEnemySlots = [.. restored.DefeatedEnemySlots, 18] }).Validate());
 
@@ -177,7 +177,7 @@ public sealed class MixedBattleRosterTests
         };
         return new()
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true, AddedEnemySources = Sources(8, addedCount),
+            UsesOriginalEnemySlots = true, AddedEnemySources = Sources(8, addedCount),
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [

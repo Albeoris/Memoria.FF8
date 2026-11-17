@@ -98,7 +98,6 @@ public sealed class NativeBattleAiVariableAliasTests
         NativeBattleEnemyTemplate template = new(5, Enumerable.Repeat(level, 101).ToArray());
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = true,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =

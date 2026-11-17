@@ -111,7 +111,7 @@ public sealed partial class BattleSession
 
     private BattleSession CreateExpandedHostedFormCandidate(BattleSnapshot before)
     {
-        BattleSession candidate = Restore(before, handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
+        BattleSession candidate = Restore(before);
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         return candidate;

@@ -102,7 +102,6 @@ public sealed class NativeBattleHostedReceiptOrderingTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "original", Name = "Original", ModelId = 61 }]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);

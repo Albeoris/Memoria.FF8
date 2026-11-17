@@ -164,7 +164,6 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         {
             BattleCombatantSnapshot result = actual.Combatants.Single(actor => actor.Id == combatant.Id);
             Assert.Equal(combatant.CurrentHp, result.CurrentHp);
-            Assert.Equal(JsonSerializer.Serialize(combatant.StatusEffects), JsonSerializer.Serialize(result.StatusEffects));
             Assert.Equal(JsonSerializer.Serialize(combatant.NativeStatus), JsonSerializer.Serialize(result.NativeStatus));
             Assert.Equal(combatant.GuardianForceCompatibility, result.GuardianForceCompatibility);
         }

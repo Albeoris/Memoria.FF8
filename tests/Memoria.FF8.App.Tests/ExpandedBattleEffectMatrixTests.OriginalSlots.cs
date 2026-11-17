@@ -83,7 +83,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         using GameWorld world = new(new GameSession(field), directory, expandedBattleAllyCount: 11, sharedAssets: assets);
         world.EnsureField();
         BattleSession battle = StartNativeFormation(world, assets, 29);
-        Assert.False(battle.UsesExpandedRoster);
+        Assert.NotNull(battle.Presentation);
         Assert.All(battle.Combatants.Where(actor => actor.Slot is not null), actor => Assert.InRange(actor.RequireNativeActorIndex(), 0, 6));
         BattleCombatant biggs = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 74);
         BattleCombatant wedge = Assert.Single(battle.Combatants, actor => !actor.IsPlayer && actor.ModelId == 73);
@@ -216,9 +216,9 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         foreach (var route in candidates)
         {
             ushort formation = checked((ushort)route.Formation);
-            using GameWorld world = StartBattle(directory, field, formation, requireExpanded: false, prepareHigherBand: route.Band == HigherEnemyBand);
+            using GameWorld world = StartBattle(directory, field, formation, requireMaximumParty: false, prepareHigherBand: route.Band == HigherEnemyBand);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-            if (!battle.UsesExpandedRoster || !battle.ReadDefinition().UsesOriginalEnemySlots)
+            if (!battle.ReadDefinition().UsesOriginalEnemySlots)
             {
                 continue;
             }

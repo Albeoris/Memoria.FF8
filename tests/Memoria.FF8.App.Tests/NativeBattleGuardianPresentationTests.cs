@@ -221,7 +221,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal((ushort)319, prefixPhase);
         //6C3A42..4D selects6574D0(rig=child+28h,2) at238;509440 stores thatBYTE at rig+6Ch=child+94h.
         Assert.Equal((byte)2, battle.Presentation!.Memory.Arena!.Read(0x94, 1)[0]);
-        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240072, Flags: 1, Pan: 128 });

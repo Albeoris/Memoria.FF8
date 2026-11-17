@@ -55,7 +55,7 @@ internal sealed partial class GameResourceHost
                     EncounterNativeEventBinding nativeEvents = EncounterNativeEventBinding.Bind(binding, original, assets.ReadEnemyNativeGraphicsResource(original.ModelId));
                     EncounterCompiledDefinition compiled = EncounterPolicyRuntime.Compile(composition, definition, binding) with { NativeEvents = nativeEvents };
                     _ = ApplyCompiledEncounterDefinition(definition, binding, compiled);
-                    ValidateEncounterPresentationAssets(assets, definition, binding, composition);
+                    ValidateEncounterPresentationAssets(assets, definition, compiled);
                     candidate.Add(formation, new(composition, nativeEvents));
                 }
                 catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or IOException or ArgumentException or OverflowException)
@@ -76,19 +76,19 @@ internal sealed partial class GameResourceHost
         return new(true, Commit: () => preparedEncounterPolicies = prepared);
     }
 
-    private static void ValidateEncounterPresentationAssets(BattleAssets assets, BattleDefinition definition, EncounterBindingResult binding, EncounterPatchComposition composition)
+    private static void ValidateEncounterPresentationAssets(BattleAssets assets, BattleDefinition definition, EncounterCompiledDefinition compiled)
     {
-        if (composition.Presentations.IsEmpty)
+        foreach (EncounterCompiledTemplate template in compiled.Templates.Values)
         {
-            return;
-        }
-        int modelId = definition.Combatants.Single(actor => actor.Id == binding.OriginalActorId).ModelId;
-        BattleModel model = assets.LoadEnemy(modelId);
-        foreach ((string id, EncounterPatchOperation presentation) in composition.Presentations)
-        {
+            string role = EncounterPolicyRuntime.ResolveTemplateSourceRole(compiled, template.Id);
+            string actorId = role == "original" ? compiled.OriginalActorId : role.StartsWith("scene-", StringComparison.Ordinal) ? "enemy-" + role[6..] : role;
+            BattleCombatantDefinition actor = definition.Combatants.SingleOrDefault(model => model.Id == actorId)
+                ?? throw new InvalidDataException($"Encounter template '{template.Id}' lacks its installed source role '{role}'.");
+            BattleModel model = assets.LoadEnemy(actor.ModelId);
+            EncounterCompiledPresentation presentation = compiled.Presentations[template.Arrival];
             if (!int.TryParse(presentation.Clip, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int clip) || (uint)clip >= model.Animations.Count || presentation.EndFrame >= model.Animations[clip].Frames.Count)
             {
-                throw new InvalidDataException($"Encounter '{composition.Encounter}', presentation '{id}' clip '{presentation.Clip}' frames {presentation.StartFrame}–{presentation.EndFrame} do not fit the selected original model animation.");
+                throw new InvalidDataException($"Encounter template '{template.Id}' has arrival clip '{presentation.Clip}' frames {presentation.StartFrame}–{presentation.EndFrame} outside source model {actor.ModelId}.");
             }
         }
     }

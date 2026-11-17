@@ -144,7 +144,7 @@ public sealed partial class BattleSession
 
     private void StartExpandedDuelMove(BattleAttackCommand command)
     {
-        ActiveAction = NativeCommandPresentation(command) with { RemainingFrames = NativeActionWindupFrames(GetActor(command.ActorId), command.NativeSequence) };
+        ActiveAction = NativeCommandPresentation(command);
         Log("Windup", command.ActorId, command.TargetId, 0, command.NativeAction!.Name ?? "Duel");
     }
 

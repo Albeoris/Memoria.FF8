@@ -250,6 +250,6 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         return source with { Bytes = bytes.ToImmutableArray() };
     }
 
-    private static NativeBattleEffectTextureState Accept(BattleSession session, NativeBattleEffectTextureState incoming) => (NativeBattleEffectTextureState)typeof(BattleSession).GetMethod("AcceptHostedPresentationTextures", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [incoming])!;
-    private static NativeBattleGraphicsResource Pose(BattleSession session, NativeBattleGraphicsState graphics, BattleModelOwner owner) => (NativeBattleGraphicsResource)typeof(BattleSession).GetMethod("NativeGraphicsPoseResource", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, owner])!;
+    private static NativeBattleEffectTextureState Accept(BattlePresentationProcess process, NativeBattleEffectTextureState incoming) => (NativeBattleEffectTextureState)typeof(BattlePresentationProcess).GetMethod("AcceptHostedPresentationTextures", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, [incoming])!;
+    private static NativeBattleGraphicsResource Pose(BattlePresentationProcess process, NativeBattleGraphicsState graphics, BattleModelOwner owner) => (NativeBattleGraphicsResource)typeof(BattlePresentationProcess).GetMethod("NativeGraphicsPoseResource", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, [graphics, owner])!;
 }

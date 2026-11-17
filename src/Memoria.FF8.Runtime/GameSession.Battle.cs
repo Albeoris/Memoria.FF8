@@ -54,9 +54,9 @@ public sealed partial class GameSession
         }
         if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
         {
-            if (IsCompletedExpandedRetainedPair(battle, memory))
+            if (IsCompletedPresentationRetainedPair(battle, memory))
             {
-                ValidateCompletedExpandedRetainedPair(state, battle, memory);
+                ValidateCompletedPresentationRetainedPair(state, battle, memory);
             }
             else
             {
@@ -82,14 +82,14 @@ public sealed partial class GameSession
         }
     }
 
-    private static bool IsCompletedExpandedRetainedPair(BattleSnapshot battle, NativeBattleRetainedMemory retained)
+    private static bool IsCompletedPresentationRetainedPair(BattleSnapshot battle, NativeBattleRetainedMemory retained)
     {
-        return battle.Definition.UsesExpandedRoster && battle.Outcome != BattleOutcome.Active && battle.NativeGraphics is null &&
+        return battle.Outcome != BattleOutcome.Active && battle.NativeGraphics is null &&
             battle.ActiveAction is null && battle.QueuedActions.Length == 0 && battle.NativeGuardianBoost is null && battle.NativeTimedAction is null &&
             retained is { Stage: not null, Camera: not null, EffectMemory: not null };
     }
 
-    private static void ValidateCompletedExpandedRetainedPair(GameState state, BattleSnapshot battle, NativeBattleRetainedMemory retained)
+    private static void ValidateCompletedPresentationRetainedPair(GameState state, BattleSnapshot battle, NativeBattleRetainedMemory retained)
     {
         NativeBattleRetainedMemory? original = battle.Definition.NativeRetainedMemory;
         if (retained.AllocationControl != battle.NativeScriptState.AllocationControl ||
@@ -239,11 +239,11 @@ public sealed partial class GameSession
         GameState capture = source with { Battle = snapshot, NativeBattleMemory = retained, ExamTimer = snapshot.NativeExamTimer ?? source.ExamTimer, VibrationProcess = snapshot.NativeVibrationProcess ?? source.VibrationProcess, GlobalSoundProcess = snapshot.NativeGlobalSoundProcess ?? source.GlobalSoundProcess };
         if (liveBattle.Presentation is not null && snapshot.Outcome != BattleOutcome.Active)
         {
-            if (!IsCompletedExpandedRetainedPair(snapshot, retained))
+            if (!IsCompletedPresentationRetainedPair(snapshot, retained))
             {
                 throw new InvalidOperationException("Completed expanded battle lacks a quiescent logical and presentation capture.");
             }
-            ValidateCompletedExpandedRetainedPair(capture, snapshot, retained);
+            ValidateCompletedPresentationRetainedPair(capture, snapshot, retained);
         }
         return capture;
     }

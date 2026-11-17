@@ -73,14 +73,14 @@ public sealed class NativeBattleEscapePresentationTests
         BattleSession restored = RoundTrip(battle);
         Assert.True(restored.Escape.PresentationHeld);
         Assert.NotNull(battle.Presentation?.Graphics);
-        int frame = ReadOriginalModelCell(battle.Presentation?.Graphics, 0).SequenceFrame;
+        int frame = ReadOriginalModelCell(battle.Presentation!.Graphics, 0).SequenceFrame;
         bool advanced = false;
         for (int callback = 0; callback < 8; callback++)
         {
             battle.PublishNativeEscapeButtons(3);
             battle.Tick();
             restored.Tick();
-            advanced |= ReadOriginalModelCell(battle.Presentation?.Graphics, 0).SequenceFrame != frame;
+            advanced |= ReadOriginalModelCell(battle.Presentation!.Graphics, 0).SequenceFrame != frame;
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
         Assert.True(advanced);

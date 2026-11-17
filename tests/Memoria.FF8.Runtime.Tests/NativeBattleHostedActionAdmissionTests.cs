@@ -230,7 +230,6 @@ public sealed class NativeBattleHostedActionAdmissionTests
     {
         BattleSession logical = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
             NativeGlobalRandom = new(123)
         }, BattleAtbMode.TurnBased);

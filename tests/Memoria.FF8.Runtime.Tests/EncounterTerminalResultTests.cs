@@ -35,6 +35,6 @@ public sealed class EncounterTerminalResultTests
     {
         string hash = new('A', 64);
         BattleEncounterOccurrence encounter = new("occurrence", 136, hash, SceneKind.Field, 768, 1, hash, new(768, 0, 4, 93, 18, hash));
-        return new(encounter, BattleOutcome.Victory, [new(0, 0, 1000, 0, 0, 1, [])], [], [], [], false, BattleRewardPolicy.NativeCombat, []) { NativeResult = 4 };
+        return new(encounter, BattleOutcome.Victory, [new(0, 0, 1000, 0, 0, 1, [])], [], [], [], false, BattleRewardPolicy.NativeCombat, []) { EnemySlotCount = NativeBattleSlots.FormationSlotCount, UsesOriginalEnemySlots = true, NativeResult = 4 };
     }
 }

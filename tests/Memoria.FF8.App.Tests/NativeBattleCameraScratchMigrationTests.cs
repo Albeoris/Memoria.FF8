@@ -49,7 +49,7 @@ public sealed class NativeBattleCameraScratchMigrationTests
         Assert.Equal(new NativeBattleCameraViewTranslationScratch(0, 0, 0), first.Presentation!.Camera.ViewTranslationScratch);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(scene.Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, migrated.Definition).Render(second, 320, 224).ToArray());
-        Assert.Equal(0x00464B6Eu, ReadOriginalModelCell(first.Presentation?.Graphics, 0).Color40);
+        Assert.Equal(0x00464B6Eu, ReadOriginalModelCell(first.Presentation!.Graphics, 0).Color40);
         using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
         {
             JsonSerializer.Serialize(stream, migratedNode);

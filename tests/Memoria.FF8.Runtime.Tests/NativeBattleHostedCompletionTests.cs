@@ -62,7 +62,7 @@ public sealed class NativeBattleHostedCompletionTests
         long? mainCallbacks = logical.NativeHostCallbacks;
         Field(logical, "expandedPresentationProcess").SetValue(logical, process);
         Assert.Throws<InvalidOperationException>(() => logical.Tick());
-        Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
+        Assert.Throws<InvalidOperationException>(() => process.Advance(static () => { }, static (_, _) => { }));
         Assert.Throws<InvalidOperationException>(() => process.AdvanceHostedBattlePresentationFrame(null));
         Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
         Assert.Throws<InvalidOperationException>(() => process.PrepareCompletion(callback, Owner, ActorId));
@@ -129,7 +129,7 @@ public sealed class NativeBattleHostedCompletionTests
         long? mainCallbacks = logical.NativeHostCallbacks;
         Field(logical, "expandedPresentationProcess").SetValue(logical, process);
         Assert.Throws<InvalidOperationException>(() => logical.Tick());
-        Assert.Throws<InvalidOperationException>(() => process.Advance(logical));
+        Assert.Throws<InvalidOperationException>(() => process.Advance(static () => { }, static (_, _) => { }));
         Assert.Throws<InvalidOperationException>(() => process.AccumulateElapsed(TimeSpan.FromSeconds(1)));
         Assert.Same(retired, process.Graphics);
         Assert.Equal(epoch, Field(process, "hostedPreparationEpoch").GetValue(process));
@@ -291,7 +291,6 @@ public sealed class NativeBattleHostedCompletionTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = true,
             Combatants = [.. Enumerable.Range(0, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }), new() { Id = ActorId, Name = "Extended", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
             NativeGlobalRandom = new(123)
         };

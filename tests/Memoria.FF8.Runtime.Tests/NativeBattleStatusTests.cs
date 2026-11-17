@@ -206,7 +206,6 @@ public sealed class NativeBattleStatusTests
         BattleCombatantSnapshot enemy = snapshot.Combatants.Single(actor => actor.Id == "enemy");
         Assert.Equal((ushort)0x80, enemy.NativeStatus!.Saved);
         Assert.Equal(0x4000u, enemy.NativeStatus.Battle & 0x4000);
-        Assert.Empty(enemy.StatusEffects);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(BattleSession.Restore(snapshot).Capture()));
     }
 

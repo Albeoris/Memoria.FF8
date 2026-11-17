@@ -267,7 +267,7 @@ public sealed partial class BattleHudController
     {
         get
         {
-            BattleCombatant? selected = session.UsesNativeReadyMenu ? Party.FirstOrDefault(actor => actor.Id == session.SelectedPlayerCommandActorId && CanChooseCommand(actor)) : Party.FirstOrDefault(actor => actor.Id == selectedActorId && CanChooseCommand(actor));
+            BattleCombatant? selected = session.Combatants.FirstOrDefault(actor => actor.IsPlayer && actor.Id == selectedActorId && CanChooseCommand(actor));
             selected ??= session.ReadyPlayerCommandOrder.FirstOrDefault();
             selectedActorId = selected?.Id;
             SynchronizeCursorActor(selected);

@@ -53,6 +53,43 @@ public sealed class NativeBattleGraphicsPresentationClockTests
         Assert.Equal(new BattlePresentationCallbackStep(15, 5_000_000, false), BattlePresentationTiming.Advance(0, false, TimeSpan.FromSeconds(1)));
     }
 
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(120)]
+    public void Shot_countdown_reads_native_service_polls_at_any_host_update_rate(int updatesPerSecond)
+    {
+        NativeBattleShotWidgetState widget = NativeBattleShotWidgetState.Register(400)
+            .Advance(frame33: false, fired: false, closeRequested: false, ammunition: 3).Widget;
+        Assert.Equal((short)399, widget.RemainingTimer);
+        BattlePresentationCallbackStep clock = default;
+        long callbacks = 0;
+        const int polls = BattlePresentationTiming.NativeUiServicePollsPerCallback;
+        for (int update = 0; update < 2 * updatesPerSecond; update++)
+        {
+            long before = update * TimeSpan.TicksPerSecond / updatesPerSecond;
+            long after = (update + 1) * TimeSpan.TicksPerSecond / updatesPerSecond;
+            clock = BattlePresentationTiming.Advance(clock.Subticks, clock.HalfSubtick, TimeSpan.FromTicks(after - before));
+            callbacks += clock.Callbacks;
+            for (long callback = 0; callback < clock.Callbacks; callback++)
+            {
+                for (int poll = 0; poll < polls; poll++)
+                {
+                    widget = widget.Advance(frame33: poll == polls - 1, fired: false, closeRequested: false, ammunition: 3).Widget;
+                }
+            }
+        }
+        Assert.Equal(31, callbacks);
+        Assert.Equal((short)276, widget.RemainingTimer);
+
+        for (int poll = 0; poll < 2 * polls; poll++)
+        {
+            widget = widget.Advance(frame33: false, fired: false, closeRequested: false, ammunition: 3).Widget;
+        }
+        Assert.Equal((short)273, widget.RemainingTimer);
+        Assert.Equal((byte)0, widget.PublicationLatch);
+    }
+
     [Fact]
     public void Odd_tick_partition_and_json_restore_preserve_fractional_phase()
     {

@@ -133,7 +133,6 @@ public sealed class BattleEncounterAllocationTests
         definition = definition with
         {
             Combatants = [party, source],
-            UsesExpandedRoster = expanded,
             UsesOriginalEnemySlots = expanded,
             NativeActions = [definition.NativeActions[0], levelUp, levelDown],
             ExpandedEnemyLevels = expanded ? ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(source.ModelId, profile) : null,

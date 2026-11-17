@@ -53,7 +53,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with
         {
             PublishedTargetCount = count,
-            LastPublishedTargetCountE05 = UsesExpandedRoster && count > byte.MaxValue ? null : unchecked((byte)count)
+            LastPublishedTargetCountE05 = count > byte.MaxValue ? null : unchecked((byte)count)
         };
     }
 

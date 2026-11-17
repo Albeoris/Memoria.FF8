@@ -142,7 +142,6 @@ public sealed class NativeBattleAiAdmissionTests
         BattleDefinition definition = Definition(program);
         BattleSession battle = new(definition with
         {
-            UsesExpandedRoster = true,
             NativeActions = [EnemyAction, levelUp],
             ExpandedEnemyLevels = ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(0, levels),
             Combatants = [definition.Combatants[0] with { NativeCommands = [new(34, "Level Up", 0x50, 0)], InitialAtb = BattleSession.AtbMaximum }, definition.Combatants[1]],

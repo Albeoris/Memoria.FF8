@@ -115,7 +115,6 @@ public sealed class ExpandedAiQueuedGaugeTests
             Enumerable.Repeat(new NativeBattleAiAbility(8, 0, 1), 48).ToArray(), 0, []);
         return new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeFieldBattleRules = 0,
             NativeCommandSequences = ImmutableArray.CreateRange(new byte[39]),
             NativeActions = [zeroContact],

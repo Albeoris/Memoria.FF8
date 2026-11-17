@@ -24,6 +24,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     private bool mixedSlotsAccepted;
     private int mixedSlotsRemaining;
     private int acceptedShotDebits;
+    private bool shotFireRequested;
+    private bool shotCloseRequested;
     private bool mixedProcessActive;
     private bool processCancelling;
     private bool angelWing;
@@ -236,7 +238,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             action = action with { PresentationOnly = true };
         }
-        if (processActionQueued)
+        if (processActionQueued || action.Command == 238 && processAction is { Command: 237 })
         {
             nextProcessAction = action;
             return;
@@ -286,31 +288,31 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     public void FinishProcessShot()
     {
-        if (mixedShot is not { Phase: BattleNativeShotPhase.Ready or BattleNativeShotPhase.AwaitingEffect } shot)
+        if (mixedShot is { Phase: BattleNativeShotPhase.Ready or BattleNativeShotPhase.AwaitingEffect })
         {
-            return;
-        }
-        mixedShot = shot with { RemainingTimer = -1, Phase = BattleNativeShotPhase.Ending, Ui = new(BattleTimedInputUiPhase.Closing) };
-        if (!processActionQueued)
-        {
-            SelectProcessAction(238, shot.ActionId);
+            shotCloseRequested = true;
         }
     }
 
     public void AdvanceProcess(long hostTick)
     {
-        if (!mixedProcessActive || processCancelling)
+        if (!mixedProcessActive || processCancelling && mixedShot?.Widget is null)
         {
             return;
         }
-        long elapsed = hostTick - processClock;
+        long before = processClock;
+        long elapsed = hostTick - before;
         if (elapsed < 0)
         {
             throw new InvalidDataException("The native Limit input clock moved backwards.");
         }
         processClock = hostTick;
-        int rate = mixedShot is null ? 60 : BattlePresentationTiming.ShotInputTicksPerSecond;
-        processRemainder += elapsed * rate;
+        if (mixedShot is not null)
+        {
+            AdvanceProcessShot(before, hostTick);
+            return;
+        }
+        processRemainder += elapsed * 60;
         int frames = checked((int)(processRemainder / Ff7BattleSession.LogicUpdatesPerSecond));
         processRemainder %= Ff7BattleSession.LogicUpdatesPerSecond;
         ushort pulse = (ushort)(processButtons & ~previousProcessButtons);
@@ -383,40 +385,94 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
                     }
                 }
             }
-            if (mixedShot is { Phase: BattleNativeShotPhase.Ready or BattleNativeShotPhase.AwaitingEffect } shot)
-            {
-                mixedShot = shot with { RemainingTimer = (short)(shot.RemainingTimer - 1), Ui = (shot.Ui ?? new(BattleTimedInputUiPhase.Active)).Advance(60) };
-                if (mixedShot.RemainingTimer <= 0 || frame == 0 && (pulse & 0x10) != 0)
-                {
-                    FinishProcessShot();
-                }
-                else if (shot.Phase == BattleNativeShotPhase.Ready && frame == 0 && (pulse & 8) != 0)
-                {
-                    TriggerProcessShot();
-                }
-            }
         }
     }
 
     public void TriggerProcessShot()
     {
-        if (processCancelling || mixedShot is not { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: > 0, RemainingTimer: > 0 } shot)
+        if (!processCancelling && mixedShot is { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: > 0, RemainingTimer: > 0 })
+        {
+            shotFireRequested = true;
+        }
+    }
+
+    private void AdvanceProcessShot(long before, long now)
+    {
+        if (mixedShot?.Widget is not { Closed: false })
         {
             return;
         }
-        BattleNativeAction action = assets.NativeActions.Single(action => action.Command == 237 && action.ActionId == shot.ActionId);
+        TimeSpan elapsed = TimeSpan.FromTicks(HostTime(now) - HostTime(before));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(processRemainder / 2, (processRemainder & 1) != 0, elapsed);
+        processRemainder = 2 * clock.Subticks + (clock.HalfSubtick ? 1 : 0);
+        if (clock.Callbacks == 0)
+        {
+            return;
+        }
+
+        ushort pulse = (ushort)(processButtons & ~previousProcessButtons);
+        bool requestFire = !processCancelling && (shotFireRequested || (pulse & 8) != 0);
+        bool requestClose = processCancelling || shotCloseRequested || (pulse & 0x10) != 0;
+        previousProcessButtons = processButtons;
+        shotFireRequested = false;
+        shotCloseRequested = false;
+        const int polls = BattlePresentationTiming.NativeUiServicePollsPerCallback;
+        for (long callback = 0; callback < clock.Callbacks; callback++)
+        {
+            for (int poll = 0; poll < polls && mixedShot is { Widget: { Closed: false } widget } shot; poll++)
+            {
+                bool frame33 = poll == polls - 1;
+                bool fired = callback == 0 && poll == 0 && requestFire && shot.RemainingAmmo > 0;
+                bool close = processCancelling || (callback == 0 && poll == 0 && requestClose);
+                byte ammunition = fired ? checked((byte)(shot.RemainingAmmo - 1)) : shot.RemainingAmmo;
+                NativeBattleShotWidgetStep step = widget.Advance(frame33, fired, close, ammunition);
+                if (step.Fired)
+                {
+                    if (TryCommitProcessShot(shot.ActionId))
+                    {
+                        shot = shot with { RemainingAmmo = ammunition, Phase = BattleNativeShotPhase.AwaitingEffect };
+                    }
+                    else
+                    {
+                        step = widget.Advance(frame33, fired: false, close, shot.RemainingAmmo);
+                    }
+                }
+                PublishProcessShotWidget(shot, step);
+            }
+        }
+    }
+
+    private bool TryCommitProcessShot(byte actionId)
+    {
+        BattleNativeAction action = assets.NativeActions.Single(action => action.Command == 237 && action.ActionId == actionId);
         if (ProcessActionUnsupportedReason(action) is { } unsupported)
         {
             ProcessFailure = unsupported;
-            return;
+            return false;
         }
         int target = System.Numerics.BitOperations.TrailingZeroCount((uint)processTarget);
-        ushort ammo = checked((ushort)(101 + shot.ActionId));
+        ushort ammo = checked((ushort)(101 + actionId));
         Ff7BattleGuestItemSelection selection = new(host.RequestId, host.Tick, ActorSlot, target, ammo);
         encounter.Items = encounter.Items!.Reserve(selection).Complete(ActorSlot, target, ammo, false);
         acceptedShotDebits++;
-        mixedShot = shot with { Phase = BattleNativeShotPhase.AwaitingEffect, RemainingAmmo = checked((byte)(shot.RemainingAmmo - 1)) };
-        SelectProcessAction(237, shot.ActionId);
+        QueueProcessAction(action);
+        return true;
+    }
+
+    private void PublishProcessShotWidget(BattleNativeShotState shot, NativeBattleShotWidgetStep step)
+    {
+        NativeBattleShotWidgetState widget = step.Widget;
+        BattleNativeShotPhase phase = widget.Closing || widget.Closed ? BattleNativeShotPhase.Ending : step.Ready ? BattleNativeShotPhase.Ready : shot.Phase;
+        BattleTimedInputUiPhase ui = widget.Closed ? BattleTimedInputUiPhase.Closed : widget.Closing ? BattleTimedInputUiPhase.Closing : widget.Visible ? BattleTimedInputUiPhase.Active : BattleTimedInputUiPhase.Opening;
+        mixedShot = shot with { Widget = widget, RemainingTimer = widget.RemainingTimer, Phase = phase, Ui = new(ui) };
+        if (step.QueueClosingCommand)
+        {
+            SelectProcessAction(238, shot.ActionId);
+        }
+        if (step.Unregistered && processAction is null)
+        {
+            CancelProcess();
+        }
     }
 
     public Ff7BattleGuestProcessAction? PollProcess(long hostTick)
@@ -574,7 +630,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             throw new InvalidDataException("The completed action belongs to a different native Limit phase.");
         }
-        if (processCancelling)
+        if (processCancelling && mixedShot?.Widget is null)
         {
             processAction = null;
             nextProcessAction = null;
@@ -615,21 +671,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         }
         else if (mixedShot is { } shot)
         {
-            if (action.Command == 238)
+            if (action.Command == 238 && shot.Widget is not { Closed: false })
             {
                 CancelProcess();
             }
-            else if (shot.Phase == BattleNativeShotPhase.Ending || shot.RemainingAmmo == 0)
+            else if (action.Command == 14 && shot.Widget is null)
             {
-                mixedShot = shot with { Phase = BattleNativeShotPhase.Ending };
-                if (processAction is null)
-                {
-                    SelectProcessAction(238, shot.ActionId);
-                }
-            }
-            else if (processAction is null && shot.Phase != BattleNativeShotPhase.Ready)
-            {
-                throw new InvalidDataException("The native Shot phase completed before its source invocation acknowledgement.");
+                throw new InvalidDataException("The native Shot phase completed before its widget registration.");
             }
         }
         else if (mixedSlots is { } slots && --mixedSlotsRemaining > 0)
@@ -659,6 +707,21 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             return;
         }
         processCancelling = true;
+        if (mixedShot is { Widget: { } })
+        {
+            shotCloseRequested = true;
+            if (nextProcessAction?.Command != 238)
+            {
+                nextProcessAction = null;
+            }
+            if (Invocation is null && processAction?.Command != 238)
+            {
+                processAction = nextProcessAction;
+                nextProcessAction = null;
+                processActionQueued = false;
+            }
+            return;
+        }
         nextProcessAction = null;
         pendingDuelFinisher = null;
         pendingDuelOpening = null;
@@ -707,6 +770,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         mixedDuel = null;
         mixedShot = null;
         acceptedShotDebits = 0;
+        shotFireRequested = false;
+        shotCloseRequested = false;
         mixedSlots = null;
         mixedSlotsAccepted = false;
         angelWingCast = false;
@@ -736,9 +801,17 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     private void AcknowledgeProcessServiceCompletion()
     {
-        if (mixedShot is { Phase: BattleNativeShotPhase.Opening or BattleNativeShotPhase.AwaitingEffect } shot && processAction?.Command is 14 or 237)
+        if (mixedShot is { Widget: null } shot && processAction?.Command == 14)
         {
-            mixedShot = shot with { Phase = BattleNativeShotPhase.Ready, Ui = new(BattleTimedInputUiPhase.Active) };
+            BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(host.Tick)));
+            processClock = host.Tick;
+            processRemainder = 2 * clock.Subticks + (clock.HalfSubtick ? 1 : 0);
+            NativeBattleShotWidgetState widget = NativeBattleShotWidgetState.Register(shot.InitialTimer);
+            PublishProcessShotWidget(shot, widget.Advance(frame33: false, fired: false, closeRequested: false, shot.RemainingAmmo));
+        }
+        else if (mixedShot is { Phase: BattleNativeShotPhase.AwaitingEffect, Widget: { } widget } active && processAction?.Command == 237)
+        {
+            mixedShot = active with { Widget = widget.Rearm() };
         }
     }
 

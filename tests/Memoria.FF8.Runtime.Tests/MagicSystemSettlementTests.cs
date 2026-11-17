@@ -63,7 +63,7 @@ public sealed class MagicSystemSettlementTests
     {
         string hash = new('0', 64);
         BattleEncounterOccurrence encounter = new("settlement", 1, hash, SceneKind.Field, 74, 1, hash, null);
-        return new BattleResult(encounter, BattleOutcome.Victory, before.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, before.Records[row].CharacterId, 10, 10, 0, 0, [])).ToArray(), [], [], BattleResultProjection.EligibleGuardianForces(before), false, BattleRewardPolicy.NativeCombat, []) { MagicSystemReceipt = Receipt(before, after), NativeRewardItems = [] };
+        return new BattleResult(encounter, BattleOutcome.Victory, before.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, before.Records[row].CharacterId, 10, 10, 0, 0, [])).ToArray(), [], [], BattleResultProjection.EligibleGuardianForces(before), false, BattleRewardPolicy.NativeCombat, []) { EnemySlotCount = 1, MagicSystemReceipt = Receipt(before, after), NativeRewardItems = [] };
     }
 
     private static NativeCharacterVitals Project(BattleResult result, NativeCharacterVitals before)

@@ -511,7 +511,7 @@ public sealed class BattleResultFactTests
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock potion = economy.Items.Single(stock => stock.ItemId == 1);
         BattleEncounterOccurrence occurrence = new("component-encounter-0", 512, battles.FormationSourceHash(512), SceneKind.Field, 74, 0, new string('A', 64), null);
-        BattleResult outcome = new(occurrence, BattleOutcome.Victory, [new(0, records[0].CharacterId, records[0].HitPoints.Minimum, (ushort)(records[0].HitPoints.Minimum - 10), records[0].Status, records[0].Status, [new(1, 2, 3)])], [new(1, potion.Count, 1)], battles.LoadEncounter(512).Enemies.Select(enemy => enemy.Slot).ToArray(), [0], false, BattleRewardPolicy.NativeCombat, battles.LoadEncounter(512).Enemies.Select(enemy => new BattleEnemyDefeat(enemy.Slot, 8, BattleDefeatCredit.Character, 0, null, false, -1)).ToArray());
+        BattleResult outcome = new(occurrence, BattleOutcome.Victory, [new(0, records[0].CharacterId, records[0].HitPoints.Minimum, (ushort)(records[0].HitPoints.Minimum - 10), records[0].Status, records[0].Status, [new(1, 2, 3)])], [new(1, potion.Count, 1)], battles.LoadEncounter(512).Enemies.Select(enemy => enemy.Slot).ToArray(), [0], false, BattleRewardPolicy.NativeCombat, battles.LoadEncounter(512).Enemies.Select(enemy => new BattleEnemyDefeat(enemy.Slot, 8, BattleDefeatCredit.Character, 0, null, false, -1)).ToArray()) { EnemySlotCount = NativeBattleSlots.FormationSlotCount, UsesOriginalEnemySlots = true };
         return (vitals, economy, outcome, learning.Ability);
     }
 }

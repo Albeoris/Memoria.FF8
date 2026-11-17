@@ -28,7 +28,7 @@ public sealed class MixedEnemyProvenanceTests
         }).ToArray();
         BattleDefinition frozen = new()
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true, AddedEnemySources = sources, MagicVitals = vitals,
+            UsesOriginalEnemySlots = true, AddedEnemySources = sources, MagicVitals = vitals,
             Combatants = [.. world.CreateBattleParty(), .. originals, .. donors]
         };
         BattleDefinition current = world.CreateEncounterBattle(164, restoredDefinition: frozen);
@@ -117,10 +117,10 @@ public sealed class MixedEnemyProvenanceTests
             new BattleEnemyDefeat(slot, 8, BattleDefeatCredit.Character, rows[0], null, false, -1) { AllocationId = index < 2 ? $"native-allocation-{index + 1}" : null }).ToArray();
         BattleResult result = new(occurrence, BattleOutcome.Victory, party, [], [2, 8, 9], BattleResultProjection.EligibleGuardianForces(vitals), false, BattleRewardPolicy.NativeCombat, defeats)
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = true, AddedEnemySources = sources, ExpandedEnemyCount = 5
+            UsesOriginalEnemySlots = true, AddedEnemySources = sources, EnemySlotCount = 10
         };
         result = JsonSerializer.Deserialize<BattleResult>(JsonSerializer.Serialize(result))!;
-        Assert.Equal(10, result.EffectiveEnemySlotCount);
+        Assert.Equal(10, result.EnemySlotCount);
         Dictionary<int, int> models = new() { [2] = encounter.Slots[2].ModelId };
         foreach ((int slot, BattleEnemyRosterSource donor) in sources)
         {

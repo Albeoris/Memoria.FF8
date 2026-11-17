@@ -92,7 +92,6 @@ public sealed class NativeBattleAiDrawTests
         }).ToArray();
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             Combatants = [.. allies, .. enemies],
             NativeActions = [Spell(1), attack],
             NativeSeed = 0,
@@ -165,7 +164,7 @@ public sealed class NativeBattleAiDrawTests
         }).ToArray();
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true, Combatants = [.. allies, .. enemies], NativeActions = [spell, draw],
+            Combatants = [.. allies, .. enemies], NativeActions = [spell, draw],
             NativeGlobalMessages = messages, NativeMessageSpeed = 0
         }, BattleAtbMode.Normal);
         DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);

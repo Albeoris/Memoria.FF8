@@ -231,7 +231,6 @@ public sealed class NativeMagicGroupTests
         BattleSession original = new(definition, BattleAtbMode.TurnBased);
         BattleSession expanded = new(definition with
         {
-            UsesExpandedRoster = true,
             Combatants = [.. definition.Combatants, other with { Id = "donor-1" }, other with { Id = "donor-2" }]
         }, BattleAtbMode.TurnBased);
 

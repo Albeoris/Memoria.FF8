@@ -39,7 +39,6 @@ public sealed class BattleActionAssetsTests
             Assert.Equal(8, stats.ElementDefenses.Length);
             Assert.All(assets.ReadEnemyDrawSpells(enemy.ModelId, 8), spell => Assert.InRange(spell.Id, 1, 63));
             Assert.InRange(assets.ReadEnemyAbilityPoints(enemy.ModelId), 0, 255);
-            Assert.InRange(assets.ReadEnemyPrimitiveAttack(enemy.ModelId, 8).Power, 0, 255);
         }
     }
 

@@ -64,7 +64,6 @@ public sealed class ExpandedBattleGuardianForceTests
         }
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             Combatants = [.. party, .. enemies],
             ActionDefinitions = [action],
             NativeActions = [native],

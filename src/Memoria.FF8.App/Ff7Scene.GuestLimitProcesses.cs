@@ -74,9 +74,10 @@ internal sealed partial class Ff7Scene
             BattleChoiceRow[] choices = guest.DuelProcessChoices.Where(choice => choice.Learned).Select(choice => new BattleChoiceRow(choice.Name, string.Join(" ", choice.Buttons.Select(sharedInput.NativeButtonBindingHint)), guest.DuelProcessChoiceUnsupportedReason(choice) is not null)).ToArray();
             DrawBattleChoices(canvas, theme, layout, textScale, $"DUEL {Math.Max(0, (int)duel.RemainingTimer) / 60f:0.00}", choices.Length == 0 ? [new("Duel")] : choices, 0);
         }
-        else if (guest.ShotProcess is { } shot)
+        else if (guest.ShotProcess is { Widget.Visible: true } shot)
         {
-            DrawBattleChoices(canvas, theme, layout, textScale, $"SHOT {Math.Max(0, (int)shot.RemainingTimer) / 30f:0.00}", [new($"{shot.RemainingAmmo} ammo"), new($"{sharedInput.NativeButtonBindingHint(8)}: Fire"), new($"{sharedInput.NativeButtonBindingHint(0x10)}: Finish")], 0);
+            int percent = Math.Clamp(100 * shot.RemainingTimer / shot.InitialTimer, 0, 100);
+            DrawBattleChoices(canvas, theme, layout, textScale, $"SHOT {percent}%", [new($"{shot.RemainingAmmo} ammo"), new($"{sharedInput.NativeButtonBindingHint(8)}: Fire"), new($"{sharedInput.NativeButtonBindingHint(0x10)}: Finish")], 0);
         }
         return true;
     }

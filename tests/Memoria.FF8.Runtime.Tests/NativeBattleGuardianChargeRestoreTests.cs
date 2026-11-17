@@ -53,7 +53,6 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x48, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeClockRules = new(10),
             NativeBattleSpeed = 2,
             GuardianForces = [new(0, 300, 300)],
@@ -91,7 +90,6 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x44, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             NativeBattleSpeed = 2,
             GuardianForces = [new(0, 300, 300)],
             ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 44, false) { NativeAction = native }],

@@ -29,7 +29,6 @@ public sealed class ExpandedBattleEnemyItemAdmissionTests
         }).ToArray();
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             Items = [new(id, 2)],
             NativeActions = [item],
             NativeSeed = 0,

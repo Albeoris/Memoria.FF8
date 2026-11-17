@@ -2,7 +2,18 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-internal sealed record BattleRosterMutation(BattleActorReference Source, ImmutableArray<BattleRosterAllocationRequest> Allocations);
+internal sealed record BattleRosterMutation(BattleActorReference Source, ImmutableArray<BattleRosterAllocationRequest> Allocations)
+{
+    internal abstract record Operation(BattleActorReference Source)
+    {
+        internal sealed record Barrier(BattleActorReference Source) : Operation(Source);
+        internal sealed record Remove(BattleActorReference Source, BattlePreviousTarget Target) : Operation(Source);
+        internal sealed record Allocate(BattleActorReference Source, byte SceneSlot, NativeBattleModelSlot? OriginalSlot, bool ActivateAfterLoading) : Operation(Source);
+        internal sealed record Activate(BattleActorReference Source, BattlePreviousTarget Target) : Operation(Source);
+        internal sealed record ActivateLastAllocation(BattleActorReference Source) : Operation(Source);
+        internal sealed record DeathRelease(BattleActorReference Source) : Operation(Source);
+    }
+}
 
 internal sealed record BattleRosterAllocationRequest(NativeBattleEnemyAllocation Allocation, BattleRosterSlot Slot, NativeBattleModelSlot? OriginalSlot, bool ReplaceOccupant);
 
@@ -22,7 +33,7 @@ public sealed partial class BattleSession
         foreach (BattleRosterAllocationRequest request in mutation.Allocations)
         {
             if (request.Slot.Side != BattleSide.Enemies || request.Slot.Position >= ExpandedBattleFormation.MaximumEnemies ||
-                request.OriginalSlot?.Offset != NativeBattleSlots.TryEncode(request.Slot) ||
+                request.OriginalSlot is { } original && original.Offset != NativeBattleSlots.TryEncode(request.Slot) ||
                 IsEncounterRetirementPending(request.Slot) ||
                 !request.ReplaceOccupant && enemies.Any(actor => actor.Slot == request.Slot && actor.IsActive))
             {

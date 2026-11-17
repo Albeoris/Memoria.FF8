@@ -226,7 +226,7 @@ public sealed class NativeDuelInvocationTests
         BattleCombatantDefinition[] combatants = expanded
             ? [zell, .. Enumerable.Range(1, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }), .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}", CurrentHp = index == 5 ? enemyHp : enemy.CurrentHp })]
             : [zell, enemy];
-        BattleSession battle = new(new BattleDefinition { UsesExpandedRoster = expanded, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = combatants }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = combatants }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("zell", crisis)] });
     }
 

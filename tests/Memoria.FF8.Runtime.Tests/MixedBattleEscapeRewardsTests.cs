@@ -17,7 +17,6 @@ public sealed class MixedBattleEscapeRewardsTests
         BattleSession battle = new(new()
         {
             EncounterId = 1,
-            UsesExpandedRoster = true,
             UsesOriginalEnemySlots = true,
             AddedEnemySources = Added,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
@@ -137,7 +136,7 @@ public sealed class MixedBattleEscapeRewardsTests
         int[] eligibleGuardianForces = BattleResultProjection.EligibleGuardianForces(vitals, party.Select(member => member.Row).ToArray());
         return new(encounter, BattleOutcome.Escaped, party, [], [], eligibleGuardianForces, false, BattleRewardPolicy.NativeCombat, [])
         {
-            UsesExpandedRoster = expanded, UsesOriginalEnemySlots = originalSlots, ExpandedEnemyCount = expanded ? 2 + (added?.Count ?? 0) : null,
+            UsesOriginalEnemySlots = originalSlots, EnemySlotCount = (originalSlots ? NativeBattleSlots.FormationSlotCount : 2) + (added?.Count ?? 0),
             AddedEnemySources = added, RemainingEnemyExperience = receipts, NativeResult = 2
         };
     }

@@ -11,7 +11,7 @@ public sealed class SmartAttackDrawTests
     public void ExpandedSmartDrawRetainsDistinctLogicalSourceAndTargetAfterRestore(bool invalidateSource)
     {
         BattleDefinition native = Create([Spell(1, 80)], [], drawOnly: true).ReadDefinition();
-        BattleDefinition definition = native with { UsesExpandedRoster = true, Combatants = [native.Combatants[0], .. Enumerable.Range(0, 5).Select(index => native.Combatants[1] with { Id = $"extra-{index}" }), native.Combatants[1], native.Combatants[2]] };
+        BattleDefinition definition = native with { Combatants = [native.Combatants[0], .. Enumerable.Range(0, 5).Select(index => native.Combatants[1] with { Id = $"extra-{index}" }), native.Combatants[1], native.Combatants[2]] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleSmartAttackPreview preview = battle.PreviewSmartAttack("party", "enemy");
         Assert.Equal(BattleAbility.Draw, preview.Ability);

@@ -112,7 +112,7 @@ public sealed partial class BattleSession
         }
         while (actions.TryPeek(out BattleAttackCommand? queued))
         {
-            if (queued.ExpandedAiCallback is not null || queued.NativeDuel is not null || queued.NativeRenzokuken is not null)
+            if (queued.ExpandedAiCallback is not null || queued.RosterOperation is not null || queued.NativeDuel is not null || queued.NativeRenzokuken is not null)
             {
                 command = queued;
                 return true;

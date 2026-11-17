@@ -20,7 +20,7 @@ public sealed partial class BattleSession
             {
                 foreach (BattleStatusKind status in action.Statuses ?? [])
                 {
-                    if (!target.Effects.Any(effect => effect.Definition.Kind == status))
+                    if (!HasStatus(target, status))
                     {
                         continue;
                     }

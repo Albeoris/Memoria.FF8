@@ -297,7 +297,7 @@ public sealed class NativeRenzokukenInvocationTests
             actors.AddRange(Enumerable.Range(1, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }));
             actors.AddRange(Enumerable.Range(1, 5).Select(index => actors[1] with { Id = $"enemy-{index}", MaximumHp = 50000, CurrentHp = 50000 }));
         }
-        BattleSession battle = new(new BattleDefinition { UsesExpandedRoster = expanded, NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
         {
             candidate = candidate.Draw(out _).Draw(out byte roll);

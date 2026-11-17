@@ -75,25 +75,22 @@ public sealed class EncounterRosterAdmissionTests
     }
 
     [Fact]
-    public void Referenced_character_prototype_denies_enemy_additions_without_capping_the_party()
+    public void Referenced_character_prototype_requires_an_explicit_statistics_contract()
     {
         BattleEnemyPlacement characterPrototype = Enemy(2, -16, false);
         BattleEncounter encounter = Encounter(87, Enemy(0, 10), characterPrototype);
-        (HashSet<int> slots, BattleEncounterRosterAdmission admission) = GameWorld.InspectEncounterRoster(encounter, model =>
+        NotSupportedException unsupported = Assert.Throws<NotSupportedException>(() => GameWorld.InspectEncounterRoster(encounter, model =>
         {
             Assert.Equal(10, model);
             return Program(0, [2, 14, 0, 0, 2, 0, 2, 0, 31, 2, 0]);
-        }, []);
+        }, []));
 
-        Assert.Equal(2, Assert.Single(slots));
-        Assert.False(admission.UsesPrimaryPartyOnly);
-        Assert.False(admission.AllowsAdditionalEnemies);
-        Assert.Equal(new BattleEncounterRosterRestrictionReason(BattleEncounterRosterRestriction.UnsupportedEnemyLifecycle, 10, SceneSlot: 2), Assert.Single(admission.Reasons));
         BattleEnemyPlacement nativeEntry = Assert.Single(GameWorld.AuthoredEnemyPlacements(encounter));
         Assert.Equal(0, nativeEntry.Slot);
         GameWorld.RequireEnemyStatisticsContract(nativeEntry);
         NotSupportedException unavailable = Assert.Throws<NotSupportedException>(() => GameWorld.RequireEnemyStatisticsContract(characterPrototype));
         Assert.Contains("native character participant statistics contract", unavailable.Message);
+        Assert.Equal(unavailable.Message, unsupported.Message);
     }
 
     [Theory]

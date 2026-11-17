@@ -23,7 +23,7 @@ public sealed class NativeGuardianForceCounterTests
         BattleEncounterOccurrence encounter = new("gf-counters", 512, new string('A', 64), SceneKind.Field, 999, 0, new string('B', 64), null);
         BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
         BattleGuardianForceCounterChange receipt = new(0, ushort.MaxValue, 0, ushort.MaxValue, 0);
-        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { GuardianForceCounterChanges = [receipt] };
+        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { EnemySlotCount = 1, GuardianForceCounterChanges = [receipt] };
         BattleResultOwners projected = BattleResultProjection.Apply(result, vitals, economy, new Dictionary<int, int>(), new Dictionary<int, BattleEnemyRewardDefinition>(), assets.ReadNativeBattleExperienceDefinition(), null, false);
         Assert.Equal((ushort)0, projected.CharacterVitals.GuardianForces[0].KillCount);
         Assert.Equal((ushort)0, projected.CharacterVitals.GuardianForces[0].DeathCount);

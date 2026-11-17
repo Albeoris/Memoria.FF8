@@ -248,30 +248,11 @@ public sealed partial class BattleSession
                         break;
                     case 29:
                         int removal = instruction[0];
-                        if (producingExpandedAiCallback)
-                        {
-                            StageExpandedHostedModelControl(105, removal == 200 ? actor : FindNativeActor(removal + NativeBattleSlots.AllyCount));
-                            actor.Atb = 0;
-                            break;
-                        }
-                        if (HasExpandedAiDescriptors)
-                        {
-                            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Remove, removal));
-                            actor.Atb = 0;
-                            break;
-                        }
-                        BattleCombatant removed = removal == 200 ? actor : FindNativeActor(removal + 3);
-                        if (HasExpandedAiAction(removed))
-                        {
-                            removed.ExpandedAiRemovalPending = true;
-                        }
-                        else
-                        {
-                            ReleaseNativeParticipant(removed);
-                        }
-                        //487DF0 calls493B60 for the executing actor, not the removed target.
+                        BattleActorReference source = TargetActorReference(actor);
+                        BattlePreviousTarget destination = removal == 200 ? new BattlePreviousTarget.Actor(source)
+                            : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(removal + NativeBattleSlots.AllyCount);
+                        StageOrQueueRosterOperation(new BattleRosterMutation.Operation.Remove(source, destination));
                         actor.Atb = 0;
-                        actor.IsBusy = actor.ExpandedAiRemovalPending;
                         break;
                     case 30:
                         byte effect = instruction[0];
@@ -364,13 +345,7 @@ public sealed partial class BattleSession
                         nativeScriptState = nativeScriptState with { DisableAutomaticTargetReplacement = true };
                         break;
                     case 51:
-                        if (producingExpandedAiCallback)
-                        {
-                            StageExpandedHostedControl(new HostedDispatchControl.Barrier());
-                        }
-                        else {
-                            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Barrier));
-                        }
+                        StageOrQueueRosterOperation(new BattleRosterMutation.Operation.Barrier(TargetActorReference(actor)));
                         break;
                     case 55:
                         AwardNativeCard(instruction[0]);
@@ -383,19 +358,11 @@ public sealed partial class BattleSession
                         break;
                     case 53:
                         int activationIndex = instruction[0];
-                        BattlePreviousTarget? activation = activationIndex == 209 ? nativeLastAllocatedTarget : new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(activationIndex);
-                        if (producingExpandedAiCallback)
-                        {
-                            StageHostedNativeActivation(activation);
-                        }
-                        else if (HasExpandedAiDescriptors)
-                        {
-                            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Activate, activationIndex));
-                        }
-                        else
-                        {
-                            QueueNativeActivation(activation);
-                        }
+                        BattleActorReference activationSource = TargetActorReference(actor);
+                        BattleRosterMutation.Operation activation = activationIndex == 209
+                            ? new BattleRosterMutation.Operation.ActivateLastAllocation(activationSource)
+                            : new BattleRosterMutation.Operation.Activate(activationSource, new NativeBattleTargetRequestAdapter.OriginalPreviousOperand(activationIndex));
+                        StageOrQueueRosterOperation(activation);
                         break;
                     case 58:
                         FindNativeActor(instruction[0]).Untargetable = false;
@@ -465,18 +432,8 @@ public sealed partial class BattleSession
 
     private void QueueAiEnemyAllocation(BattleCombatant actor, int sceneSlot, int physicalIndex, bool activate)
     {
-        if (producingExpandedAiCallback)
-        {
-            _ = AllocateNativeEnemy(actor, sceneSlot, physicalIndex, activate);
-        }
-        else if (HasExpandedAiDescriptors)
-        {
-            QueueExpandedAiDescriptor(actor, new(BattleExpandedAiDescriptorKind.Allocate, sceneSlot, physicalIndex, activate));
-        }
-        else
-        {
-            AllocateNativeEnemy(actor, sceneSlot, physicalIndex, activate);
-        }
+        NativeBattleModelSlot? original = physicalIndex == 0 ? null : NativeBattleModelSlot.Decode(checked((byte)physicalIndex));
+        StageOrQueueRosterOperation(new BattleRosterMutation.Operation.Allocate(TargetActorReference(actor), checked((byte)sceneSlot), original, activate));
     }
 
     private bool EvaluateNativeAiGroupStatus(int selector, int comparison, int status)
@@ -728,9 +685,6 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native battle AI requires its complete installed callback/ability/text banks.");
         }
-        if (ai.SequenceTracks.IsDefault || ai.SequenceTracks.Any(track => track is null || track.Program.IsDefaultOrEmpty || track.Messages.IsDefault || track.CompletionFrame < 0 || track.Messages.Any(message => message is null || message.Frame < 0 || message.Frame > track.CompletionFrame || message.Text >= ai.Texts.Length)) || ai.SequenceTracks.Select(track => track.Sequence).Distinct().Count() != ai.SequenceTracks.Length)
-        {
-            throw new InvalidDataException("Native local sequence tracks require unique sequence identities, original programs and bounded message cues.");
-        }
+
     }
 }

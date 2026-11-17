@@ -201,7 +201,7 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.False(HasDescriptor(battle));
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
-        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 1).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 1).Flags0 & 4);
         Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         if (effect is 5 or 35)
         {

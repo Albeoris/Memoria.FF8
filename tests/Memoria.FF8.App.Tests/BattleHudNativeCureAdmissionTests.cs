@@ -17,7 +17,6 @@ public sealed class BattleHudNativeCureAdmissionTests
         BattleActionDefinition spell = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == spellId);
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants =
             [
                 new() { Id = "caster", Name = "Caster", IsPlayer = true, CurrentHp = 40, MaximumHp = 100, Magic = 90, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.Magic, BattleAbility.Draw], MagicStocks = [new(spellId, 2)] },

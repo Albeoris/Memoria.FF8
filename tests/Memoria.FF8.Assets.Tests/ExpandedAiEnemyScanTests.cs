@@ -40,7 +40,7 @@ public sealed class ExpandedAiEnemyScanTests
         });
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true, EncounterId = formation, Combatants = [.. party, enemy, .. inactiveEnemies],
+            EncounterId = formation, Combatants = [.. party, enemy, .. inactiveEnemies],
             NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), InitialRandom = NativeBattleRandomState.ForecastPhase(3)
         }, BattleAtbMode.Normal);
 

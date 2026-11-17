@@ -219,7 +219,7 @@ public sealed class ExpandedAuthoredAiQueryTests
         messages[118] = "!";
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = true, UsesOriginalEnemySlots = originalSlots, Combatants = [.. allies, .. enemies],
+            UsesOriginalEnemySlots = originalSlots, Combatants = [.. allies, .. enemies],
             AddedEnemySources = originalSlots ? ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty.Add(8, new(2, 0, new string('A', 64))) : null,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), InitialRandom = NativeBattleRandomState.ForecastPhase(3),
             NativeActions = [action ?? Action(), Action() with { Command = 2, Name = "Fire" }],

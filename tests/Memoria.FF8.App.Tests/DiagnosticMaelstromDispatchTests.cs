@@ -56,7 +56,7 @@ public sealed class DiagnosticMaelstromDispatchTests
             NativeBattleGraphicsModel party = ReadOriginalModelCell(graphics, 0);
             byte sequence = party.Sequence!.Value;
             string bytes = Convert.ToHexString(resource.SequenceSection.AsSpan(resource.SequenceStart(sequence), resource.SequenceEnd(sequence) - resource.SequenceStart(sequence)));
-            Console.WriteLine(JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, party.Sequence, party.ResourceFlags44, State = party.SequenceState is { } state ? new { state.Offset46, state.Wait1, state.Pending3, state.Callback42, state.Pose, state.PoseFrame114 } : null, bytes, owners = battle.ObserveDiagnosticInvocationOwners() }));
+            Console.WriteLine(JsonSerializer.Serialize(new { battle.Frame, battle.NativeHostCallbacks, party.Sequence, party.ResourceFlags44, State = party.SequenceState is { } state ? new { state.Offset46, state.Wait1, state.Pending3, state.Callback42, state.Pose, state.PoseFrame114 } : null, bytes, owners = battle.ObserveDiagnosticOwners() }));
         }
         Assert.True(dispatched, "Original command8/action365/sequence11 must dispatch207 after readiness without a synthetic sequence/status repair.");
         world.EndDiagnosticBattle();

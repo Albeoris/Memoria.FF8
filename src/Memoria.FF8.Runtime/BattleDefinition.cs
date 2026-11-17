@@ -70,14 +70,7 @@ public enum BattleStatusKind
     Sleep
 }
 
-public sealed record BattleStatusEffectDefinition
-{
-    public BattleStatusKind Kind { get; init; }
-    public int DurationFrames { get; init; } = 300;
-    public int TickIntervalFrames { get; init; } = 30;
-    public int Magnitude { get; init; } = 10;
-    public bool Permanent { get; init; }
-}
+
 
 public sealed record BattleCombatantDefinition
 {
@@ -142,7 +135,6 @@ public sealed record BattleCombatantDefinition
     public ImmutableArray<ushort> NativeRenzokukenMagicIds { get; init; } = [];
     public BattleNativeAction? NativeAttack { get; init; }
     public BattleNativePlayerStatRules? NativePlayerStatRules { get; init; }
-    public BattleStatusEffectDefinition[] StatusEffects { get; init; } = [];
     public ushort NativeRetainedStatusBits { get; init; }
     public ushort NativeStatus0 { get; init; }
     public ushort? NativeDeathCount { get; init; }
@@ -156,8 +148,6 @@ public sealed record BattleDefinition
 {
     [JsonIgnore]
     public BattleEncounterRosterAdmission EncounterRosterAdmission { get; init; } = BattleEncounterRosterAdmission.Unrestricted;
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool UsesExpandedRoster { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool UsesOriginalEnemySlots { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -217,6 +207,11 @@ public sealed record BattleDefinition
     public int? StageId { get; init; }
     public int? EncounterId { get; init; }
     public BattleCombatantDefinition[] Combatants { get; init; } = [];
+
+    [JsonIgnore]
+    public int EnemySlotCount => UsesOriginalEnemySlots
+        ? NativeBattleSlots.FormationSlotCount + (AddedEnemySources?.Count ?? 0)
+        : Combatants.Count(actor => !actor.IsPlayer);
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>? ExpandedEnemyLevels { get; init; }
     public BattleActionDefinition[] ActionDefinitions { get; init; } = [];
@@ -269,8 +264,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, [prope
     internal BattleExpandedAiCallbackRequest? ExpandedAiCallback { get; init; }
     [JsonIgnore]
     internal ImmutableArray<NativeMagicReflectionCast> SecondaryReflectionCasts { get; init; } = [];
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BattleExpandedAiDescriptor? ExpandedAiDescriptor { get; init; }
+    [JsonIgnore]
+    internal BattleRosterMutation.Operation? RosterOperation { get; init; }
     public BattleGuardianFormAction? GuardianFormAction { get; init; }
     public BattleGuardianFormInvocation? GuardianFormInvocation { get; init; }
     public string? MagicReservationId { get; init; }
@@ -323,7 +318,6 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public string? DrawCastTargetId { get; init; }
     public BattleNativePlayerReaction? NativePlayerReaction { get; init; }
     public NativeLimitCallback? NativeLimitCallback { get; init; }
-    public int? NativeSequenceFrame { get; init; }
     public BattleNativeGraphicCommand? NativeGraphic { get; init; }
     public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
     public byte? NativeQueuedCommand { get; init; }
@@ -366,8 +360,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsEnemyActionTitle { get; init; }
 }
-public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
-public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
+public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb)
 {
     public byte[] DrawnMagicIds { get; init; } = [];
     public byte? LimitTurnCrisis { get; init; }
@@ -491,7 +484,6 @@ public sealed record BattleSnapshot
     public BattleNativeSlotsDeal? PendingSlotsDeal { get; init; }
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public BattleGuardianForceCast[] GuardianForceCasts { get; init; } = [];
-    public BattleStatusKind[] CustomHandlers { get; init; } = [];
 }
 
 public sealed partial class BattleCombatant
@@ -502,7 +494,6 @@ public sealed partial class BattleCombatant
     private int currentHp;
     private BattleCombatantDefinition definition;
     internal BattleCombatantDefinition SourceDefinition => definition;
-    internal readonly List<BattleStatusState> Effects;
     internal ushort NativeStatus0 { get; set; }
     internal uint NativeStatus1 { get; set; }
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
@@ -526,7 +517,6 @@ public sealed partial class BattleCombatant
         NativeKillCount = definition.NativeKillCount;
         NativeDeathCount = definition.NativeDeathCount;
         Atb = CurrentHp == 0 ? 0 : definition.InitialAtb;
-        Effects = definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)).ToList();
         NativeStatus0 = (ushort)((definition.NativeTemplate?.NativeStatusAllocation?.Saved ?? definition.NativeStatus0) | definition.NativeRetainedStatusBits);
         RefreshNativeHpStatusFlags();
         NativeStatus1 = definition.NativeTemplate?.NativeStatusAllocation?.Battle ?? definition.NativeStatus1;
@@ -703,8 +693,6 @@ public sealed partial class BattleCombatant
         NativeStatus0 = allocation?.Saved ?? (ushort)(definition.NativeStatus0 | definition.NativeRetainedStatusBits);
         NativeStatus1 = allocation?.Battle ?? definition.NativeStatus1;
         Array.Fill(NativeStatusTimers, (short)-1111);
-        Effects.Clear();
-        Effects.AddRange(definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)));
     }
     public int MaximumHp => GuardianFormVitals?.MaximumHitPoints ?? definition.MaximumHp;
     internal BattleGuardianFormVitalOwner? GuardianFormVitals { get; set; }
@@ -823,7 +811,6 @@ public sealed partial class BattleCombatant
     public string? WeaponName => definition.WeaponName;
     public IReadOnlyList<int> EquipmentIds => Array.AsReadOnly(definition.EquipmentIds);
     public IReadOnlyList<BattleAbility> Abilities => Array.AsReadOnly(definition.Abilities);
-    public IReadOnlyList<BattleStatusSnapshot> StatusEffects => Effects.Select(effect => new BattleStatusSnapshot(effect.Definition.Kind, effect.RemainingFrames, effect.UntilTickFrames, effect.Definition)).ToArray();
     public int Atb
     {
         get => NativeAtb?.Display ?? displayAtb;
@@ -848,11 +835,4 @@ public sealed partial class BattleCombatant
     public bool IsEjected => (NativeStatus1 & 0x10000) != 0;
     public bool CanAct => BattleSession.CanNativeBattleActorAct(this);
     public bool IsReady => CanAct && !IsBusy && Atb == BattleSession.AtbMaximum;
-}
-
-internal sealed class BattleStatusState(BattleStatusEffectDefinition definition, int remainingFrames, int untilTickFrames)
-{
-    internal BattleStatusEffectDefinition Definition { get; } = definition;
-    internal int RemainingFrames { get; set; } = remainingFrames;
-    internal int UntilTickFrames { get; set; } = untilTickFrames;
 }

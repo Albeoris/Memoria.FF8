@@ -16,7 +16,6 @@ public sealed class ExpandedBattleEnemyItemTests
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(ai, [item], 0));
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true,
             Items = [new(3, 2)],
             NativeActions = [item],
             NativeSeed = 0,

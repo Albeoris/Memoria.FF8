@@ -18,7 +18,6 @@ public sealed class NativeShotInvocationTests
         BattleCombatantDefinition enemy = definition.Combatants[1];
         BattleSession battle = new(definition with
         {
-            UsesExpandedRoster = true,
             Items = [new(shot + 101, 2)],
             Combatants =
             [

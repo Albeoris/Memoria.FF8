@@ -202,7 +202,7 @@ public sealed class ExpandedEnemyDeathCallbackTests
         messages[89] = "raised";
         BattleSession battle = new(new()
         {
-            UsesExpandedRoster = true, Combatants = [.. allies, enemy, .. otherEnemies], NativeActions = rewardsAndLevelCommand ? [retaliation, levelUp] : [retaliation], NativeSeed = 0,
+            Combatants = [.. allies, enemy, .. otherEnemies], NativeActions = rewardsAndLevelCommand ? [retaliation, levelUp] : [retaliation], NativeSeed = 0,
             ExpandedEnemyLevels = rewardsAndLevelCommand ? ImmutableSortedDictionary<int, ExpandedEnemyLevelProfile>.Empty.Add(36, profile) : null, NativeGlobalMessages = messages, NativeMessageSpeed = 0,
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeFieldBattleMode = 0x200
         }, BattleAtbMode.TurnBased);

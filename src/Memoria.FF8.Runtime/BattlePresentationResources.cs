@@ -8,6 +8,7 @@ public sealed class BattlePresentationResources
     public BattlePresentationResources(BattleDefinition source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        SourceGrouping = new(source);
         GuardianFormResources = source.GuardianFormResources;
         NativeDefensiveResources = source.NativeDefensiveResources;
         NativeActionCameraRules = source.NativeActionCameraRules;
@@ -48,6 +49,7 @@ public sealed class BattlePresentationResources
         InitialUiRandom = source.NativeBattleUiRandom;
     }
 
+    internal BattleSourceGrouping SourceGrouping { get; }
     internal ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; }
     internal ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; }
     internal NativeBattleActionCameraRules? NativeActionCameraRules { get; }

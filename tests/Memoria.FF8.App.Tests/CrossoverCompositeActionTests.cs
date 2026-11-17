@@ -441,6 +441,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             bool began = false;
             bool inputSeen = false;
             bool queuedMove = false;
+            byte? openingAmmo = null;
             int pulse = 0;
             int completedPhases = 0;
             ushort? previousPhase = null;
@@ -490,15 +491,16 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                         provider.AcceptProcessSlots();
                     }
                 }
-                if (provider.ShotProcess is { Phase: BattleNativeShotPhase.Ready })
+                if (provider.ShotProcess is { Phase: BattleNativeShotPhase.Ready } shot)
                 {
                     inputSeen = true;
+                    openingAmmo ??= shot.RemainingAmmo;
                     if (!queuedMove)
                     {
                         provider.TriggerProcessShot();
                         queuedMove = true;
                     }
-                    else
+                    else if (shot.RemainingAmmo < openingAmmo)
                     {
                         provider.FinishProcessShot();
                     }
@@ -639,14 +641,20 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
             AdvanceToNativeInput();
             Assert.IsType<NativeBattleEffectPresentation>(PresentedProcess()?.Presentation.Effect);
             int beforeAmmo = ProcessItems.Slots.Single(item => item.ItemId == 101).Count;
+            long shotInputTick = host.Tick;
             if (acceptedShot)
             {
                 provider.TriggerProcessShot();
+                // Advance input through acceptance before the host can submit its queued source action.
+                int nativePeriod = checked((int)Math.Ceiling(Ff7BattleSession.LogicUpdatesPerSecond / BattlePresentationTiming.CallbacksPerSecond));
+                shotInputTick += nativePeriod;
+                provider.AdvanceProcess(shotInputTick);
                 Assert.Equal(beforeAmmo - 1, ProcessItems.Slots.Single(item => item.ItemId == 101).Count);
             }
             Ff7BattleSnapshot state = host.Capture();
             state = state with
             {
+                Tick = shotInputTick,
                 Actors = state.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with
                 {
                     Actor = actor.Actor with { HitPoints = 0, Statuses = actor.Actor.Statuses | 1 },

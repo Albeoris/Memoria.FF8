@@ -2,40 +2,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    internal static ushort NativeSavedStatusBits(BattleCombatant actor)
-    {
-        ushort bits = actor.NativeStatus0;
-        foreach (BattleStatusState effect in actor.Effects)
-        {
-            bits |= effect.Definition.Kind switch
-            {
-                BattleStatusKind.Poison => (ushort)2,
-                BattleStatusKind.Blind => (ushort)8,
-                BattleStatusKind.Silence => (ushort)16,
-                _ => (ushort)0
-            };
-        }
-        return bits;
-    }
+    internal static ushort NativeSavedStatusBits(BattleCombatant actor) => actor.NativeStatus0;
 
-    private static uint NativeBattleStatusBits(BattleCombatant actor)
-    {
-        uint bits = actor.NativeStatus1;
-        foreach (BattleStatusState effect in actor.Effects)
-        {
-            bits |= effect.Definition.Kind switch
-            {
-                BattleStatusKind.Sleep => 1u,
-                BattleStatusKind.Haste => 2u,
-                BattleStatusKind.Slow => 4u,
-                BattleStatusKind.Regen => 16u,
-                BattleStatusKind.Protect => 32u,
-                BattleStatusKind.Shell => 64u,
-                _ => 0u
-            };
-        }
-        return bits;
-    }
+    private static uint NativeBattleStatusBits(BattleCombatant actor) => actor.NativeStatus1;
 
     private static NativeBattleStatusSnapshot CaptureNativeStatus(BattleCombatant actor)
     {
@@ -69,23 +38,7 @@ public sealed partial class BattleSession
         }
         if (value != 1)
         {
-            BattleStatusKind? projected = status switch
-            {
-                1 => BattleStatusKind.Poison,
-                3 => BattleStatusKind.Blind,
-                4 => BattleStatusKind.Silence,
-                16 => BattleStatusKind.Sleep,
-                17 => BattleStatusKind.Haste,
-                18 => BattleStatusKind.Slow,
-                20 => BattleStatusKind.Regen,
-                21 => BattleStatusKind.Protect,
-                22 => BattleStatusKind.Shell,
-                _ => null
-            };
-            if (projected is { } kind)
-            {
-                actor.Effects.RemoveAll(effect => effect.Definition.Kind == kind);
-            }
+
         }
     }
 
@@ -130,18 +83,6 @@ public sealed partial class BattleSession
                 recipient.NativeStatusTimers[bit] = -1111;
             }
         }
-        recipient.Effects.RemoveAll(effect => effect.Definition.Kind switch
-        {
-            BattleStatusKind.Poison => (savedMask & 2) != 0,
-            BattleStatusKind.Blind => (savedMask & 8) != 0,
-            BattleStatusKind.Silence => (savedMask & 16) != 0,
-            BattleStatusKind.Sleep => (battleMask & 1) != 0,
-            BattleStatusKind.Haste => (battleMask & 2) != 0,
-            BattleStatusKind.Slow => (battleMask & 4) != 0,
-            BattleStatusKind.Regen => (battleMask & 16) != 0,
-            BattleStatusKind.Protect => (battleMask & 32) != 0,
-            BattleStatusKind.Shell => (battleMask & 64) != 0,
-            _ => false
-        });
+
     }
 }

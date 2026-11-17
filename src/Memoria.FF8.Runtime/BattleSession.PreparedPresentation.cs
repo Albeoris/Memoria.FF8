@@ -10,7 +10,7 @@ public sealed partial class BattleSession
 
     public void RefreshPreparedPresentation()
     {
-
+        Presentation?.RefreshPreparedPresentationAtBoundary();
     }
 
     private NativeBattlePreparedActor ReadPreparedActor(BattleModelOwner owner, NativeBattleModelTextureBinding body, NativeBattleModelTextureBinding? linked)

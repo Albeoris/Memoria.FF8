@@ -69,16 +69,11 @@ public sealed partial class BattleSession
             actions.Dequeue();
             return;
         }
-        if (expandedPresentationProcess is not { } process)
-        {
-            InterpretExpandedAiCallback(packet, request, actor);
-            return;
-        }
+        BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("AI callback requires its presentation process.");
 
         BattleSnapshot before = Capture();
-        IBattleStatusEffectHandler[] customHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).ToArray();
         BattleModelOwner completionOwner = RequirePresentationModelOwner(process.Graphics.ActorModels.Roster, actor);
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before, customHandlers);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before);
         BattleActionPresentation mirror = ExpandedAiCallbackPresentation(request);
         candidate.ActiveAction = mirror;
         candidate.BeginNativeBattleActionPause();
@@ -93,7 +88,7 @@ public sealed partial class BattleSession
         {
             candidate.producingExpandedAiCallback = false;
         }
-        PublishPreparedExpandedActionCandidate(before, customHandlers, candidate, mirror, process, completionOwner);
+        PublishPreparedExpandedActionCandidate(before, candidate, mirror, process, completionOwner);
     }
 
     private void InterpretExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request, BattleCombatant actor)
@@ -125,14 +120,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void RequireExpandedAiLifecycleOperation(string operation)
-    {
-        if (producingExpandedAiCallback)
-        {
-            // TODO(TD-009): Emit the original lifecycle descriptors within the same hosted AI event.
-            throw new NotSupportedException($"Hosted AI callback requires its native {operation} descriptors.");
-        }
-    }
+
 
     private void ProduceExpandedAiCallbackCommand(BattleAttackCommand packet)
     {

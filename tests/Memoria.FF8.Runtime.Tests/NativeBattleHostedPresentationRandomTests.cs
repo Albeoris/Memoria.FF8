@@ -272,7 +272,6 @@ public sealed class NativeBattleHostedPresentationRandomTests
 
     private static BattleSession CreateLogical(NativeGlobalRandomState? seed = null, bool crt = true) => new(new BattleDefinition
     {
-        UsesExpandedRoster = true,
         Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
         NativeGlobalRandom = seed ?? GlobalStart,
         NativeCrtRandom = crt ? CrtStart : null,

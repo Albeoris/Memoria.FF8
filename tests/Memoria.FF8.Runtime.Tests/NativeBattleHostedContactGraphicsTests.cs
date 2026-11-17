@@ -141,7 +141,6 @@ public sealed class NativeBattleHostedContactGraphicsTests
     {
         BattleDefinition definition = new()
         {
-            UsesExpandedRoster = expanded,
             Combatants = Enumerable.Range(0, expanded ? 11 : 1).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true })
                 .Concat(Enumerable.Range(0, expanded ? 14 : 1).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", ModelId = 61 })).ToArray(),
             Items = [new(1, 3)]

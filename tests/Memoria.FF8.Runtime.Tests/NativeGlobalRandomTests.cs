@@ -14,7 +14,6 @@ public sealed class NativeGlobalRandomTests
         NativeGlobalRandomState selected = before.Draw(out ushort roll);
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = expanded,
             NativeGlobalRandom = before,
             NativeStageCameraBank = new([0, 0]),
             NativeStageCameraSelectors = [6, 7],

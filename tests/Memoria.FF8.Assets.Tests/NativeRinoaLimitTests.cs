@@ -108,7 +108,7 @@ public sealed class NativeRinoaLimitTests
             : [rinoa, ally, enemy];
         BattleSession battle = new(new BattleDefinition
         {
-            UsesExpandedRoster = expanded, NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(),
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(),
             NativeSavedBattleFlags = savedFlags, NativeSavedBattleFlagsKnownMask = 255, LimitProgress = progress, NativeLimitsDisabled = false,
             NativeStatusRules = expanded ? assets.ReadNativeStatusRules(0) : null,
             InitialRandom = expanded ? NativeBattleRandomState.ForecastPhase(0) : null, Combatants = combatants

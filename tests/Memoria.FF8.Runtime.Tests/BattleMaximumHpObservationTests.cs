@@ -134,7 +134,7 @@ public sealed class BattleMaximumHpObservationTests
                 NativeGrowth = candidate ? new(9999, new byte[6].ToImmutableArray()) : null
             };
         }).ToArray();
-        BattleSession battle = new(new BattleDefinition { EncounterId = 1, UsesExpandedRoster = expanded, MagicVitals = vitals, Combatants = [.. party, new() { Id = "enemy", Name = "Enemy", MaximumHp = 100, CurrentHp = 100 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { EncounterId = 1, MagicVitals = vitals, Combatants = [.. party, new() { Id = "enemy", Name = "Enemy", MaximumHp = 100, CurrentHp = 100 }] }, BattleAtbMode.TurnBased);
         battle.Combatants[count - 1].ReprojectNativePlayerStatistics();
         return battle;
     }

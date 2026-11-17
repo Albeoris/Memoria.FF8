@@ -142,7 +142,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
         allies[3] = allies[3] with { Name = "Fourth ally", ModelId = 1, Costume = 2, WeaponId = 5 };
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 5).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", ModelId = 61 }).ToArray();
         enemies[4] = enemies[4] with { Name = "Extra enemy", NativeAi = ai };
-        BattleSession owner = new(new BattleDefinition { UsesExpandedRoster = true, Combatants = [.. allies, .. enemies] }, BattleAtbMode.TurnBased);
+        BattleSession owner = new(new BattleDefinition { Combatants = [.. allies, .. enemies] }, BattleAtbMode.TurnBased);
         BattleSession child = new(new BattleDefinition { Combatants = [allies[0], enemies[0]] }, BattleAtbMode.TurnBased);
         ((List<BattleCombatant>)typeof(BattleSession).GetField("combatants", PrivateInstance)!.GetValue(child)!).Clear();
         ((Dictionary<string, BattleCombatant>)typeof(BattleSession).GetField("byId", PrivateInstance)!.GetValue(child)!).Clear();

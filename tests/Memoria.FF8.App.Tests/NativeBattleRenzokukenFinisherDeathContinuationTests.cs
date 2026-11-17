@@ -97,9 +97,9 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
                     Assert.True(initial);
                     Assert.Equal(0, battle.Combatants.Single(actor => !actor.IsPlayer).CurrentHp);
                     Assert.Equal((byte)3, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Sequence);
-                    Assert.Equal((byte)6, ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Kind5);
+                    Assert.Equal((byte)6, ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Kind5);
                     CompareNext("death-removal");
-                    for (int removalCallback = 0; removalCallback < 128 && (ReadOriginalModelCell(battle.Presentation?.Graphics, 3).Flags0 & 2) != 0; removalCallback++)
+                    for (int removalCallback = 0; removalCallback < 128 && (ReadOriginalModelCell(battle.Presentation!.Graphics, 3).Flags0 & 2) != 0; removalCallback++)
                     {
                         battle.Tick();
                     }

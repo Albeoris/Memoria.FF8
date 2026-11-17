@@ -40,12 +40,23 @@ public sealed class Ff7GuestLimitProcessUiTests
         KeyboardInput input = Get<KeyboardInput>(scene, "sharedInput");
         Set(input, "<GunbladeTriggerRequested>k__BackingField", true);
         Assert.True(Read(scene));
+        Assert.Equal(BattleNativeShotPhase.Ready, provider.ShotProcess!.Phase);
+        AdvanceUntil(BattleNativeShotPhase.AwaitingEffect);
         Assert.Equal(BattleNativeShotPhase.AwaitingEffect, provider.ShotProcess!.Phase);
+        Assert.Contains("2 ammo", Draw(scene).Texts);
         Set(input, "<GunbladeTriggerRequested>k__BackingField", false);
         Set(scene, "semanticInput", new InputFrame(0, 0, false, true, false, false));
         Assert.True(Read(scene));
+        AdvanceUntil(BattleNativeShotPhase.Ending);
         Assert.Equal(BattleNativeShotPhase.Ending, provider.ShotProcess!.Phase);
-        Assert.Contains("2 ammo", Draw(scene).Texts);
+
+        void AdvanceUntil(BattleNativeShotPhase phase)
+        {
+            for (int tick = 0; tick < 60 && provider.ShotProcess?.Phase != phase; tick++)
+            {
+                fixture.ProcessHost.Advance(waitForCommand: true);
+            }
+        }
     }
 
     [Fact]

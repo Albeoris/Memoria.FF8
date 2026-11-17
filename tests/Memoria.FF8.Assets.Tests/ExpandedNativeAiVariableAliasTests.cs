@@ -62,7 +62,7 @@ public sealed class ExpandedNativeAiVariableAliasTests
         BattleSession battle = new(new BattleDefinition
         {
             Name = "Installed formation 105 AI", EncounterId = formation.Id, StageId = formation.StageId,
-            UsesExpandedRoster = allyCount > 3, UsesOriginalEnemySlots = allyCount > 3,
+            UsesOriginalEnemySlots = allyCount > 3,
             NativeSeed = seed, InitialRandom = random, PersistentAiVariables = new uint[8], Combatants = actors.ToArray(),
             ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeActions = assets.NativeActions.ToArray(),
             NativeStatusRules = assets.ReadNativeStatusRules(0), NativeMessageSpeed = 1, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages()

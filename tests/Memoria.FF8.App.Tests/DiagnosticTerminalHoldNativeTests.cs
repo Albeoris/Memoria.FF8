@@ -178,7 +178,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
                     RecordHoldProbe("blocked-at-512", boundary);
                 }
             }
-            Assert.True(condition(), $"Did not reach {boundary} within {probeLimit} native callbacks. Owners: {JsonSerializer.Serialize(battle.ObserveDiagnosticInvocationOwners(), json)}");
+            Assert.True(condition(), $"Did not reach {boundary} within {probeLimit} native callbacks. Owners: {JsonSerializer.Serialize(battle.ObserveDiagnosticOwners(), json)}");
         }
 
         void RecordHoldProbe(string kind, string boundary)
@@ -213,7 +213,7 @@ public sealed class DiagnosticTerminalHoldNativeTests
 
         void Record(string boundary)
         {
-            boundaries.Add(new { boundary, owners = battle.ObserveDiagnosticInvocationOwners(), party = battle.ObserveDiagnosticCombatants(), battle.Outcome, battle.NativeResult });
+            boundaries.Add(new { boundary, owners = battle.ObserveDiagnosticOwners(), party = battle.ObserveDiagnosticCombatants(), battle.Outcome, battle.NativeResult });
         }
     }
 

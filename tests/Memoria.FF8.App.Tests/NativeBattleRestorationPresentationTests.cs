@@ -356,7 +356,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.False(HasDescriptor(battle));
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
-        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation?.Graphics, 1).Flags0 & 4);
+        Assert.Equal(0, ReadOriginalModelCell(battle.Presentation!.Graphics, 1).Flags0 & 4);
         Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         Assert.Equal(initial.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(initial.Random, battle.Capture().Random);

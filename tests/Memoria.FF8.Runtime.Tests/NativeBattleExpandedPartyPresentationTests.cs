@@ -119,7 +119,6 @@ public sealed class NativeBattleExpandedPartyPresentationTests
         BattleCombatantDefinition[] party = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true, CurrentHp = 500, MaximumHp = 1000 }).ToArray();
         BattleSession session = new(new BattleDefinition
         {
-            UsesExpandedRoster = true,
             Combatants = [.. party, new() { Id = "enemy", Name = "Enemy", CurrentHp = 500, MaximumHp = 1000 }],
             GuardianForces = [new(0, 100, 200)],
             NativeGlobalRandom = new(123)
