@@ -42,7 +42,7 @@ internal static class CrossoverBattleAbilityRules
         return null;
     }
 
-    public static Ff7BattleGuestPhysicalHit Describe(CrossoverFf8BattleKit kit, BattleNativeAction action, int? abilityLevel = null, int damagePercent = 0, GameplayTuning? parameterTuning = null)
+    public static Ff7BattleGuestPhysicalHit Describe(CrossoverFf8BattleKit kit, BattleNativeAction action, int? abilityLevel = null, int damagePercent = 0)
     {
         if (UnsupportedReason(action) is { } reason)
         {
@@ -81,7 +81,7 @@ internal static class CrossoverBattleAbilityRules
         }
         uint originStatuses = IgnoresStatuses(action.AttackType) ? 0 : action.Statuses1 & Ff7GuestBattleStatuses.SupportedOwnedOriginBattle;
         ushort originSavedStatuses = IgnoresStatuses(action.AttackType) ? (ushort)0 : (ushort)(action.Statuses0 & Ff7OriginSavedStatusRules.Supported);
-        NativeBattleParameterOperation? parameter = IgnoresStatuses(action.AttackType) ? null : NativeBattleParameterRules.Describe(action, parameterTuning ?? kit.ParameterTuning);
+        NativeBattleParameterOperation? parameter = IgnoresStatuses(action.AttackType) ? null : NativeBattleParameterRules.Describe(action);
         Ff7BattleAttack? record = statuses == 0 && originStatuses == 0 ? null : new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte)((healing ? 0x40 : 0) | (revive || action.StatusAttack > 100 ? 63 : (action.StatusAttack + 3) / 4)), byte.MaxValue, 0, statuses, 0, revive ? (ushort)(ushort.MaxValue & ~0x900) : ushort.MaxValue);
         Ff7BattleDamageActor source = CrossoverGunbladeHostAttack.ProjectPhysicalSource(kit) with { Magic = ProjectMagic(kit.Stats.Magic), CriticalBonus = physical ? (byte)(action.Critical.GetValueOrDefault() * 100 / 256) : (byte)0 };
         Ff7BattleDamageAction mechanics = new(formula, checked((byte)Math.Min(255, power)), accuracy, LongRange: !physical, Healing: healing, UsePhysicalStats: physical, IgnoreDefense: action.AttackType is 15 or 22 or 36, HasStatusOperation: record is not null || parameter is not null || originSavedStatuses != 0, AddsStatuses: (record is not null || parameter is not null || originSavedStatuses != 0) && !healing)

@@ -651,7 +651,7 @@ public sealed partial class Ff7BattleSession
         stats = stats with { Level = native.Level ?? stats.Level, Attack = native.Strength ?? stats.Attack, Magic = native.Magic ?? stats.Magic, Dexterity = native.Speed ?? stats.Dexterity, Evade = native.PhysicalEvasion ?? stats.Evade };
         stats = ProjectGuestDefense(actor, stats with { NativeConditions = native.Conditions, Statuses = native.Statuses, Defense = native.Defense, MagicDefense = native.MagicDefense, BackRow = (native.Conditions & 0x40) != 0, Defending = actor.Defending, CurrentHitPoints = native.HitPoints });
         stats = stats with { OriginSavedStatuses = GetOriginSavedStatuses(native.Slot), OriginBattleStatuses = GetOriginBattleStatuses(native.Slot) };
-        return actor.ParameterStatus?.Project(stats) ?? stats;
+        return originStatusStats is null ? actor.ParameterStatus?.Project(stats) ?? stats : originStatusStats(stats with { ParameterStatus = actor.ParameterStatus });
     }
 
     private void ResetGauge(int slot)

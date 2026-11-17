@@ -38,6 +38,7 @@ internal sealed partial class Ff7Game : Game
     private bool frameCaptured;
     private WorldTransferPresentation? worldTransfer;
     private Texture2D? transferPixel;
+    private GameResourceHost? originResources;
 
     public Ff7Game(Ff7Installation installation, string mediaToolsDirectory, string savePath, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, LaunchOptions? launchOptions = null)
     {
@@ -85,6 +86,11 @@ internal sealed partial class Ff7Game : Game
         batch = new SpriteBatch(GraphicsDevice);
         scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
         scene.ConfigureEnemyIntegrationMods(launchOptions?.ModsDirectory);
+        scene.ReadStatusStatModifiers = difficulty =>
+        {
+            originResources ??= new GameResourceHost(launchOptions?.GameDirectory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), modsDirectory: launchOptions?.ModsDirectory, resourceLanguage: launchOptions?.ResourceLanguage, modelSourceDirectory: launchOptions?.ModelSourceDirectory);
+            return originResources.ReadStatusStatModifiers(difficulty);
+        };
         scene.ConfigureCharacterIdentity(launchOptions?.GameDirectory ?? throw new InvalidOperationException("FFVII character presentation requires its primary game installation."));
         scene.RenderLimit = launchOptions?.WorldRenderLimit ?? 2048;
         Window.TextInput += (_, input) =>
@@ -272,6 +278,7 @@ internal sealed partial class Ff7Game : Game
         controller?.Dispose();
         mappingMenu?.Dispose();
         scene?.Dispose();
+        originResources?.Dispose();
         controlAppearanceAssets?.Dispose();
         batch?.Dispose();
         base.UnloadContent();

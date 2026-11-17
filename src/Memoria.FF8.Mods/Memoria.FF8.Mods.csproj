@@ -10,9 +10,11 @@
     <PackageReference Include="SharpCompress" />
     <PackageReference Include="NuGet.Versioning" />
     <EmbeddedResource Include="official-mods.seed.json" LogicalName="Memoria.OfficialMods.Seed" />
+    <EmbeddedResource Include="difficulty-mods.json" LogicalName="Memoria.DifficultyMods" />
     <PackageReference Include="System.IO.Hashing" />
     <PackageReference Include="DocumentFormat.OpenXml" />
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,14 @@
+{
+  "Hardcore": [
+    {
+      "packageId": "Memoria/memoria-meltdown",
+      "reason": "Hardcore requires Meltdown and its default settings.",
+      "lockDefaults": true
+    },
+    {
+      "packageId": "Memoria/Level-Based Stat Bonuses",
+      "reason": "Hardcore requires Level-Based Stat Bonuses. The mod cannot be disabled.",
+      "lockDefaults": false
+    }
+  ]
+}

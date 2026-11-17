@@ -220,10 +220,14 @@ public sealed partial class ModPackageInstaller
             };
         }
 
-        ModPackage package = new(packageId, descriptor.Name, ModFormat.Memoria, null, true, ModEffectiveStatus.Active, payload);
+        ModPackage package = new(packageId, descriptor.Name, ModFormat.Memoria, null, true, ModEffectiveStatus.Active, payload) { Descriptor = descriptor };
         ModCatalogSnapshot catalog = new(0, [package], inventory.Select(FileFromInventory));
         // Startup preparation checks IDs against the selected game's actual item table.
         if (!ItemOverrideMods.TryPrepare(catalog, byte.MaxValue + 1, out _, out IReadOnlyList<ModDiagnostic> diagnostics))
+        {
+            throw new InvalidDataException(diagnostics[0].Message);
+        }
+        if (!StatusMods.TryPrepare(catalog, out _, out diagnostics))
         {
             throw new InvalidDataException(diagnostics[0].Message);
         }
@@ -299,7 +303,7 @@ public sealed partial class ModPackageInstaller
         return stamp.Digest.Equals(expected, StringComparison.OrdinalIgnoreCase);
     }
 
-    private string CentralSettingsPath => Path.Combine(modsRoot, "Memoria", BehaviorMods.MemoriaSettingsFile);
+    private string CentralSettingsPath => Path.Combine(modsRoot, "Memoria", ModRuntime.MemoriaSettingsFile);
 
     private System.Text.Json.Nodes.JsonObject ReadCentralSettings()
     {
@@ -341,7 +345,6 @@ public sealed partial class ModPackageInstaller
             WriteAtomic(path, journal with { Enable = false });
             var settings = ReadCentralSettings();
             settings["components"] ??= new System.Text.Json.Nodes.JsonObject();
-            settings["meltdown"] ??= new System.Text.Json.Nodes.JsonObject();
             settings["components"]![component.SettingsKey] = false;
             WriteTextAtomic(CentralSettingsPath, settings.ToJsonString());
         }
@@ -363,7 +366,6 @@ public sealed partial class ModPackageInstaller
         string key = journal.Next.Official!.SettingsKey;
         var settings = ReadCentralSettings();
         settings["components"] ??= new System.Text.Json.Nodes.JsonObject();
-        settings["meltdown"] ??= new System.Text.Json.Nodes.JsonObject();
         settings["components"]![key] = true;
         WriteTextAtomic(CentralSettingsPath, settings.ToJsonString());
     }

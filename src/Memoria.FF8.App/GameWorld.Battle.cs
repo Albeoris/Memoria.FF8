@@ -137,6 +137,7 @@ internal sealed partial class GameWorld
         {
             NativeGil = new(entryEconomy.Gil, entryEconomy.PastGil),
             Tuning = session.State.GameplayPreferences.Tuning,
+            StatusStatModifiers = restoredDefinition?.StatusStatModifiers ?? GameplayPolicy.StatusStatModifiers,
             ChocoboWorldMode = session.State.GameplayPreferences.ChocoboWorldMode,
             ChocoboRewards = session.State.ChocoboRewards,
             LimitOncePerTurn = session.State.GameplayPreferences.LimitOncePerTurn,

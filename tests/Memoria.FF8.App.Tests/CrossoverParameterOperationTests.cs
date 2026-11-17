@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF7.Runtime;
@@ -61,15 +62,21 @@ public sealed class CrossoverParameterOperationTests
     }
 
     [Fact]
-    public void Native_source_descriptor_preserves_tuning_and_other_sources_retain_native_reduction()
+    public void Source_descriptor_projects_rules_independently_of_action_identity()
     {
         BattleNativeAction native = new(2, 49, 1, 49)
         {
             MagicId = 49, AttackType = 2, Power = 32, HitCount = 1, TargetFlags = 0x10, AttackFlags = 1, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 200, Statuses0 = 0, Statuses1 = Native.SourceStatusMask, Hit = 100, Critical = 0, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = []
         };
-        GameplayTuning tuning = new() { MeltdownVitalityReductionPercent = 50, MeltdownSpiritReductionPercent = 25 };
-        Assert.Equal(new NativeBattleParameterOperation(Native.SourceStatusMask, 32, 50, 25), NativeBattleParameterRules.Describe(native, tuning));
-        Assert.Equal(new NativeBattleParameterOperation(Native.SourceStatusMask, 32, 100, 100), NativeBattleParameterRules.Describe(native with { ActionId = 1 }, tuning));
+        ImmutableArray<StatusStatModifier> rules = StatusStatRules.Resolve(
+        [
+            new(NativeStatusId.Vit0, BattleStatId.Vitality, StatusStatOperation.ReducePercent, 50),
+            new(NativeStatusId.Vit0, BattleStatId.Spirit, StatusStatOperation.ReducePercent, 25)
+        ]);
+        NativeBattleParameterOperation expected = new(Native.SourceStatusMask, 32, 50, 25);
+        Assert.Equal(expected, NativeBattleParameterRules.Describe(native, rules));
+        Assert.Equal(expected, NativeBattleParameterRules.Describe(native with { ActionId = 1, MagicId = 1 }, rules));
+        Assert.Equal(100, NativeBattleParameterRules.Describe(native)!.VitalityReductionPercent);
         Assert.Null(CrossoverBattleAbilityRules.UnsupportedReason(native with { AttackType = 2, HitCount = 1 }));
     }
 
@@ -93,6 +100,36 @@ public sealed class CrossoverParameterOperationTests
         fixture.RestoreQueuedBoundary(cured);
         Assert.Equal(0u, fixture.Host.GetGuestOriginBattleStatuses(0) & Native.SourceStatusMask);
         Assert.Null(fixture.Host.Capture().Actors.Single(actor => actor.Actor.Slot == 0).ParameterStatus);
+    }
+
+    [Fact]
+    public void MixedForecastAndContactUseCapturedStatusRulesAndBaseStatsSurviveCure()
+    {
+        using CrossoverGuestStatusHostTests.Fixture fixture = new();
+        Ff7BattleSnapshot before = fixture.Host.Capture();
+        Ff7BattleGuestPhysicalHit hit = new(Source, new(0x11, 32, 255, UsePhysicalStats: true) { AlwaysHits = true, SuppressCritical = true }, 0);
+        int target = before.Actors.First(actor => actor.Actor.Slot >= 4).Actor.Slot;
+        Ff7BattleGuestContactContext clean = fixture.Host.GuestContactContext(0, target, hit, physical: true);
+        Ff7BattleSnapshot affected = before with
+        {
+            Actors = before.Actors.Select(actor => actor.Actor.Slot == target ? actor with { ParameterStatus = Native, ParameterStatusInitialized = true } : actor).ToArray()
+        };
+        ImmutableArray<StatusStatModifier> rules = StatusStatRules.Resolve(
+        [
+            new(NativeStatusId.Vit0, BattleStatId.Vitality, StatusStatOperation.ReducePercent, 50),
+            new(NativeStatusId.Vit0, BattleStatId.Spirit, StatusStatOperation.ReducePercent, 25)
+        ]);
+        fixture.RestoreQueuedBoundary(affected);
+        fixture.Host.BindOriginStatusStats(stats => CrossoverStatusStatProjection.Apply(rules, stats));
+        Ff7BattleGuestContactContext reduced = fixture.Host.GuestContactContext(0, target, hit, physical: true);
+        Assert.Equal(clean.Target.Defense / 2, reduced.Target.Defense);
+        Assert.Equal(clean.Target.MagicDefense * 3 / 4, reduced.Target.MagicDefense);
+        Assert.True(CrossoverGuestHostActions.ForecastSmartContact(hit, reduced).ExpectedDamage >= CrossoverGuestHostActions.ForecastSmartContact(hit, clean).ExpectedDamage);
+        Assert.Equal(clean.Target.Defense, fixture.Host.Capture().Actors.Single(actor => actor.Actor.Slot == target).Actor.Defense);
+        fixture.RestoreQueuedBoundary(before);
+        ImmutableArray<StatusStatModifier> resumed = JsonSerializer.Deserialize<ImmutableArray<StatusStatModifier>>(JsonSerializer.Serialize(rules));
+        fixture.Host.BindOriginStatusStats(stats => CrossoverStatusStatProjection.Apply(resumed, stats));
+        Assert.Equal(clean.Target, fixture.Host.GuestContactContext(0, target, hit, physical: true).Target);
     }
 
     private static Ff7BattleDamageAction Action(Ff7BattleParameterOperation operation)

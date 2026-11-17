@@ -277,7 +277,7 @@ public sealed partial class Ff7BattleSession
             }
             else
             {
-                receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances, originBattleStatuses: GetOriginBattleStatuses(invocation.TargetSlot), originSourceStatuses: GetOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetOriginSavedStatuses(invocation.TargetSlot));
+                receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(ProjectGuestSourceStatusStats(command.ActorSlot, hit.Source), sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, candidateRandom, sameActor: command.ActorSlot == invocation.TargetSlot, originStatusResistances: GetGuestProjection(invocation.TargetSlot)?.OriginStatusResistances, originBattleStatuses: GetOriginBattleStatuses(invocation.TargetSlot), originSourceStatuses: GetOriginSavedStatuses(command.ActorSlot), originTargetStatuses: GetOriginSavedStatuses(invocation.TargetSlot));
             }
             Ff7BattleGuestPhysicalHit preparedHit = hit with { Attack = attack, PreparedContact = new(invocation, sourceVitals, targetVitals, receipt) };
             if (magic.PrepareMagicUnsupportedReason(preparedHit) is { } reason)
@@ -479,7 +479,7 @@ public sealed partial class Ff7BattleSession
         Replace(source);
         Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
         Ff7BattleActionVitals targetVitals = GuestItemVitals(target);
-        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.ResolveGuestContact(hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, random, sameActor: command.ActorSlot == targetSlot, originStatusResistances: GetGuestProjection(targetSlot)?.OriginStatusResistances);
+        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.ResolveGuestContact(ProjectGuestSourceStatusStats(command.ActorSlot, hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }), sourceVitals, Stats(target), targetVitals, attack, hit.StatusRecord, random, sameActor: command.ActorSlot == targetSlot, originStatusResistances: GetGuestProjection(targetSlot)?.OriginStatusResistances);
         PublishHit(command, target, attack, result);
         if (!result.Damage.Missed)
         {
@@ -544,7 +544,7 @@ public sealed partial class Ff7BattleSession
         Ff7BattleDamageActor stats = physical ? hit.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 } : hit.Source;
         Ff7BattleActionVitals sourceVitals = GuestItemVitals(source);
         Ff7BattleActionVitals targetVitals = GuestItemVitals(target);
-        return new(stats, sourceVitals, Stats(target), targetVitals, attack, kernel[2].Data);
+        return new(ProjectGuestSourceStatusStats(sourceSlot, stats), sourceVitals, Stats(target), targetVitals, attack, kernel[2].Data);
     }
 
     public Vector3 GuestEffectTargetAnchor(int slot)

@@ -10,12 +10,12 @@ public sealed class NativeModDescriptor
     public const string FileName = "mod.json";
     private const int MaximumBytes = 64 * 1024;
 
-    private NativeModDescriptor(string id, string name, string group, Dictionary<string, string> descriptions)
+    private NativeModDescriptor(string id, string name, string group, IReadOnlyDictionary<string, string> descriptions)
     {
         Id = id;
         Name = name;
         Group = group;
-        Descriptions = new ReadOnlyDictionary<string, string>(descriptions);
+        Descriptions = descriptions;
     }
 
     public string Id { get; }
@@ -26,8 +26,7 @@ public sealed class NativeModDescriptor
 
     public string DescriptionForLanguage(string? language)
     {
-        string normalized = NormalizeLanguage(language ?? "en");
-        return Descriptions.GetValueOrDefault(normalized) ?? Descriptions["en"];
+        return TextForLanguage(Descriptions, language);
     }
 
     internal static string RuntimeId(string id)
@@ -85,33 +84,42 @@ public sealed class NativeModDescriptor
         }
         string name = ReadText(properties.GetValueOrDefault("name"), "name");
         string group = ReadText(properties.GetValueOrDefault("package"), "package");
-        JsonElement description = properties.GetValueOrDefault("description");
-        if (description.ValueKind != JsonValueKind.Object)
-        {
-            throw new InvalidDataException("A native mod descriptor requires an object of localized descriptions.");
-        }
-        Dictionary<string, string> descriptions = new(StringComparer.Ordinal);
-        foreach (JsonProperty property in description.EnumerateObject())
-        {
-            string language = NormalizeLanguage(property.Name);
-            if (!Regex.IsMatch(property.Name, @"\A[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\z", RegexOptions.CultureInvariant) || !descriptions.TryAdd(language, ReadText(property.Value, property.Name, multiline: true)))
-            {
-                throw new InvalidDataException($"Invalid or duplicate native mod descriptor language '{property.Name}'.");
-            }
-        }
-        if (!descriptions.ContainsKey("en"))
-        {
-            throw new InvalidDataException("A native mod descriptor requires an English description.");
-        }
-        return new(id, name, group, descriptions);
+        return new(id, name, group, ReadTranslations(properties.GetValueOrDefault("description"), "description", multiline: true));
     }
 
-    private static string ReadText(JsonElement value, string property, bool multiline = false)
+    internal static string TextForLanguage(IReadOnlyDictionary<string, string> translations, string? language)
+    {
+        return translations.GetValueOrDefault(NormalizeLanguage(language ?? "en")) ?? translations["en"];
+    }
+
+    internal static IReadOnlyDictionary<string, string> ReadTranslations(JsonElement translations, string field, bool multiline = false)
+    {
+        if (translations.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidDataException($"The '{field}' field requires an object of localized text.");
+        }
+        Dictionary<string, string> result = new(StringComparer.Ordinal);
+        foreach (JsonProperty property in translations.EnumerateObject())
+        {
+            string language = NormalizeLanguage(property.Name);
+            if (!Regex.IsMatch(property.Name, @"\A[a-z]{2,3}(-[A-Za-z0-9]{2,8})*\z", RegexOptions.CultureInvariant) || !result.TryAdd(language, ReadText(property.Value, property.Name, multiline)))
+            {
+                throw new InvalidDataException($"Invalid or duplicate language '{property.Name}' in '{field}'.");
+            }
+        }
+        if (!result.ContainsKey("en"))
+        {
+            throw new InvalidDataException($"The '{field}' field requires English text.");
+        }
+        return new ReadOnlyDictionary<string, string>(result);
+    }
+
+    internal static string ReadText(JsonElement value, string property, bool multiline = false)
     {
         if (value.ValueKind != JsonValueKind.String || value.GetString() is not { } text || string.IsNullOrWhiteSpace(text)
             || text.Any(character => char.IsControl(character) && !(multiline && character is '\n' or '\r' or '\t')))
         {
-            throw new InvalidDataException($"Invalid or missing native mod descriptor text '{property}'.");
+            throw new InvalidDataException($"Invalid or missing native mod text '{property}'.");
         }
         return text;
     }

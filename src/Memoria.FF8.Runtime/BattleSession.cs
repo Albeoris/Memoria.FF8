@@ -43,7 +43,9 @@ public sealed partial class BattleSession
             }
             handlers[handler.Kind] = handler;
         }
-        this.definition = NativeBattleStorageSnapshots.Capture(CloneDefinition(definition));
+        BattleDefinition clonedDefinition = CloneDefinition(definition);
+        GameplayTuning tuning = (clonedDefinition.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).DiscardLegacyStatusStatTuning();
+        this.definition = NativeBattleStorageSnapshots.Capture(clonedDefinition with { StatusStatModifiers = StatusStatRules.Resolve(clonedDefinition.StatusStatModifiers), Tuning = tuning });
         nativeGil = this.definition.NativeGil;
         NativeCamera = this.definition.NativeStageCameraBank is null ? null : NativeBattleCameraState.Initialize();
         chocoboRewards = this.definition.ChocoboRewards.ObserveInventory(this.definition.NativeItemInventory ?? []);
@@ -425,6 +427,7 @@ public sealed partial class BattleSession
         try
         {
             BattleDefinition snapshotDefinition = snapshot.Definition;
+            snapshotDefinition.Tuning?.RequireCurrentBattleStatusRules();
             snapshot = NativeBattleStorageSnapshots.Restore(snapshot with { Definition = null! }) with { Definition = snapshotDefinition };
             if ((snapshot.Definition.MagicVitals is not null) != (snapshot.MagicVitals is not null))
             {
@@ -1104,7 +1107,7 @@ public sealed partial class BattleSession
 
     private void ValidateDefinition(BattleDefinition source)
     {
-        (source.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).Validate();
+        source.Tuning.Validate();
         source.MagicVitals?.Validate();
         source.MagicVitals?.ValidateMagicSystemConsistency();
         if (source.Combatants.Any(actor => actor.MagicRecordId is int row && ((uint)row >= (source.MagicVitals?.Records.Length ?? NativeCharacterVitals.NativeRecordCount) || !actor.IsPlayer)) || source.Combatants.Where(actor => actor.IsPlayer && actor.MagicRecordId is not null).Select(actor => actor.MagicRecordId).Distinct().Count() != source.Combatants.Count(actor => actor.IsPlayer && actor.MagicRecordId is not null))

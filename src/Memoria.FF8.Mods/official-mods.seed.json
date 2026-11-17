@@ -42,27 +42,6 @@
     }
   },
   {
-    "id": "meltdown",
-    "groupId": "Memoria",
-    "runtimePackageId": "Memoria/Meltdown",
-    "settingsKey": "Meltdown",
-    "name": "Meltdown",
-    "description": "Customize the Vitality and Spirit reductions.",
-    "category": "Battle",
-    "format": "memoria-native",
-    "delivery": "engine",
-    "defaultEnabled": true,
-    "target": {
-      "game": "FFVIII",
-      "editions": [
-        "Classic"
-      ],
-      "languages": [
-        "*"
-      ]
-    }
-  },
-  {
     "id": "level-based-stat-bonuses",
     "groupId": "Memoria",
     "runtimePackageId": "Memoria/Level-Based Stat Bonuses",

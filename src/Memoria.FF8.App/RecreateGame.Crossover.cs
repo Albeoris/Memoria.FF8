@@ -178,6 +178,7 @@ internal sealed partial class RecreateGame
         try
         {
             scene.ConfigureEnemyIntegrationMods(options.ModsDirectory);
+            scene.ReadStatusStatModifiers = difficulty => resourceHost!.ReadStatusStatModifiers(difficulty);
             scene.ConfigureCharacterIdentity(options.GameDirectory);
             ConfigureFf7Presentation(scene);
             scene.ConfigureSharedControls(keyboard, gameplayClock, profile => profile.Save(new GlobalSettingsPaths(isolatedDirectory: options.SettingsDirectory).ControlsPreferencesPath));

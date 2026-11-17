@@ -8,6 +8,27 @@ public sealed record Ff7BattleGuestOriginStatus(int HostSlot, uint BattleStatuse
 
 public sealed partial class Ff7BattleSession
 {
+    private Func<Ff7BattleDamageActor, Ff7BattleDamageActor>? originStatusStats;
+
+    public void BindOriginStatusStats(Func<Ff7BattleDamageActor, Ff7BattleDamageActor> resolve)
+    {
+        ArgumentNullException.ThrowIfNull(resolve);
+        if (originStatusStats is not null)
+        {
+            throw new InvalidOperationException("The battle already owns its origin status stat rules.");
+        }
+        originStatusStats = resolve;
+    }
+
+    private Ff7BattleDamageActor ProjectGuestSourceStatusStats(int slot, Ff7BattleDamageActor stats)
+    {
+        if (originStatusStats is null)
+        {
+            return stats;
+        }
+        return originStatusStats(stats with { OriginSavedStatuses = GetOriginSavedStatuses(slot), OriginBattleStatuses = GetOriginBattleStatuses(slot) });
+    }
+
     private void RestoreGuestStatusProjection()
     {
         const uint originalProjection = 0x6F;

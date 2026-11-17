@@ -112,14 +112,14 @@ public sealed partial class BattleSession
             {
                 foreach (BattleCombatant source in combatants.Where(source => source.IsActive && source.IsAlive && !source.IsPlayer && !source.Untargetable && source.NativeDrawSlots.Any(slot => slot.Id == action.Id)))
                 {
-                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, source.NativeIndex, IsSmartMeltdown(action) && CanSmartApplyMeltdown(actor, target, action.NativeAction!)));
+                    candidates.Add(new(action, 1, 0, 1, ForecastMagic(actor, target, action.NativeAction!, 1, source, action.DrawResist), source.Id, source.NativeIndex, CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
                 }
             }
             int available = actor.Abilities.Contains(BattleAbility.Magic) ? GetAvailableMagicCasts(actor.Id, action.Id, reservation) : 0;
             if (available > 0)
             {
                 int casts = AffordableSmartCasts(actor, action.Id, available);
-                candidates.Add(new(action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), CanApplyMeltdown: IsSmartMeltdown(action) && CanSmartApplyMeltdown(actor, target, action.NativeAction!)));
+                candidates.Add(new(action, available, actor.MagicStocks.FirstOrDefault(stock => stock.Id == action.Id)?.Count ?? 0, casts, ForecastMagic(actor, target, action.NativeAction!, casts), CanApplyParameterStatus: CanSmartApplyParameterStatus(actor, target, action.NativeAction!)));
             }
         }
         return BattleSmartAttackSelector.Select(result, candidates);
@@ -127,27 +127,23 @@ public sealed partial class BattleSession
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {
-        return action.Ability == BattleAbility.Magic && action.Id is >= 1 and <= 56 && action.Available && !action.Allies && !action.AllTargets && action.Statuses is null or { Length: 0 } && action.NativeAction is { Command: 2, AttackType: 2 or 22, Power: > 0, HitCount: 1, Statuses0: 0, TargetFlags: byte flags } native && (native.Statuses1 == 0 || IsSmartMeltdown(action)) && (flags & 0x30) == 0x10 && (flags & 2) == 0;
+        return action.Ability == BattleAbility.Magic && action.Id is >= 1 and <= 56 && action.Available && !action.Allies && !action.AllTargets && action.Statuses is null or { Length: 0 } && action.NativeAction is { Command: 2, AttackType: 2 or 22, Power: > 0, HitCount: 1, Statuses0: 0, TargetFlags: byte flags } native && (native.Statuses1 is 0 or NativeBattleParameterRules.DefenseReductionStatus) && (flags & 0x30) == 0x10 && (flags & 2) == 0;
     }
 
-    private static bool IsSmartMeltdown(BattleActionDefinition action)
+    private bool CanSmartApplyParameterStatus(BattleCombatant actor, BattleCombatant target, BattleNativeAction action)
     {
-        return action.Id == 49 && action.NativeAction is { AttackType: 2 or 22, Statuses0: 0, Statuses1: 0x1000000 };
-    }
-
-    private bool CanSmartApplyMeltdown(BattleCombatant actor, BattleCombatant target, BattleNativeAction action)
-    {
+        uint mask = action.Statuses1;
         uint statuses = NativeBattleStatusBits(target);
-        if (IsNativeMeltdown(action) && ReduceMeltdownDefense(target.Defense, definition.Tuning.MeltdownVitalityReductionPercent) == target.Defense && ReduceMeltdownDefense(target.Spirit, definition.Tuning.MeltdownSpiritReductionPercent) == target.Spirit || (statuses & 0x1000000) != 0 || (NativeSavedStatusBits(target) & 5) != 0 || (statuses & 0x200800) != 0)
+        ushort saved = NativeSavedStatusBits(target);
+        if (mask == 0 || (statuses & mask) != 0 || (saved & 5) != 0 || (statuses & 0x200800) != 0 ||
+            (action.Element & 8) != 0 && (statuses & 0x2000) != 0 ||
+            !StatusStatRules.TryGetStatusId(false, mask, out NativeStatusId status))
         {
             return false;
         }
-        if (action.StatusAttack == 255)
-        {
-            return true;
-        }
-        int resistance = GetNativeStatusResistance(target, 32);
-        return resistance < 200 && action.StatusAttack + actor.Magic / 4 - target.Spirit / 4 - resistance > 0;
+        bool reducesStat = definition.StatusStatModifiers.Any(modifier => modifier.Status == status &&
+            EffectiveStat(target, modifier.Stat, saved, statuses | mask) < EffectiveStat(target, modifier.Stat, saved, statuses));
+        return reducesStat && NativeStatusChanceSucceeds(target, (int)status - 8, actor.Magic, EffectiveStat(target, BattleStatId.Spirit), action.StatusAttack, null);
     }
 
     private int AffordableSmartCasts(BattleCombatant actor, int spell, int available)
@@ -168,7 +164,7 @@ public sealed partial class BattleSession
     private string SmartRevision(BattleCombatant actor, BattleCombatant target)
     {
         string state = string.Join('|', actor.Id, target.Id, target.NativeIndex, actor.Attack, actor.Magic, actor.Luck, actor.WeaponId, actor.ModelId, actor.IsActive, actor.IsAlive, actor.NativeAttack, actor.NativePlayerStatRules?.NativeStatusPassiveFlags, string.Join(',', actor.NativePlayerStatRules?.MagicJunctions ?? []), string.Join(',', actor.NativeCommandSlots), string.Join(',', actor.Abilities), actor.MagicRecordId is int row ? magicVitals?.MagicSystem.AttackModes[row] : null, target.Defense, target.Spirit, target.Evasion, target.Luck, target.CurrentHp, target.IsActive, target.Untargetable, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), NativeSavedStatusBits(target), NativeBattleStatusBits(target), target.NativeCombatantFlags, string.Join(',', target.NativeStatusResistances), string.Join(',', target.ElementDefenses), GunbladeMode, magicVitals?.MagicSystem.InfiniteMagic, magicVitals?.MagicSystem.UnlimitedMagic, magicVitals?.MagicSystem.SharedMagicStock, string.Join(',', actor.MagicStocks.Select(stock => $"{stock.Id}:{stock.Count}:{GetAvailableMagicCasts(actor.Id, stock.Id)}")));
-        state += "|" + definition.Tuning.MeltdownVitalityReductionPercent + "|" + definition.Tuning.MeltdownSpiritReductionPercent + "|" + target.MeltdownVitalityReductionPercent + "|" + target.MeltdownSpiritReductionPercent;
+        state += "|" + string.Join(',', definition.StatusStatModifiers);
         state += "|" + string.Join(',', nativeKnownMagic?.Words ?? []) + "|" + string.Join(';', combatants.Where(source => !source.IsPlayer).Select(source => $"{source.Id}:{source.NativeIndex}:{source.Level}:{source.IsActive}:{source.IsAlive}:{source.Untargetable}:{string.Join(',', source.NativeDrawSlots.Select(slot => $"{slot.Id}:{slot.Resistance}"))}")) + "|" + actor.Level;
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(state)));
     }
@@ -178,7 +174,8 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(target);
         ushort saved = NativeSavedStatusBits(target);
         bool immune = (native.Statuses1 & 0x4000000) == 0 && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0);
-        int spirit = native.AttackType == 22 ? 0 : EffectiveNativeDefense(target, target.Spirit, false);
+        uint statusMask = native.Statuses1;
+        int resistanceIndex = StatusStatRules.TryGetStatusId(false, statusMask, out NativeStatusId status) ? (int)status - 8 : -1;
         int[] powers = new int[casts];
         List<NativeMagicStock> stocks = actor.MagicStocks.Select(stock => new NativeMagicStock((byte)stock.Id, (byte)stock.Count)).ToList();
         for (int cast = 0; cast < casts; cast++)
@@ -204,38 +201,26 @@ public sealed partial class BattleSession
                     return 0;
                 }
             }
+            if (immune)
+            {
+                return 0;
+            }
             int total = 0;
-            bool vitZero = (statuses & 0x1000000) != 0;
-            int currentSpirit = spirit;
+            uint currentStatuses = statuses;
             for (int cast = 0; cast < casts && total < target.CurrentHp; cast++)
             {
-                int damage = immune ? 0 : NativeBattleDamage.Magic(powers[cast], currentSpirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
-                damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, statuses);
+                int spirit = EffectiveStat(target, BattleStatId.Spirit, saved, currentStatuses);
+                int damage = NativeBattleDamage.Magic(powers[cast], native.AttackType == 22 ? 0 : spirit, native.Power, draw(), !actor.IsPlayer, Difficulty);
+                damage = NativeBattleDamage.MagicMitigation(damage, native.AttackFlags, currentStatuses);
                 damage = ForecastElement(target, native, damage, false);
+                if (resistanceIndex >= 0 && (currentStatuses & statusMask) == 0 &&
+                    NativeStatusChanceSucceeds(target, resistanceIndex, powers[cast], spirit, native.StatusAttack, draw))
+                {
+                    currentStatuses |= statusMask;
+                }
                 if (drawSource is not null)
                 {
                     damage = damage * (draw() + 10) / 150;
-                }
-                if (!immune && !vitZero && native.ActionId == 49 && native.Statuses1 == 0x1000000)
-                {
-                    if (native.StatusAttack == 255)
-                    {
-                        vitZero = true;
-                    }
-                    else
-                    {
-                        int resistance = GetNativeStatusResistance(target, 32);
-                        int effective = native.StatusAttack + powers[cast] / 4 - target.Spirit / 4 - resistance;
-                        if (resistance < 200 && effective > 0)
-                        {
-                            int threshold = 255 * (255 * effective / 100) / 255;
-                            vitZero = native.StatusAttack >= 250 || threshold != 0 && threshold >= draw();
-                        }
-                    }
-                }
-                if (vitZero && (statuses & 0x1000000) == 0)
-                {
-                    currentSpirit = native.AttackType == 22 ? 0 : ReduceMeltdownDefense(target.Spirit, IsNativeMeltdown(native) ? definition.Tuning.MeltdownSpiritReductionPercent : 100);
                 }
                 total += Math.Clamp(damage, (native.AttackFlags & 8) != 0 ? -60_000 : -9_999, NativePrimaryDamageLimit(native.AttackFlags));
             }
@@ -261,8 +246,9 @@ public sealed partial class BattleSession
                 return 0;
             }
             bool critical = !gunblade && NativeBattleDamage.PhysicalCritical(native?.Critical ?? 0, actor.Luck, draw());
-            int vitality = EffectiveNativeDefense(target, target.Defense, true);
-            int damage = gunblade ? NativeGunbladeAttack.Damage(actor.Attack, vitality, native?.Power ?? actor.PhysicalPower, draw(), HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : (short)0) : NativeBattleDamage.Physical(actor.Attack, vitality, native?.Power ?? actor.PhysicalPower, draw());
+            int strength = EffectiveStat(actor, BattleStatId.Strength);
+            int vitality = native?.AttackType == 36 ? 0 : EffectiveStat(target, BattleStatId.Vitality);
+            int damage = gunblade ? NativeGunbladeAttack.Damage(strength, vitality, native?.Power ?? actor.PhysicalPower, draw(), HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : (short)0) : NativeBattleDamage.Physical(strength, vitality, native?.Power ?? actor.PhysicalPower, draw());
             if ((statuses & 0x20) != 0)
             {
                 damage >>= 1;

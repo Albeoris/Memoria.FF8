@@ -7,45 +7,46 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModBehaviorSettingsMenuTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "ff8-mod-settings-menu-" + Guid.NewGuid().ToString("N"));
-    private const string PackageId = "Memoria/Balance";
+    private const string PackageId = "Memoria/balance";
+    private const string VitalityId = "mod-setting-status/balance/Vit0/Vitality";
+    private const string SpiritId = "mod-setting-status/balance/Vit0/Spirit";
+    private const string SpiritDescriptionId = "mod-setting-description-status/balance/Vit0/Spirit";
+    private string SettingsPath => Path.Combine(root, "Mods", "Memoria", "memoria-settings.json");
 
     [Fact]
     public void KeyboardChangesApplyImmediatelyAndSurviveGoingBack()
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
-        Assert.True(Element(menu, "mod-settings").Visible);
-        menu.Execute(new("mod-settings-open"));
+        menu.Execute(new("mod-settings-open", PackageId));
         Assert.Equal("Mods · Balance · Settings", menu.CurrentScreen.Title);
-        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0"));
+        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, VitalityId));
         Assert.Equal(0, slider.Min);
         Assert.Equal(100, slider.Max);
         Assert.Equal(1, slider.Step);
         Assert.Equal("0'%'", slider.ValueFormat);
         Assert.Equal("Vitality reduction", slider.Text);
-        UiNumericSlider spirit = Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1"));
-        Assert.Equal("Spirit reduction", spirit.Text);
+        UiNumericSlider spirit = Assert.IsType<UiNumericSlider>(Element(menu, SpiritId));
+        Assert.Equal("Spirit", spirit.Text);
         Assert.Equal(25, spirit.Value);
-        Assert.Equal(5, spirit.Step);
+        Assert.Equal(1, spirit.Step);
         Assert.Equal(10, spirit.Min);
         Assert.Equal(90, spirit.Max);
-        string description = Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-1")).Text;
-        Assert.Contains("Percentage by which Meltdown reduces Spirit.", description);
-        Assert.Contains("10%", description);
-        Assert.Contains("90%", description);
-        Assert.Contains("5%", description);
+        UiLabel description = Assert.IsType<UiLabel>(Element(menu, SpiritDescriptionId));
+        Assert.Equal("Reduces magical defense while the status is active.", description.Text);
+        Assert.True(description.Muted);
         menu.Navigate(MenuInput.Right);
-        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
+        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, VitalityId)).Value);
         Assert.Equal(51, runtime.ReadBehaviorSettings(PackageId)[0].Value);
         menu.Navigate(MenuInput.Down);
         menu.Navigate(MenuInput.Right);
-        Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
-        Assert.Equal(30, runtime.ReadBehaviorSettings(PackageId)[1].Value);
+        Assert.Equal(26, Assert.IsType<UiNumericSlider>(Element(menu, SpiritId)).Value);
+        Assert.Equal(26, runtime.ReadBehaviorSettings(PackageId)[1].Value);
         menu.Navigate(MenuInput.Cancel);
         Assert.Equal("mods", menu.ScreenId);
-        menu.Execute(new("mod-settings-open"));
-        Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
-        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
+        menu.Execute(new("mod-settings-open", PackageId));
+        Assert.Equal(26, Assert.IsType<UiNumericSlider>(Element(menu, SpiritId)).Value);
+        Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, VitalityId)).Value);
         Assert.True(runtime.IsReloadPending);
     }
 
@@ -54,28 +55,27 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
-        menu.Execute(new("mod-settings-open"));
-        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0"));
+        menu.Execute(new("mod-settings-open", PackageId));
+        UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, VitalityId));
         slider.Pointer(slider.Bounds.X + slider.Bounds.Width * 0.72f, slider.Bounds.Y + slider.Bounds.Height / 2);
-        int value = (int)Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value;
+        int value = (int)Assert.IsType<UiNumericSlider>(Element(menu, VitalityId)).Value;
         Assert.NotEqual(50, value);
         Assert.Equal(value, runtime.ReadBehaviorSettings(PackageId)[0].Value);
         menu.Navigate(MenuInput.Down);
-        Assert.Equal("mod-setting-1", menu.SelectedEntry?.Id);
+        Assert.Equal(SpiritId, menu.SelectedEntry?.Id);
         menu.Navigate(MenuInput.Right);
-        Assert.Equal(30, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-1")).Value);
+        Assert.Equal(26, Assert.IsType<UiNumericSlider>(Element(menu, SpiritId)).Value);
         menu.Navigate(MenuInput.Down);
-        Assert.Equal("mod-setting-1", menu.SelectedEntry?.Id);
+        Assert.Equal(SpiritId, menu.SelectedEntry?.Id);
         Assert.Equal("mod-settings", menu.ScreenId);
         Assert.DoesNotContain(Descendants(menu.BuildView().Root), element => element.Id is "save" or "cancel");
-        Assert.Equal(30, runtime.ReadBehaviorSettings(PackageId)[1].Value);
+        Assert.Equal(26, runtime.ReadBehaviorSettings(PackageId)[1].Value);
         Assert.True(runtime.IsReloadPending);
-        Assert.True(File.Exists(Path.Combine(root, "Mods/Memoria/Balance/config.json")));
-        Assert.False(File.Exists(Path.Combine(root, "BundledMods/Memoria/Balance/config.json")));
+        Assert.True(File.Exists(SettingsPath));
         using ModRuntime reopened = new(root, watch: false, debounce: TimeSpan.Zero);
         Assert.True(reopened.PreparePending(force: true));
         Assert.True(reopened.CommitPending());
-        Assert.Equal(new[] { value, 30 }, reopened.ReadBehaviorSettings(PackageId).Select(setting => setting.Value));
+        Assert.Equal(new[] { value, 26 }, reopened.ReadBehaviorSettings(PackageId).Select(setting => setting.Value));
     }
 
     [Fact]
@@ -83,13 +83,13 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
     {
         using ModRuntime runtime = Runtime();
         MenuController menu = Menu(runtime);
-        menu.Execute(new("mod-settings-open"));
-        string config = Path.Combine(root, "Mods/Memoria/Balance/config.json");
+        menu.Execute(new("mod-settings-open", PackageId));
+        string config = SettingsPath;
         Directory.CreateDirectory(config);
         menu.Navigate(MenuInput.Right);
         Assert.Equal("mod-settings", menu.ScreenId);
         Assert.NotEmpty(menu.Message);
-        Assert.Equal(50, Assert.IsType<UiNumericSlider>(Element(menu, "mod-setting-0")).Value);
+        Assert.Equal(50, Assert.IsType<UiNumericSlider>(Element(menu, VitalityId)).Value);
         Assert.False(runtime.IsReloadPending);
         Directory.Delete(config);
         menu.Navigate(MenuInput.Right);
@@ -103,12 +103,8 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         using ModRuntime runtime = Runtime();
         LockedMods service = new(runtime);
         MenuController menu = Menu(service);
-        Assert.Contains(LockedMods.Reason, menu.CurrentScreen.Details(menu));
-        menu.Execute(new("mod-selected-toggle"));
-        Assert.Equal(LockedMods.Reason, menu.Message);
-        Assert.Equal(0, service.Writes);
-        menu.Execute(new("mod-settings-open"));
-        foreach (string id in new[] { "mod-setting-0", "mod-setting-1" })
+        menu.Execute(new("mod-settings-open", PackageId));
+        foreach (string id in new[] { VitalityId, SpiritId })
         {
             UiNumericSlider slider = Assert.IsType<UiNumericSlider>(Element(menu, id));
             Assert.False(slider.Enabled);
@@ -122,24 +118,21 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         menu.Navigate(MenuInput.Right);
         Assert.Equal(0, service.Writes);
         Assert.False(runtime.IsReloadPending);
-        Assert.False(File.Exists(Path.Combine(root, "Mods/Memoria/Balance/config.json")));
         menu.Navigate(MenuInput.Cancel);
         Assert.Equal("mods", menu.ScreenId);
     }
 
     [Fact]
-    public void MeltdownExpansionFollowsToggleAndCardButtonPreservesAppliedValue()
+    public void StatusSettingsExpansionFollowsToggleAndPreservesAppliedValue()
     {
         WriteBundled("Meltdown/mod.ini", "enabled=0");
-        WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        WriteStatusMod("Meltdown", "memoria-meltdown");
         using ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
         Assert.True(runtime.PreparePending(force: true));
         Assert.True(runtime.CommitPending());
         MenuController menu = Menu(runtime, ModRuntime.MemoriaPackageId);
         menu.Navigate(MenuInput.Confirm);
-        menu.Navigate(MenuInput.Confirm);
         string toggleId = Assert.Single(menu.Entries, entry => entry.Label == "Meltdown").Id;
-        menu.Navigate(MenuInput.Down);
         Assert.Equal(toggleId, menu.SelectedEntry?.Id);
         Assert.False(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
         Assert.DoesNotContain(menu.Entries, entry => entry.Label == "Vitality reduction");
@@ -147,9 +140,9 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         menu.Navigate(MenuInput.Alternate);
         Assert.False(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
         Assert.Equal(toggleId, menu.SelectedEntry?.Id);
-        Assert.Contains(menu.Entries, entry => entry.Label == "Spirit reduction");
+        Assert.Contains(menu.Entries, entry => entry.Label == "Spirit");
         menu.Navigate(MenuInput.Alternate);
-        Assert.DoesNotContain(menu.Entries, entry => entry.Label == "Spirit reduction");
+        Assert.DoesNotContain(menu.Entries, entry => entry.Label == "Spirit");
 
         menu.Navigate(MenuInput.Confirm);
         UiToggle toggle = Assert.IsType<UiToggle>(Element(menu, toggleId));
@@ -176,14 +169,14 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.True(Assert.IsType<UiToggle>(Element(menu, toggleId)).Value);
         Assert.Equal(51, Assert.IsType<UiNumericSlider>(Element(menu, vitalityId)).Value);
         menu.Navigate(MenuInput.Alternate);
-        Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "Meltdown").Value);
-        Assert.Equal(51, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == BehaviorMods.VitalityReductionParameter).Value);
+        Assert.Equal(1, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "memoria-meltdown").Value);
+        Assert.Equal(51, Assert.Single(runtime.ReadBehaviorSettings(ModRuntime.MemoriaPackageId), setting => setting.Parameter == "memoria-meltdown/Vit0/Vitality").Value);
     }
 
     [Fact]
     public void MemoriaCategoriesCollapseAndScrollWhileUnlockedChangesApply()
     {
-        WriteBundled("Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        WriteStatusMod("Meltdown", "memoria-meltdown");
         WriteBundled("Girl Next Door/mod.ini", "enabled=0");
         foreach (string component in new[] { "Depixelation", "Reorientation", "EdeaMirrors", "Extended FFVIII Roster", "Level-Based Stat Bonuses", "Girl Next Door", "FF7EnemyIntegration" })
         {
@@ -198,24 +191,18 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         Assert.False(Element(menu, "mod-selected-toggle").Visible);
         menu.Navigate(MenuInput.Confirm);
         Assert.Equal("mod-settings", menu.ScreenId);
-        Assert.Equal(new[] { "Field", "Battle", "Party", "Items", "FFVII" }, menu.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Field", "Battle", "Party", "Items", "FFVII" }, menu.Entries.Where(entry => entry.Action?.Kind == "mod-settings-category").Select(entry => entry.Label));
 
-        menu.Navigate(MenuInput.Down);
-        menu.Navigate(MenuInput.Confirm);
-        string lockedSliderId = Assert.Single(menu.Entries, entry => entry.Label == "Vitality reduction").Id;
-        menu.Navigate(MenuInput.Down);
         string meltdownId = Assert.Single(menu.Entries, entry => entry.Label == "Meltdown").Id;
-        Assert.Equal(meltdownId, menu.SelectedEntry?.Id);
-        menu.Navigate(MenuInput.Confirm);
+        menu.SelectEntry("mod-settings", meltdownId, allowDisabled: true);
+        string lockedSliderId = Assert.Single(menu.Entries, entry => entry.Label == "Vitality reduction").Id;
         Assert.True(Assert.IsType<UiToggle>(Element(menu, meltdownId)).Value);
         menu.Navigate(MenuInput.Alternate);
         Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
-        Assert.True(Assert.IsType<UiToggle>(Element(menu, meltdownId)).Value);
         menu.Navigate(MenuInput.Alternate);
         Assert.False(Element(menu, lockedSliderId).Enabled);
         Assert.Contains("Hardcore", Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-" + lockedSliderId["mod-setting-".Length..])).Text);
-        menu.Navigate(MenuInput.Up);
-        menu.Navigate(MenuInput.Left);
+        menu.Navigate(MenuInput.Alternate);
         Assert.DoesNotContain(menu.Entries, entry => entry.Id == lockedSliderId);
 
         UiView pointerView = menu.BuildView();
@@ -265,7 +252,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         foreach (IModService service in new IModService[] { runtime, new LockedMods(runtime) })
         {
             MenuController menu = Menu(service);
-            menu.Execute(new("mod-settings-open"));
+            menu.Execute(new("mod-settings-open", PackageId));
             UiView view = menu.BuildView();
             view.Resize(width, height);
             UiRecordingCanvas canvas = new();
@@ -319,9 +306,10 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
 
     private sealed class LockedMods(ModRuntime runtime) : IModService
     {
-        public const string Reason = "Hardcore requires Meltdown: Vitality reduction 50%, Spirit reduction 25%. These settings cannot be changed.";
+        public const string Reason = "The difficulty fixes these settings.";
         public int Writes { get; private set; }
         public ModCatalogSnapshot Catalog => runtime.Catalog;
+        public ModServiceView View => runtime.View;
         public bool AutoEnableNewMods => runtime.AutoEnableNewMods;
         public bool IsReloadPending => runtime.IsReloadPending;
         public IReadOnlyList<ModDiagnostic> Diagnostics => runtime.Diagnostics;
@@ -345,21 +333,55 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
 
     private ModRuntime Runtime()
     {
-        string payload = Path.Combine(root, "BundledMods/Memoria/Balance/gameplay/behaviors.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(payload)!);
-        File.WriteAllText(payload, """
-            {
-              "schemaVersion": 2,
-              "meltdown": {
-                "VitalityReductionPercent": { "label": "Vitality reduction", "description": "Percentage by which Meltdown reduces Vitality.", "control": "slider", "unit": "%", "min": 0, "max": 100, "step": 1, "default": 50 },
-                "SpiritReductionPercent": { "label": "Spirit reduction", "description": "Percentage by which Meltdown reduces Spirit.", "control": "slider", "unit": "%", "min": 10, "max": 90, "step": 5, "default": 25 }
-              }
-            }
-            """);
+        WriteStatusMod("Balance", "balance");
         ModRuntime runtime = new(root, watch: false, debounce: TimeSpan.Zero);
         Assert.True(runtime.PreparePending(force: true));
         Assert.True(runtime.CommitPending());
         return runtime;
+    }
+
+    private void WriteStatusMod(string name, string id)
+    {
+        WriteBundled(name + "/mod.json", System.Text.Json.JsonSerializer.Serialize(new { id, name, package = "Memoria", description = new { en = "Battle stat adjustments." } }));
+        WriteBundled(name + "/statuses/defense.json", """
+            {
+              "id": "Vit0",
+              "statModifiers": {
+                "Vitality": {
+                  "operation": "ReducePercent",
+                  "value": {
+                    "default": 50,
+                    "label": { "en": "Vitality reduction", "ru": "\u0424\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0437\u0430\u0449\u0438\u0442\u0430" }
+                  }
+                },
+                "Spirit": {
+                  "operation": "ReducePercent",
+                  "value": {
+                    "default": 25,
+                    "min": 10,
+                    "max": 90,
+                    "description": { "en": "Reduces magical defense while the status is active.", "ru": "\u0421\u043d\u0438\u0436\u0430\u0435\u0442 \u043c\u0430\u0433\u0438\u0447\u0435\u0441\u043a\u0443\u044e \u0437\u0430\u0449\u0438\u0442\u0443." }
+                  }
+                }
+              }
+            }
+            """);
+    }
+
+    [Theory]
+    [InlineData("ru", "\u0424\u0438\u0437\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0437\u0430\u0449\u0438\u0442\u0430", "\u0421\u043d\u0438\u0436\u0430\u0435\u0442 \u043c\u0430\u0433\u0438\u0447\u0435\u0441\u043a\u0443\u044e \u0437\u0430\u0449\u0438\u0442\u0443.")]
+    [InlineData("fr", "Vitality reduction", "Reduces magical defense while the status is active.")]
+    public void StatusSettingsUseTheActiveLanguageAndOmitAbsentDescriptions(string language, string label, string description)
+    {
+        using ModRuntime runtime = Runtime();
+        MenuController menu = Menu(runtime);
+        menu.ConnectLocalizationText((_, original) => original, () => language);
+        menu.Execute(new("mod-settings-open", PackageId));
+        Assert.Equal(label, Assert.IsType<UiNumericSlider>(Element(menu, VitalityId)).Text);
+        UiLabel help = Assert.IsType<UiLabel>(Element(menu, SpiritDescriptionId));
+        Assert.True(help.Muted);
+        Assert.Equal(description, help.Text);
+        Assert.DoesNotContain(Descendants(menu.BuildView().Root), element => element.Id == "mod-setting-description-status/balance/Vit0/Vitality");
     }
 
     [Fact]
@@ -409,7 +431,7 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         File.WriteAllText(path, content);
     }
 
-    private static MenuController Menu(IModService service, string packageId = PackageId)
+    private static MenuController Menu(IModService service, string packageId = ModRuntime.MemoriaPackageId)
     {
         MenuController menu = new();
         menu.ConnectMods(service);

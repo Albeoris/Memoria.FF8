@@ -5,6 +5,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Memoria.FF7.Runtime.Tests" />
     <Compile Include="../Shared/BoundedBattleAdvance.cs" Link="BoundedBattleAdvance.cs" />
+    <Compile Include="../Shared/StatusStatScaling.cs" Link="StatusStatScaling.cs" />
     <Compile Include="../Shared/NativeBattleFloatPresentation.cs" Link="NativeBattleFloatPresentation.cs" />
     <ProjectReference Include="../Memoria.FF7.Events/Memoria.FF7.Events.csproj" />
     <ProjectReference Include="../Memoria.FF7.Resources/Memoria.FF7.Resources.csproj" />

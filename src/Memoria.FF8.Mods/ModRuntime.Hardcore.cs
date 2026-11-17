@@ -1,10 +1,10 @@
-namespace Memoria.FF8.Mods;
+﻿namespace Memoria.FF8.Mods;
 
 public sealed partial class ModRuntime
 {
-    public const string HardcoreMeltdownLockReason = "Hardcore requires Meltdown: Vitality reduction 50%, Spirit reduction 25%. The mod cannot be disabled and these settings cannot be changed.";
-    public const string HardcoreStatBonusesLockReason = "Hardcore requires Level-Based Stat Bonuses. The mod cannot be disabled.";
     private bool hardcore;
+
+    public static string HardcoreStatBonusesLockReason => DifficultyModPolicy.LockReason(true, "Memoria/Level-Based Stat Bonuses")!;
 
     public bool SetHardcoreMode(bool enabled)
     {
@@ -32,30 +32,31 @@ public sealed partial class ModRuntime
 
     public string? GetBehaviorSettingLockReason(string packageId, string behavior, string parameter)
     {
-        if (packageId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
+        lock (gate)
         {
-            string? componentId = MemoriaComponents.FirstOrDefault(component => component.SettingsKey.Equals(parameter, StringComparison.OrdinalIgnoreCase))?.RuntimePackageId;
-            return behavior == ComponentBehavior ? componentId is null ? null : GetPackageLockReason(componentId) : GetPackageLockReason(MeltdownPackageId);
-        }
-        return GetPackageLockReason(packageId);
-    }
+            ModPackage? package;
+            if (IsComponentGroupId(packageId))
+            {
+                package = installedPackages.FirstOrDefault(package => IsMemoriaComponent(package)
+                    && ComponentGroupId(ComponentGroup(package)).Equals(packageId, StringComparison.OrdinalIgnoreCase)
+                    && (behavior == ComponentBehavior
+                        ? MemoriaComponentSettingsKey(package.Id, package.Official, package.Descriptor) == parameter
+                        : behavior == StatusMods.SettingsBehavior && package.Descriptor is { } descriptor && parameter.StartsWith(descriptor.Id + "/", StringComparison.Ordinal)));
+            }
+            else
+            {
+                package = installedPackages.FirstOrDefault(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
+            }
 
-    private bool IsRequiredHardcorePackage(string packageId)
-    {
-        return hardcore && (packageId.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) || packageId.Equals("Memoria/Level-Based Stat Bonuses", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private IReadOnlyList<BehaviorModSetting> ApplyBehaviorSettingPolicy(ModPackage package, IReadOnlyList<BehaviorModSetting> settings)
-    {
-        if (!hardcore || !package.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase))
-        {
-            return settings;
+            if (package is null)
+            {
+                return null;
+            }
+            if (behavior == StatusMods.SettingsBehavior && !DifficultyModPolicy.LocksDefaults(hardcore, package.Id))
+            {
+                return null;
+            }
+            return RequiredPackageReason(package.Id);
         }
-        return settings.Select(setting => setting with { Value = setting.Parameter switch
-        {
-            BehaviorMods.VitalityReductionParameter => BehaviorMods.HardcoreVitalityReductionPercent,
-            BehaviorMods.SpiritReductionParameter => BehaviorMods.HardcoreSpiritReductionPercent,
-            _ => setting.Value
-        } }).ToArray();
     }
 }

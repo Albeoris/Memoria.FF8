@@ -1,79 +1,84 @@
-# Existing ability behavior mods
+# Status mods and Memoria settings
 
 [Documentation](../README.md) / Modding
 
-Behavior payloads modify recognized properties of existing abilities. They do not define new abilities or execute arbitrary patches. The engine owns each parameter's integer contract and hard limits. Schema version 2 describes the menu controls in the package itself: label, description, control, unit, minimum, maximum, step and default.
+## Define a status override
 
-A package's `gameplay/behaviors.json` declares defaults and UI metadata:
+Create a native mod with a root `mod.json` and one JSON document per status under `statuses/`. For example, the bundled Meltdown mod has these two files.
+
+```text
+Meltdown/
+  mod.json
+  statuses/
+    vit0.json
+```
+
+`mod.json` defines the mod's identity and menu grouping.
 
 ```json
 {
-  "schemaVersion": 2,
-  "meltdown": {
-    "StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049",
-    "VitalityReductionPercent": {
-      "label": "Vitality reduction",
-      "description": "Percentage by which Meltdown reduces effective Vitality after successfully applying Meltdown.",
-      "control": "slider",
-      "unit": "%",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "default": 50
+  "id": "memoria-meltdown",
+  "name": "Meltdown",
+  "package": "Memoria",
+  "description": {
+    "en": "Adjusts the Vitality and Spirit reductions from Vit 0."
+  }
+}
+```
+
+Use a globally unique lowercase slug for `id`. Keep it when changing the display name, settings group or folder. The loader discovers `statuses/**/*.json` recursively. Each document's `id` identifies the native status, so moving or renaming its file preserves the corresponding settings. Bundled and downloaded mods use the same descriptor and payload format.
+
+```json
+{
+  "id": "Vit0",
+  "name": "${LANG}_kernel_magicspells_name_0049",
+  "statModifiers": {
+    "Vitality": {
+      "operation": "ReducePercent",
+      "value": {
+        "default": 50,
+        "description": {
+          "en": "Reduces Vitality while this status is active.",
+          "ru": "Снижает физическую защиту, пока действует статус."
+        }
+      }
     },
-    "SpiritReductionPercent": {
-      "label": "Spirit reduction",
-      "description": "Percentage by which Meltdown reduces effective Spirit after successfully applying Meltdown.",
-      "control": "slider",
-      "unit": "%",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "default": 25
+    "Spirit": {
+      "operation": "ReducePercent",
+      "value": { "default": 25 }
     }
   }
 }
 ```
 
-The writable package's `config.json` contains only user value overrides:
+The `ReducePercent` operation takes an integer from 0 through 100. It computes `floor(stat * (100 - percent) / 100)` from the current effective value at the status contribution stage. Zero preserves the incoming value and 100 reduces it to zero. Values above 100 would produce negative stats. Native Scan stores these effective stats in unsigned bytes, and the crossover damage bridge uses unsigned defenses.
+
+A numeric `value`, such as `50`, sets a fixed reduction. An object with `default` generates a slider. Optional `min` and `max` narrow the operation's range. They must satisfy `0 <= min <= default <= max <= 100`, and the stored value must lie in the same inclusive range. The control steps by one percentage point. An optional `label` overrides the stat's localized label. An optional `description` adds gray help text below the slider. These fields and the descriptor's description use language dictionaries with a required English entry. The active localization target selects another entry when present. For example, a Russian entry appears when a Russian localization is active.
+
+The current stat names are `Strength`, `Vitality` and `Spirit`. An override for another status uses the same format. For example, `statuses/poison.json` can add a fixed reduction while Poison is active.
 
 ```json
 {
-  "meltdown": {
-    "VitalityReductionPercent": 65,
-    "SpiritReductionPercent": 35
+  "id": "Poison",
+  "statModifiers": {
+    "Strength": { "operation": "ReducePercent", "value": 20 }
   }
 }
 ```
 
-Open **Mods > Memoria** and expand **Battle** to enable Meltdown and adjust both percentages. Changes are saved and applied as you edit. Back returns to the Mods catalog. User-installed behavior packages expose their own settings through the Mods catalog. Both parameters have engine hard limits of 0 through 100. A descriptor can narrow the range and choose an integer step. `slider` and `%` are the supported control and unit for percentage settings. Nonempty labels and descriptions, ordered bounds, and aligned defaults and overrides are validated before publication. Unknown or duplicate fields, fractional values and unsupported controls are rejected.
+Status and stat IDs and operation names are case-sensitive. The accepted status names are `Ko`, `Poison`, `Petrify`, `Blind`, `Silence`, `Berserk`, `Zombie`, `Sleep`, `Haste`, `Slow`, `Stop`, `Regen`, `Protect`, `Shell`, `Reflect`, `Aura`, `Curse`, `Doom`, `Invincible`, `Petrifying`, `Float`, `Confuse`, `Drain`, `Double`, `Triple`, `Vit0` and `AngelWing`. A status document changes the contributions of an existing status. The native battle rules still determine when that status can take effect.
 
-The shipped defaults reduce Vitality by 50% and Spirit by 25%. Each current resolved stat uses `floor(stat * (100 - reductionPercent) / 100)`. The two stats are independent: zero keeps that stat unchanged, and 100 reduces it to zero. Existing stat/resource modifications therefore compose before the reduction. Physical damage uses the Vitality percentage; magical damage and magical status resistance use the Spirit percentage. Smart Attack forecasts use the same rules and give no status priority when neither stat would benefit.
+## Priority, battle state and names
 
-The percentages attach only when the existing Meltdown spell successfully applies the absent Meltdown status (the native Vit 0 bit), for enemies and players alike. Other Vit 0 producers retain their native behavior. Reapplication does not stack or replace a live effect; curing the status clears its percentages. Settings apply to new battles. Applied percentages are saved facts and survive reload. Older saves with a single percentage restore it to both stats, and saves without percentage data retain the native full reduction. Legacy schema1 payloads and scalar `defenseReductionPercent` configs remain readable; saving an option writes the separate current keys while preserving the other choice.
+For each status and stat, ordinary mod priority selects one complete operation and value. A local mod can set `priority` in `mod.ini`. Higher numbers load first, with equal priorities sorted by mod ID. An omitted field inherits the lower-priority value, including native defaults. Native Vit 0 reduces Vitality and Spirit by 100%. Different active statuses can contribute to the same stat in native status-bit order. Reapplying a status does not compound its contribution. A cure removes it, and any source that sets the status uses the same contribution.
 
-In **Hardcore**, Meltdown is required and uses fixed reductions of **50% Vitality and 25% Spirit**. The Meltdown toggle and both sliders display the enforced values and give the reason for the lock. You can save changes to the other unlocked components. Loading a non-Hardcore game or changing the Title profile restores the saved Meltdown preferences. New Game, save reconstruction and a transition to Hardcore require successful publication of the requested mod profile.
+A battle captures its resolved rules at entry and keeps them over a save and restore. Editing or disabling a mod changes the next battle. Settings are keyed by mod ID, status ID and stat ID. A mod may provide one document for each status. Duplicate status identities within a mod, unknown IDs or fields, and invalid bounds reject the candidate publication. The last successful publication stays active.
 
-Status-name declarations redirect the existing status localization identity to another existing kernel or authored interface key. The bundled declaration uses `"StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049"`, the Meltdown spell-name entry in the shared kernel schema. `{LANG}` means the original-resource language, independently of the selected translation's output language. English resources with a Russian translation still use `$en_kernel_magicspells_name_0049`; French resources use `$fr_kernel_magicspells_name_0049`. The engine does not create a new `$status` namespace or store a fixed English display name.
+The optional `name` refers to an existing localization key. In the example, `${LANG}` means the original-resource language. An English installation with an active Russian translation still uses the English kernel key for the Meltdown spell, and the localization layer supplies its Russian text. A literal source prefix such as `$en_` pins the key. Omitting `name` inherits the lower-priority or native label. Name references are display text and have no effect on status application or damage. Invalid or cyclic references reject the candidate publication.
 
-A package may provide explicit bindings when languages need different entries:
+In **Mods > Memoria > Settings**, expand **Meltdown** to adjust the bundled options. They default to a 50% Vitality reduction and a 25% Spirit reduction. Hardcore enables the mod and locks the options to its declared defaults. Leaving Hardcore restores the saved activation and option preferences.
 
-```json
-{
-  "schemaVersion": 2,
-  "meltdown": {
-    "StatusName_EN": "$en_kernel_magicspells_name_0049",
-    "StatusName_FR": "$fr_kernel_magicspells_name_0049",
-    "StatusName_{LANG}": "${LANG}_kernel_magicspells_name_0049"
-  }
-}
-```
-
-Within one package, the explicit source-language binding takes precedence over `StatusName_{LANG}`, then the legacy unqualified `StatusName`. An explicit binding may use a matching absolute prefix or `${LANG}`. An unqualified absolute key stays pinned to its declared language; it is never silently rewritten. Supported source languages are `en`, `fr`, `de`, `es`, `it` and `jp`, with `ja` accepted as an alias of `jp`. Suffixes and absolute language prefixes are case insensitive; duplicate canonical bindings and unknown placeholders are rejected. The remaining key identity keeps its case. Only the selected binding must exist in the active resource namespace, but all declarations must be syntactically valid.
-
-The native fallback is read from the selected kernel, including accepted resource replacements. Active translations are resolved when displaying the name, so localization changes take effect without altering a save. Omitting an applicable binding or disabling its owner restores the original status identity. Unknown targets and cycles reject the candidate change and preserve the committed name. The localization workbench sees the resolved target spell-name identity. Name declarations belong in the payload and cannot be overridden in `config.json`.
-
-Each numeric behavior parameter and the selected status-name binding has one active package owner. Two packages claiming the same parameter cause diagnostics naming both owners; the candidate configuration is rejected and the committed configuration remains active. Explicit and generic status bindings in different packages conflict if both apply to the current source language; specificity never overrides another package. Packages providing names only for different source languages can coexist. Packages declaring different numeric parameters can also coexist. No hidden load-order winner or multiplication is used. A config may override only its own package's declared numeric parameters. Unrelated packages' `config.json` files are left alone.
+## Other Memoria settings
 
 The built-in components appear under one **Memoria** entry with the silver Griever crest. Its settings group the components into collapsible categories. Bundled defaults live in `Data/BundledMods/Memoria` with the same resource paths and precedence. Choices saved through the Memoria settings live in `Mods/Memoria/memoria-settings.json` and take precedence over the corresponding older package preferences. Existing package preferences still supply values for settings you have yet to change in Memoria.
 

@@ -49,7 +49,8 @@ public sealed partial class Ff7BattleSession
                     Ff7BattleActionReceipt receipt;
                     if (guest || GetGuestProjection(slot) is not null)
                     {
-                        receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(description.Source, source, Stats(actor), target, attack, guest ? description.StatusRecord : Ff7GuestBattleStatuses.ProjectIncoming(description.StatusRecord), candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetOriginBattleStatuses(slot), GetOriginSavedStatuses(command.ActorSlot), GetOriginSavedStatuses(slot));
+                        Ff7BattleDamageActor sourceStats = guest ? ProjectGuestSourceStatusStats(command.ActorSlot, description.Source) : description.Source;
+                        receipt = Ff7NativeBattleActionResolver.ResolveGuestContact(sourceStats, source, Stats(actor), target, attack, guest ? description.StatusRecord : Ff7GuestBattleStatuses.ProjectIncoming(description.StatusRecord), candidateRandom, slot == command.ActorSlot, GetGuestProjection(slot)?.OriginStatusResistances, GetOriginBattleStatuses(slot), GetOriginSavedStatuses(command.ActorSlot), GetOriginSavedStatuses(slot));
                     }
                     else
                     {

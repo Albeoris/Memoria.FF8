@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 
@@ -10,42 +11,24 @@ internal sealed class GameplayTuningPolicy
     private bool hardcoreStatBonuses;
     internal const string ExtendedRosterPackageId = "Memoria/Extended FFVIII Roster";
     private readonly Dictionary<JunctionGameplaySetting, (decimal Value, string Owner)> settings = [];
-    private readonly Dictionary<string, (int Value, string Owner)> behaviorSettings = [];
-    private bool hardcoreMeltdown;
     public static GameplayTuningPolicy Empty { get; } = new();
     public bool ExtendedRosterEnabled { get; private init; }
     public bool LevelBasedStatBonusesEnabled { get; private init; }
+    public ImmutableArray<StatusStatModifier> StatusStatModifiers { get; private init; } = [];
 
-    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, BehaviorMods? behaviorMods = null, string sourceLanguage = "en")
+    public static GameplayTuningPolicy FromCatalog(ModCatalogSnapshot catalog, StatusMods? statusMods = null)
     {
-        if (behaviorMods is null && !BehaviorMods.TryPrepare(catalog, out behaviorMods, out IReadOnlyList<ModDiagnostic> diagnostics, sourceLanguage))
+        if (statusMods is null && !StatusMods.TryPrepare(catalog, out statusMods, out IReadOnlyList<ModDiagnostic> diagnostics))
         {
             throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(diagnostic => diagnostic.Message)));
         }
-        if (catalog.Hardcore && catalog.Packages.Any(package => package.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) && package.Status == ModEffectiveStatus.Active) && (!string.Equals(behaviorMods.MeltdownVitalityPackageId, "Memoria/Meltdown", StringComparison.OrdinalIgnoreCase) || !string.Equals(behaviorMods.MeltdownSpiritPackageId, "Memoria/Meltdown", StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new InvalidDataException("Hardcore requires the installed Meltdown package to declare both VitalityReductionPercent and SpiritReductionPercent.");
-        }
         GameplayTuningPolicy policy = new()
         {
+            StatusStatModifiers = statusMods.Modifiers,
             ExtendedRosterEnabled = catalog.Packages.Any(package => package.IsBundled && package.Status == ModEffectiveStatus.Active && package.Id.Equals(ExtendedRosterPackageId, StringComparison.OrdinalIgnoreCase)),
             LevelBasedStatBonusesEnabled = catalog.Packages.Any(package => package.IsBundled && package.Status == ModEffectiveStatus.Active && package.Id.Equals(LevelBasedStatBonusesPackageId, StringComparison.OrdinalIgnoreCase))
         };
         policy.hardcoreStatBonuses = catalog.Hardcore && policy.LevelBasedStatBonusesEnabled;
-        AddBehavior(nameof(GameplayTuning.MeltdownVitalityReductionPercent), behaviorMods.MeltdownVitalityReductionPercent, behaviorMods.MeltdownVitalityPackageId, BehaviorMods.HardcoreVitalityReductionPercent);
-        AddBehavior(nameof(GameplayTuning.MeltdownSpiritReductionPercent), behaviorMods.MeltdownSpiritReductionPercent, behaviorMods.MeltdownSpiritPackageId, BehaviorMods.HardcoreSpiritReductionPercent);
-
-        void AddBehavior(string field, int? value, string? packageId, int hardcoreValue)
-        {
-            if (value is not int reduction)
-            {
-                return;
-            }
-            ModPackage owner = catalog.Packages.Single(package => package.Id.Equals(packageId, StringComparison.OrdinalIgnoreCase));
-            bool required = catalog.Hardcore && owner.Id.Equals("Memoria/Meltdown", StringComparison.OrdinalIgnoreCase);
-            policy.hardcoreMeltdown |= required;
-            policy.behaviorSettings.Add(field, (required ? hardcoreValue : reduction, owner.Name));
-        }
         foreach (ModPackage package in catalog.Packages.Where(package => package.Format == ModFormat.Junction && package.Status == ModEffectiveStatus.Active))
         {
             foreach (JunctionGameplayOverride setting in package.JunctionMetadata?.GameplayOverrides ?? [])
@@ -79,15 +62,6 @@ internal sealed class GameplayTuningPolicy
                 _ => throw new NotSupportedException($"Unsupported gameplay setting {setting}.")
             };
         }
-        foreach (var (field, behavior) in behaviorSettings)
-        {
-            result = field switch
-            {
-                nameof(GameplayTuning.MeltdownVitalityReductionPercent) => result with { MeltdownVitalityReductionPercent = behavior.Value },
-                nameof(GameplayTuning.MeltdownSpiritReductionPercent) => result with { MeltdownSpiritReductionPercent = behavior.Value },
-                _ => throw new NotSupportedException($"Unsupported behavior setting {field}.")
-            };
-        }
         result.Validate();
         return result;
     }
@@ -97,10 +71,6 @@ internal sealed class GameplayTuningPolicy
         if (field == nameof(GameplayTuning.LevelBasedStatBonuses) && LevelBasedStatBonusesEnabled)
         {
             return hardcoreStatBonuses ? ModRuntime.HardcoreStatBonusesLockReason : "Controlled by Level-Based Stat Bonuses. Disable the mod to release this rule.";
-        }
-        if (behaviorSettings.TryGetValue(field, out var behavior))
-        {
-            return hardcoreMeltdown ? ModRuntime.HardcoreMeltdownLockReason : $"Controlled by {behavior.Owner}. Change its mod option to release this rule.";
         }
         foreach (var (setting, entry) in settings)
         {
@@ -134,7 +104,7 @@ internal sealed class GameplayTuningPolicy
         return configured;
     }
 
-    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(behaviorSettings.Keys).Concat(LevelBasedStatBonusesEnabled ? [nameof(GameplayTuning.LevelBasedStatBonuses)] : []).Distinct();
+    private IEnumerable<string> ControlledFields => settings.Keys.Select(Field).Concat(LevelBasedStatBonusesEnabled ? [nameof(GameplayTuning.LevelBasedStatBonuses)] : []).Distinct();
 
     private static string Field(JunctionGameplaySetting setting) => setting switch
     {

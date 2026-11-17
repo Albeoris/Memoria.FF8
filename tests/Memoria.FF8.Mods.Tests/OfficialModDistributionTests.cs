@@ -294,6 +294,62 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.False(Directory.Exists(Mods));
     }
 
+    [Fact]
+    public async Task OfficialInstallerUsesTheSameStatusValidationAsDiscovery()
+    {
+        const string statusFile = "statuses/nested/arbitrary.json";
+        var (validPath, validEntry) = Package("1.1.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [statusFile] = """{"id":"Poison","statModifiers":{"Strength":{"operation":"ReducePercent","value":20}}}"""u8.ToArray()
+        });
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan valid = await installer.InspectAsync(validPath, validEntry, Token);
+        await installer.DiscardAsync(valid, Token);
+
+        var (invalidPath, invalidEntry) = Package("1.2.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [statusFile] = """{"id":"Poison","statModifiers":{"Strength":{"operation":"ReducePercent","value":200}}}"""u8.ToArray()
+        });
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => installer.InspectAsync(invalidPath, invalidEntry, Token));
+        Assert.Contains("between 0 and 100", error.Message);
+        Assert.False(Directory.Exists(Mods));
+    }
+
+    [Fact]
+    public async Task OfficialStatusPackageCanReplaceTheBundledDescriptorWithTheSameId()
+    {
+        const string id = "memoria-meltdown";
+        const string packageId = "Memoria/memoria-meltdown";
+        const string setting = "memoria-meltdown/Vit0/Vitality";
+        const string relativePath = "statuses/vit0.json";
+        string bundled = Path.Combine(root, "BundledMods", "Memoria", "Meltdown");
+        Directory.CreateDirectory(Path.Combine(bundled, "statuses"));
+        File.WriteAllText(Path.Combine(bundled, "mod.json"), """{"id":"memoria-meltdown","name":"Meltdown","package":"Memoria","description":{"en":"Bundled status rules."}}""");
+        File.WriteAllText(Path.Combine(bundled, relativePath), """{"id":"Vit0","statModifiers":{"Vitality":{"operation":"ReducePercent","value":{"default":50}}}}""");
+
+        OfficialModComponent component = new(id, "Memoria", packageId, id, "Meltdown", "Downloaded status rules.", "Battle", "memoria-native", "download", true, new("FFVIII", ["Classic"], ["*"]), null);
+        var (path, entry) = Package("1.0.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [relativePath] = """{"id":"Vit0","statModifiers":{"Vitality":{"operation":"ReducePercent","value":{"default":55}}}}"""u8.ToArray()
+        }, component: component);
+        Assert.Equal(packageId, Assert.Single(OfficialModCatalog.Parse(Catalog(1, entry.Official!)).Components).RuntimePackageId);
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan plan = await installer.InspectAsync(path, entry, Token);
+        Assert.True((await installer.RequestInstallAsync(plan, false, Token)).RestartRequired);
+        Assert.True(Assert.Single(installer.RecoverAndApply()).Installed);
+
+        using ModRuntime runtime = new(root, watch: false, modsDirectory: Mods);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        ModPackage active = Assert.Single(runtime.Catalog.Packages);
+        Assert.Equal(packageId, active.Id);
+        Assert.Equal(id, active.Official?.Id);
+        Assert.Equal(ModEffectiveStatus.Active, active.Status);
+        Assert.Equal(55, Assert.Single(runtime.ReadBehaviorSettings(packageId), option => option.Parameter == setting).Value);
+        Assert.True(Assert.Single(installer.CompleteStartupApplications([packageId])).Installed);
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "duplicate-package");
+    }
+
     [Theory]
     [InlineData("mod.ini")]
     [InlineData("settings/MOD.INI")]

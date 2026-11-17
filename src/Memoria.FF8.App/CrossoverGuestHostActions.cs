@@ -98,7 +98,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
         {
             fire = fire with { Presentation = CrossoverNativeMagicPresentation.Restore(fire.Presentation) };
         }
-        this.kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow) with { ParameterTuning = encounter.ParameterTuning };
+        this.kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow);
         attack.ReprojectKit(this.kit);
         Ff7BattleGuestProjection currentProjection = Projection(this.kit);
         Ff7BattleGuestProjection savedProjection = host.GetGuestProjection(ActorSlot) ?? throw new InvalidDataException("The host guest has no original stat binding.");
@@ -123,7 +123,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestAttack,
 
     internal void ReprojectWorkingKit()
     {
-        kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow) with { ParameterTuning = encounter.ParameterTuning };
+        kit = CrossoverFf8BattleKit.Read(encounter.Working, assets, kit.CharacterId, kit.RecordRow);
         attack.ReprojectKit(kit);
         host.ReprojectGuestVitals(ActorSlot, Projection(kit));
     }

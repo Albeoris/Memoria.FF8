@@ -29,7 +29,8 @@ public sealed partial class MenuController
 
     private void RegisterModSettingsScreen()
     {
-        string? packageName = modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name;
+        string? packageName = modService?.View.Packages.FirstOrDefault(view => view.Package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Package.Name
+            ?? modService?.InstalledPackages.FirstOrDefault(package => package.Id.Equals(modSettingsPackageId, StringComparison.OrdinalIgnoreCase))?.Name;
         Register(new MenuScreenDefinition
         {
             Id = "mod-settings",
@@ -46,7 +47,17 @@ public sealed partial class MenuController
 
     private string ModSettingLabel(BehaviorModSetting setting)
     {
+        if (setting.Stat is { } stat)
+        {
+            return setting.LabelTranslations is null ? StatusStatLabel(stat) : setting.LabelForLanguage(interfaceLanguage?.Invoke());
+        }
         return setting.Descriptor?.Name ?? SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}", setting.Label);
+    }
+
+    private string StatusStatLabel(Memoria.FF8.Runtime.BattleStatId stat)
+    {
+        string name = stat.ToString();
+        return SystemText("stat." + name.ToLowerInvariant(), name);
     }
 
     private string ModSettingDescription(BehaviorModSetting setting)
@@ -54,6 +65,10 @@ public sealed partial class MenuController
         if (setting.Descriptor is { } descriptor)
         {
             return descriptor.DescriptionForLanguage(interfaceLanguage?.Invoke());
+        }
+        if (setting.Stat is not null)
+        {
+            return setting.DescriptionForLanguage(interfaceLanguage?.Invoke());
         }
         if (modSettingsPackageId == ModRuntime.MemoriaPackageId && setting is { Behavior: "component", Parameter: "Level-Based Stat Bonuses" })
         {
@@ -119,7 +134,7 @@ public sealed partial class MenuController
         {
             help += "\n" + CurrentBindingText(ControlAction.Card) + " · " + ModSettingsExpansionLabel(isExpanded);
         }
-        string id = modLibrary is null && setting.Descriptor is null ? "mod-setting-" + index : SettingId(setting);
+        string id = modLibrary is null && setting.Descriptor is null && setting.Stat is null ? "mod-setting-" + index : SettingId(setting);
         return new(new(id, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
     }
 

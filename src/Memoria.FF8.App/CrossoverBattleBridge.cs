@@ -119,7 +119,6 @@ internal sealed record CrossoverFf8BattleKit(int RecordRow, ushort HitPoints, in
     public byte CharacterId { get; init; }
     public uint StatusPassives { get; init; }
     public byte RenzokukenPower { get; init; }
-    public GameplayTuning ParameterTuning { get; init; } = new();
 
     public string? OpeningCombatUnavailableReason()
     {

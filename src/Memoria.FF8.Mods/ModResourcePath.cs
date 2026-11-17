@@ -8,7 +8,7 @@ internal static class ModResourcePath
     {
         if (string.IsNullOrWhiteSpace(reference))
         {
-            throw new InvalidDataException("An image path is required.");
+            throw new InvalidDataException("A mod resource path is required.");
         }
 
         bool fromRoot = reference.StartsWith('/');

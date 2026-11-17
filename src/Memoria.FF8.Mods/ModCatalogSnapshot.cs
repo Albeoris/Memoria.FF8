@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 
 namespace Memoria.FF8.Mods;
@@ -23,6 +24,8 @@ public sealed class ModCatalogSnapshot
         }
     }
 
+    internal ImmutableDictionary<string, int> StatusPreferences { get; init; } = ImmutableDictionary<string, int>.Empty;
+    internal StatusMods? PreparedStatusMods { get; set; }
     public bool Hardcore { get; init; }
     public long Generation { get; }
     public ReadOnlyCollection<ModPackage> Packages { get; }

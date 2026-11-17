@@ -1,7 +1,10 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Save-owned optional numeric rules, independent of the resource package that requested them.</summary>
-public sealed record GameplayTuning
+public sealed record GameplayTuning : IJsonOnDeserialized
 {
     public int DrawBonus { get; init; }
     public int ApMultiplier { get; init; } = 1;
@@ -13,32 +16,34 @@ public sealed record GameplayTuning
     /// <summary>The default retains native per-action primary caps; other values override the primary damage cap.</summary>
     public int MaximumDamage { get; init; } = 9999;
     public RareItemProbabilities RareItem { get; init; } = new();
-    private int? meltdownVitalityReductionPercent;
-    private int? meltdownSpiritReductionPercent;
-    private int? legacyMeltdownReductionPercent;
-    /// <summary>Vitality reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
-    public int MeltdownVitalityReductionPercent
-    {
-        get => meltdownVitalityReductionPercent ?? legacyMeltdownReductionPercent ?? 100;
-        init => meltdownVitalityReductionPercent = value;
-    }
-    /// <summary>Spirit reduction recorded when Meltdown newly applies Vit0; the default retains native behavior.</summary>
-    public int MeltdownSpiritReductionPercent
-    {
-        get => meltdownSpiritReductionPercent ?? legacyMeltdownReductionPercent ?? 100;
-        init => meltdownSpiritReductionPercent = value;
-    }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public int? MeltdownDefenseReductionPercent
-    {
-        get => null;
-        init => legacyMeltdownReductionPercent = value;
-    }
     public bool UnrestrictedScanRotation { get; init; }
+
+    [JsonInclude, JsonExtensionData]
+    internal Dictionary<string, JsonElement>? UnrecognizedProperties { get; private set; }
+    private bool HasLegacyStatusStatTuning { get; set; }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        HasLegacyStatusStatTuning = LegacyStatusStatSnapshot.HasSourceSpecificPercentages(UnrecognizedProperties);
+        UnrecognizedProperties = null;
+    }
+
+    public void RequireCurrentBattleStatusRules()
+    {
+        if (HasLegacyStatusStatTuning)
+        {
+            throw new InvalidDataException("This battle snapshot uses source-specific stat rules. Migrate it explicitly to battle-owned status stat modifiers.");
+        }
+    }
+
+    internal GameplayTuning DiscardLegacyStatusStatTuning()
+    {
+        return HasLegacyStatusStatTuning ? this with { HasLegacyStatusStatTuning = false } : this;
+    }
 
     public bool Equals(GameplayTuning? other)
     {
-        return other is not null && DrawBonus == other.DrawBonus && ApMultiplier == other.ApMultiplier && ExperienceMultiplier == other.ExperienceMultiplier && GuardianExperienceMultiplier == other.GuardianExperienceMultiplier && UnlimitedMagic == other.UnlimitedMagic && LevelBasedStatBonuses == other.LevelBasedStatBonuses && MaximumDamage == other.MaximumDamage && RareItem == other.RareItem && MeltdownVitalityReductionPercent == other.MeltdownVitalityReductionPercent && MeltdownSpiritReductionPercent == other.MeltdownSpiritReductionPercent && UnrestrictedScanRotation == other.UnrestrictedScanRotation;
+        return other is not null && DrawBonus == other.DrawBonus && ApMultiplier == other.ApMultiplier && ExperienceMultiplier == other.ExperienceMultiplier && GuardianExperienceMultiplier == other.GuardianExperienceMultiplier && UnlimitedMagic == other.UnlimitedMagic && LevelBasedStatBonuses == other.LevelBasedStatBonuses && MaximumDamage == other.MaximumDamage && RareItem == other.RareItem && UnrestrictedScanRotation == other.UnrestrictedScanRotation;
     }
 
     public override int GetHashCode()
@@ -52,15 +57,13 @@ public sealed record GameplayTuning
         hash.Add(LevelBasedStatBonuses);
         hash.Add(MaximumDamage);
         hash.Add(RareItem);
-        hash.Add(MeltdownVitalityReductionPercent);
-        hash.Add(MeltdownSpiritReductionPercent);
         hash.Add(UnrestrictedScanRotation);
         return hash.ToHashCode();
     }
 
     public void Validate()
     {
-        if (MeltdownVitalityReductionPercent is < 0 or > 100 || MeltdownSpiritReductionPercent is < 0 or > 100 || DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
+        if (DrawBonus is < 0 or > 100 || ApMultiplier is < 0 or > 100 || ExperienceMultiplier is < 0 or > 100 || GuardianExperienceMultiplier is < 0 or > 100 || MaximumDamage is < 0 or > 100000 || RareItem is null)
         {
             throw new InvalidDataException("Gameplay rule values exceed their supported ranges.");
         }

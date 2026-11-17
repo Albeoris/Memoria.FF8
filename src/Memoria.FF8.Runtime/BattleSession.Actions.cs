@@ -162,7 +162,9 @@ public sealed partial class BattleSession
             }
             // Original492C40/48F600 physical integer damage and mitigation.
             bool gunblade = IsGunbladeAttack(actor, command.Ability);
-            int damage = gunblade ? NativeGunbladeAttack.Damage(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte(), ResolveGunbladeTiming(actor, target, command)) : NativeBattleDamage.Physical(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte());
+            int strength = EffectiveStat(actor, BattleStatId.Strength);
+            int vitality = EffectiveStat(target, BattleStatId.Vitality);
+            int damage = gunblade ? NativeGunbladeAttack.Damage(strength, vitality, actor.PhysicalPower, NextRandomByte(), ResolveGunbladeTiming(actor, target, command)) : NativeBattleDamage.Physical(strength, vitality, actor.PhysicalPower, NextRandomByte());
             if (actor.ElementAttack != 0)
             {
                 int element = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.ElementAttack);
@@ -199,7 +201,8 @@ public sealed partial class BattleSession
             {
                 case BattleActionEffect.Damage:
                     // Original491AD0/48FE20 magic and GF damage over current native statistic inputs.
-                    int damage = command.Ability == BattleAbility.GuardianForce ? NativeBattleDamage.GuardianForce(recipient.Spirit, action.Power, action.Level, action.LevelPowerCoefficient, action.ConstantPower, action.DamagePercent, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, recipient.Spirit, action.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
+                    int spirit = EffectiveStat(recipient, BattleStatId.Spirit);
+                    int damage = command.Ability == BattleAbility.GuardianForce ? NativeBattleDamage.GuardianForce(spirit, action.Power, action.Level, action.LevelPowerCoefficient, action.ConstantPower, action.DamagePercent, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, spirit, action.Power, NextRandomByte(), !actor.IsPlayer, Difficulty);
                     if (HasStatus(recipient, BattleStatusKind.Shell))
                     {
                         damage >>= 1;

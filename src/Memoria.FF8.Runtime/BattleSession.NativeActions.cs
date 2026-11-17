@@ -354,7 +354,7 @@ public sealed partial class BattleSession
                     Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
                     return;
                 }
-                int spirit = EffectiveNativeDefense(recipient, recipient.Spirit, false);
+                int spirit = EffectiveStat(recipient, BattleStatId.Spirit);
                 damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer, Difficulty));
             }
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
@@ -407,7 +407,7 @@ public sealed partial class BattleSession
             {
                 MarkNativeContactFlags(0, 2);
             }
-            int vitality = native.AttackType == 36 ? 0 : EffectiveNativeDefense(recipient, recipient.Defense, true);
+            int vitality = native.AttackType == 36 ? 0 : EffectiveStat(recipient, BattleStatId.Vitality);
             if (native.AttackType == 7 && (recipient.NativeCombatantFlags & 0x10000) != 0)
             {
                 MarkNativeContactFlags(0, 4);
@@ -417,8 +417,8 @@ public sealed partial class BattleSession
                 7 => (recipient.NativeCombatantFlags & 0x10000) != 0 ? 0 : native.Power * recipient.CurrentHp / 16,
                 18 => 5 * actor.MaximumHp,
                 34 => recipient.IsPlayer ? native.Power * recipient.NativeKillCount : 0,
-                10 => NativeGunbladeAttack.Damage(actor.Attack, vitality, native.Power, NextRandomByte(), ResolveGunbladeTiming(actor, recipient, command)),
-                _ => NativeBattleDamage.Physical(actor.Attack, vitality, native.Power, NextRandomByte())
+                10 => NativeGunbladeAttack.Damage(EffectiveStat(actor, BattleStatId.Strength), vitality, native.Power, NextRandomByte(), ResolveGunbladeTiming(actor, recipient, command)),
+                _ => NativeBattleDamage.Physical(EffectiveStat(actor, BattleStatId.Strength), vitality, native.Power, NextRandomByte())
             };
             if ((statuses & 0x20) != 0)
             {
@@ -444,7 +444,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            int spirit = native.AttackType is 15 or 22 ? 0 : EffectiveNativeDefense(recipient, recipient.Spirit, false);
+            int spirit = native.AttackType is 15 or 22 ? 0 : EffectiveStat(recipient, BattleStatId.Spirit);
             bool magic = native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
             bool magicCure = native.AttackType is 3 or 21;
             bool fixedDamage = native.AttackType is 27 or 28 or 29 or 35;

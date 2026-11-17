@@ -22,7 +22,6 @@ internal sealed class CrossoverGuestEncounter
     public CrossoverGuestAudioState Audio { get; set; }
     public CrossoverGuestItemInventory? Items { get; set; }
     public byte? OriginBattleSpeed { get; init; }
-    public GameplayTuning ParameterTuning { get; init; } = new();
     public CrossoverGuestLimitLearningSettlement LimitLearning { get; set; }
 
     public CrossoverGuestEncounter(CrossoverBattleRoster roster, NativeCharacterVitals origin, Ff7BattleSession host, NativeGlobalRandomState globalRandom, NativeCrtRandomState? crt, GameplaySaveEconomy? economy, CrossoverGuestEncounterSnapshot? saved)

@@ -1,3 +1,5 @@
+using Memoria.Battle;
+
 namespace Memoria.FF7.Runtime;
 
 /// <summary>A source status owns a nonstacking percentage reduction of the host's defensive parameters.</summary>
@@ -14,6 +16,6 @@ public sealed record Ff7BattleParameterOperation(uint SourceStatusMask, int Resi
     public Ff7BattleDamageActor Project(Ff7BattleDamageActor actor)
     {
         Validate();
-        return actor with { Defense = checked((ushort)(actor.Defense * (100 - DefenseReductionPercent) / 100)), MagicDefense = checked((ushort)(actor.MagicDefense * (100 - MagicDefenseReductionPercent) / 100)), ParameterStatus = this };
+        return actor with { Defense = checked((ushort)(StatusStatScaling.ReducePercent(actor.Defense, DefenseReductionPercent))), MagicDefense = checked((ushort)(StatusStatScaling.ReducePercent(actor.MagicDefense, MagicDefenseReductionPercent))), ParameterStatus = this };
     }
 }

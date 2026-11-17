@@ -7,7 +7,7 @@ public sealed partial class ModRuntime
 {
     public const string MemoriaPackageId = "Memoria";
     public const string Ff7EnemyIntegrationPackageId = "Memoria/FF7EnemyIntegration";
-    internal const string MeltdownPackageId = "Memoria/Meltdown";
+    internal const string MemoriaSettingsFile = "memoria-settings.json";
     private const string Ff7BridgeLockReason = "The transition from FFVIII enables FFVII Enemy Integration in Automatic mode.";
     private const string ComponentBehavior = "component";
     private const string SettingsGroupPrefix = "Memoria:";
@@ -15,15 +15,15 @@ public sealed partial class ModRuntime
 
     private bool forceFf7EnemyIntegration;
     private readonly Dictionary<string, IReadOnlyList<BehaviorModSetting>> memoriaSettingsViews = new(StringComparer.OrdinalIgnoreCase);
-    private string MemoriaSettingsPath => Path.Combine(modsRoot, "Memoria", BehaviorMods.MemoriaSettingsFile);
+    private string MemoriaSettingsPath => Path.Combine(modsRoot, "Memoria", MemoriaSettingsFile);
 
     private sealed class MemoriaSettings
     {
         [JsonPropertyName("components")]
         public Dictionary<string, bool> Components { get; init; } = new(StringComparer.Ordinal);
 
-        [JsonPropertyName("meltdown")]
-        public Dictionary<string, int> Meltdown { get; init; } = new(StringComparer.Ordinal);
+        [JsonPropertyName("statusSettings")]
+        public Dictionary<string, int> StatusSettings { get; init; } = new(StringComparer.Ordinal);
     }
 
     public bool SetFf7BridgeEnemyIntegration(bool enabled)
@@ -44,9 +44,9 @@ public sealed partial class ModRuntime
 
     private string? RequiredPackageReason(string packageId)
     {
-        if (IsRequiredHardcorePackage(packageId))
+        if (DifficultyModPolicy.LockReason(hardcore, packageId) is { } difficultyReason)
         {
-            return packageId.Equals(MeltdownPackageId, StringComparison.OrdinalIgnoreCase) ? HardcoreMeltdownLockReason : HardcoreStatBonusesLockReason;
+            return difficultyReason;
         }
         return forceFf7EnemyIntegration && packageId.Equals(Ff7EnemyIntegrationPackageId, StringComparison.OrdinalIgnoreCase) ? Ff7BridgeLockReason : null;
     }
@@ -71,7 +71,7 @@ public sealed partial class ModRuntime
         return MemoriaComponents.Any(component => component.Delivery == "engine" && (component.SettingsKey.Equals(key, StringComparison.OrdinalIgnoreCase) || component.RuntimePackageId.Equals(id, StringComparison.OrdinalIgnoreCase)));
     }
 
-    private static NativeModDescriptor? ReadPackageDescriptor(string root, OfficialModComponent? official, bool previouslyDescribed, bool isBundledComponent)
+    private static NativeModDescriptor? ReadPackageDescriptor(string root, OfficialModComponent? official, bool previouslyDescribed)
     {
         string[] paths = Directory.EnumerateFileSystemEntries(root).Where(path => Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (paths.Length == 0)
@@ -87,7 +87,7 @@ public sealed partial class ModRuntime
             throw new InvalidDataException($"Use exactly one root descriptor named '{NativeModDescriptor.FileName}'.");
         }
         NativeModDescriptor descriptor = NativeModDescriptor.Read(paths[0]);
-        if (isBundledComponent || IsBundledMemoriaIdentity(descriptor.RuntimePackageId, descriptor.Id))
+        if (IsBundledMemoriaIdentity(descriptor.RuntimePackageId, descriptor.Id))
         {
             throw new InvalidDataException("A native mod descriptor conflicts with a bundled component.");
         }
@@ -109,22 +109,17 @@ public sealed partial class ModRuntime
         MemoriaSettings? settings;
         try
         {
-            settings = JsonSerializer.Deserialize<MemoriaSettings>(content);
+            settings = JsonSerializer.Deserialize<MemoriaSettings>(content, new JsonSerializerOptions { AllowDuplicateProperties = false });
         }
         catch (JsonException exception)
         {
             throw new InvalidDataException("Invalid Memoria settings document.", exception);
         }
-        if (settings?.Components is null || settings.Meltdown is null)
+        if (settings?.Components is null || settings.StatusSettings is null)
         {
             throw new InvalidDataException("Invalid Memoria settings document.");
         }
         return settings;
-    }
-
-    internal static IReadOnlyDictionary<string, int>? ReadMemoriaMeltdownSettings(ModFile? file)
-    {
-        return file is null ? null : ParseMemoriaSettings(file.ReadBytes()).Meltdown;
     }
 
     private static string? MemoriaComponentSettingsKey(string packageId, OfficialModComponent? official, NativeModDescriptor? descriptor)
@@ -170,22 +165,6 @@ public sealed partial class ModRuntime
                     Description = component.Description,
                     Unit = string.Empty
                 });
-                if (component.RuntimePackageId == MeltdownPackageId)
-                {
-                    try
-                    {
-                        IReadOnlyList<BehaviorModSetting> behavior = ReadBehaviorSettingsCore(package, freshConfiguration: true, overrides: settings.Meltdown);
-                        if (applyLocks)
-                        {
-                            behavior = ApplyBehaviorSettingPolicy(package, behavior);
-                        }
-                        result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.SettingsKey }));
-                    }
-                    catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
-                    {
-                        // The catalog reports the invalid document. Keep the component toggle available.
-                    }
-                }
             }
         }
         foreach (ModPackage package in installedPackages.Where(package => (package.Descriptor is not null || package.Official is not null && !package.IsBundled)
@@ -194,7 +173,7 @@ public sealed partial class ModRuntime
             NativeModDescriptor? descriptor = package.Descriptor;
             OfficialModComponent? component = package.Official;
             bool enabledByDefault = ReadPackageEnabled(package) ?? autoEnable;
-            bool enabled = MemoriaComponentPreference(settings, package.Id, component, descriptor) ?? enabledByDefault;
+            bool enabled = (applyLocks && RequiredPackageReason(package.Id) is not null) || (MemoriaComponentPreference(settings, package.Id, component, descriptor) ?? enabledByDefault);
             result.Add(new(ComponentBehavior, descriptor?.Id ?? component!.SettingsKey, package.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
             {
                 Category = descriptor is null ? component!.Category : string.Empty,
@@ -203,6 +182,17 @@ public sealed partial class ModRuntime
                 Descriptor = descriptor,
                 Unit = string.Empty
             });
+            if (descriptor is not null)
+            {
+                try
+                {
+                    result.AddRange(ReadStatusSettings(package, settings, applyLocks).Select(setting => setting with { ParentComponent = descriptor.Id }));
+                }
+                catch (Exception exception) when (StatusMods.IsDocumentError(exception))
+                {
+                    // A rejected package can still be disabled from its settings group.
+                }
+            }
         }
         return result;
     }
@@ -226,7 +216,7 @@ public sealed partial class ModRuntime
                 }
                 else
                 {
-                    settings.Meltdown[change.Parameter] = change.Value;
+                    settings.StatusSettings[change.Parameter] = change.Value;
                 }
             }
             WriteMemoriaSettings(settings);
@@ -234,7 +224,7 @@ public sealed partial class ModRuntime
             RequestRefreshCore(DateTime.MinValue);
             return ModOperationResult.Completed;
         }
-        catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
+        catch (Exception exception) when (StatusMods.IsDocumentError(exception))
         {
             return OperationFailed(exception, groupId);
         }

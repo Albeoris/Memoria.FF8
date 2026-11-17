@@ -43,30 +43,32 @@ public sealed class MeltdownStatusNameTests
     }
 
     [Theory]
-    [InlineData("StatusName", "$en_kernel_magicspells_name_0049")]
-    [InlineData("StatusName_EN", "$en_kernel_magicspells_name_0049")]
-    [InlineData("StatusName_{LANG}", "${LANG}_kernel_magicspells_name_0049")]
-    public void InstalledHostPublishesNameReferenceAndKeepsPreviousNameWhenReferenceIsInvalid(string nameProperty, string reference)
+    [InlineData("Vit0", "${LANG}_kernel_magicspells_name_0049", "battle.status.vit-0", "Vit 0", "Meltdown")]
+    [InlineData("Poison", "$en_kernel_magicspells_name_0049", "battle.status.poison", "Poison", "Meltdown")]
+    public void InstalledHostPublishesNameReferenceAndKeepsPreviousNameWhenReferenceIsInvalid(string id, string reference, string semanticId, string nativeName, string expected)
     {
         using IsolatedFieldGame game = new();
         string root = Path.Combine(Path.GetTempPath(), "ff8-status-name-" + Guid.NewGuid().ToString("N"));
         string mods = Path.Combine(root, "Mods");
-        string payload = Path.Combine(mods, "Memoria", "StatusName", "gameplay", "behaviors.json");
+        string package = Path.Combine(mods, "Memoria", "StatusName");
+        string payload = Path.Combine(package, "statuses", "names", "alias.json");
         Directory.CreateDirectory(Path.GetDirectoryName(payload)!);
-        File.WriteAllText(payload, JsonSerializer.Serialize(new { schemaVersion = 2, meltdown = new Dictionary<string, string> { [nameProperty] = reference } }));
+        File.WriteAllText(Path.Combine(package, "mod.json"), """{"id":"status-name","name":"Status names","package":"Memoria","description":{"en":"Overrides a status name."}}""");
+        File.WriteAllText(payload, JsonSerializer.Serialize(new { id, name = reference }));
+        string key = SystemTextCatalog.Key(semanticId);
         try
         {
             using GameResourceHost host = new(game.GameDirectory, Path.Combine(root, "Application"), watch: false, modsDirectory: mods);
             Assert.Equal(ModEffectiveStatus.Active, Assert.Single(host.Mods.Catalog.Packages).Status);
-            Assert.Equal("Meltdown", host.Resources.Localize(StatusKey, "Vit 0"));
-            File.WriteAllText(payload, "{\"schemaVersion\":2,\"meltdown\":{\"StatusName\":\"$en_kernel_magicspells_name_9999\"}}");
+            Assert.Equal(expected, host.Resources.Localize(key, nativeName));
+            File.WriteAllText(payload, JsonSerializer.Serialize(new { id, name = "$en_kernel_magicspells_name_9999" }));
             host.Mods.RequestRefresh();
             Assert.False(host.Pump(true));
-            Assert.Equal("Meltdown", host.Resources.Localize(StatusKey, "Vit 0"));
-            Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.InvalidStatusNameReference" && diagnostic.PackageId == "Memoria/StatusName");
-            Assert.True(host.Mods.SetEnabled("Memoria/StatusName", false).Success);
+            Assert.Equal(expected, host.Resources.Localize(key, nativeName));
+            Assert.Contains(host.Mods.Diagnostics, diagnostic => diagnostic.Code == "Memoria.InvalidStatusNameReference" && diagnostic.PackageId == "Memoria/status-name");
+            Assert.True(host.Mods.SetEnabled("Memoria/status-name", false).Success);
             Assert.True(host.Pump(true));
-            Assert.Equal("Vit 0", host.Resources.Localize(StatusKey, "Vit 0"));
+            Assert.Equal(nativeName, host.Resources.Localize(key, nativeName));
         }
         finally
         {

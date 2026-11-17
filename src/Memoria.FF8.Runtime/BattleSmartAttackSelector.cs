@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleSmartAttackCandidate(BattleActionDefinition Action, int Available, int Stock, int Casts, BattleDamageForecast Forecast, string? DrawSourceId = null, int? DrawSourceIndex = null, bool CanApplyMeltdown = false);
+public sealed record BattleSmartAttackCandidate(BattleActionDefinition Action, int Available, int Stock, int Casts, BattleDamageForecast Forecast, string? DrawSourceId = null, int? DrawSourceIndex = null, bool CanApplyParameterStatus = false);
 
 /// <summary>Ranks source-owned Smart Attack choices independently of the battle hosting them.</summary>
 public static class BattleSmartAttackSelector
@@ -20,10 +20,10 @@ public static class BattleSmartAttackSelector
                 return Preview(physical, sufficient[0]);
             }
         }
-        var meltdown = candidates.Where(candidate => candidate.CanApplyMeltdown).OrderByDescending(candidate => candidate.DrawSourceId is not null).ThenBy(candidate => candidate.DrawSourceIndex).ToArray();
-        if (meltdown.Length > 0)
+        var parameterStatus = candidates.Where(candidate => candidate.CanApplyParameterStatus).OrderByDescending(candidate => candidate.DrawSourceId is not null).ThenBy(candidate => candidate.DrawSourceIndex).ToArray();
+        if (parameterStatus.Length > 0)
         {
-            return Preview(physical, meltdown[0]);
+            return Preview(physical, parameterStatus[0]);
         }
         var strongest = candidates.OrderByDescending(candidate => candidate.Forecast.ExpectedDamage).ThenByDescending(candidate => candidate.DrawSourceId is not null).ThenByDescending(candidate => candidate.Available).ThenBy(candidate => candidate.Action.Id).ThenBy(candidate => candidate.DrawSourceIndex).ToArray();
         if (strongest.Length > 0 && strongest[0].Forecast.ExpectedDamage > 0 && strongest[0].Forecast.ExpectedDamage > physical.ExpectedDamage)

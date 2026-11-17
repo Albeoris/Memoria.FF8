@@ -131,14 +131,14 @@ public sealed partial class BattleSession
         return unchecked((ushort)(1u << index));
     }
 
-    private static int NativeAiTargetStat(BattleCombatant actor, int row)
+    private int NativeAiTargetStat(BattleCombatant actor, int row)
     {
         return row switch
         {
-            0 => actor.Attack,
-            1 => actor.Defense,
+            0 => EffectiveStat(actor, BattleStatId.Strength),
+            1 => EffectiveStat(actor, BattleStatId.Vitality),
             2 => actor.Magic,
-            3 => actor.Spirit,
+            3 => EffectiveStat(actor, BattleStatId.Spirit),
             4 => actor.Speed,
             5 => actor.Luck,
             6 => actor.Evasion,

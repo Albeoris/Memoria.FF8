@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -9,6 +10,7 @@ internal sealed partial class Ff7Scene
     private CrossoverMixedBattle? mixedCombat;
     private CrossoverGuestFieldVitals? mixedFieldVitals;
     private Ff7BattleSession? restoredNativeBattle;
+    internal Func<BattleDifficulty, ImmutableArray<StatusStatModifier>>? ReadStatusStatModifiers { get; set; }
     public event Action<CombinedSessionSave>? MixedCombatSettled;
     public event Action<CombinedSessionSave>? MixedOriginResumeRequested;
     internal bool MixedCombatEnabled => envelope.GetMixedCombatBindings().Count > 0;
@@ -108,7 +110,7 @@ internal sealed partial class Ff7Scene
         restoredNativeBattle = null;
         ResetMixedCombat();
         CombinedSessionSave source = envelope with { Ff7 = session.Capture(), ActiveGame = SessionGame.Ff7 };
-        CrossoverMixedBattle mixed = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle);
+        CrossoverMixedBattle mixed = new(identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation before entering mixed combat."), source, battle, ReadStatusStatModifiers);
         mixed.BindForeignGeometry(slot =>
         {
             if (mixed.GuestAt(slot) is { } guest)

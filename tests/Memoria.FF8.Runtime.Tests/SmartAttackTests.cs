@@ -273,7 +273,7 @@ public sealed class SmartAttackTests
     {
         BattleNativeAction meltdown = Spell(49, 32) with { Statuses1 = 0x1000000, StatusAttack = 200 };
         BattleDefinition definition = Create([meltdown], [new(49, 100)], enemyHp: 60_000, actorStatus: 0x20000).Capture().Definition;
-        BattleSession battle = new(definition with { Tuning = new() { MeltdownVitalityReductionPercent = vitalityReduction, MeltdownSpiritReductionPercent = spiritReduction }, Combatants = [definition.Combatants[0] with { NativePlayerStatRules = null }, definition.Combatants[1] with { Spirit = 200, NativeStatusResistances = new byte[40] }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition with { StatusStatModifiers = StatusStatRuleTests.Vit0(vitalityReduction, spiritReduction), Combatants = [definition.Combatants[0] with { NativePlayerStatRules = null }, definition.Combatants[1] with { Spirit = 200, NativeStatusResistances = new byte[40] }] }, BattleAtbMode.TurnBased);
         int magic = battle.Combatants[0].Magic;
         BattleDamageForecast expected = BattleActionForecaster.FromNativePhases(draw =>
         {
@@ -296,7 +296,7 @@ public sealed class SmartAttackTests
     {
         BattleNativeAction meltdown = Spell(49, 1) with { Statuses1 = 0x1000000, StatusAttack = 255 };
         BattleDefinition definition = Create([Spell(1, 80), meltdown], [new(1, 100), new(49, 100)], enemyHp: 60_000).Capture().Definition;
-        BattleSession battle = new(definition with { Tuning = new() { MeltdownVitalityReductionPercent = 0, MeltdownSpiritReductionPercent = 0 } }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition with { StatusStatModifiers = StatusStatRuleTests.Vit0(0, 0) }, BattleAtbMode.TurnBased);
         Assert.Equal(1, battle.PreviewSmartAttack("party", "enemy").ActionId);
     }
 
@@ -311,7 +311,7 @@ public sealed class SmartAttackTests
         BattleDefinition definition = Create([Spell(1, 80), meltdown], [new(1, 100), new(49, 100)], enemyHp: 60_000).Capture().Definition;
         BattleSession battle = new(definition with
         {
-            Tuning = new() { MeltdownVitalityReductionPercent = vitalityReduction, MeltdownSpiritReductionPercent = spiritReduction },
+            StatusStatModifiers = StatusStatRuleTests.Vit0(vitalityReduction, spiritReduction),
             Combatants = [definition.Combatants[0], definition.Combatants[1] with { Defense = vitality, Spirit = spirit }]
         }, BattleAtbMode.TurnBased);
         Assert.Equal(expectedSpell, battle.PreviewSmartAttack("party", "enemy").ActionId);

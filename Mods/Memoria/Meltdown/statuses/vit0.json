@@ -1,0 +1,36 @@
+{
+  "id": "Vit0",
+  "name": "${LANG}_kernel_magicspells_name_0049",
+  "statModifiers": {
+    "Vitality": {
+      "operation": "ReducePercent",
+      "value": {
+        "default": 50,
+        "description": {
+          "en": "Reduces Vitality while this status is active.",
+          "fr": "Réduit la Défense tant que cet état est actif.",
+          "de": "Senkt den Körper-Wert, solange dieser Zustand aktiv ist.",
+          "es": "Reduce la Vitalidad mientras este estado está activo.",
+          "it": "Riduce la Vitalità finché questo status è attivo.",
+          "ja": "このステータス異常の間、体力を下げます。",
+          "ru": "Снижает физическую защиту, пока действует статус."
+        }
+      }
+    },
+    "Spirit": {
+      "operation": "ReducePercent",
+      "value": {
+        "default": 25,
+        "description": {
+          "en": "Reduces Spirit while this status is active.",
+          "fr": "Réduit la Défense magique tant que cet état est actif.",
+          "de": "Senkt den Geist-Wert, solange dieser Zustand aktiv ist.",
+          "es": "Reduce el Espíritu mientras este estado está activo.",
+          "it": "Riduce lo Spirito finché questo status è attivo.",
+          "ja": "このステータス異常の間、精神を下げます。",
+          "ru": "Снижает магическую защиту, пока действует статус."
+        }
+      }
+    }
+  }
+}

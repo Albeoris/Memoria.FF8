@@ -28,8 +28,8 @@ public sealed partial class BattleSession
         bool applied = false;
         uint before = NativeBattleStatusBits(recipient);
         bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
-        int attack = physical ? actor.Attack : actor.Magic;
-        int defense = EffectiveNativeDefense(recipient, physical ? recipient.Defense : recipient.Spirit, physical);
+        int attack = physical ? EffectiveStat(actor, BattleStatId.Strength) : actor.Magic;
+        int defense = EffectiveStat(recipient, physical ? BattleStatId.Vitality : BattleStatId.Spirit);
         for (int bit = 0; bit < 7; bit++)
         {
             uint mask = 1u << bit;
@@ -49,11 +49,6 @@ public sealed partial class BattleSession
         MarkNativeContactStatusResult(recipient, action, applied);
         //48F9A0/492090 retain unchanged exclusive groups, otherwise only their newly added bits.
         uint after = recipient.NativeStatus1;
-        if ((before & 0x1000000) == 0 && (after & 0x1000000) != 0 && IsNativeMeltdown(action))
-        {
-            recipient.MeltdownVitalityReductionPercent = definition.Tuning.MeltdownVitalityReductionPercent;
-            recipient.MeltdownSpiritReductionPercent = definition.Tuning.MeltdownSpiritReductionPercent;
-        }
         uint speed = after & 0xE;
         uint crisis = after & 0x300;
         if (speed != (before & 0xE))
@@ -74,31 +69,9 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (chance != 255)
+        if (!NativeStatusChanceSucceeds(recipient, resistanceIndex, attack, defense, chance, () => checked((byte)NextRandomByte())))
         {
-            if (recipient.NativeStatusResistances.Count != 40)
-            {
-                throw new NotSupportedException("Native status application requires the recipient's original forty resistance bytes.");
-            }
-            int resistance = recipient.NativeStatusResistances[resistanceIndex];
-            if (resistance >= 200)
-            {
-                return false;
-            }
-            int effective = chance + attack / 4 - defense / 4 - resistance;
-            if (effective <= 0)
-            {
-                return false;
-            }
-            if (chance < 250)
-            {
-                int threshold = 255 * (255 * effective / 100) / 255;
-                int roll = NextRandomByte();
-                if (threshold == 0 || threshold < roll)
-                {
-                    return false;
-                }
-            }
+            return false;
         }
         ushort saved = NativeSavedStatusBits(recipient);
         uint statuses = NativeBattleStatusBits(recipient);
@@ -135,5 +108,26 @@ public sealed partial class BattleSession
             recipient.NativeStatus0 |= (ushort)mask;
         }
         return true;
+    }
+
+    private static bool NativeStatusChanceSucceeds(BattleCombatant recipient, int resistanceIndex, int attack, int defense, byte chance, Func<byte>? draw)
+    {
+        if (chance == 255)
+        {
+            return true;
+        }
+        int resistance = GetNativeStatusResistance(recipient, resistanceIndex);
+        int effective = chance + attack / 4 - defense / 4 - resistance;
+        if (resistance >= 200 || effective <= 0)
+        {
+            return false;
+        }
+        if (chance >= 250 || draw is null)
+        {
+            return true;
+        }
+        int threshold = 255 * (255 * effective / 100) / 255;
+        int roll = draw();
+        return threshold != 0 && threshold >= roll;
     }
 }

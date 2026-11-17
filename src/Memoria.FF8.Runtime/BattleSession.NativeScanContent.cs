@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         {
             row = row.WriteWord(0x44 + element * 2, checked((ushort)actor.ElementDefenses[element]));
         }
-        return row.WriteByte(0xBD, checked((byte)actor.Attack)).WriteByte(0xBE, checked((byte)actor.Defense)).WriteByte(0xBF, checked((byte)actor.Magic)).WriteByte(0xC0, checked((byte)actor.Spirit)).WriteByte(0xC1, checked((byte)actor.Speed)).WriteByte(0xC3, checked((byte)actor.Evasion));
+        return row.WriteByte(0xBD, checked((byte)EffectiveStat(actor, BattleStatId.Strength))).WriteByte(0xBE, checked((byte)EffectiveStat(actor, BattleStatId.Vitality))).WriteByte(0xBF, checked((byte)actor.Magic)).WriteByte(0xC0, checked((byte)EffectiveStat(actor, BattleStatId.Spirit))).WriteByte(0xC1, checked((byte)actor.Speed)).WriteByte(0xC3, checked((byte)actor.Evasion));
     }
 
     private byte[] ReadNativeScanEnemyInformation(int index)

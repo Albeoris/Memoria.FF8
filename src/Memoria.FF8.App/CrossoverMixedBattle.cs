@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -10,10 +11,14 @@ namespace Memoria.FF8;
 internal sealed record CrossoverMixedBattleSnapshot(int Version, CrossoverBattleRoster Roster, Ff7BattleGuestVitalsBinding Vitals, CrossoverGunbladeHostSnapshot Attack)
 {
     public CrossoverGuestHostActionsSnapshot? Actions { get; init; }
+    public ImmutableArray<StatusStatModifier>? StatusStatModifiers { get; init; }
 }
 
 internal sealed record CrossoverMixedBattleGuestSnapshot(Ff7BattleGuestVitalsBinding Vitals, CrossoverGunbladeHostSnapshot Attack, CrossoverGuestActorSnapshot Actions);
-internal sealed record CrossoverMixedBattlePartySnapshot(int Version, CrossoverBattleRoster Roster, CrossoverMixedBattleGuestSnapshot[] Guests, CrossoverGuestEncounterSnapshot SharedActions);
+internal sealed record CrossoverMixedBattlePartySnapshot(int Version, CrossoverBattleRoster Roster, CrossoverMixedBattleGuestSnapshot[] Guests, CrossoverGuestEncounterSnapshot SharedActions)
+{
+    public ImmutableArray<StatusStatModifier>? StatusStatModifiers { get; init; }
+}
 
 internal sealed class CrossoverMixedBattle : IDisposable
 {
@@ -22,6 +27,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
     private readonly CrossoverBattleRoster roster;
     private readonly Ff7BattleGuestVitalsBinding[] vitals;
     private readonly CrossoverGuestEncounter encounter;
+    private readonly ImmutableArray<StatusStatModifier> statusStatModifiers;
 
     public Ff7BattleSession Host { get; }
     public IReadOnlyList<CrossoverGuestHostActions> Guests { get; }
@@ -29,7 +35,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
     public CrossoverGunbladeHostAttack Attack => Actions.Attack;
     public CrossoverGuestHostActions? ActiveGuest => Guests.SingleOrDefault(guest => guest.Invocation is not null) ?? Guests.FirstOrDefault(guest => guest.HasProcessBackground);
 
-    public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host)
+    public CrossoverMixedBattle(string directory, CombinedSessionSave source, Ff7BattleSession host, Func<BattleDifficulty, ImmutableArray<StatusStatModifier>>? readStatusStatModifiers = null)
     {
         game = new(directory);
         assets = new(directory);
@@ -49,6 +55,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
             CrossoverGuestEncounterSnapshot? shared = null;
             Dictionary<int, (CrossoverGunbladeHostSnapshot Attack, CrossoverGuestActorSnapshot? Actions)> savedActors = [];
             NativeGlobalRandomState currentRandom = originRandom;
+            ImmutableArray<StatusStatModifier>? capturedStatusStats = null;
             if (source.MixedBattlePayload is { Length: > 0 } payload)
             {
                 using JsonDocument json = JsonDocument.Parse(payload);
@@ -65,6 +72,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
                     savedActors.Add(saved.Vitals.HostSlot, (saved.Attack, saved.Actions?.ActorState()));
                     shared = saved.Actions?.EncounterState();
                     currentRandom = saved.Attack.GlobalRandom;
+                    capturedStatusStats = saved.StatusStatModifiers;
                 }
                 else if (format == 2)
                 {
@@ -77,6 +85,7 @@ internal sealed class CrossoverMixedBattle : IDisposable
                     vitals = saved.Guests.Select(guest => guest.Vitals).OrderBy(binding => binding.HostSlot).ToArray();
                     shared = saved.SharedActions;
                     currentRandom = saved.Guests[0].Attack.GlobalRandom;
+                    capturedStatusStats = saved.StatusStatModifiers;
                     foreach (CrossoverMixedBattleGuestSnapshot guest in saved.Guests)
                     {
                         if (guest.Attack.GlobalRandom != currentRandom)
@@ -97,10 +106,21 @@ internal sealed class CrossoverMixedBattle : IDisposable
                 CrossoverBattleBinding[] combat = bindings.Select(binding => new CrossoverBattleBinding(host.Actors.Single(actor => actor.Actor.Slot < 3 && actor.Identity == binding.StoryCharacter).Actor.Slot, binding.StoryCharacter, binding.OriginCharacter)).ToArray();
                 CharacterAppearanceMapping[] appearances = bindings.Select(binding => new CharacterAppearanceMapping(SessionGame.Ff7, binding.StoryCharacter, SessionGame.Ff8, binding.OriginCharacter, "native-battle")).ToArray();
                 roster = CrossoverBattleRoster.Create(Guid.NewGuid(), host.Capture(), combat, appearances);
+                capturedStatusStats = readStatusStatModifiers?.Invoke(document.Progression?.Rules.Preferences.Difficulty ?? BattleDifficulty.Normal);
                 vitals = CrossoverBattleVitalsSettlement.ReadBindings(source, roster, installed, assets).OrderBy(binding => binding.HostSlot).ToArray();
             }
 
-            encounter = new(roster, origin, host, currentRandom, document.Progression?.Clocks.CrtRandom, document.Economy, shared) { OriginBattleSpeed = document.Progression?.Rules.Input?.BattleSpeed, ParameterTuning = document.Progression?.Rules.Preferences.Tuning ?? new() };
+            if (source.MixedBattlePayload is { Length: > 0 } && capturedStatusStats is null)
+            {
+                document.Progression?.Rules.Preferences.Tuning.RequireCurrentBattleStatusRules();
+            }
+            if (host.Actors.Any(actor => actor.ParameterStatus is { DefenseReductionPercent: not StatusStatRules.MaximumPercent } or { MagicDefenseReductionPercent: not StatusStatRules.MaximumPercent }))
+            {
+                throw new InvalidDataException("The saved mixed battle has source-specific status stat values. Migrate the checkpoint before resuming it.");
+            }
+            statusStatModifiers = StatusStatRules.Resolve(capturedStatusStats ?? []);
+            host.BindOriginStatusStats(stats => CrossoverStatusStatProjection.Apply(statusStatModifiers, stats));
+            encounter = new(roster, origin, host, currentRandom, document.Progression?.Clocks.CrtRandom, document.Economy, shared) { OriginBattleSpeed = document.Progression?.Rules.Input?.BattleSpeed };
             NativeBattleUiRandomState limitUiRandom = (document.Progression?.Clocks.Playtime ?? NativePlaytimeState.FromColdProcess()).CreateBattleUiRandom();
             List<CrossoverGuestHostActions> guests = [];
             foreach (Ff7BattleGuestVitalsBinding binding in vitals)
@@ -167,11 +187,11 @@ internal sealed class CrossoverMixedBattle : IDisposable
     {
         if (Guests is [var guest])
         {
-            return JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattleSnapshot(1, roster, vitals[0], CaptureAttack(guest)) { Actions = guest.Capture() });
+            return JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattleSnapshot(1, roster, vitals[0], CaptureAttack(guest)) { Actions = guest.Capture(), StatusStatModifiers = statusStatModifiers });
         }
 
         CrossoverMixedBattleGuestSnapshot[] captured = vitals.Select((binding, index) => new CrossoverMixedBattleGuestSnapshot(binding, CaptureAttack(Guests[index]), Guests[index].CaptureActor())).ToArray();
-        return JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattlePartySnapshot(2, roster, captured, encounter.Capture()));
+        return JsonSerializer.SerializeToUtf8Bytes(new CrossoverMixedBattlePartySnapshot(2, roster, captured, encounter.Capture()) { StatusStatModifiers = statusStatModifiers });
     }
 
     private CrossoverGunbladeHostSnapshot CaptureAttack(CrossoverGuestHostActions guest) => guest.Attack.Capture() with { GlobalRandom = encounter.GlobalRandom };

@@ -182,7 +182,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return waiting;
         }
-        if (IsLocalizationOnlyChange(catalog))
+        if (!StatusMods.TryPrepare(catalog, out StatusMods statusMods, out IReadOnlyList<ModDiagnostic> statusDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: statusDiagnostics);
+        }
+        if (IsLocalizationOnlyChange(catalog) && GameplayPolicy.StatusStatModifiers.SequenceEqual(statusMods.Modifiers))
         {
             return PrepareLocalizationPublication(localization!);
         }
@@ -192,11 +196,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             return new ModPreparationResult(false, Diagnostics: behaviorPackages.Select(package => new ModDiagnostic("junction-behavior-profile-unsupported", "Reviewed executable behavior requires the Classic English resource profile.", package.Id)).ToArray());
         }
         StartupPolicy startupPolicy = StartupPolicy.FromCatalog(catalog);
-        if (!BehaviorMods.TryPrepare(catalog, out BehaviorMods behaviorMods, out IReadOnlyList<ModDiagnostic> behaviorDiagnostics, sourceLanguage: Resources.Source.Language))
-        {
-            return new ModPreparationResult(false, Diagnostics: behaviorDiagnostics);
-        }
-        GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(catalog, behaviorMods);
+        GameplayTuningPolicy gameplayPolicy = GameplayTuningPolicy.FromCatalog(catalog, statusMods);
         if (!JunctionEncodedResources.TryPrepare(catalog, out IReadOnlyList<EncodedResource> encodedResources, out IReadOnlyList<ModDiagnostic> encodedDiagnostics))
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics);
@@ -326,7 +326,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Junction && !file.RelativePath.StartsWith("voice/", StringComparison.OrdinalIgnoreCase) && !(JunctionEncodedResources.Address(file.RelativePath) is ResourceKey key && JunctionEncodedResources.FieldGroup(key) is not null) && !JunctionEncodedResources.IsFieldMetadata(file.RelativePath) && !JunctionEncodedResources.IsUnusedFieldMember(file.RelativePath) && !JunctionEncodedResources.IsAncillaryFile(file.RelativePath)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
-        usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
+        usable.AddRange(statusMods.PackageIds);
         int itemCount = catalog.Files.Any(ItemOverrideMods.IsItemDocument) ? dataCandidate.Read(new ResourceKey("menu/mitem.bin")).Length / 4 : 0;
         if (!ItemOverrideMods.TryPrepare(catalog, itemCount, out ItemOverrideMods itemOverrides, out IReadOnlyList<ModDiagnostic> itemDiagnostics))
         {
@@ -359,7 +359,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -381,24 +381,24 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             _ => new OrderedTextureResolver(resolvers.ToArray())
         };
         Dictionary<string, LocalizedTextAlias> textAliases = new(StringComparer.Ordinal);
-        if (behaviorMods.MeltdownStatusNameKey is string statusNameKey)
+        if (!statusMods.Names.IsEmpty)
         {
-            try
+            NativeLocalizationTextReferences references = new(dataCandidate);
+            foreach (StatusNameOverride name in statusMods.Names)
             {
-                NativeLocalizationTextReferences references = new(dataCandidate);
-                string original = references.ResolveOriginal(statusNameKey);
-                if (SystemTextCatalog.KeysForSemanticId("battle.status.vit-0").Contains(statusNameKey, StringComparer.Ordinal))
+                try
                 {
-                    throw new InvalidDataException("A status name cannot refer back to its own localization identity.");
+                    string key = name.Reference.ResolveKey(Resources.Source.Language);
+                    string original = references.ResolveOriginal(key);
+                    foreach (string alias in SystemTextCatalog.KeysForSemanticId(BattleStatusLocalization.SemanticId(name.Status)))
+                    {
+                        textAliases.Add(alias, new(key, original));
+                    }
                 }
-                foreach (string key in SystemTextCatalog.KeysForSemanticId("battle.status.vit-0"))
+                catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException)
                 {
-                    textAliases.Add(key, new(statusNameKey, original));
+                    return new ModPreparationResult(false, Diagnostics: [new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, name.Source.PackageId, name.Source.RelativePath)]);
                 }
-            }
-            catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or NotSupportedException)
-            {
-                return new ModPreparationResult(false, Diagnostics: [new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, behaviorMods.MeltdownStatusNamePackageId, BehaviorMods.PayloadPath)]);
             }
         }
         ResourceService.PreparedResources prepared;
@@ -409,6 +409,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         catch (ResourceReloadRequiredException exception)
         {
             return new ModPreparationResult(false, Diagnostics: encodedDiagnostics.Concat(fieldResourceDiagnostics).Append(new ModDiagnostic("resource-reload-required", exception.Message)).ToArray());
+        }
+        catch (InvalidDataException exception) when (!statusMods.Names.IsEmpty)
+        {
+            return new ModPreparationResult(false, Diagnostics: statusMods.Names.Select(name => new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, name.Source.PackageId, name.Source.RelativePath)).ToArray());
         }
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {

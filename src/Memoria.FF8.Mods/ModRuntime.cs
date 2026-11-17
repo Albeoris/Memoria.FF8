@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Platform;
 
 namespace Memoria.FF8.Mods;
@@ -377,6 +378,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     changedPackageIds.Clear();
                     return false;
                 }
+                if (!StatusMods.TryPrepare(candidate, out StatusMods statuses, out IReadOnlyList<ModDiagnostic> statusErrors))
+                {
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(statusErrors).Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
+                    updateOutcome = ModUpdateOutcome.Failed;
+                    ScheduleRetry();
+                    return false;
+                }
+                candidate.PreparedStatusMods = statuses;
                 ModPreparationResult result = prepare(candidate);
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
@@ -398,11 +407,11 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (result.UsablePackageIds is not null)
                 {
                     HashSet<string> usable = new(result.UsablePackageIds, StringComparer.OrdinalIgnoreCase);
-                    candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics) { Hardcore = candidate.Hardcore };
+                    candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics) { Hardcore = candidate.Hardcore, StatusPreferences = candidate.StatusPreferences, PreparedStatusMods = statuses };
                 }
                 else
                 {
-                    candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics) { Hardcore = candidate.Hardcore };
+                    candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics) { Hardcore = candidate.Hardcore, StatusPreferences = candidate.StatusPreferences, PreparedStatusMods = statuses };
                 }
                 autoEnable = nextAutoEnable;
                 installedPackages = candidate.Packages;
@@ -535,7 +544,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     {
         memoriaSettingsViews.Clear();
         nextAutoEnable = ModConfiguration.ReadBoolean(Path.Combine(modsRoot, "mods.ini"), "auto_enable_new_mods") ?? true;
-        MemoriaSettings memoriaSettings = ReadMemoriaSettings();
+        MemoriaSettings memoriaSettings = ImportStatusPreferences();
         List<ModPackage> packages = [];
         List<ModFile> files = [];
         List<ModDiagnostic> notices = [];
@@ -545,6 +554,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             notices.Add(new("watcher-error", error));
         }
         List<string> identities = [nextAutoEnable.ToString(), hardcore.ToString(), forceFf7EnemyIntegration.ToString(), string.Join(";", localizationOrder ?? []), LocalizationPrimaryTarget ?? ""];
+        identities.AddRange(memoriaSettings.StatusSettings.OrderBy(setting => setting.Key, StringComparer.Ordinal).Select(setting => $"status-setting\0{setting.Key}\0{setting.Value}"));
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         Dictionary<string, IReadOnlyDictionary<string, ModPackageInstallResult>> managed = new(StringComparer.OrdinalIgnoreCase);
         foreach (string modRoot in ModsDirectories.Where(directory => Path.GetDirectoryName(directory) is not null && directory != bundledModsRoot))
@@ -568,22 +578,33 @@ public sealed partial class ModRuntime : IModService, IDisposable
             HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
             string[] roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase).ToArray();
             Dictionary<string, string> bundledPackages = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> bundledDescriptors = new(StringComparer.Ordinal);
             if (format == ModFormat.Memoria)
             {
                 foreach (string root in roots)
                 {
-                    if (obsoleteBundledPackage?.Invoke(root) != true && string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) && (File.GetAttributes(root) & FileAttributes.ReparsePoint) == 0)
+                    if (obsoleteBundledPackage?.Invoke(root) == true || !string.Equals(Path.GetDirectoryName(root), Path.Combine(bundledModsRoot, format.ToString()), StringComparison.OrdinalIgnoreCase) || (File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        continue;
+                    }
+                    if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        bundledDescriptors.Add(root);
+                    }
+                    else
                     {
                         bundledPackages.TryAdd(Path.GetFileName(root), root);
                     }
                 }
+                // Installed descriptors own their stable IDs before the bundled fallback is considered.
+                roots = roots.OrderBy(bundledDescriptors.Contains).ToArray();
             }
             foreach (string root in roots)
             {
                 string name = Path.GetFileName(root);
                 string id = $"{format}/{name}";
                 string modRoot = Path.GetDirectoryName(Path.GetDirectoryName(root))!;
-                if (format == ModFormat.Memoria && modRoot == bundledModsRoot && obsoleteBundledPackage?.Invoke(root) == true)
+                if (format == ModFormat.Memoria && (modRoot == bundledModsRoot && obsoleteBundledPackage?.Invoke(root) == true || IsLegacyStatusPreferenceDirectory(root)))
                 {
                     continue;
                 }
@@ -613,7 +634,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     try
                     {
-                        descriptor = ReadPackageDescriptor(root, native?.Official, committedDescriptor is not null, bundledRoot is not null && IsBundledMemoriaIdentity(id, name));
+                        descriptor = ReadPackageDescriptor(root, native?.Official, committedDescriptor is not null);
                     }
                     catch (Exception exception) when (IsFileError(exception))
                     {
@@ -624,10 +645,12 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 if (descriptor is not null)
                 {
                     id = descriptor.RuntimePackageId;
+                    bundledRoot = null;
                 }
                 if (!packageIds.Add(id))
                 {
-                    if (string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase)
+                        || bundledDescriptors.Contains(root) && packages.Any(package => package.Id == id && package.Descriptor is not null && !package.IsBundled))
                     {
                         continue;
                     }
@@ -645,7 +668,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(bundledRoot, "mod.ini"), "enabled");
                 }
                 int priority = 0;
-                if (format is ModFormat.Tonberry or ModFormat.Demaster)
+                if (format is ModFormat.Tonberry or ModFormat.Demaster || descriptor is not null)
                 {
                     try
                     {
@@ -708,14 +731,6 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
                 List<(string Root, string Physical, string Relative)> selectedFiles = [];
-                if (bundledRoot is not null && id.Equals(MeltdownPackageId, StringComparison.OrdinalIgnoreCase))
-                {
-                    normalizedPaths.Add(BehaviorMods.MemoriaSettingsFile, modsRoot);
-                    if (memoriaSettings.Meltdown.Count > 0)
-                    {
-                        selectedFiles.Add((modsRoot, MemoriaSettingsPath, BehaviorMods.MemoriaSettingsFile));
-                    }
-                }
                 foreach ((string packageRoot, string physical, string relative) in packageFiles)
                 {
                     if (relative.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || format == ModFormat.Memoria && relative.Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase) || Path.GetFileName(relative).StartsWith("~$", StringComparison.Ordinal) || relative.EndsWith(".bak", StringComparison.OrdinalIgnoreCase) || relative.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
@@ -766,7 +781,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = bundledRoot is not null, Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -779,7 +794,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         IEnumerable<ModFile> orderedFiles = files.OrderBy(file => file.Format)
             .ThenByDescending(file => packagesById[file.PackageId].Priority)
             .ThenBy(file => packagesById[file.PackageId].Descriptor?.Id ?? string.Empty, StringComparer.Ordinal);
-        return new(catalog.Generation + 1, packages, orderedFiles, notices) { Hardcore = hardcore };
+        return new(catalog.Generation + 1, packages, orderedFiles, notices) { Hardcore = hardcore, StatusPreferences = memoriaSettings.StatusSettings.ToImmutableDictionary(StringComparer.Ordinal) };
     }
 
     private sealed class PackagePriorityException(string packageId, string message) : IOException(message)
@@ -997,6 +1012,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private bool? ReadPackageEnabled(ModPackage package)
     {
+        if (package.Descriptor is not null)
+        {
+            return ModConfiguration.ReadBoolean(Path.Combine(package.RootDirectory, "mod.ini"), "enabled");
+        }
         bool? enabled = ModConfiguration.ReadBoolean(PreferencePath(package), "enabled");
         if (enabled is null && package.Format == ModFormat.Memoria)
         {

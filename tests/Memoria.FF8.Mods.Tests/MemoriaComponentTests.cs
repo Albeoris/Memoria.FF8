@@ -1,16 +1,19 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.Mods.Tests;
 
 public sealed class MemoriaComponentTests : IDisposable
 {
     private const string Group = ModRuntime.MemoriaPackageId;
-    private const string Vitality = BehaviorMods.VitalityReductionParameter;
-    private const string Spirit = BehaviorMods.SpiritReductionParameter;
+    private const string Meltdown = "memoria-meltdown";
+    private const string Vitality = "memoria-meltdown/Vit0/Vitality";
+    private const string Spirit = "memoria-meltdown/Vit0/Spirit";
     private readonly string root = Path.Combine(Path.GetTempPath(), "memoria-components-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
     public void CatalogGroupsBundledComponentsAndSavesChangesTogether()
     {
-        Write("BundledMods/Memoria/Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        WriteBundledMeltdown();
         Write("Mods/Memoria/Meltdown/config.json", """{"meltdown":{"VitalityReductionPercent":73,"SpiritReductionPercent":37}}""");
         Write("BundledMods/Memoria/Girl Next Door/mod.ini", "enabled = 1");
         Write("BundledMods/Memoria/Girl Next Door/GirlNextDoor.png", "art");
@@ -24,15 +27,17 @@ public sealed class MemoriaComponentTests : IDisposable
             BehaviorModSetting vitality = Find(runtime, Vitality);
             Assert.Equal(("Items", "toggle", 1), (book.Category, book.Control, book.Value));
             Assert.Contains(runtime.Catalog.Files, file => file.PackageId == "Memoria/Girl Next Door" && file.RelativePath == "GirlNextDoor.png");
-            Assert.Equal(("Battle", "slider", 73), (vitality.Category, vitality.Control, vitality.Value));
+            Assert.Equal((Meltdown, "slider", 73), (vitality.ParentComponent, vitality.Control, vitality.Value));
             Assert.False(runtime.SetBehaviorSettings(Group, [book with { Value = 0 }, vitality with { Value = 101 }]).Success);
             Assert.Equal(1, Find(runtime, "Girl Next Door").Value);
             Assert.True(runtime.SetBehaviorSettings(Group, [book with { Value = 0 }, vitality with { Value = 66 }]).Success);
             Publish(runtime);
             Assert.DoesNotContain(runtime.Catalog.Files, file => file.PackageId == "Memoria/Girl Next Door");
-            Assert.True(BehaviorMods.TryPrepare(runtime.Catalog, out BehaviorMods behavior, out _));
-            Assert.Equal(66, behavior.MeltdownVitalityReductionPercent);
-            Assert.Equal(37, behavior.MeltdownSpiritReductionPercent);
+            Assert.True(StatusMods.TryPrepare(runtime.Catalog, out StatusMods statuses, out _));
+            Assert.Equal(66, Assert.Single(statuses.Modifiers, rule => rule.Stat == BattleStatId.Vitality).Value);
+            Assert.Equal(37, Assert.Single(statuses.Modifiers, rule => rule.Stat == BattleStatId.Spirit).Value);
+            using var settings = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(root, "Mods/Memoria/memoria-settings.json")));
+            Assert.False(settings.RootElement.TryGetProperty("meltdown", out _));
         }
         using ModRuntime reopened = new(root, watch: false);
         Publish(reopened);
@@ -43,7 +48,7 @@ public sealed class MemoriaComponentTests : IDisposable
     [Fact]
     public void ForcedRulesLockOnlyTheirOwnSettingsAndRestorePreferences()
     {
-        Write("BundledMods/Memoria/Meltdown/gameplay/behaviors.json", """{"schemaVersion":1,"meltdown":{"defenseReductionPercent":50}}""");
+        WriteBundledMeltdown();
         Write("Mods/Memoria/Meltdown/mod.ini", "enabled=0");
         Write("Mods/Memoria/Meltdown/config.json", """{"meltdown":{"VitalityReductionPercent":73,"SpiritReductionPercent":37}}""");
         Write("BundledMods/Memoria/Level-Based Stat Bonuses/mod.ini", "enabled=0");
@@ -56,7 +61,7 @@ public sealed class MemoriaComponentTests : IDisposable
         runtime.SetHardcoreMode(true);
         runtime.SetFf7BridgeEnemyIntegration(true);
         Publish(runtime);
-        foreach (string component in new[] { "Meltdown", "Level-Based Stat Bonuses", "FF7EnemyIntegration" })
+        foreach (string component in new[] { Meltdown, "Level-Based Stat Bonuses", "FF7EnemyIntegration" })
         {
             Assert.Equal(1, Find(runtime, component).Value);
             Assert.NotNull(runtime.GetBehaviorSettingLockReason(Group, "component", component));
@@ -65,17 +70,23 @@ public sealed class MemoriaComponentTests : IDisposable
         }
         Assert.Equal(50, Find(runtime, Vitality).Value);
         Assert.Equal(25, Find(runtime, Spirit).Value);
-        Assert.False(runtime.SetBehaviorSetting(Group, "meltdown", Vitality, 70).Success);
+        Assert.False(runtime.SetBehaviorSetting(Group, "status", Vitality, 70).Success);
         Assert.True(runtime.SetBehaviorSetting(Group, "component", "Girl Next Door", 1).Success);
         runtime.SetHardcoreMode(false);
         runtime.SetFf7BridgeEnemyIntegration(false);
         Publish(runtime);
-        Assert.Equal(0, Find(runtime, "Meltdown").Value);
+        Assert.Equal(0, Find(runtime, Meltdown).Value);
         Assert.Equal(0, Find(runtime, "Level-Based Stat Bonuses").Value);
         Assert.Equal(0, Find(runtime, "FF7EnemyIntegration").Value);
         Assert.Equal(1, Find(runtime, "Girl Next Door").Value);
         Assert.Equal(73, Find(runtime, Vitality).Value);
         Assert.Equal(37, Find(runtime, Spirit).Value);
+    }
+
+    private void WriteBundledMeltdown()
+    {
+        Write("BundledMods/Memoria/Meltdown/mod.json", """{"id":"memoria-meltdown","name":"Meltdown","package":"Memoria","description":{"en":"Status modifiers"}}""");
+        Write("BundledMods/Memoria/Meltdown/statuses/vit0.json", """{"id":"Vit0","statModifiers":{"Vitality":{"operation":"ReducePercent","value":{"default":50}},"Spirit":{"operation":"ReducePercent","value":{"default":25}}}}""");
     }
 
     private static BehaviorModSetting Find(ModRuntime runtime, string parameter)

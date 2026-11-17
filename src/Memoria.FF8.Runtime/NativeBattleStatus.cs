@@ -1,33 +1,52 @@
 using System.Collections.Immutable;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleStatusRules(byte BattleSpeed, ImmutableArray<byte> Durations);
-public sealed record NativeBattleStatusSnapshot(ushort Saved, uint Battle, short[] Timers)
+public sealed record NativeBattleStatusSnapshot(ushort Saved, uint Battle, short[] Timers) : IJsonOnDeserialized
 {
-    [System.Text.Json.Serialization.JsonRequired]
+    [JsonRequired]
     public NativeBattleStatusMirror Presentation { get; init; } = new(null, null);
-    private int? meltdownVitalityReductionPercent;
-    private int? meltdownSpiritReductionPercent;
-    private int? legacyMeltdownReductionPercent;
-    /// <summary>The applied Meltdown vitality reduction. An absent value retains native Vit0 from old saves or other sources.</summary>
-    public int? MeltdownVitalityReductionPercent
-    {
-        get => meltdownVitalityReductionPercent ?? legacyMeltdownReductionPercent;
-        init => meltdownVitalityReductionPercent = value;
-    }
-    /// <summary>The applied Meltdown spirit reduction. An absent value retains native Vit0 from old saves or other sources.</summary>
-    public int? MeltdownSpiritReductionPercent
-    {
-        get => meltdownSpiritReductionPercent ?? legacyMeltdownReductionPercent;
-        init => meltdownSpiritReductionPercent = value;
-    }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public int? MeltdownDefenseReductionPercent
-    {
-        get => null;
-        init => legacyMeltdownReductionPercent = value;
-    }
     public byte[]? Resistances { get; init; }
+
+    [JsonInclude, JsonExtensionData]
+    internal Dictionary<string, JsonElement>? UnrecognizedProperties { get; private set; }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (LegacyStatusStatSnapshot.HasSourceSpecificPercentages(UnrecognizedProperties))
+        {
+            throw new InvalidDataException("This battle snapshot uses source-specific stat rules. Migrate it explicitly to battle-owned status stat modifiers.");
+        }
+        UnrecognizedProperties = null;
+    }
+}
+
+internal static class LegacyStatusStatSnapshot
+{
+    internal static bool HasSourceSpecificPercentages(Dictionary<string, JsonElement>? properties)
+    {
+        if (properties is null)
+        {
+            return false;
+        }
+
+        foreach ((string name, JsonElement value) in properties)
+        {
+            string normalized = name.Replace("_", "", StringComparison.Ordinal);
+            if (normalized.Equals("MeltdownVitalityReductionPercent", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("MeltdownSpiritReductionPercent", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("MeltdownDefenseReductionPercent", StringComparison.OrdinalIgnoreCase))
+            {
+                if (value.ValueKind != JsonValueKind.Null && (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int percent) || percent != StatusStatRules.MaximumPercent))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }
 public sealed record NativeBattleStatusAllocation(ushort Saved, uint Battle, ImmutableArray<byte> Resistances);

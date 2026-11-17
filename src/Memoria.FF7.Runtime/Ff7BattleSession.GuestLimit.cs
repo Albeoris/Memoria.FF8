@@ -154,7 +154,7 @@ public sealed partial class Ff7BattleSession
         Replace(source);
         Ff7BattleActionVitals sourceVitals = new(source.Actor.HitPoints, source.Actor.MaxHitPoints, source.Actor.MagicPoints, source.Actor.MaxMagicPoints, source.Actor.Statuses);
         Ff7BattleActionVitals targetVitals = new(target.Actor.HitPoints, target.Actor.MaxHitPoints, target.Actor.MagicPoints, target.Actor.MaxMagicPoints, target.Actor.Statuses, ~Enemy(targetSlot).NativeStatusMask);
-        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.Resolve(strike.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }, sourceVitals, Stats(target), targetVitals, attack, null, random);
+        Ff7BattleActionReceipt result = Ff7NativeBattleActionResolver.Resolve(ProjectGuestSourceStatusStats(command.ActorSlot, strike.Source with { BackRow = (source.Actor.Conditions & 0x40) != 0 }), sourceVitals, Stats(target), targetVitals, attack, null, random);
         PublishHit(command, target, attack, result, runCounters: false);
         return current with { PendingHit = state.LastHit, CounterPending = current.CounterPending || !result.Damage.Missed, KnockedOut = current.KnockedOut || (result.AddedStatuses & 1) != 0 };
     }

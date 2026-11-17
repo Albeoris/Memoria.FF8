@@ -228,6 +228,7 @@ public sealed record BattleDefinition
     public ushort? NativeFieldBattleMode { get; init; }
     public NativeBattleRandomState? InitialRandom { get; init; }
     public GameplayTuning Tuning { get; init; } = new();
+    public ImmutableArray<StatusStatModifier> StatusStatModifiers { get; init; } = [];
     public bool RareItem { get; init; }
 }
 
@@ -455,22 +456,7 @@ public sealed partial class BattleCombatant
     internal BattleCombatantDefinition SourceDefinition => definition;
     internal readonly List<BattleStatusState> Effects;
     internal ushort NativeStatus0 { get; set; }
-    private uint nativeStatus1;
-    internal int? MeltdownVitalityReductionPercent { get; set; }
-    internal int? MeltdownSpiritReductionPercent { get; set; }
-    internal uint NativeStatus1
-    {
-        get => nativeStatus1;
-        set
-        {
-            nativeStatus1 = value;
-            if ((value & 0x1000000) == 0)
-            {
-                MeltdownVitalityReductionPercent = null;
-                MeltdownSpiritReductionPercent = null;
-            }
-        }
-    }
+    internal uint NativeStatus1 { get; set; }
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
     internal byte[] MutableNativeStatusResistances { get; private set; }
 
@@ -611,8 +597,6 @@ public sealed partial class BattleCombatant
         MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeStatus0 = allocation?.Saved ?? (ushort)(definition.NativeStatus0 | definition.NativeRetainedStatusBits);
         NativeStatus1 = allocation?.Battle ?? definition.NativeStatus1;
-        MeltdownVitalityReductionPercent = null;
-        MeltdownSpiritReductionPercent = null;
         Array.Fill(NativeStatusTimers, (short)-1111);
         Effects.Clear();
         Effects.AddRange(definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)));

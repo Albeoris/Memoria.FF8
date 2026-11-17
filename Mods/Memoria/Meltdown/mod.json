@@ -1,0 +1,14 @@
+{
+  "id": "memoria-meltdown",
+  "name": "Meltdown",
+  "package": "Memoria",
+  "description": {
+    "en": "Customize how the Vit0 status reduces Vitality and Spirit.",
+    "fr": "Personnalisez la réduction de la Défense et de la Défense magique due à cet état.",
+    "de": "Passe an, wie stark dieser Zustand Körper und Geist senkt.",
+    "es": "Personaliza cuánto reduce este estado la Vitalidad y el Espíritu.",
+    "it": "Personalizza la riduzione di Vitalità e Spirito dovuta a questo status.",
+    "ja": "このステータス異常による体力と精神の低下量を調整します。",
+    "ru": "Настраивает снижение физической и магической защиты под действием этого статуса."
+  }
+}

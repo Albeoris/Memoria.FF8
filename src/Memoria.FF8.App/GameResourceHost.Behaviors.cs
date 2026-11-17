@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -5,6 +6,16 @@ namespace Memoria.FF8;
 internal sealed partial class GameResourceHost
 {
     internal const string GameplayDifficultyProfilePending = "The difficulty's mod profile is not ready. Wait for mod updates or resolve the problems shown in Mods.";
+
+    public ImmutableArray<StatusStatModifier> ReadStatusStatModifiers(BattleDifficulty difficulty)
+    {
+        Pump();
+        if (!SetGameplayDifficulty(difficulty))
+        {
+            throw new InvalidOperationException(GameplayDifficultyProfilePending);
+        }
+        return GameplayPolicy.StatusStatModifiers;
+    }
 
     public bool SetGameplayDifficulty(BattleDifficulty difficulty)
     {
