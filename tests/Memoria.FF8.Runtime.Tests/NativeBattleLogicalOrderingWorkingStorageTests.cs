@@ -266,6 +266,38 @@ public sealed class NativeBattleLogicalOrderingWorkingStorageTests
     }
 
     [Fact]
+    public void Physical_reader_replacement_cannot_change_the_packet_facts_already_selected_for_traversal()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering.Prepend(5, Reference(0), Words, 0, []);
+        using (NativeBattleLogicalOrdering.Builder producer = new(ordering))
+        {
+            producer.InvalidatePacketRange(Reference(0), 4);
+            producer.ToImmutable();
+        }
+        int reads = 0;
+        NativeBattleLogicalCommand command = Assert.Single(ordering.Traverse(Lengths, (reference, length) =>
+        {
+            Assert.Equal(Reference(0), reference);
+            if (++reads == 1)
+            {
+                ordering.Prepend(5, reference, Words, 0, [], presentationActorId: "replacement");
+            }
+            byte[] bytes = new byte[length];
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes, 0x01FFFFFF);
+            if (length > 4)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4), 0x02000000);
+            }
+            return bytes;
+        }));
+        Assert.Equal(2, reads);
+        Assert.Equal((byte)2, command.Opcode);
+        Assert.Null(command.PresentationActorId);
+        Assert.Equal("replacement", Assert.Single(ordering.Packets).PresentationActorId);
+    }
+
+    [Fact]
     public void Model_producer_scope_ends_before_render_tail_resets_and_next_frame_reuses_the_same_packet_bank()
     {
         NativeBattlePrimitiveReference packet = new("off_B6D070", 0, 0);

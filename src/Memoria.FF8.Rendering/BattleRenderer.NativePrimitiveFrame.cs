@@ -938,7 +938,7 @@ public sealed partial class BattleRenderer
 
     private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass, bool centroidTextureSampling = false, float actorOpacity = 1)
     {
-        static float Edge(PrimitiveVertex first, PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
+        static float Edge(in PrimitiveVertex first, in PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
         float area = Edge(a, b, c.X, c.Y);
         if (!float.IsFinite(area) || area == 0)
         {
@@ -949,19 +949,19 @@ public sealed partial class BattleRenderer
             (b, c) = (c, b);
             area = -area;
         }
-        int left = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, Width - 1);
-        int right = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, Width - 1);
-        int top = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, Height - 1);
-        int bottom = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, Height - 1);
         DrawnTriangles++;
         if (TriangleRenderer is { } renderer)
         {
-            static TriangleVertex Convert(PrimitiveVertex vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new Vector4(vertex.Color / 255f, vertex.Alpha / 255f));
+            static TriangleVertex Convert(in PrimitiveVertex vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new Vector4(vertex.Color / 255f, vertex.Alpha / 255f));
             TriangleMaterial material = NativePrimitiveMaterial(texture, blend, pass, centroidTextureSampling);
             material = WithNativeActorOpacity(material, blend, actorOpacity);
             renderer.Draw(Convert(a), Convert(b), Convert(c), material);
             return;
         }
+        int left = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, Width - 1);
+        int right = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, Width - 1);
+        int top = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, Height - 1);
+        int bottom = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, Height - 1);
         nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom, ActorOpacity: actorOpacity));
     }
 
