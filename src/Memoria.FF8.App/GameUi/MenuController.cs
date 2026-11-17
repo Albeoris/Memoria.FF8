@@ -618,6 +618,10 @@ public sealed partial class MenuController
         {
             modFocusedControlId = modEntry.Id;
         }
+        else if (ScreenId == "mods-create" && SelectedEntry is { } createEntry)
+        {
+            createModsFocusedControlId = createEntry.Id;
+        }
         _view = null;
     }
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -11,7 +12,7 @@ namespace Memoria.FF8.App.Tests;
 
 /// <summary>Opt-in rendering checks use two independently supplied standalone field saves without advancing gameplay.</summary>
 [Collection("GPU rendering")]
-public sealed class LightingFieldIntegrationTests
+public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
 {
     [Fact]
     public void StandaloneFieldsPersistIndependentScenesAndFreezeNativePresentation()
@@ -96,7 +97,8 @@ public sealed class LightingFieldIntegrationTests
             int modelId;
             FieldLightingScene scene;
             byte[] replacement;
-            using (GameWorld original = LoadWorld(source, gameDirectory))
+            using (GameResourceHost originalResources = new(gameDirectory, temporary, watch: false, modsDirectory: mods))
+            using (GameWorld original = LoadWorld(source, gameDirectory, originalResources))
             {
                 FieldAssets field = original.Field!;
                 ActorVisual actor = original.Events.Actors.Select(original.CreateVisual).First(visual => visual.Visible && (uint)visual.ModelId < field.Models.Count && field.Models[visual.ModelId].Faces.Count > 0);
@@ -128,11 +130,11 @@ public sealed class LightingFieldIntegrationTests
         Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
     }
 
-    private static GameWorld LoadWorld(string source, string gameDirectory, GameResourceHost? host = null)
+    private static GameWorld LoadWorld(string source, string gameDirectory, GameResourceHost host)
     {
-        GameSession session = new(GameSession.Load(source));
+        GameSession session = new(PlayerStateLoader.Load(source, gameDirectory, resources: host.Resources, modelOverrides: host, readGameplayPolicy: () => host.GameplayPolicy, prepareCharacterDefinitions: initialized => GameplaySaveGuardianForceDefinitions.Select(initialized, host)));
         Assert.Equal(SceneKind.Field, session.State.Scene);
-        GameWorld world = new(session, gameDirectory, resources: host?.Resources, modelOverrides: host, readSceneMods: host is null ? null : () => host.SceneMods);
+        GameWorld world = new(session, gameDirectory, resources: host.Resources, modelOverrides: host, readSceneMods: () => host.SceneMods, readGameplayPolicy: () => host.GameplayPolicy);
         try
         {
             world.EnsureField();
@@ -191,7 +193,7 @@ public sealed class LightingFieldIntegrationTests
         return scene;
     }
 
-    private static void VerifyFrozenLighting(GameWorld world, GpuTriangleRenderer gpu, FieldLightingScene scene, string outputName)
+    private void VerifyFrozenLighting(GameWorld world, GpuTriangleRenderer gpu, FieldLightingScene scene, string outputName)
     {
         world.ActiveLighting = null;
         world.Render(TimeSpan.Zero, rareCardMarkers: false, triangleRenderer: gpu);
@@ -208,7 +210,7 @@ public sealed class LightingFieldIntegrationTests
                 Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()), "Rendering and lighting edits must preserve the complete frozen event state.");
                 Color[] pixels = GpuTestDevice.Read(gpu.Target);
                 string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIGHTING_TEST_OUTPUT");
-                if (!string.IsNullOrWhiteSpace(output))
+                if (!string.IsNullOrWhiteSpace(output) && suffix is "empty" or "lit" or "primary-shadow" or "primary-disabled" or "primary-moved-shadow" or "inactive" or "primary-moved-unshadowed")
                 {
                     Directory.CreateDirectory(output);
                     using FileStream image = File.Create(Path.Combine(output, outputName + "-" + suffix + ".png"));
@@ -239,12 +241,125 @@ public sealed class LightingFieldIntegrationTests
             Assert.Equal(dark, Render(scene with { Lights = scene.Lights.Select(light => light with { Direction = -light.Direction }).ToArray() }, "aimed-away"));
             Assert.Equal(lit, Render(scene, "restored"));
             Assert.Equal(legacy, Render(null, "inactive"));
+
+            FieldSpotLight top = scene.Lights[4];
+            FieldLightingScene primaryScene = scene with { PrimaryLightId = top.Id };
+            Color[] primary = Render(primaryScene, "primary-shadow");
+            Dictionary<int, string> primaryStates = world.LightingShadowStates.ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
+            string? primaryDiagnostic = world.LightingShadowDiagnostic;
+            bool[] footprint = GroundShadowMask(dark, lit, primary);
+            int groundPixels = footprint.Count(value => value);
+
+            FieldLightingScene disabledPrimary = primaryScene with { Lights = scene.Lights.Select(light => light.Id == top.Id ? light with { Enabled = false } : light).ToArray() };
+            Color[] disabledShadow = Render(disabledPrimary, "primary-disabled");
+            Assert.All(world.LightingShadowStates.Values, state => Assert.Equal(FieldActorShadowState.IntentionalNone, state));
+            Assert.Equal(disabledShadow, Render(disabledPrimary with { PrimaryLightId = null }, "primary-disabled-unselected"));
+
+            Vector3 center = (scene.Lights[4].Position + scene.Lights[5].Position) / 2;
+            Vector3 movedPosition = top.Position + new Vector3(top.Range / 8, top.Range / 16, 0);
+            FieldSpotLight moved = top with { Position = movedPosition, Direction = Vector3.Normalize(center - movedPosition) };
+            FieldLightingScene movedScene = primaryScene with { Lights = scene.Lights.Select(light => light.Id == top.Id ? moved : light).ToArray() };
+            Color[] movedUnshadowed = Render(movedScene with { PrimaryLightId = null }, "primary-moved-unshadowed");
+            Color[] movedShadow = Render(movedScene, "primary-moved-shadow");
+            Dictionary<int, string> movedStates = world.LightingShadowStates.ToDictionary(pair => pair.Key, pair => pair.Value.ToString());
+            string? movedDiagnostic = world.LightingShadowDiagnostic;
+            bool[] movedFootprint = GroundShadowMask(dark, movedUnshadowed, movedShadow);
+            int movedGroundPixels = movedFootprint.Count(value => value);
+            int footprintChanges = footprint.Zip(movedFootprint).Count(pair => pair.First != pair.Second);
+            if (primaryStates.Values.Contains(nameof(FieldActorShadowState.Silhouette)) && groundPixels > 0)
+            {
+                Assert.True(footprintChanges > 0, "Moving an actual contributing Primary must move its visible ground-shadow footprint.");
+            }
+            IReadOnlyList<CpuSubmissionTiming> cpuSubmissionTimings = outputName is "field-a-native" or "field-b-native" ? MeasureCpuSubmission(world, gpu, scene) : [];
+            Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+            string summary = JsonSerializer.Serialize(new
+            {
+                Fixture = outputName,
+                Field = scene.FieldName,
+                world.Events.Frame,
+                Adapter = Microsoft.Xna.Framework.Graphics.GraphicsAdapter.DefaultAdapter.Description,
+                Backend = "WindowsDX",
+                EnabledLights = scene.Lights.Count,
+                ChangedModelPixels = changed,
+                BlackModelPixels = blackModelPixels,
+                PrimaryStates = primaryStates,
+                PrimaryDiagnostic = primaryDiagnostic,
+                GroundShadowPixels = groundPixels,
+                MovedPrimaryStates = movedStates,
+                MovedPrimaryDiagnostic = movedDiagnostic,
+                MovedGroundShadowPixels = movedGroundPixels,
+                GroundFootprintChanges = footprintChanges,
+                CpuSubmissionMeasurement = "Stopwatch wall time around GameWorld.Render, including CPU work and graphics submission/driver waits. No per-frame readback. This is not GPU execution time.",
+                CpuSubmissionTimings = cpuSubmissionTimings,
+                GpuExecutionMilliseconds = (double?)null
+            }, new JsonSerializerOptions { WriteIndented = true });
+            output.WriteLine(summary);
+            string? outputDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_LIGHTING_TEST_OUTPUT");
+            if (!string.IsNullOrWhiteSpace(outputDirectory))
+            {
+                File.WriteAllText(Path.Combine(outputDirectory, outputName + "-summary.json"), summary);
+            }
         }
         finally
         {
             world.EndLightingEdit();
         }
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+    }
+
+    private sealed record CpuSubmissionTiming(string Scenario, int Width, int Height, int WarmupFrames, int MeasuredFrames, double AverageMilliseconds, double P95Milliseconds);
+
+    private static IReadOnlyList<CpuSubmissionTiming> MeasureCpuSubmission(GameWorld world, GpuTriangleRenderer gpu, FieldLightingScene scene)
+    {
+        const int warmupFrames = 10;
+        const int measuredFrames = 60;
+        FieldSpotLight top = scene.Lights[4];
+        Vector3 center = (scene.Lights[4].Position + scene.Lights[5].Position) / 2;
+        Vector3 diagonal = Vector3.Normalize(Vector3.One);
+        float distance = Vector3.Distance(top.Position, center);
+        FieldSpotLight seventh = top with { Id = "perf-spot-6", Name = "Performance spotlight 6", Position = center + diagonal * distance, Direction = -diagonal };
+        FieldSpotLight eighth = top with { Id = "perf-spot-7", Name = "Performance spotlight 7", Position = center - diagonal * distance, Direction = diagonal };
+        FieldLightingScene one = scene with { Lights = [top], PrimaryLightId = top.Id };
+        FieldLightingScene eight = scene with { Lights = [.. scene.Lights, seventh, eighth], PrimaryLightId = top.Id };
+        FieldLightingSceneIO.Validate(one);
+        FieldLightingSceneIO.Validate(eight);
+        List<CpuSubmissionTiming> results = [];
+        FieldLightingScene? previous = world.ActiveLighting;
+        int previousWidth = world.RenderWidth;
+        int previousHeight = world.RenderHeight;
+        try
+        {
+            world.SetRenderSize(1920, 1080);
+            foreach ((string scenario, FieldLightingScene? lighting) in new (string, FieldLightingScene?)[] { ("Inactive", null), ("One spotlight with Primary", one), ("Eight spotlights with Primary", eight) })
+            {
+                world.ActiveLighting = lighting;
+                for (int frame = 0; frame < warmupFrames; frame++)
+                {
+                    world.Render(TimeSpan.Zero, rareCardMarkers: false, triangleRenderer: gpu);
+                }
+                double[] milliseconds = new double[measuredFrames];
+                for (int frame = 0; frame < measuredFrames; frame++)
+                {
+                    long started = Stopwatch.GetTimestamp();
+                    world.Render(TimeSpan.Zero, rareCardMarkers: false, triangleRenderer: gpu);
+                    milliseconds[frame] = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                }
+                Assert.Null(world.LightingUnavailableReason);
+                Array.Sort(milliseconds);
+                results.Add(new(scenario, 1920, 1080, warmupFrames, measuredFrames, milliseconds.Average(), milliseconds[(int)Math.Ceiling(measuredFrames * 0.95) - 1]));
+            }
+        }
+        finally
+        {
+            world.ActiveLighting = previous;
+            world.SetRenderSize(previousWidth, previousHeight);
+        }
+        return results;
+    }
+
+    private static bool[] GroundShadowMask(Color[] dark, Color[] unshadowed, Color[] shadowed)
+    {
+        return Enumerable.Range(0, dark.Length).Select(pixel => dark[pixel] == unshadowed[pixel] && shadowed[pixel].R + shadowed[pixel].G + shadowed[pixel].B < unshadowed[pixel].R + unshadowed[pixel].G + unshadowed[pixel].B).ToArray();
     }
 
     private static void AssertScenesEqual(FieldLightingScene expected, FieldLightingScene actual)

@@ -54,7 +54,7 @@ public sealed partial class LightingEditorController
         }
         if (transform is { } active)
         {
-            string constraint = active.Axis == LightingAxis.None ? active.Tool == LightingTransformTool.Translate ? "camera plane" : "world Z" : "world " + active.Axis;
+            string constraint = active.Axis == LightingAxis.None ? active.Tool == LightingTransformTool.Translate ? "camera plane" : active.Tool == LightingTransformTool.Rotate ? "camera axis" : "world Z" : "world " + active.Axis;
             string numeric = active.Numeric.Length == 0 ? "mouse" : active.Numeric + (active.Tool == LightingTransformTool.Translate ? " units" : "°");
             Panel(canvas, new(270, 566, 675, 34));
             Label(canvas, active.Tool + "  /  " + constraint + "  /  " + numeric, 17, new(281, 574, 650, 24), theme.Foreground);
@@ -63,6 +63,11 @@ public sealed partial class LightingEditorController
         {
             Panel(canvas, new(270, 120, 675, 42));
             Label(canvas, RendererStatus, 13, new(280, 128, 655, 28), ErrorColor);
+        }
+        if (SelectionLocationNotice is { } locationNotice)
+        {
+            Panel(canvas, new(270, 170, 675, 48));
+            canvas.Text(locationNotice, 13, new(280, 176, 655, 38), ErrorColor);
         }
         if (ShortcutsVisible)
         {

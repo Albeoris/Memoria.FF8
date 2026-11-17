@@ -45,6 +45,11 @@ public sealed partial class MenuController
                     if (focused)
                     {
                         menus.createModsFocusedControlId = child.Id!;
+                        int index = menus.Entries.ToList().FindIndex(entry => entry.Id == child.Id);
+                        if (index >= 0)
+                        {
+                            menus._selections["mods-create"] = index;
+                        }
                     }
                 };
             }

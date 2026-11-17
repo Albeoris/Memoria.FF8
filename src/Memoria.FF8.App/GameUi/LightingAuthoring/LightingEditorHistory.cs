@@ -6,13 +6,13 @@ namespace Memoria.FF8.GameUi;
 public sealed class LightingEditorHistory
 {
     private readonly List<FieldLightingScene> states = [];
-    private byte[] saved;
+    private FieldLightingScene saved;
     private int cursor;
 
     public LightingEditorHistory(FieldLightingScene scene)
     {
         states.Add(FieldLightingSceneIO.Clone(scene));
-        saved = FieldLightingSceneIO.Serialize(scene);
+        saved = FieldLightingSceneIO.Clone(scene);
     }
 
     public bool CanUndo => cursor > 0;
@@ -21,7 +21,7 @@ public sealed class LightingEditorHistory
 
     public bool IsDirty(FieldLightingScene scene)
     {
-        return !saved.AsSpan().SequenceEqual(FieldLightingSceneIO.Serialize(scene));
+        return !Equal(saved, scene);
     }
 
     public void Commit(FieldLightingScene scene)
@@ -55,11 +55,11 @@ public sealed class LightingEditorHistory
 
     public void MarkSaved(FieldLightingScene scene)
     {
-        saved = FieldLightingSceneIO.Serialize(scene);
+        saved = FieldLightingSceneIO.Clone(scene);
     }
 
     public static bool Equal(FieldLightingScene first, FieldLightingScene second)
     {
-        return FieldLightingSceneIO.Serialize(first).AsSpan().SequenceEqual(FieldLightingSceneIO.Serialize(second));
+        return first.SchemaVersion == second.SchemaVersion && first.FieldName == second.FieldName && first.PrimaryLightId == second.PrimaryLightId && first.GroundShadow == second.GroundShadow && first.Lights.SequenceEqual(second.Lights);
     }
 }

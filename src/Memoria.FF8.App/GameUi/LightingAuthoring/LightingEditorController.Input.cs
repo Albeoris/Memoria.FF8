@@ -104,6 +104,11 @@ public sealed partial class LightingEditorController
         }
         if (transform is not null)
         {
+            if (leftPressed && (LightingEditorLayout.Header.Contains(pointer.X, pointer.Y) || LightingEditorLayout.CancelEdit.Contains(pointer.X, pointer.Y)))
+            {
+                PointerPress(pointer);
+                return;
+            }
             if (keys.IsKeyDown(Keys.Back) && oldKeys.IsKeyUp(Keys.Back) && transform.Numeric.Length > 0)
             {
                 SetTransformNumeric(transform.Numeric[..^1]);

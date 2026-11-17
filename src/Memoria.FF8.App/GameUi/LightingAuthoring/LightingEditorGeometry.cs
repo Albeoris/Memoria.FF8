@@ -36,7 +36,12 @@ public static class LightingEditorGeometry
 
     public static Vector3 Rotate(Vector3 value, LightingAxis axis, float degrees)
     {
-        return Vector3.Transform(value, Matrix4x4.CreateFromAxisAngle(AxisVector(axis), degrees * MathF.PI / 180));
+        return Rotate(value, AxisVector(axis), degrees);
+    }
+
+    public static Vector3 Rotate(Vector3 value, Vector3 axis, float degrees)
+    {
+        return Vector3.Transform(value, Matrix4x4.CreateFromAxisAngle(Vector3.Normalize(axis), degrees * MathF.PI / 180));
     }
 
     public static Vector3? IntersectPlane(LightingEditorRay? ray, Vector3 point, Vector3 normal)
@@ -60,6 +65,23 @@ public static class LightingEditorGeometry
         float lengthSquared = segment.LengthSquared();
         float t = lengthSquared < 0.0001f ? 0 : Math.Clamp(Vector2.Dot(point - start, segment) / lengthSquared, 0, 1);
         return Vector2.Distance(point, start + segment * t);
+    }
+
+    public static float? AxisParameter(LightingEditorRay? ray, Vector3 origin, Vector3 axis)
+    {
+        if (ray is not { } value)
+        {
+            return null;
+        }
+        Vector3 direction = Vector3.Normalize(value.Direction);
+        float alignment = Vector3.Dot(axis, direction);
+        float denominator = 1 - alignment * alignment;
+        if (denominator < 0.00001f)
+        {
+            return null;
+        }
+        Vector3 relative = value.Origin - origin;
+        return (Vector3.Dot(axis, relative) - alignment * Vector3.Dot(direction, relative)) / denominator;
     }
 
     public static IEnumerable<(Vector3 Start, Vector3 End)> Ring(Vector3 center, Vector3 normal, float radius, int segments = 48)

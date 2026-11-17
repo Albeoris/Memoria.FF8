@@ -14,6 +14,8 @@ The properties panel provides RGB gradient sliders, color swatches and editable 
 
 The first explicitly added lamp becomes the Primary shadow source. Other lamps still illuminate models. Deleting that Primary leaves no shadow source until another lamp is selected explicitly. Empty lists, disabled lamps and points outside every beam receive zero model illumination. Disable authoring to restore installed-mod selection, or choose **Enable selected mod for normal play** to use saved lighting without the editor.
 
+The selected package and shortcuts are remembered. Authoring starts off after an application restart; enable it again to edit the remembered package. Installed activation continues independently.
+
 ## Package format
 
 A lighting mod is a normal Memoria package with `mod.json`, its existing activation preferences, and the marker `lighting/component.json`:

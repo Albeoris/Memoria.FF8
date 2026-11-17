@@ -15,7 +15,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private sealed record LightingWorkspace(string? SelectedPackageId, LightingShortcutSettings Shortcuts);
+    private sealed record LightingWorkspace(string? SelectedPackageId, LightingShortcutSettings? Shortcuts);
     private LightingEditorController? lightingEditor;
     private FieldLightingPackageStore? lightingStore;
     private FieldLightingSceneSnapshot? lightingSavedScene;
@@ -26,6 +26,7 @@ internal sealed partial class RecreateGame
     private LightingEditorCommand? lightingRebinding;
     private bool lightingRebindingWaitForRelease;
     private string lightingNotice = "";
+    private string? lightingPreviewError;
     private long lightingPreviewGeneration = -1;
     private string? lightingPreviewField;
     private int lightingEditingFieldId;
@@ -34,7 +35,7 @@ internal sealed partial class RecreateGame
     private bool lightingNameInputActive;
     private string LightingWorkspacePath => Path.Combine(Path.GetDirectoryName(UiPreferencesPath)!, "lighting-authoring.json");
 
-    private bool LightingEditorAvailable => !InFf7 && SceneInspectorAvailable && !startup.Active && battleEntryTransition is null && !saveMenu.IsOpen && modelBrowser is null && sceneInspector is null && !localizationWorkbench.CapturesSimulation && authoringCandidates is null && events?.PartyMenu is null && events?.Scene.NativeMenuTutorial is null && events?.Scene.NativeTutorial is null && events?.FieldId == session.State.FieldId && world?.HasPendingBattle != true;
+    private bool LightingEditorAvailable => !InFf7 && SceneInspectorAvailable && !startup.Active && !updateSave.Paused && worldTransfer is null && crossoverSetup is null && battleEntryTransition is null && !saveMenu.IsOpen && modelBrowser is null && sceneInspector is null && !localizationWorkbench.CapturesSimulation && authoringCandidates is null && events?.PartyMenu is null && events?.Scene.NativeMenuTutorial is null && events?.Scene.NativeTutorial is null && events?.FieldId == session.State.FieldId && world?.HasPendingBattle != true;
 
     private void ConnectLightingAuthoring()
     {
@@ -45,8 +46,9 @@ internal sealed partial class RecreateGame
                 LightingWorkspace? workspace = JsonSerializer.Deserialize<LightingWorkspace>(File.ReadAllText(LightingWorkspacePath));
                 if (workspace is not null)
                 {
-                    workspace.Shortcuts.Validate();
-                    lightingShortcuts = workspace.Shortcuts;
+                    LightingShortcutSettings shortcuts = workspace.Shortcuts ?? new();
+                    shortcuts.Validate();
+                    lightingShortcuts = shortcuts;
                     lightingRememberedPackage = workspace.SelectedPackageId;
                 }
             }
@@ -54,6 +56,17 @@ internal sealed partial class RecreateGame
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
             lightingNotice = "Lighting preferences could not be loaded: " + exception.Message;
+        }
+        if (resourceHost!.Mods.InstalledPackages.FirstOrDefault(package => package.Id == lightingRememberedPackage && package.HasLighting) is { } rememberedPackage)
+        {
+            try
+            {
+                lightingStore = FieldLightingPackageStore.Open(rememberedPackage);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+            {
+                lightingNotice = "The remembered lighting mod needs a writable custom copy: " + exception.Message;
+            }
         }
         gameMenus!.ConnectLightingAuthoring(LightingAuthoringEntries, LightingAuthoringAction, CreateLightingPackage, resourceHost!.Mods.PrimaryModsDirectory);
         gameMenus.Register(new MenuScreenDefinition
@@ -126,6 +139,11 @@ internal sealed partial class RecreateGame
                     {
                         SelectLightingPackage(package);
                     }
+                }
+                else if (lightingStore is null)
+                {
+                    lightingAuthoringEnabled = false;
+                    lightingNotice = "Select a lighting mod or create one before enabling authoring.";
                 }
                 else
                 {
@@ -244,6 +262,7 @@ internal sealed partial class RecreateGame
         lightingPreviewGeneration = -1;
         lightingPreviewField = null;
         lightingSavedScene = null;
+        lightingPreviewError = null;
     }
 
     private FieldLightingScene? ResolveFieldLighting()
@@ -270,10 +289,12 @@ internal sealed partial class RecreateGame
             try
             {
                 lightingSavedScene = lightingStore.ReadScene(current.Name);
+                lightingPreviewError = null;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
             {
                 lightingNotice = "Lighting preview could not reload: " + exception.Message;
+                lightingPreviewError = lightingNotice;
                 if (lightingSavedScene?.Scene.FieldName != current.Name)
                 {
                     lightingSavedScene = new(FieldLightingScene.Empty(current.Name), FieldLightingPackageStore.AbsentRevision);
@@ -483,21 +504,7 @@ internal sealed partial class RecreateGame
 
     private string? LightingShortcutConflict(LightingEditorCommand command, AuthoringKeyChord chord)
     {
-        if (command != LightingEditorCommand.OpenEditor)
-        {
-            return null;
-        }
-        foreach (ControlAction action in Enum.GetValues<ControlAction>())
-        {
-            foreach (InputChord binding in keyboard.Profile.GetBindings(action, ControlDevice.Keyboard).Concat(ControlsProfile.GetPermanentBindings(action, ControlDevice.Keyboard)))
-            {
-                if (binding.Keys.Contains(chord.Key) && chord.Matches(new KeyboardState(binding.Keys)))
-                {
-                    return "Opening shortcut conflicts with " + action + ". Choose another chord.";
-                }
-            }
-        }
-        return null;
+        return LightingHostInputPolicy.FindConflict(keyboard.Profile, command, chord);
     }
 
     private Vector2 FieldPixelToLightingDesign(Vector2 point)
@@ -541,7 +548,7 @@ internal sealed partial class RecreateGame
         }
         if (lightingEditor is not null)
         {
-            lightingEditor.RendererStatus = world?.LightingStatus ?? "";
+            lightingEditor.RendererStatus = world?.LightingUnavailableReason ?? world?.LightingShadowDiagnostic ?? "";
             if (lightingEditor.OverlayVisible)
             {
                 UiView view = lightingEditor.BuildView();
@@ -556,6 +563,10 @@ internal sealed partial class RecreateGame
         if (lightingEditor is null && world?.LightingUnavailableReason is { } unavailable)
         {
             uiCanvas.Text("Field lighting unavailable: " + unavailable, 16, new(bounds.X + 12, bounds.Bottom - 58, bounds.Width - 24, 26), new UiColor(255, 199, 118));
+        }
+        else if (lightingEditor is null && lightingAuthoringEnabled && lightingPreviewError is not null)
+        {
+            uiCanvas.Text(lightingPreviewError, 16, new(bounds.X + 12, bounds.Bottom - 58, bounds.Width - 24, 26), new UiColor(255, 199, 118));
         }
     }
 }

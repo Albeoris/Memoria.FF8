@@ -220,7 +220,10 @@ internal sealed partial class RecreateGame : Game
             drainUiButtons = true;
             dialogInputBlocked = false;
         }
-        UpdateWindowModeHotkey();
+        if (lightingEditor is null && lightingRebinding is null)
+        {
+            UpdateWindowModeHotkey();
+        }
         if (UpdateCrossover(gameTime))
         {
             return;
@@ -299,6 +302,14 @@ internal sealed partial class RecreateGame : Game
         keys = windowModeHotkey.Filter(keys);
         if (gameMenus?.IsLightingNameEditing == true)
         {
+            if (pendingCapture is null)
+            {
+                controls?.Poll();
+            }
+            if (!gameMenus.IsLightingNameEditing)
+            {
+                return;
+            }
             if (!lightingNameInputActive)
             {
                 gameMenus.ResetLightingPackageNameInput(keys);

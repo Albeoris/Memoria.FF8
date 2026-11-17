@@ -62,21 +62,21 @@ public sealed class LightingEditorTests
         editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.Z);
         editor.SetTransformNumeric("-500");
         Assert.True(editor.ConfirmTransform());
-        Assert.Equal(-200, editor.Selected!.Position.Z);
+        Assert.Equal(-350, editor.Selected!.Position.Z);
         Assert.Equal(original.Direction, editor.Selected.Direction);
         editor.BeginTransform(LightingTransformTool.Rotate, LightingAxis.Y);
         editor.SetTransformNumeric("90");
         editor.ConfirmTransform();
         AssertVector(new(-1, 0, 0), editor.Selected.Direction);
-        Assert.Equal(-200, editor.Selected.Position.Z);
+        Assert.Equal(-350, editor.Selected.Position.Z);
         editor.SetPivot(new(10, 0, 0));
         editor.BeginTransform(LightingTransformTool.Orbit, LightingAxis.Y);
         editor.SetTransformNumeric("90");
         editor.ConfirmTransform();
-        AssertVector(new(-190, 0, 10), editor.Selected.Position);
+        AssertVector(new(-340, 0, 10), editor.Selected.Position);
         AssertVector(Vector3.UnitZ, editor.Selected.Direction);
         editor.Undo();
-        AssertVector(new(0, 0, -200), editor.Selected.Position);
+        AssertVector(new(0, 0, -350), editor.Selected.Position);
         AssertVector(new(-1, 0, 0), editor.Selected.Direction);
     }
 
@@ -328,6 +328,63 @@ public sealed class LightingEditorTests
         editor.CancelTransform();
         Assert.Equal(0, editor.Selected.Position.X);
         Assert.Equal(1, editor.History.CommandCount);
+    }
+
+    [Fact]
+    public void Save_button_commits_pending_transform_and_writes_in_the_same_click()
+    {
+        int saves = 0;
+        LightingEditorController editor = Create(_ =>
+        {
+            saves++;
+            return null;
+        });
+        editor.AddLight();
+        editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.X);
+        editor.SetTransformNumeric("-50");
+        Poll(editor, new(), 1060, 40, true);
+        Assert.Equal(1, saves);
+        Assert.Equal(-50, editor.Selected!.Position.X);
+        Assert.False(editor.HasPendingTransform);
+        Assert.False(editor.IsDirty);
+        Poll(editor, new(), 900, 623);
+        editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.X);
+        editor.SetTransformNumeric("100");
+        Poll(editor, new(), 900, 623, true);
+        Assert.Equal(-50, editor.Selected.Position.X);
+        Assert.False(editor.HasPendingTransform);
+        Assert.False(editor.IsDirty);
+    }
+
+    [Fact]
+    public void Unconstrained_aim_uses_the_frozen_camera_axis_instead_of_spinning_a_downward_beam_around_world_height()
+    {
+        LightingEditorController editor = Create();
+        editor.SetProjection(Project, _ => Vector3.Zero, _ => new LightingEditorRay(new(0, 1000, 1000), Vector3.Normalize(new(0, -1, -1))));
+        editor.AddLight();
+        Vector3 originalPosition = editor.Selected!.Position;
+        editor.BeginTransform(LightingTransformTool.Rotate);
+        editor.SetTransformNumeric("90");
+        editor.ConfirmTransform();
+        Assert.Equal(originalPosition, editor.Selected.Position);
+        Assert.True(Vector3.Distance(-Vector3.UnitZ, editor.Selected.Direction) > 0.5f);
+        Assert.Equal(1, editor.Selected.Direction.Length(), 4);
+    }
+
+    [Fact]
+    public void Explicit_add_uses_actor_scale_and_offscreen_lamps_remain_at_their_real_position_with_recovery_help()
+    {
+        LightingEditorController editor = Create();
+        editor.AddLight();
+        Assert.Equal(150, editor.Selected!.Position.Z);
+        Assert.Equal(600, editor.Selected.Range);
+        editor.BeginTransform(LightingTransformTool.Translate, LightingAxis.X);
+        editor.SetTransformNumeric("5000");
+        editor.ConfirmTransform();
+        Assert.Equal(5000, editor.Selected.Position.X);
+        Assert.Contains("outside this camera view", editor.SelectionLocationNotice!);
+        editor.Undo();
+        Assert.Null(editor.SelectionLocationNotice);
     }
 
     [Theory]

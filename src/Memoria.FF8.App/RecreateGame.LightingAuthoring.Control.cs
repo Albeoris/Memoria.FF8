@@ -16,6 +16,10 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException("Show the lighting editor interface before editing its suspended session.");
         }
+        if (lightingEditor is { DiscardConfirmation: true } && command is not ("lighting-discard" or "lighting-continue" or "lighting-visibility"))
+        {
+            throw new InvalidOperationException("Resolve the lighting editor's discard confirmation before changing its draft.");
+        }
         switch (command)
         {
             case "lighting-create":

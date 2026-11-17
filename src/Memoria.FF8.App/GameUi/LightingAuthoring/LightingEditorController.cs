@@ -76,6 +76,26 @@ public sealed partial class LightingEditorController
     public LightingProperty? EditingProperty => propertyEdit?.Property;
     public string Message { get; private set; } = "Insert adds a spotlight. No lamps means no model illumination.";
     public string RendererStatus { get; set; } = "";
+    public string? SelectionLocationNotice
+    {
+        get
+        {
+            if (Selected is not { } light)
+            {
+                return null;
+            }
+            Vector2? location = project(light.Position);
+            if (location is not { } point || point.X < 0 || point.X > DesignWidth || point.Y < 0 || point.Y > DesignHeight)
+            {
+                return "Selected light is outside this camera view.\nEdit Position, or use " + Shortcuts.Describe(LightingEditorCommand.Translate) + " with an axis and a signed distance.";
+            }
+            if (LightingEditorLayout.Sources.Contains(point.X, point.Y) || LightingEditorLayout.Properties.Contains(point.X, point.Y) || LightingEditorLayout.Header.Contains(point.X, point.Y) || LightingEditorLayout.Footer.Contains(point.X, point.Y))
+            {
+                return "Selected light is behind an editor panel.\nEdit Position, or use " + Shortcuts.Describe(LightingEditorCommand.Translate) + " with an axis and a signed distance.";
+            }
+            return null;
+        }
+    }
     public bool PickingPivot { get; private set; }
     internal int ListOffset { get; private set; }
     internal Vector2 PointerPosition => pointer;
@@ -144,16 +164,16 @@ public sealed partial class LightingEditorController
             Id = Guid.NewGuid().ToString("N"),
             Name = name,
             Enabled = enabled,
-            Position = (pickedGround ?? Pivot) + Vector3.UnitZ * actorScale * 3,
+            Position = (pickedGround ?? Pivot) + Vector3.UnitZ * actorScale * 1.5f,
             Direction = -Vector3.UnitZ,
-            Range = actorScale * 12,
+            Range = actorScale * 6,
             InnerConeDegrees = 35,
             OuterConeDegrees = 65
         };
         ApplyCommand(Draft with { Lights = [.. Draft.Lights, light], PrimaryLightId = Draft.Lights.Count == 0 ? light.Id : Draft.PrimaryLightId });
         SelectedId = light.Id;
         ListOffset = Math.Max(0, Draft.Lights.Count - LightingEditorLayout.VisibleLights);
-        Message = enabled ? "Spotlight added above the ground pivot. G moves; R aims; Z is height." : "Eight enabled lamps is the limit. Added a disabled spotlight; disable another lamp to enable it.";
+        Message = enabled ? "Spotlight added above the ground pivot. " + Shortcuts.Describe(LightingEditorCommand.Translate) + " moves; " + Shortcuts.Describe(LightingEditorCommand.Rotate) + " aims; world Z is height." : "Eight enabled lamps is the limit. Added a disabled spotlight; disable another lamp to enable it.";
     }
 
     public void DeleteSelected()

@@ -116,12 +116,21 @@ public sealed partial class LightingEditorController
                 Vector2? start = project(active.Light.Position);
                 Vector2? end = project(active.Light.Position + axis * actorScale);
                 Vector2 projectedAxis = start is { } first && end is { } second ? (second - first) / actorScale : Vector2.Zero;
-                if (!numeric && projectedAxis.LengthSquared() < 0.000001f)
+                float? startParameter = LightingEditorGeometry.AxisParameter(screenRay(active.StartPointer), active.Light.Position, axis);
+                float? endParameter = LightingEditorGeometry.AxisParameter(screenRay(current), active.Light.Position, axis);
+                if (!numeric && startParameter is { } initial && endParameter is { } final)
+                {
+                    amount = final - initial;
+                }
+                else if (!numeric && projectedAxis.LengthSquared() < 0.000001f)
                 {
                     Message = "This axis points into the camera. Type a signed distance for an exact move.";
                     return true;
                 }
-                amount = numeric ? amount : Vector2.Dot(delta, projectedAxis) / projectedAxis.LengthSquared();
+                else if (!numeric)
+                {
+                    amount = Vector2.Dot(delta, projectedAxis) / projectedAxis.LengthSquared();
+                }
                 offset = axis * amount;
             }
             else
@@ -139,11 +148,11 @@ public sealed partial class LightingEditorController
         }
         else
         {
-            LightingAxis axis = active.Axis == LightingAxis.None ? LightingAxis.Z : active.Axis;
+            Vector3 axis = active.Axis == LightingAxis.None && active.Tool == LightingTransformTool.Rotate ? screenRay(active.StartPointer)?.Direction ?? Vector3.UnitZ : LightingEditorGeometry.AxisVector(active.Axis);
             Vector3 center = active.Tool == LightingTransformTool.Orbit ? Pivot : active.Light.Position;
             if (!numeric)
             {
-                Vector3 normal = LightingEditorGeometry.AxisVector(axis);
+                Vector3 normal = Vector3.Normalize(axis);
                 Vector3? start = LightingEditorGeometry.IntersectPlane(screenRay(active.StartPointer), center, normal);
                 Vector3? end = LightingEditorGeometry.IntersectPlane(screenRay(current), center, normal);
                 if (start is { } first && end is { } second && (first - center).LengthSquared() > 0.001f && (second - center).LengthSquared() > 0.001f)
