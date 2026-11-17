@@ -5,9 +5,10 @@ public static class NativeBattleItemStockRules
 {
     public static void Validate(NativeItemStock[] slots)
     {
-        if (slots is not { Length: 198 } || slots.Any(stock => stock is null || stock.Count > 100 || (stock.ItemId == 0) != (stock.Count == 0)) || slots.Where(stock => stock.ItemId != 0).Select(stock => stock.ItemId).Distinct().Count() != slots.Count(stock => stock.ItemId != 0))
+        // A depleted physical row can retain its item ID without owning any stock.
+        if (slots is not { Length: 198 } || slots.Any(stock => stock is null || stock.Count > 100 || stock.ItemId == 0 && stock.Count != 0) || slots.Where(stock => stock.ItemId != 0).Select(stock => stock.ItemId).Distinct().Count() != slots.Count(stock => stock.ItemId != 0))
         {
-            throw new InvalidDataException("Native battle item inventory requires198 physical slots with unique nonempty items.");
+            throw new InvalidDataException("Native battle item inventory requires 198 physical slots with unique nonzero item IDs and valid stock counts.");
         }
     }
 
