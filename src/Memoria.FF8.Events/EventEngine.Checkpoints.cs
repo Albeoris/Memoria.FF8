@@ -572,6 +572,7 @@ public sealed partial class EventEngine
                 ValidateNativeScalarSource(value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
             }
             restored.Add(fiber);
+            ValidateNativeWait(fiber);
         }
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);
         ValidateNativeDoorSuspensionCheckpoint(saved, restored);

@@ -342,19 +342,10 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        int remaining = 16;
-        while (remaining > 0)
+        Fiber? fiber = SelectScheduledFiber(objectId);
+        if (fiber is not null)
         {
-            Fiber? fiber = SelectScheduledFiber(objectId);
-            if (fiber is null)
-            {
-                break;
-            }
-            remaining -= Run(fiber, remaining);
-            if (!fiber.Complete || transitionRequested)
-            {
-                break;
-            }
+            Run(fiber);
         }
         return true;
     }

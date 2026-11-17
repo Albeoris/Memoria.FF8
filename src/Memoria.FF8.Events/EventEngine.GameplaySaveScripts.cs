@@ -48,6 +48,7 @@ public sealed partial class EventEngine
 
     private GameplaySaveScriptFiber CaptureGameplaySaveFiber(Fiber fiber)
     {
+        ValidateNativeWait(fiber);
         ValidateGameplayPresentationWait(fiber);
         ValidateGameplayMovementSyncWait(fiber);
         ValidateGameplayAnimationWait(fiber);
@@ -151,6 +152,7 @@ public sealed partial class EventEngine
                 fiber.Results.Add(key, NativeScalarValue.Exact(value));
             }
             ValidateGameplayAnimationWait(fiber);
+            ValidateNativeWait(fiber);
             ValidateGameplayFaceWait(fiber);
             ValidateGameplayBackgroundAnimationWait(fiber);
             ValidateGameplayTurnWait(fiber);

@@ -25,6 +25,8 @@ internal static partial class Program
                     ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
                     ["native-refinement-input"] = NativeRefinementInputContract,
                     ["wait-corrupt-input"] = WaitAndCorruptInput,
+                    ["native-wait"] = () => NativeWaitContract(selectedGameDirectory),
+                    ["native-dialogue-opening-input"] = () => NativeDialogueOpeningInputContract(selectedGameDirectory),
                     ["omega-tutorial-save"] = OmegaTutorialSaveContract,
                     ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
                     ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,

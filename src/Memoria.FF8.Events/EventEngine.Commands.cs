@@ -794,6 +794,11 @@ public sealed partial class EventEngine
                 ExecuteNativeAnimationBackup(actor, opcode == Jsm.Opcode.POPANIME);
                 break;
             case Jsm.Opcode.WAIT:
+                if (NativeRuntimeProfile is { IsVerified: true } && !synchronousFieldInitialization)
+                {
+                    args = ExecuteNativeWait(fiber);
+                    break;
+                }
                 if (synchronousFieldInitialization && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || fiber.Stack.Peek() <= 0))
                 {
                     throw Fault(fiber, "Native synchronous WAIT requires its exact positive DWORD countdown; wraparound polling is unsupported.");

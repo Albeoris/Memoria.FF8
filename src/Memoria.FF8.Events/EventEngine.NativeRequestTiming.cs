@@ -25,6 +25,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeRequestTiming(Fiber fiber, JsmOperation operation)
     {
+        if (NativeRuntimeProfile is { IsVerified: true } && operation.Opcode == Jsm.Opcode.WAIT && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact))
+        {
+            return "Native WAIT requires its exact retained DWORD countdown";
+        }
         if (NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && operation.Opcode == Jsm.Opcode.REQ && (uint)operation.Parameter < program!.NativeObjects.Count && program.NativeObjects[operation.Parameter] == fiber.ObjectId && !IsNativeSelfRequest(fiber, operation))
         {
             return "Native self REQ outside a retained physical actor requires its original dense BYTE598 identity comparison";
@@ -39,6 +43,10 @@ public sealed partial class EventEngine
         if (NativeRuntimeProfile is not { IsVerified: true } || fiber.Initialization)
         {
             return false;
+        }
+        if (operation.Opcode == Jsm.Opcode.WAIT)
+        {
+            return true;
         }
         if (operation.Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW)
         {

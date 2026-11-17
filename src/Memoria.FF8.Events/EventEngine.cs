@@ -569,14 +569,14 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (!dialogue.CanConfirm)
+        if (!dialogue.CanConfirm || !CanReceiveDialogueInput(dialogue))
         {
             return;
         }
         if (dialogue.FirstChoice is null && !dialogue.IsNamePrompt)
         {
             //529FF0 broadcasts the same global confirm edge to ready automatic windows.
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && CanReceiveDialogueInput(item) && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
                 if (!TryConfirmNativeBlockingDialogue(automatic, null))
@@ -891,7 +891,7 @@ public sealed partial class EventEngine
     private EventFaultContext DescribeFault(Fiber fiber, int operation)
     {
         string? opcode = program is not null && (uint)operation < program.Operations.Count ? program.Operations[operation].Opcode.ToString() : null;
-        return new EventFaultContext(FieldId, fiber.ObjectId, fiber.Script.Id, operation, opcode, Frame, fiber.WaitReason.ToString(), fiber.Stack.Take(32).ToArray(), fiber.StackExpressions.Take(32).ToArray());
+        return new EventFaultContext(FieldId, fiber.ObjectId, fiber.Script.Id, operation, opcode, Frame, fiber.WaitReason.ToString(), fiber.Stack.Capture().Take(32).ToArray(), fiber.StackExpressions.Take(32).ToArray());
     }
 
     private int[] Pop(Fiber fiber, int count)
@@ -1087,7 +1087,7 @@ public sealed partial class EventEngine
 
 }
 
-public sealed record EventFaultContext(int FieldId, int ObjectId, int ScriptId, int Operation, string? Opcode, long Frame, string? WaitReason, int[] Operands, string[] Expressions);
+public sealed record EventFaultContext(int FieldId, int ObjectId, int ScriptId, int Operation, string? Opcode, long Frame, string? WaitReason, NativeScalarValue[] Operands, string[] Expressions);
 
 public sealed class EventScriptException(string message, Exception? inner = null) : Exception(message, inner)
 {

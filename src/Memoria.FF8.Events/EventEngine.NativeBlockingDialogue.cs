@@ -6,6 +6,11 @@ public sealed partial class EventEngine
 {
     private sealed record NativeDialogueConsumer(int Version, int Operation, int OperandCount, int Channel, bool ConfirmationReceived = false, bool Closing = false, int? PendingSelection = null);
 
+    private bool CanReceiveDialogueInput(DialogueState dialogue)
+    {
+        return NativeRuntimeProfile is not { IsVerified: true } || dialogue.IsNamePrompt || dialogue.NativeWindow is { Progress: 4096, Delta: >= 0 };
+    }
+
     private static int NativeBlockingDialogueOperandCount(Jsm.Opcode opcode) => opcode switch
     {
         Jsm.Opcode.MESSYNC => 1,
@@ -86,7 +91,7 @@ public sealed partial class EventEngine
         //Persistent MESSYNC closes in529900; selected choices close in their VM poll.
         if (ButtonInput?.Pressed is ushort pressed && (pressed & 0xC0) != 0)
         {
-            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
+            foreach (DialogueState automatic in dialogues.Values.Where(item => item.CanConfirm && CanReceiveDialogueInput(item) && item.FirstChoice is null && !item.IsNamePrompt && (NativeRuntimeProfile is not { IsVerified: true } || NativeDialogueChannelOccupied(item.Channel))).ToArray())
             {
                 RecordDialogueOutcome(automatic, null, null);
                 if (!TryConfirmNativeBlockingDialogue(automatic, null))

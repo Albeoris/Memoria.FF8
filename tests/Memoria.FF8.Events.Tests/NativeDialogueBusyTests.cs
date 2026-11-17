@@ -65,6 +65,12 @@ internal static partial class Program
             Require(opened.GetProperty("Stack").GetArrayLength() == (secondOpcode == Jsm.Opcode.AMESW ? 4 : 0) && !CapturedVariables(live.Capture()).TryGetProperty("514", out _), "Successful native dialogue opening failed its return1/return3 yield or consumed operands more than once.");
             if (secondOpcode == Jsm.Opcode.AMESW)
             {
+                while (live.Dialogues.Single().NativeWindow!.Progress < 4096)
+                {
+                    live.Step();
+                    restored.Step();
+                    Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Second channel opening changed independently restored ownership.");
+                }
                 live.Apply(new PlayerAction(PlayerActionKind.Confirm));
                 restored.Apply(new PlayerAction(PlayerActionKind.Confirm));
                 live.Step();
@@ -93,6 +99,10 @@ internal static partial class Program
         sync.Step();
         sync.Step();
         Require(sync.CurrentDialogue is { CanConfirm: true }, "Native MESSYNC did not admit its existing persistent channel.");
+        while (sync.Dialogues.Single().NativeWindow!.Progress < 4096)
+        {
+            sync.Step();
+        }
         sync.Apply(new PlayerAction(PlayerActionKind.Confirm));
         for (int callback = 0; callback < 8 && !syncSession.State.Variables.ContainsKey(512); callback++)
         {
