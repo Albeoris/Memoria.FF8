@@ -122,10 +122,11 @@ public sealed class ReleaseClientTests
     [Theory]
     [InlineData("not-a-version", false)]
     [InlineData("v1.2.3", true)]
-    public async Task StableRejectsInvalidTagOrPrerelease(string tag, bool prerelease)
+    public async Task LatestUsesGitHubSelectionWithoutVersionOrPrereleaseRestrictions(string tag, bool prerelease)
     {
         using HttpClient http = new(new LegacyHandler(_ => JsonResponse(Metadata(tag, prerelease: prerelease))));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        Assert.Equal(tag, release.Tag);
     }
 
     [Theory]
@@ -246,6 +247,76 @@ public sealed class ReleaseClientTests
         {
             File.Delete(destination);
         }
+    }
+
+    [Fact]
+    public async Task LatestBypassesStaticFeedAndUsesGitHubLatest()
+    {
+        using HttpClient http = new(new Handler(request =>
+        {
+            Assert.Equal("https://api.github.com/repos/Albeoris/Memoria.FF8/releases/latest", request.RequestUri!.AbsoluteUri);
+            return JsonResponse(Metadata("preview-preview", prerelease: true));
+        }));
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetAsync(UpdateChannel.Release, TestContext.Current.CancellationToken));
+        Assert.Equal("preview-preview", release.Tag);
+        Assert.Equal(Digest[7..], release.Sha256);
+    }
+
+    [Fact]
+    public async Task CatalogPaginatesIncludesEveryTagAndSortsByUpdateTime()
+    {
+        object[] firstPage = Enumerable.Range(0, 100).Select(index => (object)new
+        {
+            tag_name = index == 0 ? "custom-tag" : "draft-" + index,
+            name = "Release " + index,
+            draft = index != 0,
+            prerelease = false,
+            updated_at = "2026-11-01T00:00:00Z"
+        }).ToArray();
+        object[] secondPage =
+        [
+            new { tag_name = "v2.0-preview", name = "Preview", draft = false, prerelease = true, updated_at = "2026-11-15T00:00:00Z" },
+            new { tag_name = "nightly", name = "Nightly", draft = false, prerelease = true, updated_at = "2026-11-17T00:00:00Z" }
+        ];
+        List<string> requests = [];
+        using HttpClient http = new(new Handler(request =>
+        {
+            string query = request.RequestUri!.Query;
+            requests.Add(query);
+            Assert.Equal("/repos/Albeoris/Memoria.FF8/releases", request.RequestUri.AbsolutePath);
+            return query switch
+            {
+                "?per_page=100&page=1" => JsonResponse(JsonSerializer.Serialize(firstPage)),
+                "?per_page=100&page=2" => JsonResponse(JsonSerializer.Serialize(secondPage)),
+                _ => throw new InvalidOperationException("Unexpected catalog page")
+            };
+        }));
+        IReadOnlyList<ReleaseCatalogEntry> releases = await new ReleaseClient(http, "win-x64").GetCatalogAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, requests.Count);
+        Assert.Equal(["nightly", "v2.0-preview", "custom-tag"], releases.Select(release => release.Tag));
+        Assert.Equal(new DateTimeOffset(2026, 11, 17, 0, 0, 0, TimeSpan.Zero), releases[0].UpdatedAt);
+        Assert.Contains(releases[0].UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm zzz"), releases[0].ToString());
+    }
+
+    [Fact]
+    public async Task SelectedTagUsesEscapedEndpointAndVerifiedAssetMetadata()
+    {
+        using HttpClient http = new(new Handler(request =>
+        {
+            Assert.Equal("https://api.github.com/repos/Albeoris/Memoria.FF8/releases/tags/preview%2Ftest", request.RequestUri!.AbsoluteUri);
+            return JsonResponse(Metadata("preview/test", prerelease: true));
+        }));
+        UpdateRelease release = Assert.IsType<UpdateRelease>(await new ReleaseClient(http, "win-x64").GetByTagAsync("preview/test", TestContext.Current.CancellationToken));
+        Assert.Equal("preview/test", release.Tag);
+        Assert.True(release.HasArtifact);
+        Assert.Equal(Digest[7..], release.Sha256);
+    }
+
+    [Fact]
+    public async Task SelectedTagCannotResolveToAnotherTag()
+    {
+        using HttpClient http = new(new Handler(_ => JsonResponse(Metadata("another-tag"))));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ReleaseClient(http, "win-x64").GetByTagAsync("selected-tag", TestContext.Current.CancellationToken));
     }
 
     private const string Digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

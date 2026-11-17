@@ -23,7 +23,7 @@ internal sealed partial class LauncherWindow : Window
     }
 
     private readonly ComboBox graphicsBackend = new() { MinHeight = 32, MinWidth = 180 };
-    private readonly TextBlock graphicsStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock graphicsStatus = new() { TextWrapping = TextWrapping.Wrap, Foreground = LauncherMuted, Margin = new Thickness(0, 6, 0, 0) };
     private readonly Button tryAuto = new() { Content = "Try Auto", IsVisible = false, MinHeight = 30 };
     private GraphicsBackend requestedGraphicsBackend;
     private bool loadingGraphicsBackend;
@@ -39,7 +39,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly CheckBox achievementsLocalOnly = new() { Content = "Keep achievements local (disable platform connection)", Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock mediaStatus = new() { Text = "Checking FFmpeg…", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
     private readonly ProgressBar mediaProgress = new() { Height = 8, Minimum = 0, Maximum = 100 };
-    private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = Brushes.DimGray };
+    private readonly TextBlock mediaProgressText = new() { Margin = new Thickness(0, 6, 0, 0), Foreground = LauncherMuted };
     private readonly StackPanel mediaProgressPanel = new() { IsVisible = false, Margin = new Thickness(0, 10, 0, 0) };
     private readonly Button cancelMediaSetup = new() { Content = "Cancel setup", IsVisible = false, Margin = new Thickness(0, 8, 0, 0) };
     private CancellationTokenSource? mediaSetupLifetime;
@@ -65,72 +65,12 @@ internal sealed partial class LauncherWindow : Window
         {
             Icon = new WindowIcon(icon);
         }
-        Width = 740;
-        Height = 840;
-        MinWidth = 600;
-        MinHeight = 620;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         FontFamily = FontFamily.Default;
-        FontSize = 14;
-        Background = new SolidColorBrush(Color.FromRgb(245, 247, 250));
-
-        Grid layout = new() { Margin = new Thickness(28) };
-        foreach (GridLength height in new[] { GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
-        {
-            layout.RowDefinitions.Add(new RowDefinition { Height = height });
-        }
-        Add(layout, new TextBlock { Text = "Memoria", FontSize = 32, FontWeight = FontWeight.SemiBold }, 0);
-        Add(layout, new TextBlock { Text = "English Steam (2013) or Remastered · Remastered support is partial", Foreground = Brushes.DimGray, Margin = new Thickness(0, 4, 0, 24) }, 1);
-        DockPanel selection = new() { LastChildFill = true, Margin = new Thickness(0, 0, 0, 20) };
-        DockPanel.SetDock(browse, Dock.Right);
-        selection.Children.Add(browse);
-        selection.Children.Add(installations);
-        Add(layout, selection, 2);
-        DockPanel media = new();
-        DockPanel.SetDock(mediaSetup, Dock.Right);
-        media.Children.Add(mediaSetup);
-        media.Children.Add(mediaStatus);
-        StackPanel mediaSection = new() { Margin = new Thickness(0, 0, 0, 14) };
-        mediaSection.Children.Add(media);
-        mediaProgressPanel.Children.Add(mediaProgress);
-        mediaProgressPanel.Children.Add(mediaProgressText);
-        mediaProgressPanel.Children.Add(cancelMediaSetup);
-        mediaSection.Children.Add(mediaProgressPanel);
-        mediaSection.Children.Add(achievementsLocalOnly);
-        StackPanel graphicsSelection = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
-        graphicsSelection.Children.Add(new TextBlock { Text = "Graphics backend", VerticalAlignment = VerticalAlignment.Center });
-        graphicsSelection.Children.Add(graphicsBackend);
-        graphicsSelection.Children.Add(tryAuto);
-        mediaSection.Children.Add(graphicsSelection);
-        mediaSection.Children.Add(graphicsStatus);
-        StackPanel languageSelection = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
-        languageSelection.Children.Add(new TextBlock { Text = "Resource language", VerticalAlignment = VerticalAlignment.Center });
-        languageSelection.Children.Add(resourceLanguage);
-        mediaSection.Children.Add(languageSelection);
-        mediaSection.Children.Add(new TextBlock { Text = "Auto uses the installed resource language. Choose the language of your game text and matching mod resources. Applies on the next start.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) });
-        mediaSection.Children.Add(CreateModelSourceSelection());
-        Button encodingEditor = new() { Content = "Tools: Encoding Editor…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
-        encodingEditor.Click += (_, _) => new EncodingProfiles.EncodingEditorWindow().Show(this);
-        mediaSection.Children.Add(encodingEditor);
-        Add(layout, mediaSection, 3);
-        Add(layout, CreateUpdatePanel(), 4);
-        Add(layout, status, 5);
-        DockPanel launch = new() { Margin = new Thickness(0, 16, 0, 0) };
-        DockPanel.SetDock(play, Dock.Right);
-        launch.Children.Add(play);
-        launch.Children.Add(closeAfterLaunch);
-        Add(layout, launch, 6);
-        Content = new TabControl
-        {
-            ItemsSource = new TabItem[]
-            {
-                new() { Header = "FINAL FANTASY VIII", Content = layout },
-                new() { Header = "FINAL FANTASY VII (experimental)", Content = CreateFf7Selection() }
-            }
-        };
+        CreateLauncherLayout();
+        InitializeLauncherAppearance();
         browse.Click += async (_, _) => await BrowseAsync();
         cancel.Click += (_, _) => discoveryLifetime.Cancel();
-        mediaSection.Children.Add(cancel);
         installations.SelectionChanged += async (_, _) => await Task.WhenAll(ValidateSelectionAsync(), RecheckOfficialModSelectionAsync());
         achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
         resourceLanguage.ItemsSource = new ResourceLanguageChoice[]
@@ -362,6 +302,7 @@ internal sealed partial class LauncherWindow : Window
         {
             return;
         }
+        status.Foreground = error is null ? LauncherSuccess : LauncherProblem;
         status.Text = error ?? (OperatingSystem.IsWindows() ? "Game files found. Ready to play. Offline play is available without checking for updates." : "Game files found. " + LauncherCapabilities.GameStatus);
         SaveSelection();
     }
@@ -376,8 +317,8 @@ internal sealed partial class LauncherWindow : Window
         try
         {
             LauncherSettings settings = selected is null
-                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true, Ff7GameDirectory = selectedFf7GameDirectory }
-                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory);
+                ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true, Ff7GameDirectory = selectedFf7GameDirectory, Appearance = SelectedLauncherAppearance }
+                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance);
             settings.Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -625,6 +566,7 @@ internal sealed partial class LauncherWindow : Window
                 await ShowRunningGameModInstructionsAsync();
                 return;
             }
+            await StopLauncherModLibraryAsync();
             if (detached)
             {
                 using Process game = Process.Start(start) ?? throw new InvalidOperationException("The game process could not be started.");
@@ -755,7 +697,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }
@@ -768,6 +710,7 @@ internal sealed partial class LauncherWindow : Window
     private async Task ShowErrorAsync(string message, Exception exception)
     {
         ErrorIncident incident = ErrorIncident.Capture(exception, "Launcher", environment: new { RequestedBackend = requestedGraphicsBackend.ToString(), ResourceLanguage = SelectedResourceLanguage }, saveUnavailableReason: "Launcher failure; no running game snapshot was captured.");
+        status.Foreground = LauncherProblem;
         status.Text = $"{message}{Environment.NewLine}{exception.Message}";
         await ShowReportAsync(status.Text, incident);
     }
@@ -804,6 +747,7 @@ internal sealed partial class LauncherWindow : Window
     private void SetBusy(bool value)
     {
         busy = value || updating || runningGame is not null;
+        selectedGame.IsEnabled = !busy;
         installations.IsEnabled = !busy;
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
@@ -815,9 +759,13 @@ internal sealed partial class LauncherWindow : Window
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
         play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
+        launchContext.Foreground = play.IsEnabled ? LauncherSuccess : LauncherMuted;
         UpdateFf7Controls();
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
-        nightlyUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        selectOtherRelease.IsEnabled = !busy && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        releaseChoices.IsEnabled = !busy && !checkingUpdates && LauncherCapabilities.CanUpdate;
+        RefreshReleaseSelection();
+        RenderLauncherMods();
         manageOfficialMods.IsEnabled = LauncherCapabilities.CanLaunchGame && (runningGame is not null || !busy && installations.SelectedItem is GameInstallation);
         if (!busy && closeAfterMediaSetup)
         {
@@ -826,7 +774,10 @@ internal sealed partial class LauncherWindow : Window
         }
     }
 
-    private void OnClosing(object? sender, WindowClosingEventArgs args)
+    private bool stoppingLauncherMods;
+    private bool launcherModsStopped;
+
+    private async void OnClosing(object? sender, WindowClosingEventArgs args)
     {
         if (mediaSetupLifetime is not null && !closingForUpdate)
         {
@@ -841,10 +792,28 @@ internal sealed partial class LauncherWindow : Window
             args.Cancel = true;
             status.Text = "Wait for the current operation to finish, or close the game before closing the launcher.";
         }
-        else
+        else if (!launcherModsStopped)
         {
+            args.Cancel = true;
+            if (stoppingLauncherMods)
+            {
+                return;
+            }
+            stoppingLauncherMods = true;
             updateLifetime.Cancel();
             discoveryLifetime.Cancel();
+            try
+            {
+                await StopLauncherModLibraryAsync();
+                launcherModsStopped = true;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => Close());
+            }
+            catch (Exception exception)
+            {
+                stoppingLauncherMods = false;
+                status.Text = "Could not stop mod downloads: " + exception.Message;
+                status.Foreground = LauncherProblem;
+            }
         }
     }
 }

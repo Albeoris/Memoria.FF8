@@ -14,16 +14,15 @@ internal sealed partial class LauncherWindow
 
     private Control CreateModelSourceSelection()
     {
-        StackPanel panel = new() { Spacing = 6, Margin = new Thickness(0, 12, 0, 0) };
-        panel.Children.Add(new TextBlock { Text = "Model resources" });
-        DockPanel selection = new() { LastChildFill = true };
-        DockPanel.SetDock(resetModelSource, Dock.Right);
-        DockPanel.SetDock(browseModelSource, Dock.Right);
-        selection.Children.Add(resetModelSource);
-        selection.Children.Add(browseModelSource);
-        selection.Children.Add(modelSourcePath);
-        panel.Children.Add(selection);
-        panel.Children.Add(new TextBlock { Text = "Choose another installed edition for compatible models and their textures. Game scripts, language and rules stay with the game installation. Applies on the next start.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray });
+        StackPanel panel = new() { Spacing = 10 };
+        panel.Children.Add(modelSourcePath);
+        WrapPanel actions = new();
+        browseModelSource.Margin = new Thickness(0, 0, 8, 0);
+        resetModelSource.Margin = new Thickness(0);
+        actions.Children.Add(browseModelSource);
+        actions.Children.Add(resetModelSource);
+        panel.Children.Add(actions);
+        panel.Children.Add(new TextBlock { Text = "Choose another installed edition for compatible models and their textures. Game scripts, language and rules stay with the game installation. Applies on the next start.", TextWrapping = TextWrapping.Wrap, Foreground = LauncherMuted });
         browseModelSource.Click += async (_, _) => await BrowseModelSourceAsync();
         resetModelSource.Click += (_, _) =>
         {

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Memoria.FF8.Platform;
 
-public sealed record LauncherSettings(string? LastGameDirectory = null, bool AchievementsLocalOnly = false, string? ResourceLanguage = null, string? ModelSourceDirectory = null, bool CloseAfterLaunch = false, string? Ff7GameDirectory = null)
+public sealed record LauncherSettings(string? LastGameDirectory = null, bool AchievementsLocalOnly = false, string? ResourceLanguage = null, string? ModelSourceDirectory = null, bool CloseAfterLaunch = false, string? Ff7GameDirectory = null, string Appearance = "System")
 {
     public static string DefaultPath => ApplicationPaths.Current.LauncherSettings;
 

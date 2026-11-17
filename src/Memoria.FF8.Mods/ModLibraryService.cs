@@ -508,14 +508,20 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         }
         finally
         {
-            foreach (Inspection state in inspections.Values)
+            Task[] pending = inspections.Values.SelectMany(state => new Task?[] { state.Preparation, state.Installation }).Append(refresh).OfType<Task>().ToArray();
+            try
             {
-                Observe(state.Preparation);
-                Observe(state.Installation);
+                await Task.WhenAll(pending).ConfigureAwait(false);
             }
-            Observe(refresh);
-            officialDownloads?.Dispose();
-            downloads.Dispose();
+            catch (Exception)
+            {
+                // Durable workers retain their own failed or cancelled outcome.
+            }
+            if (officialDownloads is not null)
+            {
+                await officialDownloads.StopAsync().ConfigureAwait(false);
+            }
+            await downloads.StopAsync().ConfigureAwait(false);
             catalog.Dispose();
         }
     }
@@ -591,6 +597,13 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             _ = task.ContinueWith(completed => _ = completed.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
         }
+    }
+
+    /// <summary>Cancels library work and waits until catalog and download queue ownership has been released.</summary>
+    public Task StopAsync()
+    {
+        Dispose();
+        return worker;
     }
 
     public void Dispose()

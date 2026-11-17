@@ -1,5 +1,7 @@
 # Downloading mods
 
+The launcher also provides **Mods > Installed / Catalog** with search, category filters, component toggles, details, downloads and transfer controls. **Download missing components** queues compatible missing official components. The launcher releases its download queue before starting the game; saved transfers remain resumable. Advanced configuration and load order use the in-game manager.
+
 Open **Mods** from the game menu. **Installed**, **Catalog**, **Downloads** and **Create** keep local configuration, online discovery, transfer progress and authoring separate.
 
 The Junction catalog is available for browsing independently of installed mods. Opening Catalog refreshes an old or missing saved catalog in the background. Refresh failures preserve the last good list. Installed mods work without a connection or catalog cache. Edition labels supplied by Junction describe its original client; Memoria checks packages for its own supported Classic English target.

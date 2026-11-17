@@ -9,8 +9,10 @@ namespace Memoria.Launcher;
 internal sealed partial class LauncherWindow
 {
     private readonly Button releaseUpdate = new() { Content = "Latest release", MinWidth = 180, MinHeight = 32, Margin = new Thickness(0, 0, 10, 0) };
-    private readonly Button nightlyUpdate = new() { Content = "Nightly", MinWidth = 180, MinHeight = 32 };
-    private readonly TextBlock updateStatus = new() { Text = "Checking for updates…", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly CheckBox selectOtherRelease = new() { Content = "Choose another release", Margin = new Thickness(0, 8, 0, 0) };
+    private readonly ComboBox releaseChoices = new() { MinWidth = 260, MaxWidth = 520, IsVisible = false, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 6, 0, 0) };
+    private bool releaseCatalogLoaded;
+    private readonly TextBlock updateStatus = new() { Text = "Checking for updates…", TextWrapping = TextWrapping.Wrap, Foreground = LauncherMuted, Margin = new Thickness(0, 6, 0, 0) };
     private readonly ProgressBar updateProgress = new() { Height = 8, Minimum = 0, Maximum = 100, IsVisible = false, Margin = new Thickness(0, 8, 0, 0) };
     private readonly CancellationTokenSource updateLifetime = new();
     private readonly Button cancelUpdate = new() { Content = "Cancel download", IsVisible = false, Margin = new Thickness(10, 0, 0, 0) };
@@ -22,15 +24,22 @@ internal sealed partial class LauncherWindow
         StackPanel panel = new() { Margin = new Thickness(0, 0, 0, 14) };
         WrapPanel buttons = new();
         buttons.Children.Add(releaseUpdate);
-        buttons.Children.Add(nightlyUpdate);
-        buttons.Children.Add(cancelUpdate);
         cancelUpdate.Click += (_, _) => updateDownload?.Cancel();
         panel.Children.Add(buttons);
+        panel.Children.Add(selectOtherRelease);
+        panel.Children.Add(releaseChoices);
         panel.Children.Add(updateStatus);
-        panel.Children.Add(updateProgress);
-        panel.Children.Add(CreateOfficialModsPanel());
-        releaseUpdate.Click += async (_, _) => await InstallUpdateAsync(UpdateChannel.Release);
-        nightlyUpdate.Click += async (_, _) => await InstallUpdateAsync(UpdateChannel.Nightly);
+        releaseUpdate.Click += async (_, _) => await InstallUpdateAsync();
+        selectOtherRelease.IsCheckedChanged += async (_, _) =>
+        {
+            releaseChoices.IsVisible = selectOtherRelease.IsChecked == true;
+            RefreshReleaseSelection();
+            if (selectOtherRelease.IsChecked == true && !releaseCatalogLoaded)
+            {
+                await LoadReleaseCatalogAsync();
+            }
+        };
+        releaseChoices.SelectionChanged += (_, _) => RefreshReleaseSelection();
         return panel;
     }
 
@@ -43,9 +52,11 @@ internal sealed partial class LauncherWindow
             updateStatus.Text = LauncherCapabilities.UpdateStatus;
             return;
         }
+        updateStatus.Foreground = LauncherMuted;
         checkingUpdates = true;
         releaseUpdate.IsEnabled = false;
-        nightlyUpdate.IsEnabled = false;
+        selectOtherRelease.IsEnabled = false;
+        releaseChoices.IsEnabled = false;
         try
         {
             using HttpClient http = CreateUpdateClient();
@@ -53,17 +64,17 @@ internal sealed partial class LauncherWindow
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
             ReleaseClient client = new(http);
             Task<PackageManifest?> inventory = Task.Run(() => PackageManifest.LoadOptional(MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory)), timeout.Token);
-            Task<string> release = DescribeChannelAsync(client, UpdateChannel.Release, inventory, timeout.Token);
-            Task<string> nightly = DescribeChannelAsync(client, UpdateChannel.Nightly, inventory, timeout.Token);
-            await Task.WhenAll(release, nightly, inventory);
-            string[] descriptions = await Task.WhenAll(release, nightly);
+            UpdateRelease? release = await client.GetAsync(UpdateChannel.Release, timeout.Token);
             PackageManifest? installed = await inventory;
             string current = installed is null ? "Development build" : $"Installed: {installed.Version} ({installed.BuildId[..Math.Min(8, installed.BuildId.Length)]})";
-            updateStatus.Text = current + Environment.NewLine + string.Join(Environment.NewLine, descriptions);
+            string description = release is null ? "Latest release: no build published." : $"Latest release: {release.Tag} | {release.UpdatedAt.ToLocalTime():g}" + (installed is not null && release.BuildId == installed.BuildId ? " | installed" : " | available");
+            updateStatus.Text = current + Environment.NewLine + description;
+            updateStatus.Foreground = release is not null && (installed is null || release.BuildId != installed.BuildId) ? LauncherSuccess : LauncherMuted;
         }
         catch (Exception exception) when (!updateLifetime.IsCancellationRequested)
         {
-            updateStatus.Text = "Could not check updates: " + exception.Message + " Offline: installed games remain playable. Click a channel to retry.";
+            updateStatus.Foreground = LauncherProblem;
+            updateStatus.Text = "Could not check updates: " + exception.Message + " Offline: installed games remain playable. Click Latest release to retry.";
         }
         catch (OperationCanceledException)
         {
@@ -72,35 +83,64 @@ internal sealed partial class LauncherWindow
         {
             checkingUpdates = false;
             SetBusy(busy);
+            RefreshReleaseSelection();
         }
     }
 
-    private static async Task<string> DescribeChannelAsync(ReleaseClient client, UpdateChannel channel, Task<PackageManifest?> inventory, CancellationToken cancellationToken)
+    private void RefreshReleaseSelection()
     {
+        bool chooseTag = selectOtherRelease.IsChecked == true;
+        ReleaseCatalogEntry? selected = releaseChoices.SelectedItem as ReleaseCatalogEntry;
+        releaseUpdate.Content = chooseTag && selected is not null ? $"Download {selected.Tag}" : "Latest release";
+        releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate && (!chooseTag || selected is not null);
+    }
+
+    private async Task LoadReleaseCatalogAsync()
+    {
+        updateStatus.Foreground = LauncherMuted;
+        checkingUpdates = true;
+        SetBusy(busy);
         try
         {
-            UpdateRelease? release = await client.GetAsync(channel, cancellationToken);
-            string name = channel == UpdateChannel.Release ? "Release" : "Nightly";
-            if (release is null)
-            {
-                return name + ": no build published.";
-            }
-            PackageManifest? installed = await inventory;
-            bool current = installed is not null && release.BuildId == installed.BuildId;
-            return $"{name}: {release.Name} · {release.UpdatedAt.ToLocalTime():g}" + (current ? " · installed" : " · available");
+            updateStatus.Text = "Loading available releases...";
+            using HttpClient http = CreateUpdateClient();
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            IReadOnlyList<ReleaseCatalogEntry> releases = await new ReleaseClient(http).GetCatalogAsync(timeout.Token);
+            releaseChoices.ItemsSource = releases;
+            releaseChoices.SelectedIndex = releases.Count > 0 ? 0 : -1;
+            releaseCatalogLoaded = true;
+            updateStatus.Foreground = releases.Count > 0 ? LauncherSuccess : LauncherMuted;
+            updateStatus.Text = releases.Count > 0 ? "Choose a release tag. Releases are ordered by their last update time." : "No releases have been published.";
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (!updateLifetime.IsCancellationRequested)
         {
-            return $"{channel}: {exception.Message} Offline: installed games remain playable. Click to retry.";
+            updateStatus.Foreground = LauncherProblem;
+            updateStatus.Text = "Could not load releases: " + exception.Message + " Turn the release selector off and on to retry.";
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            checkingUpdates = false;
+            SetBusy(busy);
+            RefreshReleaseSelection();
         }
     }
 
-    private async Task InstallUpdateAsync(UpdateChannel channel)
+    private async Task InstallUpdateAsync()
     {
+        string? selectedTag = selectOtherRelease.IsChecked == true ? (releaseChoices.SelectedItem as ReleaseCatalogEntry)?.Tag : null;
+        if (selectOtherRelease.IsChecked == true && selectedTag is null)
+        {
+            return;
+        }
         if (updating || !LauncherCapabilities.CanUpdate)
         {
             return;
         }
+        updateStatus.Foreground = LauncherMuted;
         updating = true;
         SetBusy(true);
         try
@@ -108,14 +148,15 @@ internal sealed partial class LauncherWindow
             using HttpClient http = CreateUpdateClient();
             ReleaseClient client = new(http);
             UpdateRelease? release;
-            using (CancellationTokenSource metadataTimeout = new(TimeSpan.FromSeconds(30)))
+            using (CancellationTokenSource metadataTimeout = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token))
             {
-                updateStatus.Text = "Checking the selected channel…";
-                release = await client.GetAsync(channel, metadataTimeout.Token);
+                metadataTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+                updateStatus.Text = "Checking the selected release…";
+                release = selectedTag is null ? await client.GetAsync(UpdateChannel.Release, metadataTimeout.Token) : await client.GetByTagAsync(selectedTag, metadataTimeout.Token);
             }
             if (release is null)
             {
-                updateStatus.Text = "No build is published on this channel yet.";
+                updateStatus.Text = "The selected release is no longer available.";
                 return;
             }
             string root = MacBundleUpdate.NormalizeRoot(AppContext.BaseDirectory);
@@ -125,7 +166,7 @@ internal sealed partial class LauncherWindow
                 updateStatus.Text = "This build is already installed.";
                 return;
             }
-            string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nYou can keep playing during the download. You will be asked before restarting to install. Switching channels may install an older build. Mods, saves and settings are preserved.";
+            string prompt = $"Download {release.Name} ({release.Size / 1048576d:F1} MiB)?\n\nCurrent build: {installed.Version}\nYou can keep playing during the download. You will be asked before restarting to install. Selecting another release may install an older build. Mods, saves and settings are preserved.";
             if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — install update", prompt))
             {
                 return;
@@ -175,7 +216,7 @@ internal sealed partial class LauncherWindow
                 : "The update is ready. Restart Memoria to install it now?\n\nChoose No to keep the downloaded package for later.";
             if (!await LauncherDialogs.ConfirmAsync(this, "Memoria — restart for update", restartPrompt))
             {
-                updateStatus.Text = "Update downloaded and kept. Select this channel again to install without downloading it again.";
+                updateStatus.Text = "Update downloaded and kept. Select this release again to install without downloading it again.";
                 return;
             }
             if (runningGame is { HasExited: false } activeProcess)
@@ -213,6 +254,7 @@ internal sealed partial class LauncherWindow
                     throw new InvalidOperationException("Automatic update stopped: " + exception.Message + "\nPlease finish the game yourself, close it, and install the update. The downloaded package has been kept.", exception);
                 }
             }
+            updateStatus.Foreground = LauncherSuccess;
             updateStatus.Text = "Starting the installer. Memoria will restart automatically…";
             await UpdateInstaller.StartHelperAsync(root);
             closingForUpdate = true;
@@ -224,6 +266,7 @@ internal sealed partial class LauncherWindow
         }
         catch (Exception exception)
         {
+            updateStatus.Foreground = LauncherProblem;
             updateStatus.Text = "Update failed: " + exception.Message;
             await ShowErrorAsync("Could not install the update.", exception);
         }
@@ -235,6 +278,7 @@ internal sealed partial class LauncherWindow
             updateDownload = null;
             updating = false;
             SetBusy(false);
+            RefreshReleaseSelection();
         }
     }
 }

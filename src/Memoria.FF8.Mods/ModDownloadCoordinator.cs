@@ -39,6 +39,7 @@ public sealed class ModDownloadCoordinator : IDisposable
     private FileStream? instanceLock;
     private volatile bool initialized;
     private long revision;
+    private Task? stopping;
     public long Revision => Interlocked.Read(ref revision);
     public IReadOnlyList<DownloadJobSnapshot> Snapshot => Array.AsReadOnly(jobs.Values.OrderBy(job => job.JobId).ToArray());
 
@@ -504,24 +505,38 @@ public sealed class ModDownloadCoordinator : IDisposable
         }
     }
 
+    /// <summary>Cancels transfers and releases exclusive queue ownership after workers finish.</summary>
+    public Task StopAsync()
+    {
+        lock (commandGate)
+        {
+            if (stopping is not null)
+            {
+                return stopping;
+            }
+            lifetime.Cancel();
+            stopping = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(tasks.Values.ToArray()).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Each worker records its own durable outcome.
+                }
+                instanceLock?.Dispose();
+                if (ownsClient)
+                {
+                    client.Dispose();
+                }
+            });
+            return stopping;
+        }
+    }
+
     public void Dispose()
     {
-        lifetime.Cancel();
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.WhenAll(tasks.Values.ToArray());
-            }
-            catch (Exception)
-            {
-                // Each worker records its own durable outcome.
-            }
-            instanceLock?.Dispose();
-            if (ownsClient)
-            {
-                client.Dispose();
-            }
-        });
+        _ = StopAsync();
     }
 }

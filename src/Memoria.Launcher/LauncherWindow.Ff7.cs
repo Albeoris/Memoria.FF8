@@ -20,19 +20,20 @@ internal sealed partial class LauncherWindow
 
     private Control CreateFf7Selection()
     {
-        StackPanel panel = new() { Margin = new Thickness(28), Spacing = 14 };
-        panel.Children.Add(new TextBlock { Text = "FINAL FANTASY VII", FontSize = 28, FontWeight = FontWeight.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "Experimental field gameplay", Foreground = Brushes.DimGray });
-        panel.Children.Add(new TextBlock { Text = "Keep FINAL FANTASY VIII selected in its own tab, then configure FINAL FANTASY VII here. Start FFVII debug opens its original title; choose New Game or Continue there.", TextWrapping = TextWrapping.Wrap });
-        panel.Children.Add(new TextBlock { Text = "The current Steam release (app 3837340) is the supported resource source. Steam 2013 (app 39140) is unsupported; use it at your own risk.", TextWrapping = TextWrapping.Wrap });
-        panel.Children.Add(ff7Installations);
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
+        StackPanel panel = new() { Spacing = 18 };
+        panel.Children.Add(CreateGameHero("FINAL FANTASY VII", "Experimental field gameplay", "A NEW WORLD TO EXPLORE"));
+        StackPanel resources = new() { Spacing = 12 };
+        resources.Children.Add(ff7Installations);
+        WrapPanel actions = new();
+        selectFf7.Margin = new Thickness(0, 0, 8, 0);
         actions.Children.Add(selectFf7);
         actions.Children.Add(clearFf7);
-        panel.Children.Add(actions);
-        panel.Children.Add(ff7Status);
-        panel.Children.Add(startFf7);
-        panel.Children.Add(new TextBlock { Text = "The debug host supports the opening field route and Memoria crossover saves. Original FFVII save files and full-game compatibility are not supported. Use the in-game Debug Menu World switch to change worlds at an allowed save boundary.", TextWrapping = TextWrapping.Wrap });
+        resources.Children.Add(actions);
+        resources.Children.Add(ff7Status);
+        panel.Children.Add(LauncherCard("Game installation", "Use the current Steam release (app 3837340). Steam 2013 (app 39140) is unsupported.", resources));
+        panel.Children.Add(LauncherDescription("The shared engine also needs your FINAL FANTASY VIII installation. Select it using the game selector above before starting FFVII."));
+        panel.Children.Add(LauncherDescription("The debug host supports the opening field route and Memoria crossover saves. Original FFVII saves and full-game compatibility are not supported. Play FFVII opens its original title; choose New Game or Continue there."));
+        panel.Children.Add(LauncherDescription("Use the in-game Debug Menu World switch to change worlds at an allowed save boundary."));
         ff7Installations.SelectionChanged += (_, _) =>
         {
             if (updatingFf7Installations)
@@ -54,7 +55,8 @@ internal sealed partial class LauncherWindow
         {
             if (installations.SelectedItem is not GameInstallation)
             {
-                ff7Status.Text = "Select FINAL FANTASY VIII in its tab before starting the shared engine.";
+                ff7Status.Text = "Choose FINAL FANTASY VIII above and select its installation before starting the shared engine.";
+                status.Text = ff7Status.Text;
                 return;
             }
             await PlayAsync(ff7Debug: true);

@@ -13,6 +13,11 @@ internal enum UpdateChannel
     Nightly
 }
 
+internal sealed record ReleaseCatalogEntry(string Tag, string Name, DateTimeOffset UpdatedAt)
+{
+    public override string ToString() => $"{Tag} | {UpdatedAt.ToLocalTime():yyyy-MM-dd HH:mm zzz}";
+}
+
 internal sealed record UpdateRelease(UpdateChannel Channel, string Tag, string Name, DateTimeOffset UpdatedAt, long AssetId, long Size, string Sha256, string? BuildId)
 {
     public string RuntimeIdentifier { get; init; } = "win-x64";
@@ -49,18 +54,22 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
 
     public async Task<UpdateRelease?> GetAsync(UpdateChannel channel, CancellationToken cancellationToken = default)
     {
+        if (channel == UpdateChannel.Release)
+        {
+            return await GetGitHubAsync(channel, cancellationToken).ConfigureAwait(false);
+        }
         using HttpRequestMessage request = CreateRequest(new Uri(StaticFeed), "application/json");
         request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true };
         using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return await GetLegacyAsync(channel, cancellationToken).ConfigureAwait(false);
+            return await GetGitHubAsync(channel, cancellationToken).ConfigureAwait(false);
         }
         EnsureSuccess(response);
         await response.Content.LoadIntoBufferAsync(128 * 1024, cancellationToken).ConfigureAwait(false);
         await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using JsonDocument document = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return ReadStaticRelease(document.RootElement, channel) ?? await GetLegacyAsync(channel, cancellationToken).ConfigureAwait(false);
+        return ReadStaticRelease(document.RootElement, channel) ?? await GetGitHubAsync(channel, cancellationToken).ConfigureAwait(false);
     }
 
     private UpdateRelease? ReadStaticRelease(JsonElement root, UpdateChannel channel)
@@ -111,14 +120,69 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
 
     private static bool IsStableTag(string tag) => tag.Length >= 2 && tag[0] == 'v' && Version.TryParse(tag.AsSpan(1), out _);
 
-    private async Task<UpdateRelease?> GetLegacyAsync(UpdateChannel channel, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ReleaseCatalogEntry>> GetCatalogAsync(CancellationToken cancellationToken = default)
     {
-        string endpoint = channel switch
+        Dictionary<string, ReleaseCatalogEntry> releases = new(StringComparer.Ordinal);
+        for (int page = 1; ; page++)
         {
-            UpdateChannel.Release => "latest",
-            UpdateChannel.Nightly => "tags/nightly",
+            using HttpRequestMessage request = CreateRequest(new Uri($"{RepositoryApi}/releases?per_page=100&page={page}"), "application/vnd.github+json");
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            EnsureSuccess(response);
+            await using Stream body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            using JsonDocument document = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                throw new InvalidDataException("The update server returned an invalid release catalog.");
+            }
+            foreach (JsonElement release in document.RootElement.EnumerateArray())
+            {
+                if (release.ValueKind != JsonValueKind.Object || !release.TryGetProperty("draft", out JsonElement draft) || draft.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    throw new InvalidDataException("The update server returned invalid release metadata.");
+                }
+                if (draft.ValueKind == JsonValueKind.True)
+                {
+                    continue;
+                }
+                string tag = ReadString(release, "tag_name");
+                if (!release.TryGetProperty("updated_at", out JsonElement updated) || updated.ValueKind != JsonValueKind.String || !updated.TryGetDateTimeOffset(out DateTimeOffset updatedAt))
+                {
+                    throw new InvalidDataException("The release has no valid update time.");
+                }
+                string name = release.TryGetProperty("name", out JsonElement title) && title.ValueKind == JsonValueKind.String ? title.GetString() ?? tag : tag;
+                ReleaseCatalogEntry entry = new(tag, name, updatedAt);
+                if (!releases.TryGetValue(tag, out ReleaseCatalogEntry? existing) || updatedAt > existing.UpdatedAt)
+                {
+                    releases[tag] = entry;
+                }
+            }
+            if (document.RootElement.GetArrayLength() < 100)
+            {
+                break;
+            }
+        }
+        return releases.Values.OrderByDescending(release => release.UpdatedAt).ThenBy(release => release.Tag, StringComparer.Ordinal).ToArray();
+    }
+
+    public Task<UpdateRelease?> GetByTagAsync(string tag, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tag);
+        UpdateChannel channel = tag == "nightly" ? UpdateChannel.Nightly : UpdateChannel.Release;
+        return GetReleaseAsync("tags/" + Uri.EscapeDataString(tag), channel, tag, cancellationToken);
+    }
+
+    private Task<UpdateRelease?> GetGitHubAsync(UpdateChannel channel, CancellationToken cancellationToken)
+    {
+        return channel switch
+        {
+            UpdateChannel.Release => GetReleaseAsync("latest", channel, null, cancellationToken),
+            UpdateChannel.Nightly => GetReleaseAsync("tags/nightly", channel, "nightly", cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(channel))
         };
+    }
+
+    private async Task<UpdateRelease?> GetReleaseAsync(string endpoint, UpdateChannel channel, string? expectedTag, CancellationToken cancellationToken)
+    {
         using HttpRequestMessage request = CreateRequest(new Uri($"{RepositoryApi}/releases/{endpoint}"), "application/vnd.github+json");
         using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -138,13 +202,9 @@ internal sealed class ReleaseClient(HttpClient client, string? runtimeIdentifier
         {
             throw new InvalidDataException("The update server returned a draft or invalid release.");
         }
-        if (channel == UpdateChannel.Release && (!IsStableTag(tag) || !release.TryGetProperty("prerelease", out JsonElement prerelease) || prerelease.ValueKind != JsonValueKind.False))
+        if (expectedTag is not null && tag != expectedTag)
         {
-            throw new InvalidDataException("The update server did not return a versioned stable release.");
-        }
-        if (channel == UpdateChannel.Nightly && tag != "nightly")
-        {
-            throw new InvalidDataException("The update server did not return the nightly release.");
+            throw new InvalidDataException("The update server did not return the selected release tag.");
         }
         if (!release.TryGetProperty("assets", out JsonElement assets) || assets.ValueKind != JsonValueKind.Array)
         {

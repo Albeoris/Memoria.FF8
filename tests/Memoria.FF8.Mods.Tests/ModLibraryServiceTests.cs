@@ -9,6 +9,34 @@ namespace Memoria.FF8.Mods.Tests;
 public sealed class ModLibraryServiceTests
 {
     [Fact]
+    public async Task StoppingReleasesQueueOwnershipBeforeAnotherLibraryStarts()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "mod-library-stop-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService first = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            first.Queue(new("test", Guid.NewGuid(), "Example", "1"));
+            await Until(() => first.View.Error is not null);
+            await first.StopAsync();
+            await first.StopAsync();
+            using ModLibraryService second = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            second.Queue(new("test", Guid.NewGuid(), "Example", "1"));
+            await Until(() => second.View.Error is not null);
+            Assert.Contains("Downloads cannot be installed", second.View.Error);
+            await second.StopAsync();
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task DownloadCheckAndInstallAreSeparateAndDoNotPublishDuringGameplay()
     {
         string root = Path.Combine(Path.GetTempPath(), "mod-library-" + Guid.NewGuid().ToString("N"));

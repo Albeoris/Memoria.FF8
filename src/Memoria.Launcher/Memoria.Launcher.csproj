@@ -13,6 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="../../Artwork/Application/application.ico" LogicalName="Memoria.Application.ico" />
+    <EmbeddedResource Include="../../Artwork/Application/application-512.png" LogicalName="Memoria.Launcher.Crest.png" />
     <PackageReference Include="Tmds.DBus.Protocol" />
     <PackageReference Include="SharpCompress" />
     <PackageReference Include="Avalonia" />

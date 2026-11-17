@@ -26,6 +26,16 @@ The release includes the .NET runtimes it needs. Players do not need to install 
 
 The launcher remembers the selected folder after a successful start and offers it as the last-used installation on later launches. Its selection is stored in `%LOCALAPPDATA%/Memoria/FF8/launcher.json`. Choosing a game directory does not copy its assets into the Memoria distribution.
 
+## Launcher pages
+
+**Play** selects the installed game; the header also offers experimental FINAL FANTASY VII. The launch button and active-operation progress stay available below every page.
+
+**Mods** provides Installed and Catalog views with search, category filters, component enablement, details and download controls. Missing official components can be queued together. Use the in-game manager for advanced options and load order; see [Downloading mods](mod-library.md).
+
+**Settings** saves renderer, resource language, achievement connection and close-after-launch preferences. Appearance follows the system or uses Dark/Light immediately. Model resource overrides, FFmpeg setup and the Encoding Editor are under Advanced resources & tools.
+
+**Updates** has one download action. It uses GitHub's Latest release by default. Enable **Choose another release** to select another published tag, including prereleases and nightly. Tags appear newest first by update time, with their timestamp and time-zone offset. Packages are verified before installation; installing an older tag can downgrade the engine.
+
 ## Launcher controller controls
 
 Use the D-pad or left stick to move focus to a nearby control in that direction. The south face button (**A** on Xbox and Steam Deck, **Cross** on PlayStation) activates it. The east face button (**B** or **Circle**) backs out of an open list or dialog. Hold a direction to repeat it.

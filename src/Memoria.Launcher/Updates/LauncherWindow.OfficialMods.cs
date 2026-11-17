@@ -9,9 +9,9 @@ namespace Memoria.Launcher;
 
 internal sealed partial class LauncherWindow
 {
-    private readonly TextBlock officialModStatus = new() { Text = "Checking official mods…", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.DimGray };
+    private readonly TextBlock officialModStatus = new() { Text = "Checking official mods…", TextWrapping = TextWrapping.Wrap, Foreground = LauncherMuted };
     private readonly Button officialModDetails = new() { Content = "Official mod details", IsEnabled = false, Margin = new Thickness(0, 0, 10, 0) };
-    private readonly Button manageOfficialMods = new() { Content = "Manage mods in game", IsEnabled = false, Margin = new Thickness(0, 0, 10, 0) };
+    private readonly Button manageOfficialMods = new() { Content = "Advanced settings in game", IsEnabled = false, Margin = new Thickness(0, 0, 10, 0) };
     private readonly Button refreshOfficialMods = new() { Content = "Refresh mods", IsEnabled = false };
     private OfficialModNotifications? officialModNotifications;
     private CancellationTokenSource? officialModCheck;
@@ -46,6 +46,7 @@ internal sealed partial class LauncherWindow
             }
             lastManualModRefresh = now;
         }
+        await InitializeLauncherModsAsync(force);
         officialModCheck?.Cancel();
         if (installations.SelectedItem is not GameInstallation selected)
         {
@@ -53,6 +54,7 @@ internal sealed partial class LauncherWindow
             officialModDetails.IsEnabled = false;
             refreshOfficialMods.IsEnabled = false;
             officialModStatus.Text = "Choose an installation to check official mods.";
+            UpdateOfficialModOverview();
             return;
         }
         string language = SelectedResourceLanguage ?? "en";
@@ -61,6 +63,7 @@ internal sealed partial class LauncherWindow
         officialModDetails.IsEnabled = false;
         refreshOfficialMods.IsEnabled = false;
         officialModStatus.Text = "Checking official mods…";
+        UpdateOfficialModOverview();
         using CancellationTokenSource check = CancellationTokenSource.CreateLinkedTokenSource(updateLifetime.Token);
         officialModCheck = check;
         try
@@ -79,6 +82,7 @@ internal sealed partial class LauncherWindow
             {
                 officialModNotifications = result;
                 officialModStatus.Text = result.Summary;
+                UpdateOfficialModOverview();
                 officialModDetails.IsEnabled = result.Notices.Count > 0;
             }
         }
@@ -125,6 +129,7 @@ internal sealed partial class LauncherWindow
             {
                 officialModNotifications = acknowledged;
                 officialModStatus.Text = acknowledged.Summary;
+                UpdateOfficialModOverview();
             }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
