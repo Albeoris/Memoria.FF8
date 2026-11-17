@@ -6,7 +6,7 @@ using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
-internal sealed record Ff7AutoPlayWorldGuideFace(Ff7WorldTerrainReference Source, Vector3 A, Vector3 B, Vector3 C, int Script)
+internal sealed record Ff7AutoPlayWorldGuideFace(Ff7WorldTerrainReference Source, Vector3 A, Vector3 B, Vector3 C, int Script, int Terrain = 0)
 {
     public Vector3 Center => (A + B + C) / 3;
 }
@@ -50,19 +50,38 @@ public sealed partial class Ff7WorldRuntime
 
     private Ff7AutoPlayWorldGuide ReadAutoPlayTerrainGuide(IReadOnlySet<Ff7WorldTerrainReference> goals, bool admitGoalTerrainScripts, int maximumNodes, int maximumChunks, IReadOnlySet<(Ff7WorldTerrainReference From, Ff7WorldTerrainReference To)>? unproductiveEdges)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumChunks, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumChunks, 1008);
         Ff7WorldTerrainReference? start = input.GroundTriangle;
         if (start is null)
         {
             return new([], 0, false, "Native ground identity is unavailable for terrain advice.");
         }
+        Ff7WorldEntity player = RequireEntity(controlledModel);
+        AutoPlayTerrainGraph graph = CreateAutoPlayTerrainGraph(goals, admitGoalTerrainScripts, maximumChunks);
+        graph.Read(start);
+        IEnumerable<Ff7WorldTerrainReference> Adjacent(Ff7WorldTerrainReference reference)
+        {
+            int previousTerrain = reference == start ? player.Terrain : graph.ReadTerrain(reference);
+            return graph.Adjacent(reference, player.Model, previousTerrain, false).Where(next => unproductiveEdges?.Contains((reference, next)) != true);
+        }
+        Ff7AutoPlayWorldGuide result = PlanAutoPlayTerrainGuide(start, goals, graph.Read, Adjacent, maximumNodes);
+        if (result.Faces.Length == 0 && unproductiveEdges is { Count: > 0 })
+        {
+            return result with { DeferredComponent = null, Reason = "No advancing physical route was proved through the remaining advisory transitions." };
+        }
+        return graph.IsLimited() && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
+    }
+
+    private sealed record AutoPlayTerrainGraph(Func<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> Read, Func<Ff7WorldTerrainReference, int> ReadTerrain, Func<Ff7WorldTerrainReference, int, int, bool, IEnumerable<Ff7WorldTerrainReference>> Adjacent, Func<bool> IsLimited, Func<Ff7WorldTerrainReference, int, int, bool> Eligible, Func<Ff7WorldTerrainReference, bool> Ensure);
+
+    private AutoPlayTerrainGraph CreateAutoPlayTerrainGraph(IReadOnlySet<Ff7WorldTerrainReference> goals, bool admitGoalTerrainScripts, int maximumChunks)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumChunks, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumChunks, 1008);
         Dictionary<(int X, int Z), PcWorldMesh> chunks = [];
         Dictionary<Ff7WorldTerrainReference, Ff7AutoPlayWorldGuideFace> faces = [];
         Dictionary<(Vector3 A, Vector3 B), List<Ff7WorldTerrainReference>> edges = [];
-        Dictionary<(Ff7WorldTerrainReference Source, int PreviousTerrain), bool> eligibility = [];
+        Dictionary<(Ff7WorldTerrainReference Source, int PreviousTerrain, int Model), bool> eligibility = [];
         bool limited = false;
-        Ff7WorldEntity player = RequireEntity(controlledModel);
         static Vector3 Canonical(Vector3 point) => new(Wrap((int)point.X, 0x48000), point.Y, Wrap((int)point.Z, 0x38000));
         static (Vector3 A, Vector3 B) Edge(Vector3 a, Vector3 b)
         {
@@ -97,7 +116,7 @@ public sealed partial class Ff7WorldRuntime
             {
                 PcWorldTriangle triangle = mesh.Triangles[index];
                 Ff7WorldTerrainReference reference = new(x, z, index);
-                Ff7AutoPlayWorldGuideFace face = new(reference, mesh.Vertices[triangle.A] + offset, mesh.Vertices[triangle.B] + offset, mesh.Vertices[triangle.C] + offset, triangle.Script);
+                Ff7AutoPlayWorldGuideFace face = new(reference, mesh.Vertices[triangle.A] + offset, mesh.Vertices[triangle.B] + offset, mesh.Vertices[triangle.C] + offset, triangle.Script, triangle.TerrainAndScript | (triangle.PackedIds & 0xFF00));
                 faces.Add(reference, face);
                 foreach (var edge in FaceEdges(face))
                 {
@@ -110,14 +129,10 @@ public sealed partial class Ff7WorldRuntime
                 }
             }
         }
-        Dictionary<(int X, int Z, int Script), bool> inertSources = [];
-        bool Eligible(Ff7WorldTerrainReference reference, int previousTerrain)
+        Dictionary<(int X, int Z, int Script, int Model), bool> inertSources = [];
+        bool Eligible(Ff7WorldTerrainReference reference, int previousTerrain, int model)
         {
-            if (reference == start)
-            {
-                return true;
-            }
-            var key = (reference, previousTerrain);
+            var key = (reference, previousTerrain, model);
             if (eligibility.TryGetValue(key, out bool known))
             {
                 return known;
@@ -126,10 +141,10 @@ public sealed partial class Ff7WorldRuntime
             bool allowed = face.Script < 3 || admitGoalTerrainScripts && goals.Contains(reference) || face.Script == input.TerrainScript;
             if (!allowed && face.Script != 7)
             {
-                var source = (reference.ChunkX, reference.ChunkZ, face.Script);
+                var source = (reference.ChunkX, reference.ChunkZ, face.Script, Model: model);
                 if (!inertSources.TryGetValue(source, out bool inert))
                 {
-                    WorldScriptAnalysis entry = ReadAutoPlayMeshAnalysis(source.ChunkX, source.ChunkZ, source.Script, 2048, true);
+                    WorldScriptAnalysis entry = ReadAutoPlayMeshAnalysis(source.ChunkX, source.ChunkZ, source.Script, 2048, true, model);
                     inert = entry.IsInert && entry.HostReads.All(read => read.Kind == WorldHostDependencyKind.Special && read.Selector == 8);
                     inertSources[source] = inert;
                 }
@@ -143,7 +158,7 @@ public sealed partial class Ff7WorldRuntime
                 {
                     // Geometry advice uses the candidate layer; only native movement can admit a crossing to it.
                     input = input with { TerrainCache = null };
-                    var terrain = QueryTerrain(Wrap((int)center.X, 0x48000), Wrap((int)center.Z, 0x38000), (int)center.Y, previousTerrain, player.Model, false, out Ff7WorldTerrainReference? selected);
+                    var terrain = QueryTerrain(Wrap((int)center.X, 0x48000), Wrap((int)center.Z, 0x38000), (int)center.Y, previousTerrain, model, false, out Ff7WorldTerrainReference? selected, adviceControlledModel: model, adviceDismountPhase: model == controlledModel ? vehicle?.DismountPhase ?? 0 : 0);
                     allowed = terrain is not null && selected == reference;
                 }
                 finally
@@ -154,7 +169,7 @@ public sealed partial class Ff7WorldRuntime
             eligibility[key] = allowed;
             return allowed;
         }
-        IEnumerable<Ff7WorldTerrainReference> Adjacent(Ff7WorldTerrainReference reference)
+        IEnumerable<Ff7WorldTerrainReference> Adjacent(Ff7WorldTerrainReference reference, int model, int previousTerrain, bool reverse)
         {
             Ff7AutoPlayWorldGuideFace face = faces[reference];
             foreach (var edge in FaceEdges(face))
@@ -172,16 +187,20 @@ public sealed partial class Ff7WorldRuntime
                     Load(reference.ChunkX, boundary);
                 }
             }
-            int previousTerrain = reference == start ? player.Terrain : chunks[(reference.ChunkX, reference.ChunkZ)].Triangles[reference.Triangle].Terrain;
-            return FaceEdges(face).SelectMany(edge => edges[Edge(edge.A, edge.B)]).Where(next => next != reference).Distinct().Where(next => unproductiveEdges?.Contains((reference, next)) != true && Eligible(next, previousTerrain)).ToArray();
+            return FaceEdges(face).SelectMany(edge => edges[Edge(edge.A, edge.B)]).Where(next => next != reference).Distinct().Where(next => reverse ? Eligible(reference, ReadTerrain(next), model) : Eligible(next, previousTerrain, model)).ToArray();
         }
-        Load(start.ChunkX, start.ChunkZ);
-        Ff7AutoPlayWorldGuide result = PlanAutoPlayTerrainGuide(start, goals, reference => faces[reference], Adjacent, maximumNodes);
-        if (result.Faces.Length == 0 && unproductiveEdges is { Count: > 0 })
+        Ff7AutoPlayWorldGuideFace Read(Ff7WorldTerrainReference reference)
         {
-            return result with { DeferredComponent = null, Reason = "No advancing physical route was proved through the remaining advisory transitions." };
+            Load(reference.ChunkX, reference.ChunkZ);
+            return faces[reference];
         }
-        return limited && result.Faces.Length == 0 ? result with { Limited = true, Reason = "The native terrain-advice chunk budget was exhausted.", DeferredComponent = null } : result;
+        int ReadTerrain(Ff7WorldTerrainReference reference) => chunks[(reference.ChunkX, reference.ChunkZ)].Triangles[reference.Triangle].Terrain;
+        bool Ensure(Ff7WorldTerrainReference reference)
+        {
+            Load(reference.ChunkX, reference.ChunkZ);
+            return faces.ContainsKey(reference);
+        }
+        return new(Read, ReadTerrain, Adjacent, () => limited, Eligible, Ensure);
     }
 
     internal HashSet<Ff7WorldTerrainReference> ReadAutoPlayModelContactTerrain(Ff7WorldEntity target)

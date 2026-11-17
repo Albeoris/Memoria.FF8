@@ -74,6 +74,16 @@ public sealed partial class Ff7WorldRuntime
         return heldTicks == 0 ? new(Held: 0x40) : default;
     }
 
+    internal int? ReadAutoPlaySurfaceVehicleRider()
+    {
+        if (Resources.World != 0 || ReadSurfaceVehicleLandingMask(controlledModel) == 0 || vehicle is { FlightState: not 0 } || !entities.TryGetValue(controlledModel, out Ff7WorldEntity? transport) || (transport.Flags & 128) != 0)
+        {
+            return null;
+        }
+        int rider = ReadSurfaceVehicleRider();
+        return rider == controlledModel ? null : rider;
+    }
+
     private int ReadSurfaceVehicleRider()
     {
         return vehicle is { RideStack.Length: > 0 } ? vehicle.RideStack[^1] : 0;

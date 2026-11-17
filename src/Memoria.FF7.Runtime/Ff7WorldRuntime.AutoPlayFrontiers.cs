@@ -30,11 +30,11 @@ public sealed partial class Ff7WorldRuntime
         return BuildAutoPlayFrontierCatalog(Resources.World, Machine.ProgramIdentity, chunkX, chunkZ, mesh, script => ReadAutoPlayMeshAnalysis(chunkX, chunkZ, script, instructionBudget, false), Machine.ReadPredicateFingerprint, selector => (fieldTable ??= Resources.ReadFieldTable()).Select(selector));
     }
 
-    private WorldScriptAnalysis ReadAutoPlayMeshAnalysis(int chunkX, int chunkZ, int script, int instructionBudget, bool currentEntryOnly)
+    private WorldScriptAnalysis ReadAutoPlayMeshAnalysis(int chunkX, int chunkZ, int script, int instructionBudget, bool currentEntryOnly, int? adviceControlledModel = null)
     {
         WorldSnapshot execution = Machine.Capture() with { Tick = 0, NextRequestId = 1 };
         string executionFingerprint = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(execution)));
-        int controlledOwner = ControlledModel;
+        int controlledOwner = adviceControlledModel ?? ControlledModel;
         Ff7WorldEntity[] hostEntities = entities.Values.ToArray();
         Ff7WorldEntity[] hostFreeEntities = freeEntities.ToArray();
         int? ReadHost(WorldHostDependency dependency) => ProjectAutoPlayHostDependency(dependency, controlledOwner, hostEntities, hostFreeEntities);

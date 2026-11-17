@@ -31,6 +31,14 @@ internal sealed partial class RecreateGame
                 }
                 ff7Scene!.ApplyAutoPlayCommand(request.Name ?? "start");
                 return new { ff7Scene.AutoPlayStatus, ff7Scene.AutoPlayRunning, ff7Scene.AutoPlayPaused, ff7Scene.AutoPlayError };
+            case "world-autoplay-destination":
+                if (!InFf7)
+                {
+                    throw new InvalidOperationException("FFVII automatic planning requires its active world.");
+                }
+                ushort? destination = string.IsNullOrWhiteSpace(request.Name) ? null : ushort.Parse(request.Name, System.Globalization.CultureInfo.InvariantCulture);
+                ff7Scene!.SetAutoPlayDestination(destination);
+                return new { DestinationField = destination };
             case "world-autoplay-step":
                 if (!InFf7 || !options.ControlStep)
                 {

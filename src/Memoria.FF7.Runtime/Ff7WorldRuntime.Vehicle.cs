@@ -203,7 +203,7 @@ public sealed partial class Ff7WorldRuntime
         }
     }
 
-    private void AdvanceSurfaceVehicleTransport()
+    private void AdvanceSurfaceVehicleTransport(bool autoPlayPreview = false)
     {
         if (controlledModel is not (3 or 5 or 6 or SubmarineModel) || Resources.World != 0)
         {
@@ -220,6 +220,7 @@ public sealed partial class Ff7WorldRuntime
             vehicle = vehicle with { DismountPhase = 1 };
             if (controlledModel == 3 || controlledModel == 5 && (transport.Flags & 128) != 0)
             {
+                RejectAutoPlayMovement(autoPlayPreview, "Flight landing requires its native flight-state preview contract.");
                 BeginHighwindFlight(-1);
             }
         }
@@ -236,8 +237,12 @@ public sealed partial class Ff7WorldRuntime
 
     private static bool CanLeaveSurfaceVehicle(int model, int terrain)
     {
-        uint mask = model switch { 3 => 1u, 5 => 0x70u, 6 => 0x221B0F83u, SubmarineModel => uint.MaxValue, _ => 0 };
-        return (mask & (1u << terrain)) != 0;
+        return (ReadSurfaceVehicleLandingMask(model) & (1u << terrain)) != 0;
+    }
+
+    private static uint ReadSurfaceVehicleLandingMask(int model)
+    {
+        return model switch { 3 => 1u, 5 => 0x70u, 6 => 0x221B0F83u, SubmarineModel => uint.MaxValue, _ => 0 };
     }
 
     private bool CanStartSurfaceVehicleDismount(Ff7WorldEntity transport)

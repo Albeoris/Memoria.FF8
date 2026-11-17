@@ -106,6 +106,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return default;
         }
+        if (State.DestinationField == session.MapId)
+        {
+            State.DestinationField = null;
+        }
         TrackControllableFrontierProgress();
         driver.ConfigureSpatialBoundaries(observation.Events);
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);

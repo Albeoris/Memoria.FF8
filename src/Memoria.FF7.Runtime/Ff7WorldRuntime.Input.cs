@@ -235,7 +235,7 @@ public sealed partial class Ff7WorldRuntime
         return ((collisionMasks[player.Model * 8 + z] >> x) & 1) != 0 || ((collisionMasks[other.Model * 8 + 7 - z] >> (7 - x)) & 1) != 0;
     }
 
-    private void ResolvePlayerTerrain(bool autoPlayPreview = false, Action<Ff7AutoPlayWorldTerrainBoundary>? observeBoundary = null)
+    private void ResolvePlayerTerrain(bool autoPlayPreview = false, Action<Ff7AutoPlayWorldTerrainBoundary>? observeBoundary = null, bool surfaceDismountPreview = false)
     {
         if (mapTransfer is not null)
         {
@@ -260,7 +260,7 @@ public sealed partial class Ff7WorldRuntime
         }
         if (vehicle is { DismountPhase: 2 })
         {
-            RejectAutoPlayMovement(autoPlayPreview, "Vehicle dismount requires its transport-state preview contract.");
+            RejectAutoPlayMovement(autoPlayPreview && !surfaceDismountPreview, "Vehicle dismount requires its transport-state preview contract.");
             player = OffsetDismountingVehicle(player);
         }
         if (chocobo is { DismountPhase: 2 })
@@ -503,7 +503,7 @@ public sealed partial class Ff7WorldRuntime
         return QueryTerrain(x, z, previousHeight, previousTerrain, model, dismount, out _);
     }
 
-    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount, out Ff7WorldTerrainReference? reference, bool entityCache = false)
+    private (int Height, int Terrain)? QueryTerrain(int x, int z, int previousHeight, int previousTerrain, int model, bool dismount, out Ff7WorldTerrainReference? reference, bool entityCache = false, int? adviceControlledModel = null, int? adviceDismountPhase = null)
     {
         reference = null;
         int chunkX = x >> 13;
@@ -515,23 +515,25 @@ public sealed partial class Ff7WorldRuntime
         int height = 0;
         bool cachedContains = false;
         Ff7WorldTerrainReference[]? cache = entityCache ? RequireEntity(model).TerrainCache : input.TerrainCache;
+        int queryControlledModel = adviceControlledModel ?? controlledModel;
+        int queryDismountPhase = adviceDismountPhase ?? vehicle?.DismountPhase ?? 0;
         uint mask = model switch
         {
-            SubmarineModel when vehicle is { DismountPhase: 2 } => 0x21B6F83u,
+            SubmarineModel when queryDismountPhase == 2 => 0x21B6F83u,
             SubmarineModel => SubmarineTerrainMask,
-            3 when vehicle is { DismountPhase: 2 } => 0x021B6F83u,
-            5 when entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && (aircraft.Flags & 128) != 0 => vehicle is { DismountPhase: 2 } ? 0x70u : uint.MaxValue,
-            5 => vehicle is { DismountPhase: 2 } ? 0x20800u : 0x70u,
-            6 => vehicle is { DismountPhase: 2 } ? 0x21B6F83u : 0x331B6F13u,
+            3 when queryDismountPhase == 2 => 0x021B6F83u,
+            5 when entities.TryGetValue(model, out Ff7WorldEntity? aircraft) && (aircraft.Flags & 128) != 0 => queryDismountPhase == 2 ? 0x70u : uint.MaxValue,
+            5 => queryDismountPhase == 2 ? 0x20800u : 0x70u,
+            6 => queryDismountPhase == 2 ? 0x21B6F83u : 0x331B6F13u,
             8 => 0x04040008u,
             100 => 1u << 7,
-            _ when model is 0 or 1 or 2 or YellowChocoboModel && model == controlledModel && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
+            _ when model is 0 or 1 or 2 or YellowChocoboModel && model == queryControlledModel && (previousTerrain & 31) is 13 or 14 => 0x20006000u,
             YellowChocoboModel => YellowChocoboTerrainMask,
             19 => dismount ? YellowChocoboTerrainMask : ChocoboTerrainMask(chocoboTint),
             0 or 1 or 2 => 0x721B6F83u,
             _ => uint.MaxValue
         };
-        bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!(dismount || vehicle is { DismountPhase: 2 } && model is 3 or 6 or SubmarineModel) || (face.TerrainAndScript & 0xE0) != 0xE0);
+        bool Allowed(PcWorldTriangle face) => (mask & (1u << face.Terrain)) != 0 && (!(dismount || queryDismountPhase == 2 && model is 3 or 6 or SubmarineModel) || (face.TerrainAndScript & 0xE0) != 0xE0);
         foreach (Ff7WorldTerrainReference cached in cache ?? [])
         {
             if (cached.ChunkX == chunkX && cached.ChunkZ == chunkZ && TryTriangleHeight(mesh, cached.Triangle, localX, localZ, out height))

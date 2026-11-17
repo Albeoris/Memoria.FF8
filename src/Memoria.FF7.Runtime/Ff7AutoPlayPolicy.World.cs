@@ -99,7 +99,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldControl } control)
         {
-            return AdvanceWorldControl(world, observation, control);
+            return control.WorldModeGoal is not null && control.WorldControl is null ? AdvanceWorldModeApproach(driver, world, observation, control) : AdvanceWorldControl(world, observation, control);
         }
         ReplanConsumedWorldProbeForControl();
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } active && State.WorldDispatch is { } dispatch)
@@ -181,7 +181,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             if (TryBeginWorldControl(next, observation))
             {
-                return AdvanceWorldControl(world, observation, State.Active!);
+                return State.Active!.WorldModeGoal is not null ? AdvanceWorldModeApproach(driver, world, observation, State.Active) : AdvanceWorldControl(world, observation, State.Active);
             }
             if (!TryBeginWorldModelEvent(next, observation, physicalGuards))
             {
@@ -316,12 +316,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             events.Remove(id);
         }
-        worldControlCatalog.Clear();
-        foreach (Ff7AutoPlayWorldControlObservation control in world.ReadAutoPlayControlFrontiers())
-        {
-            worldControlCatalog.Add(control.Id, control);
-            events[control.Id] = new(control.Id, AutoPlayEventKind.Interaction, ConditionSignature: control.ConditionFingerprint);
-        }
+        ObserveWorldModeGoals(world, worldVisit, events);
         planner.Observe(new(worldVisit, vm.ProgramIdentity), events.Values.ToArray());
         ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);
         string navigation = worldVisit + ":nav:world";

@@ -6,8 +6,6 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    private readonly Dictionary<string, Ff7AutoPlayWorldControlObservation> worldControlCatalog = new(StringComparer.Ordinal);
-
     private void ReplanConsumedWorldProbeForControl()
     {
         if (State.Active is not { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: false, Returned: false, TransitionOwned: false, CompletionRecorded: false } active || State.Choice is not null || State.PendingRestore is not null || active.TravelRoute is not null || State.NavigationGoal is not null)
@@ -19,7 +17,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return;
         }
-        if (worldControlCatalog.Values.Any(control => visit.Events.SingleOrDefault(item => item.Event.Id == control.Id) is { } entry && !HasConsumedWorldEntry(entry, control.ConditionFingerprint) && !entry.Unavailable))
+        if (worldModeCatalog.Any(mode => visit.Events.SingleOrDefault(item => item.Event.Id == mode.Key) is { } entry && !HasConsumedWorldEntry(entry, entry.Event.ConditionSignature) && !entry.Unavailable))
         {
             State.Active = null;
         }
@@ -27,7 +25,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool TryBeginWorldControl(AutoPlayPlanStep next, Ff7AutoPlayObservation observation)
     {
-        if (!worldControlCatalog.TryGetValue(next.Event.Id, out Ff7AutoPlayWorldControlObservation? control))
+        if (!worldModeCatalog.TryGetValue(next.Event.Id, out WorldModeCandidate? candidate))
         {
             return false;
         }
@@ -35,9 +33,9 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             throw new NotSupportedException("A native world control action cannot replay an unauthenticated travel route.");
         }
-        planner.BeginEvent(observation.VisitId, control.Id);
+        planner.BeginEvent(observation.VisitId, next.Event.Id);
         State.NavigationGoal = next.Goal;
-        State.Active = new(observation.VisitId, control.Id, control.ConditionFingerprint, session.FieldGeneration, control.Model, -1, Ff7AutoPlayTargetKind.WorldControl, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, WorldControl: control);
+        State.Active = new(observation.VisitId, next.Event.Id, next.Event.ConditionSignature!, session.FieldGeneration, worldModeModel, -1, Ff7AutoPlayTargetKind.WorldControl, null, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, WorldModeGoal: candidate.Goal);
         return true;
     }
 
@@ -46,9 +44,20 @@ public sealed partial class Ff7AutoPlayPolicy
         Ff7AutoPlayWorldControlObservation control = active.WorldControl ?? throw new InvalidDataException("A native world control owner has no action observation.");
         if (world.HasAutoPlayControlCompleted(control))
         {
+            AutoPlayTravelGoal? destination = null;
+            if (active.WorldModeGoal is { } goal)
+            {
+                Ff7AutoPlayWorldScriptObservation target = world.ReadAutoPlayFrontierCatalog(goal.Chunk.X, goal.Chunk.Z).Scripts.Single(item => item.Id == goal.TargetEventId);
+                Ff7AutoPlayWorldGuide actualRiderRoute = world.ReadAutoPlayNavigationGuide(target);
+                if (actualRiderRoute.Faces.Length == 0)
+                {
+                    throw new NotSupportedException(actualRiderRoute.Reason ?? "The actual native landing did not connect to the selected rider entry.");
+                }
+                destination = new(observation.NavigationKey, goal.TargetEventId, WorldCondition(target));
+            }
             planner.Completed(active.VisitId, active.EventId, observedStoryChanged: false, entrySignature: active.ConditionFingerprint, entrySignatureAuthoritative: true, availabilityFingerprintAuthoritative: true);
             State.Active = null;
-            State.NavigationGoal = null;
+            State.NavigationGoal = destination;
             State.Status = "The native transport control returned to its rider";
             Publish();
             return default;

@@ -34,25 +34,33 @@ internal static class AutoPlayWorldControlTests
         Ff7AutoplayInput press = world.ChooseAutoPlayControlInput(control);
         Check(press.Held == 0x40 && press.Horizontal == 0 && press.Vertical == 0, "The native transport action must begin with an ordinary short Cancel press.");
         Check(before == JsonSerializer.Serialize(session.Capture()), "Native control discovery or input selection changed authoritative state.");
-        controller.Advance(1);
-        Check(controller.Error is null && world.ControlledModel == control.Model && world.Process.Vehicle?.CancelHeldTicks == 1 && policy.State.Active is { Kind: Ff7AutoPlayTargetKind.WorldControl, Accepted: true }, "Normal planning did not own and begin the observed native transport action.");
+        Ff7AutoplayDriver driver = new(session);
+        driver.Apply(press);
+        session.AdvanceTick(advanceClock: false);
+        Check(world.ControlledModel == control.Model && world.Process.Vehicle?.CancelHeldTicks == 1, "The ordinary native Cancel press did not begin its short hold.");
         using MemoryStream saved = new();
         CombinedSessionCodec.Write(saved, envelope with { Ff7 = session.Capture() });
         saved.Position = 0;
         using Ff7Session cold = Ff7Session.Restore(installation, CombinedSessionCodec.Read(saved).Ff7!);
         Check(JsonSerializer.Serialize(session.Capture()) == JsonSerializer.Serialize(cold.Capture()), "Cold restoration changed the native short Cancel hold or its autoplay owner.");
-        using Ff7AutoPlayPolicy coldPolicy = new(cold, (_, _) => throw new InvalidOperationException("The restored native control requested a choice."));
-        Ff7AutoPlayController coldController = new(cold, coldPolicy.ChooseInput, chooseDialogueSelection: coldPolicy.ChooseDialogueSelection);
-        coldController.Start();
-        for (int step = 0; step < 16 && coldController.Running && cold.World?.ControlledModel == control.Model; step++)
+        Ff7AutoplayDriver coldDriver = new(cold);
+        for (int step = 0; step < 2; step++)
         {
-            coldController.Advance(1);
+            coldDriver.Apply(cold.World!.ChooseAutoPlayControlInput(control));
+            cold.AdvanceTick(advanceClock: false);
         }
-        Check(coldController.Error is null && cold.World?.ControlledModel == control.RiderModel, $"The native short release and collision phases did not return control to the rider: {coldController.Error}");
-        coldController.Advance(1);
-        Check(coldPolicy.State.Active?.Kind != Ff7AutoPlayTargetKind.WorldControl && coldPolicy.State.Coverage.Visits.SelectMany(visit => visit.Events).Any(item => item.Event.Id == control.Id && item.Completed), "Native rider ownership did not complete the observed control action.");
+        Check(cold.World?.Process.Vehicle?.DismountPhase == 2, "The native short release did not reach its collision phase.");
+        string landingBefore = JsonSerializer.Serialize(cold.Capture());
+        Ff7AutoPlayWorldLandingPreview landing = cold.World!.PreviewAutoPlaySurfaceLanding();
+        Check(landing.Supported && landing.Rider is not null && landing.Ground is not null, "The native phase-two source has no admitted landing preview.");
+        Check(landingBefore == JsonSerializer.Serialize(cold.Capture()), "Landing advice changed native VM, caches, RNG or ownership.");
+        coldDriver.Apply(cold.World.ChooseAutoPlayControlInput(control));
+        cold.AdvanceTick(advanceClock: false);
+        Ff7WorldEntity actualRider = cold.World.Process.Entities.Single(entity => entity.Model == control.RiderModel);
+        Check(actualRider.X == landing.Rider!.X && actualRider.Y == landing.Rider.Y && actualRider.Z == landing.Rider.Z && cold.World.Process.Input?.GroundTriangle == landing.Ground, $"The original native collision phase disagrees with its landing advice: actual={actualRider.X},{actualRider.Y},{actualRider.Z}/{cold.World.Process.Input?.GroundTriangle}, advised={landing.Rider.X},{landing.Rider.Y},{landing.Rider.Z}/{landing.Ground}.");
+        Check(cold.World.HasAutoPlayControlCompleted(control), "The native release/collision phases did not return ownership to the rider.");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "Native control continuation changed its external standalone source.");
-        Console.WriteLine($"PASS original native transport control, cold short-hold continuation and rider ownership after {coldController.Steps} callbacks; source unchanged.");
+        Console.WriteLine("PASS original native transport control, cold short-hold continuation and rider ownership through native collision; source unchanged.");
     }
 
     private static void Check(bool condition, string message)

@@ -70,6 +70,11 @@ internal sealed partial class Ff7Scene
         }
     }
 
+    public void SetAutoPlayDestination(ushort? field)
+    {
+        (autoPlayPolicy ?? throw new InvalidOperationException("Start automatic play before selecting its planning destination.")).SetDestinationField(field);
+    }
+
     private void SaveAutoPlayCheckpoint(Ff7SessionSave state)
     {
         string path = autoPlayCheckpointPath ?? throw new InvalidOperationException("Automatic play requires its host checkpoint destination.");

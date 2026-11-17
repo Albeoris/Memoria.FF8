@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-mode-navigation-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldModeNavigationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-control-only", StringComparer.Ordinal))
 {
     AutoPlayWorldControlTests.Run();
@@ -911,6 +917,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay gateway topology", AutoPlayGatewayTopologyTests.Run),
     ("native world semantic completion availability", AutoPlayWorldSemanticAvailabilityTests.Run),
     ("native world intrinsic control", AutoPlayWorldControlTests.Run),
+    ("native world vehicle-to-rider route", AutoPlayWorldModeNavigationTests.Run),
     ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),
