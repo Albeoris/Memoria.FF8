@@ -119,16 +119,24 @@ internal sealed partial class RecreateGame
         EnsureMagicRuleBoundary();
         GameplayPreferences preferences = ((session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences) with { Difficulty = BattleDifficulty.Hardcore }).NormalizeForDifficulty();
         MagicModePreview preview = session.PreviewGameplayPreferences(preferences);
+        bool requiresReview = preferences.SharedMagicStock != session.State.GameplayPreferences.SharedMagicStock;
         void ApplyHardcorePreferences()
         {
-            if (resourceHost is not null && !resourceHost.SetGameplayDifficulty(BattleDifficulty.Hardcore))
+            try
             {
-                resourceHost.SetGameplayDifficulty(session.State.GameplayPreferences.Difficulty);
-                throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
+                MagicModePreview? updated = HardcoreGameplayTransition.Apply(session, preferences, requiresReview ? preview : null, difficulty => resourceHost?.SetGameplayDifficulty(difficulty) ?? true);
+                if (updated is not null)
+                {
+                    preview = updated;
+                    gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), ApplyHardcorePreferences);
+                }
             }
-            session.ApplyGameplayPreferences(preview);
+            catch (InvalidOperationException exception) when (exception.Message == GameResourceHost.GameplayDifficultyProfilePending)
+            {
+                ShowSaveNotice(exception.Message);
+            }
         }
-        if (preferences.SharedMagicStock != session.State.GameplayPreferences.SharedMagicStock)
+        if (requiresReview)
         {
             gameMenus!.ShowMagicRulesReview(DescribeMagicMigration(preview), ApplyHardcorePreferences);
         }

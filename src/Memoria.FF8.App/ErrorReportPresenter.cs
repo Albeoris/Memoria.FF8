@@ -37,6 +37,28 @@ internal sealed class ErrorReportPresenter(Action<string> copy, Func<ErrorIncide
         return BuildErrorReportView();
     }
 
+    internal async Task<string?> SaveForExitAsync()
+    {
+        if (Incident is null)
+        {
+            return null;
+        }
+        ErrorIncident incident = Incident;
+        if (Evidence is { } evidence)
+        {
+            try
+            {
+                incident = await evidence.ConfigureAwait(false);
+            }
+            catch (Exception failure)
+            {
+                incident = incident.WithSaveUnavailableReason("Save collection failed during shutdown: " + failure.Message);
+            }
+        }
+        using PreparedErrorReport report = await (prepare?.Invoke(incident) ?? GameErrorReport.PrepareAsync(incident)).ConfigureAwait(false);
+        return report.ArchivePath;
+    }
+
     internal bool Update(string? message, InputFrame input, KeyboardInput keyboard, MouseState mouse, int width, int height)
     {
         error = message;

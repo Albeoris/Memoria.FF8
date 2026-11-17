@@ -48,6 +48,17 @@ internal sealed partial class RecreateGame
             {
                 CaptureErrorIncident(exception, "game host", force: true);
             }
+            try
+            {
+                if (sharedErrorReport?.SaveForExitAsync().GetAwaiter().GetResult() is { } archive)
+                {
+                    Console.Error.WriteLine("Local error report: " + archive);
+                }
+            }
+            catch (Exception reportFailure)
+            {
+                Console.Error.WriteLine("Local error report preparation failed: " + reportFailure.Message);
+            }
             throw;
         }
     }

@@ -42,6 +42,22 @@ public sealed class MagicSystemInterfaceTests
     }
 
     [Fact]
+    public void Applying_a_migration_can_replace_it_with_an_updated_review()
+    {
+        MenuController menu = new(() => new MenuData());
+        menu.Open("config-magic");
+        int applications = 0;
+        menu.ShowMagicRulesReview(["Original consequences"], () => menu.ShowMagicRulesReview(["Updated consequences"], () => applications++));
+        menu.Execute(new("magic-rules-apply"));
+        Assert.Equal("mode-review", menu.ScreenId);
+        Assert.Equal(["Updated consequences"], menu.CurrentScreen.Details(menu));
+        Assert.Equal(0, applications);
+        menu.Execute(new("magic-rules-apply"));
+        Assert.Equal("config-magic", menu.ScreenId);
+        Assert.Equal(1, applications);
+    }
+
+    [Fact]
     public void EscapeCancelsDeferredMigrationAndInvalidatesThePendingPresentation()
     {
         MenuData data = new();

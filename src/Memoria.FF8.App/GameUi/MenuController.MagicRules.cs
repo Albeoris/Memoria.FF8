@@ -71,6 +71,8 @@ public sealed partial class MenuController
         Action? cancel = cancelMagicRules;
         applyMagicRules = null;
         cancelMagicRules = null;
+        _liveData = null;
+        Back();
         if (action.Kind == "magic-rules-apply")
         {
             (apply ?? throw new InvalidOperationException("The magic migration preview is no longer active."))();
@@ -79,8 +81,6 @@ public sealed partial class MenuController
         {
             cancel?.Invoke();
         }
-        _liveData = null;
-        Back();
         return true;
     }
 }

@@ -175,7 +175,14 @@ public sealed class HardcoreSettingsTests
         foreach (MenuEntry entry in menus.Entries.Where(entry => NewGameSettings.IsLocked(entry.Id, BattleDifficulty.Hardcore, screen == "new-game-options")))
         {
             Assert.False(entry.Enabled);
-            Assert.Contains("permanent", entry.Help);
+            if (screen == "new-game-options")
+            {
+                Assert.Equal(MenuSettings.Definitions.Single(setting => setting.Id == entry.Id).Description, entry.Help);
+            }
+            else
+            {
+                Assert.Contains("permanent", entry.Help);
+            }
         }
         foreach (MenuEntry entry in menus.Entries.Where(entry => entry.Id is "Battle ATB mode" or "Rare card markers" or "begin"))
         {

@@ -6,6 +6,31 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class HardcorePreferencesTests
 {
     [Fact]
+    public void Starting_another_game_does_not_change_saved_hardcore_or_allow_a_downgrade_after_loading()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "memoria-hardcore-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.SetGameplayPreferences(new() { Difficulty = BattleDifficulty.Hardcore });
+            session.Save(path, compact: true);
+            byte[] saved = File.ReadAllBytes(path);
+            session.StartNewGame();
+            session.SetGameplayPreferences(new() { Difficulty = BattleDifficulty.Normal });
+            Assert.Equal(BattleDifficulty.Normal, session.State.GameplayPreferences.Difficulty);
+            GameSession restored = new(GameSession.Load(path));
+            Assert.Equal(BattleDifficulty.Hardcore, restored.State.GameplayPreferences.Difficulty);
+            Assert.Throws<InvalidOperationException>(() => restored.SetGameplayPreferences(restored.State.GameplayPreferences with { Difficulty = BattleDifficulty.Hard }));
+            Assert.Equal(saved, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void Enabling_hardcore_enables_mandatory_rules_and_preserves_atb()
     {
         GameSession session = GameSession.CreateColdProcess();

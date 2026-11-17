@@ -6,6 +6,56 @@ namespace Memoria.FF8.Tests;
 public sealed class ErrorReportPresenterTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fatal_exit_writes_an_archive_without_a_report_button_and_preserves_capture_failure(bool collectionFails)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "memoria-fatal-report-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            ErrorIncident original = ErrorIncident.Capture(new InvalidOperationException("Original failure"), "game host");
+            ErrorIncident complete = original.WithSaveUnavailableReason("No supported save boundary.");
+            ErrorIncident? prepared = null;
+            using ErrorReportPresenter presenter = new(_ => throw new InvalidOperationException("Clipboard must not be used during shutdown."), incident =>
+            {
+                prepared = incident;
+                return ErrorReport.PrepareAsync(incident, directory);
+            });
+            presenter.Incident = original;
+            TaskCompletionSource<ErrorIncident> evidence = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            presenter.Evidence = evidence.Task;
+            Task<string?> pending = presenter.SaveForExitAsync();
+            Assert.False(pending.IsCompleted);
+            if (collectionFails)
+            {
+                evidence.SetException(new IOException("Collection interrupted."));
+            }
+            else
+            {
+                evidence.SetResult(complete);
+            }
+            string? archive = await pending;
+            Assert.NotNull(archive);
+            Assert.True(File.Exists(archive));
+            Assert.NotNull(prepared);
+            Assert.Equal(original.Id, prepared.Id);
+            Assert.Equal("Original failure", prepared.Exception.Message);
+            Assert.Equal(collectionFails ? "Save collection failed during shutdown: Collection interrupted." : complete.SaveUnavailableReason, prepared.SaveUnavailableReason);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            if (Directory.Exists(directory + ".pending"))
+            {
+                Directory.Delete(directory + ".pending", recursive: true);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData("FFVIII field")]
     [InlineData("FFVII field")]
     public void SharedReportViewRetainsActionsAndCopiesCompleteNativeFault(string subsystem)
