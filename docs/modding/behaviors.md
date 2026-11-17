@@ -1,4 +1,4 @@
-﻿# Existing ability behavior mods
+# Existing ability behavior mods
 
 [Documentation](../README.md) / Modding
 
