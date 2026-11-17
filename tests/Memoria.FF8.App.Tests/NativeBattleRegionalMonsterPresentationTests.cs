@@ -9,47 +9,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleRegionalMonsterPresentationTests
 {
     [Fact]
-    public void Resume_the_selected_monster_standalone_for_one_callback()
-    {
-        ResumeSelectedStandalone(1);
-    }
-
-    [Fact]
-    public void Resume_the_selected_monster_standalone_for_a_bounded_callback_range()
-    {
-        string? value = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_CALLBACKS");
-        Assert.SkipUnless(value is not null, "Select a bounded diagnostic callback count.");
-        int callbacks = int.Parse(value!);
-        Assert.InRange(callbacks, 1, 4096);
-        ResumeSelectedStandalone(callbacks);
-    }
-
-    private static void ResumeSelectedStandalone(int callbacks)
-    {
-        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_SNAPSHOT");
-        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_EVIDENCE");
-        Assert.SkipUnless(source is not null && output is not null, "Select a standalone monster checkpoint and a distinct evidence directory.");
-        Assert.False(Directory.Exists(output));
-        Directory.CreateDirectory(output!);
-        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(source!))!;
-        BattleSession first = BattleSession.Restore(snapshot);
-        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
-        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
-        for (int callback = 0; callback < callbacks; callback++)
-        {
-            first.Tick();
-            second.Tick();
-        }
-        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + callbacks, first.Presentation!.Graphics.Callback);
-        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
-        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
-        byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
-        Assert.Equal(pixels, new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
-        NativeBattleRestorationPresentationTests.Publish(output!, "next", first.Capture(), pixels);
-    }
-
-    [Fact]
-    public void Execute_the_selected_original_monster_bank_action_and_restore_its_standalone_boundaries()
+    public void Execute_the_selected_original_monster_bank_action_and_fork_its_current_boundaries()
     {
         string? selection = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_ACTION");
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_EVIDENCE");
@@ -78,16 +38,13 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             native = native with { Command = 252, ActionId = 1, MagicId = effect, AttackType = 0 };
             ability = new(252, 1, 0);
         }
-        string? sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_SNAPSHOT");
-        BattleSnapshot? source = sourcePath is null ? null : JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(sourcePath));
-        BattleDefinition definition = source?.Definition ?? CreateDefinition(game, assets, model, level, slot, installedAi, native);
+        BattleDefinition definition = CreateDefinition(game, assets, model, level, slot, installedAi, native, out NativeBattleGraphicsDefinition graphicsResources);
         Assert.Equal(model, definition.Combatants.Single(actor => actor.Id == "monster").ModelId);
-        BattleSession battle = source is null ? new(definition, BattleAtbMode.Normal) : BattleSession.Restore(source);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.Normal, graphicsResources);
+        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot prior = battle.CaptureForContinuation();
-        string startName = source is null ? "before-entry" : "resume-source";
-        Publish(startName, prior);
-        battle = Load(startName);
+        Publish("before-entry", prior);
         bool selected = false;
         bool produced = false;
         bool visible = false;
@@ -102,7 +59,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             // A diagnostic liveness bound only; reaching it never establishes native completion.
             for (; callbacks < 4096; callbacks++)
             {
-                prior = battle.Capture();
+                prior = battle.CaptureForContinuation();
                 battle.Tick();
                 BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleCloudBombPresentationOwnership.AssertFrame(current, native.MagicId);
@@ -239,7 +196,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
         catch (Exception error)
         {
             File.WriteAllText(Path.Combine(output!, "before-boundary.battle.json"), JsonSerializer.Serialize(prior));
-            BattleSnapshot failed = battle.Capture();
+            BattleSnapshot failed = battle.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output!, "failed-live.battle.json"), JsonSerializer.Serialize(failed));
             File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", model, level, slot, Driver = control is null ? "bank" : "opcode30-control", ability.Command, ability.Id, ability.Sequence, native.MagicId, callbacks, peakChangedRgb, restoredLive, selected, produced, error = error.ToString() }));
             try
@@ -256,40 +213,32 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
 
         void Publish(string name, BattleSnapshot snapshot)
         {
-            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());
-        }
-
-        BattleSession Load(string name)
-        {
-            BattleSnapshot loaded = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(output!, name + ".battle.json")))!;
-            BattleSession restored = BattleSession.Restore(loaded);
-            Assert.Equal(JsonSerializer.Serialize(loaded), JsonSerializer.Serialize(restored.Capture()));
-            restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            return restored;
+            NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(NativeBattleTypedFixture.RestoreBattle(snapshot), 320, 224).ToArray());
         }
 
         void VerifyContinuation(string name, BattleSnapshot snapshot)
         {
             Publish(name, snapshot);
-            BattleSession first = Load(name);
-            BattleSession second = BattleSession.Restore(snapshot);
+            BattleSession first = NativeBattleTypedFixture.RestoreBattle(snapshot);
+            first.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+            BattleSession second = first.ForkForContinuation();
             second.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
             first.Tick();
             second.Tick();
-            NativeBattleCloudBombPresentationOwnership.AssertFrame(first.Capture(), native.MagicId);
-            NativeBattleCloudBombPresentationOwnership.AssertFrame(second.Capture(), native.MagicId);
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(first.CaptureForContinuation(), native.MagicId);
+            NativeBattleCloudBombPresentationOwnership.AssertFrame(second.CaptureForContinuation(), native.MagicId);
             if (control is not null && native.MagicId == 248)
             {
-                NativeBattleCinematicCaptureAssertions.AssertFrame(first.Capture(), 248);
-                NativeBattleCinematicCaptureAssertions.AssertFrame(second.Capture(), 248);
+                NativeBattleCinematicCaptureAssertions.AssertFrame(first.CaptureForContinuation(), 248);
+                NativeBattleCinematicCaptureAssertions.AssertFrame(second.CaptureForContinuation(), 248);
             }
-            Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
+            Assert.Equal(JsonSerializer.Serialize(first.CaptureForContinuation()), JsonSerializer.Serialize(second.CaptureForContinuation()));
             Assert.Equal(new BattleScenePresentation(assets, definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(second, 320, 224).ToArray());
-            Publish(name + "-next", first.Capture());
+            Publish(name + "-next", first.CaptureForContinuation());
         }
     }
 
-    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int model, int level, int slot, NativeBattleAiDefinition installedAi, BattleNativeAction action, out NativeBattleGraphicsDefinition graphicsResources)
     {
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).First(item => item.Slots.Any(enemy => enemy.ModelId == model));
         if (action.Command == 252 && action.MagicId is 17 or 18)
@@ -357,7 +306,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             BattleCombatantDefinition third = new() { Id = "party-2", Name = thirdCharacter == 5 ? "Selphie" : "Irvine", IsPlayer = true, ModelId = thirdCharacter, WeaponId = vitals.Records[thirdCharacter].Weapon, MaximumHp = 30000, CurrentHp = 30000, NativeCharacterFlag100 = assets.ReadCharacterNativeConditionFlag100(thirdCharacter), NativeStatusResistances = assets.ReadPlayerNativeStatusData(vitals, thirdCharacter).Resistances.ToArray(), NativeDeathCount = 0 };
             actors = [actors[0], zell, third, .. actors.Skip(1)];
         }
-        BattleDefinition baseline = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116);
+        BattleDefinition baseline = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116, out _);
         string? stackProfile = Environment.GetEnvironmentVariable("MEMORIA_FF8_MONSTER_STACK_PROFILE");
         if (stackProfile is not null)
         {
@@ -366,8 +315,11 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             NativeBattleRetainedMemory retained = baseline.NativeRetainedMemory!;
             baseline = baseline with { NativeRetainedMemory = retained with { EffectMemory = retained.EffectMemory! with { ExecutionStack = selected } } };
         }
+        graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         return baseline with
         {
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
+            NativeClockRules = assets.ReadNativeClockRules(),
             Combatants = actors,
             EncounterId = formation.Id,
             StageId = formation.StageId,
@@ -375,7 +327,6 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
             ActionDefinitions = assets.ActionDefinitions.ToArray(),
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
             NativeFieldBattleMode = 0,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects(action.MagicId == 0 ? [] : [action.MagicId]),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,

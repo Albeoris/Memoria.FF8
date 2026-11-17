@@ -48,8 +48,8 @@ public sealed class BattleExpandedSceneContinuationTests
                 NativeBattlePrimitiveFrame packed = frame with { LastCommands = frame.LastCommands.Select(item => item with { Command = item.Command with { ProjectedCoordinates = null } }).ToImmutableArray() };
                 BattleRenderer raster = new(640, 360, ViewportLayout.Fit(320, 240, 640, 360));
                 var memory = battle.Presentation!.Memory;
-                byte[] fullPixels = raster.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: source.Definition.NativeGraphics!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache).ToArray();
-                byte[] packedPixels = raster.RenderNativePrimitiveFrame(packed, memory.Textures, capabilities: source.Definition.NativeGraphics.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess.TextureWindowCache);
+                byte[] fullPixels = raster.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache).ToArray();
+                byte[] packedPixels = raster.RenderNativePrimitiveFrame(packed, memory.Textures, capabilities: source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess.TextureWindowCache);
                 if (!fullPixels.SequenceEqual(packedPixels))
                 {
                     packedDifference = true;

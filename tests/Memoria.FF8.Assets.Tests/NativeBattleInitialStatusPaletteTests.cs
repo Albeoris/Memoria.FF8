@@ -21,8 +21,10 @@ public sealed class NativeBattleInitialStatusPaletteTests
             new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
-        BattleSession session = new(new()
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(new()
         {
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
@@ -36,13 +38,12 @@ public sealed class NativeBattleInitialStatusPaletteTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
-        }, BattleAtbMode.TurnBased);
+        }, BattleAtbMode.TurnBased, assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter));
         for (int callback = 0; callback < 200 && (ReadOriginalModelCell(session.Presentation!.Graphics, 0).Flags0 & 2) == 0; callback++)
         {
             session.Tick();

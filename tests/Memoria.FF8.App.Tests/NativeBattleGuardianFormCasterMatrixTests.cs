@@ -88,7 +88,7 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
         Assert.Contains(character, assets.PlayerCharacterIds);
-        BattleDefinition basis = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201) with
+        BattleDefinition basis = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with
         {
             GuardianFormsEnabled = true,
             GuardianFormResources = [assets.ReadIfritGuardianFormResources()],
@@ -131,12 +131,12 @@ public sealed class NativeBattleGuardianFormCasterMatrixTests
                 };
             }).ToArray();
             BattleCombatantDefinition[] actors = [.. party, basis.Combatants[1] with { NativeCombatantFlags = 8 }];
+            NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
             BattleDefinition definition = basis with
             {
-                Combatants = actors,
-                NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94))
+                Combatants = actors
             };
-            BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+            BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
             WaitFor(() => battle.CanRequestGuardianForm("party", 2));
             NativeBattleGraphicsModel original = ReadOriginalModelCell(battle.Presentation!.Graphics, slot);
             NativeBattleCameraPose humanCamera = battle.Presentation!.Camera.CurrentPose!;

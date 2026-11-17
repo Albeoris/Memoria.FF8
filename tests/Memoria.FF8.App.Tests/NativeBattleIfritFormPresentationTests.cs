@@ -38,7 +38,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
         if (retainedMemory is not null)
         {
             definition = definition with { NativeRetainedMemory = retainedMemory };
@@ -49,9 +49,10 @@ public sealed class NativeBattleIfritFormPresentationTests
             BattleCombatantDefinition other = new() { Id = "other", Name = "Quistis", IsPlayer = true, ModelId = 3, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == 3).Id, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, Speed = 1, Abilities = [BattleAbility.Attack, BattleAbility.Magic], MagicStocks = [new(1, 2)], NativeDeathCount = 0, GuardianForceCompatibility = Enumerable.Repeat((ushort)3000, 16).ToArray() };
             other = other with { Speed = 80, NativeAttack = assets.ReadPlayerNativeAttackData(game.ReadNewGameCharacterVitals(), 3) };
             BattleCombatantDefinition[] participants = [definition.Combatants[0] with { Speed = 80 }, other, definition.Combatants[1] with { NativeCombatantFlags = 8 }];
-            definition = definition with { Combatants = participants, ActionDefinitions = [definition.ActionDefinitions[0], fire], NativeGraphics = assets.ReadNativeGraphicsDefinition(participants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([1, 201]), GuardianForces = [new(2, 600, 1200)] };
+            definition = definition with { Combatants = participants, ActionDefinitions = [definition.ActionDefinitions[0], fire], NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([1, 201]), GuardianForces = [new(2, 600, 1200)] };
         }
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_FORM_EVIDENCE");
         string? output = root is null ? null : Path.Combine(root, statusStanding ? "status-standing" : retainedMemory is not null ? "loaded-finisher" : skip ? skipAfterContact ? "skip-after-contact" : "skip" : "finisher");
@@ -340,8 +341,9 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         for (int index = 0; index < 400 && (!battle.NativeEntryReady || !battle.CanChoosePlayerCommand("party")); index++)
         {
@@ -410,8 +412,9 @@ public sealed class NativeBattleIfritFormPresentationTests
         Directory.CreateDirectory(output!);
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         for (int index = 0; index < 400 && (!battle.NativeEntryReady || !battle.CanChoosePlayerCommand("party")); index++)
         {

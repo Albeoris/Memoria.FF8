@@ -159,7 +159,7 @@ internal sealed class NativeBattleEffect167PresentationObserver
         Assert.NotEqual(0, actor.Flags0 & 4);
         NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         string actorId = ReadOriginalModelActorId(graphics, actorIndex)!;
-        NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == actorId);
+        NativeBattleGraphicsBinding binding = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(item => item.ActorId == actorId);
         NativeBattlePoseSource pose = binding.Resource.PoseSource!;
         HashSet<(uint Clut, uint Tpage)> texturePairs = [];
         Add(actor.ActiveResourceRow100!.Value, pose.BoneCount, actor.SequenceState!.MeshMask124);

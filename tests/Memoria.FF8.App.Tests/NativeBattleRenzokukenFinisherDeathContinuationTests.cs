@@ -30,14 +30,15 @@ public sealed class NativeBattleRenzokukenFinisherDeathContinuationTests
         NativeCharacterVital character = vitals.Records[0];
         BattleNativeCharacterGrowth growth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
         BattleNativePlayerStatistics statistics = rules.Project(character.MagicInventory, growth);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, 163);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, 163, out _);
         BattleCombatantDefinition actor = source.Combatants[0] with { Name = "Squall", WeaponId = weapon, NativePlayerStatRules = rules, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeGrowth = growth, Attack = statistics.Strength, Defense = statistics.Vitality, Magic = statistics.Magic, Spirit = statistics.Spirit, Speed = statistics.Speed, Luck = statistics.Luck, Hit = statistics.Hit, Evasion = statistics.Evasion };
         BattleEncounter encounter = assets.LoadEncounter(1);
         BattleEnemyPlacement soldier = encounter.Enemies.First();
         BattleCombatantDefinition enemy = source.Combatants[1] with { ModelId = soldier.ModelId, SceneSlot = soldier.Slot, Information246 = assets.ReadEnemyNativeInformation246(soldier.ModelId), NativeStatusResistances = assets.ReadEnemyNativeStatusData(soldier.ModelId).Resistances.ToArray(), CurrentHp = hitPoints, NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(soldier.ModelId) };
         BattleCombatantDefinition[] actors = [actor, enemy];
-        BattleDefinition definition = source with { Combatants = actors, NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, 163]) };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
+        BattleDefinition definition = source with { Combatants = actors, NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, 163]) };
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "rough-divide-163-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);

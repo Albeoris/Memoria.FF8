@@ -41,10 +41,9 @@ public sealed class NativeBattleCommandTitleTests
         BattleSession logical = Create(false, 3, false);
         NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.Presentation!.NativeActionPackets.Roster);
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-        typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
-        typeof(BattleSession).GetField("hostedFrameServices", privateInstance)!.SetValue(child, services);
+        NativeBattleHostedTestFixture.SetField(child.Presentation!, "hostedFrameServices", services);
 
-        NativeBattleGraphicsState advanced = Assert.IsType<NativeBattleGraphicsState>(typeof(BattleSession).GetMethod("AdvanceNativeLoadedModels", privateInstance)!.Invoke(child, [graphics, 0u, services]));
+        NativeBattleGraphicsState advanced = Assert.IsType<NativeBattleGraphicsState>(typeof(BattlePresentationProcess).GetMethod("AdvanceNativeLoadedModels", privateInstance)!.Invoke(child.Presentation!, [graphics, 0u, services]));
 
         BattleEvent title = Assert.IsType<NativeBattlePresentationDescriptorText>(Assert.Single(services.ReadOrderedReceipts())).Message;
         Assert.Equal("enemy", title.ActorId);
@@ -131,10 +130,6 @@ public sealed class NativeBattleCommandTitleTests
         // Two actual BB opcodes in one callback verify that the pending pointer is consumed once.
         NativeBattleGraphicsResource resource = new([1, 0, 4, 0, 0xBB, 0xBB, 0xA1]) { AnimationFrames = [1] };
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        FieldInfo definitionField = typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        BattleDefinition definition = (BattleDefinition)definitionField.GetValue(session)!;
-        definitionField.SetValue(session, definition with { NativeGraphics = new(rules, [new(actor, 3, resource)], []) });
-        typeof(BattleSession).GetMethod("InitializeNativePartyPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, null);
         BattleModelOwner owner = player ? new BattlePartyActorModel(new(actor)) : new BattleEnemyActorModel(new(actor));
         NativeBattleGraphicsModel model = new(3) { Flags0 = 3, ModelId4 = 3, Flags2 = 4, Flags8 = 0, Kind5 = 0, Sequence = 1, ResourceFlags44 = 1, SequenceState = new() { Pose = 0, PoseFrame114 = 0, PoseLimit115 = 1 } };
         NativeBattleActionDataReference? title = pending ? new(0x47E970, 1, "Fire") : null;
@@ -142,7 +137,7 @@ public sealed class NativeBattleCommandTitleTests
         {
             ActionGraphics = new(new BattleActionHeaderReference(0), new BattleRetainedModelReference.CanonicalOwner(owner), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, title, 0x50A9A0)
         };
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [new(actor, 3, resource)], []));
         return session;
     }
 

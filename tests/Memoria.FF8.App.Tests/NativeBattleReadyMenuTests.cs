@@ -168,10 +168,11 @@ public sealed class NativeBattleReadyMenuTests
             actors[0] = actors[0] with { NativeLimit = assets.ReadNativeLimitDefinition(0) };
         }
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
-        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeClockRules = new(10), NativeBattleSpeed = 2, NativeSavedOptions = 1, NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(encounter.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(encounter.StageId).NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(encounter.StageId).NativeCameraControl, Combatants = actors };
+        NativeBattleGraphicsDefinition graphicsResources = graphics;
+        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeClockRules = new(10), NativeBattleSpeed = 2, NativeSavedOptions = 1, NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(encounter.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(encounter.StageId).NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(encounter.StageId).NativeCameraControl, Combatants = actors };
         definition = definition with { NativeLimitsDisabled = false, NativeCommandNames = assets.ReadNativeCommandNames(), NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

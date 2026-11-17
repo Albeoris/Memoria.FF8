@@ -28,7 +28,7 @@ public sealed class NativeBattleHostedStandingResourceTests
         originalBytes[28] = 5;
         originalBytes[29] = 6;
         NativeBattleGraphicsResource original = new([.. originalBytes]) { AnimationFrames = [4, 4, 4, 4, 4, 4, 4] };
-        NativeBattleHostedTestFixture.InstallModelBindings(session, new NativeBattleGraphicsBinding("ally", 1, original));
+        var graphicsResources = NativeBattleHostedTestFixture.CreateGraphicsDefinition(new NativeBattleGraphicsBinding("ally", 1, original));
 
         uint row = NativeBattleFileStaging.Address + 0x200;
         uint skeletonAddress = row + 0x100;
@@ -58,17 +58,15 @@ public sealed class NativeBattleHostedStandingResourceTests
             ActiveStagedResourceRow100 = row
         };
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => owner == ally ? source : new(0)) with { EntryReady = true };
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, graphicsResources);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, staging);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
-        Field("nativeActionPackets").SetValue(session, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
-        Field("hostedBattlePresentation").SetValue(session, true);
 
         NativeBattleActionHeaderPreparation closing = new(ally, 238, 1, -1, 0, 0, null);
         BattlePresentationProcess.PreparedHostedDispatch dispatch = session.Presentation!.PrepareHostedAction(closing, [new(new(enemy, 0, 1, 0, 0, 0, 0), null)]);
         session.Presentation!.PublishHostedAction(dispatch);
         NativeBattleGraphicsResource staged = dispatch.Action!.Source;
-        Assert.Same(staged, Field("presentationSourceResource").GetValue(session));
+        Assert.Same(staged, Field("presentationSourceResource").GetValue(session.Presentation!));
         Assert.Equal(stagedBytes, staged.SequenceSection.ToArray());
         Assert.False(staged.Contains(13));
 
@@ -86,10 +84,10 @@ public sealed class NativeBattleHostedStandingResourceTests
         Assert.True(original.Contains(13));
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 
     private static NativeBattleGraphicsResource ReadResource(BattleSession session, string method, params object[] arguments)
     {
-        return Assert.IsType<NativeBattleGraphicsResource>(typeof(BattleSession).GetMethod(method, PrivateInstance)!.Invoke(session, arguments));
+        return Assert.IsType<NativeBattleGraphicsResource>(typeof(BattlePresentationProcess).GetMethod(method, PrivateInstance)!.Invoke(session.Presentation!, arguments));
     }
 }

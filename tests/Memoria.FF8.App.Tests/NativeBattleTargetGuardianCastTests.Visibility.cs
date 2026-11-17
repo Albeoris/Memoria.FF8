@@ -21,7 +21,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
         var (actor, actorSlot) = actors[0];
-        NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
+        NativeBattleGraphicsDefinition definition = current.ReadFixtureGraphicsDefinition()!;
         NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actorSlot)).Resource;
         if (resource.LinkedGeometry is not { IsEmpty: true } || resource.Geometry is not { } geometry || resource.PoseSource is not { } pose || actor.CurrentBodyBoneMatrices is null || actor.GeometryBounds52 is not { } bounds || actor.Color40 is not { } color || actor.Color44 is not { } shadowColor || actor.SequenceState?.MeshMask124 is not { } mask || current.ReadFixturePresentation().NativeCamera?.Projection is not { } projection || prior.ReadFixturePresentation().NativeCamera?.Projection?.View is not { } view)
         {
@@ -121,7 +121,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         }
         if (effect == 199)
         {
-            references.UnionWith(CactuarBodyPacketReferences(current, game.ReadNativeCactuar199Resources(), current.Definition.NativeGraphics!.Rules.SummonColors!));
+            references.UnionWith(CactuarBodyPacketReferences(current, game.ReadNativeCactuar199Resources(), current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!));
         }
         else if (effect == 191)
         {

@@ -53,7 +53,7 @@ public sealed class NativeBattleCactuar199PresentationTests
         Assert.Equal(0, contact.Primary.ContactFlags & 0x1000);
         Assert.Null(contact.Secondary);
         string targetId = ReadOriginalModelActorId(graphics, 3)!;
-        NativeBattleGraphicsResource targetResource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == targetId).Resource;
+        NativeBattleGraphicsResource targetResource = Assert.Single(source.ReadFixtureGraphicsDefinition()!.Bindings, binding => binding.ActorId == targetId).Resource;
         int targetInitialHp = source.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
         Assert.Equal(10000, targetInitialHp);
         Assert.False(source.NativeActionScratch!.GuardianFormulaE1E);

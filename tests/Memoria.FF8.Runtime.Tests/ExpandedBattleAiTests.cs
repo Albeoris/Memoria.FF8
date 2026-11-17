@@ -296,7 +296,7 @@ public sealed class ExpandedBattleAiTests
         if (retainAttacker)
         {
             BattleCombatant reopened = Assert.Single(battle.Combatants, actor => actor.Id == "enemy-10");
-            Assert.Equal("ally-10", Assert.Single(reopened.AiActorReferences).Value);
+            Assert.Equal(new NativeBattleAiActorValue("ally-10", null), Assert.Single(reopened.AiActorReferences).Value);
             Assert.Equal(0u, reopened.AiVariables[0]);
         }
         else

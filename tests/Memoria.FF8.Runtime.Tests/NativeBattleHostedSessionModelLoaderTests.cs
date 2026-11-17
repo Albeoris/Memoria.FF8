@@ -209,11 +209,9 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [], []);
         BattleDefinition definition = new()
         {
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
-            NativeGraphics = new(rules, [new("party", 0, resource)], [])
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         };
-        BattleSession session = new(definition with { NativeGraphics = null }, BattleAtbMode.Normal);
-        typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition);
+        BattleSession session = new(definition, BattleAtbMode.Normal);
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { FileSelector128 = 0, FileSelector129 = 0 };
         NativeBattleGraphicsState graphics = roster is null
             ? OriginalGraphics([(3, FirstOriginal, model), (4, SecondOriginal, model)])
@@ -231,7 +229,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
                 .WithPresentationTexture("second", new(NativeBattleEffectTextureState.FromColdProcess(), imageCache));
             memory = memory with { Textures = textures };
         }
-        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [new("party", 0, resource)], []));
         Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory);

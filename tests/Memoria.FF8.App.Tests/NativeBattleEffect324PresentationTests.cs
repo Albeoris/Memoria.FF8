@@ -341,7 +341,7 @@ public sealed class NativeBattleEffect324PresentationTests
             Assert.Equal(120, model.SequenceState!.Offset46);
             Assert.Equal(0x40, model.ResourceFlags44!.Value & 0x40);
             BattleCombatantDefinition prototype = current.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
-            NativeBattleGraphicsResource resource = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == prototype.Id).Resource;
+            NativeBattleGraphicsResource resource = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == prototype.Id).Resource;
             int start = resource.SequenceStart(16);
             Assert.Equal((byte)0x9D, resource.SequenceSection[start + 117]);
             Assert.Equal((byte)0xA3, resource.SequenceSection[start + 118]);

@@ -65,7 +65,7 @@ public sealed class NativeBattleWall189PresentationTests
         Assert.Equal(beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp, producedHp);
         uint statusMask = action.Statuses1;
         Assert.NotEqual(0u, statusMask);
-        Assert.Equal(0u, source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1));
+        Assert.Equal(0u, source.ReadFixtureGraphicsDefinition()!.Rules.Project(action.Statuses0, action.Statuses1));
         Assert.Equal(0u, source.NativePartyStatusMirrors!.Battle[0]!.Value & statusMask);
         BattleSession battle = BattleSession.Restore(source);
         BattleScenePresentation scene = new(assets, source.Definition);

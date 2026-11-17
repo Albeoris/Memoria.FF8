@@ -173,7 +173,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         BattleSession owner = CreateLogical();
         BattlePresentationProcess process = CreateProcess(owner, [2]);
         BattleDefinition selected = owner.ReadDefinition() with { LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0]) { Options978 = 1 } };
-        SetField(process, "resources", new BattlePresentationResources(selected));
+        SetField(process, "resources", new BattlePresentationResources(selected, null));
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));
@@ -294,7 +294,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
             EntryLifecycle = 4,
             EntryReady = true,
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
-        }, selected);
+        }, definition: selected);
         NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
         SetProperty(process, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { ControlCursor = 0 });

@@ -162,13 +162,12 @@ public sealed class NativeBattleEffect319BoneResourceTests
             NativeBattleModelCpuResourceRow row = Cpu.Rows[0].Set(12, Skeleton.Cpu) with { Lengths = ImmutableDictionary<int, int>.Empty.Add(12, skeleton.Length) };
             Cpu = Cpu with { Cpu = Cpu.Cpu with { Banks = Cpu.Cpu.Banks.SetItem(0, bank) }, Rows = Cpu.Rows.SetItem(0, row) };
             session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-            BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
             NativeBattleGraphicsResource resource = new([0, 0]) { PoseSource = source };
-            typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, resource)], []));
-            SetCpu();
             NativeBattleActionMatrix matrix = new([1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000], 123456, -234567, 345678, 4096);
             NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix, matrix]) };
             Graphics = OriginalGraphics([(0, Party, model), (3, new BattleEnemyActorModel(new("enemy")), new NativeBattleGraphicsModel(0))]);
+            NativeBattleHostedTestFixture.BindProcess(session, Graphics, new(null!, [new("party", 3, resource)], []));
+            SetCpu();
         }
 
         internal NativeBattleResourcePointer Resolve(int bone)

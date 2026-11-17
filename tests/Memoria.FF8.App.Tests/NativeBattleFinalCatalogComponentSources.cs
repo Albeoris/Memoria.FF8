@@ -39,11 +39,11 @@ internal static class NativeBattleFinalCatalogComponentSources
         BattleDefinition definition;
         if (model >= 0)
         {
-            definition = NativeBattleRenzokukenSpecialCastTests.CreateDefinition(game, assets, effect, model);
+            definition = NativeBattleRenzokukenSpecialCastTests.CreateDefinition(game, assets, effect, model, out _);
         }
         else
         {
-            BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effect);
+            BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effect, out _);
             definition = original with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), Combatants = [original.Combatants[0], original.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) }] };
         }
         definition = definition with { NativeCommandNames = assets.ReadNativeCommandNames() };

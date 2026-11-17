@@ -15,7 +15,7 @@ public sealed class NativeBattleIfritFormCameraTests
         Assert.SkipUnless(directory is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 2, 201, out _) with { GuardianFormsEnabled = true, GuardianFormResources = [assets.ReadIfritGuardianFormResources()] };
         definition = definition with { Combatants = [definition.Combatants[0] with { Speed = 80 }, definition.Combatants[1] with { NativeCombatantFlags = 8 }] };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         WaitFor(() => battle.CanRequestGuardianForm("party", 2));

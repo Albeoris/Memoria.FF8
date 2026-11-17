@@ -29,7 +29,6 @@ internal static class InstalledBattlePractice
             EncounterId = null,
             UsesOriginalEnemySlots = false,
             AddedEnemySources = null,
-            NativeGraphics = null,
             NativeActions = assets.NativeActions.ToArray(),
             NativeBattleSpeed = speed,
             NativeStatusRules = assets.ReadNativeStatusRules(speed),

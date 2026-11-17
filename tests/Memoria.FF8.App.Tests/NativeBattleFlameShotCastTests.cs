@@ -13,7 +13,7 @@ public sealed class NativeBattleFlameShotCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 194) with { Items = [new(104, 2)], NativeShotAvailability = game.ReadNewGameShotAvailability() };
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 194, out _) with { Items = [new(104, 2)], NativeShotAvailability = game.ReadNewGameShotAvailability() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "flame-shot-" + Guid.NewGuid().ToString("N"));

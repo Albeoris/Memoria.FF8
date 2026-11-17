@@ -28,7 +28,7 @@ public abstract record NativeBattleEffectInvocation
     public sealed record Positioning(BattleModelOwner Source, BattleModelRoster Roster, NativeBattleModelAliases Aliases) : NativeBattleEffectInvocation;
 }
 
-public sealed record NativeBattleEffectPresentationInputs(BattleDefinition Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleEffectInvocation Invocation, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
+public sealed record NativeBattleEffectPresentationInputs(BattlePresentationResources Resources, NativeBattleGraphicsModel Source, NativeBattleGraphicsResource SourceResource, NativeBattleEffectInvocation Invocation, ushort Effect, NativeBattleEffectTextureState Textures, NativeCrtRandomState Random, NativeBattleCameraProjection Projection, ImmutableArray<NativeBattleForeignActor> ForeignActors)
 {
     public NativeBattleArenaHost? Arena { get; init; }
     public NativeBattleEffectSceneContext? SceneContext { get; init; }

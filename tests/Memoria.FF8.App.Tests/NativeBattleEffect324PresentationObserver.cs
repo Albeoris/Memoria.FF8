@@ -210,7 +210,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         int capacity = checked(cpu.ScratchMaximum!.Value * 8);
         uint scratchAddress = checked(0x196B018u - (uint)capacity);
         ImmutableArray<byte> retained = current.ReadFixturePresentation().NativeFileStaging!.Read(scratchAddress, capacity).ToImmutableArray();
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.ReadFixturePresentation().NativeCamera!.Projection!, model.Color40!.Value, 2, retained, current.Definition.NativeGraphics!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.ReadFixturePresentation().NativeCamera!.Projection!, model.Color40!.Value, 2, retained, current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
         Assert.Equal(17 * 8, draw.ProjectedBytesWritten);
         return (draw, geometry.PhysicalAddress, skeleton.PhysicalAddress, age, world, view);
 
@@ -236,10 +236,10 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
             return false;
         }
         BattleCombatantDefinition prototype = current.Definition.Combatants.Single(actor => !actor.IsPlayer && actor.SceneSlot == 0);
-        NativeBattleGraphicsResource resource = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == prototype.Id).Resource;
+        NativeBattleGraphicsResource resource = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == prototype.Id).Resource;
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new InvalidDataException("Effect324 history requires its actual original83 geometry.");
         Assert.Equal(3, geometry.Length);
-        NativeBattleSummonColors colors = current.Definition.NativeGraphics.Rules.SummonColors!;
+        NativeBattleSummonColors colors = current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
         foreach (NativeBattleRawPolygon polygon in geometry[1].Polygons.Where(polygon => polygon.Quad == quad))
         {
             ImmutableArray<byte> bytes = resource.GeometryRelocated507550 ? polygon.Bytes : NativeBattleRawGeometryPackets.Relocate507550(polygon, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, caster).BodyTextureSlots!);

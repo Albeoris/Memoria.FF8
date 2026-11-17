@@ -92,7 +92,7 @@ public sealed class BattleRewardLearningCommitTests
         {
             BattleDefinition original = setup.CreateEncounterBattle(512);
             // Explicit combat inputs accelerate a real victory and retain the native defeat and AP receipts.
-            BattleDefinition definition = original with { NativeGraphics = null, NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
+            BattleDefinition definition = original with { NativeClockRules = null, Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
             BattleSession active = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.Normal }, assets, setup.BattleResources);
             for (int frame = 0; frame < 1000 && active.Outcome == BattleOutcome.Active; frame++)
             {

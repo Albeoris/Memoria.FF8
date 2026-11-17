@@ -13,11 +13,11 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets);
+        BattleDefinition definition = CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources);
         Assert.Null(definition.NativeMusicProcess!.Commands);
         Assert.Null(definition.NativeMusicProcess.Buffers.Buffer0);
         Assert.Equal(NativeMusicBufferProducer.Battle52CE30, definition.NativeMusicProcess.Buffers.Buffer1!.Producer);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         Assert.Equal(new NativeBattleMusicCommandState(false, null, null, null, 0x1CE075C, false), battle.NativeMusicProcess!.Commands);
         Assert.Equal((byte?)0, battle.NativeMusicProcess.ReturnBank);
         Assert.Same(definition.NativeMusicProcess.Buffers, battle.NativeMusicProcess.Buffers);
@@ -43,7 +43,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession ready = Ready(CreateDefinition(game, assets));
+        BattleSession ready = Ready(CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources), graphicsResources);
         BattleSnapshot source = ready.CaptureForContinuation();
         source = (source with { NativeMusicProcess = ready.NativeMusicProcess!.QueueGain501B10(0, 92)}).WithFixturePresentation(facts => facts with { NativeGraphics = source.ReadFixturePresentation().NativeGraphics! with { Flags = flags } });
         BattleSession first = Restore(source);
@@ -81,7 +81,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession ready = Ready(CreateDefinition(game, assets));
+        BattleSession ready = Ready(CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources), graphicsResources);
         BattleSnapshot source = ready.Capture() with { NativeMusicProcess = null };
         BattleSession restored = Restore(source);
         Assert.Null(restored.NativeMusicProcess);
@@ -95,7 +95,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession ready = Ready(CreateDefinition(game, assets));
+        BattleSession ready = Ready(CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources), graphicsResources);
         BattleSnapshot source = ready.Capture() with { NativeGlobalSoundProcess = null };
         BattleSession idle = Restore(source);
         idle.AdvanceNativeGraphicsPresentation(Callback);
@@ -115,7 +115,7 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession ready = Ready(CreateDefinition(game, assets));
+        BattleSession ready = Ready(CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources), graphicsResources);
         BattleSnapshot source = ready.Capture() with { NativeMusicProcess = ready.NativeMusicProcess!.QueuePlay501A70() };
         BattleSession restored = Restore(source);
         string music = JsonSerializer.Serialize(restored.NativeMusicProcess);
@@ -130,12 +130,12 @@ public sealed class NativeBattleMusicSessionPresentationTests
     {
         using GameAssets game = OpenGame();
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets);
-        Assert.Throws<NotSupportedException>(() => new BattleSession(definition with { NativeMusicProcess = null }, BattleAtbMode.TurnBased));
-        Assert.Throws<NotSupportedException>(() => new BattleSession(definition with { NativeMusicProcess = definition.NativeMusicProcess! with { ReturnBank = null } }, BattleAtbMode.TurnBased));
+        BattleDefinition definition = CreateDefinition(game, assets, out NativeBattleGraphicsDefinition graphicsResources);
+        Assert.Throws<NotSupportedException>(() => NativeBattleTypedFixture.CreateBattle(definition with { NativeMusicProcess = null }, BattleAtbMode.TurnBased, graphicsResources));
+        Assert.Throws<NotSupportedException>(() => NativeBattleTypedFixture.CreateBattle(definition with { NativeMusicProcess = definition.NativeMusicProcess! with { ReturnBank = null } }, BattleAtbMode.TurnBased, graphicsResources));
     }
 
-    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, out NativeBattleGraphicsDefinition graphicsResources)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -149,8 +149,11 @@ public sealed class NativeBattleMusicSessionPresentationTests
         NativeMusicProcessState sourceBuffers = new(1, null, null, null, 0, null);
         NativeBattleMusicEntryResources resources = new NativeMusicCatalog(game.GameDirectory).ReadBattleEntryResources();
         NativeBattleMusicEntryPreparation entry = NativeBattleMusicEntry.Prepare52CE30(94, 0x80, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), resources);
+        graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         return new()
         {
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
+            NativeClockRules = assets.ReadNativeClockRules(),
             Combatants = actors,
             EncounterId = 94,
             StageId = formation.StageId,
@@ -162,7 +165,6 @@ public sealed class NativeBattleMusicSessionPresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -178,9 +180,9 @@ public sealed class NativeBattleMusicSessionPresentationTests
         };
     }
 
-    private static BattleSession Ready(BattleDefinition definition)
+    private static BattleSession Ready(BattleDefinition definition, NativeBattleGraphicsDefinition graphicsResources)
     {
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

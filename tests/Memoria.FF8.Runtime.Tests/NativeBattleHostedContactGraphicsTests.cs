@@ -56,7 +56,6 @@ public sealed class NativeBattleHostedContactGraphicsTests
         Assert.Equal(before, session.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeCombatantFlags, actor.Atb, actor.IsBusy)).ToArray());
         Assert.Equal(items, session.Items);
         Assert.Equal(rng, rngFields.Select(name => Field(name).GetValue(session)).ToArray());
-        Assert.Null(Field("nativePartyPresentation").GetValue(session));
         Assert.Same(graphics.UiServices, result.UiServices);
         Assert.Empty(session.Events);
     }
@@ -115,7 +114,7 @@ public sealed class NativeBattleHostedContactGraphicsTests
         hostedGraphics = hostedGraphics with { ActorModels = hostedGraphics.ActorModels.Set(FirstEnemy, hostedGraphics.ActorModels.Get(FirstEnemy) with { ResourceFlags44 = resourceFlags }) };
         NativeBattleContactPacket packet = new(new(FirstEnemy, 5, 0, 0, ready ? (ushort)0 : (ushort)4, 123, 0), null);
         NativeBattleModelLifecycleServices services = hosted.CaptureModelLifecycleServices(hostedGraphics.ActorModels.Roster);
-        NativeBattleGraphicsState nativeResult = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(native, [nativeGraphics with { PendingContacts = [packet] }])!;
+        NativeBattleGraphicsState nativeResult = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(native.Presentation!, [nativeGraphics with { PendingContacts = [packet] }])!;
         NativeBattleGraphicsState hostedResult = Consume(hosted, hostedGraphics with { PendingContacts = [packet] }, services);
 
         Assert.Equal(ready ? (byte)5 : (byte)1, nativeResult.ActorModels.Get(FirstEnemy).Sequence);
@@ -149,7 +148,6 @@ public sealed class NativeBattleHostedContactGraphicsTests
         if (hole)
         {
             session.Combatants.Single(actor => actor.Id == "ally-10").BindRosterSlot(null, bindNative: false);
-            typeof(BattleSession).GetMethod("RefreshNativePacketBindings", PrivateInstance)!.Invoke(session, null);
         }
         var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
         BattleContactTaskStorageContract storage = nativeEffects ? BattleContactTaskStorageContract.OriginalArena : BattleContactTaskStorageContract.ExpandableArena;
@@ -167,17 +165,17 @@ public sealed class NativeBattleHostedContactGraphicsTests
         ImmutableArray<sbyte> saved = Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray().SetItem(2, 4);
         ImmutableArray<sbyte> battle = Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray().SetItem(3, 5).SetItem(19, 21).SetItem(23, 2);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, saved, battle);
-        Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, bindings, []) });
-        Field("presentationNativeTargets").SetValue(session, presentationBindings);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, bindings, []));
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationNativeTargets", presentationBindings);
         return (session, graphics with { UiServices = NativeBattleUiServices.Initialize() });
     }
 
     private static NativeBattleGraphicsState Consume(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
     }
 
-    private static List<NativeBattleContactPacket> Contacts(BattleSession session) => (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;
+    private static List<NativeBattleContactPacket> Contacts(BattleSession session) => (List<NativeBattleContactPacket>)typeof(BattlePresentationProcess).GetField("presentationContacts", PrivateInstance)!.GetValue(session.Presentation!)!;
 
     private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
 }

@@ -95,33 +95,28 @@ public sealed class NativeBattlePartyLoadPlanTests
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, NativeBattlePartyCpuLayout.Classic.BankLength);
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
-        void Sources(ImmutableArray<NativeBattleModelDatSource> sources)
-        {
-            typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = sources })], []));
-        }
-        Sources([body]);
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(battle.Presentation!, NativeBattleModelCpuResources.Unknown());
         BattlePartyActorModel owner = new(new("party"));
         NativeBattleGraphicsState graphics = OriginalGraphics([(1, owner, new(1) { FileSelector128 = 0, FileSelector129 = 0 })]);
-        MethodInfo queue = typeof(BattleSession).GetMethod("QueueNativeModelResource507080", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => queue.Invoke(battle, [graphics, (ushort)0, owner, 0u])).InnerException);
+        NativeBattleHostedTestFixture.BindProcess(battle, graphics, GraphicsResources([body]));
+        NativeBattleHostedTestFixture.SetProperty(battle.Presentation!, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.Unknown());
+        MethodInfo queue = typeof(BattlePresentationProcess).GetMethod("QueueNativeModelResource507080", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => queue.Invoke(battle.Presentation!, [graphics, (ushort)0, owner, 0u])).InnerException);
         Assert.Null(battle.Presentation!.NativeModelLoader);
         Assert.Null(battle.Presentation?.NativeFileStaging);
-        Sources([body, linked]);
-        queue.Invoke(battle, [graphics, (ushort)0, owner, 0u]);
+        NativeBattleHostedTestFixture.SetField(battle.Presentation!, "resources", new BattlePresentationResources(battle.ReadDefinition(), GraphicsResources([body, linked])));
+        queue.Invoke(battle.Presentation!, [graphics, (ushort)0, owner, 0u]);
         NativeBattleModelLoader planned = battle.Presentation!.NativeModelLoader!;
         Assert.True(planned.PartyPlan!.RequiresResourceStorage);
         Assert.Null(battle.Presentation?.NativeFileStaging);
         NativeBattleGraphicsState active = graphics with { Effects = graphics.Effects with { PublishedCount = 1 } };
-        MethodInfo poll = typeof(BattleSession).GetMethod("PollNativeModelResource507070", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => poll.Invoke(battle, [active])).InnerException);
+        MethodInfo poll = typeof(BattlePresentationProcess).GetMethod("PollNativeModelResource507070", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => poll.Invoke(battle.Presentation!, [active])).InnerException);
         Assert.Same(planned, battle.Presentation!.NativeModelLoader);
         Assert.Null(battle.Presentation?.NativeFileStaging);
         NativeBattleHostedTestFixture.SetProperty(battle.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), -1);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileIo))!.SetValue(battle.Presentation!, NativeBattleFileIoState.FromColdProcess());
         object?[] arguments = [graphics];
-        Assert.Equal(1, poll.Invoke(battle, arguments));
+        Assert.Equal(1, poll.Invoke(battle.Presentation!, arguments));
         Assert.Equal((byte)1, battle.Presentation!.NativeModelLoader!.Task!.Phase);
         Assert.NotNull(battle.Presentation?.NativeFileStaging);
     }
@@ -160,16 +155,15 @@ public sealed class NativeBattlePartyLoadPlanTests
         NativeBattleModelDatSource body = NativeBattleModelResourceCapacityTests.Source(false, 8);
         NativeBattleModelDatSource linked = NativeBattleModelResourceCapacityTests.Source(true, 8);
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
-        typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = [body, linked] })], []));
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
         cpu = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(1, cpu.Cpu.Banks[1].Write(0, [11, 22, 33, 44])) } };
         NativeBattleModelCpuBank held = cpu.Cpu.Banks[1];
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(battle.Presentation!, cpu);
         BattlePartyActorModel owner = new(new("party"));
         NativeBattleGraphicsState graphics = OriginalGraphics([(1, owner, new(active ? (ushort)3 : (ushort)1) { FileSelector128 = 0, FileSelector129 = 0 })]);
-        MethodInfo queue = typeof(BattleSession).GetMethod("QueueNativeModelResource507080", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        queue.Invoke(battle, [graphics, (ushort)0, owner, 0u]);
+        NativeBattleHostedTestFixture.BindProcess(battle, graphics, GraphicsResources([body, linked]));
+        NativeBattleHostedTestFixture.SetProperty(battle.Presentation!, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
+        MethodInfo queue = typeof(BattlePresentationProcess).GetMethod("QueueNativeModelResource507080", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        queue.Invoke(battle.Presentation!, [graphics, (ushort)0, owner, 0u]);
         NativeBattleModelLoader loader = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(battle.Presentation!.NativeModelLoader!));
         Assert.False(loader.PartyPlan!.RequiresResourceStorage);
         Assert.Equal(!active, loader.PartyPlan.PreferResourceStorage);
@@ -185,16 +179,16 @@ public sealed class NativeBattlePartyLoadPlanTests
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelLoader))!.SetValue(battle.Presentation!, loader);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(battle.Presentation!, cpu);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, graphics.ActorModels.Get(owner) with { TextureResourceIndex = 0 }) };
-        queue.Invoke(battle, [graphics, (ushort)0x1000, owner, 0u]);
+        queue.Invoke(battle.Presentation!, [graphics, (ushort)0x1000, owner, 0u]);
         (loader, cpu, staging) = Complete(battle.Presentation!.NativeModelLoader!, cpu, staging, linked, 1);
         Assert.Equal(!active, cpu.Rows[1].Require(16).ResourceOnly);
         Assert.Null(loader.PartyPlan);
         NativeBattleModelDatSource oversized = NativeBattleModelResourceCapacityTests.Source(true, layout.BankLength);
-        typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = [body, oversized] })], []));
+        NativeBattleHostedTestFixture.SetField(battle.Presentation!, "resources", new BattlePresentationResources(battle.ReadDefinition(), GraphicsResources([body, oversized])));
         if (active)
         {
             NativeBattleModelLoader prior = battle.Presentation!.NativeModelLoader!;
-            Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => queue.Invoke(battle, [graphics, (ushort)0, owner, 0u])).InnerException);
+            Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => queue.Invoke(battle.Presentation!, [graphics, (ushort)0, owner, 0u])).InnerException);
             Assert.Same(prior, battle.Presentation!.NativeModelLoader);
             Assert.Null(battle.Presentation?.NativeFileStaging);
         }
@@ -202,7 +196,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         {
             typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(battle.Presentation!, cpu);
             NativeBattleGraphicsState activeLogical = graphics with { ActorModels = graphics.ActorModels.Set(owner, graphics.ActorModels.Get(owner) with { Flags0 = 3 }), Effects = graphics.Effects with { PublishedCount = 1 } };
-            queue.Invoke(battle, [activeLogical, (ushort)0, owner, 0u]);
+            queue.Invoke(battle.Presentation!, [activeLogical, (ushort)0, owner, 0u]);
             Assert.True(battle.Presentation!.NativeModelLoader!.PartyPlan!.UseResourceStorage);
             NativeBattleModelCpuResources beforeReload = cpu;
             (loader, cpu, staging) = Complete(battle.Presentation!.NativeModelLoader, cpu, staging, body, null);
@@ -211,6 +205,11 @@ public sealed class NativeBattlePartyLoadPlanTests
             Assert.Equal(new byte[] { 11, 22, 33, 44 }, cpu.Cpu.Banks[1].ReadGuest(0, 4));
         }
         cpu.Validate();
+    }
+
+    private static NativeBattleGraphicsDefinition GraphicsResources(ImmutableArray<NativeBattleModelDatSource> sources)
+    {
+        return new(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = sources })], []);
     }
 
     private static (NativeBattleModelLoader Loader, NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Complete(NativeBattleModelLoader loader, NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int? linkedRow)

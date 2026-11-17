@@ -43,7 +43,7 @@ public sealed class ArchivedBattleSnapshotTests
         });
         using GameWorld world = new(component, game);
         // The supplied-party statistics fixture does not claim raw graphical entry or music initialization.
-        BattleDefinition definition = world.CreateEncounterBattle(29, nativeSeed: 7) with { NativeGraphics = null, NativeClockRules = null };
+        BattleDefinition definition = world.CreateEncounterBattle(29, nativeSeed: 7) with { NativeClockRules = null };
         Assert.Equal(29, definition.EncounterId);
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
         Assert.Equal(combatParty.Select(row => (int)records[row].CharacterId), party.Select(actor => actor.ModelId));

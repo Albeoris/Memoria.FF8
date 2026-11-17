@@ -177,7 +177,7 @@ public sealed class NativeBattleEffect174PresentationTests
         Assert.NotNull(ReadOriginalModelCell(graphics, 3).GeometryWorldMatrix);
         Assert.NotNull(graphics.UiServices);
         NativeBattleGraphicsModel recipient = ReadOriginalModelCell(graphics, 0);
-        NativeBattleGraphicsBinding recipientBinding = original.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == targetId);
+        NativeBattleGraphicsBinding recipientBinding = original.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == targetId);
         NativeBattlePoseSource recipientPose = recipientBinding.Resource.PoseSource!;
         Assert.NotEmpty(NativeBattleBodyBoneMatrices.Require(recipient, recipientPose));
         ValidateCurrentGeometry(recipient.ActiveResourceRow100!.Value, recipientPose.BoneCount, recipient.SequenceState!.MeshMask124);

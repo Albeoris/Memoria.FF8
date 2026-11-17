@@ -8,14 +8,14 @@ internal static class NativeBattleHostedTestFixture
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
-    internal static BattlePresentationProcess SeedProcess(BattleSession logical, NativeBattleGraphicsState graphics, BattleDefinition? definition = null)
+    internal static BattlePresentationProcess SeedProcess(BattleSession logical, NativeBattleGraphicsState graphics, NativeBattleGraphicsDefinition? graphicsResources = null, BattleDefinition? definition = null)
     {
         // These fixtures enter at a typed packet or descriptor boundary after model binding.
         BattlePresentationProcess process = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
         BattleDefinition selected = definition ?? logical.ReadDefinition();
         BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
-        SetField(process, "resources", new BattlePresentationResources(selected));
+        SetField(process, "resources", new BattlePresentationResources(selected, graphicsResources));
         SetField(process, "services", typeof(BattleSession).GetMethod("CreateBattlePresentationServices", PrivateInstance)!.Invoke(logical, []));
         SetField(process, "hostedEntryRoster", roster);
         SetField(process, "hostedEntryAliases", aliases);
@@ -33,9 +33,9 @@ internal static class NativeBattleHostedTestFixture
         return process;
     }
 
-    internal static void BindProcess(BattleSession logical, NativeBattleGraphicsState graphics)
+    internal static void BindProcess(BattleSession logical, NativeBattleGraphicsState graphics, NativeBattleGraphicsDefinition? graphicsResources = null)
     {
-        BattlePresentationProcess process = SeedProcess(logical, graphics);
+        BattlePresentationProcess process = SeedProcess(logical, graphics, graphicsResources);
         typeof(BattleSession).GetField("expandedPresentationProcess", PrivateInstance)!.SetValue(logical, process);
     }
 
@@ -55,11 +55,10 @@ internal static class NativeBattleHostedTestFixture
         return services.CaptureModels(roster, null);
     }
 
-    internal static void InstallModelBindings(BattleSession session, params NativeBattleGraphicsBinding[] bindings)
+    internal static NativeBattleGraphicsDefinition CreateGraphicsDefinition(params NativeBattleGraphicsBinding[] bindings)
     {
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [.. Enumerable.Repeat((sbyte)-1, 16)], [.. Enumerable.Repeat((sbyte)-1, 32)]);
-        var definition = session.ReadDefinition() with { NativeGraphics = new(rules, bindings.ToImmutableArray(), []) };
-        typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition);
+        return new(rules, bindings.ToImmutableArray(), []);
     }
 
     internal static NativeBattleGraphicsState Graphics(BattleModelRoster roster, NativeBattleModelAliases aliases, Func<BattleModelOwner, NativeBattleGraphicsModel> modelFactory, BattleContactTaskStorageContract storage = BattleContactTaskStorageContract.ExpandableArena)

@@ -51,8 +51,8 @@ public sealed partial class BattleSession
 
     private BattleCombatant ValidateExpandedAiCallback(BattleAttackCommand packet, BattleExpandedAiCallbackRequest request)
     {
-        if (request.Stage > 3 || request.Actor is null || FindTargetActor(request.Actor) is not { } actor ||
-            (actor.IsPlayer ? request.Stage is not (2 or 3) : actor.NativeAi is null) ||
+        if (request.Stage is > 3 and not 6 || request.Actor is null || FindTargetActor(request.Actor) is not { } actor ||
+            request.Stage != 6 && (actor.IsPlayer ? request.Stage is not (2 or 3) : actor.NativeAi is null) ||
             !packet.MagicCasts.IsEmpty || (packet with { MagicCasts = [] }) != ExpandedAiCallbackPacket(request))
         {
             throw new InvalidDataException("An expanded AI callback must identify its exact allocated actor and native stage.");
@@ -76,7 +76,7 @@ public sealed partial class BattleSession
         {
             0 => !actor.Suspended,
             1 => CanNativeBattleActorAct(actor),
-            2 => (NativeSavedStatusBits(actor) & 1) == 0,
+            2 or 6 => (NativeSavedStatusBits(actor) & 1) == 0,
             3 => true,
             _ => false
         });
@@ -132,7 +132,12 @@ public sealed partial class BattleSession
         actions.Clear();
         try
         {
-            if (actor.IsPlayer)
+            if (request.Stage == 6)
+            {
+                //4877F0 dispatches command0/action4 to the same still-eligible participant.
+                StageExpandedHostedInternalContact(actor, 4);
+            }
+            else if (actor.IsPlayer)
             {
                 InterpretNativePlayerReaction(actor, request.Stage);
             }

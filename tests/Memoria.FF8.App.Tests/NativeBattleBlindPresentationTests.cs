@@ -100,7 +100,7 @@ public sealed class NativeBattleBlindPresentationTests
             int targetHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             Assert.Equal(beforeHp, targetHp);
             ushort statusMask = action.Statuses0;
-            uint graphicsStatusMask = source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1);
+            uint graphicsStatusMask = source.ReadFixtureGraphicsDefinition()!.Rules.Project(action.Statuses0, action.Statuses1);
             Assert.NotEqual(0u, graphicsStatusMask);
             Assert.Equal(0u, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
             Assert.Equal(0, beforeInput.Combatants.Single(actor => actor.Id == target).NativeStatus!.Saved & statusMask);

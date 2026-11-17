@@ -33,7 +33,7 @@ public sealed class NativeBattleEffect207PilotPresentationTests
         active.SubmitDiagnosticEnemyAbility(actor, selection, 207);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
-        NativeBattlePrimitiveCapabilities capabilities = snapshot.Definition.NativeGraphics!.PrimitiveCapabilities!;
+        NativeBattlePrimitiveCapabilities capabilities = snapshot.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!;
         long? previousCallback = null;
         int frames = 0;
         int packets = 0;

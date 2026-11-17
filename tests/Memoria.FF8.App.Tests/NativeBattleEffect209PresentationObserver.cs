@@ -177,7 +177,7 @@ internal sealed class NativeBattleEffect209PresentationObserver
                 executed.Add((task, Math.Max(0, unchecked((short)task.ReadWord(12)) - 1)));
             }
         }
-        NativeBattleSummonColors colors = current.Definition.NativeGraphics!.Rules.SummonColors!;
+        NativeBattleSummonColors colors = current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
         Dictionary<string, List<MeshTemplate>> templates = [];
         NativeBattleModuleProjectedVertex[] sample = [new(0x00640064, 1024, 0), new(0x00640078, 1024, 0), new(0x00780064, 1024, 0), new(0x00780078, 1024, 0)];
         foreach ((NativeBattleModulePoolTask task, int age) in executed)
@@ -369,7 +369,7 @@ internal sealed class NativeBattleEffect209PresentationObserver
                     color = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(ordinary, 4));
                     if (stage.Groups[group].ColorDepth != 0)
                     {
-                        color = current.Definition.NativeGraphics!.Rules.SummonColors!.Interpolate(color, stage.Groups[group].ColorDepth, stage.Groups[group].ColorFlags);
+                        color = current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!.Interpolate(color, stage.Groups[group].ColorDepth, stage.Groups[group].ColorFlags);
                     }
                 }
                 else

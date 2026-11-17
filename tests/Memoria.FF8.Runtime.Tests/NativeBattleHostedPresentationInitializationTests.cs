@@ -133,11 +133,10 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     [Fact]
     public void MatchingRetainedContextKeepsListsOrdinalsAndCursorButRefreshesCache()
     {
-        NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1);
         NativeBattleCinematicActorContext retained = NativeBattleCinematicActorContext.FromGraphics(new BattleActorModels([new(Caster, new(0)), new(Target, new(0))]))
             .CaptureCurrentContacts([Target, Caster], Caster).WithSavedActors([Caster, Target]).WithContactsProcessed(50);
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess() with { PresentationActors = retained };
-        inputs = inputs with { Resources = inputs.Resources with { NativeRetainedMemory = RetainedMemory(core) } };
+        NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, core, 1);
         BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(inputs);
         NativeBattleCinematicActorContext actual = owner.Memory.ScriptedEffects!.PresentationActors!;
         Assert.Equal(new BattleModelOwner[] { Target, Caster }, actual.CurrentActors);
@@ -207,12 +206,11 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     [Fact]
     public void HostedForeignBindingRequiresCompleteLoadedModelFacts()
     {
-        NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [.. Enumerable.Repeat((sbyte)-1, 16)], [.. Enumerable.Repeat((sbyte)-1, 32)])
         {
             SummonColors = NativeBattleGteColorInterpolation.CodeConstants45F270 with { Normal = 0x808080 }
         };
-        inputs = inputs with { Resources = inputs.Resources with { NativeGraphics = new(rules, [], []) } };
+        NativeBattleEffectPresentationInputs inputs = Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1, graphics: new(rules, [], []));
         NativeBattleForeignActor foreign = new(Target, Model(24).Transform!, new(0, 0, 0, 0), (_, _) => default) { StatusFlags = 0 };
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(inputs with { NativeTargets = [], ForeignActors = [foreign] }));
         Assert.Contains("Loaded native graphics model", error.Message);
@@ -243,7 +241,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
 
     private static NativeBattleEffectInvocation.Combat Combat(NativeBattleEffectPresentationInputs inputs) => (NativeBattleEffectInvocation.Combat)inputs.Invocation;
 
-    private static NativeBattleEffectPresentationInputs Inputs(byte source, byte target, NativeBattleScriptedEffectMemory core, int count, bool bindOriginalRows = false, bool hosted = true, bool enemySource = false)
+    internal static NativeBattleEffectPresentationInputs Inputs(byte source, byte target, NativeBattleScriptedEffectMemory core, int count, bool bindOriginalRows = false, bool hosted = true, bool enemySource = false, NativeBattleGraphicsDefinition? graphics = null)
     {
         BattleModelOwner sourceOwner = enemySource ? new BattleEnemyActorModel(new("caster")) : Caster;
         NativeBattleGraphicsResource resource = new([0, 0]);
@@ -272,7 +270,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             NativeEffectCatalog = [.. Enumerable.Range(1, 400).Select(effect => new NativeBattleEffectBinding((ushort)effect, effect == 1 ? 1u : 0u, 0))],
             NativeRetainedMemory = RetainedMemory(core)
         };
-        return new(definition, Model(source), resource, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, NativeBattleEffectTextureState.FromColdProcess(), new(0), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
+        return new(new(definition, graphics), Model(source), resource, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, NativeBattleEffectTextureState.FromColdProcess(), new(0), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
         {
             NativeTargets = [.. targets],
             DeferInvocation = true

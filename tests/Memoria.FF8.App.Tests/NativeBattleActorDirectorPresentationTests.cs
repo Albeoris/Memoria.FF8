@@ -97,11 +97,6 @@ public sealed class NativeBattleActorDirectorPresentationTests
             NativeBattleEffect319PresentationTests.RunComponent(directory!, output!);
             return;
         }
-        if (effectId == 227)
-        {
-            NativeBattleEffect227PresentationTests.RunComponent(directory!, output!);
-            return;
-        }
         if (effectId == 213)
         {
             NativeBattleEffect213PresentationTests.RunComponent(directory!, output!);
@@ -175,11 +170,6 @@ public sealed class NativeBattleActorDirectorPresentationTests
         if (effectId == 80)
         {
             NativeBattleEffect80PresentationTests.RunComponent(directory!, output!);
-            return;
-        }
-        if (effectId == 344)
-        {
-            NativeBattleEffect344PresentationTests.RunComponent(directory!, output!);
             return;
         }
         if (effectId == 70)
@@ -4422,7 +4412,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     {
                         int oldAge = oldFade?.ReadWord(12) ?? 0;
                         int factor = 4096 - NativeBattleCameraMath.Sine((oldAge << 10) / fade.ReadWord(24));
-                        NativeBattleSummonColors colors = source.Definition.NativeGraphics!.Rules.SummonColors!;
+                        NativeBattleSummonColors colors = source.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
                         NativeBattleModelRendererRegisters far = prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ModelRendererRegisters!;
                         NativeBattleScriptedDpcsResult normal = NativeBattleScriptedDpcs.Transform45F270(prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters!, 0x32000000, unchecked((uint)factor), Additional182Far(colors.Normal, far), colors);
                         NativeBattleScriptedDpcsResult shadow = NativeBattleScriptedDpcs.Transform45F270(normal.Registers, 0, normal.Registers.Ir0!.Value, Additional182Far(colors.Transition, far), colors);
@@ -5469,7 +5459,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     if (gastric128Boundaries.Add("body-coefficients-captured"))
                     {
                         NativeBattleGraphicsModel model = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, contactActor);
-                        NativeBattleGraphicsResource resource = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, contactActor)).Resource;
+                        NativeBattleGraphicsResource resource = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, contactActor)).Resource;
                         if (model.ActiveStagedResourceRow100 is not null)
                         {
                             resource = NativeBattleVictoryResources.Resolve(current.ReadFixturePresentation().NativeFileStaging!, current.ReadFixturePresentation().NativeModelCpuResources!, model, resource);
@@ -10109,7 +10099,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         NativeBattleCameraProjection projection = prior.ReadFixturePresentation().NativeCamera!.Projection!;
         NativeBattleVector? eye = prior.ReadFixturePresentation().NativeCamera!.CurrentPose?.Eye is { } cameraEye ? new(cameraEye.X, cameraEye.Y, cameraEye.Z) : null;
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.GeometryMatrices(producer, resource.PoseSource!, projection.View!, eye);
-        ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0([meshes[7]], bones, projection, model.Color40!.Value, 1, null, 17, 4, null, prior.Definition.NativeGraphics!.Rules.SummonColors!, viewport: new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8));
+        ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0([meshes[7]], bones, projection, model.Color40!.Value, 1, null, 17, 4, null, prior.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!, viewport: new(short.MinValue / 8, short.MinValue / 8, ushort.MaxValue / 8, ushort.MaxValue / 8));
         NativeBattlePrimitiveProcess process = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         HashSet<string> actual = Assert.IsType<NativeBattleGraphicsState>(current.ReadFixturePresentation().NativeGraphics).PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == process.PacketBank && item.Command.WordOffset == 1).Select(item => Additional181Key(item.Command.Words, item.Command.VertexPayload4, item.Command.OrderingBucket)).ToHashSet();
         string[] expectedKeys = expected.Select(primitive => Additional181Key(primitive.Words.Skip(1), primitive.VertexPayload4, primitive.Bucket)).ToArray();
@@ -10244,7 +10234,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
         NativeBattlePrimitiveProcess process = prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         NativeBattleModelRendererRegisters far = process.ModelRendererRegisters! with { FarRed = 0, FarGreen = 0, FarBlue = 0 };
         int cue = oldAge < 8 ? (8 - oldAge) << 9 : oldAge >= 48 ? (oldAge - 48) << 9 : 0;
-        NativeBattleSummonColors colors = prior.Definition.NativeGraphics!.Rules.SummonColors!;
+        NativeBattleSummonColors colors = prior.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
         NativeBattleScriptedDpcsResult palette = NativeBattleScriptedDpcs.Transform45F270(prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters!, resources.Colors[oldAge % 20], unchecked((uint)cue), far, colors);
         NativeBattleEffectMemory memory = prior.ReadFixturePresentation().NativeEffectMemory! with { ScriptedColorRegisters = palette.Registers, PrimitiveProcess = process with { ModelRendererRegisters = far } };
         NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().MarkUnknown(0, 220).Write(4, BitConverter.GetBytes(scratchAddress)).Write(0x1C, BitConverter.GetBytes(model.Color40!.Value)).Write(0x20, BitConverter.GetBytes(model.SequenceState!.MeshMask124)).Write(0xA8, BitConverter.GetBytes((int)unchecked((short)body.ReadWord(16)))).Write(0xAC, BitConverter.GetBytes((int)unchecked((short)body.ReadWord(18)))).Write(0xB0, BitConverter.GetBytes((int)unchecked((short)body.ReadWord(20)))).Write(0xB4, BitConverter.GetBytes(1000)).Write(0xB8, BitConverter.GetBytes(palette.PackedRgb));
@@ -10465,11 +10455,11 @@ public sealed class NativeBattleActorDirectorPresentationTests
         NativeBattleModelCpuResources cpu = prior.ReadFixturePresentation().NativeModelCpuResources!;
         int scratchLength = cpu.ScratchMaximum!.Value * 8;
         uint scratchAddress = checked(0x196B018u - (uint)scratchLength);
-        NativeBattleSummonColors colors = prior.Definition.NativeGraphics!.Rules.SummonColors!;
+        NativeBattleSummonColors colors = prior.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
         NativeBattleModelRendererRegisters far = prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ModelRendererRegisters! with { FarRed = 240u << 4, FarGreen = 96u << 4, FarBlue = 96u << 4 };
         uint cue = oldAge < 14 ? checked((uint)(oldAge * 292)) : 4096;
         NativeBattleScriptedDpcsResult color = NativeBattleScriptedDpcs.Transform45F270(prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters!, 0, cue, far, colors);
-        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(prior.ReadFixturePresentation().NativeFileStaging!, new(prior.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters!, prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters!), model, projection, prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedGraphics!, prior.Definition.NativeGraphics.Rules.ShadowSource!, prior.Definition.NativeGraphics.PrimitiveCapabilities!.GouraudAlpha, 4121, 16);
+        NativeBattleShadowDrawStep shadow = NativeBattleShadowDrawing.Prepare5088A0(prior.ReadFixturePresentation().NativeFileStaging!, new(prior.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters!, prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters!), model, projection, prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedGraphics!, prior.ReadFixtureGraphicsDefinition()!.Rules.ShadowSource!, prior.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!.GouraudAlpha, 4121, 16);
         NativeBattlePrimitiveProcess process = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         HashSet<string> commonCommands = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(item => item.Command.Packet.Bank == process.PacketBank).Select(item => Additional181Key(item.Command.Words, item.Command.VertexPayload4, item.Command.OrderingBucket)).ToHashSet();
         int shadowFaces = 0;

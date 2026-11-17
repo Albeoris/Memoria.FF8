@@ -11,13 +11,13 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         public string[] AdmissionBlockers { get; init; } = [];
     }
 
-    private static EnemyRouteResult RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies, bool verifyActorReference = false)
+    private static EnemyRouteResult RunDiscoveredEnemyCast(string directory, GameState field, BattleAssets assets, NativeBattleEffectBinding effect, EnemyScenarioScriptedAction[] scripts, bool probeEnemies)
     {
         HashSet<string> blockers = new(StringComparer.Ordinal);
         int? seededFormation = SeededTurnFormation(effect.Effect);
         int? higherBandFormation = seededFormation ?? HigherBandFormation(effect.Effect);
         bool configuredRoute = effect.Effect is 167 or 174;
-        EnemyActorReferenceSetup? referenceSetup = ActorReferenceSetup(effect.Effect);
+        var referenceSetup = ActorReferenceSetup(effect.Effect);
         EnemyAttackSetup? attackSetup = referenceSetup?.Attacks ?? AttackSetup(effect.Effect);
         var candidates = scripts.Where(script => script.Callback is 0 or 1 && IsDiscoveredEnemyDispatch(script) && (effect.Effect != 226 || script.LevelBand == 0))
             .SelectMany(script => script.Formations.Where(scene => scene.Enabled && !scene.Hidden && !scene.Suspended && !scene.Untargetable).Select(scene => (Script: script, Scene: scene)))
@@ -44,7 +44,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         foreach (var (routes, seed) in seeds.SelectMany(seed => candidates.Select(routes => (routes, seed))))
         {
             ushort formation = checked((ushort)routes.Key);
-            BattleActionDefinition? fire = verifyActorReference && referenceSetup?.UsesFire == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == 1) : null;
             BattleActionDefinition? demi = attackSetup?.UsesDemi == true ? Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == DemiSpellId) : null;
             Action<NativeCharacterVital[]>? prepareParty = effect.Effect switch
             {
@@ -54,7 +53,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 _ => null
             };
             Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = effect.Effect == 186 ? vitals => PrepareHigherBandParty(directory, vitals, BlasterPartyLevel) : null;
-            using GameWorld world = StartBattle(directory, field, formation, fire ?? demi, requireMaximumParty: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, examSeconds: effect.Effect == 167 ? 0 : 600);
+            using GameWorld world = StartBattle(directory, field, formation, demi, requireMaximumParty: false, nativeSeed: seed, prepareHigherBand: prepareVitals is null && (higherBandFormation.HasValue || attackSetup?.Band == HigherEnemyBand), prepareParty: prepareParty, prepareVitals: prepareVitals, examSeconds: effect.Effect == 167 ? 0 : 600);
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
 
             Dictionary<string, EnemyScenarioScriptedAction[]> actors = [];
@@ -74,15 +73,10 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             }
 
             EnemyAttackPreparation? preparation = null;
-            EnemyActorReferencePreparation? references = null;
             if (attackSetup is not null)
             {
                 BattleCombatant target = referenceSetup is null ? battle.Combatants.First(actor => actors.ContainsKey(actor.Id)) : battle.Combatants.Last(actor => actors.ContainsKey(actor.Id));
-                if (verifyActorReference && referenceSetup is not null)
-                {
-                    references = new(referenceSetup, target, new(attackSetup, target, battle.Events.Count), fire);
-                }
-                else if (referenceSetup?.UsesFire != true)
+                if (referenceSetup?.UsesFire != true)
                 {
                     preparation = new(attackSetup, target, battle.Events.Count, demi);
                 }
@@ -93,7 +87,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             {
                 world.ApplyBattleInput(new(BattleInputKind.SetMode, Mode: BattleAtbMode.Normal));
             }
-            EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors, preparation, references, referenceSetup is not null || demi is not null);
+            EnemyRouteResult witnessed = ObserveEnemyCast(world, battle, effect, actors, preparation, referenceSetup is not null || demi is not null);
             if (witnessed.Status is "native" or "logical")
             {
                 return witnessed with { Detail = $"Formation {formation}, seed {seed}, {witnessed.Detail}" };
@@ -130,7 +124,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         return supported;
     }
 
-    private static EnemyRouteResult ObserveEnemyCast(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, Dictionary<string, EnemyScenarioScriptedAction[]> actors, EnemyAttackPreparation? preparation = null, EnemyActorReferencePreparation? references = null, bool extendOriginalTurns = false)
+    private static EnemyRouteResult ObserveEnemyCast(GameWorld world, BattleSession battle, NativeBattleEffectBinding effect, Dictionary<string, EnemyScenarioScriptedAction[]> actors, EnemyAttackPreparation? preparation = null, bool extendOriginalTurns = false)
     {
         int before = battle.Events.Count;
         bool dispatched = false;
@@ -148,21 +142,14 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             for (int frame = 0; frame < 30 && battle.Outcome == BattleOutcome.Active; frame++)
             {
                 preparation?.SubmitIfReady(world, battle);
-                references?.SubmitIfReady(world, battle);
                 HashSet<string> eligibleBeforeContact = battle.Combatants.Where(actor => actor.IsActive && actor.IsAlive && !actor.Untargetable && (actor.PersistentStatus & 5) == 0).Select(actor => actor.Id).ToHashSet(StringComparer.Ordinal);
                 string[]? resolvedBeforeContact = recipientsAtFirstContact is null && cast?.TargetRequest is { } selection
                     ? ReadTargetsWithoutSampling(battle, selection).Select(actor => actor.Id).ToArray() : null;
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 preparation?.Observe(battle);
-                references?.Observe(battle);
-                if (references?.Verified == true)
-                {
-                    return new("logical", references.Describe(), null);
-                }
                 BattleActionPresentation? active = battle.ActiveAction;
                 if (cast is null && active is { Ability: BattleAbility.EnemyAbility, TargetRequest.Selection: not BattleTargetSelection.None }
                     && (preparation is null || preparation.Ready)
-                    && references is null
                     && actors.TryGetValue(active.ActorId, out EnemyScenarioScriptedAction[]? scripts)
                     && scripts.Any(script => MatchesEnemyDispatch(active, script, effect)))
                 {
@@ -211,7 +198,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.True(presentation is null || presentation.ActiveActionToken is null);
                 BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == cast.ActorId);
                 int band = battle.GetCombatantDefinition(actor.Id).NativeAi!.LevelBand;
-                string? setupDetail = references?.Describe() ?? preparation?.Describe();
+                string? setupDetail = preparation?.Describe();
                 string setup = setupDetail is null ? "" : $"; {setupDetail}";
                 return new(presentation is null ? "logical" : "native", $"c0m{actor.ModelId:D3} {actor.Id}, band {band}, callback {cast.NativeAiCallbackStage}, command {cast.NativeQueuedCommand}/{cast.ActionId}, sequence {cast.NativeSequence}, {contacts.Length} contact(s){setup}", presentation is null ? "native-presentation" : null);
             }
@@ -225,10 +212,6 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         if (preparation is not null)
         {
             observedTurns += $"; {preparation.Describe()}";
-        }
-        if (references is not null)
-        {
-            observedTurns += $"; {references.Describe()}";
         }
         return dispatched
             ? new("blocked", "The exact dispatch did not reach contact within the bounded original turns.", "enemy-turn-contact")

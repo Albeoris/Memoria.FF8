@@ -30,6 +30,7 @@ public sealed class NativeBattleFirePresentationTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -42,7 +43,6 @@ public sealed class NativeBattleFirePresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -60,11 +60,11 @@ public sealed class NativeBattleFirePresentationTests
         };
         if (casting)
         {
-            NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings[0].Resource;
+            NativeBattleGraphicsResource resource = graphicsResources.Bindings[0].Resource;
             Assert.Equal(Convert.FromHexString("C308D40002E57FC100CB7FE90DC308DC0002E508E607E602A1E6E5"), resource.SequenceSection.AsSpan().Slice(resource.SequenceStart(11) + 0x38, 27).ToArray());
         }
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules() }, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

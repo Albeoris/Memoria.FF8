@@ -54,6 +54,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 new() { Id = "enemy", Name = "Ifrit", ModelId = 61, Level = 7, NativeDrawSlots = assets.ReadEnemyDrawSlots(61, 7), SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999, NativeStatusResistances = assets.ReadEnemyNativeStatusData(61).Resistances.ToArray() }
             ];
             // Fresh installed-resource component; the ordinary Draw command produces its own stock result and contact.
+            NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
             BattleDefinition definition = new()
             {
                 Combatants = actors,
@@ -79,7 +80,6 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 NativeEntry = new(0, 0),
                 NativeGlobalRandom = new(0),
                 NativeCrtRandom = new(1),
-                NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
                 NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
                 NativeModuleResources = game.ReadNativeBattleModuleResources(),
                 NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -101,7 +101,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
             };
 
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-            battle = new(definition, BattleAtbMode.TurnBased);
+            battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
             BattleScenePresentation scene = new(assets, definition);
             prior = battle.Capture();
             CheckNext("before-entry", prior);

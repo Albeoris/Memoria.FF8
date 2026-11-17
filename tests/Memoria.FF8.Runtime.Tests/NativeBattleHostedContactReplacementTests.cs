@@ -180,8 +180,8 @@ public sealed class NativeBattleHostedContactReplacementTests
         BattleModelRoster roster = new([Ally, Enemy]);
         NativeBattleModelAliases aliases = new(roster, []);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
-        NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
-        return NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
+        var graphicsResources = NativeBattleHostedTestFixture.CreateGraphicsDefinition(new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        return NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true }, graphicsResources);
     }
 
     [Fact]

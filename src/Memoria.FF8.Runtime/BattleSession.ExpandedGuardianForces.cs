@@ -37,15 +37,8 @@ public sealed partial class BattleSession
             {
                 if (ActiveAction is null && !ExpandedTimedLimitOwnsInput && actions.Count == 0)
                 {
-                    if (expandedPresentationProcess is { } process)
-                    {
-                        BeginExpandedHostedGuardianFormEntry(process, actor, cast);
-                    }
-                    else
-                    {
-                        ReleaseGuardianForceCharge(actor);
-                        BeginCompletedGuardianFormCharge(actor, cast);
-                    }
+                    BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("A completed GF form charge requires its battle presentation process.");
+                    BeginExpandedHostedGuardianFormEntry(process, actor, cast);
                 }
                 continue;
             }

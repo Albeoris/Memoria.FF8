@@ -1,200 +1,129 @@
-using static Memoria.FF8.Tests.NativeBattleFixtureObservations;
-using System.Collections.Immutable;
 using System.Reflection;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleRegenCallbackTests
 {
-    [Theory]
-    [InlineData(3024)]
-    [InlineData(12000)]
-    public void RegenPreservesPartialAndFullNativeGaugesAcrossProductionCompletionAndStandaloneRestore(int current)
-    {
-        BattleSession battle = Create(false, 500);
-        BattleSnapshot snapshot = battle.Capture();
-        NativeBattleAtbState gauge = new(12000, current);
-        snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeAtb = gauge, Atb = gauge.Display };
-        battle = BattleSession.Restore(snapshot);
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        string saved = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
-        Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
+    private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        foreach (BattleSession session in new[] { battle, restored })
+    [Theory]
+    [InlineData("party", false, 500, 550, 3024)]
+    [InlineData("party", true, 500, 450, 12000)]
+    [InlineData("additional", false, 980, 1000, 3024)]
+    [InlineData("additional", true, 20, 0, 12000)]
+    [InlineData("enemy", false, 500, 550, 3024)]
+    public void Due_regen_publishes_one_current_contact_and_preserves_gauge_across_the_queued_fork(string actorId, bool zombie, int hp, int expected, int gauge)
+    {
+        BattleSession battle = Create(actorId, hp, gauge);
+        BattleSnapshot before = battle.Capture();
+        DispatchTimers(battle);
+
+        BattleExpandedAiCallbackRequest queued = Assert.IsType<BattleExpandedAiCallbackRequest>(Assert.Single(battle.QueuedActions).ExpandedAiCallback);
+        Assert.Equal(actorId, queued.Actor.ActorId);
+        Assert.Equal((byte)6, queued.Stage);
+        Assert.Equal(hp, Actor(battle, actorId).CurrentHp);
+        Assert.Equal((short)58, Actor(battle, actorId).NativeStatusTimers[4]);
+        BattleSession fork = battle.ForkForContinuation();
+        foreach (BattleSession logical in new[] { battle, fork })
         {
-            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
-            NativeBattleContactHalf primary = Produce(session);
-            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
-            Assert.Equal(gauge.Display, session.Combatants[0].Atb);
-            Assert.Equal(550, session.Combatants[0].CurrentHp);
-            Method("PublishNativePresentedContact").Invoke(session, [primary]);
-            Method("RunNativeDescriptorActionCallback").Invoke(session, [session.Presentation!.Graphics, 0x47DDA0u]);
-            Assert.Equal(gauge, session.Combatants[0].NativeAtb);
-            Assert.Equal(gauge.Display, session.Combatants[0].Atb);
-            Assert.Equal(0u, session.Capture().NativeClock!.ActionPause);
-            Assert.Empty(session.QueuedActions);
+            BattleCombatant actor = Actor(logical, actorId);
+            if (zombie)
+            {
+                actor.NativeStatus0 |= 0x40;
+            }
+            Assert.Equal(queued, Assert.Single(logical.QueuedActions).ExpandedAiCallback);
+            Bind(logical);
+
+            Invoke(logical, "DispatchAction");
+            BattlePresentationProcess process = logical.Presentation!;
+            var header = Assert.Single(process.ActionPackets.PublishedHeaders());
+            Assert.Equal((byte)0, header.Slot.Command);
+            Assert.Equal((ushort)4, header.Slot.Action);
+            Assert.Equal(logical.ReadPresentationModelOwner(actorId), header.Slot.Source);
+            NativeBattleContactHalf contact = Assert.Single(process.ActionPackets.ReadHeaderContacts(header.Reference)).Primary;
+            Assert.Equal(header.Slot.Source, contact.Recipient);
+            Assert.Equal((ushort)50, contact.Amount6);
+            Assert.Equal(zombie ? 0 : 1, contact.HitFlags & 1);
+            Assert.Equal(expected, actor.CurrentHp);
+            if (actor.IsPlayer)
+            {
+                Assert.Equal(hp, logical.ReadPresentedVital(actorId).HitPoints);
+            }
+
+            List<NativeBattlePresentationReceipt> receipts = AdvanceControlDescriptors(logical, process);
+            NativeBattlePresentationContactReceived published = Assert.Single(receipts.OfType<NativeBattlePresentationContactReceived>());
+            Assert.Equal(contact, published.Packet.Primary);
+            Assert.Equal(0x47DDA0u, Assert.Single(receipts.OfType<NativeBattlePresentationCompletionRequested>()).Callback);
+            if (actor.IsPlayer)
+            {
+                Assert.Equal(expected, logical.ReadPresentedVital(actorId).HitPoints);
+            }
+            Assert.Equal(new NativeBattleAtbState(12000, gauge), actor.NativeAtb);
+            Assert.Equal(0u, logical.Capture().NativeClock!.ActionPause);
+            Assert.Null(logical.ActiveAction);
+            Assert.Empty(logical.QueuedActions);
+            Assert.Single(logical.Events, entry => entry.Kind == "ActionComplete");
+            Assert.Equal(before.Random!.Lane, logical.Capture().Random!.Lane);
+            Assert.Equal(before.Random!.Indexes, logical.Capture().Random!.Indexes);
         }
     }
 
     [Fact]
-    public void RegenTimerQueuesItsActualCallbackWithoutChangingHpOrPublishingAFakeTimerFormula()
+    public void Queued_regen_is_discarded_if_its_actor_becomes_knocked_out()
     {
-        BattleSession battle = Create(false, 500);
-        List<BattleDiagnosticResolution> resolutions = [];
-        battle.DiagnosticResolution += resolutions.Add;
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
+        BattleSession battle = Create("additional", 500, 3024);
+        DispatchTimers(battle);
+        BattleCombatant actor = Actor(battle, "additional");
+        actor.CurrentHp = 0;
+        actor.NativeStatus0 |= 1;
+        Bind(battle);
 
-        Assert.Equal(500, battle.Combatants[0].CurrentHp);
-        Assert.Empty(resolutions);
-        BattleExpandedAiCallbackRequest callback = Assert.IsType<BattleExpandedAiCallbackRequest>(Assert.Single(battle.QueuedActions).ExpandedAiCallback);
-        Assert.Equal(CreateCallback("party", 0, 6), callback);
-        Assert.Equal((short)58, battle.Capture().Combatants[0].NativeStatus!.Timers[4]);
-        string saved = JsonSerializer.Serialize(battle.Capture());
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
-        Assert.Equal(callback, Assert.Single(restored.QueuedActions).ExpandedAiCallback);
-        Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
-    }
+        Invoke(battle, "DispatchAction");
 
-    [Theory]
-    [InlineData(false, 500, 550)]
-    [InlineData(true, 500, 450)]
-    [InlineData(false, 980, 1000)]
-    [InlineData(true, 20, 0)]
-    public void QueuedRegenProducesOneInternalContactAndTheExistingPresentationConsumerTracksActualHp(bool zombie, int hp, int expected)
-    {
-        BattleSession battle = Create(zombie, hp);
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        BattleSession restored = BattleSession.Restore(NativeBattleTestSnapshots.Independent(battle.Capture()));
-        List<BattleDiagnosticResolution> resolutions = [];
-        battle.DiagnosticResolution += resolutions.Add;
-
-        NativeBattleContactHalf primary = Produce(battle);
-        NativeBattleContactHalf restoredPrimary = Produce(restored);
-
-        Assert.Equal(primary, restoredPrimary);
-        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
-        Assert.Equal(expected, restored.Combatants[0].CurrentHp);
-        Assert.Equal(battle.ReadPresentationModelOwner("party"), primary.Recipient);
-        Assert.Equal((ushort)50, primary.Amount6);
-        Assert.Equal(zombie ? 0 : 1, primary.HitFlags & 1);
-        BattleDiagnosticResolution formula = Assert.Single(resolutions, resolution => resolution.ResolvedAmount == 50);
-        Assert.Equal("party", formula.ActorId);
-        Assert.Equal("party", formula.OriginalTargetId);
-        Assert.Null(formula.PeriodicStatus);
-        Assert.Equal(zombie ? "damage" : "healing", formula.Kind);
-
-        Assert.Equal(hp, battle.ReadPresentedVital("party").HitPoints);
-        Method("PublishNativePresentedContact").Invoke(battle, [primary]);
-        Assert.Equal(expected, battle.ReadPresentedVital("party").HitPoints);
-        Assert.Equal(1u, battle.Capture().NativeClock!.ActionPause);
-        Assert.DoesNotContain(battle.QueuedActions, command => command.ExpandedAiCallback is not null);
-        Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
-
-        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.Presentation!.Graphics, 0x47DDA0u]);
-        Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
+        Assert.Equal(0, actor.CurrentHp);
         Assert.Empty(battle.QueuedActions);
-        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
-        Assert.Single(battle.Events, entry => entry.Kind == "ActionComplete");
-    }
-
-    [Fact]
-    public void QueuedRegenTestsCurrentZombieStatusAtFormulaDispatch()
-    {
-        BattleSession battle = Create(false, 500);
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        battle.Combatants[0].NativeStatus0 |= 0x40;
-        NativeBattleContactHalf primary = Produce(battle);
-        Assert.Equal(450, battle.Combatants[0].CurrentHp);
-        Assert.Equal(0, primary.HitFlags & 1);
-    }
-
-    [Theory]
-    [InlineData(false, 550)]
-    [InlineData(true, 450)]
-    public void QueuedRegenBankZeroHeaderNormalizesAndCompletesItsGraphicalContactService(bool zombie, int expected)
-    {
-        BattleSession battle = Create(zombie, 500);
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        Produce(battle);
-
-        // This focused graphical consumer fixture leaves model resources unloaded.
-        // The native control service still normalizes and publishes its actual header contacts.
-        BattleDefinition definition = (BattleDefinition)Field("definition").GetValue(battle)!;
-        NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        Field("definition").SetValue(battle, definition with { NativeGraphics = new(rules, [], []) });
-        NativeBattleGraphicsState graphics = Graphics(battle);
-
-        graphics = (NativeBattleGraphicsState)Method("BeginNativeActionGraphics").Invoke(battle, [graphics, new BattleActionHeaderReference(0)])!;
-        Assert.Equal(0x50BD80u, graphics.ActionGraphics!.Callback);
-        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
-        Assert.Equal(500, battle.ReadPresentedVital("party").HitPoints);
-
-        var result = ((NativeBattleGraphicsState Graphics, byte Phase, bool Complete))Method("PollNativeActionGraphics").Invoke(battle, [graphics, (byte)0])!;
-        Assert.True(result.Complete);
-        Assert.Equal((byte)1, result.Phase);
-        Assert.Equal(expected, battle.ReadPresentedVital("party").HitPoints);
-        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
-        Method("RunNativeDescriptorActionCallback").Invoke(battle, [result.Graphics, 0x47DDA0u]);
-        Assert.Empty(battle.QueuedActions);
-        Assert.Equal(expected, battle.Combatants[0].CurrentHp);
-    }
-
-    [Fact]
-    public void QueuedRegenSkipsAnActorThatBecameKoBeforeCallbackDispatch()
-    {
-        BattleSession battle = Create(false, 500);
-        Method("DispatchNativeStatusTimers").Invoke(battle, null);
-        battle.Combatants[0].CurrentHp = 0;
-        battle.Combatants[0].NativeStatus0 |= 1;
-        TakeAndDispatch(battle);
-        Assert.Equal(0, battle.Combatants[0].CurrentHp);
-        Assert.Empty(battle.QueuedActions);
-        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Empty(battle.Presentation!.ActionPackets.PublishedHeaders());
+        Assert.Null(battle.ActiveAction);
         Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
     }
 
-    private static NativeBattleContactHalf Produce(BattleSession battle)
+    private static List<NativeBattlePresentationReceipt> AdvanceControlDescriptors(BattleSession logical, BattlePresentationProcess process)
     {
-        // The component FIFO roundtrip has no graphical definition or cache.
-        // Attach this contact-consumer fixture only after that valid boundary.
-        int hp = battle.Combatants[0].CurrentHp;
-        Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, Graphics(battle));
-        TakeAndDispatch(battle);
-        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
-        return battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        List<NativeBattlePresentationReceipt> receipts = [];
+        for (int frame = 0; frame < 8 && logical.ActiveAction is not null; frame++)
+        {
+            long? token = process.ActiveActionToken;
+            NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(process.Graphics.ActorModels.Roster);
+            NativeBattleHostedTestFixture.SetField(process, "hostedFrameServices", services);
+            try
+            {
+                NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(Invoke(process, "AdvanceNativeDescriptors", process.Graphics));
+                NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+            }
+            finally
+            {
+                NativeBattleHostedTestFixture.SetField(process, "hostedFrameServices", null);
+            }
+            receipts.AddRange(services.ReadOrderedReceipts());
+            Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, token);
+        }
+        return receipts;
     }
 
-    private static NativeBattleGraphicsState Graphics(BattleSession battle)
+    private static void Bind(BattleSession battle)
     {
         var (roster, aliases) = battle.ReadBattlePresentationPacketBindings();
-        return NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with
+        var bindings = battle.Combatants.Select(actor => new NativeBattleGraphicsBinding(actor.Id, actor.IsPlayer ? (byte)1 : (byte)16, new([0, 0]))).ToArray();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(0)
         {
-            Flags0 = owner.Side == BattleSide.Allies ? (ushort)8 : (ushort)0,
-            ModelId4 = 0
-        }, BattleContactTaskStorageContract.OriginalArena);
+            Flags8 = 0,
+            ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)16
+        }) with { EntryReady = true, EntryLifecycle = 4 };
+        NativeBattleHostedTestFixture.BindProcess(battle, graphics, NativeBattleHostedTestFixture.CreateGraphicsDefinition(bindings));
+        Invoke(battle, "InitializeExpandedPartyPresentation");
     }
 
-    private static void TakeAndDispatch(BattleSession battle)
-    {
-        object?[] arguments = [null];
-        Assert.True((bool)Method("TryTakeNativeBankCommand").Invoke(battle, arguments)!);
-        BattleAttackCommand command = Assert.IsType<BattleAttackCommand>(arguments[0]);
-        Assert.Equal(CreateCallback("party", 0, 6), command.ExpandedAiCallback);
-        try
-        {
-            Method("DispatchNativeCallback").Invoke(battle, [command.ExpandedAiCallback!, null]);
-        }
-        finally
-        {
-            Method("ReleaseNativeDispatchedCommand").Invoke(battle, null);
-        }
-    }
-
-    private static BattleSession Create(bool zombie, int hp)
+    private static BattleSession Create(string actorId, int hp, int gauge)
     {
         BattleSession battle = new(new()
         {
@@ -202,17 +131,34 @@ public sealed class NativeBattleRegenCallbackTests
             NativeBattleSpeed = 2,
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
-            Combatants =
-            [
-                new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, MaximumHp = 1000, CurrentHp = hp, NativeStatus0 = zombie ? (ushort)0x40 : (ushort)0, NativeStatus1 = 0x10, NativeDeathCount = 0 },
-                new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 1000, CurrentHp = 1000 }
-            ]
+            Combatants = [Combatant("party"), Combatant("second"), Combatant("third"), Combatant("additional"), Combatant("enemy", player: false)]
         }, BattleAtbMode.Normal);
         BattleSnapshot snapshot = battle.Capture();
-        snapshot.Combatants[0].NativeStatus!.Timers[4] = 60;
+        int row = Array.FindIndex(snapshot.Combatants, actor => actor.Id == actorId);
+        NativeBattleAtbState atb = new(12000, gauge);
+        snapshot.Combatants[row] = snapshot.Combatants[row] with { NativeAtb = atb, Atb = atb.Display };
+        snapshot.Combatants[row].NativeStatus!.Timers[4] = 60;
         return BattleSession.Restore(snapshot);
+
+        BattleCombatantDefinition Combatant(string id, bool player = true) => new()
+        {
+            Id = id,
+            Name = id,
+            IsPlayer = player,
+            ModelId = player ? 1 : 16,
+            MaximumHp = 1000,
+            CurrentHp = id == actorId ? hp : 1000,
+            NativeStatus1 = id == actorId ? 0x10u : 0u,
+            NativeDeathCount = 0
+        };
     }
 
-    private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static BattleCombatant Actor(BattleSession battle, string id) => battle.Combatants.Single(actor => actor.Id == id);
+
+    private static void DispatchTimers(BattleSession battle) => Invoke(battle, "DispatchNativeStatusTimers");
+
+    private static object? Invoke(object owner, string method, params object?[] arguments)
+    {
+        return owner.GetType().GetMethod(method, PrivateInstance)!.Invoke(owner, arguments);
+    }
 }

@@ -115,7 +115,7 @@ public sealed class NativeBattleMeteor223MotionTests(ITestOutputHelper testOutpu
                     renderedKinds.Add(kind);
                     string earlierWords = CommandHash(selectedEarlier);
                     string laterWords = CommandHash(selectedLater);
-                    NativeBattlePrimitiveCapabilities capabilities = source.Definition.NativeGraphics!.PrimitiveCapabilities!;
+                    NativeBattlePrimitiveCapabilities capabilities = source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!;
                     renderer.RenderNativePrimitiveFrame(selectedEarlier.Primitives, selectedEarlier.Textures, capabilities: capabilities, textureWindowCache: selectedEarlier.TextureWindows, effectTextureSource: assets.EffectTextureSource);
                     string nativeEarlier = capture.Hash();
                     renderer.RenderNativePrimitiveFrame(selectedLater.Primitives, selectedLater.Textures, capabilities: capabilities, textureWindowCache: selectedLater.TextureWindows, effectTextureSource: assets.EffectTextureSource);

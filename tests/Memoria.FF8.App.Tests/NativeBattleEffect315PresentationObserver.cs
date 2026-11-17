@@ -102,7 +102,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
                         NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3);
                         Assert.Null(beforeCaster.ReadLinkedModel());
                         uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3).NativeStatus!.Battle;
-                        NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, prior.ReadFixturePresentation().NativeGraphics!.ActorModels, current.Definition.NativeGraphics!.Rules, battleStatuses);
+                        NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, prior.ReadFixturePresentation().NativeGraphics!.ActorModels, current.ReadFixtureGraphicsDefinition()!.Rules, battleStatuses);
                         Assert.True(plan.Loaded);
                         Assert.Equal(plan.ImmediateStatusFlags, caster.Flags8);
                         contactProjection = true;

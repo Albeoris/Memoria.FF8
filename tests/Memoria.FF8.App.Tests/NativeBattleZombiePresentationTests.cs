@@ -101,7 +101,7 @@ public sealed class NativeBattleZombiePresentationTests
             int targetHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             Assert.Equal(beforeHp, targetHp);
             ushort statusMask = action.Statuses0;
-            uint graphicsStatusMask = source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1);
+            uint graphicsStatusMask = source.ReadFixtureGraphicsDefinition()!.Rules.Project(action.Statuses0, action.Statuses1);
             Assert.NotEqual(0u, graphicsStatusMask);
             Assert.Equal(0u, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
             Assert.Equal(0, beforeInput.Combatants.Single(actor => actor.Id == target).NativeStatus!.Saved & statusMask);
@@ -246,7 +246,7 @@ public sealed class NativeBattleZombiePresentationTests
             NativeBattleGfGeometryBatch OverlayPackets(BattleSnapshot snapshot, int age)
             {
                 NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3);
-                NativeBattleGraphicsResource resource = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == target).Resource;
+                NativeBattleGraphicsResource resource = snapshot.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == target).Resource;
                 if (model.ActiveResourceRow100 is int row)
                 {
                     resource = NativeBattleEnemyResourceView.Resolve(snapshot.ReadFixturePresentation().NativeModelCpuResources!, snapshot.ReadFixturePresentation().NativeFileStaging!, row, resource);

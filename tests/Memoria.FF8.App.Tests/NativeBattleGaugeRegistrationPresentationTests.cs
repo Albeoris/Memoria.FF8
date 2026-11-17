@@ -15,7 +15,7 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original participant and native clock resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleDefinition definition = NativeBattleMusicSessionPresentationTests.CreateDefinition(game, assets) with { NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
+        BattleDefinition definition = NativeBattleMusicSessionPresentationTests.CreateDefinition(game, assets, out _) with { NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {

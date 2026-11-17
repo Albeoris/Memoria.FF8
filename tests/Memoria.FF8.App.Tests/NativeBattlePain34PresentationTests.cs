@@ -47,7 +47,7 @@ public sealed class NativeBattlePain34PresentationTests
         Assert.Equal(2, Stock(beforeInput));
         Assert.Equal(1, Stock(source));
         int hp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
-        uint projected = source.Definition.NativeGraphics!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
+        uint projected = source.ReadFixtureGraphicsDefinition()!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
         Assert.NotEqual(0u, projected);
         Assert.Equal(0u, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & projected);
         BattleSession battle = BattleSession.Restore(source);

@@ -12,11 +12,11 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allies, enemies, 4, expanded: true);
+        var (definition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allies, enemies, 4, expanded: true);
         uint options = (definition.NativeSavedOptions!.Value & ~1u) | (wait ? 1u : 0u);
         definition = definition with { NativeSavedOptions = options };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.AttachPresentation(new(selected));
+        battle.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         BattleCombatant polling = battle.Combatants.First(actor => actor.IsPlayer);
         BattleCombatant ready = battle.Combatants.Last(actor => actor.IsPlayer);
@@ -88,7 +88,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (definition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         string source = gunblade ? "party-0" : "party-1";
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         definition = definition with
@@ -112,7 +112,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
         };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.AttachPresentation(new(selected));
+        battle.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         while (!battle.NativeEntryReady && process.Graphics.Callback < 1200)
         {
@@ -176,7 +176,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (definition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeExamTimerState timer = NativeExamTimerState.FromColdProcess().SetRemaining(10000);
         definition = definition with
         {
@@ -184,7 +184,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
             Combatants = definition.Combatants.Select(actor => actor with { InitialAtb = 0 }).ToArray()
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        battle.AttachPresentation(new(selected));
+        battle.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         while (!battle.NativeEntryReady && process.Graphics.Callback < 1200)
         {

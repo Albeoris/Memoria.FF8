@@ -63,7 +63,7 @@ internal sealed class InstalledBattlePresentation(GameAssets game, BattleAssets 
             PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(),
             PcUiIcons = assets.ReadNativePcUiIcons().Binding
         };
-        return new BattlePresentationResources(definition with { NativeGraphics = graphics }, game.ReadNativeCinematicModelOperands);
+        return new BattlePresentationResources(definition, graphics, game.ReadNativeCinematicModelOperands);
     }
 
     private NativeBattleGraphicsBinding PrepareModelBinding(BattleSession owner, BattleModelOwner modelOwner, BattleRosterSlot slot)

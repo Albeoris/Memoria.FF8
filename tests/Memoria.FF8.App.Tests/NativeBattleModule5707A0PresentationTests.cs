@@ -32,6 +32,7 @@ public sealed class NativeBattleModule5707A0PresentationTests
             actors.Add(new() { Id = $"enemy-{placement.Slot}", Name = assets.ReadEnemyName(placement.ModelId), ModelId = placement.ModelId, SceneSlot = placement.Slot, InitialActive = placement.Enabled, InitialHidden = placement.Hidden, InitialSuspended = placement.InitiallySuspended, InitialUntargetable = placement.Untargetable });
         }
         BattleCombatantDefinition[] definitions = actors.ToArray();
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definitions, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new()
         {
             EncounterId = encounter.Id,
@@ -52,14 +53,13 @@ public sealed class NativeBattleModule5707A0PresentationTests
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(definitions, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, directory, 0, 5, -1);
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int frame = 0; frame < 100 && !session.Presentation!.Graphics.EntryReady; frame++)
         {
             session.Tick();

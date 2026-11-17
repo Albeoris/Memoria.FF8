@@ -279,7 +279,7 @@ public sealed class ExpandedActionPreparationTests
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = 0 });
         PropertyInfo graphicsProperty = typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!;
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        BattleDefinition resources = owner.ReadDefinition() with { NativeGraphics = new(rules, [new("caster", 0, new([0, 0]))], []) };
+        NativeBattleGraphicsDefinition resources = new(rules, [new("caster", 0, new([0, 0]))], []);
         BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(owner, graphics with { EntryReady = true }, resources);
         NativeBattleContactPacket wrongRecipient = placeholder.Packet with { Primary = placeholder.Packet.Primary with { Recipient = header.Source } };
         long token = process.BeginHostedAction(header, [wrongRecipient]);

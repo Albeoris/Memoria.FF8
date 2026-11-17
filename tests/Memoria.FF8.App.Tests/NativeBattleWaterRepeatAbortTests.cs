@@ -17,14 +17,15 @@ public sealed class NativeBattleWaterRepeatAbortTests
         Assert.SkipUnless(Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 222);
+        BattleDefinition original = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 222, out _);
         BattleCombatantDefinition[] actors =
         [
             original.Combatants[0],
             original.Combatants[1] with { ModelId = enemyModel, Name = "Enemy", MaximumHp = 1, CurrentHp = 1, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(enemyModel), NativeStatusResistances = assets.ReadEnemyNativeStatusData(enemyModel).Resistances.ToArray(), Information246 = assets.ReadEnemyNativeInformation246(enemyModel) }
         ];
-        BattleDefinition definition = original with { SelphieCardSlots = cards, Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)) };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleDefinition definition = original with { SelphieCardSlots = cards, Combatants = actors };
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         Attach(battle);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {

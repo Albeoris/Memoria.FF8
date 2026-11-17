@@ -179,8 +179,8 @@ public sealed class NativeBattleHostedAllocationAdmissionTests
         BattleModelRoster roster = new([Ally, Old]);
         NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(0), Ally), (Slot, Old)]);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner == Ally ? (byte)1 : (byte)16 });
-        NativeBattleHostedTestFixture.InstallModelBindings(logical, new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
-        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true });
+        var graphicsResources = NativeBattleHostedTestFixture.CreateGraphicsDefinition(new NativeBattleGraphicsBinding("ally", 1, new([0, 0])), new NativeBattleGraphicsBinding("enemy", 16, new([0, 0])));
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true }, graphicsResources);
         typeof(BattlePresentationProcess).GetField("hostedModelRegistry", Private)!.SetValue(child, new BattlePresentationProcess.HostedModelRegistry(roster, ImmutableDictionary<BattleModelOwner, BattlePresentationProcess.HostedModelLoadAdmission>.Empty));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(child, NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, aliases));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(child, NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster));

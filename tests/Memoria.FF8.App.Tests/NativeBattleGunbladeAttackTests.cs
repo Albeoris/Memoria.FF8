@@ -57,8 +57,8 @@ public sealed class NativeBattleGunbladeAttackTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, character, 116);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, character, 116, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         battle.SetGunbladeMode(mode);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {
@@ -152,7 +152,7 @@ public sealed class NativeBattleGunbladeAttackTests
         Assert.Contains(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == "party");
         Assert.True(battle.Events.Count(item => item.Kind == "GunbladeTrigger") == (early ? 0 : 1), "Observed widget distances: " + string.Join(",", distances));
         Assert.Equal(mode == BattleGunbladeMode.Manual && !early, restoredSound);
-        uint shot = definition.NativeGraphics!.Rules.ActorSounds1120!.Value[character * 7 + (character == 0 ? 1 : 0)];
+        uint shot = graphicsResources.Rules.ActorSounds1120!.Value[character * 7 + (character == 0 ? 1 : 0)];
         Assert.Equal(early ? 0 : 1, sounds.Count(sound => sound.Sound == shot && sound.Flags == 0 && sound.Anchor is not null));
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
 

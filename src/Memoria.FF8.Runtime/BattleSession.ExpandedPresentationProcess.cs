@@ -90,7 +90,7 @@ public sealed partial class BattleSession
             AdvanceNativeHostTime();
             process.Advance(DispatchExpandedCore, ApplyExpandedHostedFrameReceipts);
             NativeExamTimerState? presentedTimer = process.Timer;
-            RequireSameHostedTimerClock(presentedTimer, NativeExamTimer);
+            NativeExamTimerState.RequireSameClock(presentedTimer, NativeExamTimer);
             NativeExamTimer = presentedTimer;
 
             void DispatchExpandedCore()

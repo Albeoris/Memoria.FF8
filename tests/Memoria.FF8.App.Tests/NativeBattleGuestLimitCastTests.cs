@@ -42,11 +42,11 @@ public sealed class NativeBattleGuestLimitCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition definition = CreateDefinition(game, assets, characterId, effectId, out NativeBattleGraphicsDefinition graphicsResources);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "limit-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.CaptureForContinuation();
         bool selected = false;
@@ -238,9 +238,9 @@ public sealed class NativeBattleGuestLimitCastTests
         return battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Capture().NativeClock!.ActionPause == 0 && graphics.Descriptors.Queue.IsEmpty && graphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
     }
 
-    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int characterId, ushort effectId)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int characterId, ushort effectId, out NativeBattleGraphicsDefinition graphicsResources)
     {
-        BattleDefinition original = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116);
+        BattleDefinition original = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116, out _);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         int row = characterId < 8 ? characterId : 0;
         if (characterId >= 8)
@@ -256,6 +256,7 @@ public sealed class NativeBattleGuestLimitCastTests
         int weapon = characterId >= 8 ? vitals.DreamWeapons[characterId - 8] : character.Weapon;
         BattleCombatantDefinition actor = original.Combatants[0] with { Name = "Guest", ModelId = characterId, WeaponId = weapon, EquipmentIds = [], Abilities = [BattleAbility.Attack, BattleAbility.LimitBreak], Level = rules.Level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = stats.Speed, Luck = stats.Luck, Hit = stats.Hit, Evasion = stats.Evasion, ElementDefenses = stats.ElementDefenses.ToArray(), ElementAttack = stats.ElementAttack, ElementAttackPercent = stats.ElementAttackPercent, NativeMagicInventory = character.MagicInventory.ToArray(), NativeLimit = assets.ReadNativeLimitDefinition(characterId), NativeAttack = assets.ReadPlayerNativeAttackData(vitals, row), NativePlayerStatRules = rules, NativeStatusResistances = rules.ProjectStatusResistances(character.MagicInventory).ToArray(), NativeDeathCount = 0, NativeCharacterFlag100 = (character.MemberFlags & 0x100) != 0, NativeGrowth = growth };
         BattleCombatantDefinition[] actors = [actor, original.Combatants[1] with { Information246 = assets.ReadEnemyNativeInformation246(61) }];
-        return original with { Combatants = actors, GuardianForces = [], ActionDefinitions = [], NativeLimitsDisabled = false, LimitProgress = game.ReadNewGameLimitProgress(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effectId]) };
+        graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        return original with { Combatants = actors, GuardianForces = [], ActionDefinitions = [], NativeLimitsDisabled = false, LimitProgress = game.ReadNewGameLimitProgress(), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effectId]) };
     }
 }

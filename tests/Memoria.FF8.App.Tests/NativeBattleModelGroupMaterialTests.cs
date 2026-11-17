@@ -23,7 +23,7 @@ public sealed class NativeBattleModelGroupMaterialTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116);
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, 0, 116, out _);
         BattleEncounter formation = assets.LoadEncounter(594);
         BattleEnemyPlacement placement = formation.Enemies.Single(enemy => enemy.Slot == 0);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -39,13 +39,14 @@ public sealed class NativeBattleModelGroupMaterialTests
             Combatants = actors,
             EncounterId = formation.Id,
             StageId = formation.StageId,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
+
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 400 && (!battle.NativeEntryReady || !battle.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
         {
             battle.Tick();
@@ -99,7 +100,7 @@ public sealed class NativeBattleModelGroupMaterialTests
                 matrices = NativeBattleBodyBoneMatrices.Require(model, resource.PoseSource!);
             }
             uint sourceColor = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan().Slice(16));
-            uint color = (definition.NativeGraphics!.Rules.SummonColors!.Interpolate(sourceColor, (callback << 12) / 15, 0) & 0xFFFFFFu) | 0x02000000u;
+            uint color = (graphicsResources.Rules.SummonColors!.Interpolate(sourceColor, (callback << 12) / 15, 0) & 0xFFFFFFu) | 0x02000000u;
             ImmutableArray<NativeBattleGeometryPrimitive> expected = NativeBattleRawGeometryPackets.Emit5099D0([relocated], matrices, projection, color, 1, null, 17, 4, null);
             BattleSession? clone = callback == 7 ? BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(before))!) : null;
             int cursor = before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ByteCursor!.Value;

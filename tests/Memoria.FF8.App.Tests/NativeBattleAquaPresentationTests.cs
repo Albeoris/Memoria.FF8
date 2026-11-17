@@ -271,7 +271,7 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
+        NativeBattleGraphicsDefinition definition = current.ReadFixtureGraphicsDefinition()!;
         NativeBattleGraphicsResource resource = definition.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(graphics, actorSlot)).Resource;
         if (actor.ActiveStagedResourceRow100 is not null)
         {

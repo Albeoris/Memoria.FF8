@@ -53,7 +53,7 @@ internal static class NativeBattleReachedCaptureAssertions
                 Assert.Equal(view.Rotation.ToArray(), projectedView.Rotation.ToArray());
                 Assert.Equal((view.X, view.Y, view.Z), (projectedView.X, projectedView.Y, projectedView.Z));
                 NativeBattleModulePoolTask detached = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(task));
-                NativeBattleGfGeometryBatch expected = NativeBattleSearchMeshDrawing.Draw755FC0(detached, resources.ParticleMesh, view, projection, current.Definition.NativeGraphics!.Rules.SummonColors!);
+                NativeBattleGfGeometryBatch expected = NativeBattleSearchMeshDrawing.Draw755FC0(detached, resources.ParticleMesh, view, projection, current.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!);
                 foreach (NativeBattleGfGeometryAttempt attempt in expected.Attempts)
                 {
                     if (attempt.Primitive is not { } primitive || primitive.Words.Length < 2 || (byte)(primitive.Words[1] >> 24) is not (>= 0x20 and < 0x80))

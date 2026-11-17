@@ -177,8 +177,9 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             actors.Add(enemy with { Id = $"enemy-{placement.Slot}", SceneSlot = placement.Slot });
         }
         Assert.Equal(enemyCount, actors.Count(actor => !actor.IsPlayer));
-        BattleDefinition definition = source with { Combatants = actors.ToArray(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation) };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
+        BattleDefinition definition = source with { Combatants = actors.ToArray() };
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         bool selected = false;
         bool restoredLive = false;
         bool completed = false;
@@ -310,7 +311,7 @@ public sealed class NativeBattleGuardianCasterMatrixAssets : IDisposable
     {
         if (!definitions.TryGetValue(guardian, out BattleDefinition? result))
         {
-            result = NativeBattleTargetGuardianCastTests.CreateDefinition(Game, Battle, guardian, effect);
+            result = NativeBattleTargetGuardianCastTests.CreateDefinition(Game, Battle, guardian, effect, out _);
             definitions.Add(guardian, result);
         }
         return result;

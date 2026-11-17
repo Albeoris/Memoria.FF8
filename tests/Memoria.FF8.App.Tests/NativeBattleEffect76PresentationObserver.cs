@@ -240,7 +240,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
     private void ObserveText(BattleSnapshot current, int actor, Action<string, BattleSnapshot> cold)
     {
         string id = ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, actor)!;
-        NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == id);
+        NativeBattleGraphicsBinding binding = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(item => item.ActorId == id);
         foreach (int index in new[] { 1, 3, 4 })
         {
             string expected = binding.Resource.ReadText91(index);

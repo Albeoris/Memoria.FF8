@@ -55,7 +55,7 @@ public sealed class NativeBattleAngelWing84CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId, out _);
         BattleDefinition definition = source with { NativeSavedBattleFlags = (byte)(source.NativeSavedBattleFlags!.Value | 0x20), NativeSavedBattleFlagsKnownMask = (byte)(source.NativeSavedBattleFlagsKnownMask | 0x30) };
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "angel-wing-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);

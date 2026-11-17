@@ -67,8 +67,6 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id);
         ValidateNativeActionContract(native);
-        actor.PreviousAiTarget = request.Selection is BattleTargetSelection.Explicit { Actors: [var recipient] }
-            ? new BattlePreviousTarget.Actor(recipient) : NativeBattleTargetRequestAdapter.CapturePrevious(request, ReadOriginalTargetSlot);
         if (command == 4)
         {
             byte targetFlags = native.TargetFlags.GetValueOrDefault();

@@ -46,9 +46,8 @@ public sealed partial class BattleSession
                     }
                     if (bit == 4 && decrement != 0 && timer / decrement % (60 / decrement) == 0)
                     {
-                            BattleNativeAction regen = NativePostActionEffect(4);
-                            BattleActionDefinition action = new(BattleAbility.EnemyAbility, 4, regen.Name!, BattleActionEffect.Native, 0, true) { NativeAction = regen };
-                            ResolveInstalledNativeHitWithContact(actor, actor, new(actor.Id, actor.Id, BattleActionPhase.Recovery, SelectBattleTarget(actor), action.Ability, action.Id) { NativeAction = regen }, action, regen);
+                        //483470 enqueues callback6 before decrementing its signed timer.
+                        QueueExpandedAiCallback(actor, 6);
                     }
                     actor.NativeStatusTimers[bit] = unchecked((short)(timer - decrement));
                     continue;
@@ -113,21 +112,6 @@ public sealed partial class BattleSession
         StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 246, 43, 0, 3);
         actor.IsBusy = true;
         BeginNativeBattleActionPause();
-    }
-
-    private void CompleteNativeActionStatuses(BattleCombatant actor)
-    {
-        //484180 runs after the actor's command, before47DE70 publishes pending counter callbacks.
-        if (actor.CurrentHp == 0 || (actor.NativeStatus0 & 3) != 2)
-        {
-            return;
-        }
-        int damage = (NextRandomByte() % 5 + 5) * actor.MaximumHp / 100;
-        if (damage >= actor.CurrentHp)
-        {
-            StoreNativeActionMemory(actor, actor, BattleAbility.EnemyAbility, 0, 2, 0, 3);
-        }
-        ApplyDamage(null, actor, damage, "Poison");
     }
 
     private static bool IsNativeBattleCapable(BattleCombatant actor)

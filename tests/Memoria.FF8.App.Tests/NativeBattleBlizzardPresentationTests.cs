@@ -33,6 +33,7 @@ public sealed class NativeBattleBlizzardPresentationTests
             new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 100, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -45,7 +46,6 @@ public sealed class NativeBattleBlizzardPresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -64,7 +64,7 @@ public sealed class NativeBattleBlizzardPresentationTests
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_BLIZZARD_EVIDENCE");
         string id = "blizzard144-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules() }, BattleAtbMode.TurnBased, graphicsResources);
         BattleSnapshot entry = battle.Capture();
         Publish(evidence, id + "-before-entry", entry, null);
         battle = string.IsNullOrWhiteSpace(evidence) ? BattleSession.Restore(entry) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(evidence, id + "-before-entry.battle.json")))!);

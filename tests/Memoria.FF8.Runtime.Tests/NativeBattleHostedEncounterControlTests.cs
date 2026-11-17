@@ -11,12 +11,12 @@ public sealed class NativeBattleHostedEncounterControlTests
         (_, BattleSession child, NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelLifecycleServices services) = Fixture();
         BattleModelOwner retired = new BattleEnemyActorModel(new("retired"));
         AssertRejected(child, "QueueEffectPresentationActivation", graphics, retired);
-        Field("hostedFrameServices").SetValue(child, new NativeBattleModelLifecycleServices(services.Facts.Remove(owner)));
+        NativeBattleHostedTestFixture.SetField(child.Presentation!, "hostedFrameServices", new NativeBattleModelLifecycleServices(services.Facts.Remove(owner)));
         AssertRejected(child, "QueueEffectPresentationActivation", graphics, owner);
         Assert.Empty(graphics.Descriptors.Queue);
 
-        Field("hostedFrameServices").SetValue(child, services);
-        NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(Invoke(child, "QueueEffectPresentationActivation", graphics, owner));
+        NativeBattleHostedTestFixture.SetField(child.Presentation!, "hostedFrameServices", services);
+        NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(Invoke(child.Presentation!, "QueueEffectPresentationActivation", graphics, owner));
         int slot = Assert.Single(queued.Descriptors.Queue);
         NativeBattleDescriptorPacket descriptor = queued.Descriptors.Packets[slot];
         Assert.Equal((ushort)113, descriptor.Command);
@@ -41,8 +41,8 @@ public sealed class NativeBattleHostedEncounterControlTests
     {
         (BattleSession logical, BattleSession child, NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleModelLifecycleServices services) = Fixture();
         AssertRejected(child, "QueueNativeEffect76Text", graphics, new NativeBattleEffect76Text4876F0(new BattleEnemyActorModel(new("retired")), 1, 60));
-        _ = Invoke(child, "PublishNativeEffect76WaveRequest", new NativeBattleEffect76WaveRequest46CBB0(0, "field2.fs", 127));
-        NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(Invoke(child, "QueueNativeEffect76Text", graphics, new NativeBattleEffect76Text4876F0(owner, 1, 60)));
+        _ = Invoke(child.Presentation!, "PublishNativeEffect76WaveRequest", new NativeBattleEffect76WaveRequest46CBB0(0, "field2.fs", 127));
+        NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(Invoke(child.Presentation!, "QueueNativeEffect76Text", graphics, new NativeBattleEffect76Text4876F0(owner, 1, 60)));
         NativeBattleDescriptorPacket descriptor = queued.Descriptors.Packets[Assert.Single(queued.Descriptors.Queue)];
         Assert.Equal((ushort)8, descriptor.Command);
         Assert.Equal((byte)240, descriptor.PriorityState);
@@ -56,7 +56,7 @@ public sealed class NativeBattleHostedEncounterControlTests
         NativeBattlePresentationDescriptorText text = Assert.Single(services.ReadOrderedReceipts().OfType<NativeBattlePresentationDescriptorText>());
         Assert.Equal("original text", text.Message.Message);
         Assert.Equal("reserve", text.Message.ActorId);
-        _ = Invoke(logical, "ApplyExpandedHostedFrameReceipts", services, null);
+        _ = typeof(BattleSession).GetMethod("ApplyExpandedHostedFrameReceipts", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(logical, [services, null]);
         Assert.Collection(logical.Events.Where(entry => entry.Kind is "NativeText" or "NativeFileAudio"),
             audio =>
             {
@@ -87,31 +87,27 @@ public sealed class NativeBattleHostedEncounterControlTests
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0)) with { EntryReady = true, EntryLifecycle = 4 };
         NativeBattleGraphicsResource original = new([0, 0]) { TextBank = ["", "original text"] };
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        Field("definition").SetValue(child, definition with { NativeGraphics = new(rules, [new("reserve", 93, original)], []) });
-        Field("hostedBattlePresentation").SetValue(child, true);
-        FieldInfo entry = Field("hostedEntryDescriptors");
-        entry.SetValue(child, Activator.CreateInstance(entry.FieldType));
+        NativeBattleHostedTestFixture.BindProcess(child, graphics, new(rules, [new("reserve", 93, original)], []));
         NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(roster);
-        Field("hostedFrameServices").SetValue(child, services);
+        NativeBattleHostedTestFixture.SetField(child.Presentation!, "hostedFrameServices", services);
         return (logical, child, graphics, owner, services);
     }
 
     private static NativeBattleGraphicsState AdvanceDescriptors(BattleSession child, NativeBattleGraphicsState graphics)
     {
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child.Presentation!, graphics);
-        return Assert.IsType<NativeBattleGraphicsState>(Invoke(child, "AdvanceNativeDescriptors", graphics));
+        return Assert.IsType<NativeBattleGraphicsState>(Invoke(child.Presentation!, "AdvanceNativeDescriptors", graphics));
     }
 
-    private static object? Invoke(BattleSession owner, string method, params object?[] arguments)
+    private static object? Invoke(BattlePresentationProcess owner, string method, params object?[] arguments)
     {
-        return typeof(BattleSession).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, arguments);
+        return typeof(BattlePresentationProcess).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, arguments);
     }
 
     private static void AssertRejected(BattleSession child, string method, params object?[] arguments)
     {
-        TargetInvocationException rejection = Assert.Throws<TargetInvocationException>(() => Invoke(child, method, arguments));
+        TargetInvocationException rejection = Assert.Throws<TargetInvocationException>(() => Invoke(child.Presentation!, method, arguments));
         Assert.IsType<InvalidDataException>(rejection.InnerException);
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
 }

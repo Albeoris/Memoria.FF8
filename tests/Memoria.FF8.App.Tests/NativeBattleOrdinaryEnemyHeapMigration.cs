@@ -25,7 +25,7 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
         Assert.Null(cpu.EnemyCursor);
         NativeBattleFileStaging staging = battle.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("Migration must retain its current shared party/file memory.");
         NativeBattleModelTextureCache cache = battle.ReadFixturePresentation().NativeModelTextureCache ?? throw new InvalidDataException("Migration requires the actual resource row material bindings.");
-        NativeBattleGraphicsDefinition definition = battle.Definition.NativeGraphics!;
+        NativeBattleGraphicsDefinition definition = battle.ReadFixtureGraphicsDefinition()!;
         BattleActorModels models = graphics.ActorModels;
         var bindings = definition.Bindings.ToBuilder();
         cpu = cpu with { EnemyCursor = 0, EnemyLinkedSlots = 0 };
@@ -82,6 +82,6 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
         battleNode["Definition"]!["NativeGraphics"]!["Bindings"] = JsonSerializer.SerializeToNode(bindings.ToImmutable());
         root["NativeBattleMemory"]!["ModelCpuResources"] = JsonSerializer.SerializeToNode(cpu);
         root["NativeBattleMemory"]!["FileStaging"] = JsonSerializer.SerializeToNode(staging);
-        return ["Battle.NativeModelCpuResources", "Battle.NativeFileStaging", "Battle.NativeGraphics.ActorModels", "Battle.Definition.NativeGraphics.Bindings", "NativeBattleMemory.ModelCpuResources", "NativeBattleMemory.FileStaging"];
+        return ["Battle.NativeModelCpuResources", "Battle.NativeFileStaging", "Battle.NativeGraphics.ActorModels", "Battle.ReadFixtureGraphicsDefinition()!.Bindings", "NativeBattleMemory.ModelCpuResources", "NativeBattleMemory.FileStaging"];
     }
 }

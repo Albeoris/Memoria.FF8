@@ -18,6 +18,7 @@ public sealed class NativeBattleModelLoaderSessionTests
             new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new()
         {
             EncounterId = 94,
@@ -35,7 +36,6 @@ public sealed class NativeBattleModelLoaderSessionTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -43,7 +43,7 @@ public sealed class NativeBattleModelLoaderSessionTests
             NativeStageCameraControl = stage.NativeCameraControl
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
-        session.AttachPresentation(new(definition));
+        session.AttachPresentation(new(definition, graphicsResources));
         for (int callback = 0; callback < 200 && session.Presentation!.NativeModelLoader?.Task is not { Callback: 0x5077B0, Phase: 1 }; callback++)
         {
             session.Tick();

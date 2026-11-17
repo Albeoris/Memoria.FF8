@@ -139,32 +139,6 @@ public sealed partial class BattleSession
         return resources;
     }
 
-    private bool BeginCompletedGuardianFormCharge(BattleCombatant actor, BattleGuardianForceCast cast)
-    {
-        if (cast.Command.GuardianFormInvocation is not { Mode: GuardianFormInvocationMode.EntryOnly } invocation)
-        {
-            return false;
-        }
-        BattleGuardianFormState form = GetGuardianForm(actor.Id) ?? throw new InvalidDataException("Transformation charge lost its GF form owner.");
-        if (form.Phase == BattleGuardianFormPhase.Charging)
-        {
-            guardianForms![actor.Id] = form with { Phase = BattleGuardianFormPhase.Entering };
-                CompleteGuardianFormEntry(actor.Id, form.InvocationId);
-        }
-        return true;
-    }
-
-    private void CompleteGuardianFormEntry(string actorId, long invocationId)
-    {
-        if (!ActivateGuardianFormEntry(actorId, invocationId))
-        {
-            return;
-        }
-        BattleCombatant actor = GetActor(actorId);
-            CompleteNativeActionStatuses(actor);
-        Log("GuardianFormActive", actorId, actorId, GetGuardianForm(actorId)!.GuardianForceId, "GF form entrance completed.");
-    }
-
     private bool ActivateGuardianFormEntry(string actorId, long invocationId)
     {
         if (GetGuardianForm(actorId) is not { Phase: BattleGuardianFormPhase.Entering } form || form.InvocationId != invocationId)

@@ -16,7 +16,7 @@ public sealed class NativeBattleRinoa88CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId, out _);
         BattleNativeAction originalAction = source.NativeActions.Single(action => action.Command == 19 && (action.MagicId & 0x1FF) == effectId);
         Assert.InRange(originalAction.ActionId, (ushort)0, (ushort)3);
         //The independent component declares its learned Combine input and enables the original saved menu branch.

@@ -168,7 +168,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (_, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
+        var (_, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
         selected = selected with
         {
             NativeFlags = (ushort)(0x80 | flags),
@@ -176,6 +176,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
             NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed
         };
         BattleSession battle = new(selected, BattleAtbMode.Normal);
+        battle.AttachPresentation(new(selected, graphicsResources));
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics with { Descriptors = NativeBattleDescriptorState.Clear() };
         MethodInfo prepare = typeof(BattleSession).GetMethod("BuildNativeTerminalGraphics", PrivateInstance)!;
         NativeBattleGraphicsState queued = Assert.IsType<NativeBattleGraphicsState>(prepare.Invoke(battle, [graphics, outcome]));
@@ -240,7 +241,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
 
     private static (BattleSession Battle, BattlePresentationProcess Process) Enter(GameAssets game, BattleAssets assets, BattleAtbMode mode, bool skipVictory = false, bool missingText = false)
     {
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (definition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         NativeLimitProgress options = selected.LimitProgress! with { Options978 = (ushort)(selected.LimitProgress!.Options978!.Value & ~1) };
         definition = definition with
@@ -276,7 +277,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
             LimitProgress = options
         };
         BattleSession battle = new(definition, mode);
-        battle.AttachPresentation(new(selected));
+        battle.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
         {

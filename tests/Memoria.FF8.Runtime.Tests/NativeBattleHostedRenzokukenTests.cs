@@ -22,7 +22,7 @@ public sealed class NativeBattleHostedRenzokukenTests
         BattleModelOwner target = logical.ReadPresentationModelOwner("target");
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0) { ModelId4 = 0 }) with { EntryReady = true, EntryLifecycle = 4 };
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics, definition with { NativeGraphics = new(rules, [new("squall", 0, new([0, 0]))], []) });
+        BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(logical, graphics, new NativeBattleGraphicsDefinition(rules, [new("squall", 0, new([0, 0]))], []));
         NativeBattleContactPacket contact = new(new(target, 0, 1, 0, 0, 0, 0), null);
         (NativeBattleActionPacketsState packets, BattleActionHeaderReference initial) = child.NativeActionPackets.Prepare(new(caster, 5, 21, -1, 65534, 160, null));
         packets = packets.AppendContacts([contact]).Publish(1).State.WritePlayerRepeatMode(initial, 1);

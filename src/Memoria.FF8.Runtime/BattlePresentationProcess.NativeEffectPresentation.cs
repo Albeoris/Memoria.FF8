@@ -37,7 +37,7 @@ public sealed partial class BattlePresentationProcess
     /// <summary>The host retains its camera projection. Native control resources may register without acquiring a camera lease; their control programs are not executed here.</summary>
     private BattlePresentationProcess(NativeBattleEffectPresentationInputs inputs)
     {
-        resources = new(inputs.Resources);
+        resources = inputs.Resources;
         presentationArena = inputs.Arena;
         presentationSceneContext = inputs.SceneContext;
         presentationSceneContext?.Validate();

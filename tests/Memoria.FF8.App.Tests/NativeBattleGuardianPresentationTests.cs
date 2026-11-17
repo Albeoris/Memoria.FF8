@@ -21,6 +21,7 @@ public sealed class NativeBattleGuardianPresentationTests
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, InitialAtb = BattleSession.AtbMaximum / 3 }
         ];
         //Declared fresh installed-resource component, not a reconstructed gameplay save. Its explicit playtime-derived UI seed is0.
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -39,7 +40,6 @@ public sealed class NativeBattleGuardianPresentationTests
             NativeCrtRandom = new(1),
             NativeClockRules = assets.ReadNativeClockRules(),
             NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -56,7 +56,7 @@ public sealed class NativeBattleGuardianPresentationTests
         BattleActionDefinition guardian = Assert.Single(definition.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && action.Id == 0);
         Assert.Equal((ushort)116, guardian.NativeAction!.MagicId);
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

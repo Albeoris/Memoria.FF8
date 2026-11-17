@@ -55,8 +55,9 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
             return actor with { NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(actor.ModelId), NativeAi = assets.ReadEnemyAi(actor.ModelId, actor.Level), NativeTemplate = assets.ReadEnemyTemplate(actor.ModelId, checked((byte)placement.Level)) };
         }).ToArray();
         BattleCombatantDefinition[] actors = [.. initialized, prototype];
-        BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation), NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([269]) };
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
+        BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte, NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([269]) };
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         Save("before-entry", session.Capture());
         Pump(() => session.NativeEntryReady, "original-entry");
         Assert.Empty(session.Capture().NativeAllocations);

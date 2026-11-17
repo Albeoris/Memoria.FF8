@@ -26,7 +26,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         GameState state = GameSession.Load(source!);
         BattleSnapshot original = Assert.IsType<BattleSnapshot>(state.Battle);
         NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
-        NativeBattleGraphicsRules rules = original.Definition.NativeGraphics!.Rules;
+        NativeBattleGraphicsRules rules = original.ReadFixtureGraphicsDefinition()!.Rules;
         uint sleepFlag = rules.Project(0, 1);
         Assert.NotEqual(0u, sleepFlag);
         BattleSession session = BattleSession.Restore(original);
@@ -107,7 +107,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(8), checked((short)targetIndex));
         graphics = (NativeBattleGraphicsState)apply.Invoke(setup, [graphics, new NativeBattleDescriptorPacket(ImmutableArray.CreateRange(bytes))])!;
         synthetic = synthetic.WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
-        uint sleepFlag = original.Definition.NativeGraphics!.Rules.Project(0, 1);
+        uint sleepFlag = original.ReadFixtureGraphicsDefinition()!.Rules.Project(0, 1);
         Assert.NotEqual(0u, ReadOriginalModelCell(graphics, targetIndex).Flags8.GetValueOrDefault() & sleepFlag);
         BattleSession battle = BattleSession.Restore(synthetic);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(synthetic))!);
@@ -150,7 +150,7 @@ public sealed class NativeBattleStatusExpiryContinuationTests
         byte[] originalBytes = File.ReadAllBytes(source!);
         BattleSnapshot original = GameSession.Load(source!).Battle!;
         NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
-        uint sleepFlag = original.Definition.NativeGraphics!.Rules.Project(0, 1);
+        uint sleepFlag = original.ReadFixtureGraphicsDefinition()!.Rules.Project(0, 1);
         string[] targets = Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(index => ReadOriginalModelActorId(graphics, index) is not null && (ReadOriginalModelCell(graphics, index).Flags8.GetValueOrDefault() & sleepFlag) != 0).Select(index => ReadOriginalModelActorId(graphics, index)!).ToArray();
         Assert.NotEmpty(targets);
         NativeBattlePartyStatusMirrors mirrors = original.NativePartyStatusMirrors!;

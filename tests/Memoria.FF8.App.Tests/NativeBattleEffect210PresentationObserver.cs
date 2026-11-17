@@ -238,7 +238,7 @@ internal sealed class NativeBattleEffect210PresentationObserver
         Assert.Contains(restore, command => command.Opcode == 0xE3);
         Assert.Contains(restore, command => command.Opcode == 0xE4);
         Assert.Contains(restore, command => command.Opcode == 0xE5);
-        NativeBattleGraphicsDefinition definition = current.Definition.NativeGraphics!;
+        NativeBattleGraphicsDefinition definition = current.ReadFixtureGraphicsDefinition()!;
         Assert.Equal(0x4668F0u, definition.SoftwarePrimitiveTable!.Handler(0x28));
         Assert.NotEqual((byte)0, definition.PrimitiveTables!.FlaggedCommands[0x28]);
         NativeSoftwareDrawingEnvironmentState environment = prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Software!.Environment;

@@ -62,7 +62,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         {
             Directory.CreateDirectory(output);
         }
-        BattleDefinition definition = continuation?.Definition ?? NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, guardian, effectId);
+        BattleDefinition definition = continuation?.Definition ?? NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, guardian, effectId, out _);
         if (continuation is null && (guardian is 3 or 11))
         {
             byte[] resistances = new byte[40];

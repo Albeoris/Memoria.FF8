@@ -137,7 +137,7 @@ public sealed partial class NativeBattleDuel112CastTests
         Assert.SkipUnless(namedInput is null || duelCommandRoute, "A selected Duel opening standalone requires the actual command route.");
         BattleSnapshot? namedSource = namedInput is null ? null : JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(namedInput));
         BattleNativeAction action = assets.NativeActions.First(action => action.Command == (duelCommandRoute ? 241 : 239) && action.MagicId == effectId);
-        BattleDefinition source = namedSource?.Definition ?? NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId);
+        BattleDefinition source = namedSource?.Definition ?? NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId, out _);
         BattleCombatantDefinition actor = source.Combatants[0] with { Name = "Zell" };
         if (!duelCommandRoute)
         {

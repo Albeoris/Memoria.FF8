@@ -71,9 +71,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
     public void Hosted_cpu_and_staging_use_the_selected_remastered_executable_profile()
     {
         string hash = NativeFieldRuntimeProfile.RemasteredEnImageHash;
-        NativeBattleEffectPresentationInputs input = Inputs(2, 2, NativeBattleEffectTextureState.FromColdProcess(), loadSources: false);
-        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess(hash) with { EffectMemory = input.Resources.NativeRetainedMemory!.EffectMemory };
-        input = input with { Resources = input.Resources with { NativeRetainedMemory = retained, NativeGraphics = input.Resources.NativeGraphics! with { Rules = input.Resources.NativeGraphics!.Rules with { ExecutableSha256 = hash } } } };
+        NativeBattleEffectPresentationInputs input = Inputs(2, 2, NativeBattleEffectTextureState.FromColdProcess(), loadSources: false, imageHash: hash);
 
         BattlePresentationProcess session = BattlePresentationProcess.CreateEffectPresentation(input);
 
@@ -115,7 +113,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleEffectPresentationInputs input = Inputs(2, 2, global);
         NativeBattleModelDatSource changed = input.SourceResource.ModelLoadSources!.Value[0] with { FileId = 123 };
         NativeBattleGraphicsResource conflict = input.SourceResource with { ModelLoadSources = [changed] };
-        input = input with { Resources = input.Resources with { NativeGraphics = input.Resources.NativeGraphics! with { Bindings = [new("actor-7", 0, conflict)] } } };
+        input = Inputs(2, 2, global, bindings: [new("actor-7", 0, conflict)]);
         Assert.Contains("conflicting immutable sources", Assert.Throws<InvalidDataException>(() => BattlePresentationProcess.CreateEffectPresentation(input)).Message);
     }
 
@@ -145,7 +143,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         Assert.Same(enemy.Resource, Pose(session, session.Graphics, enemy.Owner));
     }
 
-    private static NativeBattleEffectPresentationInputs Inputs(int partyCount, int enemyCount, NativeBattleEffectTextureState textures, bool loadSources = true)
+    private static NativeBattleEffectPresentationInputs Inputs(int partyCount, int enemyCount, NativeBattleEffectTextureState textures, bool loadSources = true, string imageHash = NativeFieldRuntimeProfile.FF8EnExecutableHash, ImmutableArray<NativeBattleGraphicsBinding> bindings = default)
     {
         int[] parties = partyCount == 11 ? [0, 1, 2, 7, 8, 9, 10, 11, 12, 13, 14] : [7, 8];
         int[] enemies = enemyCount == 14 ? [3, 4, 5, 6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] : [15, 24];
@@ -182,11 +180,11 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         BattleDefinition definition = new()
         {
-            NativeGraphics = new(new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [], []), [], []),
             NativeEffectCatalog = [.. Enumerable.Range(1, 400).Select(effect => new NativeBattleEffectBinding((ushort)effect, effect == 1 ? 1u : 0u, 0))],
-            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = memory with { PrimitiveProcess = memory.PrimitiveProcess!.Initialize500400() } }
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(imageHash) with { EffectMemory = memory with { PrimitiveProcess = memory.PrimitiveProcess!.Initialize500400() } }
         };
-        return new(definition, Model(7, true, bodyPose, linkedPose), party, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
+        NativeBattleGraphicsDefinition graphics = new(new(imageHash, [], []), bindings.IsDefault ? [] : bindings, []);
+        return new(new(definition, graphics), Model(7, true, bodyPose, linkedPose), party, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
         {
             NativeTargets = [.. owners.Where(pair => pair.Value != Source).Select(pair => pair.Value is BattlePartyModelOwner
                 ? new NativeBattleEffectModelBinding(pair.Value, Model(pair.Key, true, bodyPose, linkedPose), party)

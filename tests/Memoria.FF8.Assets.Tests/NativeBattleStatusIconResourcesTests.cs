@@ -65,8 +65,10 @@ public sealed class NativeBattleStatusIconResourcesTests
         ];
         NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
-        BattleSession session = new(new()
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(new()
         {
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             EncounterId = 94,
             StageId = encounter.StageId,
             Combatants = actors,
@@ -79,14 +81,13 @@ public sealed class NativeBattleStatusIconResourcesTests
             NativeCrtRandom = new(1),
             NativeSavedOptions = input.Options,
             NativeInputButtonMap = input.ButtonMap,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
-        }, BattleAtbMode.TurnBased);
+        }, BattleAtbMode.TurnBased, assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter));
         for (int callback = 0; callback < 200 && !session.NativeEntryReady; callback++)
         {
             session.Tick();

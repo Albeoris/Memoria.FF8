@@ -137,11 +137,10 @@ public sealed class NativeBattleRingSequenceSchedulingTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
         NativeBattleGraphicsResource resource = new(ImmutableArray.Create<byte>(3, 0, 8, 0, 9, 0, 10, 0, 0xA1, 0xA1, 0xA1));
-        typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, resource)], []));
         NativeBattleGraphicsModel party = new NativeBattleGraphicsModel(3) { Flags8 = 1, ModelId4 = 3, ResourceFlags44 = 0x42, Sequence = 2, SequenceState = new() { Offset46 = 7, Pending3 = 2, Pose = 29 } }.WriteLinkedModel(null);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, Party, party), (3, Enemy, new(0))]);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(null!, [new("party", 3, resource)], []));
         return (session, graphics);
     }
 

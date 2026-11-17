@@ -28,7 +28,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
         for (int actor = 0; actor < 3; actor++)
         {
             NativeBattleGraphicsModel model = ReadOriginalModelCell(initialGraphics, actor);
-            NativeBattleGraphicsBinding binding = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == ReadOriginalModelActorId(initialGraphics, actor));
+            NativeBattleGraphicsBinding binding = Assert.Single(source.ReadFixtureGraphicsDefinition()!.Bindings, binding => binding.ActorId == ReadOriginalModelActorId(initialGraphics, actor));
             NativeBattlePoseSource pose = binding.Resource.PoseSource!;
             Assert.NotNull(pose);
             Assert.True(pose.BoneCount > 0);

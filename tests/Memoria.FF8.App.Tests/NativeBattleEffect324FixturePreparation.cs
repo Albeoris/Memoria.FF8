@@ -38,8 +38,9 @@ internal static class NativeBattleEffect324FixturePreparation
             NativeTemplate = assets.ReadEnemyTemplate(placement.ModelId, checked((byte)placement.Level))
         };
         BattleCombatantDefinition[] actors = [.. baseline.Definition.Combatants, prototype];
-        BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation), NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
+        BattleDefinition definition = baseline.Definition with { Combatants = actors, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte };
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleSnapshot fresh = session.CaptureForContinuation();
         NativeBattleGraphicsState freshGraphics = fresh.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The original allocation component requires its fresh graphics owner.");
         session = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = freshGraphics with { NativeOutcome = new NativeBattleOutcomeState() } }));

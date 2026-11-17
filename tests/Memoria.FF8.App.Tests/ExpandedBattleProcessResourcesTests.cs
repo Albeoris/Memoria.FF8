@@ -85,7 +85,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         BattleDefinition entry = logical.ReadDefinition();
         Assert.True(entry.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount || entry.AddedEnemySources is { Count: > 0 });
         Assert.True(entry.UsesOriginalEnemySlots);
-        Assert.Null(entry.NativeGraphics);
+
         Assert.Equal(world.BattleResources.LoadEncounter(formation).Flags, entry.NativeEntry!.FormationFlags);
         Assert.NotNull(logical.NativeEntryAdvantage);
         Assert.Equal(4, entry.AddedEnemySources!.Count);

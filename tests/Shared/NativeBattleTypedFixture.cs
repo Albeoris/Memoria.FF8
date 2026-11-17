@@ -19,6 +19,22 @@ internal static partial class NativeBattleTypedFixture
     internal static BattleModelRoster OriginalRoster { get; } = new(owners);
     internal static NativeBattleModelAliases OriginalAliases { get; } = new(OriginalRoster, owners.Select((owner, slot) => (NativeBattleModelSlot.Decode((byte)slot), owner)));
 
+    internal static BattleSession CreateBattle(BattleDefinition definition, BattleAtbMode mode, NativeBattleGraphicsDefinition graphics)
+    {
+        BattleSession battle = new(definition, mode);
+        battle.AttachPresentation(new(definition, graphics));
+        return battle;
+    }
+
+    internal static BattleSession RestoreBattle(BattleSnapshot continuation)
+    {
+        BattlePresentationResources resources = continuation.PresentationContinuation?.Resources
+            ?? throw new InvalidOperationException("The fixture requires a private in-process presentation continuation.");
+        BattleSession battle = BattleSession.Restore(continuation);
+        battle.AttachRestoredPresentation(resources, continuation);
+        return battle;
+    }
+
     internal static BattleModelOwner OriginalOwner(int slot)
     {
         if ((uint)slot >= owners.Length)

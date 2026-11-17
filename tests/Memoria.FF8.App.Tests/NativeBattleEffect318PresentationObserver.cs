@@ -269,7 +269,7 @@ internal sealed class NativeBattleEffect318PresentationObserver
     private static bool VerifyCurrentScaledBody(BattleSnapshot prior, BattleSnapshot current, Dictionary<uint, NativeBattleModulePoolTask> tasks, uint skeleton)
     {
         NativeBattleGraphicsModel entering = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3);
-        NativeBattleGraphicsResource resource = prior.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(prior.ReadFixturePresentation().NativeGraphics!, 3)).Resource;
+        NativeBattleGraphicsResource resource = prior.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(prior.ReadFixturePresentation().NativeGraphics!, 3)).Resource;
         NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("Effect318 requires its original current rig.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new InvalidDataException("Effect318 requires its current original body geometry.");
         Assert.Equal(4, geometry.Length);

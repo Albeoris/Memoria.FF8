@@ -46,9 +46,9 @@ public sealed class NativeBattleControl110ResourcesTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logical, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, expanded ? 4 : 3, expanded ? 5 : 4, 4, expanded);
+        var (logical, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, expanded ? 4 : 3, expanded ? 5 : 4, 4, expanded);
         BattleSession owner = new(logical, BattleAtbMode.TurnBased);
-        owner.AttachPresentation(new(selected));
+        owner.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess runner = Assert.IsType<BattlePresentationProcess>(owner.Presentation);
         for (int callback = 0; callback < 1200 && !runner.EntryReady; callback++)
         {

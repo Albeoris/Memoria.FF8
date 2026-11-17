@@ -73,7 +73,6 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        typeof(BattleSession).GetMethod("RefreshNativePacketBindings", PrivateInstance)!.Invoke(session, null);
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(session);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(LastAlly, Sequenced(0)) };
@@ -157,9 +156,9 @@ public sealed class NativeBattleHostedModelLifecycleTests
         actor.NativeStatusTimers[10] = -23;
         NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
         actor.NativeStatusTimers[12] = 290;
-        MethodInfo timers = typeof(BattleSession).GetMethod("ReadModelCountdownTimers", PrivateInstance)!;
+        MethodInfo timers = typeof(BattlePresentationProcess).GetMethod("ReadModelCountdownTimers", PrivateInstance)!;
 
-        var (doom, petrify) = ((short, short))timers.Invoke(session, [Graphics(session), FourthAlly, services.Facts[FourthAlly]])!;
+        var (doom, petrify) = ((short, short))timers.Invoke(session.Presentation!, [Graphics(session), FourthAlly, services.Facts[FourthAlly]])!;
 
         Assert.Equal((short)-1111, doom);
         Assert.Equal((short)-23, petrify);
@@ -179,7 +178,6 @@ public sealed class NativeBattleHostedModelLifecycleTests
     {
         BattleSession session = Session(expanded: true);
         session.Combatants.Single(actor => actor.Id == "ally-4").BindRosterSlot(null, bindNative: false);
-        typeof(BattleSession).GetMethod("RefreshNativePacketBindings", PrivateInstance)!.Invoke(session, null);
         BattleModelRoster roster = session.ReadBattlePresentationRoster();
         NativeBattleGraphicsState graphics = Graphics(session);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(LeadAlly, Sequenced(0)) };
@@ -232,7 +230,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [], []) { SummonColors = NativeBattleGteColorInterpolation.CodeConstants45F270 };
         ImmutableArray<NativeBattleGraphicsBinding> bindings = definition.Combatants.Select(actor => new NativeBattleGraphicsBinding(actor.Id, actor.IsPlayer ? (byte)0 : (byte)20, actor.IsPlayer ? partyResource ?? PartySequence : EnemySequence)).ToImmutableArray();
-        typeof(BattleSession).GetField("definition", PrivateInstance)!.SetValue(session, definition with { NativeGraphics = new(rules, bindings, []) });
+        NativeBattleHostedTestFixture.BindProcess(session, Graphics(session), new(rules, bindings, []));
         if (expanded)
         {
             BindPresentationResources(session, session.ReadBattlePresentationRoster());
@@ -250,7 +248,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
             NativeBattleGraphicsResource resource = ally ? (owner == FourthAlly ? extendedPartyResource : null) ?? partyResource ?? PartySequence : EnemySequence;
             return new NativeBattleEffectModelBinding(owner, new(0), resource);
         });
-        typeof(BattleSession).GetField("presentationNativeTargets", PrivateInstance)!.SetValue(session, presentationBindings);
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationNativeTargets", presentationBindings);
     }
 
     private static NativeBattleGraphicsState Graphics(BattleSession session)
@@ -290,8 +288,8 @@ public sealed class NativeBattleHostedModelLifecycleTests
 
     private static NativeBattleGraphicsState Advance(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices? services)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("AdvanceNativeLoadedModels", PrivateInstance)!.Invoke(session, [graphics, 0u, services])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("AdvanceNativeLoadedModels", PrivateInstance)!.Invoke(session.Presentation!, [graphics, 0u, services])!;
     }
 
-    private static void Set(BattleSession session, string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+    private static void Set(BattleSession session, string property, object value) => typeof(BattlePresentationProcess).GetProperty(property)!.SetValue(session.Presentation!, value);
 }

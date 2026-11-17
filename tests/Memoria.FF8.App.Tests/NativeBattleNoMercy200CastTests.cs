@@ -21,11 +21,11 @@ public sealed class NativeBattleNoMercy200CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId, out NativeBattleGraphicsDefinition graphicsResources);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "limit-" + effectId + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine("Limit effect evidence: " + output);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot before = battle.CaptureForContinuation();
         bool selected = false;

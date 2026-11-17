@@ -25,7 +25,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         services.Emit(released);
         ImmutableArray<NativeBattlePresentationReceipt> prefix = services.ReadOrderedReceipts();
         graphics = Consume(session, graphics with { PendingContacts = [later] }, services);
-        typeof(BattleSession).GetMethod("PublishHostedModelLifecycleCue", PrivateInstance)!.Invoke(session,
+        typeof(BattlePresentationProcess).GetMethod("PublishHostedModelLifecycleCue", PrivateInstance)!.Invoke(session.Presentation!,
             [graphics, AddedEnemy, graphics.ActorModels.Get(AddedEnemy), services.Facts[AddedEnemy], new NativeBattleSequenceCue(NativeBattleSequenceCueKind.Text, 0, 6), services]);
 
         Assert.Collection(services.ReadOrderedReceipts(),
@@ -72,9 +72,9 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         var (session, hostedGraphics, services) = Fixture();
         if (foreign)
         {
-            Field("presentationForeignActors").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
+            Field("presentationForeignActors").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         }
-        Field("hostedFrameServices").SetValue(session, services);
+        Field("hostedFrameServices").SetValue(session.Presentation!, services);
         NativeBattleContactPacket packet = new(new(Original, 5, 0, 0, 0, 123, 0), null);
         NativeBattleGraphicsState nativeGraphics = hostedGraphics with
         {
@@ -82,7 +82,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
             Effects = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena),
             PendingContacts = [packet]
         };
-        NativeBattleGraphicsState result = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [nativeGraphics])!;
+        NativeBattleGraphicsState result = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [nativeGraphics])!;
 
         Assert.Empty(result.PendingContacts);
         Assert.Empty(services.ReadOrderedReceipts());
@@ -106,10 +106,8 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
         BattleModelRoster roster = new([Original, AddedAlly, AddedEnemy]);
         NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(3), Original)]);
-        Field("nativeActionPackets").SetValue(session, session.Presentation!.NativeActionPackets.WithRoster(roster, aliases));
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(2)
         {
             ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)77,
@@ -119,8 +117,9 @@ public sealed class NativeBattleHostedReceiptOrderingTests
             SequenceState = new(),
             HasLinkedModelRing140 = false
         });
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [], []));
         NativeBattleGraphicsResource resource = new([0, 0]) { TextBank = ["Original text"] };
-        Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
+        Field("presentationNativeTargets").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
             [AddedEnemy] = new(AddedEnemy, graphics.ActorModels.Get(AddedEnemy), resource)
         });
@@ -133,10 +132,10 @@ public sealed class NativeBattleHostedReceiptOrderingTests
 
     private static NativeBattleGraphicsState Consume(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleModelLifecycleServices services)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
     }
 
-    private static List<NativeBattleContactPacket> LegacyContacts(BattleSession session) => (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;
+    private static List<NativeBattleContactPacket> LegacyContacts(BattleSession session) => (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session.Presentation!)!;
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
+    private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 }

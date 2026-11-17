@@ -71,7 +71,7 @@ public sealed class NativeBattleDuel215CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId, out _);
         BattleNativeAction originalAction = assets.NativeActions.First(action => action.Command == 239 && action.MagicId == effectId);
         Assert.Equal((ushort)9, originalAction.ActionId);
         BattleCombatantDefinition actor = source.Combatants[0] with { Name = "Zell", NativeCommands = source.Combatants[0].NativeCommands.Add(new(239, originalAction.Name ?? "My Final Heaven", originalAction.TargetFlags!.Value, checked((byte)originalAction.ActionId))) };

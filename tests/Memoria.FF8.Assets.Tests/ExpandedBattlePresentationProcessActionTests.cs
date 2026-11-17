@@ -16,10 +16,10 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (definition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         selected = selected with { NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(definition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int frame = 0; frame < EntryBudget && !process.EntryReady; frame++)
         {
@@ -122,7 +122,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
         const string caster = "party-1";
         const string target = "enemy-8";
@@ -144,7 +144,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
                 : actor).ToArray()
         };
         BattleSession logical = new(logicalDefinition, nativeClock ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
@@ -220,7 +220,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
         const string caster = "party-1";
         const string target = "enemy-8";
@@ -245,7 +245,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
@@ -299,7 +299,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         BattleCombatantDefinition[] actors = logicalDefinition.Combatants.Select(actor => actor.IsPlayer ? actor with
@@ -324,7 +324,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         BattleSession control = new(logicalDefinition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
@@ -466,7 +466,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         BattleNativeCommandBinding darkside = assets.ReadNativeCommand(28);
         const string caster = "party-1";
@@ -497,7 +497,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         selected = selected with { NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         Assert.Empty(logical.GetNativePlayerActionChoices(caster, limits: false, command: 28));
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
@@ -570,7 +570,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         const int formation = 79;
         const string source = "party-0";
         int authoredCount = assets.LoadEncounter(formation).Enemies.Count(enemy => enemy.Enabled);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, authoredCount, authoredCount, expanded: true, encounterId: formation);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, authoredCount, authoredCount, expanded: true, encounterId: formation);
         BattleCombatantDefinition authoredEnemy = logicalDefinition.Combatants.First(actor => !actor.IsPlayer && actor.ModelId == 99);
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(authoredEnemy.ModelId, authoredEnemy.Level);
         Assert.Equal(new byte[] { 4, 203, 12, 2 }, ai.Scripts[2][16..20]);
@@ -601,7 +601,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         selected = selected with { LimitProgress = options, NativeActionCameraRules = game.ReadNativeActionCameraRules() };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         logical.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
@@ -681,7 +681,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Name == "Fire");
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         byte? messageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed;
@@ -716,7 +716,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         NativeBattleUiRandomState expectedUi = automaticOption ? ui.Draw(out ushort roll) : ui;
         bool expectedTrigger = press || automaticOption && expectedUi.State > 0x2000;
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < EntryBudget && !logical.NativeEntryReady; callback++)
         {
@@ -838,7 +838,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
         BattleNativeAction fire = Assert.Single(assets.NativeActions, candidate => candidate.Command == 2 && candidate.Name == "Fire");
         selected = selected with
         {
@@ -849,7 +849,7 @@ public sealed class ExpandedBattlePresentationProcessActionTests
         };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string logicalBefore = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         BattleModelRoster roster = logical.ReadBattlePresentationRoster();
         BattleModelOwner attackOwner = logical.ReadPresentationModelOwner(attackId);

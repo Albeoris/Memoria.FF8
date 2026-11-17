@@ -79,21 +79,21 @@ public sealed class NativeBattleBadBreath113Tests
         ImmutableArray<sbyte> saved = Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray();
         ImmutableArray<sbyte> battle = Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray();
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, saved, battle) { SummonColors = NativeBattleGteColorInterpolation.CodeConstants45F270 };
-        Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
-        Field("presentationForeignActors").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [], []));
+        Field("presentationForeignActors").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
         NativeBattleGraphicsResource body = new([0, 0, 0, 0]);
-        Field("presentationNativeTargets").SetValue(session, roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleEffectModelBinding(owner, model, body)));
-        Field("nativeActionPackets").SetValue(session, packets);
-        Field("nativeCrtRandom").SetValue(session, new NativeCrtRandomState(17));
+        Field("presentationNativeTargets").SetValue(session.Presentation!, roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleEffectModelBinding(owner, model, body)));
+        Field("nativeActionPackets").SetValue(session.Presentation!, packets);
+        Field("nativeCrtRandom").SetValue(session.Presentation!, new NativeCrtRandomState(17));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() });
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess() with { Projection = new(view, 100, 160, 108) });
-        var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session)!;
-        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeBadBreath113", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session.Presentation!)!;
+        MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeBadBreath113", BindingFlags.Instance | BindingFlags.NonPublic)!;
         List<(int Age, BattleModelOwner Owner)> births = [];
         int peak = 0;
         for (int callback = 0; callback < 100 && graphics.OriginalEffect!.ReturnedDescriptor != 0; callback++)
         {
-            graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(session, [graphics]));
+            graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(session.Presentation!, [graphics]));
             if (graphics.OriginalEffect!.Pools.Length == 4)
             {
                 NativeBattleEffectTaskPool particles = graphics.OriginalEffect.Pools[2];
@@ -117,7 +117,7 @@ public sealed class NativeBattleBadBreath113Tests
         Assert.Equal(new uint[] { 0x25218C8, 0x25218B8 }, graphics.OriginalEffect.Pools.Select(pool => pool.DescriptorAddress));
         Assert.All(graphics.ActorModels.Entries, entry => Assert.Equal(0, entry.State.Flags0 & 4));
 
-        static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+        static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
     }
 
     private static NativeBattleBadBreath113Resources Resources()

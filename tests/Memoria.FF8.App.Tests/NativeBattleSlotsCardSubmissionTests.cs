@@ -28,7 +28,7 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         Assert.SkipUnless(Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 1) with { SelphieCardSlots = true };
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 5, 1, out _) with { SelphieCardSlots = true };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)

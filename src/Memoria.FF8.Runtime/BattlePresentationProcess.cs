@@ -338,7 +338,7 @@ public sealed partial class BattlePresentationProcess
 
             void DispatchCanonical(Action callback)
             {
-                RequireSameHostedTimerClock(NativeExamTimer, host.ReadTimer());
+                NativeExamTimerState.RequireSameClock(NativeExamTimer, host.ReadTimer());
                 host.PublishTimer(NativeExamTimer);
                 canonicalHandoff = true;
                 try

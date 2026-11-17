@@ -126,7 +126,7 @@ public sealed class NativeRenzokukenCameraContinuationTests
                 Active = snapshot.ActiveAction is { } action ? new { NativeHeader = snapshot.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header, action.NativeSequence, action.ActionId, action.NativeQueuedCommand } : null,
                 Effect = snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect,
                 Models = snapshot.ReadFixturePresentation().NativeGraphics is { } graphics ? ReadOriginalModelCells(graphics).Select((model, slot) => new { Index = slot, model.Sequence, model.SequenceFrame, model.CameraSequence130, model.CameraAccumulator131 }) : null,
-                Bindings = snapshot.Definition.NativeGraphics?.Bindings.Select(binding => new { binding.ActorId, binding.Resource.HasActionCamera, HasBank = binding.Resource.ActionCameraBank is not null })
+                Bindings = snapshot.ReadFixtureGraphicsDefinition()?.Bindings.Select(binding => new { binding.ActorId, binding.Resource.HasActionCamera, HasBank = binding.Resource.ActionCameraBank is not null })
             });
             if (signature != previous)
             {

@@ -22,6 +22,7 @@ public sealed class NativeBattleControlGraphicsTests
             new() { Id = "enemy", Name = "Enemy", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -37,7 +38,6 @@ public sealed class NativeBattleControlGraphicsTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeStageSource = assets.LoadStage(formation.StageId).NativeSource,
@@ -45,7 +45,7 @@ public sealed class NativeBattleControlGraphicsTests
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl
         };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         for (int entry = 0; entry < 200 && !battle.NativeEntryReady; entry++)
         {
             battle.Tick();

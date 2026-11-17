@@ -140,7 +140,7 @@ public sealed class NativeBattleSmoothWholeActionTests
         Assert.Equal(startCallback, control.NativeHostCallbacks);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };
-        NativeBattlePrimitiveCapabilities capabilities = seed.Definition.NativeGraphics!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture requires its native primitive device profile.");
+        NativeBattlePrimitiveCapabilities capabilities = seed.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture requires its native primitive device profile.");
         Func<int, int, bool, Albeoris.Games.FF8.Imaging.PixelImage> icons = assets.ReadNativePcUiIcons().Resolve;
         NativeBattlePreparedPresentation? previous = null;
         BattleScenePresentation? scene = observePresentation is null ? null : new(assets, seed.Definition) { SmoothCompatibleMotion = true, PilotDiagnosticsEnabled = true };

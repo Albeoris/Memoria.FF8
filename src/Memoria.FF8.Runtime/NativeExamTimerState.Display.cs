@@ -28,6 +28,14 @@ public sealed record NativeTimerDisplayBlink(ulong PhaseMask0To63, bool Phase64P
 
 public sealed partial record NativeExamTimerState
 {
+    internal static void RequireSameClock(NativeExamTimerState? observed, NativeExamTimerState? canonical)
+    {
+        if (canonical is null ? observed is not null : observed is null || !observed.HasSameClock(canonical))
+        {
+            throw new InvalidDataException("Hosted presentation must preserve the logical battle's timer clock.");
+        }
+    }
+
     public bool HasSameClock(NativeExamTimerState other)
     {
         Validate();

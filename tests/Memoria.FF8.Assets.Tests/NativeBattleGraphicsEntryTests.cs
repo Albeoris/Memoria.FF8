@@ -15,17 +15,16 @@ public sealed class NativeBattleGraphicsEntryTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(encounterId);
-        BattleStage stage = assets.LoadStage(encounter.StageId);
-        BattleSession seed = Create(game, assets, encounter.Enemies.First().ModelId, formation: encounter);
-        BattleDefinition definition = seed.Capture().Definition with { EncounterId = encounterId, NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = Create(game, assets, encounter.Enemies.First().ModelId, formation: encounter);
         battle.Tick();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = battle.ForkForContinuation();
         for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+            Assert.Equal(battle.Presentation!.Graphics.EntryLifecycle, restored.Presentation!.Graphics.EntryLifecycle);
+            Assert.Equal(battle.Presentation.Graphics.Callback, restored.Presentation.Graphics.Callback);
         }
         Assert.True(battle.NativeEntryReady);
         AssertOwnedEnemyResources(battle);
@@ -247,7 +246,7 @@ public sealed class NativeBattleGraphicsEntryTests
     }
 
     [Fact]
-    public void PresentationClockSurvivesRestoreWithoutPersistingTheHostTransportPolicy()
+    public void PresentationClockSurvivesForkAndExplicitCallbacksRemainAvailable()
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -255,17 +254,15 @@ public sealed class NativeBattleGraphicsEntryTests
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
         Assert.Equal(0, battle.Presentation!.Graphics.Callback);
         Assert.Equal(7_750_000, battle.Presentation!.Graphics.PresentationSubticks);
-        battle.Tick();
-        Assert.Equal(0, battle.Presentation!.Graphics.Callback);
-        BattleSnapshot saved = battle.Capture();
-        BattleSession headless = BattleSession.Restore(saved);
+        BattleSession headless = battle.ForkForContinuation();
         headless.Tick();
         Assert.Equal(1, headless.Presentation!.Graphics.Callback);
-        BattleSession hosted = BattleSession.Restore(saved);
+        BattleSession hosted = battle.ForkForContinuation();
         hosted.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
         Assert.Equal(1, hosted.Presentation!.Graphics.Callback);
         hosted.Tick();
-        Assert.Equal(1, hosted.Presentation!.Graphics.Callback);
+        Assert.Equal(2, hosted.Presentation!.Graphics.Callback);
+        Assert.Equal(0, battle.Presentation!.Graphics.Callback);
         Assert.Equal(0, hosted.Frame);
     }
 
@@ -345,7 +342,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.NotNull(cpu.EnemyResources);
         Assert.NotEmpty(cpu.EnemyResources);
         NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
-        foreach (NativeBattleGraphicsBinding binding in session.Capture().Definition.NativeGraphics!.Bindings.Where(binding => binding.ModelId >= 16))
+        foreach (NativeBattleGraphicsBinding binding in session.CaptureForContinuation().ReadFixtureGraphicsDefinition()!.Bindings.Where(binding => binding.ModelId >= 16))
         {
             BattleModelOwner modelOwner = session.ReadPresentationModelOwner(binding.ActorId);
             int rowIndex = graphics.ActorModels.Get(modelOwner).ActiveResourceRow100!.Value;
@@ -377,6 +374,6 @@ public sealed class NativeBattleGraphicsEntryTests
         actors.Add(new() { Id = "enemy", Name = "Enemy", Information246 = assets.ReadEnemyNativeInformation246(model), ModelId = model, Speed = 1, NativeAi = ai, NativeCombatantFlags = ai is null ? 0u : 0x10u, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot });
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, formation.Id);
-        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        return NativeBattleTypedFixture.CreateBattle(new() { NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte, Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeMusicProcess = musicEntry.MusicProcess, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeStageSource = assets.LoadStage(formation.StageId).NativeSource, NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased, graphics);
     }
 }

@@ -58,8 +58,8 @@ internal static class NativeBattleLifecycleComponentSources
         NativeBattleAiAbility ability = ai.Abilities[16 * ai.LevelBand + slot];
         BattleNativeAction original = assets.NativeActions.Single(action => action.Command == ability.Command && action.ActionId == ability.Id);
         BattleNativeAction control = original with { Command = 252, ActionId = 1, MagicId = effect, AttackType = 0 };
-        BattleDefinition definition = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, model, level, slot, ai, control);
-        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        BattleDefinition definition = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, model, level, slot, ai, control, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.Normal, graphicsResources);
         for (int callback = 0; callback < 1200; callback++)
         {
             BattleSnapshot current = battle.CaptureForContinuation();

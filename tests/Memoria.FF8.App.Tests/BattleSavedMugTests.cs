@@ -16,7 +16,7 @@ public sealed class BattleSavedMugTests
         GameSession session = new(GameplaySaveSessionLoader.Load(input, TestResources.GameDirectory));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
-        BattleDefinition definition = world.CreateEncounterBattle(formation) with { NativeGraphics = null, NativeClockRules = null };
+        BattleDefinition definition = world.CreateEncounterBattle(formation) with { NativeClockRules = null };
         BattleCombatantDefinition equipped = Assert.Single(definition.Combatants, actor => actor.IsPlayer && actor.NativeCommandSlots[0] == 12);
         Assert.Contains(equipped.NativeCommands, command => command.Command == 12);
         Assert.DoesNotContain(equipped.NativeCommands, command => command.Command == 1);

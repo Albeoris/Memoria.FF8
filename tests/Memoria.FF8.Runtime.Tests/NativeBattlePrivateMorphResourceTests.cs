@@ -51,7 +51,9 @@ public sealed class NativeBattlePrivateMorphResourceTests
         NativeBattleOffsetBodyResourceFixture fixture = NativeBattleOffsetBodyResourceFixture.Create(bytes, domain);
         NativeBattleEffect314MorphBodyStep Draw(NativeBattleModelGeometrySource source)
         {
-            NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
+            NativeBattleHostedTestFixture.BindProcess(session, graphics, new(null!, [new("party", 3, new([0, 0]) { PoseSource = source })], []));
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { GeometryRegisters = NativeBattleGeometryRegisters.Unknown(), ScriptedColorRegisters = NativeBattleScriptedColorRegisters.Unknown() };
             NativeBattleEffectArena temporary = NativeBattleEffectArena.Clear().Write(4, BitConverter.GetBytes(0x1000u)).Write(0x1C, BitConverter.GetBytes(1u)).Write(0x10, BitConverter.GetBytes((short)320)).Write(0x12, BitConverter.GetBytes((short)216)).Write(0x14, BitConverter.GetBytes(0x123456u));
             return NativeBattleEffect314Morph.DrawBodyWithPresentation(memory, temporary, NativeBattleEffectArena.Clear(), source, [NativeBattlePackedMatrix32.FromMatrix(NativeBattleCuragaMatrices.Identity8DD770(), null)], NativeBattleEffectArena.Clear(), new(NativeBattleCuragaMatrices.Identity8DD770(), 100, 160, 108), NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0(), 0x1000, 32);
         }
@@ -102,16 +104,13 @@ public sealed class NativeBattlePrivateMorphResourceTests
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1]);
         NativeBattleActionMatrix matrix = new([1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000], 123456, -234567, 345678, 4096);
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        BattleDefinition definition = (BattleDefinition)typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
-        typeof(BattleDefinition).GetProperty(nameof(BattleDefinition.NativeGraphics))!.SetValue(definition, new NativeBattleGraphicsDefinition(null!, [new("party", 3, new([0, 0]) { PoseSource = source })], []));
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         NativeBattleGraphicsModel model = new(3) { ModelId4 = 3, ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [matrix]) };
         BattleModelOwner owner = session.ReadPresentationModelOwner("party");
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, owner, model), (3, session.ReadPresentationModelOwner("enemy"), new(0))]);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear().Write(0x100, [17]) };
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         object frame = family == 314 ? (object)new NativeBattleEffect314Frame(memory, new(314, 313, new(314, NativeBattleEffect314Profile.Entry, NativeBattleEffect314Profile.Initializer), null, 0), new(42), NativeBattleEffect314State.FromColdProcess()) { Staging = staging } : new NativeBattleEffect316Frame(memory, new(316, 315, new(316, NativeBattleEffect316Profile.Entry, NativeBattleEffect316Profile.Initializer), null, 0), new(42), NativeBattleEffect316State.FromColdProcess()) { Staging = staging };
-        object Invoke(string suffix, params object?[] arguments) => typeof(BattleSession).GetMethod($"{suffix}", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments)!;
+        object Invoke(string suffix, params object?[] arguments) => typeof(BattlePresentationProcess).GetMethod(suffix, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, arguments)!;
         NativeBattlePackedMatrix32 packed = (NativeBattlePackedMatrix32)Invoke($"ReadNativeEffect{family}BoneMatrix", graphics, frame, owner, 0);
         Assert.Equal(matrix.Rotation, packed.ReadMatrix().Rotation);
         Assert.Equal(matrix.X, packed.ReadMatrix().X);

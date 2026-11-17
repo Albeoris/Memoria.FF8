@@ -64,6 +64,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             actors = [actors[0], actors[1], companion, actors[2]];
         }
         //Explicit fresh installed-resource component; all contacts and descriptors must be produced by the ordinary command.
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -90,7 +91,6 @@ public sealed class NativeBattleRemainingItemPresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -109,7 +109,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
         Directory.CreateDirectory(output!);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         BattleSnapshot prior = battle.Capture();
         bool selected = false;

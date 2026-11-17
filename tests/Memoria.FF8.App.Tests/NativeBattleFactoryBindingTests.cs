@@ -12,41 +12,28 @@ public sealed class NativeBattleFactoryBindingTests
         Assert.SkipUnless(Directory.Exists(directory), "The installed original battle resources are required.");
         using GameAssets assets = new(directory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).RebuildParty().Rest();
-        GameSession session = new(GameSession.CreateColdProcess().State with
-        {
-            Scene = SceneKind.Field,
-            FieldId = 999,
-            CharacterVitals = vitals,
-            CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
-            InputConfiguration = assets.ReadNewGameInputConfiguration(),
-            Economy = assets.ReadNewGameEconomy(),
-            BattleVariables = NativeBattleVariableState.CreateNewGame(),
-            LimitProgress = assets.ReadNewGameLimitProgress(),
-            SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(),
-            PocketStation = assets.ReadNewGamePocketStation(),
-            ScannedModels = assets.ReadNewGameScannedModels(),
-            ShotAvailability = assets.ReadNewGameShotAvailability(),
-            GlobalRandom = assets.ReadNewGameGlobalRandom(),
-            KnownMagic = assets.ReadNewGameKnownMagic()
-        });
-        using GameWorld world = new(session, directory);
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        session.SetCharacterVitals(vitals);
+        using GameWorld world = new(session, directory, sharedAssets: assets);
 
-        BattleDefinition definition = world.CreateEncounterBattle(512);
-
-        NativeBattleGraphicsDefinition graphics = Assert.IsType<NativeBattleGraphicsDefinition>(definition.NativeGraphics);
+        BattleSession battle = world.StartDiagnosticBattle(new(512, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1 });
+        BattleSnapshot entry = battle.CaptureForContinuation();
+        BattleDefinition definition = entry.Definition;
+        NativeBattleGraphicsDefinition graphics = Assert.IsType<NativeBattleGraphicsDefinition>(entry.ReadFixtureGraphicsDefinition());
         BattleEncounter encounter = world.BattleResources.LoadEncounter(512);
         BattleStage stage = world.BattleResources.LoadStage(encounter.StageId);
         Assert.Equal(world.BattleResources.ReadNativeClockRules(), definition.NativeClockRules);
         Assert.NotNull(graphics.PrimitiveTables);
         Assert.Equal(NativeBattlePrimitiveCapabilities.PrimaryRgba8(), graphics.PrimitiveCapabilities);
-        Assert.Same(session.State.NativeBattleMemory, definition.NativeRetainedMemory);
-        Assert.Same(session.State.GlobalSoundProcess, definition.NativeGlobalSoundProcess);
-        Assert.Same(session.State.VibrationProcess, definition.NativeVibrationProcess);
-        Assert.Same(stage.NativeSource, definition.NativeStageSource);
-        Assert.Same(stage.NativeCameraBank, definition.NativeStageCameraBank);
+        Assert.Equal(session.State.NativeBattleMemory?.ColdExecutableSha256, definition.NativeRetainedMemory?.ColdExecutableSha256);
+        Assert.Equal(battle.NativeGlobalSoundProcess, definition.NativeGlobalSoundProcess);
+        Assert.Equal(battle.NativeVibrationProcess, definition.NativeVibrationProcess);
+        Assert.Equal(stage.NativeSource, definition.NativeStageSource);
+        Assert.Equal(stage.NativeCameraBank, definition.NativeStageCameraBank);
         Assert.Equal(stage.NativeCameraControl.ToArray(), definition.NativeStageCameraControl.ToArray());
         Assert.Equal(new[] { encounter.PrimaryCamera, encounter.AlternativeCamera }, definition.NativeStageCameraSelectors.ToArray());
-        Assert.Equal(definition.Combatants.Select(actor => actor.Id).Order(), graphics.Bindings.Select(binding => binding.ActorId).Order());
+        Assert.Equal(definition.Combatants.Where(actor => actor.IsPlayer || actor.InitialActive).Select(actor => actor.Id).Order(), graphics.Bindings.Select(binding => binding.ActorId).Order());
         Assert.Equal(definition.Combatants.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(definition.Combatants.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToArray(), graphics.InitialLoadOrder.ToArray());
         foreach (NativeBattleGraphicsBinding binding in graphics.Bindings)
         {

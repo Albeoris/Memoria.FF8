@@ -18,16 +18,16 @@ public sealed class NativeBattleBreath235ComponentTests
         Assert.Equal((ushort)94, ability.Id);
         BattleNativeAction native = Assert.Single(assets.NativeActions, action => action.Command == ability.Command && action.ActionId == ability.Id);
         Assert.Equal((ushort)235, native.MagicId);
-        BattleDefinition definition = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, 41, 10, 6, ai, native);
+        BattleDefinition definition = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, 41, 10, 6, ai, native, out NativeBattleGraphicsDefinition graphicsResources);
         definition = definition with { Combatants = definition.Combatants.Select(actor => actor.Id == "monster" ? actor with { NativeAi = ai with { Scripts = [[0], [0], [0], [0], [0]] } } : actor).ToArray() };
-        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.Normal, graphicsResources);
         for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
         Assert.Null(battle.ActiveAction);
-        Assert.Equal(50, definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "monster").Resource.PoseSource!.BoneCount);
+        Assert.Equal(50, graphicsResources.Bindings.Single(binding => binding.ActorId == "monster").Resource.PoseSource!.BoneCount);
         return battle.Capture();
     }
 

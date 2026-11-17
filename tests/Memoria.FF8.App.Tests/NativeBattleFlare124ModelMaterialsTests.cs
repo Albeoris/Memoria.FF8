@@ -82,6 +82,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         ];
 
         BattleStage stage = assets.LoadStage(formation.StageId);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -101,7 +102,6 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -119,7 +119,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
             NativeStageCameraControl = stage.NativeCameraControl
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleSnapshot fresh = battle.CaptureForContinuation();
         battle = BattleSession.Restore(fresh.WithFixturePresentation(facts => facts with { NativeGraphics = fresh.ReadFixturePresentation().NativeGraphics! with { NativeOutcome = new NativeBattleOutcomeState() } }));
         for (int tick = 0; tick < 400 && !battle.NativeEntryReady; tick++)
@@ -133,7 +133,7 @@ public sealed class NativeBattleFlare124ModelMaterialsTests
         if (partyRecipient)
         {
             NativeBattleGraphicsModel model = battle.Presentation!.Graphics.ActorModels.Get(owner);
-            NativeBattleGraphicsResource resource = Assert.Single(definition.NativeGraphics!.Bindings, binding => binding.ActorId == target).Resource;
+            NativeBattleGraphicsResource resource = Assert.Single(graphicsResources.Bindings, binding => binding.ActorId == target).Resource;
             Assert.True(model.ModelId4 < 16);
             Assert.Null(model.ActiveStagedResourceRow100);
             Assert.Null(model.ResourceMagicId);

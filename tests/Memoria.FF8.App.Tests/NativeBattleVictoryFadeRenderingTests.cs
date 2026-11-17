@@ -91,7 +91,7 @@ public sealed class NativeBattleVictoryFadeRenderingTests
         using GpuTestDevice? device = hardware ? new() : null;
         using GpuTriangleRenderer? gpu = device is null ? null : new(device.Device);
         BattleRenderer renderer = new(width, height, ViewportLayout.Fit(320, 240, width, height)) { TriangleRenderer = gpu };
-        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: battle.Capture().Definition.NativeGraphics!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache);
+        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: battle.Capture().ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache);
         return gpu is null ? pixels : GpuTestDevice.Read(gpu.Target).SelectMany(color => new byte[] { color.R, color.G, color.B, color.A }).ToArray();
     }
 }

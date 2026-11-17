@@ -97,10 +97,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
             LinkedGeometry = [Mesh(0x81)],
             LinkedGeometryUsesBodySkeleton = shared
         };
-        typeof(BattleSession).GetField("definition", PrivateInstance)!.SetValue(session, definition with
-        {
-            NativeGraphics = new(rules, [new("selected", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = Tables }
-        });
+        NativeBattleGraphicsDefinition graphicsResources = new(rules, [new("selected", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = Tables };
 
         int row = ownership == "native" ? 0 : 7;
         BattleModelOwner selected = session.ReadPresentationModelOwner("selected");
@@ -112,7 +109,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
             graphics = graphics with { ActorModels = graphics.ActorModels.Add(selected, Model(row)) };
         }
         graphics = graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, graphicsResources);
         NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationSourceOwner", selected);
         NativeBattleHostedTestFixture.SetField(session.Presentation!, "presentationSourceResource", resource);
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();

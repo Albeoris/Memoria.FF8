@@ -277,7 +277,7 @@ public sealed class NativeBattleHostedCompletionTests
         packets = packets.AppendContacts([contact]).Publish(1).State.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1);
         NativeBattleActionGraphicsState context = NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(0));
         Assert.True(context.TargetActors.Resolve(packets.ModelAliases).IsSingle(Owner));
-        Assert.Equal(busy, typeof(BattleSession).GetMethod("NativeHeaderTargetsBusy", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, context]));
+        Assert.Equal(busy, typeof(BattlePresentationProcess).GetMethod("NativeHeaderTargetsBusy", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, context]));
     }
 
     private static NativeBattleActionPacketsState PopulatedPackets(NativeBattleActionPacketsState packets)
@@ -299,10 +299,7 @@ public sealed class NativeBattleHostedCompletionTests
         var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(0) { ModelId4 = owner == Owner ? (byte)1 : (byte)0 });
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true, EntryLifecycle = 4 }, definition with
-        {
-            NativeGraphics = new(rules, [new(ActorId, 1, new([0, 0]))], [])
-        });
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = true, EntryLifecycle = 4 }, new NativeBattleGraphicsDefinition(rules, [new(ActorId, 1, new([0, 0]))], []));
         return (logical, process);
     }
 

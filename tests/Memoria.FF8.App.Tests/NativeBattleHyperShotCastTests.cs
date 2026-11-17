@@ -13,7 +13,7 @@ public sealed class NativeBattleHyperShotCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 198) with { Items = [new(108, 2)], NativeShotAvailability = game.ReadNewGameShotAvailability() };
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, 198, out _) with { Items = [new(108, 2)], NativeShotAvailability = game.ReadNewGameShotAvailability() };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "hyper-shot-" + Guid.NewGuid().ToString("N"));

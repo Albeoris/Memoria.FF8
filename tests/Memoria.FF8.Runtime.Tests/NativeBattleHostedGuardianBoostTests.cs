@@ -109,13 +109,11 @@ public sealed class NativeBattleHostedGuardianBoostTests
         BattleModelRoster roster = child.ReadBattlePresentationRoster();
         NativeBattleModelAliases aliases = new(roster, []);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null) with { ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)16 });
-        SetGraphics(child, graphics with { EntryReady = true, UiServices = NativeBattleUiServices.Initialize() });
-        Field("nativeActionPackets").SetValue(child, NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.Fresh(), aliases));
-        Field("hostedBattlePresentation").SetValue(child, true);
-        NativeBattleHostedTestFixture.InstallModelBindings(child, new NativeBattleGraphicsBinding("fourth", 1, new([0, 0])));
+        var graphicsResources = NativeBattleHostedTestFixture.CreateGraphicsDefinition(new NativeBattleGraphicsBinding("fourth", 1, new([0, 0])));
+        NativeBattleHostedTestFixture.BindProcess(child, graphics with { EntryReady = true, UiServices = NativeBattleUiServices.Initialize() }, graphicsResources);
         long token = child.Presentation!.BeginHostedAction(new(Caster, 254, 1, -1, 64, 116, null), [Contact(0)]);
-        Field("nativeActionPackets").SetValue(child, child.Presentation!.NativeActionPackets.ActivateHeader(Header));
-        NativeBattleGraphicsState registered = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RegisterNativeGuardianBoost", PrivateInstance)!.Invoke(child, [child.Presentation!.Graphics, (ushort)64])!;
+        NativeBattleHostedTestFixture.SetField(child.Presentation!, "nativeActionPackets", child.Presentation!.NativeActionPackets.ActivateHeader(Header));
+        NativeBattleGraphicsState registered = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("RegisterNativeGuardianBoost", PrivateInstance)!.Invoke(child.Presentation!, [child.Presentation!.Graphics, (ushort)64])!;
         SetGraphics(child, registered);
         return (child, token);
     }
@@ -127,10 +125,9 @@ public sealed class NativeBattleHostedGuardianBoostTests
         NativeBattleGraphicsState graphics = child.Presentation!.Graphics;
         NativeBattleUiServices ui = graphics.UiServices! with { PauseDE9 = paused };
         SetGraphics(child, graphics with { UiServices = publish ? ui.QueuePublication(1) : ui });
-        typeof(BattleSession).GetMethod("AdvanceHostedUiPublication", PrivateInstance)!.Invoke(child, [null, postCore]);
+        typeof(BattlePresentationProcess).GetMethod("AdvanceHostedUiPublication", PrivateInstance)!.Invoke(child.Presentation!, [null, postCore]);
     }
 
-    private static FieldInfo Field(string name) => typeof(BattleSession).GetField(name, PrivateInstance)!;
-    private static void SetWidget(BattleSession child, NativeBattleGuardianBoost widget) => Field("nativeGuardianBoost").SetValue(child, widget);
+    private static void SetWidget(BattleSession child, NativeBattleGuardianBoost widget) => NativeBattleHostedTestFixture.SetField(child.Presentation!, "nativeGuardianBoost", widget);
     private static void SetGraphics(BattleSession child, NativeBattleGraphicsState graphics) => typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(child.Presentation!, graphics);
 }

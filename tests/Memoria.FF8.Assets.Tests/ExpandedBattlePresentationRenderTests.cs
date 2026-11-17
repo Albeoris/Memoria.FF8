@@ -48,7 +48,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory), "Set MEMORIA_FF8_HOSTED_NATIVE_RENDER_OUTPUT to opt in to the native frame render.");
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount: 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount: 4, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = ExpandedBattlePresentationProcessEntryTests.LogicalState(logical);
         BattleModelRoster roster = logical.ReadBattlePresentationRoster();
@@ -66,14 +66,14 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         }
         var partyPositions = logical.Combatants.Where(actor => actor.Slot is { Side: BattleSide.Allies }).ToDictionary(actor => actor.Id, actor => PartyPosition(actor.Slot!.Value.Position), StringComparer.Ordinal);
         var donorPositions = added.Keys.Select((slot, index) => (Slot: slot, Position: DonorPosition(slot, index))).ToDictionary(pair => pair.Slot, pair => pair.Position);
-        NativeBattleGraphicsDefinition graphics = selected.NativeGraphics!;
+        NativeBattleGraphicsDefinition graphics = graphicsResources;
         ImmutableArray<NativeBattleGraphicsBinding> bindings = graphics.Bindings.Select(binding => partyPositions.TryGetValue(binding.ActorId, out NativeBattleVector position)
             ? binding with { InitialPosition = position }
             : combatants[binding.ActorId].SceneSlot is int slot && donorPositions.TryGetValue(slot, out position)
                 ? binding with { InitialPosition = position }
                 : binding).ToImmutableArray();
-        selected = selected with { NativeGraphics = graphics with { Bindings = bindings } };
-        logical.AttachPresentation(new(selected));
+        graphicsResources = graphics with { Bindings = bindings };
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         for (int callback = 0; callback < 1200 && !process.EntryReady; callback++)
         {
@@ -118,7 +118,7 @@ public sealed class ExpandedBattlePresentationRenderTests(ITestOutputHelper outp
         const int height = 720;
         PixelBounds viewport = ViewportLayout.Fit(320, 240, width, height);
         BattleRenderer renderer = new(width, height, viewport);
-        byte[] Draw(NativeBattlePreparedPresentation frame) => renderer.RenderNativePrimitiveFrame(frame.Primitives, Assert.IsType<NativeBattleEffectTextureState>(frame.Textures), camera, selected.NativeGraphics!.PrimitiveCapabilities, frame.TextureWindows, uiFrame: frame.UiFrame, uiTexture: assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource);
+        byte[] Draw(NativeBattlePreparedPresentation frame) => renderer.RenderNativePrimitiveFrame(frame.Primitives, Assert.IsType<NativeBattleEffectTextureState>(frame.Textures), camera, graphicsResources.PrimitiveCapabilities, frame.TextureWindows, uiFrame: frame.UiFrame, uiTexture: assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource);
         byte[] pixels = Draw(prepared);
         Vector4 safe = new(viewport.X + 8f / 320 * viewport.Width, 8f / 240 * height, viewport.X + 312f / 320 * viewport.Width, (allyCount == 4 ? 516f : 408f) / 672 * height);
         if (fit)

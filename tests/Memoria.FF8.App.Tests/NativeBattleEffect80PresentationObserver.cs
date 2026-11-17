@@ -185,12 +185,12 @@ internal sealed class NativeBattleEffect80PresentationObserver
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
         string actorId = ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, actorSlot) ?? throw new InvalidDataException("The deformed body proof requires its actual allocated actor.");
-        NativeBattleGraphicsBinding? binding = current.Definition.NativeGraphics!.Bindings.SingleOrDefault(item => item.ActorId == actorId);
+        NativeBattleGraphicsBinding? binding = current.ReadFixtureGraphicsDefinition()!.Bindings.SingleOrDefault(item => item.ActorId == actorId);
         if (binding is null)
         {
             NativeBattleEnemyAllocation allocation = Assert.Single(current.NativeAllocations, item => item.Id == actorId);
             BattleCombatantDefinition prototype = Assert.Single(current.Definition.Combatants, item => !item.IsPlayer && item.SceneSlot == allocation.SceneSlot);
-            binding = Assert.Single(current.Definition.NativeGraphics.Bindings, item => item.ActorId == prototype.Id);
+            binding = Assert.Single(current.ReadFixtureGraphicsDefinition()!.Bindings, item => item.ActorId == prototype.Id);
         }
         NativeBattlePoseSource pose = binding.Resource.PoseSource ?? throw new InvalidDataException("The deformed body proof requires its selected skeleton.");
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState?.MeshMask124 ?? throw new InvalidDataException("The deformed body proof requires its actual object mask."));

@@ -65,7 +65,7 @@ public sealed class NativeBattleRapture288PresentationTests
         int producedHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
         Assert.True(beforeInput.Combatants.Single(actor => actor.Id == target).CurrentHp > 0);
         Assert.Equal(0, producedHp);
-        uint projectedContact = source.Definition.NativeGraphics!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
+        uint projectedContact = source.ReadFixtureGraphicsDefinition()!.Rules.Project(contact.Primary.SavedStatuses4, contact.Primary.BattleStatuses8);
         Assert.NotEqual(0u, projectedContact);
         Assert.Equal(0u, ReadOriginalModelCell(sourceGraphics, 3).Flags8!.Value & projectedContact);
         BattleSession battle = BattleSession.Restore(source);

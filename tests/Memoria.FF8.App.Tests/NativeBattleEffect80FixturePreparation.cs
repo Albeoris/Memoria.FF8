@@ -58,24 +58,24 @@ internal static class NativeBattleEffect80FixturePreparation
             NativeTemplate = assets.ReadEnemyTemplate(124, checked((byte)placement.Level))
         };
         BattleCombatantDefinition[] actors = [.. baseline.Definition.Combatants, prototype];
-        NativeBattleGraphicsDefinition originalGraphics = baseline.Definition.NativeGraphics!;
+        NativeBattleGraphicsDefinition originalGraphics = baseline.ReadFixtureGraphicsDefinition()!;
         NativeBattleGraphicsDefinition expandedGraphics = assets.ReadNativeGraphicsDefinition(actors, originalGraphics.Rules, formation);
         NativeBattleGraphicsBinding prototypeBinding = Assert.Single(expandedGraphics.Bindings, binding => binding.ActorId == prototype.Id);
         foreach (NativeBattleGraphicsBinding binding in originalGraphics.Bindings)
         {
             Assert.Equal(JsonSerializer.Serialize(binding), JsonSerializer.Serialize(Assert.Single(expandedGraphics.Bindings, candidate => candidate.ActorId == binding.ActorId)));
         }
+        NativeBattleGraphicsDefinition graphicsResources = originalGraphics with { Bindings = originalGraphics.Bindings.Add(prototypeBinding) };
         BattleDefinition definition = baseline.Definition with
         {
             Combatants = actors,
-            NativeGraphics = originalGraphics with { Bindings = originalGraphics.Bindings.Add(prototypeBinding) },
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
             NativeClockRules = assets.ReadNativeClockRules(),
             NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte
         };
         Directory.CreateDirectory(output);
         Save("source-reference-input", baseline);
-        BattleSession session = new(definition, baseline.Mode);
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition, baseline.Mode, graphicsResources);
         BattleSnapshot cold = session.CaptureForContinuation();
         Assert.Equal(0, cold.Frame);
         Assert.NotNull(cold.NativeClock);

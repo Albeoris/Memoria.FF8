@@ -65,7 +65,7 @@ public sealed class NativeBattleDiablos325CameraResetContinuationTests
                 uint privateStart = Root(current).ReadByte(0xE) != 0 ? 0xF85Cu : 0x885Cu;
                 Assert.Equal(current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.ModelBuffer5208 + privateStart + (uint)wing.Packets.AllocationBytes, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.PacketCursor51D0);
                 NativeBattleDiablos325Frame programmeFrame = new(before.ReadFixturePresentation().NativeEffectMemory!, before.ReadFixturePresentation().NativeGraphics!.OriginalEffect!);
-                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.ReadFixturePresentation().NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!);
+                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.ReadFixturePresentation().NativeCamera!.Projection!, source.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!);
                 NativeBattleModulePoolTask drawnTask = task.WriteDword(0x164, unchecked(task.ReadDword(0x164) - 32));
                 NativeBattleDiablos325BodyDraw body = NativeBattleDiablos325BodyDrawing.Draw6574F0(current.ReadFixturePresentation().NativeEffectMemory!, drawnTask, before.ReadFixturePresentation().NativeCamera!.Projection!);
                 foreach (NativeBattleGfGeometryAttempt attempt in body.Packets.Attempts.Where(item => item.Primitive is not null))
@@ -89,7 +89,7 @@ public sealed class NativeBattleDiablos325CameraResetContinuationTests
                     Assert.Equal(current.NativeCrtRandom, chosen.Random);
                 }
                 int childBytes = 0;
-                reference = NativeBattleDiablos325Particles.Advance659960(reference, before.ReadFixturePresentation().NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!, (frame, batch) =>
+                reference = NativeBattleDiablos325Particles.Advance659960(reference, before.ReadFixturePresentation().NativeCamera!.Projection!, source.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!, (frame, batch) =>
                 {
                     foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts.Where(item => item.Primitive is not null))
                     {

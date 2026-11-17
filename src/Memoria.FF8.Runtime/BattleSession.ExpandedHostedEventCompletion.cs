@@ -127,29 +127,18 @@ public sealed partial class BattleSession
 
     private void PrepareExpandedHostedAftercare(BattleCombatant actor, BattleActionPresentation original)
     {
-        nativeActionCommitDepth++;
-        deferringExpandedImpacts = true;
-        try
+        byte? actionCommand = original.ExpandedAiCallback is not null ? nativeActionScratch.Command : original.NativeQueuedCommand ?? original.NativeAction?.Command;
+        if ((NativeSavedStatusBits(actor) & 1) == 0 && actionCommand is 28 or 243)
         {
-            byte? actionCommand = original.ExpandedAiCallback is not null ? nativeActionScratch.Command : original.NativeQueuedCommand ?? original.NativeAction?.Command;
-            if ((NativeSavedStatusBits(actor) & 1) == 0 && actionCommand is 28 or 243)
-            {
-                StageExpandedHostedAftercare(actor, 6);
-            }
-            if ((NativeSavedStatusBits(actor) & 3) == 2)
-            {
-                StageExpandedHostedAftercare(actor, 2);
-            }
+            StageExpandedHostedInternalContact(actor, 6);
         }
-        finally
+        if ((NativeSavedStatusBits(actor) & 3) == 2)
         {
-            resolvingNativeAction = null;
-            deferringExpandedImpacts = false;
-            nativeActionCommitDepth--;
+            StageExpandedHostedInternalContact(actor, 2);
         }
     }
 
-    private void StageExpandedHostedAftercare(BattleCombatant actor, ushort id)
+    private void StageExpandedHostedInternalContact(BattleCombatant actor, ushort id)
     {
         BattleNativeAction native = NativePostActionEffect(id);
         BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, SelectBattleTarget(actor), BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
@@ -157,10 +146,21 @@ public sealed partial class BattleSession
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
         _ = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = id, DeferredEffectsE00 = false };
+        nativeActionCommitDepth++;
+        deferringExpandedImpacts = true;
         resolvingNativeAction = command;
-        actor.NativeRemainingHits = 1;
-        NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, native);
-        ImmutableArray<ExpandedBattleContact> contacts = [new(actor.Id, contact)];
-        StageExpandedHostedInvocation(command, header, contacts, TakePendingHostedEnemyDraw());
+        try
+        {
+            actor.NativeRemainingHits = 1;
+            NativeBattleContactPacket contact = ResolveInstalledNativeHitWithContact(actor, actor, command, definition, native);
+            ImmutableArray<ExpandedBattleContact> contacts = [new(actor.Id, contact)];
+            StageExpandedHostedInvocation(command, header, contacts, TakePendingHostedEnemyDraw());
+        }
+        finally
+        {
+            resolvingNativeAction = null;
+            deferringExpandedImpacts = false;
+            nativeActionCommitDepth--;
+        }
     }
 }

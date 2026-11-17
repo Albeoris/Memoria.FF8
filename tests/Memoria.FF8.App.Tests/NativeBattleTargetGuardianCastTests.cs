@@ -136,7 +136,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, guardian, effectId);
+        BattleDefinition definition = CreateDefinition(game, assets, guardian, effectId, out NativeBattleGraphicsDefinition graphicsResources);
         if (retainedMemory is not null)
         {
             definition = definition with { NativeRetainedMemory = retainedMemory };
@@ -144,7 +144,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_TARGET_GUARDIAN_EVIDENCE") ?? Path.GetTempPath(), "guardian-" + guardian + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine($"Ordinary guardian-cast evidence: {output}");
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> sounds = [];
         int stopSoundCalls = 0;
@@ -405,7 +405,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         return changes;
     }
 
-    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int guardian, ushort effectId)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, int guardian, ushort effectId, out NativeBattleGraphicsDefinition graphicsResources)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -421,6 +421,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1, MaximumHp = 9999, CurrentHp = 9999, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(61), NativeStatusResistances = assets.ReadEnemyNativeStatusData(61).Resistances.ToArray() }
         ];
         // Explicit independent installed-resource component: the ordinary command owns charge, headers, formula and contact production.
+        graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -447,7 +448,6 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),

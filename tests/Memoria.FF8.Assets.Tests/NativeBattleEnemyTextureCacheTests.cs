@@ -136,6 +136,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new()
         {
             EncounterId = 94,
@@ -149,14 +150,13 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         NativeBattleModelTextureCache initial = Assert.IsType<NativeBattleModelTextureCache>(battle.Presentation?.ModelTextureCache);
         Assert.Equal((ushort)63, initial.BlockedSlots);
         Assert.All(initial.Rows, row => Assert.Equal((byte)0, row.Kind));

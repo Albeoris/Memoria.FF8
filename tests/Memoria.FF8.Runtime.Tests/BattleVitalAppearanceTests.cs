@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class BattleVitalAppearanceTests
@@ -75,9 +77,7 @@ public sealed class BattleVitalAppearanceTests
                 new() { Id = "enemy", Name = "Enemy" }
             ]
         }, BattleAtbMode.TurnBased);
-        NativeBattlePartyPresentation presentation = new([row, null, null]);
-        presentation.Validate();
-        typeof(BattleSession).GetField("nativePartyPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, presentation);
+        typeof(BattleSession).GetField("expandedPartyPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, ImmutableDictionary<string, NativeBattlePartyPresentedVital>.Empty.Add("party", row));
         return session;
     }
 }

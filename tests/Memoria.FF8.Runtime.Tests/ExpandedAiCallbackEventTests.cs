@@ -374,7 +374,7 @@ public sealed class ExpandedAiCallbackEventTests
         var bindings = logical.Combatants.ToImmutableDictionary(actor => logical.ReadPresentationModelOwner(actor.Id), actor =>
             new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.ModelId + (actor.IsPlayer ? 0 : 16))), new([0, 0])));
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        BattleDefinition resources = definition with { NativeGraphics = new(rules, roster.Owners.Select(owner => bindings[owner]).ToImmutableArray(), []) };
+        NativeBattleGraphicsDefinition resources = new(rules, roster.Owners.Select(owner => bindings[owner]).ToImmutableArray(), []);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(0) { ModelId4 = bindings[owner].ModelId });
         NativeBattleModelCpuResources cpu = (NativeBattleModelCpuResources.FromColdProcess() with { EnemyCursor = 0, EnemyLinkedSlots = 0, ScratchMaximum = 0 }).WithPresentationRoster(roster, aliases);
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(roster);

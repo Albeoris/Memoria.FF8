@@ -98,6 +98,7 @@ public sealed class NativeBattleRestorationPresentationTests
         NativeBattleMusicEntryResources musicResources = new NativeMusicCatalog(game.GameDirectory).ReadBattleEntryResources();
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicEntry.Prepare52CE30(94, 0x80, sourceBuffers, 5, -1, NativeGlobalSoundProcess.FromBufferlessColdProcess(), musicResources);
         NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -110,7 +111,6 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -126,7 +126,7 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_EVIDENCE") ?? (effect is 5 or 35 ? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_EVIDENCE") : null);
         string entryId = $"restoration{effect}-native-entry-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         BattleSnapshot entrySource = battle.Capture();
@@ -170,7 +170,7 @@ public sealed class NativeBattleRestorationPresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(graphics, 1);
-        uint priorFlags = definition.NativeGraphics!.Rules.Project(priorSaved, priorBattle);
+        uint priorFlags = graphicsResources.Rules.Project(priorSaved, priorBattle);
         //Controlled prior display status is newly added to this healthy-entry model:509D30..47 resets exactly its added timer bytes.
         uint addedPriorFlags = priorFlags & ~(targetModel.Flags8 ?? throw new InvalidDataException("Controlled prior status requires its existing graphics status."));
         ImmutableArray<byte?> priorTimers = targetModel.StatusTimers;
@@ -236,7 +236,7 @@ public sealed class NativeBattleRestorationPresentationTests
         if (effect == 27 && expectedStatusTransitions != 0)
         {
             NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics!, 1);
-            NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
+            NativeBattleGraphicsResource resource = initial.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             Assert.Equal(2u, targetModel.Flags8!.Value & 2);
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, targetModel.TextureAllocationMask, 0, 0);
             Assert.NotNull(expectedContactCopy);
@@ -276,7 +276,7 @@ public sealed class NativeBattleRestorationPresentationTests
                 {
                     Assert.Equal(initial.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved, priorStatus);
                     Assert.Equal((ushort)0, currentStatus);
-                    Assert.Equal(0u, ReadOriginalModelCell(graphics, 1).Flags8!.Value & initial.Definition.NativeGraphics!.Rules.Project(priorStatus!.Value, 0));
+                    Assert.Equal(0u, ReadOriginalModelCell(graphics, 1).Flags8!.Value & initial.ReadFixtureGraphicsDefinition()!.Rules.Project(priorStatus!.Value, 0));
                     if (expectedContactCopy is { } copy)
                     {
                         NativeBattleEffectVramCopy expected = new(copy.SourceX, copy.SourceY, copy.Width, copy.Height, copy.DestinationX, copy.DestinationY);

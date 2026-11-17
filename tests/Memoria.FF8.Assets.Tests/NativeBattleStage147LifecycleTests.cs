@@ -27,6 +27,7 @@ public sealed class NativeBattleStage147LifecycleTests
         ];
         NativeBattleGraphicsResource enemyResource = assets.ReadNativeGraphicsResource(actors[3]);
         NativeBattleMusicEntryPreparation music = NativeBattleMusicFixture.Prepare(game, encounterId);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new()
         {
             EncounterId = encounterId,
@@ -40,7 +41,6 @@ public sealed class NativeBattleStage147LifecycleTests
             NativeGlobalRandom = new(0),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -48,7 +48,7 @@ public sealed class NativeBattleStage147LifecycleTests
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             Combatants = actors
         };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         bool[] visited = new bool[7];
         bool restoredDescent = false;
         bool sawPartySequence = false;

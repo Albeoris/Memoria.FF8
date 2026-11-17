@@ -191,10 +191,8 @@ public sealed class BattleResultFactTests
         (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
         byte row = fact.Party[0].Row;
         NativeCharacterVital character = vitals.Records[row];
-        BattleNativeCharacterGrowth beforeGrowth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
-        byte[] bonuses = character.StatBonuses.ToArray();
-        bonuses[0] = (byte)Math.Min(255, bonuses[0] + 1);
-        BattleNativeCharacterGrowth afterGrowth = new((ushort)Math.Min(9999, character.HitPointBonus + 10), bonuses.ToImmutableArray());
+        BattleNativeCharacterGrowth beforeGrowth = character.Growth;
+        BattleNativeCharacterGrowth afterGrowth = beforeGrowth.Add(NativeStatBonusSources.Devour, 10, [1, 0, 0, 0, 0, 0], vitals.LevelBasedStatBonuses);
         NativeCardInventory cards = NativeCardInventory.CreateNewGame();
         NativeCardInventory afterCards = cards.Acquire(4, out _);
         NativeCrtRandomState crt = NativeCrtRandomState.FromColdProcess();
@@ -205,7 +203,8 @@ public sealed class BattleResultFactTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(afterGrowth.HitPointBonus, session.State.CharacterVitals!.Records[row].HitPointBonus);
-        Assert.Equal(bonuses, session.State.CharacterVitals.Records[row].StatBonuses);
+        Assert.Equal(afterGrowth.StatBonuses.ToArray(), session.State.CharacterVitals.Records[row].StatBonuses);
+        Assert.True(session.State.CharacterVitals.Records[row].Growth.SameSources(afterGrowth));
         Assert.Equal(1, session.State.CardInventory!.AvailableCount(4));
         Assert.Equal(afterCrt, session.State.CrtRandom);
         Assert.Equal(character.Experience, session.State.CharacterVitals.Records[row].Experience);

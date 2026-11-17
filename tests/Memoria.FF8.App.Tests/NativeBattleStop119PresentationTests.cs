@@ -100,7 +100,7 @@ public sealed class NativeBattleStop119PresentationTests
             NativeBattleStatusSnapshot producedStatus = source.Combatants.Single(actor => actor.Id == target).NativeStatus!;
             Assert.Equal(statusMask, producedStatus.Battle & statusMask);
             Assert.Equal(statusMask, producedStatus.Presentation.Battle!.Value & statusMask);
-            uint graphicsStatusMask = source.Definition.NativeGraphics!.Rules.Project(action.Statuses0, action.Statuses1);
+            uint graphicsStatusMask = source.ReadFixtureGraphicsDefinition()!.Rules.Project(action.Statuses0, action.Statuses1);
             Assert.NotEqual(0u, graphicsStatusMask);
             Assert.Equal(0u, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags8!.Value & graphicsStatusMask);
             Assert.Equal(statusMask, contact.Primary.BattleStatuses8 & statusMask);

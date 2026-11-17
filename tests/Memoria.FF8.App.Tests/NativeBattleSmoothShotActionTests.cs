@@ -84,7 +84,7 @@ public sealed class NativeBattleSmoothShotActionTests
         bool previousActive = false;
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };
-        NativeBattlePrimitiveCapabilities capabilities = initial.Definition.NativeGraphics!.PrimitiveCapabilities ?? throw new InvalidOperationException("The installed Shot fixture requires its native renderer capabilities.");
+        NativeBattlePrimitiveCapabilities capabilities = initial.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities ?? throw new InvalidOperationException("The installed Shot fixture requires its native renderer capabilities.");
         Func<int, int, bool, Albeoris.Games.FF8.Imaging.PixelImage> icons = assets.ReadNativePcUiIcons().Resolve;
         try
         {

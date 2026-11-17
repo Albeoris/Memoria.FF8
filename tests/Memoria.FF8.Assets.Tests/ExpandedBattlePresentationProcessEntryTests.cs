@@ -14,7 +14,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeBattleRetainedMemory retained = selected.NativeRetainedMemory!;
         ImmutableArray<ImmutableArray<byte?>> originalTimers = retained.ModelStatusTimers!.Value;
         selected = selected with { NativeRetainedMemory = retained with { ModelStatusTimers = originalTimers.SetItem(3, originalTimers[3].SetItem(18, 37)) } };
@@ -23,7 +23,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         BattleModelOwner original = aliases.DecodeLiteral(3);
         BattleModelOwner existing = Assert.Single(roster.Party, owner => !aliases.TryEncodeExact(owner, out _));
         BattleModelOwner fresh = Assert.Single(roster.Enemies, owner => !aliases.TryEncodeExact(owner, out _));
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         NativeBattleGraphicsState before = process.Graphics;
         NativeBattleGraphicsModel unloaded = new(0) { StatusTimers = ImmutableArray.CreateRange(new byte?[32]).SetItem(18, 42) };
@@ -40,7 +40,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(32, loaded.StatusTimers.Length);
         Assert.All(loaded.StatusTimers, value => Assert.Equal((byte)0, value));
 
-        NativeBattleSummonColors colors = selected.NativeGraphics!.Rules.SummonColors!;
+        NativeBattleSummonColors colors = graphicsResources.Rules.SummonColors!;
         NativeBattleStageColors stage = process.Stage.ModelColors!;
         NativeBattleGraphicsModel pulse = NativeBattleModelStatusColors.Advance50A1C0(loaded with { Flags8 = 0x100 }, colors with { Transition = stage.Color40, Normal = stage.Color44 });
         Assert.Equal((byte)1, pulse.StatusTimers[18]);
@@ -54,13 +54,13 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, allyCount, enemyCount, 4, expanded: true);
         NativeExamTimerState initialTimer = NativeExamTimerState.FromColdProcess().SetRemaining(300).Display(4, 5);
         logicalDefinition = logicalDefinition with { NativeExamTimerAtEntry = initialTimer };
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = LogicalState(logical, excludeCommittedAudio: true);
         Assert.Null(logical.NativeExamTimer);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         Assert.True(initialTimer.HasSameClock(logical.NativeExamTimer!));
         Assert.True(logical.NativeExamTimer!.DisplayEnabled);
@@ -141,9 +141,9 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (definition, selected, graphicsResources) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        battle.AttachPresentation(new(selected));
+        battle.AttachPresentation(new(selected, graphicsResources));
         for (int callback = 0; callback < EntryBudget && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
@@ -173,13 +173,13 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         logicalDefinition = logicalDefinition with { NativeExamTimerAtEntry = NativeExamTimerState.FromColdProcess().SetRemaining(300) };
         BattleSession owner = new(logicalDefinition, BattleAtbMode.TurnBased);
-        owner.AttachPresentation(new(selected));
+        owner.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(owner.Presentation);
         NativeExamTimerState? timer = owner.NativeExamTimer;
-        Assert.Throws<InvalidOperationException>(() => owner.AttachPresentation(new(selected)));
+        Assert.Throws<InvalidOperationException>(() => owner.AttachPresentation(new(selected, graphicsResources)));
         Assert.Same(timer, owner.NativeExamTimer);
         Assert.Same(process, owner.Presentation);
 
@@ -200,20 +200,20 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         NativeBattleMusicProcessState entry = Assert.IsType<NativeBattleMusicProcessState>(logical.NativeMusicProcess);
 
         PropertyInfo music = typeof(BattleSession).GetProperty(nameof(BattleSession.NativeMusicProcess))!;
         NativeBattleMusicProcessState stale = entry.QueueStop501A70();
         music.SetValue(logical, stale);
-        Assert.Throws<InvalidOperationException>(() => logical.AttachPresentation(new(selected)));
+        Assert.Throws<InvalidOperationException>(() => logical.AttachPresentation(new(selected, graphicsResources)));
         Assert.Same(stale, logical.NativeMusicProcess);
         Assert.Null(logical.Presentation);
         Assert.Equal(0L, logical.NativeHostCallbacks);
 
         music.SetValue(logical, entry);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         NativeBattleMusicProcessState initialized = Assert.IsType<NativeBattleMusicProcessState>(logical.NativeMusicProcess);
         Assert.Equal(entry.InitializeCommands501C60(), initialized);
 
@@ -233,11 +233,11 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount, expanded: true);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, allyCount, enemyCount, authoredCount, expanded: true);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
         string before = LogicalState(logical);
         AssertUnselectedStageCamera(logical);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         (BattleModelRoster roster, NativeBattleModelAliases aliases) = logical.ReadBattlePresentationPacketBindings();
 
@@ -275,7 +275,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         {
             Assert.True(observed.AppearanceDeferredWhileLoadsWereQueued);
         }
-        AssertCompletedModelOwners(process, roster, aliases, selected.NativeGraphics!);
+        AssertCompletedModelOwners(process, roster, aliases, graphicsResources);
 
         long beforeReady = process.Graphics.Callback;
         process.Advance(static () => { }, static (_, _) => { });
@@ -295,7 +295,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
             Assert.Same(model.BodyTextureSlots, actor.BodyTextures);
             Assert.Same(model.LinkedTextureSlots, actor.LinkedTextures);
-            Assert.Equal(selected.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actor.Id).InitialPosition, model.Transform?.Initial20);
+            Assert.Equal(graphicsResources.Bindings.Single(binding => binding.ActorId == actor.Id).InitialPosition, model.Transform?.Initial20);
         }
 
         var states = roster.Owners.ToDictionary(owner => owner, owner => IdleState(process.Graphics.ActorModels.Get(owner)));
@@ -314,7 +314,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.True(advanced.SetEquals(states.Keys));
         Assert.True(process.PreparedPresentation!.Version > prepared.Version);
         Assert.Equal(prepared.Frame, process.PreparedPresentation.Frame);
-        AssertCompletedModelOwners(process, roster, aliases, selected.NativeGraphics!);
+        AssertCompletedModelOwners(process, roster, aliases, graphicsResources);
         AssertRandomExchange(logical, process);
         Assert.True(process.GlobalRandomCalls > 0);
         Assert.True(string.Equals(before, LogicalState(logical), StringComparison.Ordinal), "Presentation entry or idle changed the logical battle.");
@@ -325,9 +325,9 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (logicalDefinition, selected) = CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
+        var (logicalDefinition, selected, graphicsResources) = CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
         BattleSession logical = new(logicalDefinition, BattleAtbMode.TurnBased);
-        logical.AttachPresentation(new(selected));
+        logical.AttachPresentation(new(selected, graphicsResources));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(logical.Presentation);
         EntryObservations entry = AdvanceToCase3(process);
 
@@ -337,7 +337,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(new byte[] { 3, 4, 5, 6, 0, 1, 2 }.Select(aliases.DecodeLiteral), entry.CompletedOwners);
         Assert.Equal((byte)255, process.Graphics.EntryBarrierCompletion);
         Assert.Equal(selected.StageId, process.Stage.ResourceStageId);
-        AssertCompletedModelOwners(process, logical.ReadBattlePresentationRoster(), aliases, selected.NativeGraphics!);
+        AssertCompletedModelOwners(process, logical.ReadBattlePresentationRoster(), aliases, graphicsResources);
         AssertRandomExchange(logical, process);
 
         process.Advance(static () => { }, static (_, _) => { });
@@ -466,7 +466,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Null(logical.Presentation);
     }
 
-    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7)
+    internal static (BattleDefinition Logical, BattleDefinition Selected, NativeBattleGraphicsDefinition Graphics) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7)
     {
         BattleEncounter encounter = assets.LoadEncounter(encounterId);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -546,7 +546,6 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         };
         BattleDefinition selected = logical with
         {
-            NativeGraphics = graphics,
             NativeRetainedMemory = retained,
             NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeStageSource = stage.NativeSource,
@@ -556,7 +555,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources()
         };
-        return (logical, selected);
+        return (logical, selected, graphics);
 
         BattleCombatantDefinition Enemy(BattleEnemyPlacement placement, int slot, bool original)
         {

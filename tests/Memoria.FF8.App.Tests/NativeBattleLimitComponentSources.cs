@@ -41,7 +41,7 @@ internal static class NativeBattleLimitComponentSources
             263 => 10,
             _ => throw new NotSupportedException($"No installed limit component producer is selected for effect {effect}.")
         };
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, character, effect);
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, character, effect, out NativeBattleGraphicsDefinition graphicsResources);
         byte command = definition.Combatants[0].NativeLimit!.Command;
         BattleNativeAction action = definition.NativeActions.Single(row => row.Command == command && (row.MagicId & 0x1FF) == effect);
         if (character == 4)
@@ -53,7 +53,7 @@ internal static class NativeBattleLimitComponentSources
                 NativeSavedBattleFlagsKnownMask = (byte)(definition.NativeSavedBattleFlagsKnownMask | 0x30)
             };
         }
-        BattleSession battle = Ready(game, definition);
+        BattleSession battle = Ready(game, definition, graphicsResources);
         battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [new("party", 4)] });
         Attach(game, battle);
         battle.QueueNativePlayerCommand("party", "enemy", command, action.ActionId);
@@ -63,10 +63,10 @@ internal static class NativeBattleLimitComponentSources
     private static BattleSnapshot PrepareDuel(GameAssets game, BattleAssets assets, ushort effect)
     {
         BattleNativeAction action = assets.NativeActions.First(row => row.Command == 239 && row.MagicId == effect);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effect);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effect, out NativeBattleGraphicsDefinition graphicsResources);
         BattleCombatantDefinition actor = source.Combatants[0];
         actor = actor with { NativeCommands = actor.NativeCommands.Add(new(239, action.Name ?? "Duel", action.TargetFlags!.Value, checked((byte)action.ActionId))) };
-        BattleSession battle = Ready(game, source with { NativeVictoryFile = assets.ReadNativeBattleFile(766), Combatants = [actor, source.Combatants[1]] });
+        BattleSession battle = Ready(game, source with { NativeVictoryFile = assets.ReadNativeBattleFile(766), Combatants = [actor, source.Combatants[1]] }, graphicsResources);
         battle.QueueNativePlayerCommand("party", "enemy", 239, action.ActionId);
         return AwaitQueued(battle, effect);
     }
@@ -86,11 +86,12 @@ internal static class NativeBattleLimitComponentSources
         NativeCharacterVital character = vitals.Records[0];
         BattleNativeCharacterGrowth growth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
         BattleNativePlayerStatistics statistics = rules.Project(character.MagicInventory, growth);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effect);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effect, out _);
         BattleCombatantDefinition actor = source.Combatants[0] with { WeaponId = weapon, NativePlayerStatRules = rules, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeGrowth = growth, Attack = statistics.Strength, Defense = statistics.Vitality, Magic = statistics.Magic, Spirit = statistics.Spirit, Speed = statistics.Speed, Luck = statistics.Luck, Hit = statistics.Hit, Evasion = statistics.Evasion };
         BattleCombatantDefinition target = source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) };
-        BattleDefinition definition = source with { Combatants = [actor, target], NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition([actor, target], game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, effect]) };
-        BattleSession battle = Ready(game, definition);
+        BattleDefinition definition = source with { Combatants = [actor, target], NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([160, effect]) };
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition([actor, target], game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = Ready(game, definition, graphicsResources);
         const byte crisis = 1;
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
         {
@@ -133,9 +134,9 @@ internal static class NativeBattleLimitComponentSources
         return AwaitQueued(BattleSession.Restore(snapshot), effect);
     }
 
-    private static BattleSession Ready(GameAssets game, BattleDefinition definition)
+    private static BattleSession Ready(GameAssets game, BattleDefinition definition, NativeBattleGraphicsDefinition graphicsResources)
     {
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         Attach(game, battle);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {

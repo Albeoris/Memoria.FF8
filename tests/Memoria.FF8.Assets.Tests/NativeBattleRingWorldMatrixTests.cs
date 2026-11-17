@@ -44,17 +44,18 @@ public sealed class NativeBattleRingWorldMatrixTests
                 ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray()
             });
         }
-        BattleSession battle = new(seed with
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(seed with
         {
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             Combatants = actors.ToArray(),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeActions = assets.NativeActions.ToArray(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed,
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
-        }, BattleAtbMode.TurnBased);
+        }, BattleAtbMode.TurnBased, assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter));
         for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();

@@ -34,7 +34,7 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         Assert.True(model.ModelId4 < 16);
         Assert.Null(model.ActiveStagedResourceRow100);
         Assert.Null(model.ResourceMagicId);
-        NativeBattlePoseSource actorPose = snapshot.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics!, actor)).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
+        NativeBattlePoseSource actorPose = snapshot.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics!, actor)).Resource.PoseSource ?? throw new InvalidDataException("The diagnostic requires the retained party pose source.");
         NativeBattleVector xyz = NativeBattlePoseMatrices.ReadBone(model, actorPose, 241, 0);
         short angle = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, actor).Transform!.Angle36;
         byte[] anchor = new byte[8];
@@ -67,7 +67,7 @@ public sealed class NativeBattleThundaga105CaptureDiagnosticsTests
         NativeBattleStageState stage = snapshot.ReadFixturePresentation().NativeStage!;
         stage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = 0, ColorFlags = 0 }).ToImmutableArray() };
         ImmutableArray<NativeBattleRawMesh> geometry = snapshot.Definition.NativeStageSource!.Geometry ?? throw new InvalidDataException("The diagnostic requires original stage geometry.");
-        NativeBattleSummonColors colors = snapshot.Definition.NativeGraphics!.Rules.SummonColors!;
+        NativeBattleSummonColors colors = snapshot.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!;
         NativeBattleThundaga105CaptureStage drawn = NativeBattleThundaga105CaptureGeometry.DrawGroup6D5620(stage, geometry, capture, colors);
         NativeBattleStageGroup group0 = stage.Groups[0];
         NativeBattlePoseSource poseSource = group0.Source!;

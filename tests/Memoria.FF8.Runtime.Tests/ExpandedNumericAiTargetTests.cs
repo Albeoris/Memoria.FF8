@@ -96,7 +96,7 @@ public sealed class ExpandedNumericAiTargetTests
         BattleCombatantSnapshot enemy = Enemy(snapshot);
         snapshot = snapshot with
         {
-            Combatants = snapshot.Combatants.Select(actor => actor.Id == enemy.Id ? actor with { NativeParticipant = actor.NativeParticipant! with { ActorReferences = new() { [0] = "party-3" } } } : actor).ToArray()
+            Combatants = snapshot.Combatants.Select(actor => actor.Id == enemy.Id ? actor with { NativeParticipant = actor.NativeParticipant! with { ActorReferences = new() { [0] = new("party-3", null) } } } : actor).ToArray()
         };
         BattleSession restored = Restore(snapshot);
         DetachedExpandedAiFixture.AdvanceTo(restored, () => restored.ActiveAction is { ActorId: "enemy-0", NativeAiCallbackStage: 1 }, "The restored target reference must reach its turn command.");

@@ -17,8 +17,8 @@ public sealed class NativeBattleRinoaProjectileResourceTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(directory!);
-        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 4, 86);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 4, 86, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         bool checkedProjectile = false;
         for (int attack = 0; attack < 2; attack++)
         {

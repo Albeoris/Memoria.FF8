@@ -108,10 +108,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         NativeBattleShadowSource shadow = new(Identity, new(4096, 4096, 4096), Enumerable.Repeat(default(NativeBattleVector), 10).ToImmutableArray());
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, [], []) { ShadowSource = shadow };
-        typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition with
-        {
-            NativeGraphics = new(rules, [], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = Tables() }
-        });
+        NativeBattleGraphicsDefinition graphicsResources = new(rules, [], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = Tables() };
         NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
         if (declareMap)
         {
@@ -129,7 +126,7 @@ public sealed class NativeBattleActorMaterialBindingTests
         {
             graphics = graphics with { ActorModels = graphics.ActorModels.Add(Second, Model()) };
         }
-        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, graphicsResources);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
         Set(session, nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
         Set(session, nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());

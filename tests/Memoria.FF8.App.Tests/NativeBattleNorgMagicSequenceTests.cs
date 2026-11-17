@@ -38,12 +38,12 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         List<BattleDiagnosticEffectDispatch> directDispatches = [];
         List<BattleDiagnosticEffectDispatch> coldDispatches = [];
         battle.DiagnosticEffectDispatched += directDispatches.Add;
-        BattleDefinition definition = battle.Capture().Definition;
+        NativeBattleGraphicsDefinition graphicsResources = battle.CaptureForContinuation().ReadFixtureGraphicsDefinition()!;
         string boundary = "entry";
         using IDisposable scope = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
         try
         {
-            output.WriteLine(JsonSerializer.Serialize(new { Boundary = "initial-model-inventory", Models = Inventory(battle, definition) }));
+            output.WriteLine(JsonSerializer.Serialize(new { Boundary = "initial-model-inventory", Models = Inventory(battle, graphicsResources) }));
             world.PrepareDiagnosticEntryBeforePresentation(request);
             Assert.True(battle.NativeEntryReady);
             Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
@@ -92,7 +92,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
                         cold = Restore(midEffect);
                         restoredMidEffect = true;
                         compareNext = true;
-                        output.WriteLine(JsonSerializer.Serialize(new { Boundary = "mid-effect-cold-next", Spell = spellName, Effect = effectId, Cast = cast, Callback = battle.Presentation!.Graphics.Callback, Models = Inventory(battle, definition) }));
+                        output.WriteLine(JsonSerializer.Serialize(new { Boundary = "mid-effect-cold-next", Spell = spellName, Effect = effectId, Cast = cast, Callback = battle.Presentation!.Graphics.Callback, Models = Inventory(battle, graphicsResources) }));
                     }
                     if (directDispatches.Count(dispatch => dispatch.ExecutedEffect == effectId) == cast && battle.ObserveDiagnosticDrainBlockers().Count == 0 && cold.ObserveDiagnosticDrainBlockers().Count == 0)
                     {
@@ -109,11 +109,11 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
             }
             Assert.Equal(2, directDispatches.Count(dispatch => dispatch.ExecutedEffect == effectId && dispatch.ActorId == "party-4" && dispatch.ActionId == action.ActionId));
             Assert.Equal(2, coldDispatches.Count(dispatch => dispatch.ExecutedEffect == effectId && dispatch.ActorId == "party-4" && dispatch.ActionId == action.ActionId));
-            output.WriteLine(JsonSerializer.Serialize(new { Boundary = "complete", Models = Inventory(battle, definition), Dispatches = directDispatches }));
+            output.WriteLine(JsonSerializer.Serialize(new { Boundary = "complete", Models = Inventory(battle, graphicsResources), Dispatches = directDispatches }));
         }
         catch (Exception error)
         {
-            output.WriteLine(JsonSerializer.Serialize(new { Boundary = boundary, Current = Inventory(battle, definition), Cold = cold is null ? null : Inventory(cold, definition), Dispatches = directDispatches, Error = error.Message }));
+            output.WriteLine(JsonSerializer.Serialize(new { Boundary = boundary, Current = Inventory(battle, graphicsResources), Cold = cold is null ? null : Inventory(cold, graphicsResources), Dispatches = directDispatches, Error = error.Message }));
             throw;
         }
         finally
@@ -132,7 +132,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
 
         void AssertMissingResponses(string actorId, byte nativeModel, ushort count, int animations)
         {
-            NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
+            NativeBattleGraphicsResource resource = graphicsResources.Bindings.Single(binding => binding.ActorId == actorId).Resource;
             int physical = FindOriginalModelSlot(battle.Presentation!.Graphics, actorId);
             Assert.Equal(nativeModel, ReadOriginalModelCell(battle.Presentation!.Graphics, physical).ModelId4);
             Assert.Equal(count, BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan()));
@@ -167,14 +167,14 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         Assert.Equal(0, battle.Presentation!.NativeActionPackets.ActionCount);
     }
 
-    private static object[] Inventory(BattleSession battle, BattleDefinition definition)
+    private static object[] Inventory(BattleSession battle, NativeBattleGraphicsDefinition graphicsResources)
     {
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         return ReadOriginalModelCells(graphics).Select((model, slot) => (model, slot)).Where(entry => ReadOriginalModelActorId(graphics, entry.slot) is not null).Select(entry =>
         {
             var (model, slot) = entry;
             string actorId = ReadOriginalModelActorId(graphics, slot)!;
-            NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actorId).Resource;
+            NativeBattleGraphicsResource resource = graphicsResources.Bindings.Single(binding => binding.ActorId == actorId).Resource;
             byte? sequence = model.Sequence;
             int? offset = sequence is byte current && current * 2 + 2 <= resource.SequenceSection.Length ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(current * 2, 2)) : null;
             int? directory11 = resource.SequenceSection.Length >= 24 ? BinaryPrimitives.ReadUInt16LittleEndian(resource.SequenceSection.AsSpan(22, 2)) : null;

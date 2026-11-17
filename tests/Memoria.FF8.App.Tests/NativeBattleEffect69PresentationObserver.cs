@@ -183,7 +183,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
         Assert.NotEqual(0, actor.Flags0 & 4);
         NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         NativeBattleModelCpuReference source = cpu.Rows[actor.ActiveResourceRow100!.Value].Require(16);
-        NativeBattlePoseSource pose = current.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 4)).Resource.PoseSource!;
+        NativeBattlePoseSource pose = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 4)).Resource.PoseSource!;
         ImmutableArray<NativeBattleRawMesh> meshes = NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), pose.BoneCount, objectMask: actor.SequenceState!.MeshMask124);
         return MatchFaces(current, meshes, 8);
     }

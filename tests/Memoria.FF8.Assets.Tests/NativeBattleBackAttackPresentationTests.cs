@@ -27,18 +27,19 @@ public sealed class NativeBattleBackAttackPresentationTests
             NativeMagicInventory = vitals.Records[actor.ModelId].MagicInventory.ToArray(),
             NativeAttack = assets.ReadPlayerNativeAttackData(vitals, actor.ModelId)
         } : actor).ToArray();
-        BattleSession battle = new(seed with
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(seed with
         {
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             Combatants = actors,
             NativeFlags = rearFacing ? (ushort)0x40 : (ushort)0x80,
             NativeEntry = new(0, 0),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed,
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
             NativeActionCameraRules = game.ReadNativeActionCameraRules()
-        }, BattleAtbMode.TurnBased);
+        }, BattleAtbMode.TurnBased, assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation));
         Assert.Equal((byte?)(rearFacing ? 2 : 0), battle.NativeEntryAdvantage);
         // Keep the recipient turn isolated from unrelated enemy decisions after advantage initialization.
         BattleSnapshot initialized = battle.Capture();

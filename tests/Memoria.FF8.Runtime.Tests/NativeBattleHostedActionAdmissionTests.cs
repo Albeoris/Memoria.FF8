@@ -139,9 +139,6 @@ public sealed class NativeBattleHostedActionAdmissionTests
         stageProperty.SetValue(session, null);
         Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => read.Invoke(session, null)).InnerException);
 
-        stageProperty.SetValue(session, stage);
-        Field("hostedBattlePresentation").SetValue(session, false);
-        Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => read.Invoke(session, null)).InnerException);
     }
 
     [Fact]
@@ -239,10 +236,7 @@ public sealed class NativeBattleHostedActionAdmissionTests
         NativeBattleGraphicsResource allyResource = new([0, 0]);
         NativeBattleGraphicsResource enemyResource = new([0, 0]);
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-        BattlePresentationProcess session = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = ready }, logical.ReadDefinition() with
-        {
-            NativeGraphics = new(rules, [new("ally", 1, allyResource), new("enemy", 16, enemyResource)], [])
-        });
+        BattlePresentationProcess session = NativeBattleHostedTestFixture.SeedProcess(logical, graphics with { EntryReady = ready }, new NativeBattleGraphicsDefinition(rules, [new("ally", 1, allyResource), new("enemy", 16, enemyResource)], []));
         Field("presentationNativeTargets").SetValue(session, new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding>
         {
             [Ally] = new(Ally, graphics.ActorModels.Get(Ally), allyResource),

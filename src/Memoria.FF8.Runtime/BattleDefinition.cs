@@ -163,7 +163,6 @@ public sealed record BattleDefinition
     public NativeGlobalSoundProcess? NativeGlobalSoundProcess { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleMusicProcessState? NativeMusicProcess { get; init; }
-    public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; init; } = [];
     public ImmutableArray<NativeBattleStaticMeshResource> NativeEffectMeshes { get; init; } = [];

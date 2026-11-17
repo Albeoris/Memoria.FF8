@@ -33,7 +33,7 @@ public sealed class NativeBattleBodyMatrixCheckpointMigrationTests
             Assert.Null(model.ActiveStagedResourceRow100);
             Assert.Null(model.ResourceMagicId);
             Assert.NotNull(model.SequenceState?.DecodedPose);
-            NativeBattleGraphicsResource resource = Assert.Single(source.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == (entry.Owner is BattlePartyActorModel party ? party.Actor.ActorId : Assert.IsType<BattleEnemyActorModel>(entry.Owner).Actor.ActorId)).Resource;
+            NativeBattleGraphicsResource resource = Assert.Single(source.ReadFixtureGraphicsDefinition()!.Bindings, binding => binding.ActorId == (entry.Owner is BattlePartyActorModel party ? party.Actor.ActorId : Assert.IsType<BattleEnemyActorModel>(entry.Owner).Actor.ActorId)).Resource;
             if (model.ModelId4 >= 16)
             {
                 resource = NativeBattleEnemyResourceView.Resolve(source.ReadFixturePresentation().NativeModelCpuResources!, source.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100!.Value, resource);

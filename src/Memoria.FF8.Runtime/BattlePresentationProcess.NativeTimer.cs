@@ -4,14 +4,6 @@ public sealed partial class BattlePresentationProcess
 {
     public NativeExamTimerState? NativeExamTimer { get; private set; }
 
-    internal static void RequireSameHostedTimerClock(NativeExamTimerState? observed, NativeExamTimerState? canonical)
-    {
-        if (canonical is null ? observed is not null : observed is null || !observed.HasSameClock(canonical))
-        {
-            throw new InvalidDataException("Hosted presentation must preserve the logical battle's timer clock.");
-        }
-    }
-
     private void InitializeNativeTimerDisplay47D910()
     {
         if ((ResolvedNativeFlags & 4) != 0)

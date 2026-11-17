@@ -137,7 +137,7 @@ internal sealed class NativeBattleEffect174PresentationObserver
         NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         int actorIndex = historical ? 3 : 0;
         NativeBattleGraphicsModel actor = ReadOriginalModelCell(graphics, actorIndex);
-        NativeBattleGraphicsBinding binding = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == ReadOriginalModelActorId(graphics, actorIndex));
+        NativeBattleGraphicsBinding binding = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(item => item.ActorId == ReadOriginalModelActorId(graphics, actorIndex));
         NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources!;
         HashSet<Face> faces = [];
         uint[] colors = historical ? graphics.OriginalEffect!.Binding.Effect174Resources!.HistoryColors.ToArray() : [actor.Color40!.Value];

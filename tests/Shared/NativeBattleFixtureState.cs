@@ -31,6 +31,11 @@ internal sealed record NativeBattleFixtureState
 
 internal static class NativeBattleFixtureObservations
 {
+    internal static NativeBattleGraphicsDefinition? ReadFixtureGraphicsDefinition(this BattleSnapshot snapshot)
+    {
+        return snapshot.PresentationContinuation?.Resources.NativeGraphics;
+    }
+
     internal static BattleExpandedAiCallbackRequest CreateCallback(string actorId, int originalIndex, int stage)
     {
         BattleActorReference actor = NativeBattleSlots.Decode(originalIndex).Side == BattleSide.Allies

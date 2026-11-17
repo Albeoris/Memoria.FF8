@@ -100,7 +100,7 @@ public sealed class NativeBattleEffectPresentationTests
         if (targetStatus.Presentation.Saved is ushort priorSaved && (priorSaved & 1) != 0 && (targetStatus.Saved & 1) == 0)
         {
             NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics!, 1);
-            NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
+            NativeBattleGraphicsResource resource = initial.ReadFixtureGraphicsDefinition()!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, model.TextureAllocationMask, 0, 0);
             Assert.NotNull(expectedContactCopy);
         }
@@ -125,7 +125,7 @@ public sealed class NativeBattleEffectPresentationTests
                 if (priorStatus != currentStatus)
                 {
                     Assert.Equal(expectedStatus, currentStatus);
-                    uint projectedStatus = initial.Definition.NativeGraphics!.Rules.Project(targetStatus.Saved, targetStatus.Battle);
+                    uint projectedStatus = initial.ReadFixtureGraphicsDefinition()!.Rules.Project(targetStatus.Saved, targetStatus.Battle);
                     Assert.Equal(projectedStatus, ReadOriginalModelCell(graphics, 1).Flags8!.Value & projectedStatus);
                     if (expectedContactCopy is { } copy)
                     {

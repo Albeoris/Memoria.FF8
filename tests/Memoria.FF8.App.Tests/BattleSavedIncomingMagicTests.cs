@@ -16,7 +16,7 @@ public sealed class BattleSavedIncomingMagicTests(ITestOutputHelper output)
         Assert.NotNull(world.Field!.RandomEncounters);
         foreach (ushort formation in world.Field.RandomEncounters.Formations.Distinct())
         {
-            BattleDefinition definition = world.CreateEncounterBattle(formation) with { NativeGraphics = null, NativeClockRules = null };
+            BattleDefinition definition = world.CreateEncounterBattle(formation) with { NativeClockRules = null };
             Assert.All(definition.Combatants.Where(actor => actor.IsPlayer), actor => Assert.Equal(0u, actor.NativePlayerStatRules!.NativeStatusPassiveFlags & 8));
             BattleNativeAction grudge = Assert.Single(definition.NativeActions, action => action.Command == 8 && action.ActionId == 223);
             Assert.Equal((byte)34, grudge.AttackType);

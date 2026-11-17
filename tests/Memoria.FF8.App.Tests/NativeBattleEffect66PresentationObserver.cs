@@ -205,7 +205,7 @@ internal sealed class NativeBattleEffect66PresentationObserver
         string id = ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 5)!;
         NativeBattleEnemyAllocation allocation = current.NativeAllocations.Single(item => item.Id == id);
         string prototype = current.Definition.Combatants.Single(item => item.SceneSlot == allocation.SceneSlot).Id;
-        string expected = current.Definition.NativeGraphics!.Bindings.Single(item => item.ActorId == prototype).Resource.ReadText91(5);
+        string expected = current.ReadFixtureGraphicsDefinition()!.Bindings.Single(item => item.ActorId == prototype).Resource.ReadText91(5);
         foreach (NativeBattleDescriptorPacket packet in Assert.IsType<NativeBattleGraphicsState>(current.ReadFixturePresentation().NativeGraphics).Descriptors.Packets.Where(packet => packet.Message is { Kind: "NativeText" } message && message.ActorId == id && message.Message == expected && packet.PriorityState != 0))
         {
             Assert.Equal(240, packet.PriorityState & 0xF0);

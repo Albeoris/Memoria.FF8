@@ -36,7 +36,7 @@ public sealed class NativeBattleGilgameshCameraIntervalTests(ITestOutputHelper o
                     BattleRenderer renderer = new(320, 216);
                     Assert.False(renderer.CanSampleNativePilotInterval(earlier, later));
                     Assert.Contains("noninvertible native camera pose basis", renderer.LastPilotFallbackReason!);
-                    NativeBattlePrimitiveCapabilities capabilities = source.Definition.NativeGraphics!.PrimitiveCapabilities!;
+                    NativeBattlePrimitiveCapabilities capabilities = source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!;
                     byte[] first = renderer.RenderNativePrimitiveFrame(earlier.Primitives, earlier.Textures, capabilities: capabilities, textureWindowCache: earlier.TextureWindows, uiFrame: earlier.UiFrame, uiTexture: assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource).ToArray();
                     byte[] last = renderer.RenderNativePrimitiveFrame(later.Primitives, later.Textures, capabilities: capabilities, textureWindowCache: later.TextureWindows, uiFrame: later.UiFrame, uiTexture: assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource).ToArray();
                     foreach (float alpha in new[] { 0f, 0.25f, 0.5f, 0.75f, 1f })

@@ -101,6 +101,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             new() { Id = "enemy", Name = "Ifrit", Information246 = assets.ReadEnemyNativeInformation246(61), ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot, Speed = 1 }
         ];
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, encounter.Id);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter);
         BattleDefinition definition = new()
         {
             EncounterId = 94,
@@ -116,7 +117,6 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
             NativeBattleUiRandom = new(0),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -130,7 +130,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 300 && !session.NativeEntryReady; callback++)
         {
             session.Tick();

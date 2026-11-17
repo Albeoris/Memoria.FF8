@@ -47,7 +47,7 @@ public sealed class AdditionalEnemyRosterTests
         if (requested == 0)
         {
             Assert.Null(definition.AddedEnemySources);
-            Assert.NotNull(definition.NativeGraphics);
+
             return;
         }
         Assert.NotNull(definition.AddedEnemySources);

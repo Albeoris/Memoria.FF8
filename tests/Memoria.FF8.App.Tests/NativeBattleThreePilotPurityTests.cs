@@ -160,7 +160,7 @@ public sealed class NativeBattleThreePilotPurityTests
         List<BattleEvent> controlEvents = [];
         battle.DiagnosticEventPublished += sampledEvents.Add;
         control.DiagnosticEventPublished += controlEvents.Add;
-        NativeBattlePrimitiveCapabilities capabilities = frozen.Definition.NativeGraphics!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture must select its native primitive device profile.");
+        NativeBattlePrimitiveCapabilities capabilities = frozen.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities ?? throw new InvalidOperationException("The original fixture must select its native primitive device profile.");
         Func<int, int, bool, Albeoris.Games.FF8.Imaging.PixelImage> icons = assets.ReadNativePcUiIcons().Resolve;
         BattleScenePresentation controlScene = new(assets, frozen.Definition);
         controlScene.Render(control, 320, 216, new Capture());

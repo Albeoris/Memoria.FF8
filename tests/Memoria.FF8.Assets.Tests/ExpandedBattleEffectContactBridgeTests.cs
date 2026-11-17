@@ -83,7 +83,7 @@ public sealed class ExpandedBattleEffectContactBridgeTests
         };
         BattleDefinition resources = new()
         {
-            NativeGraphics = graphics,
+
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([action.MagicId]),
             NativeCommonEffectTexture = game.ReadNativeCommonEffectTexture(),
@@ -94,7 +94,7 @@ public sealed class ExpandedBattleEffectContactBridgeTests
         NativeBattleCameraProjection projection = new(new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 7000, 4096), 216, 160, 108);
         NativeBattleEffectParameters parameters = new(source, 0, selected, new BattleActionHeaderReference(0), 0, 0);
         NativeBattleEffectInvocation invocation = new NativeBattleEffectInvocation.Combat(packets, parameters);
-        using NativeBattleEffectPresentation effect = new(new(resources, caster, resource, invocation, action.MagicId, NativeBattleEffectTextureState.FromColdProcess(), NativeCrtRandomState.FromColdProcess(), projection, actors));
+        using NativeBattleEffectPresentation effect = new(new(new BattlePresentationResources(resources, graphics), caster, resource, invocation, action.MagicId, NativeBattleEffectTextureState.FromColdProcess(), NativeCrtRandomState.FromColdProcess(), projection, actors));
         Assert.Equal(action.MagicId, effect.Graphics.OriginalEffect!.Binding.Effect);
         foreach (NativeBattleForeignActor actor in actors)
         {

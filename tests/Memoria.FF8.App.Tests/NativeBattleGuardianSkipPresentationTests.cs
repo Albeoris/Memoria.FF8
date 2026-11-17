@@ -16,8 +16,8 @@ public sealed class NativeBattleGuardianSkipPresentationTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, guardian, effectId);
-        BattleSession sliced = new(definition, BattleAtbMode.TurnBased);
+        BattleDefinition definition = NativeBattleTargetGuardianCastTests.CreateDefinition(game, assets, guardian, effectId, out NativeBattleGraphicsDefinition graphicsResources);
+        BattleSession sliced = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 400 && (!sliced.NativeEntryReady || !sliced.Combatants.Single(actor => actor.Id == "party").IsReady); callback++)
         {
             sliced.Tick();

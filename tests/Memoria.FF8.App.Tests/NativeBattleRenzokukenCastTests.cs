@@ -48,17 +48,18 @@ public sealed class NativeBattleRenzokukenCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId, out _);
         BattleCombatantDefinition ifrit = source.Combatants[1] with { NativeRenzokukenMagicIds = assets.ReadNativeRenzokukenMagicIds(61) };
         BattleDefinition definition = source with { NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeCommandNames = assets.ReadNativeCommandNames(), Combatants = [source.Combatants[0], ifrit] };
         if (effectId == 160)
         {
-            BattleCombatantDefinition zell = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId).Combatants[0] with { Id = "party-1", InitialAtb = 0 };
-            BattleCombatantDefinition irvine = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, effectId).Combatants[0] with { Id = "party-2", InitialAtb = 0 };
+            BattleCombatantDefinition zell = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 1, effectId, out _).Combatants[0] with { Id = "party-1", InitialAtb = 0 };
+            BattleCombatantDefinition irvine = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 2, effectId, out _).Combatants[0] with { Id = "party-2", InitialAtb = 0 };
             BattleCombatantDefinition[] actors = [definition.Combatants[0], zell, irvine, ifrit];
-            definition = definition with { Combatants = actors, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94)) };
+            definition = definition with { Combatants = actors };
         }
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(definition.Combatants, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         int capturedFrames = 0;
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)

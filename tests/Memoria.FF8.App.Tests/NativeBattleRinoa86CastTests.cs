@@ -15,7 +15,7 @@ public sealed class NativeBattleRinoa86CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 4, 86);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 4, 86, out _);
         BattleNativeAction action = source.NativeActions.Single(action => action.Command == 19 && (action.MagicId & 0x1FF) == 86);
         BattleEncounter formation = assets.LoadEncounter(202);
         BattleStage stage = assets.LoadStage(formation.StageId);
@@ -29,12 +29,12 @@ public sealed class NativeBattleRinoa86CastTests
             NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(placement.ModelId),
             NativeStatusResistances = assets.ReadEnemyNativeStatusData(placement.ModelId).Resistances.ToArray()
         })];
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = source with
         {
             Combatants = actors,
             EncounterId = formation.Id,
             StageId = formation.StageId,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
@@ -44,7 +44,7 @@ public sealed class NativeBattleRinoa86CastTests
             NativeSavedBattleFlagsKnownMask = (byte)(source.NativeSavedBattleFlagsKnownMask | 0x30)
         };
         definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition with { NativeClockRules = definition.NativeClockRules ?? assets.ReadNativeClockRules(), NativeBattleSpeed = definition.NativeBattleSpeed ?? game.ReadNewGameInputConfiguration().NativeBattleSpeedByte }, BattleAtbMode.TurnBased, graphicsResources);
         for (int callback = 0; callback < 400 && !battle.CanChoosePlayerCommand("party"); callback++)
         {
             battle.Tick();
@@ -66,7 +66,7 @@ public sealed class NativeBattleRinoa86CastTests
                 if (released)
                 {
                     int row = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3).ActiveResourceRow100!.Value;
-                    NativeBattleGraphicsResource original = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actors[1].Id).Resource;
+                    NativeBattleGraphicsResource original = graphicsResources.Bindings.Single(binding => binding.ActorId == actors[1].Id).Resource;
                     NativeBattleGraphicsResource retained = NativeBattleEnemyResourceView.Resolve(snapshot.ReadFixturePresentation().NativeModelCpuResources!, snapshot.ReadFixturePresentation().NativeFileStaging!, row, original);
                     Assert.NotNull(retained.PoseSource);
                 }
@@ -98,7 +98,7 @@ public sealed class NativeBattleRinoa86CastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, characterId, effectId, out _);
         BattleNativeAction originalAction = source.NativeActions.Single(action => action.Command == 19 && (action.MagicId & 0x1FF) == effectId);
         Assert.InRange(originalAction.ActionId, (ushort)0, (ushort)3);
         //The independent component declares its learned Combine input and enables the original saved menu branch.

@@ -130,10 +130,10 @@ public sealed class NativeBattleSharedModelMaterialTests
         NativeBattleGraphicsResource resource = new([0, 0]) { PoseSource = Pose, LinkedPoseSource = Pose, LinkedGeometry = [] };
         ImmutableArray<uint> handlers = new uint[256].ToImmutableArray();
         NativeBattlePrimitiveTables tables = new(Lengths, new byte[256].ToImmutableArray(), handlers, handlers, handlers);
-        typeof(BattleSession).GetField("definition", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, definition with { NativeGraphics = new(rules, [new("first", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = tables } });
+        NativeBattleGraphicsDefinition graphicsResources = new(rules, [new("first", 0, resource)], []) { PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PrimitiveTables = tables };
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, First, Model(0))]);
         graphics = graphics with { ActorModels = graphics.ActorModels.Add(Second, Model(7)), PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        NativeBattleHostedTestFixture.BindProcess(session, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, graphicsResources);
         SetField(session, "presentationNativeTargets", new Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> { [Second] = new(Second, Model(7), resource) });
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         process = process with { Software = process.Software! with { EnvironmentBuffers = NativeSoftwareDrawingEnvironmentBuffers.Initialize500400(new byte[92].ToImmutableArray()) } };

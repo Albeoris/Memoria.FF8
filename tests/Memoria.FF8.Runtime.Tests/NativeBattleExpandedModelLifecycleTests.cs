@@ -22,7 +22,6 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess();
         BattleDefinition resources = new()
         {
-            NativeGraphics = new(rules, bindings, []),
             StageId = 0,
             NativeStageSource = new(0, [], [], new("stage", [])) { PhysicalSource = new(1, 0, []) },
             NativeStageCameraBank = new([]),
@@ -32,7 +31,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
             NativeGlobalRandom = new(123),
             NativeRetainedMemory = retained with { EffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() } }
         };
-        session.AttachPresentation(new(resources));
+        session.AttachPresentation(new(resources, new(rules, bindings, [])));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(session.Presentation);
         Assert.Null(process.ActiveActionToken);
         Assert.Null(Field("expandedInvocationProgress").GetValue(session));

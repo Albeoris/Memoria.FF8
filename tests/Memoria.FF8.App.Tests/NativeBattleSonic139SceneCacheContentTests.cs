@@ -72,7 +72,7 @@ public sealed class NativeBattleSonic139SceneCacheContentTests(ITestOutputHelper
             previousCallback = presentation.Callback;
             ImmutableArray<NativeBattlePcTextureWindowPixels> snapshots = frame.LastTextureSnapshots!.Value;
             NativeBattlePrimitiveColorState colors = frame.LastColorState!;
-            NativeBattlePrimitiveCapabilities capabilities = source.Definition.NativeGraphics!.PrimitiveCapabilities!;
+            NativeBattlePrimitiveCapabilities capabilities = source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!;
             Dictionary<WrapperKey, int> currentWrappers = [];
             foreach (NativeBattleLogicalResolvedCommand command in commands)
             {

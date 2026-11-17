@@ -264,6 +264,7 @@ internal static class NativeBattleEffectFixtureExporter
             }
             // The same declared fresh cold owners as the existing Thunder and guardian components.
             // This creates an independent fixture; it never fills missing fields in a saved game.
+            NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
             BattleDefinition definition = new()
             {
                 Combatants = actors,
@@ -283,7 +284,6 @@ internal static class NativeBattleEffectFixtureExporter
                 NativeEntry = new(0, 0),
                 NativeGlobalRandom = new(0),
                 NativeCrtRandom = new(1),
-                NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
                 NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
                 NativeModuleResources = game.ReadNativeBattleModuleResources(),
                 NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -307,7 +307,7 @@ internal static class NativeBattleEffectFixtureExporter
             definition = NativeBattleComponentInputs.PrepareMusic(definition, game.GameDirectory, 0, 5, -1);
             File.WriteAllText(Path.Combine(outputDirectory, "combatant-inputs.json"), JsonSerializer.Serialize(definition.Combatants.Select(actor => new { actor.Id, actor.Name, actor.IsPlayer, actor.ModelId, actor.SceneSlot, actor.Level, actor.InitialActive, actor.InitialHidden, actor.InitialSuspended, actor.InitialUntargetable, actor.MaximumHp, actor.CurrentHp, actor.Speed, actor.Attack, actor.Defense, actor.Magic, actor.Spirit, actor.PhysicalPower, actor.Hit, actor.Luck, actor.Evasion, actor.Costume, actor.WeaponId, actor.EquipmentIds, actor.InitialAtb, actor.ElementAttack, actor.ElementAttackPercent, actor.DrainPercent, actor.ElementDefenses, actor.DrawSpells })));
             boundary = "before-entry";
-            BattleSession battle = new(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased);
+            BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, request.OrdinaryMagicAdmission ? BattleAtbMode.Normal : BattleAtbMode.TurnBased, graphicsResources);
             BattleSnapshot fresh = battle.CaptureForContinuation();
             NativeBattleGraphicsState freshGraphics = fresh.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fresh component requires its native graphics owner.");
             // Establish the fresh typed outcome owner without inventing values for its unknown nullable bytes.
@@ -384,7 +384,7 @@ internal static class NativeBattleEffectFixtureExporter
                     before = (before with { NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) }).WithFixturePresentation(facts => facts with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) } });
                     NativeBattleGraphicsState priorGraphics = before.ReadFixturePresentation().NativeGraphics!;
                     NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(priorGraphics, 1);
-                    uint flags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
+                    uint flags = graphicsResources.Rules.Project(priorSaved, status.Battle);
                     uint added = flags & ~(targetModel.Flags8 ?? throw new InvalidDataException("The revival fixture requires its existing graphics status."));
                     ImmutableArray<byte?> timers = targetModel.StatusTimers;
                     for (int bit = 0; bit < 32; bit++)

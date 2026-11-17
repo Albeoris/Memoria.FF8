@@ -71,7 +71,7 @@ public sealed class NativeBattleDiablos325ThirteenShapesContinuationTests
                 uint privateStart = Root(current).ReadByte(0xE) != 0 ? 0xF85Cu : 0x885Cu;
 
                 NativeBattleDiablos325Frame programmeFrame = new(before.ReadFixturePresentation().NativeEffectMemory!, before.ReadFixturePresentation().NativeGraphics!.OriginalEffect!);
-                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.ReadFixturePresentation().NativeCamera!.Projection!, source.Definition.NativeGraphics!.Rules.SummonColors!);
+                NativeBattleDiablos325ProgrammeDraw programme = NativeBattleDiablos325Programme.Advance654654(programmeFrame, Timeline(before), before.ReadFixturePresentation().NativeCamera!.Projection!, source.ReadFixtureGraphicsDefinition()!.Rules.SummonColors!);
                 foreach (NativeBattleGfGeometryAttempt attempt in programme.Packets.Attempts.Where(item => item.Primitive is not null))
                 {
                     Assert.Contains(current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, resolved => MatchesPacket(resolved.Command, attempt, before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.PacketBank!, attempt.ByteOffsetRelative));
@@ -79,7 +79,7 @@ public sealed class NativeBattleDiablos325ThirteenShapesContinuationTests
                 NativeBattleModulePoolTask drawnTask = task;
                 NativeBattlePrimitiveProcess bodyProcess = before.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess! with { ByteCursor = programme.Packets.AllocationBytes, ModelRendererRegisters = wing.Memory.PrimitiveProcess!.ModelRendererRegisters };
                 NativeBattleEffectMemory bodyMemory = current.ReadFixturePresentation().NativeEffectMemory! with { PrimitiveProcess = bodyProcess };
-                bool hardware = Assert.IsType<bool>(source.Definition.NativeGraphics!.PrimitiveCapabilities!.HardwareEnabled);
+                bool hardware = Assert.IsType<bool>(source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!.HardwareEnabled);
                 NativeBattleDiablos325BodyDraw body = NativeBattleDiablos325RawBodyDrawing.Draw6A79B0(bodyMemory, drawnTask, before.ReadFixturePresentation().NativeCamera!.Projection!, hardware);
                 foreach (NativeBattleGfGeometryAttempt attempt in body.Packets.Attempts.Where(item => item.Primitive is not null))
                 {

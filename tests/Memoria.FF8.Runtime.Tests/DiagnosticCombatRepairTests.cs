@@ -91,7 +91,7 @@ public sealed class DiagnosticCombatRepairTests
         BattleDiagnosticCombatant actor = session.ObserveDiagnosticCombatants()[0];
         Assert.Equal(0, actor.Statuses0 & 2);
         Assert.NotEqual(0, actor.Statuses0 & 16);
-        Field("nativePartyPresentation").SetValue(session, new NativeBattlePartyPresentation([new(399, 1000, null, null), null, null]));
+        Field("expandedPartyPresentation").SetValue(session, Presentation(session).SetItem("party", Presentation(session)["party"] with { HitPoints = 399 }));
         TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() => Method("ValidateDiagnosticRepairActor").Invoke(session, [session.Combatants[0], new BattleDiagnosticCombatRepair("party", 800)]));
         Assert.IsType<InvalidOperationException>(exception.InnerException);
         Assert.Equal(400, session.Combatants[0].CurrentHp);

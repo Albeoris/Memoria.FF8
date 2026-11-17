@@ -14,9 +14,9 @@ public sealed class NativeAllocationDescriptorTests
         using BattleAssets assets = new(game.GameDirectory);
         const int formation = 94;
         int enemies = assets.LoadEncounter(formation).Enemies.Count(enemy => enemy.Enabled);
-        var (definition, resources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, enemies, enemies, expanded: false, encounterId: formation);
+        var (definition, resources, graphicsResources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, enemies, enemies, expanded: false, encounterId: formation);
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
-        battle.AttachPresentation(new(resources));
+        battle.AttachPresentation(new(resources, graphicsResources));
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         string before = JsonSerializer.Serialize(battle.Capture());
         Assert.False(battle.NativeEntryReady);
@@ -322,7 +322,8 @@ public sealed class NativeAllocationDescriptorTests
         ];
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
         NativeBattleMusicEntryPreparation musicEntry = NativeBattleMusicFixture.Prepare(game, 94);
-        BattleDefinition definition = new() { EncounterId = 94, StageId = 0, NativeMusicProcess = musicEntry.MusicProcess, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(), NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(0).NativeSource, NativeStageCameraBank = assets.LoadStage(0).NativeCameraBank, NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = assets.LoadStage(0).NativeCameraControl, NativeGraphics = graphics, Combatants = actors };
-        return new(definition, BattleAtbMode.TurnBased);
+        NativeBattleGraphicsDefinition graphicsResources = graphics;
+        BattleDefinition definition = new() { EncounterId = 94, StageId = 0, NativeMusicProcess = musicEntry.MusicProcess, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeSavedOptions = game.ReadNewGameInputConfiguration().Options, NativeInputButtonMap = game.ReadNewGameInputConfiguration().ButtonMap, NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5), NativeGlobalSoundProcess = musicEntry.SoundProcess, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeMessageSpeed = game.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(), NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = assets.LoadStage(0).NativeSource, NativeStageCameraBank = assets.LoadStage(0).NativeCameraBank, NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = assets.LoadStage(0).NativeCameraControl, Combatants = actors };
+        return NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
     }
 }

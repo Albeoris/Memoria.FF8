@@ -138,7 +138,7 @@ public sealed partial class BattlePresentationProcess
             PublishNativeScanInputFrame();
             CompleteNativeHostPause();
             PublishNativePcUiFrame();
-            RequireSameHostedTimerClock(NativeExamTimer, clockPoll is null ? timerObservation : host.ReadTimer());
+            NativeExamTimerState.RequireSameClock(NativeExamTimer, clockPoll is null ? timerObservation : host.ReadTimer());
         }
         finally
         {

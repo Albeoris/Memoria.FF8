@@ -27,7 +27,7 @@ public sealed class EncounterPolicyEntryTests
         Assert.Equal(expanded, definition.Combatants.Count(actor => actor.IsPlayer) > NativeBattleSlots.AllyCount);
         Assert.Equal(allies, definition.Combatants.Count(actor => actor.IsPlayer));
         Assert.Equal(session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allies), definition.AddedEnemySources?.Count ?? 0);
-        Assert.Equal(expanded, definition.NativeGraphics is null);
+        Assert.NotNull(battle.Presentation);
         EncounterCompiledDefinition mod = Assert.IsType<EncounterCompiledDefinition>(definition.EncounterMod);
         Assert.Equal(EncounterBindingResolver.Disc1Edea, mod.Encounter);
         Assert.NotNull(mod.NativeEvents);

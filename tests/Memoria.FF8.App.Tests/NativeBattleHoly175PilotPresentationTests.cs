@@ -19,7 +19,7 @@ public sealed class NativeBattleHoly175PilotPresentationTests
         TimeSpan callback = BattlePresentationTiming.ElapsedForCallbacks(1);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
-        NativeBattlePrimitiveCapabilities capabilities = active.Capture().Definition.NativeGraphics!.PrimitiveCapabilities!;
+        NativeBattlePrimitiveCapabilities capabilities = active.Capture().ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!;
         int frames = 0;
         int packets = 0;
         int offscreenSourcePackets = 0;

@@ -207,7 +207,7 @@ public sealed class ExpandedBattleHostTests
         session.SetEconomy(economy with { Items = items });
         BattleDefinition original = world.CreateEncounterBattle(88);
         Assert.True(original.UsesOriginalEnemySlots);
-        Assert.Null(original.NativeGraphics);
+
         Assert.Contains(original.Combatants, actor => actor.NativeAi is not null);
         bool guardianFormsEnabled = requestedDonors == 10;
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = allyCount, AdditionalEnemies = requestedDonors, GuardianFormsEnabled = guardianFormsEnabled });

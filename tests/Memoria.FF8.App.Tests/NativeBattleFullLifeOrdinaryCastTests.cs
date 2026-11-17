@@ -30,6 +30,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
         ];
         //Explicit fresh installed-resource component; all contacts and descriptors must be produced by the ordinary command.
         NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         BattleDefinition definition = new()
         {
             Combatants = actors,
@@ -55,7 +56,6 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
@@ -74,7 +74,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_FULL_LIFE_CAST_EVIDENCE") ?? Path.GetTempPath(), "full-life-ordinary-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         Console.WriteLine($"Full-life ordinary-cast standalone evidence: {output}");
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);

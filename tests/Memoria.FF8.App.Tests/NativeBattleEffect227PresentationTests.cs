@@ -1,7 +1,4 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
-using System.Collections.Immutable;
 using System.Text.Json;
-using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using static Memoria.FF8.Runtime.NativeBattleEffect227Profile;
 
@@ -10,279 +7,27 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleEffect227PresentationTests
 {
     [Fact]
-    public void Selected_Effect227_saved_boundary_attributes_current_source_packets()
+    public void Selected_Effect227_archived_boundary_attributes_mesh_packets_to_the_observed_arena()
     {
-        string? priorPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_OBSERVATION_PRIOR");
-        string? currentPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_OBSERVATION_CURRENT");
-        Assert.SkipUnless(priorPath is not null && currentPath is not null, "Select two standalone effect227 observations at a visible source-mesh boundary.");
-        BattleSnapshot prior = NativeBattleFixtureInspection.ReadLogicalSnapshot(priorPath!);
-        BattleSnapshot current = NativeBattleFixtureInspection.ReadLogicalSnapshot(currentPath!);
-        NativeBattleEffect227PresentationObserver observer = new();
-        observer.Observe(prior, current, (_, _) =>
-        {
-        });
-        Assert.NotEmpty(observer.CurrentMeshCommands);
-        Assert.All(observer.CurrentMeshCommands, command => Assert.Equal("20DFAB8", command.Packet.Bank));
-    }
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_OBSERVATION_CURRENT");
+        Assert.SkipUnless(path is not null, "Select an archived effect227 observation at a visible source-mesh boundary.");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path!));
+        JsonElement graphics = document.RootElement.GetProperty("NativeGraphics");
+        JsonElement effect = graphics.GetProperty("OriginalEffect");
+        Assert.Equal(Effect, effect.GetProperty("Binding").GetProperty("Effect").GetUInt16());
+        Assert.True(effect.GetProperty("ReturnedDescriptor").GetUInt32() > 0);
 
-    [Fact]
-    public void Selected_Effect227_snapshot_continues_one_callback()
-    {
-        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
-        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_CONTINUATION_SNAPSHOT");
-        Assert.SkipUnless(directory is not null && path is not null, "Select original resources and a standalone effect227 continuation snapshot.");
-        using GameAssets game = new(directory!);
-        BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(path!);
-        Assert.Equal(227, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        BattleSession battle = BattleSession.Restore(source);
-        battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-        battle.Tick();
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, battle.CaptureForContinuation().ReadFixturePresentation().NativeGraphics!.Callback);
-    }
+        JsonElement memory = document.RootElement.GetProperty("NativeEffectMemory");
+        NativeBattleEffect227State state = Assert.IsType<NativeBattleEffect227State>(NativeBattleFixtureState.ReadArchived<NativeBattleEffect227State>(memory, "Effect227"));
+        uint arena = state.ReadDword(ArenaGlobal);
+        uint cursor = state.ReadDword(CursorGlobal);
+        uint end = state.ReadDword(SecondCursorGlobal);
+        Assert.NotEqual(0u, arena);
+        uint start = end == arena + ThirdPacketOffset ? arena + SecondPacketOffset : arena + FirstPacketOffset;
+        Assert.InRange(cursor, start, end);
 
-    [Fact]
-    public void Original_Effect227_declared_component_preserves_current_geometry_and_lifecycle()
-    {
-        NativeBattleActorDirectorPresentationTests.RunSelected([227], "MEMORIA_FF8_EFFECT227");
-    }
-
-    internal static void RunComponent(string directory, string output)
-    {
-        using BattleAssets assets = new(directory);
-        using GameAssets game = new(directory);
-        BattleSnapshot source = PrepareSource(game, assets, output);
-        BattleSession battle = Restore(source);
-        BattleScenePresentation scene = new(assets, source.Definition);
-        NativeBattleEffect227PresentationObserver observer = new();
-        HashSet<string> restored = [];
-        BattleSnapshot prior = source;
-        BattleSnapshot peak = source;
-        byte[]? peakPixels = null;
-        byte[]? peakPlain = null;
-        BattleSnapshot geometryPeak = source;
-        byte[]? geometryPixels = null;
-        byte[]? geometryPlain = null;
-        int callbacks = 0;
-        int completions = 0;
-        int captured29Frames = 0;
-        int changedRgb = 0;
-        int geometryChangedRgb = 0;
-        bool cameraChanged = false;
-        bool stageObserved = false;
-        string boundary = "queued-component";
-        NativeBattleRestorationPresentationTests.Publish(output, "prepared-source", source, null);
-        try
-        {
-            ColdNext("before-worker", source);
-            for (; callbacks < 2400; callbacks++)
-            {
-                boundary = "callback-" + callbacks;
-                battle.Tick();
-                BattleSnapshot current = battle.CaptureForContinuation();
-                NativeBattleGraphicsState currentGraphics = current.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("Effect227 lost its graphics state.");
-                Assert.Equal(source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), current.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());
-
-                cameraChanged |= JsonSerializer.Serialize(source.ReadFixturePresentation().NativeCamera) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera);
-                stageObserved |= JsonSerializer.Serialize(source.ReadFixturePresentation().NativeStage) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeStage);
-                if (prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 227, ReturnedDescriptor: > 0 } && currentGraphics.OriginalEffect is { Binding.Effect: 227, ReturnedDescriptor: 0 })
-                {
-                    completions++;
-                }
-                observer.Observe(prior, current, ColdNext);
-                if (NativeBattleCinematicCaptureAssertions.AssertFrame(current, Effect) > 0)
-                {
-                    captured29Frames++;
-                }
-                NativeBattleCinematicCaptureAssertions.AssertCommands(current, Effect, observer.CurrentCommands);
-                NativeBattleLogicalCommand[] commands = observer.CurrentCommands;
-                if (commands.Length > 0)
-                {
-                    ImmutableHashSet<NativeBattlePrimitiveReference> owned = commands.Select(command => command.Packet).ToImmutableHashSet();
-                    NativeBattlePrimitiveFrame primitive = currentGraphics.PrimitiveFrame!;
-                    BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = currentGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
-                    byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                    byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
-                    int changed = CountRgb(pixels, plain);
-                    if (changed > changedRgb)
-                    {
-                        changedRgb = changed;
-                        peak = current;
-                        peakPixels = pixels;
-                        peakPlain = plain;
-                    }
-                    if (observer.CurrentFadeCommands.Length == 0 && changed > geometryChangedRgb)
-                    {
-                        geometryChangedRgb = changed;
-                        geometryPeak = current;
-                        geometryPixels = pixels;
-                        geometryPlain = plain;
-                    }
-                }
-                prior = current;
-                if (Released(current))
-                {
-                    break;
-                }
-            }
-            BattleSnapshot completed = battle.CaptureForContinuation();
-            Assert.True(callbacks < 2400, "The original effect227 component did not release its native lifecycle.");
-            Assert.Equal(1, completions);
-            Assert.True(captured29Frames > 1);
-            Assert.True(cameraChanged);
-            Assert.True(changedRgb > 100, "No actual effect227 primitive changed the rendered RGB output.");
-            Assert.True(geometryChangedRgb > 100, "No effect227 geometry changed rendered RGB outside its fullviewport fade.");
-            Assert.Equal(0, observer.Contacts);
-            Assert.Equal(0, observer.ContactGlyphs);
-            observer.Accept(completed, output);
-            ColdNext("effect227-visible-peak", peak);
-            ColdNext("effect227-geometry-visible-peak", geometryPeak);
-            ColdNext("completed", completed);
-            NativeBattleRestorationPresentationTests.Publish(output, "visible", peak, peakPixels!);
-            NativeBattleRestorationPresentationTests.Publish(output, "geometry-visible", geometryPeak, geometryPixels!);
-            File.WriteAllBytes(Path.Combine(output, "geometry-without-effect.rgba"), geometryPlain!);
-            File.WriteAllBytes(Path.Combine(output, "without-effect.rgba"), peakPlain!);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Declared original121 command8/action339/sequence13 zero-damage SELF-contact component; actual texts, vibration, programmes, particles and native lifecycle; original123 companion preserved; ordinary AI/formula admission excluded", Effect = Effect, Callbacks = callbacks + 1, Contacts = observer.Contacts, ContactGlyphs = observer.ContactGlyphs, Completions = completions, ChangedRgb = changedRgb, GeometryChangedRgb = geometryChangedRgb, CameraChanged = cameraChanged, StageChanged = stageObserved, RestoredBoundaries = restored.Order(), completed.Frame, NativeCallback = completed.ReadFixturePresentation().NativeGraphics!.Callback }));
-        }
-        catch (Exception error)
-        {
-            NativeBattleRestorationPresentationTests.Publish(output, "failed-live", battle.Capture(), null);
-            File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "blocked", Boundary = boundary, Callbacks = callbacks, Error = error.ToString() }));
-            throw;
-        }
-
-        BattleSession Restore(BattleSnapshot snapshot)
-        {
-            BattleSession session = BattleSession.Restore(snapshot);
-            session.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-            return session;
-        }
-
-        void ColdNext(string name, BattleSnapshot snapshot)
-        {
-            NativeBattleRestorationPresentationTests.Publish(output, name, snapshot, null);
-            BattleSnapshot json = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, name + ".battle.json"));
-            BattleSession cold = Restore(json);
-            BattleSession direct = Restore(snapshot);
-            Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(cold.Capture()));
-            cold.Tick();
-            direct.Tick();
-            NativeBattleCinematicCaptureAssertions.AssertFrame(direct.Capture(), Effect);
-            NativeBattleCinematicCaptureAssertions.AssertFrame(cold.Capture(), Effect);
-            Assert.Equal(JsonSerializer.Serialize(direct.Capture()), JsonSerializer.Serialize(cold.Capture()));
-            byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray();
-            Assert.Equal(new BattleScenePresentation(assets, source.Definition).Render(direct, 320, 224).ToArray(), pixels);
-            NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
-            restored.Add(name);
-        }
-    }
-
-    internal static NativeEffectFixtureRequest CreateOriginalRequest() => new("effect227-original121-source", 227, 8, 339, 0, 1800, 240) { EncounterId = 511, CasterActorIndex = 3, PreserveOriginalFormationEnemies = true, AdmissionProbeMaximumCallbacks = 0, ControlledContactValue = 0 };
-
-    internal static BattleSnapshot PrepareSource(GameAssets game, BattleAssets assets, string output)
-    {
-        string path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT227_SOURCE_SNAPSHOT") ?? throw new InvalidDataException("Select the current original121 component source.");
-        return PrepareFromEntry(game, assets, output, NativeBattleFixtureInspection.ReadLogicalSnapshot(path));
-    }
-
-    internal static BattleSnapshot PrepareFromEntry(GameAssets game, BattleAssets assets, string output, BattleSnapshot original)
-    {
-        Assert.Equal(511, original.Definition.EncounterId);
-        Assert.Equal(142, original.Definition.StageId);
-        BattleSession restored = BattleSession.Restore(original);
-        Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(restored.Capture()));
-        Assert.True(restored.NativeEntryReady);
-        NativeBattleGraphicsState graphics = original.ReadFixturePresentation().NativeGraphics!;
-        Assert.Empty(graphics.Descriptors.Queue);
-        Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
-        Assert.Equal(0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect227State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.ReadFixturePresentation().NativeEffectMemory!.Effect227)));
-        string casterId = ReadOriginalModelActorId(graphics, 3) ?? throw new InvalidDataException("Effect227 requires its current caster.");
-        string companionId = ReadOriginalModelActorId(graphics, 4) ?? throw new InvalidDataException("Effect227 requires its original companion.");
-        BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
-        BattleCombatantDefinition companion = restored.GetCombatantDefinition(companionId);
-        Assert.Equal(121, caster.ModelId);
-        Assert.Equal(123, companion.ModelId);
-        Assert.Equal((byte)137, ReadOriginalModelCell(graphics, 3).ModelId4);
-        Assert.Equal((byte)139, ReadOriginalModelCell(graphics, 4).ModelId4);
-        Assert.False(caster.InitialHidden);
-        Assert.False(caster.InitialSuspended);
-        Assert.False(caster.InitialUntargetable);
-        Assert.True(companion.InitialHidden);
-        Assert.True(companion.InitialSuspended);
-        Assert.True(companion.InitialUntargetable);
-        BattleCombatantSnapshot companionSnapshot = original.Combatants.Single(actor => actor.Id == companionId);
-        Assert.True(companionSnapshot.NativeParticipant!.Hidden);
-        Assert.True(companionSnapshot.NativeParticipant.Suspended);
-        Assert.True(companionSnapshot.NativeParticipant.Untargetable);
-        foreach ((int physical, BattleCombatantDefinition definition, int count) in new[] { (3, caster, 69), (4, companion, 2) })
-        {
-            NativeBattlePoseSource pose = assets.ReadNativeGraphicsResource(definition).PoseSource ?? throw new InvalidDataException("Effect227 requires its actual current skeletons.");
-            Assert.Equal(count, pose.BoneCount);
-            Assert.Equal(count, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, physical), pose).Length);
-            Assert.NotNull(ReadOriginalModelCell(graphics, physical).GeometryWorldMatrix);
-            Assert.NotNull(ReadOriginalModelCell(graphics, physical).ActiveResourceRow100);
-        }
-        NativeBattleGraphicsDefinition originalGraphicsDefinition = original.Definition.NativeGraphics!;
-        int bindingIndex = Enumerable.Range(0, originalGraphicsDefinition.Bindings.Length).Single(index => originalGraphicsDefinition.Bindings[index].ActorId == casterId);
-        NativeBattleGraphicsBinding originalCasterBinding = originalGraphicsDefinition.Bindings[bindingIndex];
-        NativeBattleGraphicsResource installed = assets.ReadNativeGraphicsResource(caster);
-        Assert.NotNull(installed.TextBank);
-        NativeBattleGraphicsResource preparedResource = originalCasterBinding.Resource.TextBank is null ? originalCasterBinding.Resource with { TextBank = installed.TextBank } : originalCasterBinding.Resource;
-        Assert.Equal(installed.TextBank!.Value.ToArray(), preparedResource.TextBank!.Value.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(originalCasterBinding.Resource), JsonSerializer.Serialize(preparedResource with { TextBank = originalCasterBinding.Resource.TextBank }));
-        for (int index = 0; index < 4; index++)
-        {
-            Assert.Equal(installed.ReadText91(index), preparedResource.ReadText91(index));
-        }
-        NativeBattleGraphicsDefinition preparedGraphicsDefinition = originalGraphicsDefinition with { Bindings = originalGraphicsDefinition.Bindings.SetItem(bindingIndex, originalCasterBinding with { Resource = preparedResource }) };
-        BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 339 && row.MagicId == 227 && row.KernelSection == 3 && row.KernelIndex == 339);
-        Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
-        int priorActions = packets.ActionCount;
-        int priorContacts = packets.ContactCount;
-        sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
-        (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 13, cameraChoice, 339, 227, null));
-        packets = PublishDeclaredSelfContact(original, packets);
-        Assert.Equal(priorActions, header.Ordinal);
-        Assert.Equal(priorContacts + 1, packets.ContactCount);
-        Assert.Equal((byte)1, packets.ReadHeader(header).ReadContactCount());
-        (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([227])[226];
-        Assert.Same(game.ReadNativeEffect227Resources(), binding.Effect227Resources);
-        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeGraphics = preparedGraphicsDefinition, NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(226, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
-        Assert.Equal(original.Combatants, source.Combatants);
-        Assert.Equal(JsonSerializer.Serialize(caster.NativeAi), JsonSerializer.Serialize(source.Definition.Combatants.Single(actor => actor.Id == casterId).NativeAi));
-        Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
-        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory));
-        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging));
-        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeModelCpuResources), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeModelCpuResources));
-        Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));
-        File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original121 command8/action339/sequence13 zero-damage SELF-contact component; original123 companion preserved; ordinary AI/formula excluded", ActualCasterId = casterId, ActualCompanionId = companionId, PhysicalCaster = 3, PhysicalCompanion = 4, EnemyLevel = caster.Level, Action = action, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, TextBankPreparation = new { Path = "Definition.NativeGraphics.Bindings[" + bindingIndex + "].Resource.TextBank", Before = originalCasterBinding.Resource.TextBank, After = preparedResource.TextBank, Hydrated = originalCasterBinding.Resource.TextBank is null, Producer = "Actor-original selected121 DAT section8 text decoder; no current pose override or AI admission", NativeAiBefore = caster.NativeAi, NativeAiAfter = caster.NativeAi }, LogicalState = "SELF target declared; HP, saved/battle status and presentation cache preserved" }));
-        return source;
-    }
-
-    internal static NativeBattleActionPacketsState PublishDeclaredSelfContact(BattleSnapshot source, NativeBattleActionPacketsState packets)
-    {
-        string casterId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3) ?? throw new InvalidDataException("The declared self contact requires its current original121 caster.");
-        BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.Id == casterId);
-        NativeBattleStatusMirror status = self.NativeStatus!.Presentation;
-        NativeBattleContactPacket contact = new(new(packets.ModelAliases.DecodeLiteral(3), 0, 0, 0, status.Saved ?? throw new InvalidDataException("The declared self contact requires its current saved-status cache."), 0, status.Battle ?? throw new InvalidDataException("The declared self contact requires its current battle-status cache.")), null);
-        (packets, _) = packets.AppendContact(contact);
-        return packets.Publish(1).State;
-    }
-
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 227, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
-    private static int CountRgb(byte[] first, byte[] second)
-    {
-        Assert.Equal(first.Length, second.Length);
-        int count = 0;
-        for (int index = 0; index < first.Length; index += 4)
-        {
-            if (first[index] != second[index] || first[index + 1] != second[index + 1] || first[index + 2] != second[index + 2])
-            {
-                count++;
-            }
-        }
-        return count;
+        NativeBattlePrimitiveFrame primitive = Assert.IsType<NativeBattlePrimitiveFrame>(NativeBattleFixtureState.ReadArchived<NativeBattlePrimitiveFrame>(graphics, "PrimitiveFrame"));
+        Assert.Contains(primitive.LastCommands.Select(item => item.Command), command => command.Opcode is >= 0x20 and <= 0x3F &&
+            command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8);
     }
 }

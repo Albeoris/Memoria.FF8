@@ -103,10 +103,10 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
         Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select the installed original game resources.");
         using GameAssets game = new(directory!);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleDefinition definition = CreateDefinition(game, assets, effectId, model);
+        BattleDefinition definition = CreateDefinition(game, assets, effectId, model, out NativeBattleGraphicsDefinition graphicsResources);
         const byte crisis = 4;
         int contacts = definition.NativeRenzokukenResources.Single(resource => resource.MagicId == effectId).Timeline.InputThresholds.Length;
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         Bind(battle);
         BattleScenePresentation scene = new(assets, definition);
         string output = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_LIMIT_EFFECT_EVIDENCE") ?? Path.GetTempPath(), "renzokuken-special-" + effectId + "-" + Guid.NewGuid().ToString("N"));
@@ -280,9 +280,9 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             Publish(name + "-next");
         }
     }
-    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model)
+    internal static BattleDefinition CreateDefinition(GameAssets game, BattleAssets assets, ushort effectId, int model, out NativeBattleGraphicsDefinition graphicsResources)
     {
-        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId);
+        BattleDefinition source = NativeBattleGuestLimitCastTests.CreateDefinition(game, assets, 0, effectId, out _);
         BattleEncounter formation = Enumerable.Range(0, 1024).Select(assets.LoadEncounter).FirstOrDefault(candidate => candidate.Enemies.Any(enemy => enemy.ModelId == model)) ?? assets.LoadEncounter(94);
         if (!formation.Enemies.Any(enemy => enemy.ModelId == model))
         {
@@ -303,14 +303,16 @@ public sealed class NativeBattleRenzokukenSpecialCastTests
             NativeStatusResistances = assets.ReadEnemyNativeStatusData(enemy.ModelId).Resistances.ToArray()
         }).ToArray();
         BattleCombatantDefinition[] actors = [source.Combatants[0], .. enemies];
+        graphicsResources = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
         return source with
         {
+            NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
+            NativeClockRules = assets.ReadNativeClockRules(),
             EncounterId = formation.Id,
             Combatants = actors,
             NativeRenzokukenResources = game.ReadNativeRenzokukenResources(),
             //The component retains its supported original stage while using the selected encounter
             //for native target identities, adjacent parts and formation positions.
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation)
         };
     }
 

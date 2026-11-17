@@ -83,7 +83,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             string retainedWords = SnapshotHash(original);
             NativeBattleSceneCapture capture = grid[0].Command.SceneCapture!;
             NativeBattlePcTextureWindowPixels[] rawPages = grid.Select(item => item.DrawMode.TexturePixelSnapshot!.Value).Distinct().Select(index => original.LastTextureSnapshots!.Value[index]).ToArray();
-            NativeBattlePcDirectTextureFormat format = queued.Definition.NativeGraphics!.PrimitiveCapabilities!.DirectTextureFormat!.Value;
+            NativeBattlePcDirectTextureFormat format = queued.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities!.DirectTextureFormat!.Value;
             byte[] captured = ReadCapturedWords(rawPages, capture, format, out CaptureWords retained);
             CaptureWords actualVram = SummarizeWords(capture, format, (x, y) => prepared.Textures!.ReadVramWord(x, y));
             Assert.Equal(nativeWords, WordHash(original));
@@ -99,7 +99,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             File.WriteAllText(Path.Combine(output, "capture.json"), JsonSerializer.Serialize(new { effect, width, height, captureArea, observations }, new JsonSerializerOptions { WriteIndented = true }));
             if (clearProof is null)
             {
-                clearProof = ProbePhysicalClear(black.Command, queued.Definition.NativeGraphics!.SoftwarePrimitiveTable!, capture, actualSourceEnvironment);
+                clearProof = ProbePhysicalClear(black.Command, queued.ReadFixtureGraphicsDefinition()!.SoftwarePrimitiveTable!, capture, actualSourceEnvironment);
             }
             coloredCaptureCount += retained.NonblackColors > 1 ? 1 : 0;
             bool finalCapture = retained.NonblackColors > 1 || observations.Count == 35;
@@ -107,7 +107,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             {
                 SavePng(Path.Combine(output, observations.Count == 1 ? "captured-first.png" : "captured-words.png"), captured, capture.Width, capture.Height);
                 BattleRenderer renderer = new(width, height, projection);
-                byte[] rgba = renderer.RenderNativePrimitiveFrame(original, prepared.Textures, capabilities: queued.Definition.NativeGraphics!.PrimitiveCapabilities, textureWindowCache: prepared.TextureWindows, uiFrame: prepared.UiFrame, uiTexture: prepared.UiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource);
+                byte[] rgba = renderer.RenderNativePrimitiveFrame(original, prepared.Textures, capabilities: queued.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: prepared.TextureWindows, uiFrame: prepared.UiFrame, uiTexture: prepared.UiFrame is null ? null : assets.ReadNativePcUiIcons().Resolve, effectTextureSource: assets.EffectTextureSource);
                 SavePng(Path.Combine(output, "frame.png"), rgba, width, height);
                 Assert.Equal(nativeWords, WordHash(original));
                 Assert.Equal(retainedWords, SnapshotHash(original));

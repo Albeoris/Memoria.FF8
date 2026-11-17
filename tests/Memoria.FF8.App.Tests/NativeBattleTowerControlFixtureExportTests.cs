@@ -33,7 +33,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         Assert.True(prototypePlacement.InitiallySuspended);
         BattleNativeAction shell = Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 2);
         BattleNativeAction control = shell with { Command = 252, ActionId = 1, MagicId = 17, AttackType = 0 };
-        BattleDefinition original = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, 91, 20, 0, assets.ReadEnemyAi(91, 20), control);
+        BattleDefinition original = NativeBattleRegionalMonsterPresentationTests.CreateDefinition(game, assets, 91, 20, 0, assets.ReadEnemyAi(91, 20), control, out NativeBattleGraphicsDefinition originalGraphicsResources);
         BattleCombatantDefinition[] actors = original.Combatants.Select(actor =>
         {
             if (actor.IsPlayer)
@@ -51,16 +51,16 @@ public sealed class NativeBattleTowerControlFixtureExportTests
                 NativeTemplate = actor.ModelId == 91 ? assets.ReadEnemyTemplate(91, checked((byte)placement.Level)) : null
             };
         }).ToArray();
+        NativeBattleGraphicsDefinition graphicsResources = assets.ReadNativeGraphicsDefinition(actors, originalGraphicsResources.Rules, formation);
         BattleDefinition definition = original with
         {
             Combatants = actors,
-            NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, original.NativeGraphics!.Rules, formation),
             NativeRetainedMemory = original.NativeRetainedMemory,
             NativeClockRules = assets.ReadNativeClockRules(),
             NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([17, 18])
         };
-        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleSession session = NativeBattleTypedFixture.CreateBattle(definition, BattleAtbMode.TurnBased, graphicsResources);
         BattleSnapshot cold = session.CaptureForContinuation();
         session = BattleSession.Restore(cold.WithFixturePresentation(facts => facts with { NativeGraphics = cold.ReadFixturePresentation().NativeGraphics! with { NativeOutcome = new NativeBattleOutcomeState() } }));
         SaveCold("before-entry", session.Capture());
@@ -166,7 +166,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             Assert.NotNull(model.ActiveResourceRow100);
             NativeBattleModelCpuResources cpu = snapshot.ReadFixturePresentation().NativeModelCpuResources!;
             Assert.True(NativeBattleModelCpuResources.EnemyAddress + cpu.EnemyCursor!.Value <= 0x196B018u - cpu.ScratchMaximum!.Value * 8u, "The sparse original enemy heap must precede the original projected workspace.");
-            NativeBattleGraphicsResource originalResource = Assert.Single(snapshot.Definition.NativeGraphics!.Bindings, binding => binding.ActorId == "monster").Resource;
+            NativeBattleGraphicsResource originalResource = Assert.Single(snapshot.ReadFixtureGraphicsDefinition()!.Bindings, binding => binding.ActorId == "monster").Resource;
             _ = NativeBattleEnemyResourceView.Resolve(cpu, snapshot.ReadFixturePresentation().NativeFileStaging!, model.ActiveResourceRow100.Value, originalResource);
             Assert.Null(snapshot.ActiveAction);
             Assert.Empty(snapshot.QueuedActions);
