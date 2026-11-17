@@ -9,15 +9,9 @@ internal sealed class VectorCrest : UiElement
         float x = Bounds.X + Bounds.Width * 0.42f;
         float y = Bounds.Y + Bounds.Height * 0.5f;
         UiColor color = new(174, 202, 230, 150);
-        for (int index = 0; index < 3; index++)
-        {
-            float width = 18 - index * 5;
-            float height = 32 - index * 7;
-            canvas.Line(x, y - height, x + width, y, color, 0.7f);
-            canvas.Line(x + width, y, x, y + height, color, 0.7f);
-            canvas.Line(x, y + height, x - width, y, color, 0.7f);
-            canvas.Line(x - width, y, x, y - height, color, 0.7f);
-        }
+        float width = Bounds.Width * 0.76f;
+        float height = Bounds.Height * 0.8f;
+        canvas.Image(new UiImageSource(UiImageKind.SilverCrest, 0), new UiRect(x - width / 2, y - height / 2, width, height));
         canvas.Line(Bounds.Right - 1, Bounds.Y, Bounds.Right - 1, Bounds.Bottom, color, 0.7f);
         canvas.Fill(new UiRect(Bounds.Right - 2, y - 1, 2, 2), color);
     }
