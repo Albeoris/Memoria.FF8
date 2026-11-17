@@ -33,6 +33,12 @@ public readonly record struct NativeBattleTextureDecodingObservation(long Render
     public NativeBattleTexturePrefixBlockers PrefixBlockers { get; init; }
 }
 
+public readonly record struct NativeBattleRawTextureContentSummary(long RenderOrdinal, int RawEntries, int ReferenceUniqueImages, int ContentUniqueImages, long ReferenceUniqueImageBytes, long ContentUniqueImageBytes, long DuplicateImageBytes, int EntriesUsedInLastRender)
+{
+    public string Scope => "RetainedRawCacheAfterFinalPresent";
+    public string Coverage => "Retained raw decoded images only. Evicted and oversized candidates, final replacements, captures and foreign outputs are excluded. Last-render usage refers to the last renderer call, which can precede the final Present.";
+}
+
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
@@ -786,6 +792,59 @@ public sealed partial class BattleRenderer
         nativeRawTexturePages.Clear();
         nativeRawTextureRecent.Clear();
         nativeRawTextureBytes = 0;
+    }
+
+    public NativeBattleRawTextureContentSummary InspectNativeRawTextureContent()
+    {
+        HashSet<PixelImage> references = new(ReferenceEqualityComparer.Instance);
+        Dictionary<int, List<PixelImage>> contents = [];
+        int uniqueContents = 0;
+        int lastRenderEntries = 0;
+        long referenceBytes = 0;
+        long contentBytes = 0;
+        foreach (NativeRawTextureCandidate candidate in nativeRawTextureRecent)
+        {
+            if (candidate.LastRender == textureDiagnosticRender)
+            {
+                lastRenderEntries++;
+            }
+            PixelImage image = candidate.Image;
+            if (!references.Add(image))
+            {
+                continue;
+            }
+            long bytes = checked((long)image.Pixels.Length * 4);
+            referenceBytes += bytes;
+            HashCode hash = new();
+            hash.Add(image.Width);
+            hash.Add(image.Height);
+            foreach (Rgba32 pixel in image.Pixels)
+            {
+                hash.Add(pixel);
+            }
+            int key = hash.ToHashCode();
+            if (!contents.TryGetValue(key, out List<PixelImage>? matches))
+            {
+                matches = [];
+                contents.Add(key, matches);
+            }
+            bool duplicate = false;
+            foreach (PixelImage prior in matches)
+            {
+                if (prior.Width == image.Width && prior.Height == image.Height && prior.Pixels.AsSpan().SequenceEqual(image.Pixels))
+                {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate)
+            {
+                matches.Add(image);
+                uniqueContents++;
+                contentBytes += bytes;
+            }
+        }
+        return new(textureDiagnosticRender, nativeRawTextureRecent.Count, references.Count, uniqueContents, referenceBytes, contentBytes, referenceBytes - contentBytes, lastRenderEntries);
     }
 
     private static bool SameTextureOrigins(NativeBattleEffectTextureState? previous, NativeBattleEffectTextureState? current)

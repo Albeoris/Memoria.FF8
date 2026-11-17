@@ -38,6 +38,7 @@ internal sealed partial class BattleScenePresentation
     internal NativeBattlePilotSubmission PilotSubmission => renderer?.PilotSubmission ?? default;
     internal NativeBattleTextureDecodingObservation? TextureDecoding => renderer?.TextureDecoding;
     internal void ClearNativeRawTextureCache() => renderer?.ClearNativeRawTextureCache();
+    internal NativeBattleRawTextureContentSummary? InspectNativeRawTextureContent() => renderer?.InspectNativeRawTextureContent();
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition)
     {

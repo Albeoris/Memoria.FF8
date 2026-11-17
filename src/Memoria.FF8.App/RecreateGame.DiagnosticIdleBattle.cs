@@ -81,7 +81,8 @@ internal sealed partial class RecreateGame
                 samples = graphics.MultiSampleCount,
                 present_interval = graphics.PresentationInterval.ToString()
             },
-            measurement = result
+            measurement = result,
+            raw_texture_cache = battleScene?.InspectNativeRawTextureContent()
         };
         if (!WriteDiagnosticJson(Path.Combine(output, "idle-pacing.json"), report, false))
         {

@@ -458,12 +458,18 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(materials - expectedCandidates, renderer.TextureDecoding!.Value.RawEvictions);
         Assert.Equal(materials, renderer.TextureDecoding!.Value.DecodeCount);
         Assert.Equal((long)materials * size * size, renderer.TextureDecoding!.Value.DecodedPixels);
+        NativeBattleRawTextureContentSummary content = renderer.InspectNativeRawTextureContent();
+        Assert.Equal(expectedCandidates, content.RawEntries);
+        Assert.Equal(expectedCandidates, content.EntriesUsedInLastRender);
+        Assert.Equal(1, content.ContentUniqueImages);
+        Assert.Equal((long)(expectedCandidates - 1) * size * size * 4, content.DuplicateImageBytes);
         int bytes = (int)typeof(BattleRenderer).GetField("nativeRawTextureBytes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!;
         int receiptBytes = sizeof(ushort) + Unsafe.SizeOf<NativeBattlePcPaletteEntry>();
         Assert.Equal(expectedCandidates * (size * size * 4 + held.Data.Length + receiptBytes), bytes);
         Assert.InRange(bytes, 1, 64 * 1024 * 1024);
         renderer.RenderNativePrimitiveFrame(Frame([]), state);
         Assert.Equal(expectedCandidates, RawCacheCount(renderer, "nativeRawTexturePages"));
+        Assert.Equal(0, renderer.InspectNativeRawTextureContent().EntriesUsedInLastRender);
         renderer.RenderNativePrimitiveFrame(Frame([]), state);
         Assert.Equal(expectedCandidates, RawCacheCount(renderer, "nativeRawTexturePages"));
         renderer.ClearNativeRawTextureCache();
