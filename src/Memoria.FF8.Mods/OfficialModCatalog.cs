@@ -43,11 +43,24 @@ public static class OfficialModCatalog
     private sealed record Document(int SchemaVersion, string SourceId, long Revision, DateTimeOffset PublishedAt, IReadOnlyList<OfficialModComponent> Components, IReadOnlyList<string>? RequiredCapabilities = null);
     private const int MaximumBytes = 2 * 1024 * 1024;
     public const string SourceId = "memoria-official";
+    public const string LegacyGirlNextDoorRuntimePackageId = "Memoria/Girl Next Door";
+    public const string LegacyGirlNextDoorSettingsKey = "Girl Next Door";
     public static Uri Feed { get; } = new("https://raw.githubusercontent.com/Albeoris/Memoria.Mods/catalog/catalog-v1.json");
     public static string DefaultCacheDirectory => Path.Combine(ApplicationPaths.Current.Cache, "mod-library", "official-catalog");
     internal static JsonSerializerOptions Json { get; } = new(JsonSerializerDefaults.Web);
     internal static IReadOnlyList<OfficialModComponent> SeedComponents { get; } = ReadSeed();
     public static OfficialModComponent GirlNextDoor { get; } = SeedComponents.Single(component => component.Id == "girl-next-door");
+    internal static OfficialModComponent LegacyGirlNextDoor { get; } = GirlNextDoor with { RuntimePackageId = LegacyGirlNextDoorRuntimePackageId, SettingsKey = LegacyGirlNextDoorSettingsKey };
+
+    internal static bool HasDescriptorIdentity(OfficialModComponent component)
+    {
+        return NativeModDescriptor.IsId(component.Id) && component.RuntimePackageId == NativeModDescriptor.RuntimeId(component.Id) && component.SettingsKey == component.Id;
+    }
+
+    internal static bool HasLegacyGirlNextDoorIdentity(OfficialModComponent component)
+    {
+        return component.Id == GirlNextDoor.Id && component.RuntimePackageId == LegacyGirlNextDoorRuntimePackageId && component.SettingsKey == LegacyGirlNextDoorSettingsKey;
+    }
 
     private static IReadOnlyList<OfficialModComponent> ReadSeed()
     {
@@ -131,7 +144,7 @@ public static class OfficialModCatalog
         List<OfficialModComponent> entries = [];
         foreach (OfficialModComponent component in document.Components)
         {
-            if (component is null || component.Id is null || !Regex.IsMatch(component.Id, @"^[a-z0-9]+(-[a-z0-9]+)*$") || component.Id.Length > 80 || !ids.Add(component.Id)
+            if (component is null || !NativeModDescriptor.IsId(component.Id) || !ids.Add(component.Id)
                 || !IsRuntimeId(component.RuntimePackageId) || !runtimeIds.Add(component.RuntimePackageId) || component.GroupId != "Memoria" || component.Format != "memoria-native" || component.Delivery != "download" || !component.DefaultEnabled
                 || string.IsNullOrWhiteSpace(component.Name) || string.IsNullOrWhiteSpace(component.Description) || string.IsNullOrWhiteSpace(component.Category) || string.IsNullOrWhiteSpace(component.SettingsKey) || !settingsKeys.Add(component.SettingsKey))
             {
@@ -142,18 +155,17 @@ public static class OfficialModCatalog
                 throw new InvalidDataException("An official component requires a newer catalog reader.");
             }
             ValidateTarget(component.Target);
-            if (component.Id == GirlNextDoor.Id && (component.RuntimePackageId != GirlNextDoor.RuntimePackageId || component.SettingsKey != GirlNextDoor.SettingsKey)
-                || component.Id != GirlNextDoor.Id && (component.RuntimePackageId.Equals(GirlNextDoor.RuntimePackageId, StringComparison.OrdinalIgnoreCase) || component.SettingsKey.Equals(GirlNextDoor.SettingsKey, StringComparison.OrdinalIgnoreCase))
-                || ModRuntime.IsBundledMemoriaIdentity(component.RuntimePackageId, component.SettingsKey))
-            {
-                throw new InvalidDataException("Official catalog attempts to remap an engine component.");
-            }
             OfficialModRelease? release = component.Latest;
-            if (release is null || !NuGetVersion.TryParse(release.Version, out _) || release.ReleaseTag != component.Id + "-v" + release.Version
+            if (release is null || !NuGetVersion.TryParse(release.Version, out NuGetVersion? version) || release.ReleaseTag != component.Id + "-v" + release.Version
                 || release.Artifact is not { Size: > 0 and < 2147483648, UnpackedSize: > 0 } artifact || !IsDigest(artifact.Sha256)
                 || !Uri.TryCreate(artifact.Url, UriKind.Absolute, out Uri? url) || url.Scheme != Uri.UriSchemeHttps || url.UserInfo.Length > 0)
             {
                 throw new InvalidDataException("Invalid official component release or artifact.");
+            }
+            bool legacyIdentity = HasLegacyGirlNextDoorIdentity(component) && version <= new NuGetVersion(1, 0, 2);
+            if ((!legacyIdentity && !HasDescriptorIdentity(component)) || ModRuntime.IsBundledMemoriaIdentity(component.RuntimePackageId, component.SettingsKey))
+            {
+                throw new InvalidDataException("Invalid official component runtime or settings identity.");
             }
             ParseRange(release.EngineVersionRange);
             entries.Add(FreezeComponent(component));
@@ -233,7 +245,9 @@ public static class OfficialModCatalog
             foreach (OfficialModComponent component in next.Components.Where(component => component.Latest is not null))
             {
                 OfficialModComponent? prior = saved.Components.FirstOrDefault(existing => existing.Id == component.Id);
-                if (prior is not null && (prior.RuntimePackageId != component.RuntimePackageId || prior.SettingsKey != component.SettingsKey))
+                if (prior is not null && (prior.RuntimePackageId != component.RuntimePackageId || prior.SettingsKey != component.SettingsKey)
+                    && !(HasLegacyGirlNextDoorIdentity(component) && prior.Latest is null)
+                    && !(HasLegacyGirlNextDoorIdentity(prior) && HasDescriptorIdentity(component)))
                 {
                     throw new InvalidDataException("An official component changed its runtime or settings identity.");
                 }

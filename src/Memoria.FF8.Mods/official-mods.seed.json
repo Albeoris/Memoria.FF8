@@ -128,8 +128,8 @@
   {
     "id": "girl-next-door",
     "groupId": "Memoria",
-    "runtimePackageId": "Memoria/Girl Next Door",
-    "settingsKey": "Girl Next Door",
+    "runtimePackageId": "Memoria/girl-next-door",
+    "settingsKey": "girl-next-door",
     "name": "Girl Next Door",
     "description": "Open the magazine from the item menu.",
     "category": "Items",

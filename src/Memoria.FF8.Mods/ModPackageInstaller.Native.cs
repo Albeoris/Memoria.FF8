@@ -49,7 +49,7 @@ public sealed partial class ModPackageInstaller
     // Caller holds the exclusive startup resource lease for this mod root.
     public static bool RecordMigratedGirlNextDoor(string modsRoot)
     {
-        OfficialModComponent component = OfficialModCatalog.GirlNextDoor;
+        OfficialModComponent component = OfficialModCatalog.LegacyGirlNextDoor;
         ModPackageInstaller installer = new(StateDirectoryFor(modsRoot), modsRoot, "");
         using FileStream installLock = installer.AcquireLock();
         string key = ManagedName(component.ToEntry());
@@ -140,7 +140,7 @@ public sealed partial class ModPackageInstaller
                 throw new InvalidDataException("Native manifest game target does not match the catalog.");
             }
             ValidateNativeFiles(payload, manifest.Files, cancellationToken);
-            ValidateBookArtwork(payload, component.RuntimePackageId, manifest.Files);
+            ValidateNativeContent(payload, component, manifest.Files);
             string stable = Path.Combine(root, "content");
             Directory.Move(payload, stable);
             Directory.Delete(extracted, true);
@@ -148,7 +148,13 @@ public sealed partial class ModPackageInstaller
             CheckSpace(bytes);
             string hash = Fingerprint(stable, false, cancellationToken);
             prepared.Add(token, new(root, stable, hash, bytes, entry) { NativeFiles = manifest.Files });
-            string destination = Destination(entry.SourceId, component.RuntimePackageId["Memoria/".Length..]);
+            string name = component.RuntimePackageId["Memoria/".Length..];
+            Receipt? previous = Read<Receipt>(ReceiptPath(ManagedName(entry)));
+            if (previous is not null && CanUseInstalledDestination(component, previous))
+            {
+                name = previous.DestinationName;
+            }
+            string destination = Destination(entry.SourceId, name);
             return new(token, entry, targetProfile, component.RuntimePackageId, release.Version, destination, bytes);
         }
         catch
@@ -190,29 +196,44 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    private static void ValidateBookArtwork(string payload, string packageId, IReadOnlyList<OfficialModFile> inventory)
+    private static void ValidateNativeContent(string payload, OfficialModComponent component, IReadOnlyList<OfficialModFile> inventory)
     {
-        OfficialModFile? descriptor = inventory.FirstOrDefault(file => file.Path.Equals(BookArtworkMods.ManifestPath, StringComparison.OrdinalIgnoreCase));
-        if (descriptor is null)
+        if (!inventory.Any(file => file.Path == NativeModDescriptor.FileName))
         {
-            return;
+            throw new InvalidDataException("The native payload must contain a root mod.json.");
         }
-        if (descriptor.Path != BookArtworkMods.ManifestPath)
+        NativeModDescriptor descriptor = NativeModDescriptor.Read(Path.Combine(payload, NativeModDescriptor.FileName));
+        if (descriptor.Id != component.Id || descriptor.RuntimePackageId != component.RuntimePackageId || descriptor.Id != component.SettingsKey
+            || descriptor.Group != component.GroupId || descriptor.Name != component.Name || descriptor.DescriptionForLanguage("en") != component.Description)
         {
-            throw new InvalidDataException($"Use the exact manifest path '{BookArtworkMods.ManifestPath}'.");
+            throw new InvalidDataException("The native descriptor does not match the pinned catalog metadata.");
         }
-        Dictionary<string, ModFile> files = new(StringComparer.Ordinal);
-        ModFile FileFromInventory(OfficialModFile file) => new(packageId, ModFormat.Memoria, file.Path, 0, () => File.ReadAllBytes(Path.Combine(payload, file.Path.Replace('/', Path.DirectorySeparatorChar))))
+
+        string packageId = descriptor.RuntimePackageId;
+        ModFile FileFromInventory(OfficialModFile file)
         {
-            ContentStamp = (file.Size, 0)
-        };
-        foreach (OfficialModFile file in inventory)
-        {
-            files.Add(file.Path, FileFromInventory(file));
+            string absolute = Path.GetFullPath(file.Path, payload);
+            return new(packageId, ModFormat.Memoria, file.Path, 0, () => File.ReadAllBytes(absolute))
+            {
+                AbsolutePath = absolute,
+                ContentStamp = (file.Size, 0)
+            };
         }
-        BookArtworkMods.Read(files[descriptor.Path], path => files.GetValueOrDefault(path));
+
+        ModPackage package = new(packageId, descriptor.Name, ModFormat.Memoria, null, true, ModEffectiveStatus.Active, payload);
+        ModCatalogSnapshot catalog = new(0, [package], inventory.Select(FileFromInventory));
+        // Startup preparation checks IDs against the selected game's actual item table.
+        if (!ItemOverrideMods.TryPrepare(catalog, byte.MaxValue + 1, out _, out IReadOnlyList<ModDiagnostic> diagnostics))
+        {
+            throw new InvalidDataException(diagnostics[0].Message);
+        }
     }
 
+    private static bool CanUseInstalledDestination(OfficialModComponent component, Receipt previous)
+    {
+        return ValidNativeReceipt(previous) && previous.Official is { } installed && component.CatalogId == installed.CatalogId
+            && (component.RuntimePackageId == installed.RuntimePackageId || OfficialModCatalog.HasLegacyGirlNextDoorIdentity(installed) && component.Id == OfficialModCatalog.GirlNextDoor.Id);
+    }
 
     public string? CompatibilityError(RemoteModEntry entry)
     {
@@ -228,7 +249,8 @@ public sealed partial class ModPackageInstaller
         {
             return "The download is unavailable. Refresh the official catalog when online.";
         }
-        return OfficialModCatalog.CompatibilityError(component, EngineBuildMetadata.CompatibilityVersion, edition, language);
+        return OfficialModCatalog.CompatibilityError(component, EngineBuildMetadata.CompatibilityVersion, edition, language)
+            ?? (OfficialModCatalog.HasLegacyGirlNextDoorIdentity(component) ? "This release uses a retired native mod format. Refresh the official catalog for an update." : null);
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, long Modified, string Digest)> verifiedFiles = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -236,7 +258,9 @@ public sealed partial class ModPackageInstaller
     private static bool ValidNativeReceipt(Receipt receipt)
     {
         return receipt.Official is { } component && receipt.Schema == 1 && receipt.SourceId == OfficialModCatalog.SourceId && receipt.ModId == component.CatalogId
-            && receipt.Folder && OfficialModCatalog.IsRuntimeId(component.RuntimePackageId) && receipt.DestinationName == component.RuntimePackageId["Memoria/".Length..]
+            && receipt.Folder && OfficialModCatalog.IsRuntimeId(component.RuntimePackageId)
+            && (receipt.DestinationName == component.RuntimePackageId["Memoria/".Length..]
+                || component.Id == OfficialModCatalog.GirlNextDoor.Id && receipt.DestinationName == OfficialModCatalog.LegacyGirlNextDoorSettingsKey)
             && receipt.Files is { Count: > 0 } && (receipt.EngineVersionRange is not null || receipt.Migrated);
     }
 

@@ -32,7 +32,7 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsBookOpen ? 0 : IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = IsItemImageOpen ? 0 : IsJunctionDashboard ? 16 : PresentationProvider.Padding(this), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         anchored.Children.Add(IsJunctionDashboard ? BuildJunctionDashboard() : PresentationProvider.Compose(this));
@@ -45,7 +45,7 @@ public sealed partial class MenuController
             anchored.Children.Add(tutorialMessage);
         }
         bool useModViewport = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mod-settings";
-        _view = new UiView(root) { ViewportMode = IsBookOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
+        _view = new UiView(root) { ViewportMode = IsItemImageOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         if (IsJunctionDashboard)
         {

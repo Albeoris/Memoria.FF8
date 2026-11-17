@@ -106,7 +106,7 @@ internal sealed partial class RecreateGame
             gameMenus.ConfigureNativeTutorialLocalization(localization.Table, localization.BoundTable);
             string occurrenceScope = Guid.NewGuid().ToString("N");
             gameMenus.TutorialDialoguePresented += (binding, channel, id, rendered) => ObserveBoundAuthoringDialogue(binding, channel, occurrenceScope + ":" + id, rendered);
-            gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize, () => resourceHost.Mods.LocalizationPrimaryTarget ?? resourceHost.Resources.ResourceLanguage);
+            gameMenus.ConnectLocalizationText(resourceHost.Resources.Localize, () => resourceHost.EffectiveContentLanguage);
         }
         gameMenus.ConnectReadOnlyTutorialControls(() => keyboard.Profile, () => keyboard.ControllerPresentation, () => keyboard.LastInputDevice);
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences);

@@ -54,7 +54,7 @@ internal sealed partial class RecreateGame
     {
         newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };
         session.Restore(ChocoboWorldSettings.Migrate(session.State, resourceHost!.Resources.Source.Edition));
-        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources, FindInventoryBookArtwork);
+        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory, resourceHost?.Resources, itemId => FindInventoryItemOverride(itemId)?.Use?.Image);
         if (!File.Exists(UiPreferencesPath))
         {
             uiPreferences.Save(UiPreferencesPath);
@@ -275,8 +275,8 @@ internal sealed partial class RecreateGame
         {
             using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory, resources: resourceHost?.Resources);
             liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
-            liveMenuCatalog.FindBookArtwork = FindInventoryBookArtwork;
-            liveMenuCatalog.InterfaceLanguage = () => resourceHost?.Mods.LocalizationPrimaryTarget ?? resourceHost?.Resources.ResourceLanguage;
+            liveMenuCatalog.FindItemOverride = FindInventoryItemOverride;
+            liveMenuCatalog.InterfaceLanguage = () => resourceHost?.EffectiveContentLanguage;
             nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
         }
     }
@@ -932,7 +932,7 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private ModFile? FindInventoryBookArtwork(int itemId) => resourceHost?.BookArtwork.Find(itemId);
+    private ItemOverride? FindInventoryItemOverride(int itemId) => resourceHost?.ItemOverrides.Find(itemId);
 
     private void DrawGameUi(Rectangle bounds)
     {

@@ -362,6 +362,46 @@ public sealed class ModBehaviorSettingsMenuTests : IDisposable
         return runtime;
     }
 
+    [Fact]
+    public void DescriptorSettingsRefreshDescriptionsWhenTheLanguagePublishes()
+    {
+        const string id = "readable-fixture";
+        string component = Path.Combine(root, "Mods", "Memoria", "Practical folder");
+        Directory.CreateDirectory(component);
+        File.WriteAllText(Path.Combine(component, "mod.json"), """{"id":"readable-fixture","name":"Readable fixture","package":"Memoria","description":{"en":"English description","fr":"French description","jp":"Japanese description","ru":"Russian description"}}""");
+        File.WriteAllText(Path.Combine(component, "payload.txt"), "test");
+        string localized = Path.Combine(root, "Mods", "Memoria", "Dataset", "Localization");
+        Directory.CreateDirectory(localized);
+        File.WriteAllText(Path.Combine(localized, "localization.manifest.json"), "{}");
+        using ModRuntime runtime = new(root, watch: false);
+        PublishDescriptorSettings();
+        MenuController menu = Menu(runtime, ModRuntime.MemoriaPackageId);
+        menu.ConnectLocalizationText((_, original) => original, () => runtime.LocalizationPrimaryTarget ?? "fr");
+        menu.Navigate(MenuInput.Confirm);
+        Assert.Equal("mod-settings", menu.ScreenId);
+        AssertLanguage("French description");
+
+        foreach ((string language, string description) in new[] { ("ja", "Japanese description"), ("ru", "Russian description"), ("it", "English description") })
+        {
+            Assert.True(runtime.SetLocalizationSelection(["Memoria/Dataset"], language).Success);
+            PublishDescriptorSettings();
+            AssertLanguage(description);
+        }
+
+        void PublishDescriptorSettings()
+        {
+            Assert.True(runtime.PreparePending(force: true));
+            Assert.True(runtime.CommitPending());
+        }
+
+        void AssertLanguage(string description)
+        {
+            MenuEntry setting = Assert.Single(menu.Entries, entry => entry.Label == "Readable fixture");
+            Assert.Equal(description, setting.Help);
+            Assert.Equal(description, Assert.IsType<UiLabel>(Element(menu, "mod-setting-description-component/" + id)).Text);
+        }
+    }
+
     private void WriteBundled(string relativePath, string content)
     {
         string path = Path.Combine(root, "BundledMods", "Memoria", relativePath);

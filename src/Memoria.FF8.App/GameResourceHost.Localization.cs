@@ -54,6 +54,21 @@ internal sealed partial class GameResourceHost
     private IReadOnlyDictionary<Memoria.FF8.Resources.TextureKey, LocalizationArtworkSource>? knownLocalizationArtwork;
     public LocalizationPreparation? LocalizationPreview { get; private set; }
     public LocalizationPreparation? CommittedLocalizations { get; private set; }
+    private string? activeLocalizationLanguage;
+    public string EffectiveContentLanguage => activeLocalizationLanguage ?? Resources.ResourceLanguage;
+
+    private void CommitLocalizationLanguage(LocalizationPreparation localization)
+    {
+        var layers = localization.Layers.ToDictionary(layer => layer.PackageId, StringComparer.OrdinalIgnoreCase);
+        var languages = localization.RequestedOrder.Select(id => layers[id].Project.Manifest.TargetLanguage).ToArray();
+        string? selected = CanonicalTarget(Mods.LocalizationPrimaryTarget);
+        activeLocalizationLanguage = languages.LastOrDefault(language => string.Equals(CanonicalTarget(language), selected, StringComparison.OrdinalIgnoreCase)) ?? languages.LastOrDefault();
+    }
+
+    private static string? CanonicalTarget(string? language)
+    {
+        return string.Equals(language, "ja", StringComparison.OrdinalIgnoreCase) ? "jp" : language;
+    }
     public double LastLocalizationPublicationMilliseconds { get; private set; }
     public int LastLocalizationChangedKeys { get; private set; }
     internal long ParsedLocalizationPayloads => localizationReadCache.ParsedPayloads;
@@ -84,6 +99,7 @@ internal sealed partial class GameResourceHost
             localization.InputRevision?.ValidatePublication();
             prepared?.Commit(notify: false);
             CommittedLocalizations?.InputRevision?.Dispose();
+            CommitLocalizationLanguage(localization);
             CommittedLocalizations = localization;
             LastLocalizationChangedKeys = localization.ChangedKeys;
             LastLocalizationPublicationMilliseconds = clock.Elapsed.TotalMilliseconds;

@@ -23,6 +23,8 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
 {
     public bool IsBundled { get; init; }
     public OfficialModComponent? Official { get; init; }
+    public NativeModDescriptor? Descriptor { get; init; }
+    public bool IsSettingsGroup { get; init; }
     public bool HasLocalization { get; init; }
     public bool LocalizationOnly { get; init; }
     public int Priority { get; init; }
@@ -54,6 +56,7 @@ public sealed class ModFile
     public string RelativePath { get; }
     public long Revision { get; }
     public TextureLayoutMetadata? TextureLayout { get; init; }
+    public string? AbsolutePath { get; init; }
     /// <summary>Physical metadata version, retained when an explicit retry changes the read revision.</summary>
     public (long Length, long Modified)? ContentStamp { get; init; }
 

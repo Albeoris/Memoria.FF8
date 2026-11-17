@@ -56,17 +56,18 @@ public static class LiveMenuData
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
                 bool canUseInMenu = state.Scene is SceneKind.Field or SceneKind.WorldMap;
-                UiImageSource? bookCover = canUseInMenu ? catalog?.ItemBookCover(item.ItemId) : null;
-                NativeFieldItem? definition = catalog?.FieldItem(item.ItemId);
+                MenuItemDefinition? effective = catalog?.ItemDefinition(item.ItemId);
+                UiImageSource? useImage = canUseInMenu && effective?.Use is not null ? new UiImageSource(UiImageKind.ItemUseImage, item.ItemId) : null;
+                NativeFieldItem? definition = useImage.HasValue ? null : effective?.NativeUse;
                 result.Items.Add(new MenuItem
                 {
                     Id = $"item-{item.ItemId}",
-                    Icon = bookCover.HasValue ? catalog?.BookIcon(item.ItemId) : catalog?.ItemIcon(item.ItemId),
+                    Icon = effective is null ? null : catalog?.ItemTypeIcon(item.ItemId, effective.Type),
                     Name = catalog?.ItemName(item.ItemId) ?? Format("fallback.item.name", "Item {0}", item.ItemId),
                     Quantity = item.Count,
-                    BookCover = bookCover,
-                    NativeMagazinePages = canUseInMenu ? catalog?.MagazinePages(item.ItemId) ?? [] : [],
-                    NativeMagazinePageUnavailableReasons = catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [],
+                    UseImage = useImage,
+                    NativeMagazinePages = canUseInMenu && !useImage.HasValue ? catalog?.MagazinePages(item.ItemId) ?? [] : [],
+                    NativeMagazinePageUnavailableReasons = useImage.HasValue ? [] : catalog?.MagazineUnavailableReasons(item.ItemId, state) ?? [],
                     Description = catalog?.ItemDescription(item.ItemId) ?? Text("projection.item.effect-unavailable", "Item effect unavailable; using, discarding and refining are unsupported."),
                     NativeFieldUseSupported = canUseInMenu && definition is not null && (definition.SupportsNameUse && (definition.Type != 13 || state.PocketStation?.ChocoboName is not null || names?.ContainsKey(GameNames.BokoSubject) == true || SavedName(state, GameNames.BokoSubject) is not null) || definition.SupportsBattleUse && state.CharacterVitals?.DreamEnabled == false && !MenuBattleTimerBlocked(state) || definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsInventoryUse || definition.SupportsRestUse && state.Scene == SceneKind.Field && (state.WorldControls?.Menu209 & 1) != 0 || definition.CanLearnBlueMagic(state.LimitProgress) && state.CharacterVitals?.DreamEnabled == false),
                     NativeFieldBattleUse = definition?.SupportsBattleUse == true,
@@ -76,7 +77,7 @@ public static class LiveMenuData
                     NativeFieldQuistisOnly = definition?.SupportsBlueMagicUse == true,
                     NativeFieldForgetsAbility = definition?.Type == 18,
                     NativeFieldInventoryTarget = definition is not null && (definition.SupportsInventoryUse || definition.SupportsRestUse),
-                    RecoveryTargetScores = catalog?.ItemRecoveryTargetScores(state, item.ItemId) ?? new(StringComparer.Ordinal)
+                    RecoveryTargetScores = useImage.HasValue ? new(StringComparer.Ordinal) : catalog?.ItemRecoveryTargetScores(state, item.ItemId) ?? new(StringComparer.Ordinal)
                 });
             }
         }
@@ -679,6 +680,7 @@ public sealed partial class LiveMenuCatalog
         return catalog;
     }
 
+    /// <summary>Returns the original action metadata consumed by the native item handlers.</summary>
     public NativeFieldItem? FieldItem(int id) => id > 0 && id < fieldItems.Length / 4 ? new NativeFieldItem(fieldItems[id * 4], fieldItems[id * 4 + 1], fieldItems[id * 4 + 2], fieldItems[id * 4 + 3]) { SolomonRingDefinition = fieldItems[id * 4] == 15 ? solomonRing : null } : null;
 
     public NativeAngeloTrainingDefinition AngeloMove(int index) => (uint)index < angeloMoves.Length ? angeloMoves[index] : throw new ArgumentOutOfRangeException(nameof(index));

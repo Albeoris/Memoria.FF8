@@ -44,7 +44,7 @@ public sealed partial class MenuController
         RegisterNamingScreens();
         RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
-        RegisterBookScreen();
+        RegisterItemImageScreen();
         RegisterJunctionDashboard();
     }
 
@@ -274,7 +274,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (IsBookOpen)
+        if (IsItemImageOpen)
         {
             if (input == MenuInput.Cancel)
             {

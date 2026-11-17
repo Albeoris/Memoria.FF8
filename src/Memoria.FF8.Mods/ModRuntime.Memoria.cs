@@ -10,10 +10,11 @@ public sealed partial class ModRuntime
     internal const string MeltdownPackageId = "Memoria/Meltdown";
     private const string Ff7BridgeLockReason = "The transition from FFVIII enables FFVII Enemy Integration in Automatic mode.";
     private const string ComponentBehavior = "component";
-    private static IReadOnlyList<OfficialModComponent> MemoriaComponents => OfficialModCatalog.SeedComponents;
+    private const string SettingsGroupPrefix = "Memoria:";
+    private static IReadOnlyList<OfficialModComponent> MemoriaComponents { get; } = OfficialModCatalog.SeedComponents.Select(component => component.Id == OfficialModCatalog.GirlNextDoor.Id ? OfficialModCatalog.LegacyGirlNextDoor : component).ToArray();
 
     private bool forceFf7EnemyIntegration;
-    private IReadOnlyList<BehaviorModSetting>? memoriaSettingsView;
+    private readonly Dictionary<string, IReadOnlyList<BehaviorModSetting>> memoriaSettingsViews = new(StringComparer.OrdinalIgnoreCase);
     private string MemoriaSettingsPath => Path.Combine(modsRoot, "Memoria", BehaviorMods.MemoriaSettingsFile);
 
     private sealed class MemoriaSettings
@@ -52,12 +53,49 @@ public sealed partial class ModRuntime
 
     private static bool IsMemoriaComponent(ModPackage package)
     {
-        return package.Official is not null || package.IsBundled && MemoriaComponents.Any(component => package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
+        return package.Descriptor is not null || package.Official is not null || package.IsBundled && MemoriaComponents.Any(component => package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
     }
+
+    private static string ComponentGroup(ModPackage package)
+    {
+        string? group = package.Descriptor?.Group;
+        return group is null || group.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase) ? MemoriaPackageId : group;
+    }
+
+    private static string ComponentGroupId(string group) => group == MemoriaPackageId ? MemoriaPackageId : SettingsGroupPrefix + group;
+
+    private static bool IsComponentGroupId(string id) => id.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase) || id.StartsWith(SettingsGroupPrefix, StringComparison.OrdinalIgnoreCase);
 
     internal static bool IsBundledMemoriaIdentity(string id, string key)
     {
         return MemoriaComponents.Any(component => component.Delivery == "engine" && (component.SettingsKey.Equals(key, StringComparison.OrdinalIgnoreCase) || component.RuntimePackageId.Equals(id, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static NativeModDescriptor? ReadPackageDescriptor(string root, OfficialModComponent? official, bool previouslyDescribed, bool isBundledComponent)
+    {
+        string[] paths = Directory.EnumerateFileSystemEntries(root).Where(path => Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (paths.Length == 0)
+        {
+            if (previouslyDescribed || official is not null && OfficialModCatalog.HasDescriptorIdentity(official))
+            {
+                throw new InvalidDataException("The installed native package requires a root mod.json descriptor.");
+            }
+            return null;
+        }
+        if (paths.Length != 1 || Path.GetFileName(paths[0]) != NativeModDescriptor.FileName)
+        {
+            throw new InvalidDataException($"Use exactly one root descriptor named '{NativeModDescriptor.FileName}'.");
+        }
+        NativeModDescriptor descriptor = NativeModDescriptor.Read(paths[0]);
+        if (isBundledComponent || IsBundledMemoriaIdentity(descriptor.RuntimePackageId, descriptor.Id))
+        {
+            throw new InvalidDataException("A native mod descriptor conflicts with a bundled component.");
+        }
+        if (official is not null && (!OfficialModCatalog.HasDescriptorIdentity(official) || official.Id != descriptor.Id))
+        {
+            throw new InvalidDataException("The native mod descriptor does not match its installation receipt.");
+        }
+        return descriptor;
     }
 
     private MemoriaSettings ReadMemoriaSettings()
@@ -89,83 +127,89 @@ public sealed partial class ModRuntime
         return file is null ? null : ParseMemoriaSettings(file.ReadBytes()).Meltdown;
     }
 
-    private static bool? MemoriaComponentPreference(MemoriaSettings settings, string packageId, OfficialModComponent? official = null)
+    private static string? MemoriaComponentSettingsKey(string packageId, OfficialModComponent? official, NativeModDescriptor? descriptor)
     {
-        if (official is not null)
-        {
-            return settings.Components.TryGetValue(official.SettingsKey, out bool stored) ? stored : null;
-        }
-        foreach (var component in MemoriaComponents)
-        {
-            if (packageId.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase) && settings.Components.TryGetValue(component.SettingsKey, out bool enabled))
-            {
-                return enabled;
-            }
-        }
-        return null;
+        return descriptor?.Id ?? official?.SettingsKey ?? MemoriaComponents.FirstOrDefault(component => packageId.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase))?.SettingsKey;
     }
 
-    private IReadOnlyList<BehaviorModSetting> ReadMemoriaComponentSettings(MemoriaSettings settings, bool applyLocks)
+    private static bool? MemoriaComponentPreference(MemoriaSettings settings, string packageId, OfficialModComponent? official, NativeModDescriptor? descriptor)
+    {
+        string? key = MemoriaComponentSettingsKey(packageId, official, descriptor);
+        if (key is not null && settings.Components.TryGetValue(key, out bool enabled))
+        {
+            return enabled;
+        }
+        return key == OfficialModCatalog.GirlNextDoor.SettingsKey && settings.Components.TryGetValue(OfficialModCatalog.LegacyGirlNextDoorSettingsKey, out bool legacyEnabled) ? legacyEnabled : null;
+    }
+
+    private IReadOnlyList<BehaviorModSetting> ReadMemoriaComponentSettings(string groupId, MemoriaSettings settings, bool applyLocks)
     {
         List<BehaviorModSetting> result = [];
-        foreach (var component in MemoriaComponents)
+        if (groupId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
         {
-            ModPackage? package = installedPackages.FirstOrDefault(package => IsMemoriaComponent(package) && package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
-            if (package is null)
+            groupId = MemoriaPackageId;
+            foreach (var component in MemoriaComponents)
             {
-                continue;
-            }
-            bool enabledByDefault = ReadPackageEnabled(package) ?? autoEnable;
-            bool enabled = (applyLocks && RequiredPackageReason(package.Id) is not null) || (MemoriaComponentPreference(settings, package.Id, package.Official) ?? enabledByDefault);
-            result.Add(new(ComponentBehavior, component.SettingsKey, component.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
-            {
-                Category = component.Category,
-                Control = "toggle",
-                Description = component.Description,
-                Unit = string.Empty
-            });
-            if (component.RuntimePackageId == MeltdownPackageId)
-            {
-                try
+                ModPackage? package = installedPackages.FirstOrDefault(package => package is { IsBundled: true, Descriptor: null } && package.Id.Equals(component.RuntimePackageId, StringComparison.OrdinalIgnoreCase));
+                if (package is null)
                 {
-                    IReadOnlyList<BehaviorModSetting> behavior = ReadBehaviorSettingsCore(package, freshConfiguration: true, overrides: settings.Meltdown);
-                    if (applyLocks)
-                    {
-                        behavior = ApplyBehaviorSettingPolicy(package, behavior);
-                    }
-                    result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.SettingsKey }));
+                    continue;
                 }
-                catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
+                bool enabledByDefault = ReadPackageEnabled(package) ?? autoEnable;
+                bool enabled = (applyLocks && RequiredPackageReason(package.Id) is not null) || (MemoriaComponentPreference(settings, package.Id, package.Official, package.Descriptor) ?? enabledByDefault);
+                result.Add(new(ComponentBehavior, component.SettingsKey, component.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
                 {
-                    // The catalog reports the invalid document. Keep the component toggle available.
+                    Category = component.Category,
+                    Control = "toggle",
+                    Description = component.Description,
+                    Unit = string.Empty
+                });
+                if (component.RuntimePackageId == MeltdownPackageId)
+                {
+                    try
+                    {
+                        IReadOnlyList<BehaviorModSetting> behavior = ReadBehaviorSettingsCore(package, freshConfiguration: true, overrides: settings.Meltdown);
+                        if (applyLocks)
+                        {
+                            behavior = ApplyBehaviorSettingPolicy(package, behavior);
+                        }
+                        result.AddRange(behavior.Select(setting => setting with { Category = component.Category, ParentComponent = component.SettingsKey }));
+                    }
+                    catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
+                    {
+                        // The catalog reports the invalid document. Keep the component toggle available.
+                    }
                 }
             }
         }
-        foreach (ModPackage package in installedPackages.Where(package => package.Official is not null && !MemoriaComponents.Any(component => component.RuntimePackageId.Equals(package.Id, StringComparison.OrdinalIgnoreCase))))
+        foreach (ModPackage package in installedPackages.Where(package => (package.Descriptor is not null || package.Official is not null && !package.IsBundled)
+            && ComponentGroupId(ComponentGroup(package)).Equals(groupId, StringComparison.OrdinalIgnoreCase)).OrderBy(package => package.Id, StringComparer.Ordinal))
         {
-            OfficialModComponent component = package.Official!;
-            bool enabledByDefault = ReadPackageEnabled(package) ?? component.DefaultEnabled;
-            bool enabled = MemoriaComponentPreference(settings, package.Id, component) ?? enabledByDefault;
-            result.Add(new(ComponentBehavior, component.SettingsKey, component.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
+            NativeModDescriptor? descriptor = package.Descriptor;
+            OfficialModComponent? component = package.Official;
+            bool enabledByDefault = ReadPackageEnabled(package) ?? autoEnable;
+            bool enabled = MemoriaComponentPreference(settings, package.Id, component, descriptor) ?? enabledByDefault;
+            result.Add(new(ComponentBehavior, descriptor?.Id ?? component!.SettingsKey, package.Name, 0, 1, enabledByDefault ? 1 : 0, enabled ? 1 : 0)
             {
-                Category = component.Category,
+                Category = descriptor is null ? component!.Category : string.Empty,
                 Control = "toggle",
-                Description = component.Description,
+                Description = descriptor?.DescriptionForLanguage("en") ?? component!.Description,
+                Descriptor = descriptor,
                 Unit = string.Empty
             });
         }
         return result;
     }
 
-    private ModOperationResult SaveMemoriaSettings(IReadOnlyList<(string Behavior, string Parameter, int Value)> changes)
+    private ModOperationResult SaveMemoriaSettings(string groupId, IReadOnlyList<(string Behavior, string Parameter, int Value)> changes)
     {
         try
         {
             MemoriaSettings settings = ReadMemoriaSettings();
-            IReadOnlyList<BehaviorModSetting> current = ReadMemoriaComponentSettings(settings, applyLocks: false);
+            IReadOnlyList<BehaviorModSetting> current = ReadMemoriaComponentSettings(groupId, settings, applyLocks: false);
             foreach (var change in changes)
             {
-                string? error = ValidateSettingChange(MemoriaPackageId, current, change.Behavior, change.Parameter, change.Value);
+                string? error = ValidateSettingChange(groupId, current, change.Behavior, change.Parameter, change.Value);
                 if (error is not null)
                 {
                     return new(false, error);
@@ -179,24 +223,34 @@ public sealed partial class ModRuntime
                     settings.Meltdown[change.Parameter] = change.Value;
                 }
             }
-            ModConfiguration.WriteAtomic(MemoriaSettingsPath, JsonSerializer.SerializeToUtf8Bytes(settings, new JsonSerializerOptions { WriteIndented = true }));
+            WriteMemoriaSettings(settings);
             ReconcilePreferences();
             RequestRefreshCore(DateTime.MinValue);
             return ModOperationResult.Completed;
         }
         catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
         {
-            return OperationFailed(exception, MemoriaPackageId);
+            return OperationFailed(exception, groupId);
         }
+    }
+
+    private void WriteMemoriaSettings(MemoriaSettings settings)
+    {
+        ModConfiguration.WriteAtomic(MemoriaSettingsPath, JsonSerializer.SerializeToUtf8Bytes(settings, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static ModServiceView GroupMemoriaComponents(ModServiceView view)
     {
-        ModPackageView[] components = view.Packages.Where(item => IsMemoriaComponent(item.Package)).ToArray();
-        if (components.Length == 0)
+        var groups = view.Packages.Where(item => IsMemoriaComponent(item.Package)).GroupBy(item => ComponentGroup(item.Package), StringComparer.OrdinalIgnoreCase).OrderBy(group => group.Key != MemoriaPackageId).ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (groups.Length == 0)
         {
             return view;
         }
+        return view with { Packages = Array.AsReadOnly(groups.Select(group => CreateMemoriaGroup(group.Key, group.ToArray())).Concat(view.Packages.Where(item => !IsMemoriaComponent(item.Package))).ToArray()) };
+    }
+
+    private static ModPackageView CreateMemoriaGroup(string name, ModPackageView[] components)
+    {
         ModPackageView representative = components.FirstOrDefault(item => item.NeedsAttention)
             ?? components.FirstOrDefault(item => item.ProblemKind == ModPackageProblemKind.Pending)
             ?? components.FirstOrDefault(item => item.CommittedStatus == ModEffectiveStatus.Active)
@@ -204,15 +258,16 @@ public sealed partial class ModRuntime
             ?? components[0];
         ModPackage package = representative.Package with
         {
-            Id = MemoriaPackageId,
-            Name = MemoriaPackageId,
+            Id = ComponentGroupId(name),
+            Name = name,
+            Descriptor = null,
+            IsSettingsGroup = true,
             RequestedEnabled = components.Any(item => item.Package.RequestedEnabled),
             RootDirectory = Path.GetDirectoryName(representative.Package.RootDirectory) ?? representative.Package.RootDirectory,
             HasLocalization = false,
             LocalizationOnly = false
         };
         ModEffectiveStatus? committedStatus = components.Any(item => item.CommittedStatus == ModEffectiveStatus.Active) ? ModEffectiveStatus.Active : representative.CommittedStatus;
-        ModPackageView group = representative with { Package = package, CommittedStatus = committedStatus, CanToggle = false };
-        return view with { Packages = Array.AsReadOnly(view.Packages.Where(item => !IsMemoriaComponent(item.Package)).Prepend(group).ToArray()) };
+        return representative with { Package = package, CommittedStatus = committedStatus, CanToggle = false };
     }
 }

@@ -39,8 +39,9 @@ public sealed partial class MenuController
         modSubscription = service.Subscribe(_ =>
         {
             _liveData = null;
+            _view = null;
             RestoreModSelection();
-            RefreshMemoriaSettingsRows();
+            RefreshModSettingsRows();
         });
         Register(new MenuScreenDefinition { Id = "mods-create", Title = "Mods · Create Mods", Help = "An initialized gameplay editor is required.", Entries = _ => [new("unavailable", SystemText("ui.connectmods.entry.label.gf.abilities.unavailable.in.this.preview", "GF Abilities unavailable in this preview"), SystemText("ui.connectmods.entry.help.open.the.tool.from.the.running.game", "Open the tool from the running game."), Enabled: false)] });
         Register(new MenuScreenDefinition { Id = "gf-mod-review", Title = "Mods · GF changes review", Help = "No gameplay editor is connected.", Entries = _ => [] });

@@ -12,6 +12,24 @@ public sealed partial class MenuController
         return profile.Length >= 2 && OfficialModCatalog.TargetMatches(entry.Official!.Target, profile[0], profile[1]);
     }
 
+    private static bool MatchesOfficialComponent(ModPackage package, OfficialModComponent component)
+    {
+        return package.Official?.Id == component.Id || package.Descriptor?.Id == component.Id
+            || package.IsBundled && (package.Id == component.RuntimePackageId || component.Id == OfficialModCatalog.GirlNextDoor.Id && package.Id == OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId);
+    }
+
+    private NativeModDescriptor? InstalledOfficialDescriptor(OfficialModComponent component)
+    {
+        return modService?.InstalledPackages.FirstOrDefault(package => MatchesOfficialComponent(package, component))?.Descriptor;
+    }
+
+    private RemoteModEntry PresentCatalogEntry(RemoteModEntry entry)
+    {
+        return entry.Official is { } component && InstalledOfficialDescriptor(component) is { } descriptor
+            ? entry with { Name = descriptor.Name, Description = descriptor.DescriptionForLanguage(interfaceLanguage?.Invoke()) }
+            : entry;
+    }
+
     private string MemoriaAvailability(string status)
     {
         RemoteModEntry[] applicable = OfficialEntries.Where(ApplicableOfficialComponent).ToArray();
@@ -19,11 +37,12 @@ public sealed partial class MenuController
         {
             return status;
         }
-        int bundled = modService?.InstalledPackages.Count(package => package is { IsBundled: true, Format: ModFormat.Memoria, Official: null } && package.Status != ModEffectiveStatus.IncompatibleEdition && package.Id != OfficialModCatalog.GirlNextDoor.RuntimePackageId) ?? 0;
-        int installed = bundled + applicable.Count(entry => ManagedMod(entry) is { Available: true, Pending: false }
-            || modService?.InstalledPackages.Any(package => package.Id == entry.Official!.RuntimePackageId && package.IsBundled) == true);
+        int local = modService?.InstalledPackages.Count(package => package is { Format: ModFormat.Memoria } && (package.Descriptor is { } descriptor ? descriptor.Group.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase) : package.IsBundled)
+            && package.Status != ModEffectiveStatus.IncompatibleEdition && !applicable.Any(entry => MatchesOfficialComponent(package, entry.Official!))) ?? 0;
+        int installed = local + applicable.Count(entry => ManagedMod(entry) is { Available: true, Pending: false }
+            || modService?.InstalledPackages.Any(package => MatchesOfficialComponent(package, entry.Official!) && package.Status != ModEffectiveStatus.IncompatibleEdition) == true);
         int cached = applicable.Count(entry => ManagedMod(entry) is not { Available: true, Pending: false } && (EntryJob(entry) is { CanInstall: true } || ManagedMod(entry) is { Pending: true }));
-        int total = bundled + applicable.Length;
+        int total = local + applicable.Length;
         int available = installed + cached;
         List<string> badges = [];
         if (installed > 0)
@@ -60,12 +79,16 @@ public sealed partial class MenuController
             OfficialModComponent component = entry.Official!;
             ModLibraryInstallation? installation = ManagedMod(entry);
             ModLibraryJob? job = EntryJob(entry);
-            bool hasToggle = modSettings.Any(setting => setting.Behavior == "component" && setting.Parameter == component.SettingsKey);
+            BehaviorModSetting? toggle = modSettings.FirstOrDefault(setting => setting.Behavior == "component" && (setting.Parameter == component.SettingsKey
+                || setting.Descriptor?.Id == component.Id || component.Id == OfficialModCatalog.GirlNextDoor.Id && setting.Parameter == OfficialModCatalog.LegacyGirlNextDoorSettingsKey));
+            NativeModDescriptor? installed = InstalledOfficialDescriptor(component);
+            bool hasToggle = toggle is not null || installed is not null;
             if (hasToggle && installation is not { Pending: true, Available: true } && installation is not { Available: false } && installation is not { Version.Length: 0 } && !CatalogUpdateAvailable(entry))
             {
                 continue;
             }
-            string label = ModSettingLabel(new("component", component.SettingsKey, component.Name, 0, 1, 0, 0));
+            string label = installed?.Name ?? (toggle is null ? component.Name : ModSettingLabel(toggle));
+            string description = installed?.DescriptionForLanguage(interfaceLanguage?.Invoke()) ?? (toggle is null ? component.Description : ModSettingDescription(toggle));
             string action = "";
             string state = CatalogStatus(entry);
             if (job is { CanInstall: true } && installation is not { Pending: true })
@@ -94,7 +117,7 @@ public sealed partial class MenuController
                     : action == "download" ? SystemText("mods.official.download-update", "Download update") : SystemText("mods.official.download-enable", "Download & enable");
                 state += " · " + FormatOfficialSize(entry.Official!.Latest!.Artifact.Size);
             }
-            rows.Add(new(new("official-" + component.Id, label + " · " + state, component.Description + "\n" + (entry.CompatibilityError ?? CatalogStatus(entry)), Action: new("official-setting", CatalogIdentity(entry), Value: action), Enabled: action.Length > 0)));
+            rows.Add(new(new("official-" + component.Id, label + " · " + state, description + "\n" + (entry.CompatibilityError ?? CatalogStatus(entry)), Action: new("official-setting", CatalogIdentity(entry), Value: action), Enabled: action.Length > 0)));
         }
         AddBatchRow(rows, false);
         AddBatchRow(rows, true);
@@ -107,7 +130,7 @@ public sealed partial class MenuController
 
     private RemoteModEntry[] OfficialBatch(bool updates) => OfficialEntries.Where(entry => CanDownload(entry) && EntryJob(entry) is null
         && (updates ? ManagedMod(entry) is { Available: true, Pending: false } && CatalogUpdateAvailable(entry)
-            : ManagedMod(entry) is null && modService?.InstalledPackages.Any(package => package.Id == entry.Official!.RuntimePackageId) != true))
+            : ManagedMod(entry) is null && modService?.InstalledPackages.Any(package => MatchesOfficialComponent(package, entry.Official!)) != true))
         .OrderBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
     private void AddBatchRow(List<ModSettingsRow> rows, bool updates)

@@ -23,7 +23,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory);
         Resources = new ResourceService(source, this.resourceLanguage);
-        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.GirlNextDoor.SettingsKey && GirlNextDoorMigration.IsComplete(Mods!.PrimaryModsDirectory));
+        Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.PrimaryModsDirectory));
         Resources.ReplacementFailed += (key, exception) =>
         {
             ModTextureLoadException? rejected = exception as ModTextureLoadException;
@@ -52,7 +52,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
     public ResourceService Resources { get; }
-    public BookArtworkMods BookArtwork { get; private set; } = BookArtworkMods.Empty;
+    public ItemOverrideMods ItemOverrides { get; private set; } = ItemOverrideMods.Empty;
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
@@ -327,11 +327,12 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         usable.AddRange(encodedResources.Select(resource => catalog.Files.First(file => $"{file.PackageId}:{file.RelativePath}" == resource.Content.Provenance).PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(behaviorPackages.Select(package => package.Id));
         usable.AddRange(catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.Equals(BehaviorMods.PayloadPath, StringComparison.OrdinalIgnoreCase)).Select(file => file.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
-        if (!BookArtworkMods.TryPrepare(catalog, out BookArtworkMods bookArtwork, out IReadOnlyList<ModDiagnostic> bookDiagnostics))
+        int itemCount = catalog.Files.Any(ItemOverrideMods.IsItemDocument) ? dataCandidate.Read(new ResourceKey("menu/mitem.bin")).Length / 4 : 0;
+        if (!ItemOverrideMods.TryPrepare(catalog, itemCount, out ItemOverrideMods itemOverrides, out IReadOnlyList<ModDiagnostic> itemDiagnostics))
         {
-            return new ModPreparationResult(false, Diagnostics: bookDiagnostics);
+            return new ModPreparationResult(false, Diagnostics: itemDiagnostics);
         }
-        usable.AddRange(bookArtwork.PackageIds);
+        usable.AddRange(itemOverrides.PackageIds);
         if (gameplayPolicy.ExtendedRosterEnabled)
         {
             usable.Add(GameplayTuningPolicy.ExtendedRosterPackageId);
@@ -419,12 +420,13 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 encounterPublication.Commit?.Invoke();
             });
             CommittedLocalizations?.InputRevision?.Dispose();
+            CommitLocalizationLanguage(localization);
             CommittedLocalizations = localization;
             GuardianForceMods = guardianMods;
             EncounterMods = encounterMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
-            BookArtwork = bookArtwork;
+            ItemOverrides = itemOverrides;
             StartupPolicy = startupPolicy;
             GameplayPolicy = gameplayPolicy;
             LastLocalizationChangedKeys = localization.ChangedKeys;

@@ -101,7 +101,7 @@ public sealed partial class MenuController
 
     private string LegacyCatalogStatus(RemoteModEntry entry) => ManagedRepairNeeded(entry) && EntryJob(entry) is null or { Phase: "Installed" } ? "Managed installation missing · Repair required" : EntryJob(entry)?.Phase ?? (!CatalogEntryListed(entry) ? "No longer listed" : ManagedMod(entry) is { } receipt ? receipt.Pending ? "Waiting to apply · restart required" : CatalogUpdateAvailable(entry) ? "Update available" : "Installed" : AssociatedMod(entry) is not null ? "Installed manually" : modLibrarySnapshot?.TargetSupported == true ? "Check required" : "Unavailable for this edition");
     private string[] CatalogCategories => ["All categories", .. (modLibrarySnapshot?.Catalog.Entries ?? []).Select(entry => entry.Category).Where(category => category.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.OrdinalIgnoreCase)];
-    private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Where(entry =>
+    private RemoteModEntry[] FilteredCatalog() => (modLibrarySnapshot?.Catalog.Entries ?? []).Select(PresentCatalogEntry).Where(entry =>
         (catalogSearch.Length == 0 || (entry.Name + " " + entry.Author + " " + entry.Category + " " + entry.Description).Contains(catalogSearch, StringComparison.OrdinalIgnoreCase)) &&
         (catalogCategory == "All categories" || entry.Category.Equals(catalogCategory, StringComparison.OrdinalIgnoreCase)) &&
         (catalogFilter switch { 1 => CanDownload(entry) && EntryJob(entry) is null && AssociatedMod(entry) is null && ManagedMod(entry) is null, 2 => AssociatedMod(entry) is not null || ManagedMod(entry) is not null, 3 => EntryJob(entry) is not null, 4 => EntryJob(entry)?.Error is not null, 5 => entry.Official is not null, _ => true }))
@@ -119,6 +119,7 @@ public sealed partial class MenuController
         {
             return ["Select a mod to inspect its requirements."];
         }
+        entry = PresentCatalogEntry(entry);
         List<string> details = [entry.Name, entry.Author, "Available version: " + entry.Version, "Category: " + entry.Category, "Source: " + entry.SourceId, "Upstream edition: " + entry.Edition, "Language: " + entry.Language, "Engine support: package check required", entry.Description];
         if (entry.CompatibilityError is not null)
         {
@@ -203,7 +204,7 @@ public sealed partial class MenuController
         modLibrarySnapshot = modLibrary.View;
         if (ScreenId == "mod-settings")
         {
-            RefreshMemoriaSettingsRows();
+            RefreshModSettingsRows();
         }
         if (IsLibraryScreen || ScreenId == "mods")
         {

@@ -11,11 +11,16 @@ public sealed partial class ModRuntime
         lock (gate)
         {
             ThrowIfDisposed();
-            if (packageId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
+            if (IsComponentGroupId(packageId))
             {
                 try
                 {
-                    return memoriaSettingsView ??= ReadMemoriaComponentSettings(ReadMemoriaSettings(), applyLocks: true);
+                    if (!memoriaSettingsViews.TryGetValue(packageId, out IReadOnlyList<BehaviorModSetting>? settings))
+                    {
+                        settings = ReadMemoriaComponentSettings(packageId, ReadMemoriaSettings(), applyLocks: true);
+                        memoriaSettingsViews.Add(packageId, settings);
+                    }
+                    return settings;
                 }
                 catch (Exception exception) when (BehaviorMods.IsDocumentError(exception))
                 {
@@ -58,9 +63,9 @@ public sealed partial class ModRuntime
             {
                 return ModOperationResult.Completed;
             }
-            if (packageId.Equals(MemoriaPackageId, StringComparison.OrdinalIgnoreCase))
+            if (IsComponentGroupId(packageId))
             {
-                return SaveMemoriaSettings(changes);
+                return SaveMemoriaSettings(packageId, changes);
             }
             if (GetPackageLockReason(packageId) is string lockReason)
             {
@@ -75,7 +80,7 @@ public sealed partial class ModRuntime
             {
                 if (IsMemoriaComponent(package) && package.Id.Equals(MeltdownPackageId, StringComparison.OrdinalIgnoreCase) && ReadMemoriaSettings().Meltdown.Count > 0)
                 {
-                    return SaveMemoriaSettings(changes);
+                    return SaveMemoriaSettings(MemoriaPackageId, changes);
                 }
                 ValidatePreferenceTarget(package);
                 IReadOnlyList<BehaviorModSetting> settings = ReadBehaviorSettingsCore(package, true);

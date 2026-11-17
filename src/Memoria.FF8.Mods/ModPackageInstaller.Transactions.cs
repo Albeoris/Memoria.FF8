@@ -178,7 +178,7 @@ public sealed partial class ModPackageInstaller
         }
         if (entry.SourceId == OfficialModCatalog.SourceId)
         {
-            return ValidNativeReceipt(receipt) && receipt.ModId == entry.Id && receipt.Official!.RuntimePackageId == entry.Official?.RuntimePackageId
+            return entry.Official is { } component && CanUseInstalledDestination(component, receipt)
                 ? NativeResult(receipt) : Result(receipt, false, false, "The native installation receipt does not match this component.");
         }
         if (receipt.Schema != 1 || receipt.SourceId != entry.SourceId || receipt.ModId != entry.Id || receipt.Target != targetProfile || receipt.DestinationName != key + (receipt.Folder ? "" : ".iroj"))
@@ -440,6 +440,7 @@ public sealed partial class ModPackageInstaller
     private static ModPackageInstallResult Result(Receipt receipt, bool restart, bool installed, string? error = null) => new(receipt.InstallationId, PackageId(receipt), receipt.Version, restart, installed, error)
     {
         Official = receipt.Official,
+        NativeDestinationName = receipt.Official is null ? null : receipt.DestinationName,
         EngineVersionRange = receipt.EngineVersionRange
     };
 

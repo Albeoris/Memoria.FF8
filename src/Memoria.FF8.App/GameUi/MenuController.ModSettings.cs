@@ -17,7 +17,7 @@ public sealed partial class MenuController
 
     private static bool IsMemoriaSettingsPackage(ModPackage package)
     {
-        return IsBundledMemoriaMod(package) && package.Id.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase);
+        return package.IsSettingsGroup || IsBundledMemoriaMod(package) && package.Id.Equals(ModRuntime.MemoriaPackageId, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool HasSelectedModSettings => selectedModId is not null && (modService?.ReadBehaviorSettings(selectedModId).Count > 0 || selectedModId == ModRuntime.MemoriaPackageId && OfficialEntries.Any());
@@ -46,11 +46,15 @@ public sealed partial class MenuController
 
     private string ModSettingLabel(BehaviorModSetting setting)
     {
-        return SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}", setting.Label);
+        return setting.Descriptor?.Name ?? SystemText($"mods.behavior.{setting.Behavior}.{setting.Parameter}", setting.Label);
     }
 
     private string ModSettingDescription(BehaviorModSetting setting)
     {
+        if (setting.Descriptor is { } descriptor)
+        {
+            return descriptor.DescriptionForLanguage(interfaceLanguage?.Invoke());
+        }
         if (modSettingsPackageId == ModRuntime.MemoriaPackageId && setting is { Behavior: "component", Parameter: "Level-Based Stat Bonuses" })
         {
             return SystemText("mods.level-based-stat-bonuses.description", SystemTextCatalog.LevelBasedStatBonusesDescriptionForLanguage(interfaceLanguage?.Invoke()));
@@ -115,7 +119,8 @@ public sealed partial class MenuController
         {
             help += "\n" + CurrentBindingText(ControlAction.Card) + " · " + ModSettingsExpansionLabel(isExpanded);
         }
-        return new(new(modLibrary is null ? "mod-setting-" + index : SettingId(setting), ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
+        string id = modLibrary is null && setting.Descriptor is null ? "mod-setting-" + index : SettingId(setting);
+        return new(new(id, ModSettingLabel(setting), help, Action: new("mod-settings-value"), Enabled: lockReason is null), index, depth, expanded);
     }
 
     private string ModSettingsExpansionLabel(bool expanded)
@@ -239,9 +244,9 @@ public sealed partial class MenuController
 
     private static string SettingId(BehaviorModSetting setting) => "mod-setting-" + setting.Behavior + "/" + setting.Parameter;
 
-    private void RefreshMemoriaSettingsRows()
+    private void RefreshModSettingsRows()
     {
-        if (ScreenId != "mod-settings" || modSettingsPackageId != ModRuntime.MemoriaPackageId || modService is null)
+        if (ScreenId != "mod-settings" || modSettingsPackageId is null || modService is null)
         {
             return;
         }

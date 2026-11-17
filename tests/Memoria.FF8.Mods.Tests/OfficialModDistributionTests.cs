@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -38,7 +38,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         File.WriteAllText(playerIni, playerSettings);
 
         string preferences = Path.Combine(Mods, "Memoria", "memoria-settings.json");
-        File.WriteAllText(preferences, """{"components":{"Fixture":false,"Other":false},"meltdown":{}}""");
+        File.WriteAllText(preferences, """{"components":{"fixture":false,"Other":false},"meltdown":{}}""");
         var (update, release) = Package("1.10.0");
         Assert.True(release.CompareVersion(initial.Version) > 0);
         ModPackageInstallPlan next = await installer.InspectAsync(update, release, Token);
@@ -46,7 +46,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
         Assert.False(Assert.Single(Installer().CompleteStartupApplications([])).Installed);
         Assert.Equal("1.9.0", ModPackageInstaller.ReadOfficialInstallation(Mods, initial.Official!)!.Version);
-        Assert.Contains("\"Fixture\":false", File.ReadAllText(preferences));
+        Assert.Contains("\"fixture\":false", File.ReadAllText(preferences));
 
         next = await installer.InspectAsync(update, release, Token);
         Assert.True((await installer.RequestInstallAsync(next, true, Token, enableOnAcceptance: true)).RestartRequired);
@@ -57,7 +57,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.True(Assert.Single(runtime.InstalledPackages).RequestedEnabled);
         Assert.True(Assert.Single(Installer().CompleteStartupApplications([next.PackageId])).Installed);
         Assert.Equal("1.10.0", ModPackageInstaller.ReadOfficialInstallation(Mods, release.Official!)!.Version);
-        Assert.Contains("\"Fixture\":true", File.ReadAllText(preferences));
+        Assert.Contains("\"fixture\":true", File.ReadAllText(preferences));
         Assert.Contains("\"Other\":false", File.ReadAllText(preferences));
         Assert.Equal(playerSettings, File.ReadAllText(playerIni));
 
@@ -65,6 +65,40 @@ public sealed class OfficialModDistributionTests : IDisposable
         Assert.Contains("99.0.0", Installer().CompatibilityError(incompatible));
         Assert.Equal("1.10.0", Installer().GetStatus(incompatible)!.Version);
         Assert.Throws<InvalidDataException>(() => OfficialModCatalog.Parse(Catalog(1, Package("1.12.0", "[0.8.9,1.0.0)").Entry.Official!)));
+    }
+
+    [Fact]
+    public async Task LegacyManagedFolderUpgradesWithoutDroppingItsSettings()
+    {
+        string directory = Path.GetFullPath(OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId, Mods);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "GirlNextDoor.png"), "locally retained legacy artwork");
+        const string previousIni = "enabled = 0\nkeep = value\n";
+        File.WriteAllText(Path.Combine(directory, "mod.ini"), previousIni);
+        Assert.True(ModPackageInstaller.RecordMigratedGirlNextDoor(Mods));
+        string settings = Path.Combine(Mods, "Memoria", "memoria-settings.json");
+        File.WriteAllText(settings, """{"components":{"Girl Next Door":false},"meltdown":{}}""");
+
+        var (zip, entry) = Package("1.0.3", component: OfficialModCatalog.GirlNextDoor);
+        ModPackageInstaller installer = Installer();
+        var previous = installer.GetStatus(entry);
+        Assert.True(previous is { Installed: true });
+        ModPackageInstallPlan plan = await installer.InspectAsync(zip, entry, Token);
+        Assert.Equal(directory, plan.Destination);
+        Assert.Equal("Memoria/girl-next-door", plan.PackageId);
+        Assert.True((await installer.RequestInstallAsync(plan, repair: true, cancellationToken: Token)).RestartRequired);
+        Assert.True(Assert.Single(Installer().RecoverAndApply()).Installed);
+
+        using ModRuntime runtime = new(root, watch: false, modsDirectory: Mods);
+        Assert.True(runtime.PreparePending(force: true));
+        Assert.True(runtime.CommitPending());
+        ModPackage package = Assert.Single(runtime.InstalledPackages);
+        Assert.Equal(plan.PackageId, package.Id);
+        Assert.False(package.RequestedEnabled);
+        Assert.True(Assert.Single(Installer().CompleteStartupApplications([plan.PackageId])).Installed);
+        Assert.Equal(previous.InstallationId, installer.GetStatus(entry)?.InstallationId);
+        Assert.Equal(previousIni, File.ReadAllText(Path.Combine(directory, "mod.ini")));
+        Assert.Contains("\"Girl Next Door\":false", File.ReadAllText(settings));
     }
 
     [Fact]
@@ -176,12 +210,12 @@ public sealed class OfficialModDistributionTests : IDisposable
     }
 
     [Fact]
-    public async Task OfficialInstallerChecksBookBindingsBeforeStaging()
+    public async Task OfficialInstallerChecksItemOverridesBeforeStaging()
     {
-        const string descriptor = "items/book-artwork.json";
+        const string descriptor = "items/arbitrary.json";
         var (validPath, validEntry) = Package("1.1.0", extraFiles: new Dictionary<string, byte[]>
         {
-            [descriptor] = """{"schemaVersion":1,"items":[{"itemId":222,"image":"art/cover.png"}]}"""u8.ToArray(),
+            [descriptor] = """{"id":222,"use":{"action":"ShowImage","image":"/art/cover.png"}}"""u8.ToArray(),
             ["art/cover.png"] = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAYAAAC56t6BAAAAFElEQVR4nGNgYGBgMEhY8B9EozIAR20GjgleNaUAAAAASUVORK5CYII=")
         });
         ModPackageInstaller installer = Installer();
@@ -190,7 +224,7 @@ public sealed class OfficialModDistributionTests : IDisposable
 
         var (missingPath, missingEntry) = Package("1.2.0", extraFiles: new Dictionary<string, byte[]>
         {
-            [descriptor] = """{"schemaVersion":1,"items":[{"itemId":222,"image":"art/cover.png"}]}"""u8.ToArray()
+            [descriptor] = """{"id":222,"use":{"action":"ShowImage","image":"/art/cover.png"}}"""u8.ToArray()
         });
         await Assert.ThrowsAsync<InvalidDataException>(() => installer.InspectAsync(missingPath, missingEntry, Token));
         Assert.False(Directory.Exists(Mods));
@@ -237,14 +271,22 @@ public sealed class OfficialModDistributionTests : IDisposable
         throw new TimeoutException("The download did not complete.");
     }
 
-    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null, string? settingsPath = null, IReadOnlyDictionary<string, byte[]>? extraFiles = null)
+    private (string Path, RemoteModEntry Entry) Package(string version, string? engineRange = null, string? settingsPath = null, IReadOnlyDictionary<string, byte[]>? extraFiles = null, OfficialModComponent? component = null)
     {
         Directory.CreateDirectory(root);
         engineRange ??= Range;
         OfficialModTarget target = new("FFVIII", ["Classic"], ["*"]);
         byte[] payload = Encoding.UTF8.GetBytes("fixture " + version);
         byte[] ini = "enabled = 0\n"u8.ToArray();
-        List<OfficialModFile> files = [new("asset.txt", payload.Length, Hash(payload), false)];
+        component ??= new("fixture", "Memoria", "Memoria/fixture", "fixture", "Fixture", "Test artwork", "Items", "memoria-native", "download", true, target, null);
+        byte[] nativeDescriptor = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            id = component.Id,
+            name = component.Name,
+            package = component.GroupId,
+            description = new { en = component.Description }
+        });
+        List<OfficialModFile> files = [new("asset.txt", payload.Length, Hash(payload), false), new("mod.json", nativeDescriptor.Length, Hash(nativeDescriptor), false)];
         if (settingsPath is not null)
         {
             files.Add(new(settingsPath, ini.Length, Hash(ini), false));
@@ -257,8 +299,8 @@ public sealed class OfficialModDistributionTests : IDisposable
         {
             schemaVersion = 1,
             sourceId = OfficialModCatalog.SourceId,
-            componentId = "fixture",
-            runtimePackageId = "Memoria/Fixture",
+            componentId = component.Id,
+            runtimePackageId = component.RuntimePackageId,
             version,
             engineVersionRange = engineRange,
             target,
@@ -270,6 +312,7 @@ public sealed class OfficialModDistributionTests : IDisposable
         {
             Write(zip, "mod.manifest.json", metadata);
             Write(zip, "payload/asset.txt", payload);
+            Write(zip, "payload/mod.json", nativeDescriptor);
             foreach ((string name, byte[] bytes) in extraFiles ?? new Dictionary<string, byte[]>())
             {
                 Write(zip, "payload/" + name, bytes);
@@ -280,7 +323,7 @@ public sealed class OfficialModDistributionTests : IDisposable
             }
         }
         OfficialModArtifact artifact = new("https://example.test/mod.zip", new FileInfo(path).Length, metadata.Length + files.Sum(file => file.Size), Hash(File.ReadAllBytes(path)));
-        OfficialModComponent descriptor = new("fixture", "Memoria", "Memoria/Fixture", "Fixture", "Fixture", "Test artwork", "Items", "memoria-native", "download", true, target, new(version, engineRange, "fixture-v" + version, "New", artifact));
+        OfficialModComponent descriptor = component with { Latest = new(version, engineRange, component.Id + "-v" + version, "New", artifact) };
         return (path, Entry(descriptor));
     }
 

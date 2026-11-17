@@ -24,7 +24,7 @@ public enum UiImageKind
     HostArtwork,
     ChocoboPortrait,
     GrieverPortrait,
-    BookCover,
+    ItemUseImage,
     SystemTimerDigit
 }
 

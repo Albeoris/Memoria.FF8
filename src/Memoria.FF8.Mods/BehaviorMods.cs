@@ -8,6 +8,7 @@ public sealed record BehaviorModSetting(string Behavior, string Parameter, strin
 {
     public string Category { get; init; } = string.Empty;
     public string? ParentComponent { get; init; }
+    public NativeModDescriptor? Descriptor { get; init; }
     public string Description { get; init; } = string.Empty;
     public string Control { get; init; } = "slider";
     public string Unit { get; init; } = "%";

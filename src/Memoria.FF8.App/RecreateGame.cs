@@ -1646,7 +1646,7 @@ internal sealed partial class RecreateGame : Game
         {
             DrawSalaryUi(bounds, salary);
         }
-        if (!BattleModalBlocksGameplay && sceneInspector is null && events?.PartyMenu is not null && gameMenus?.IsBookOpen != true)
+        if (!BattleModalBlocksGameplay && sceneInspector is null && events?.PartyMenu is not null && gameMenus?.IsItemImageOpen != true)
         {
             DrawPartyMenu(bounds);
         }

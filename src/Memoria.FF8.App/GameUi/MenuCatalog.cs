@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.GameUi;
+namespace Memoria.FF8.GameUi;
 
 /// <summary>Menu information architecture. Native effects remain owned by the live provider.</summary>
 public static class MenuCatalog
@@ -227,9 +227,9 @@ public static class MenuCatalog
     {
         string label = $"{item.Name}   {item.Quantity}";
         MenuAction select = new("select-item", item.Id);
-        if (item.BookCover.HasValue)
+        if (item.UseImage.HasValue)
         {
-            return new MenuEntry(item.Id, label, item.Description, "book", select, item.Quantity > 0);
+            return new MenuEntry(item.Id, label, item.Description, "item-image", select, item.Quantity > 0);
         }
         bool magazine = item.NativeMagazinePages.Length > 0;
         string? reason = magazine ? item.NativeMagazinePageUnavailableReasons.GetValueOrDefault(item.NativeMagazinePages[0].PageId) : null;

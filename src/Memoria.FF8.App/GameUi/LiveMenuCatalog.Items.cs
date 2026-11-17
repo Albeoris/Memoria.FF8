@@ -1,27 +1,33 @@
 using Memoria.FF8.Mods;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
+public sealed record MenuItemDefinition(byte Type, NativeFieldItem NativeUse, ShowImageItemUse? Use);
+
 public sealed partial class LiveMenuCatalog
 {
     private readonly byte[] itemIconKinds;
-    internal Func<int, ModFile?>? FindBookArtwork { get; set; }
+    internal Func<int, ItemOverride?>? FindItemOverride { get; set; }
 
-    internal UiImageSource? ItemBookCover(int itemId) => FindBookArtwork?.Invoke(itemId) is not null ? new UiImageSource(UiImageKind.BookCover, itemId) : null;
-
-    internal UiImageSource BookIcon(int itemId) => ItemTypeIcon(itemId, 9);
-
-    public UiImageSource? ItemIcon(int itemId)
+    public MenuItemDefinition? ItemDefinition(int itemId)
     {
-        if (itemId <= 0 || itemId >= fieldItems.Length / 4)
+        if (FieldItem(itemId) is not { } original)
         {
             return null;
         }
-        return ItemTypeIcon(itemId, fieldItems[itemId * 4]);
+
+        ItemOverride? change = FindItemOverride?.Invoke(itemId);
+        return new(change?.Type is { } type ? (byte)type : original.Type, original, change?.Use);
     }
 
-    private UiImageSource ItemTypeIcon(int itemId, int type)
+    public UiImageSource? ItemIcon(int itemId)
+    {
+        return ItemDefinition(itemId) is { } item ? ItemTypeIcon(itemId, item.Type) : null;
+    }
+
+    internal UiImageSource ItemTypeIcon(int itemId, int type)
     {
         if (type >= itemIconKinds.Length)
         {

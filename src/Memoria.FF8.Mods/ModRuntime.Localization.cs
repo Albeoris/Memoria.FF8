@@ -72,12 +72,25 @@ public sealed partial class ModRuntime
             List<(string Path, byte[]? Bytes)> originals = [];
             try
             {
+                MemoriaSettings? componentSettings = null;
                 foreach (ModPackage package in installedPackages.Where(package => package.HasLocalization))
                 {
                     ValidatePreferenceTarget(package);
+                    bool enabled = lowToHigh.Contains(package.Id, StringComparer.OrdinalIgnoreCase);
+                    if (package.Descriptor is { } descriptor)
+                    {
+                        componentSettings ??= ReadMemoriaSettings();
+                        componentSettings.Components[descriptor.Id] = enabled;
+                        continue;
+                    }
                     string path = ConfigurationPath(package.RootDirectory, package.Format);
                     originals.Add((path, File.Exists(path) ? File.ReadAllBytes(path) : null));
-                    ModConfiguration.WriteBoolean(path, "enabled", lowToHigh.Contains(package.Id, StringComparer.OrdinalIgnoreCase));
+                    ModConfiguration.WriteBoolean(path, "enabled", enabled);
+                }
+                if (componentSettings is not null)
+                {
+                    originals.Add((MemoriaSettingsPath, File.Exists(MemoriaSettingsPath) ? File.ReadAllBytes(MemoriaSettingsPath) : null));
+                    WriteMemoriaSettings(componentSettings);
                 }
                 originals.Add((LocalizationPreferencesPath, File.Exists(LocalizationPreferencesPath) ? File.ReadAllBytes(LocalizationPreferencesPath) : null));
                 Directory.CreateDirectory(modsRoot);
