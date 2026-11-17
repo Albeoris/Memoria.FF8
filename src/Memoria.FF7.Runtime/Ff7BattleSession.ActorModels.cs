@@ -265,6 +265,10 @@ public sealed partial class Ff7BattleSession
                         break;
                     case 0xC0:
                         break;
+                    case 0x98:
+                        Ff7BattleQueuedCommand titleCommand = state.Action?.Command ?? throw new NotSupportedException("FFVII delayed action title requires its retained active attacker command.");
+                        ScheduleActorActionTitle(titleCommand, instruction.Operands.Span[0]);
+                        break;
                     case 0x97:
                         StartExplicitActorDeath(previous.Slot, instruction.Operands.Span);
                         break;

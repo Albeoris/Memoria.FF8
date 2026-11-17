@@ -603,9 +603,9 @@ public sealed partial class Ff7BattleSession
                 {
                     EmitSummonSound(489, command.ActorSlot);
                 }
-                else if (instruction.Opcode == 0xEA)
+                else if (instruction.Opcode is 0x98 or 0xEA)
                 {
-                    state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActionTitle(EnsurePrimaryEffects(), command.CommandId, command.CommandId == (byte)Ff7BattleCommand.Summon ? command.AttackId ?? command.Argument : command.Argument, Ff7NativeBattleMessage.DefaultSpeed) };
+                    ScheduleActorActionTitle(command, instruction.Opcode == 0x98 ? instruction.Operands.Span[0] : (byte)0);
                 }
                 else if (instruction.Opcode == 0xEB && command is { CommandId: (byte)Ff7BattleCommand.Item, TargetMask: not 0 })
                 {
@@ -661,6 +661,12 @@ public sealed partial class Ff7BattleSession
         {
             state = state with { CursorSuppressedByAction = true, CursorSuppressionUsed = true };
         }
+    }
+
+    private void ScheduleActorActionTitle(Ff7BattleQueuedCommand command, byte delay)
+    {
+        ushort argument = command.CommandId == (byte)Ff7BattleCommand.Summon ? command.AttackId ?? command.Argument : command.Argument;
+        state = state with { PrimaryEffects = Ff7BattlePrimaryEffects.ScheduleActionTitle(EnsurePrimaryEffects(), command.CommandId, argument, Ff7NativeBattleMessage.DefaultSpeed, delay) };
     }
 
     private void SetActionClockFlag(ReadOnlySpan<byte> operands)
