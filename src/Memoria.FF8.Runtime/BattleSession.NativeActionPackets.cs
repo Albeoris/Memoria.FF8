@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -5,6 +7,7 @@ public sealed partial class BattleSession
     private NativeBattleActionPacketsState nativeActionPackets = NativeBattleActionPacketsState.Fresh();
     private NativeBattlePartyStatusMirrors nativePartyStatusMirrors = NativeBattlePartyStatusMirrors.Unknown();
     private NativeBattleEffectMemory? nativeEffectMemory;
+    private ImmutableDictionary<long, NativeBattleSceneReplaySource>? nativeRetainedSceneReplaySources;
     public NativeBattleActionPacketsState NativeActionPackets => nativeActionPackets;
     public NativeBattlePartyStatusMirrors NativePartyStatusMirrors => nativePartyStatusMirrors;
     public int? NativeEffectIoResult { get; private set; }
@@ -31,7 +34,8 @@ public sealed partial class BattleSession
             return;
         }
         memory.Validate();
-        memory = NativeBattleStorageSnapshots.Restore(memory);
+        memory = NativeBattleSceneCopyProvenance.RestoreRetainedSources(NativeBattleStorageSnapshots.Restore(memory));
+        nativeRetainedSceneReplaySources = memory.SceneReplaySources;
         //47CCB0 initial entry calls48D1F0; the physical arenas, pointer and independent gates survive it.
         nativeActionPackets = memory.ActionPackets.ResetCounts();
         ResetDiagnosticReflectionHeaders();

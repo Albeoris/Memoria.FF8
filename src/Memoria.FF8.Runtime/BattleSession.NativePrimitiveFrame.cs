@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500400 requires its retained process primitive owner.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native500400 requires observed retained texture-page/buffer state; migrate the named standalone snapshot explicitly.");
         NativeEffectMemory = memory with { PrimitiveProcess = process.Initialize500400() };
-        return graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
+        return graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() with { SceneReplaySources = nativeRetainedSceneReplaySources } };
     }
 
     private NativeBattleGraphicsState AppendNativePrimitivePackets(NativeBattleGraphicsState graphics, ImmutableArray<NativeBattleGeometryPrimitive> primitives, int? moduleDraw = null, string? textureSourceOwner = null)

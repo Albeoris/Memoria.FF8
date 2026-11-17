@@ -18,6 +18,28 @@ public sealed record NativeBattleSceneCopyRegion(NativeBattleSceneCapture Captur
 
 public static class NativeBattleSceneCopyProvenance
 {
+    internal static NativeBattleRetainedMemory RestoreRetainedSources(NativeBattleRetainedMemory memory)
+    {
+        if (memory.SceneReplaySources is not null)
+        {
+            return memory;
+        }
+        // Older retained saves kept copied pixel words without the frames needed to replay them.
+        // Recover their raw presentation without changing VRAM, cache flags or gameplay owners.
+        NativeBattleEffectMemory? effects = memory.EffectMemory;
+        if (effects is not null)
+        {
+            NativeBattlePrimitiveProcess? process = effects.PrimitiveProcess;
+            if (process?.TextureWindowCache is { } cache && cache.Rows.Any(row => row.Regions.Any(region => region.RetainedPixels?.SceneCopies is not null)))
+            {
+                cache = cache with { Rows = cache.Rows.Select(row => row with { Regions = row.Regions.Select(region => region.RetainedPixels is { SceneCopies: not null } pixels ? region with { RetainedPixels = pixels with { SceneCopies = null } } : region).ToImmutableArray() }).ToImmutableArray() };
+                process = process with { TextureWindowCache = cache };
+            }
+            effects = effects with { Textures = effects.Textures is { SceneCopies: not null } textures ? textures with { SceneCopies = null } : effects.Textures, PrimitiveProcess = process };
+        }
+        return memory with { EffectMemory = effects, SceneReplaySources = ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty };
+    }
+
     public static ImmutableArray<NativeBattleSceneCopyRegion>? OverwriteBytes(ImmutableArray<NativeBattleSceneCopyRegion>? regions, int offset, int length)
     {
         if (regions is null || length == 0)
