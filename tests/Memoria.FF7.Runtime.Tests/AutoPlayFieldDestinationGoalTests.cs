@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
 using Memoria.AutoPlay;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -67,7 +68,54 @@ internal static class AutoPlayFieldDestinationGoalTests
         CheckConsumedNoOpIntent();
         CheckPossibleDestinationGoals(observation, entrance, optional);
         CheckRemoteDestinationAdvice();
+        CheckCausalUnblockPrerequisite();
         Console.WriteLine("PASS generic field destination resolution, priority, retention, restoration, native guards and unchanged consumption history");
+    }
+
+    private static void CheckCausalUnblockPrerequisite()
+    {
+        PcWalkmeshTriangle[] mesh =
+        [
+            new(0, new(0, 0, 0), new(100, 0, 0), new(0, 100, 0), 1, -1, -1),
+            new(1, new(100, 0, 0), new(100, 100, 0), new(0, 100, 0), 0, -1, -1),
+            new(2, new(300, 0, 0), new(400, 0, 0), new(300, 100, 0), -1, -1, -1)
+        ];
+        byte[] blocked = [2];
+        Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, Triangle = 0, CollisionRadius = 1 };
+        PcFieldGateway gate = new(new(70, 70, 0), new(80, 70, 0), 0, 0, 0, 200, 0, 0);
+        Check(Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, blocked, player, gate, [1]), "A declared native unblock must prove that it connects the current source to the blocked gateway.");
+        Check(!Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, blocked, player, gate, [2]) && !Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, blocked, player, gate, [-1]) && !Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, blocked, player, gate, [0xFFFF]), "Unrelated, negative and out-of-range triangle effects must not authorize gateway prerequisite advice.");
+        Check(!Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, [0], player, gate, [1]) && blocked.SequenceEqual(new byte[] { 2 }), "An already reachable gateway requires no unblock prerequisite, and topology preview must preserve the live blocking mask.");
+        Ff7AutoPlayTarget gateway = new("gateway", -1, -1, Ff7AutoPlayTargetKind.Gateway, "gateway-condition", false, Vector3.Zero, DestinationField: 200, GatewayIndex: 0);
+        Ff7AutoPlayTarget producer = new("producer", 1, 1, Ff7AutoPlayTargetKind.ActorTalk, "producer-condition", false, Vector3.Zero, MayChangeNavigation: true) { UnblockedTriangles = [1] };
+        Ff7AutoPlayTarget unrelated = producer with { Id = "unrelated", Entity = 2, UnblockedTriangles = [2] };
+        Ff7AutoPlayTarget backtrack = gateway with { Id = "backtrack", DestinationField = 400, GatewayIndex = 1 };
+        Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [backtrack, unrelated, producer, gateway], true, true) { NavigationKey = "blocked-component" };
+        Ff7AutoPlayState state = new() { DestinationField = 300 };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent[] events = observation.Events.Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ConditionSignature: target.ConditionFingerprint)).ToArray();
+        planner.Observe(new(observation.VisitId, "native"), events);
+        planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, events);
+        string coverage = JsonSerializer.Serialize(state.Coverage);
+        int[] Read(ushort field) => field switch
+        {
+            200 => [300],
+            400 => [450],
+            450 => [300],
+            _ => []
+        };
+        bool Available(Ff7AutoPlayTarget target) => target.Id != gateway.Id;
+        bool Unblocks(Ff7AutoPlayTarget target, Ff7AutoPlayTarget selected) => selected.Id == gateway.Id && Ff7AutoPlayPolicy.CanUnblockFieldGateway(mesh, blocked, player, gate, target.UnblockedTriangles);
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, Available, Unblocks) is null && state.NavigationGoal == new AutoPlayTravelGoal(observation.NavigationKey, producer.Id, producer.ConditionFingerprint), "A current admitted causal prerequisite must precede a longer coarse backtracking route while retaining the final field destination.");
+        AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == gateway.Id, [], "blocked-triangle"));
+        Check(next?.Event.Id == producer.Id && state.DestinationField == 300 && Ff7AutoPlayPolicy.IsDestinationPlan(state, next, observation.NavigationKey), "The existing shared planner must execute the actual producer event rather than claiming that its possible unblock effect has already happened.");
+        Check(JsonSerializer.Serialize(state.Coverage) == coverage && blocked[0] == 2, "Causal prerequisite advice must preserve all native blocks, consumed entries, routes and navigation receipts.");
+        Ff7AutoPlayState cold = state.Clone();
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(cold, observation, Read, Available, Unblocks) is null && cold.NavigationGoal == state.NavigationGoal, "Cold restoration must resolve the same causal intent using current native topology without a required new save marker.");
+        planner.Completed(observation.VisitId, producer.Id, observedStoryChanged: false, entrySignature: producer.ConditionFingerprint, entrySignatureAuthoritative: true);
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, Available, Unblocks) is null && state.NavigationGoal?.EventId != producer.Id && blocked[0] == 2, "An unchanged consumed producer must not be replayed or treated as an executed unblock merely because its analysis has a possible effect.");
+        Ff7AutoPlayState fresh = new() { DestinationField = 300 };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(fresh, observation with { Events = [gateway, producer with { AnalysisComplete = false }] }, Read, Available, Unblocks) is not null && fresh.NavigationGoal is null, "An incomplete producer analysis must not establish a causal navigation prerequisite.");
     }
 
     private static void CheckConsumedNoOpIntent()

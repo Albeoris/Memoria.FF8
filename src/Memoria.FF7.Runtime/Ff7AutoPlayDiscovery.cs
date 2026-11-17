@@ -27,6 +27,8 @@ public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7Aut
     public int[]? SpatialDestinations { get; init; }
     /// <summary>Analyzed possible field destinations for planning; does not establish transition ownership or completion.</summary>
     public int[] PossibleDestinationFields { get; init; } = [];
+    /// <summary>Possible native triangle-unblock effects for planning; execution and availability remain authoritative.</summary>
+    public int[] UnblockedTriangles { get; init; } = [];
     public bool TriangleOnly { get; init; }
     public FieldScriptInputDemand? EntryInputDemand { get; init; }
     public FieldSpatialInputGuard[] SpatialInputGuards { get; init; } = [];
@@ -220,7 +222,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
                 fingerprint = CombineConditionFingerprints(fingerprint, entryContract);
             }
             int? destination = analysis.DestinationFields.Length == 1 ? analysis.DestinationFields[0] : null;
-            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray() });
+            events.Add(new(id, entity, script, kind, fingerprint, analysis.ChangesStory, position, triangle, DestinationField: destination, SegmentStart: start, SegmentEnd: end, AnalysisComplete: analysis.Complete && dependencies.Complete && external.Complete, SupportReason: analysis.Reason ?? dependencies.Reason ?? external.Reason, MayChangeNavigation: analysis.MayChangeNavigation, EntryInputContract: entryContract, ChangesField: analysis.DestinationFields.Length > 0) { EntryInputDemand = entryInput, PossibleDestinationFields = analysis.DestinationFields.ToArray(), UnblockedTriangles = analysis.UnblockedTriangles.ToArray() });
         }
     }
 }

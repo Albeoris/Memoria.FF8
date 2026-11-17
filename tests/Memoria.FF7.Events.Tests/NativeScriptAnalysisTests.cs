@@ -43,6 +43,14 @@ internal static class NativeScriptAnalysisTests
         RejectHost host = new();
         FieldMachine dialogue = new(new([0, 0x40, 0, 0, 0], [entry]), host: host);
         Check(dialogue.AnalyzeScript(0, 1).Complete && host.Calls == 0, "Read-only decoding dispatched a native dialogue host command.");
+        FieldMachine triangles = new(new([0, 0x6D, 0x34, 0x12, 0, 0x6D, 0x78, 0x56, 1, 0x6D, 0xFF, 0xFF, 0, 0], [entry]), host: host);
+        triangles.Initialize();
+        string trianglesBefore = JsonSerializer.Serialize(triangles.Capture());
+        FieldScriptAnalysis triangleEffects = triangles.AnalyzeScript(0, 1);
+        Check(triangleEffects.Complete && triangleEffects.UnblockedTriangles.SequenceEqual(new[] { 0x1234, 0xFFFF }) && host.Calls == 0, "Triangle-unblock advice must come from the decoded unsigned immediate operand and zero block flag, without host dispatch or signed wrapping.");
+        Check(JsonSerializer.Serialize(triangles.Capture()) == trianglesBefore, "Reading native triangle effects changed the live VM.");
+        FieldMachine branches = new(new([0, 0x14, 0x50, 1, 0, 0, 7, 0x6D, 1, 0, 0, 0, 0, 0x6D, 2, 0, 0, 0], [entry]), host: host);
+        Check(branches.AnalyzeScript(0, 1).UnblockedTriangles.SequenceEqual(new[] { 1, 2 }), "Possible triangle-unblock advice must retain both unknown map-condition arms rather than treating default local banks as proof.");
         FieldMachine gil = new(new([0, 0x3B, 0x55, 0, 2, 0], [entry]), host: host);
         Check(gil.AnalyzeScript(0, 1).HostReads.SequenceEqual(new[] { new FieldHostRead(FieldHostReadKind.Gil) }) && host.Calls == 0, "A gil query lost its external dependency or dispatched a host.");
         FieldMachine item = new(new([0, 0x5A, 0x05, 23, 0, 3, 0], [entry]), host: host);

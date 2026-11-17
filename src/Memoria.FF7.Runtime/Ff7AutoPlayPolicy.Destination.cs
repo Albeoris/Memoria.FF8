@@ -1,4 +1,5 @@
 using Memoria.AutoPlay;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
@@ -15,7 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null)
     {
         if (state.DestinationField is not ushort destination)
         {
@@ -28,7 +29,32 @@ public sealed partial class Ff7AutoPlayPolicy
         bool limited = false;
         if (selected is null && readConnections is not null)
         {
-            (selected, limited) = FindFieldDestinationAdvice(state, observation, destination, readConnections, canSelect);
+            Dictionary<ushort, int[]> connections = [];
+            bool resourceLimit = false;
+            int[] ReadConnections(ushort field)
+            {
+                if (connections.TryGetValue(field, out int[]? known))
+                {
+                    return known;
+                }
+                if (connections.Count >= 128)
+                {
+                    resourceLimit = true;
+                    return [];
+                }
+                int[] result = readConnections(field);
+                connections[field] = result;
+                return result;
+            }
+            if (canUnblockGateway is not null)
+            {
+                selected = FindFieldDestinationPrerequisite(state, observation, destination, ReadConnections, canSelect, canUnblockGateway);
+            }
+            if (selected is null)
+            {
+                (selected, limited) = FindFieldDestinationAdvice(state, observation, destination, ReadConnections, canSelect);
+            }
+            limited |= resourceLimit;
         }
         if (selected is not null)
         {
@@ -47,6 +73,46 @@ public sealed partial class Ff7AutoPlayPolicy
             return limited ? $"Native field connectivity advice to field {destination} reached its bounded search limit." : $"No currently admitted native field connectivity route to field {destination} is established from this navigation component.";
         }
         return null;
+    }
+
+    private static Ff7AutoPlayTarget? FindFieldDestinationPrerequisite(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool> canUnblockGateway)
+    {
+        Ff7AutoPlayTarget[] producers = observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesField && target.UnblockedTriangles.Length != 0 && canSelect?.Invoke(target) != false).Where(target =>
+        {
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == target.Id);
+            return coverage is null || !coverage.PolicyDeferred && coverage.BlockedReason is null && (coverage.Conditions is { } conditions ? !conditions.HasExecutedEntry(target.ConditionFingerprint) : !coverage.Completed);
+        }).ToArray();
+        Ff7AutoPlayTarget[] gateways = observation.Events.Where(target => target.AnalysisComplete && target.Kind == Ff7AutoPlayTargetKind.Gateway && canSelect?.Invoke(target) == false && producers.Any(producer => canUnblockGateway(producer, target))).ToArray();
+        if (gateways.Length == 0)
+        {
+            return null;
+        }
+        var (gateway, _) = FindFieldDestinationAdvice(state, observation with { Events = gateways }, destination, readConnections, null);
+        return gateway is null ? null : producers.First(producer => canUnblockGateway(producer, gateway));
+    }
+
+    private bool CanUnblockDestinationGateway(Ff7AutoPlayTarget producer, Ff7AutoPlayTarget gateway)
+    {
+        if (gateway.GatewayIndex is not int index || (uint)index >= session.Field.Triggers.Gateways.Count)
+        {
+            return false;
+        }
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        return CanUnblockFieldGateway(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[index], producer.UnblockedTriangles);
+    }
+
+    internal static bool CanUnblockFieldGateway(IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, PcFieldGateway gateway, IReadOnlyList<int> unblockedTriangles)
+    {
+        if (unblockedTriangles.Count == 0 || unblockedTriangles.Any(triangle => (uint)triangle >= walkmesh.Count || triangle >> 3 >= blockedTriangles.Length) || Ff7AutoplayDriver.HasGatewayTopologyPath(walkmesh, blockedTriangles, player, gateway, out _))
+        {
+            return false;
+        }
+        byte[] opened = (byte[])blockedTriangles.Clone();
+        foreach (int triangle in unblockedTriangles)
+        {
+            opened[triangle >> 3] &= unchecked((byte)~(1 << (triangle & 7)));
+        }
+        return Ff7AutoplayDriver.HasGatewayTopologyPath(walkmesh, opened, player, gateway, out _);
     }
 
     private static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect)

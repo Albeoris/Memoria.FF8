@@ -25,6 +25,7 @@ public sealed record FieldScriptAnalysis(bool Complete, string? Reason, string F
     public bool MayChangeNavigation { get; init; }
     public FieldStochasticPresentation? StochasticPresentation { get; init; }
     public int[] ExitProgramCounters { get; init; } = [];
+    public int[] UnblockedTriangles { get; init; } = [];
 }
 
 public sealed partial class FieldVariables
@@ -141,6 +142,7 @@ public sealed partial class FieldMachine
         HashSet<FieldVariableRead> reads = [];
         HashSet<FieldHostRead> hostReads = [];
         HashSet<int> destinations = [];
+        HashSet<int> unblockedTriangles = [];
         HashSet<int> exits = [];
         Dictionary<int, bool> physicalExits = [];
         HashSet<string> physicalPredicates = [];
@@ -409,6 +411,10 @@ public sealed partial class FieldMachine
                         controls = control.Value != 0 ? (byte)(controls | domain) : (byte)(controls & ~domain);
                     }
                     mayChangeNavigation |= command is FieldActorLadder or FieldActorJump or FieldActorPlacement or FieldActorMove or FieldTriangleCommand;
+                    if (command is FieldTriangleCommand { Blocked: false } triangle)
+                    {
+                        unblockedTriangles.Add(triangle.Triangle);
+                    }
                     FieldHostRead? read = command switch
                     {
                         FieldGilQuery => new(FieldHostReadKind.Gil),
@@ -467,6 +473,6 @@ public sealed partial class FieldMachine
             reason ??= error.Message;
             fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{program.Identity}:{entity}:{script}:unsupported")));
         }
-        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, ExitProgramCounters = exits.Order().ToArray() };
+        return new(reason is null, reason, fingerprint, changesStory, dependencies, visited.Select(value => value.Pc).Distinct().Order().ToArray(), destinations.Order().ToArray()) { HostReads = hostReads.OrderBy(read => read.Kind).ThenBy(read => read.Parameter).ThenBy(read => read.Selector).ToArray(), MayChangeNavigation = mayChangeNavigation, ExitProgramCounters = exits.Order().ToArray(), UnblockedTriangles = unblockedTriangles.Order().ToArray() };
     }
 }
