@@ -35,13 +35,15 @@ sampler TextureSampler : register(s0) = sampler_state
 sampler TextureSampler = sampler_state
 #endif
 { Texture = <SourceTexture>; };
-struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
-struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; };
+struct VSInput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
+struct VSOutput { float3 WorldPosition : TEXCOORD5; float3 WorldNormal : TEXCOORD6; float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; centroid float3 TextureUv : TEXCOORD4; };
 VSOutput VertexMain(VSInput input)
 {
-    VSOutput output;
+    VSOutput output = (VSOutput)0;
     output.Position = float4(input.Position.x * 2 / ViewportSize.x - 1, 1 - input.Position.y * 2 / ViewportSize.y, 0, 1);
     output.Color = input.Color;
+    output.WorldPosition = input.WorldPosition;
+    output.WorldNormal = input.WorldNormal;
     output.Uv = input.Uv;
     output.TextureUv = input.Uv;
     output.Depth = input.Position.z;
@@ -110,7 +112,7 @@ VSOutput WorldVertexMain(WorldVSInput input)
     }
     float3 camera = mul(float4(terrainPosition, 1), WorldView).xyz;
     float cameraZ = -camera.z;
-    VSOutput output;
+    VSOutput output = (VSOutput)0;
     // Homogeneous clipping preserves the camera-space near plane at Z = 1.
     output.Position = float4(camera.x * WorldFocal * 2 / ViewportSize.x, camera.y * WorldFocal * 2 / ViewportSize.y, cameraZ - 1, cameraZ);
     output.Color = float4(1, 1, 1, 1);
@@ -172,6 +174,126 @@ VSOutput Ff7UnderwaterVertexMain(Ff7UnderwaterVSInput input)
     output.Color = float4(round(clamp(palette * factor, 0, 255)) / 255, 1);
     return output;
 }
+// Only field model albedo crosses this local sRGB/linear boundary. Backgrounds and legacy passes do not.
+float FieldLightingPass;
+int FieldLightCount;
+int FieldPrimaryIndex;
+float4 FieldLightPositionRange[8];
+float4 FieldLightDirectionIntensity[8];
+float4 FieldLightColor[8];
+float4 FieldLightCone[8];
+float4x4 FieldShadowViewProjection;
+float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV units, depth bias
+#if VULKAN || DIRECTX12
+Texture2D FieldShadowTexture : register(t1);
+sampler FieldShadowSampler : register(s1) = sampler_state
+#else
+texture FieldShadowTexture;
+sampler FieldShadowSampler = sampler_state
+#endif
+{ Texture = <FieldShadowTexture>; };
+float3 FieldLinear(float3 color)
+{
+    return float3(color.r <= 0.04045 ? color.r / 12.92 : pow((color.r + 0.055) / 1.055, 2.4), color.g <= 0.04045 ? color.g / 12.92 : pow((color.g + 0.055) / 1.055, 2.4), color.b <= 0.04045 ? color.b / 12.92 : pow((color.b + 0.055) / 1.055, 2.4));
+}
+float3 FieldSrgb(float3 color)
+{
+    color = max(color, 0);
+    return float3(color.r <= 0.0031308 ? color.r * 12.92 : 1.055 * pow(color.r, 1.0 / 2.4) - 0.055, color.g <= 0.0031308 ? color.g * 12.92 : 1.055 * pow(color.g, 1.0 / 2.4) - 0.055, color.b <= 0.0031308 ? color.b * 12.92 : 1.055 * pow(color.b, 1.0 / 2.4) - 0.055);
+}
+float FieldInfluence(int index, float3 world, out float3 incoming)
+{
+    float3 delta = FieldLightPositionRange[index].xyz - world;
+    float distance = length(delta);
+    incoming = distance > 0.00001 ? delta / distance : -FieldLightDirectionIntensity[index].xyz;
+    float cosine = distance > 0.00001 ? dot(-incoming, FieldLightDirectionIntensity[index].xyz) : 1;
+    float cone = saturate((cosine - FieldLightCone[index].y) / (FieldLightCone[index].x - FieldLightCone[index].y));
+    cone = cone * cone * (3 - 2 * cone);
+    float attenuation = saturate(1 - distance / FieldLightPositionRange[index].w);
+    return FieldLightDirectionIntensity[index].w * attenuation * attenuation * cone;
+}
+float2 FieldShadowCoverage(float3 world)
+{
+    if (FieldShadowParameters.x == 0 || FieldPrimaryIndex < 0)
+    {
+        return 0;
+    }
+    float4 projection = mul(float4(world, 1), FieldShadowViewProjection);
+    if (projection.w <= 0)
+    {
+        return 0;
+    }
+    float3 projectedPoint = projection.xyz / projection.w;
+    float2 uv = float2(projectedPoint.x * 0.5 + 0.5, 0.5 - projectedPoint.y * 0.5);
+    if (any(uv < 0) || any(uv > 1) || projectedPoint.z < 0 || projectedPoint.z > 1)
+    {
+        return 0;
+    }
+    float2 result = 0;
+    [unroll] for (int y = -1; y <= 1; y++)
+    {
+        [unroll] for (int x = -1; x <= 1; x++)
+        {
+            float2 sampleUv = uv + float2(x, y) * FieldShadowParameters.z;
+            float2 stored = SAMPLE_TEXTURE(FieldShadowTexture, FieldShadowSampler, sampleUv).rg;
+            float receiverDepth = dot(world - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
+            float covered = receiverDepth - FieldShadowParameters.w > stored.x && all(sampleUv >= 0) && all(sampleUv <= 1) ? 1 : 0;
+            result += float2(covered, covered * stored.y);
+        }
+    }
+    return result / 9;
+}
+float4 FieldShade(float4 albedo, VSOutput input)
+{
+    float3 world = input.WorldPosition / input.Uv.z;
+    float2 shadow = FieldShadowCoverage(world);
+    if (FieldLightingPass > 1.5)
+    {
+        if (FieldPrimaryIndex < 0)
+        {
+            return 0;
+        }
+        float3 incoming = 0;
+        float influence = FieldInfluence(FieldPrimaryIndex, world, incoming);
+        float3 rgb = FieldLightColor[FieldPrimaryIndex].rgb;
+        float strength = saturate(influence * max(rgb.r, max(rgb.g, rgb.b)));
+        return float4(0, 0, 0, shadow.y * strength * FieldShadowParameters.y);
+    }
+    float3 normal = input.WorldNormal / input.Uv.z;
+    normal = dot(normal, normal) > 0.000001 ? normalize(normal) : 0;
+    float3 illumination = 0;
+    [loop] for (int index = 0; index < FieldLightCount; index++)
+    {
+        float3 incoming = 0;
+        float influence = FieldInfluence(index, world, incoming);
+        float visibility = index == FieldPrimaryIndex ? 1 - shadow.x : 1;
+        illumination += FieldLightColor[index].rgb * (influence * max(0, dot(normal, incoming)) * visibility);
+    }
+    return float4(FieldSrgb(FieldLinear(max(albedo.rgb, 0)) * illumination), albedo.a);
+}
+struct FieldShadowOutput
+{
+    float4 Position : SV_POSITION;
+    float2 Uv : TEXCOORD0;
+    float Level : TEXCOORD1;
+    float Depth : TEXCOORD2;
+};
+FieldShadowOutput FieldShadowVertex(VSInput input)
+{
+    FieldShadowOutput output;
+    output.Position = mul(float4(input.WorldPosition, 1), FieldShadowViewProjection);
+    output.Uv = input.Uv.xy;
+    output.Level = input.Color.a;
+    output.Depth = dot(input.WorldPosition - FieldLightPositionRange[FieldPrimaryIndex].xyz, FieldLightDirectionIntensity[FieldPrimaryIndex].xyz) / FieldLightPositionRange[FieldPrimaryIndex].w;
+    return output;
+}
+float4 FieldShadowPixel(FieldShadowOutput input) : SV_TARGET0
+{
+    float4 texel = SAMPLE_TEXTURE(SourceTexture, TextureSampler, input.Uv);
+    clip(texel.a - AlphaParameters.x);
+    return float4(input.Depth, input.Level, 0, 1);
+}
+
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
 PSOutput PixelMain(VSOutput input)
 {
@@ -222,6 +344,10 @@ PSOutput PixelMain(VSOutput input)
     {
         clip(color.a - AlphaParameters.x);
         clip(AlphaParameters.y - color.a);
+    }
+    if (FieldLightingPass > 0.5)
+    {
+        color = FieldShade(color, input);
     }
     color.a *= MaterialParameters.z;
     color.a = ActorOpacityParameters.y > 0 ? ActorOpacityParameters.x : color.a * ActorOpacityParameters.x;
@@ -280,5 +406,14 @@ technique Ff7UnderwaterTerrainTechnique
     {
         VertexShader = compile VS_PROFILE Ff7UnderwaterVertexMain();
         PixelShader = compile PS_PROFILE WorldPixelMain();
+    }
+}
+
+technique FieldShadowTechnique
+{
+    pass P0
+    {
+        VertexShader = compile VS_PROFILE FieldShadowVertex();
+        PixelShader = compile PS_PROFILE FieldShadowPixel();
     }
 }

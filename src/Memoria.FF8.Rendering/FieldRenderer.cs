@@ -180,7 +180,9 @@ public sealed partial class FieldRenderer
             MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
             Array.Fill(depth, float.PositiveInfinity);
         }
+        PrepareLighting(preparedActors);
         List<(float Depth, Action Draw)> translucent = [];
+        QueueLightingReceivers(translucent);
         foreach (TileRaster raster in renderBackground)
         {
             BackgroundTile tile = raster.Tile;
@@ -466,7 +468,8 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        Vector3[] pose = ActorPose(model, actor);
+        LitActorPose? preparedPose = effectiveLighting is not null ? litActorPoses.GetValueOrDefault(actor.ObjectId) : null;
+        Vector3[] pose = preparedPose?.World ?? ActorPose(model, actor);
         // Native field-to-model bridge adds a quarter turn before converting DIR to the 4096-angle scale.
         float direction = (actor.Direction + 64) * MathF.Tau / 256;
         Matrix4x4 rotation = Matrix4x4.CreateRotationZ(direction);
@@ -483,12 +486,14 @@ public sealed partial class FieldRenderer
                 continue;
             }
             Vector3 native = pose[i];
-            Vector3 world = Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
+            Vector3 world = preparedPose is not null ? native : Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
             ProjectedPoint point = camera.Project(world);
             projected[i] = ToViewport(point);
         }
+        int faceIndex = -1;
         foreach (ModelFace face in model.Faces)
         {
+            faceIndex++;
             // Native 533920/533A90 reject the back face using the first three projected vertices, before splitting a quad.
             if (Edge(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]].X, projected[face.Vertices[2]].Y) > 0)
             {
@@ -498,6 +503,15 @@ public sealed partial class FieldRenderer
             PixelImage texture = selectedTextures[face.Texture];
             Vector2 textureScale = ResourceTextureList.PhysicalScale(selectedTextures, face.Texture);
             bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
+            if (!transparent && effectiveLighting is not null && litActorPoses.TryGetValue(actor.ObjectId, out LitActorPose? lit))
+            {
+                DrawLitModelTriangle(actor, face, lit, faceIndex, 0, 1, 2, texture, textureScale);
+                if (face.Quad)
+                {
+                    DrawLitModelTriangle(actor, face, lit, faceIndex, 1, 3, 2, texture, textureScale);
+                }
+                continue;
+            }
             DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PresentationPolygonColor ?? actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth, face.VertexColors?[0], face.VertexColors?[1], face.VertexColors?[2]);
             if (face.Quad)
             {

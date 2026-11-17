@@ -114,6 +114,7 @@ internal sealed partial class RecreateGame
         ConnectGuardianAbilityEditor();
         ConnectLocalizationTools();
         ConnectLocalizationWorkbench();
+        ConnectLightingAuthoring();
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectQuickSaveRetention(count => playerSaves.PreviewQuickSaveCount(count), CommitQuickSaveRetention);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
@@ -893,7 +894,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
+        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
         fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {

@@ -231,6 +231,10 @@ internal sealed partial class RecreateGame : Game
         {
             return;
         }
+        if (UpdateLightingAuthoring(gameTime))
+        {
+            return;
+        }
         if (updateSave.Paused)
         {
             presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
@@ -293,6 +297,28 @@ internal sealed partial class RecreateGame : Game
         }
         KeyboardState keys = physicalInput.ReadKeyboard();
         keys = windowModeHotkey.Filter(keys);
+        if (gameMenus?.IsLightingNameEditing == true)
+        {
+            if (!lightingNameInputActive)
+            {
+                gameMenus.ResetLightingPackageNameInput(keys);
+                lightingNameInputActive = true;
+            }
+            else
+            {
+                gameMenus.PollLightingPackageName(keys, gameTime.ElapsedGameTime);
+            }
+            keyboard.Read(keys, pad, false);
+            keyboard.SuppressHeldUiInput();
+            UpdateGameUi(gameTime.ElapsedGameTime, default);
+            return;
+        }
+        lightingNameInputActive = false;
+        if (lightingRebinding is not null)
+        {
+            keyboard.Read(keys, pad, false);
+            return;
+        }
         keyboard.ControllerPresentation = inputController.Presentation;
         keyboard.ControllerGeneration = inputController.Generation;
         bool wasCapturing = gameMenus?.IsCapturingControls == true;
@@ -374,6 +400,10 @@ internal sealed partial class RecreateGame : Game
         if (pendingCapture is null)
         {
             controls?.Poll();
+        }
+        if (lightingEditor is not null)
+        {
+            return;
         }
         if (InFf7 || crossoverSetup is not null)
         {
@@ -779,6 +809,20 @@ internal sealed partial class RecreateGame : Game
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
         if (!physicalInput.CanRead || windowCloseDecision is not null)
+        {
+            return;
+        }
+        if (lightingEditor is not null)
+        {
+            lightingEditor.OnTextInput(args.Character);
+            return;
+        }
+        if (gameMenus?.IsLightingNameEditing == true)
+        {
+            gameMenus.EnterLightingPackageName(args.Character);
+            return;
+        }
+        if (lightingRebinding is not null)
         {
             return;
         }
@@ -1205,6 +1249,14 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.StartsWith("lighting-", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchLightingControl(request);
+        }
+        if (lightingEditor is not null && request.Command.ToLowerInvariant() is not ("status" or "capture" or "quit"))
+        {
+            throw new InvalidOperationException("The current-scene lighting editor owns the frozen scene. Close it before changing gameplay or resources.");
+        }
         CrossoverControlPolicy.EnsureAllowed(request.Command, InFf7, updateSave.Paused);
         if (InFf7 && request.Command.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
@@ -1461,6 +1513,7 @@ internal sealed partial class RecreateGame : Game
         Rectangle viewport = GraphicsDevice.Viewport.Bounds;
         PixelBounds target = session.State.Scene == SceneKind.Field ? ViewportLayout.FieldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit) : ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
         world!.SetRenderSize(target.Width, target.Height);
+        world.ActiveLighting = ResolveFieldLighting();
         if (fieldGpu is null && (fieldTexture.Width != target.Width || fieldTexture.Height != target.Height))
         {
             Texture2D next = new(GraphicsDevice, target.Width, target.Height);
@@ -1470,7 +1523,7 @@ internal sealed partial class RecreateGame : Game
         long started = Stopwatch.GetTimestamp();
         bool smoothField = session.State.Scene == SceneKind.Field && uiPreferences.FieldFps == 60 && !options.ControlStep;
         float fieldInterpolation = smoothField ? (float)Math.Clamp(fieldSeconds * EventEngine.SimulationFps, 0, 1) : 1;
-        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField);
+        byte[] pixels = world.Render(lightingEditor is null ? elapsed : lightingFrozenTime, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         if (fieldGpu is null)
@@ -1626,6 +1679,15 @@ internal sealed partial class RecreateGame : Game
             PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, fieldBounds.Width, fieldBounds.Height);
             batch.Draw(PresentedFieldTexture, new Rectangle(fieldBounds.X + fit.X, fieldBounds.Y + fit.Y, fit.Width, fit.Height), Color.White);
         }
+        if (lightingEditor is not null)
+        {
+            DrawLightingAuthoring(bounds);
+            batch.End();
+            CapturePresentedFrame(gameTime);
+            base.Draw(gameTime);
+            metrics.Draw();
+            return;
+        }
         if (sceneInspector is null && events is not null && session.State.DebugView?.DialogueVisible != false && DialoguePresentation.CanDraw(session.State.Scene, field?.Id == session.State.FieldId, presentBattle))
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
@@ -1685,6 +1747,7 @@ internal sealed partial class RecreateGame : Game
         DrawSceneInspectorUi(bounds);
         DrawLocalizationAuthoring(bounds);
         DrawModelBrowserUi(bounds);
+        DrawLightingAuthoring(bounds);
         DrawFps(bounds);
         DrawGameConfirmation(bounds);
         DrawWindowCloseConfirmation(bounds);
@@ -1752,6 +1815,7 @@ internal sealed partial class RecreateGame : Game
             DisposeModelBrowser();
             titleArtwork?.Dispose();
             gameMenus?.DisconnectMods();
+            gameMenus?.DisposeLightingAuthoring();
             titleScene?.Dispose();
             controller?.Dispose();
             fieldAudio?.Dispose();

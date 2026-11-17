@@ -906,7 +906,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (ExecuteModelBrowserAction(action) || ExecuteSceneInspectorAction(action) || ExecuteWorldSwitchAction(action) || ExecuteLocalizationWorkbenchAction(action))
+        if (ExecuteModelBrowserAction(action) || ExecuteSceneInspectorAction(action) || ExecuteWorldSwitchAction(action) || ExecuteLocalizationWorkbenchAction(action) || ExecuteLightingAuthoringAction(action))
         {
             return;
         }

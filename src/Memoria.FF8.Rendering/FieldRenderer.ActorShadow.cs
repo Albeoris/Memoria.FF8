@@ -16,6 +16,18 @@ public sealed partial class FieldRenderer
 
     private void DrawActorShadow(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
     {
+        float lightingOpacity = 1;
+        if (effectiveLighting is not null)
+        {
+            if (lightingShadowStates.GetValueOrDefault(actor.ObjectId) != FieldActorShadowState.NativeFallback)
+            {
+                return;
+            }
+            var primary = effectiveLighting.Lights.First(light => light.Id == effectiveLighting.PrimaryLightId);
+            Vector3 point = actor.GroundShadowCentre ?? new Vector3(actor.X, actor.Y, actor.Z);
+            Vector3 color = FieldLightingMath.LinearColor(primary.Color);
+            lightingOpacity = Math.Clamp(FieldLightingMath.Influence(primary, point) * Math.Max(color.X, Math.Max(color.Y, color.Z)), 0, 1) * effectiveLighting.GroundShadow.Opacity;
+        }
         if (!actor.GroundShadowEnabled)
         {
             return;
@@ -35,6 +47,7 @@ public sealed partial class FieldRenderer
             throw new NotSupportedException("Native ground-shadow geometry requires authenticated tables, body XYZ and exact BYTE609 authority.");
         }
         Vector3 center = new(unchecked((short)(int)body.X), unchecked((short)(int)body.Y), unchecked((short)(int)body.Z));
+        level = (byte)Math.Clamp(level * lightingOpacity, 0, 255);
         Vector3 presentationOffset = actor.AnimationBlend is not null ? body - new Vector3(MathF.Truncate(body.X), MathF.Truncate(body.Y), MathF.Truncate(body.Z)) : Vector3.Zero;
         ProjectedPoint middle = ProjectShadowPoint(center + presentationOffset);
         Span<ProjectedPoint> edge = stackalloc ProjectedPoint[8];

@@ -197,6 +197,11 @@ public static partial class ModelExchange
 
     public static IReadOnlyList<Vector3[]> Pose(EditableModel model, int animation, float seconds)
     {
+        return PoseWithTransforms(model, SampleTransforms(model, animation, seconds));
+    }
+
+    private static Matrix4x4[] SampleTransforms(EditableModel model, int animation, float seconds)
+    {
         EditableBone[] bones = model.Bones.ToArray();
         if (animation >= 0 && animation < model.Animations.Count)
         {
@@ -213,7 +218,42 @@ public static partial class ModelExchange
                 };
             }
         }
-        return PoseWithTransforms(model, Globals(bones));
+        return Globals(bones);
+    }
+
+    /// <summary>Preserves authored normals with the same animated transforms as Pose, including nonuniform scale and skin weights. Returns native Z-up directions.</summary>
+    public static Vector3[] PoseNativeNormals(EditableModel model, int animation, float seconds)
+    {
+        Matrix4x4[] transforms = SampleTransforms(model, animation, seconds);
+        Matrix4x4[] inverse = Globals(model.Bones).Select(matrix => Matrix4x4.Invert(matrix, out Matrix4x4 result) ? result : throw new InvalidDataException("A bind transform is singular.")).ToArray();
+        Vector3 Transform(Vector3 normal, Matrix4x4 matrix)
+        {
+            return Matrix4x4.Invert(matrix, out Matrix4x4 inverted) ? Vector3.TransformNormal(normal, Matrix4x4.Transpose(inverted)) : Vector3.Zero;
+        }
+        return model.Meshes.SelectMany(mesh => mesh.Vertices.Select(vertex =>
+        {
+            Vector3 normal = Vector3.Zero;
+            if (!mesh.Skinned)
+            {
+                normal = Transform(vertex.Normal, mesh.Node >= 0 ? transforms[mesh.Node] : mesh.Transform);
+            }
+            else
+            {
+                for (int slot = 0; slot < 4; slot++)
+                {
+                    float weight = vertex.Weights[slot];
+                    if (weight == 0)
+                    {
+                        continue;
+                    }
+                    int joint = (int)vertex.Joints[slot];
+                    Matrix4x4 inverseBind = mesh.InverseBindMatrices is not null && mesh.InverseBindMatrices.TryGetValue(joint, out Matrix4x4 supplied) ? supplied : inverse[joint];
+                    normal += Transform(vertex.Normal, inverseBind * transforms[joint]) * weight;
+                }
+            }
+            normal = Vector3.TransformNormal(normal, GltfToNative);
+            return float.IsFinite(normal.LengthSquared()) && normal.LengthSquared() > 0.000001f ? Vector3.Normalize(normal) : Vector3.Zero;
+        })).ToArray();
     }
 
     public static IReadOnlyList<Vector3[]> PoseWithTransforms(EditableModel model, IReadOnlyList<Matrix4x4> transforms)

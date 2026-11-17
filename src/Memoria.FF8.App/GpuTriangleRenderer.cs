@@ -9,7 +9,7 @@ using Vector4N = System.Numerics.Vector4;
 namespace Memoria.FF8;
 
 /// <summary>Ordered hardware triangle rasterizer; scene decoding remains in the shared rendering library.</summary>
-public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IWorldTerrainRenderer, IDisposable
+public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRenderer, IFramebufferCaptureRenderer, IWorldTerrainRenderer, IFieldLightingRenderer, IDisposable
 {
     private readonly GraphicsDevice device;
     private readonly Effect effect;
@@ -315,7 +315,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             return;
         }
         UnbindTerrain();
-        effect.CurrentTechnique = effect.Techniques["TriangleTechnique"];
+        effect.CurrentTechnique = effect.Techniques[fieldShadowPass ? "FieldShadowTechnique" : "TriangleTechnique"];
         try
         {
             SamplerState sampler = ApplyMaterial(pendingMaterial);
@@ -323,6 +323,10 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             {
                 pass.Apply();
                 device.SamplerStates[0] = sampler;
+                if (!fieldShadowPass && fieldShadowTarget is not null)
+                {
+                    device.SamplerStates[1] = SamplerState.PointClamp;
+                }
                 device.DrawUserPrimitives(pendingPrimitiveType, vertices, 0, vertexCount / (pendingPrimitiveType == PrimitiveType.LineList ? 2 : 3));
                 NativeBattleTelemetry.Record(2001, NativeBattleTrafficKind.GpuUpload, checked((long)vertexCount * vertices[0].VertexDeclaration.VertexStride));
                 FrameDrawCalls++;
@@ -385,6 +389,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         effect.Parameters["FogParameters"].SetValue(new Vector4(material.FogStart, material.FogEnd, material.PerspectiveDepth ? 1 : 0, material.Sampler == TriangleSampler.CutoutLinearClamp ? 1 : 0));
         effect.Parameters["DepthScale"].SetValue(material.DepthScale);
         effect.Parameters["CentroidTextureSampling"].SetValue(material.CentroidTextureSampling);
+        effect.Parameters["FieldLightingPass"].SetValue((float)material.FieldLighting);
         effect.Parameters["FogColor"].SetValue(new Vector3(material.FogColor.X, material.FogColor.Y, material.FogColor.Z));
         Vector4N clip = material.ClipRectangle ?? new Vector4N(0, 0, width, height);
         effect.Parameters["ClipRectangle"].SetValue(new Vector4(clip.X, clip.Y, clip.Z, clip.W));
@@ -595,6 +600,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             cached.Texture.Dispose();
         }
         effect.Dispose();
+        fieldShadowTarget?.Dispose();
         foreach (BlendState blend in blends.Values)
         {
             blend.Dispose();
@@ -612,12 +618,14 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     private readonly struct GpuVertex : IVertexType
     {
-        private static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector4, VertexElementUsage.Color, 0), new VertexElement(28, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 0), new VertexElement(40, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 2), new VertexElement(56, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 3));
+        private static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector4, VertexElementUsage.Color, 0), new VertexElement(28, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 0), new VertexElement(40, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 2), new VertexElement(56, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 3), new VertexElement(72, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 5), new VertexElement(84, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 6));
         private readonly Vector3 position;
         private readonly Vector4 color;
         private readonly Vector3 uv;
         private readonly Vector4 textureScreenRectangle;
         private readonly Vector4 textureTexelRectangle;
+        private readonly Vector3 worldPosition;
+        private readonly Vector3 worldNormal;
         public VertexDeclaration VertexDeclaration => Declaration;
         public GpuVertex(TriangleVertex vertex)
         {
@@ -634,6 +642,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             textureScreenRectangle = new Vector4(vertex.TextureScreenRectangle.X, vertex.TextureScreenRectangle.Y, vertex.TextureScreenRectangle.Z, vertex.TextureScreenRectangle.W);
             textureTexelRectangle = new Vector4(vertex.TextureTexelRectangle.X, vertex.TextureTexelRectangle.Y, vertex.TextureTexelRectangle.Z, vertex.TextureTexelRectangle.W);
             uv = new Vector3(vertex.Uv.X * vertex.ReciprocalW, vertex.Uv.Y * vertex.ReciprocalW, vertex.ReciprocalW);
+            worldPosition = new Vector3(vertex.WorldPosition.X, vertex.WorldPosition.Y, vertex.WorldPosition.Z) * vertex.ReciprocalW;
+            worldNormal = new Vector3(vertex.WorldNormal.X, vertex.WorldNormal.Y, vertex.WorldNormal.Z) * vertex.ReciprocalW;
         }
     }
 }

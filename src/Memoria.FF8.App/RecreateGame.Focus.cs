@@ -41,6 +41,7 @@ internal sealed partial class RecreateGame
             return;
         }
         inputWasFocused = false;
+        lightingEditor?.Poll(physicalInput.ReadKeyboard(), physicalInput.ReadMouse(), false, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
         keyboard.Read(default, default, false);
         movieSkipGesture.Reset();
         windowModeHotkey.Read(default, false);

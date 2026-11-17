@@ -10,6 +10,9 @@ public readonly record struct TriangleVertex(Vector2 Position, float Depth, floa
     /// <summary>Optional screen-space rectangle and source texel rectangle for point-sampled atlas quads.</summary>
     public Vector4 TextureScreenRectangle { get; init; }
     public Vector4 TextureTexelRectangle { get; init; }
+    /// <summary>Optional field attributes, interpolated using ReciprocalW by the lit field path.</summary>
+    public Vector3 WorldPosition { get; init; }
+    public Vector3 WorldNormal { get; init; }
 }
 public enum TriangleBlend
 {
@@ -64,6 +67,7 @@ public readonly record struct TriangleMaterial(PixelImage? Texture, TriangleBlen
     public float FogStart { get; init; }
     public float FogEnd { get; init; }
     public float MinimumReciprocalW { get; init; }
+    public FieldLightingPass FieldLighting { get; init; }
 }
 
 /// <summary>A scene's ordered triangle stream, independent of its raster backend.</summary>

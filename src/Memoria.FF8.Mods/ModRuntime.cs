@@ -35,6 +35,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private readonly HashSet<string> changedPackageIds = new(StringComparer.OrdinalIgnoreCase);
     private ModCatalogSnapshot? pending;
     private ModPreparationResult? pendingPreparation;
+    private FieldLightingMods? pendingLighting;
+    private FieldLightingMods lighting = FieldLightingMods.Empty;
     private (ModCatalogSnapshot Candidate, bool AutoEnable, string Identity)? deferredDiscovery;
     private IReadOnlyList<ModDiagnostic> diagnostics = Array.Empty<ModDiagnostic>();
     private DateTime requestedAt = DateTime.MinValue;
@@ -108,6 +110,17 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     public IReadOnlyList<string> ModsDirectories { get; }
     public string PrimaryModsDirectory => modsRoot;
+
+    public FieldLightingMods Lighting
+    {
+        get
+        {
+            lock (gate)
+            {
+                return lighting;
+            }
+        }
+    }
 
     public IReadOnlyList<ModPackage> InstalledPackages
     {
@@ -341,6 +354,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             reloadRequested = false;
             pending = null;
             pendingPreparation = null;
+            pendingLighting = null;
             try
             {
                 ModCatalogSnapshot candidate;
@@ -385,6 +399,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     ScheduleRetry();
                     return false;
                 }
+                if (!FieldLightingMods.TryPrepare(candidate, out FieldLightingMods candidateLighting, out IReadOnlyList<ModDiagnostic> lightingDiagnostics))
+                {
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(lightingDiagnostics).Append(new ModDiagnostic("reload-failed", "Lighting preparation failed; the last committed generation remains active.")).ToArray());
+                    updateOutcome = ModUpdateOutcome.Failed;
+                    ScheduleRetry();
+                    return false;
+                }
                 candidate.PreparedStatusMods = statuses;
                 ModPreparationResult result = prepare(candidate);
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
@@ -406,7 +427,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (result.UsablePackageIds is not null)
                 {
-                    HashSet<string> usable = new(result.UsablePackageIds, StringComparer.OrdinalIgnoreCase);
+                    HashSet<string> usable = new(result.UsablePackageIds.Concat(candidateLighting.PackageIds), StringComparer.OrdinalIgnoreCase);
                     candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics) { Hardcore = candidate.Hardcore, StatusPreferences = candidate.StatusPreferences, PreparedStatusMods = statuses };
                 }
                 else
@@ -418,6 +439,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 updateOutcome = ModUpdateOutcome.Updating;
                 pending = candidate;
                 pendingPreparation = result;
+                pendingLighting = candidateLighting;
                 pendingIdentity = identity;
                 return true;
             }
@@ -479,6 +501,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 return false;
             }
             catalog = pending;
+            lighting = pendingLighting ?? FieldLightingMods.Empty;
+            pendingLighting = null;
             committedFileEntries = new(fileEntries, StringComparer.Ordinal);
             updateOutcome = ModUpdateOutcome.Idle;
             changedPackageIds.Clear();
@@ -689,6 +713,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 bool requested = RequiredPackageReason(id) is not null || (explicitEnabled ?? nextAutoEnable);
                 bool hasLocalization = format == ModFormat.Memoria && File.Exists(Path.Combine(root, "Localization", "localization.manifest.json"));
+                bool hasLighting = format == ModFormat.Memoria && (File.Exists(Path.Combine(root, FieldLightingSceneIO.ComponentPath)) || bundledRoot is not null && File.Exists(Path.Combine(bundledRoot, FieldLightingSceneIO.ComponentPath)));
                 bool localizationOnly = hasLocalization && Directory.EnumerateFileSystemEntries(root).All(path => Path.GetFileName(path).Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals("Localization", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path).Equals(NativeModDescriptor.FileName, StringComparison.OrdinalIgnoreCase));
                 string? nativeError = native?.Error;
                 if (native?.Official is { } nativeComponent)
@@ -781,7 +806,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, LocalizationOnly = localizationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())

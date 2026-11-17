@@ -21,12 +21,22 @@ internal sealed partial class RecreateGame
 
     private void ExitGame()
     {
+        if (lightingEditor is not null)
+        {
+            lightingEditor.RequestClose(ExitGame);
+            return;
+        }
         windowCloseApproved = true;
         Exit();
     }
 
     private bool ConfirmWindowClose()
     {
+        if (lightingEditor is not null)
+        {
+            lightingEditor.RequestClose(ExitGame);
+            return false;
+        }
         if (!authoringWorkspaceInitialized || windowCloseApproved && (!authoringExitRequested || authoringExitAllowed))
         {
             return true;
@@ -37,6 +47,11 @@ internal sealed partial class RecreateGame
 
     private void ShowWindowCloseConfirmation()
     {
+        if (lightingEditor is not null)
+        {
+            lightingEditor.RequestClose(ExitGame);
+            return;
+        }
         if (windowCloseDecision is null)
         {
             keyboard.SuppressHeldUiInput();

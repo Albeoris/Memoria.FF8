@@ -71,11 +71,12 @@ public sealed partial class MenuController
                 }
             }
             top += 130 * unit;
-            foreach (UiButton action in actions)
+            float actionWidth = Math.Max(0, (bounds.Width - 42) / 2);
+            for (int index = 0; index < actions.Count; index++)
             {
-                action.FontSize = 19 * unit;
-                action.Arrange(new UiRect(x, top, Math.Min(Math.Max(0, bounds.Width - 28), 560 * unit), 42 * unit));
-                top += 52 * unit;
+                UiButton action = actions[index];
+                action.FontSize = 18 * unit;
+                action.Arrange(new UiRect(x + index % 2 * (actionWidth + 14), top + index / 2 * 54 * unit, actionWidth, 44 * unit));
             }
         }
 
@@ -88,8 +89,8 @@ public sealed partial class MenuController
             canvas.Text(menus.SystemText("main.mods", "Mods"), 25 * unit, new UiRect(x, Bounds.Y + 10, width, 36 * unit), theme.Foreground);
             canvas.Fill(new UiRect(create.Bounds.X, create.Bounds.Bottom - 3, create.Bounds.Width, 3), theme.Foreground);
             float top = create.Bounds.Bottom + 24 * unit;
-            canvas.Text(menus.SystemText("mods.authoringtitle", "Gameplay and localization"), 23 * unit, new UiRect(x, top, width, 32 * unit), theme.Foreground);
-            canvas.Text(menus.SystemText("mods.authoringhelp", "Create GF ability contributions or translation projects."), 17 * unit, new UiRect(x, top + 38 * unit, width, 40 * unit), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);
+            canvas.Text(menus.SystemText("mods.authoringtitle.lighting", "Lighting, gameplay and localization"), 23 * unit, new UiRect(x, top, width, 32 * unit), theme.Foreground);
+            canvas.Text(menus.SystemText("mods.authoringhelp.lighting", "Create scene lighting, GF ability contributions or translation projects."), 17 * unit, new UiRect(x, top + 38 * unit, width, 40 * unit), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);
             string availability = !menus.GuardianEditorEditionSupported ? "GF ability authoring requires the supported Classic edition." : menus.readGuardianEditor?.Invoke().Current is null ? "Edit this playthrough: load a game first." : "Package editing keeps activation unchanged. Local changes belong to this playthrough.";
             float bottom = actions[^1].Bounds.Bottom + 14 * unit;
             canvas.Text(availability, 17 * unit, new UiRect(x, bottom, width, Math.Max(0, Bounds.Bottom - bottom)), theme.Muted, UiAlignment.Start, UiTextFlow.Wrap);

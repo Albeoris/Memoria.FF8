@@ -506,8 +506,11 @@ internal sealed partial class GameWorld : IDisposable
             EnsureField();
             return worldScene!.Render(renderWidth, renderHeight, triangleRenderer, worldInterpolation);
         }
-        FieldPresentationFrame frame = CaptureFieldPresentation();
-        FieldPresentationSample sample = fieldPresentation.Sample(frame, fieldInterpolation, smoothFieldAnimation);
+        FieldPresentationFrame frame = frozenLightingPresentationFrame ?? CaptureFieldPresentation();
+        FieldPresentationSample sample = frozenLightingPresentationSample ?? fieldPresentation.Sample(frame, fieldInterpolation, smoothFieldAnimation);
+        lastLightingPresentationFrame = frame;
+        lastLightingPresentationSample = sample;
+        lastLightingPresentationField = Field;
         BackgroundScrollFrame scroll = frame.Scroll;
         DebugSceneView? view = session.State.DebugView;
         NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; migrate this save explicitly.");
@@ -515,6 +518,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
+        renderer.ActiveLighting = ActiveLighting;
         bool revealHiddenDrawPoint = Events.Scene.DrawPointEnabled != 0 && (Events.Scene.DrawPointDisplayParameter & 1) == 0 && session.CharacterVitals?.HasActivePassiveAbility(79) == true;
         byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: sample.BackgroundShades, backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: frame.DrawPointParticles, drawPointBlend: sample.DrawPointBlend, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint, fieldParticles: frame.FieldParticleSprites, fieldParticleBlend: sample.FieldParticles, presentationFade: sample.Fade, fieldParticleTexture: Events.FieldParticleSprites.Count > 0 ? ReadFieldParticleTexture() : null);
         if (triangleRenderer is null)
