@@ -1,5 +1,5 @@
 diff --git a/native/monogame/vulkan/MGG_Vulkan.cpp b/native/monogame/vulkan/MGG_Vulkan.cpp
-index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..443d044813593516f68fdd5a7b7544a5ec02800b 100644
+index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..62b2c4485edb6f4bf5029f4c1d1e62b594cfd27a 100644
 --- a/native/monogame/vulkan/MGG_Vulkan.cpp
 +++ b/native/monogame/vulkan/MGG_Vulkan.cpp
 @@ -183,6 +183,7 @@ struct MGVK_Frame
@@ -94,7 +94,23 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..443d044813593516f68fdd5a7b7544a5
  
  		VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
  		presentInfo.waitSemaphoreCount = 1;
-@@ -4232,13 +4233,13 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+@@ -3163,11 +3164,12 @@ static void MGVK_UpdateRenderPass(MGG_GraphicsDevice* device, FrameCounter curre
+ 
+             if (isMsaa)
+             {
+-				desc.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+-				desc.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
++                // A target switch ends this pass; retain multisample color for a later pass in the same frame.
++				desc.loadOp = firstUse ? VK_ATTACHMENT_LOAD_OP_DONT_CARE : VK_ATTACHMENT_LOAD_OP_LOAD;
++				desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+ 				desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+ 				desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
+-                desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++                desc.initialLayout = firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+ 				desc.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+             }
+             else
+@@ -4232,13 +4234,13 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
  	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
  
  	VkSubmitInfo flushSubmitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -111,7 +127,7 @@ index 6f4a8d4438bdaf9f9af3f57383b795822a178e82..443d044813593516f68fdd5a7b7544a5
  
  	VkFence flushFence;
  	VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-@@ -4247,7 +4248,8 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
+@@ -4247,7 +4249,8 @@ void MGG_GraphicsDevice_GetBackBufferData(MGG_GraphicsDevice* device, mgint x, m
  
  	{
  		std::lock_guard lock(device->queueMutex);

@@ -47,7 +47,7 @@
     "profile": "Vulkan",
     "version": "3.8.5.1"
   },
-  "patchSha256": "b2a652019c2f88f182435eae626e9db544f19313b1c35d15bbadab0a82fc195e",
+  "patchSha256": "f92e96c0e09f3c93adef95a4311adb76bde204df65c5a1c40fe7260c011ada8f",
   "desktopWindowPatchSha256": "9154c5babc3518464e65c234882165362e6fb4194419bb51bc5caf31bb7f3858",
   "faudioPatchSha256": "a2c61a80596c355e65972c2a68abf33553c9831710468655b019dce9f977cc76",
   "referencePackages": {
