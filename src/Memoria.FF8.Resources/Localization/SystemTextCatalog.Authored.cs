@@ -2405,6 +2405,12 @@ public static partial class SystemTextCatalog
         defaults["ui.register.entry.label.session"] = "Session";
         defaults["ui.register.entry.label.quit"] = "Quit";
         defaults["ui.register.entry.help.quit.game"] = "Exit the game.";
+        defaults["debug.quit.help"] = "Return to the title screen or exit the game.";
+        defaults["debug.quit.title-screen"] = "Return to title screen";
+        defaults["debug.quit.title-help"] = "Return to the title screen. Unsaved game progress will be lost.";
+        defaults["debug.quit.unsaved"] = "Unsaved game progress will be lost. Cancel to keep playing.";
+        defaults["screen.debug-quit.title"] = "Quit";
+        defaults["screen.debug-quit.help"] = "Return to the title screen or exit the game.";
         defaults["ui.register.entry.label.start.fixture.test"] = "Start fixture test";
         defaults["ui.register.entry.label.x"] = "{0} x{1}";
         defaults["ui.register.entry.label.x.gil"] = "{0} x{1}   {2} gil";

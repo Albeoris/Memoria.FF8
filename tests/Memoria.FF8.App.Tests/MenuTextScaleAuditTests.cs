@@ -11,6 +11,23 @@ public sealed class MenuTextScaleAuditTests
 {
     [Theory]
     [InlineData(6, 100)]
+    [InlineData(24, 150)]
+    [InlineData(48, 150)]
+    public void QuitChoicesDrawAtSupportedTextScales(int fontSize, int textScale)
+    {
+        MenuController controller = Create("debug-quit", fontSize, textScale);
+        UiView view = controller.BuildView();
+        AuditCanvas canvas = new();
+        view.Draw(canvas, controller.CreateTheme());
+        view.Resize(1280, 720);
+        view.Draw(canvas, controller.CreateTheme());
+        Assert.Equal(0, canvas.ClipDepth);
+        Assert.True(canvas.TextCount > 0);
+        Assert.All(Descendants(view.Root), element => Validate(element.Bounds));
+    }
+
+    [Theory]
+    [InlineData(6, 100)]
     [InlineData(6, 150)]
     [InlineData(20, 125)]
     [InlineData(24, 100)]

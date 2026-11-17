@@ -130,6 +130,7 @@ internal sealed partial class RecreateGame
         }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
         gameMenus.QuitRequested += ShowWindowCloseConfirmation;
+        gameMenus.ReturnToTitleRequested += ReturnToTitleScreen;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
         gameMenus.ConnectWorldSwitch(Ff8WorldSwitchUnavailable, OpenCrossoverSetup);

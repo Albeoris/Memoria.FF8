@@ -19,6 +19,16 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private void ReturnToTitleScreen()
+    {
+        UpdateAchievements(force: true);
+        ReplacePlayerSession(GameWorld.CreateColdProcess(options.GameDirectory));
+        RestoreCrossover(null);
+        titleSelection = 0;
+        drainUiButtons = true;
+        fieldAudio?.PlayTitleMusic();
+    }
+
     private void ExitGame()
     {
         if (lightingEditor is not null)

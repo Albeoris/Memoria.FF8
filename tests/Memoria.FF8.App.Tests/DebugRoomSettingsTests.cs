@@ -156,7 +156,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, _ => writes++);
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Switch world: FFVII", "Quit" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Mods", "Localization", "Gameplay rules", "Models", "Battle", "Scene", "UI tools", "Session", "Automation", "Shortcuts", "Switch world: FFVII", "Quit" }, menus.Entries.Select(entry => entry.Label));
         menus.SelectEntry("debug-room", "debug-gallery");
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-gallery", menus.ScreenId);
@@ -169,7 +169,7 @@ public sealed class DebugRoomSettingsTests
     }
 
     [Fact]
-    public void QuitIsLastAndConfirmRequestsExitFromTheHost()
+    public void QuitIsLastAndOffersTitleOrExitBeforeRequestingExitFromTheHost()
     {
         int requests = 0;
         MenuController menus = new();
@@ -182,7 +182,36 @@ public sealed class DebugRoomSettingsTests
         Assert.Equal(0, requests);
         menus.Navigate(MenuInput.Confirm);
 
+        Assert.Equal(0, requests);
+        Assert.Equal("debug-quit", menus.ScreenId);
+        Assert.Equal(new[] { "title", "exit" }, menus.Entries.Select(entry => entry.Id));
+        Assert.False(menus.Entries[0].Enabled);
+        menus.SelectEntry("debug-quit", "exit");
+        menus.Navigate(MenuInput.Confirm);
         Assert.Equal(1, requests);
+    }
+
+    [Fact]
+    public void QuitChoiceCanBeCancelledOrReturnToTitleWithoutExiting()
+    {
+        int titles = 0;
+        int exits = 0;
+        MenuController menus = new();
+        menus.ReturnToTitleRequested += () => titles++;
+        menus.QuitRequested += () => exits++;
+        menus.Open("debug-room", true);
+        menus.SelectEntry("debug-room", "quit");
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("title", menus.SelectedEntry?.Id);
+        menus.Navigate(MenuInput.Cancel);
+        Assert.Equal("debug-room", menus.ScreenId);
+        Assert.Equal("quit", menus.SelectedEntry?.Id);
+        Assert.Equal(0, titles);
+        Assert.Equal(0, exits);
+        menus.Navigate(MenuInput.Confirm);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal(1, titles);
+        Assert.Equal(0, exits);
     }
 
     [Fact]
