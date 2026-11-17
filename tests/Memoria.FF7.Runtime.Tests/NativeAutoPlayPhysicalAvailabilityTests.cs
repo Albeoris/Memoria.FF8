@@ -76,6 +76,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         CheckProtectedStripSearch();
         CheckTalkProducerEntries();
         CheckRetainedFloorContact();
+        CheckDirectedAdviceRefinement();
         CheckOriginalQueuedContact();
         CheckOriginalForwardAdmission();
         CheckGatewayAdmission();
@@ -121,6 +122,32 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.SelectFloorContact([closer], Vector3.Zero, original) == closer, "An invalidated contact remained an advisory escape target.");
         Check(Ff7AutoplayDriver.SelectFloorContact([original, closer], Vector3.Zero, null) == closer, "A consumed or invalid native prefix prevented fresh contact selection.");
         Check(Ff7AutoplayDriver.SelectFloorContact([(original.Point, 7), closer], Vector3.Zero, original) == closer, "A contact on another floor inherited an old prefix solely by position.");
+    }
+
+    private static void CheckDirectedAdviceRefinement()
+    {
+        PcWalkmeshTriangle[] mesh =
+        [
+            new(0, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, 1, 2, -1),
+            new(1, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, 0, 3, -1),
+            new(2, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, 0, 4, -1),
+            new(3, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, 1, 4, -1),
+            new(4, Vector3.Zero, Vector3.UnitX, Vector3.UnitY, 2, 3, -1)
+        ];
+        byte[] blocked = [0];
+        var original = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3);
+        Check(original.Previous[0] == 1 && original.Distance[0] == 2, "The authored guide did not select its shorter source edge.");
+        HashSet<(int From, int To)> rejectedAdvice = [(0, 1)];
+        var alternate = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3, ownedPortals: rejectedAdvice);
+        Check(alternate.Previous[0] == 2 && alternate.Distance[0] == 3, "Rejecting unproductive source advice did not expose the longer native component route.");
+        var continued = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 2, 3, ownedPortals: rejectedAdvice);
+        Check(continued.Previous[2] == 4, "Retained advice bounced to the rejected shorter source approach after moving.");
+        var reverse = Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 1, 0, ownedPortals: rejectedAdvice);
+        Check(reverse.Previous[1] == 0, "A rejected directed advice edge blocked its native reverse direction.");
+        HashSet<(int From, int To)> noAlternative = [(0, 1), (0, 2)];
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3, ownedPortals: noAlternative).Previous[0] == -1, "No alternative advice fabricated an advancing path.");
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, [1 << 2], 0, 3, ownedPortals: rejectedAdvice).Previous[0] == -1, "Alternative advice ignored an actual native triangle restriction.");
+        Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3).Previous[0] == 1 && blocked[0] == 0 && rejectedAdvice.SetEquals([(0, 1)]), "Transient advice changed native topology or leaked into a new guide context.");
     }
 
     private static void CheckOriginalQueuedContact()

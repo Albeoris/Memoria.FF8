@@ -37,6 +37,10 @@ public sealed partial class Ff7AutoplayDriver
                 obstacleEscape.Clear();
             }
         }
+        if (retained is null && approachAdviceExclusions.Count > 0 && obstacleGeneration == session.FieldGeneration && obstacleTarget is Vector3 acceptedTarget && approachGuideContext == ReadApproachGuideContext(player, acceptedTarget, waypointDestination))
+        {
+            retained = (acceptedTarget, waypointDestination);
+        }
         return SelectFloorContact(contacts, Position3D(player), retained);
     }
 
@@ -101,6 +105,29 @@ public sealed partial class Ff7AutoplayDriver
             return movement.StepDirection(actor, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
         }
         Ff7AutoPlayPhysicalRoute route = SearchPhysicalEscape(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
+        if (route.Status != Ff7AutoPlayPhysicalSearchStatus.Progress && blockedForward && nextTriangle != player.Triangle && !approachAdviceExclusions.Contains((player.Triangle, nextTriangle)))
+        {
+            // Try one alternate guide after the original bounded search: at most two 1024-node searches per decision.
+            // A failed physical prefix rejects this advice, not the native portal itself.
+            HashSet<(int From, int To)> alternatives = ReadNavigationOwnedPortals(session.Field.Walkmesh);
+            alternatives.UnionWith(approachAdviceExclusions);
+            alternatives.Add((player.Triangle, nextTriangle));
+            var (previous, distance) = ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, alternatives);
+            int alternative = previous[player.Triangle];
+            if (alternative >= 0 && alternative != nextTriangle)
+            {
+                var triangle = session.Field.Walkmesh[alternative];
+                Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
+                Ff7AutoPlayPhysicalRoute refined = SearchPhysicalEscape(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove);
+                if (refined.Status == Ff7AutoPlayPhysicalSearchStatus.Progress)
+                {
+                    approachAdviceExclusions.Add((player.Triangle, nextTriangle));
+                    committedWaypoint = alternativeWaypoint;
+                    waypointSourceTriangle = player.Triangle;
+                    route = refined;
+                }
+            }
+        }
         if (route.Status != Ff7AutoPlayPhysicalSearchStatus.Progress)
         {
             if (blockedForward)

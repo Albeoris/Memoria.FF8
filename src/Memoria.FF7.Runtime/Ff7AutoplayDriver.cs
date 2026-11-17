@@ -280,7 +280,17 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             finalTarget = target;
         }
         finalApproach |= player.Triangle == destination;
-        var (previous, routeDistance) = ReadApproachRoutes(mesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, ReadNavigationOwnedPortals(mesh));
+        string guideContext = ReadApproachGuideContext(player, target, destination);
+        if (approachGuideContext != guideContext)
+        {
+            approachGuideContext = guideContext;
+            approachAdviceExclusions.Clear();
+            obstacleEscape.Clear();
+            committedWaypoint = null;
+        }
+        HashSet<(int From, int To)> adviceRestrictions = ReadNavigationOwnedPortals(mesh);
+        adviceRestrictions.UnionWith(approachAdviceExclusions);
+        var (previous, routeDistance) = ReadApproachRoutes(mesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, adviceRestrictions);
         int next = previous[player.Triangle];
         if (next < 0 && !finalApproach)
         {
@@ -368,6 +378,32 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         navigationActionProgress = resultAdvances;
         return result with { Run = run };
+    }
+
+    private string? approachGuideContext;
+    private readonly HashSet<(int From, int To)> approachAdviceExclusions = [];
+
+    private string ReadApproachGuideContext(Ff7Actor player, Vector3 target, int destination)
+    {
+        StringBuilder facts = new($"{session.FieldGeneration}:{target}:{destination}:{player.Entity}:{player.Model}:{player.CollisionRadius}:{session.GetPlayerMovementSpeed(navigationRunMode ?? true)}:{session.Host.Process.LineBlocked}:{session.Host.Process.MapJumpDisabled}:{admittedSpatialTriangle}:{Convert.ToHexString(session.Host.Process.BlockedTriangles)}");
+        foreach (var edge in ReadNavigationOwnedPortals(session.Field.Walkmesh).OrderBy(edge => edge.From).ThenBy(edge => edge.To))
+        {
+            facts.Append($"|owned:{edge.From}:{edge.To}");
+        }
+        foreach (int triangle in CaptureSpatialBoundaryTriangles())
+        {
+            facts.Append($"|boundary:{triangle}");
+        }
+        foreach (Ff7Actor actor in session.Host.Process.Actors.Where(actor => !actor.PlayerControlled && actor.CollisionEnabled).OrderBy(actor => actor.Entity))
+        {
+            facts.Append($"|actor:{actor.Entity}:{actor.Model}:{actor.X4096}:{actor.Y4096}:{actor.Z4096}:{actor.Triangle}:{actor.CollisionRadius}");
+        }
+        foreach (var line in session.Host.Process.Lines)
+        {
+            facts.Append($"|line:{line.Entity}:{line.Enabled}:{line.X1}:{line.Y1}:{line.Z1}:{line.X2}:{line.Y2}:{line.Z2}");
+        }
+        facts.Append($"|gateways:{string.Join(',', (admittedGateways ?? new HashSet<int>()).Order())}");
+        return facts.ToString();
     }
 
     internal static (int[] Previous, int[] Distance) ReadApproachRoutes(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, int source, int destination, IReadOnlySet<int>? spatialBoundaries = null, int? admittedSpatialTriangle = null, IReadOnlySet<(int From, int To)>? ownedPortals = null)

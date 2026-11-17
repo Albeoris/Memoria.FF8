@@ -49,11 +49,11 @@ public sealed partial class Ff7AutoplayDriver
     private bool? navigationActionProgress;
     private bool navigationEscapeAction;
 
-    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction);
+    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions);
 
     private NavigationModeState CaptureNavigationMode()
     {
-        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction);
+        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction, approachGuideContext, approachAdviceExclusions.ToArray());
     }
 
     private void RestoreNavigationMode(NavigationModeState state)
@@ -77,6 +77,9 @@ public sealed partial class Ff7AutoplayDriver
         {
             obstacleEscape.Enqueue(step);
         }
+        approachGuideContext = state.ApproachGuideContext;
+        approachAdviceExclusions.Clear();
+        approachAdviceExclusions.UnionWith(state.ApproachAdviceExclusions);
         navigationRunMode = state.RunMode;
         navigationActionProgress = state.ActionProgress;
         navigationLineRejected = state.LineRejected;
