@@ -61,7 +61,7 @@ public sealed partial class Ff7BattleSession
         {
             if (response.CounterPending)
             {
-                PublishEnemyCounters(continuation.Origin, Actor(response.Target).Actor, response.KnockedOut, response.Physical);
+                PublishActorCounters(continuation.Origin, Actor(response.Target).Actor, response.KnockedOut, response.Physical);
             }
             if (response.KnockedOut)
             {
@@ -80,6 +80,7 @@ public sealed partial class Ff7BattleSession
         }
         CompleteGuestMagic(active.Command);
         state = state with { Action = null };
+        CompleteEconomyStatusPhase();
         FlushFormationAi();
     }
 }

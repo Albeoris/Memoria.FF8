@@ -73,12 +73,12 @@ internal static class AutoPlayWorldPolicyTests
         Check(planner.PlanNavigation("world-nav") is null, "Historical story-changing metadata must initially exclude this travel edge.");
         string[] consumed = coverage.Conditions!.ConsumedEntries.ToArray();
         Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
-        Check(coverage.RouteNeedsRediscovery && coverage.Completed && coverage.Conditions.ConsumedEntries.SetEquals(consumed) && coverage.Routes.SequenceEqual(new[] { old }), "Scheduling source reobservation must retain completion, consumed entries and every historical route observation.");
+        Check(coverage.RouteNeedsRediscovery && coverage.GlobalRouteRediscovery && coverage.Completed && coverage.Conditions.ConsumedEntries.SetEquals(consumed) && coverage.Routes.SequenceEqual(new[] { old }), "Scheduling source reobservation must override historical component receipts while retaining completion, consumed entries and every historical route observation.");
         Check(planner.PlanNavigation("world-nav") is { IsTravel: false } probe && probe.Event.Id == source.Id, "A pure historical transfer must become a real native source probe instead of a fabricated reusable route.");
         planner.Completed("world", source.Id, "field", observedStoryChanged: false, entrySignature: condition, entrySignatureAuthoritative: true);
         planner.RecordNavigationRoute("world-nav", "field-nav", source.Id, coverage.Routes.Single());
         Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
-        Check(!coverage.RouteNeedsRediscovery && planner.PlanNavigation("world-nav") is { IsTravel: true, Goal.EventId: "forward" }, "Fresh source-only unchanged-story evidence must resolve the probe and restore ordinary shared travel.");
+        Check(!coverage.RouteNeedsRediscovery && !coverage.GlobalRouteRediscovery && planner.PlanNavigation("world-nav") is { IsTravel: true, Goal.EventId: "forward" }, "Fresh source-only unchanged-story evidence must resolve the probe and restore ordinary shared travel.");
         coverage.Routes.Add(old);
         Ff7AutoPlayPolicy.ReobserveUnattributedWorldTransfers(visit, [source]);
         Check(!coverage.RouteNeedsRediscovery, "A fresh current-condition false route must prevent historical true observations from reopening rediscovery.");

@@ -86,8 +86,19 @@ public sealed class GuestNativeRowTests
         battle.BindGuestVitals(binding);
         Ff7BattleSnapshot snapshot = battle.Capture();
         Ff7BattleAiActor changed = snapshot.Actors.Single(actor => actor.Actor.Slot == 0).Actor with { Statuses = Ff7NativeBattleStatuses.Fury, Conditions = (snapshot.Actors.Single(actor => actor.Actor.Slot == 0).Actor.Conditions & ~0x40u) | (back ? 0x40u : 0u) };
-        Ff7BattleSnapshot terminal = snapshot with { Outcome = Ff7BattleOutcome.Escaped, TerminalFrames = 8, Actors = snapshot.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = changed } : actor).ToArray() };
+        Ff7BattleSnapshot terminal = snapshot with { Outcome = Ff7BattleOutcome.Escaped, Actors = snapshot.Actors.Select(actor => actor.Actor.Slot == 0 ? actor with { Actor = changed } : actor).ToArray() };
         envelope = envelope with { Ff7 = session.Capture() with { Battle = terminal } };
+        using (Ff7Session boundary = Ff7Session.Restore(installation, envelope.Ff7!))
+        {
+            Ff7BattleSession escaping = Assert.IsType<Ff7BattleSession>(boundary.Battle);
+            Assert.False(escaping.ResultReady);
+            for (int tick = 0; tick < 256 && !escaping.ResultReady; tick++)
+            {
+                escaping.Advance();
+            }
+            Assert.True(escaping.ResultReady, "The escaped fixture must finish its native presentation and economy queues before settlement.");
+            envelope = envelope with { Ff7 = boundary.Capture() };
+        }
         string before = JsonSerializer.Serialize(envelope);
         CrossoverBattleVitalsSettlementResult settled = CrossoverBattleVitalsSettlement.PrepareResult(envelope, installation, installed);
         Ff7SessionSave settledHost = settled.Save.Ff7!;

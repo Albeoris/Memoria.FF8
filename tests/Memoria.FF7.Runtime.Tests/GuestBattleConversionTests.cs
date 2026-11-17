@@ -59,10 +59,11 @@ internal static class GuestBattleConversionTests
 
         Ff7BattleAttack incoming = Ff7GuestBattleStatuses.ProjectIncoming(outgoing with { StatusMask = darkness | sadness })!;
         byte[] junction = Enumerable.Repeat((byte)100, 40).ToArray();
-        Check(incoming.StatusMask == darkness && Hit(incoming, target with { Statuses = 0 }, junction).Target.Statuses == darkness, "The incoming guest path must apply Blind and ignore Sadness.");
+        Check(incoming.StatusMask == (darkness | sadness) && Hit(incoming, target with { Statuses = 0 }, junction).Target.Statuses == (darkness | sadness), "Incoming native statuses must retain both the Blind counterpart and host-owned Sadness.");
+        Check(Ff7GuestBattleStatuses.ToOrigin(sadness) == 0 && Ff7GuestBattleStatuses.ToOriginBattle(sadness) == 0, "Host-owned Sadness must not acquire an FFVIII saved or battle status alias.");
         junction[3] = 200;
         Ff7BattleActionReceipt defended = Hit(incoming, target with { Statuses = 0 }, junction);
-        Check(defended.Target.Statuses == 0 && defended.Damage.Damage > 0, "FFVIII status defense must block Blind without blocking the hit.");
+        Check(defended.Target.Statuses == sadness && defended.Damage.Damage > 0, "FFVIII Blind defense must preserve host-owned Sadness without blocking the hit.");
     }
 
     private static void StatusCounterparts()

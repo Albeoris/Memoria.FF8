@@ -368,6 +368,7 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 // Rediscover source-only travel evidence; retain historical observations and consumed entries.
                 coverage.RouteNeedsRediscovery = true;
+                coverage.GlobalRouteRediscovery = true;
             }
         }
     }

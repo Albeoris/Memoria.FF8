@@ -23,12 +23,13 @@ internal static class GuestContinuationTests
         using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
         using LgpArchive magic = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.MagicArchive).Path);
         Ff7BattleAnimationResources animations = new(archive, Ff7PcExecutableData.LoadBattlePlacement(installation), magic, Ff7PcExecutableData.LoadBattleJumpDeltas(installation), Ff7PcExecutableData.LoadBattleHitmarks(installation), Ff7PcExecutableData.LoadBattleActorModelResources(installation));
+        Ff7BattleSystemMessages systemMessages = Ff7BattleSystemMessages.Load(installation);
         CheckContinuation(1, 0x10);
         CheckContinuation(17, 0x10);
         CheckContinuation(1, 0x30);
         Console.WriteLine("PASS guest continuation: single, seventeen-contact and group children retain one turn through deferred host responses.");
 
-        Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
+        Ff7BattleSession Create(Ff7BattleSnapshot? snapshot = null) => new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations, systemMessages: systemMessages);
 
         void CheckContinuation(int repetitions, ushort targets)
         {
@@ -38,7 +39,10 @@ internal static class GuestContinuationTests
             Ff7BattleSnapshot seed = initial.Capture();
             seed.Actors[0] = seed.Actors[0] with { Gauge = ushort.MaxValue - 1 };
             int enemy = Array.FindIndex(seed.Actors, actor => actor.Actor.Slot == 4);
-            seed.Actors[enemy] = seed.Actors[enemy] with { Actor = seed.Actors[enemy].Actor with { HitPoints = 1, MaxHitPoints = 1 } };
+            seed.Actors[enemy] = seed.Actors[enemy] with { Actor = seed.Actors[enemy].Actor with { HitPoints = 1, MaxHitPoints = 1, PreviousStatuses = seed.Actors[enemy].Actor.Statuses }, StolenAssets = new(37, 0) };
+            uint initialGil = BinaryPrimitives.ReadUInt32LittleEndian(seed.AiGlobalMemory!.AsSpan(0x38));
+            int initialItems = seed.Inventory.Where(slot => slot.ItemId == 0).Sum(slot => slot.Quantity);
+            seed = seed with { Economy = Ff7BattleEconomy.Enqueue(seed.Economy!, 2, new(0x14, 4, 0)) };
             if ((targets & 0x20) != 0)
             {
                 int other = Array.FindIndex(seed.Actors, actor => actor.Actor.Slot == 5);
@@ -105,6 +109,16 @@ internal static class GuestContinuationTests
                     Check(waitingSeen && blockedWaitSeen && waitTicks > 0 && battle.NativeActorModelsReady && current.PrimaryEffects?.HasCallbacks != true && source.Invocation is null, "The child released before the deferred native model callbacks finished.");
                     Check(target.AiMemory[0] == 1 && source.ParentBegins == 1 && source.ChildBegins == 1 && source.Preparations == 1 && source.Published == repetitions * System.Numerics.BitOperations.PopCount((uint)targets), "The combined action duplicated a source invocation, contact, preparation or death callback.");
                     Check(current.Actors[0].Gauge < retainedGauge && battle.GetGuestLimitReadyAt(0) is null, "The completed parent and child failed to release their one ready turn.");
+                    Check(target.StolenAssets is null && BinaryPrimitives.ReadUInt32LittleEndian(current.AiGlobalMemory!.AsSpan(0x38)) == initialGil + 37, "Child completion failed to return the defeated actor's held Gil exactly once.");
+                    Check(current.Actors.All(actor => actor.Actor.PreviousStatuses == actor.Actor.Statuses) && current.Economy!.Queues[2].Read == current.Economy.Queues[2].Write, "Child completion omitted its native status checkpoint or queue2 publication phase.");
+                    Ff7BattleEconomyQueue returns = current.Economy!.Queues[0];
+                    Check(((returns.Write - returns.Read) & 127) == 1 && returns.Slots[returns.Read] is { Command: 3, Source: 4, Argument: 0 }, "Child completion omitted or duplicated the native held-item return queue entry.");
+                    for (int update = 0; update < 8; update++)
+                    {
+                        battle.Advance(waitForCommand: true);
+                    }
+                    Ff7BattleSnapshot settled = battle.Capture();
+                    Check(BinaryPrimitives.ReadUInt32LittleEndian(settled.AiGlobalMemory!.AsSpan(0x38)) == initialGil + 37 && settled.Inventory.Where(slot => slot.ItemId == 0).Sum(slot => slot.Quantity) == initialItems && settled.Economy!.RegisteredReturns.Count(item => item == 0) == 1 && settled.Economy.Queues[0].Read == settled.Economy.Queues[0].Write && settled.Actors.Single(actor => actor.Actor.Slot == 4).AiMemory[0] == 1, "Post-child callbacks duplicated held assets/death, lost the registered return or bypassed its later acquisition phase.");
                     finished = true;
                     break;
                 }

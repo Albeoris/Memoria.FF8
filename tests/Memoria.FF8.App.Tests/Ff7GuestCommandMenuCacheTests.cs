@@ -307,10 +307,12 @@ public sealed class Ff7GuestCommandMenuCacheTests
             Guid encounter = Guid.NewGuid();
             initial.BindGuestVitals(new(encounter, new('A', 64), 0, 0, 0, 0, 486, 486, 6, 14, 24, 17) { OriginBattleStatuses = doubleCast ? 0x20000u : 0 });
             Ff7BattleSnapshot snapshot = initial.Capture();
+            Ff7InventorySlot[] inventory = [new(0, 2)];
             snapshot = snapshot with
             {
                 Intro = null,
-                Inventory = [new(0, 2)],
+                Inventory = inventory,
+                Economy = snapshot.Economy! with { Inventory = Ff7NativeBattleInventory.Create(inventory, kernel) },
                 Actors = snapshot.Actors.Select(actor => actor with { Gauge = actor.Actor.Slot == 0 ? ushort.MaxValue : (ushort)0, AwaitingTurn = actor.Actor.Slot == 0 }).ToArray()
             };
             Battle = new(formation, original.Progress, kernel, executable.NativeMateriaStatModifiers, 1, snapshot: snapshot, animations: animations);
