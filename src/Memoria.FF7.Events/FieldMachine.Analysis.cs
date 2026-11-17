@@ -60,6 +60,7 @@ public sealed partial class FieldMachine
     {
         public IReadOnlySet<FieldVariableRead> ImmutableBytes { get; } = immutableBytes;
         public HashSet<FieldVariableRead> Writes { get; } = [];
+        public HashSet<FieldVariableRead> AssumedReads { get; } = [];
         public int Instructions { get; set; }
 
         public bool CoversAllocation(int owner, FieldCommand command)
@@ -273,6 +274,14 @@ public sealed partial class FieldMachine
                     FieldVariableRead rightRead = new(right, word ? Word(4) : Byte(3), word);
                     if (navigationInvariant is not null && Variables.SpatialSourceBytes(leftRead).Concat(Variables.SpatialSourceBytes(rightRead)).All(navigationInvariant.ImmutableBytes.Contains))
                     {
+                        if (leftRead.Bank != FieldBank.Immediate)
+                        {
+                            navigationInvariant.AssumedReads.Add(leftRead);
+                        }
+                        if (rightRead.Bank != FieldBank.Immediate)
+                        {
+                            navigationInvariant.AssumedReads.Add(rightRead);
+                        }
                         FieldMachine predicate = new(program, new FieldVariables(persistent, map));
                         predicate.entities[owner].Pc = pc;
                         FieldConditional condition = predicate.ReadConditional(owner, opcode);

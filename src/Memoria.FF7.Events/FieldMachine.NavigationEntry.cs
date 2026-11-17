@@ -101,25 +101,40 @@ public sealed partial class FieldMachine
                 }
                 roots.Add((entry.Entity, program.Entry(entry.Entity, entry.Script)));
             }
-            NavigationInvariantInspection invariant = new(immutable, possibleExternalEntries.ToHashSet());
+            // Candidate bytes are hypothetical snapshot constants, not trusted bank properties.
+            // Removing every reachable write and repeating the full closure finds an inductive fixed point.
+            FieldBank[] byteBanks = [FieldBank.Persistent0Byte, FieldBank.Persistent1Byte, FieldBank.Persistent2Byte, FieldBank.Persistent3Byte, FieldBank.Persistent4Byte, FieldBank.MapByte];
+            HashSet<FieldVariableRead> candidates = byteBanks.SelectMany(bank => Enumerable.Range(0, 256).Select(address => new FieldVariableRead(bank, (ushort)address, false))).ToHashSet();
+            candidates.ExceptWith(externalWrites.SelectMany(Variables.SpatialSourceBytes));
             int remaining = instructionBudget;
-            foreach (var root in roots)
+            while (true)
             {
-                if (remaining < 1)
+                NavigationInvariantInspection invariant = new(candidates, possibleExternalEntries.ToHashSet());
+                foreach (var root in roots)
                 {
-                    return Reject("The bounded producer closure exhausted its instruction budget.");
+                    if (remaining < 1)
+                    {
+                        return Reject("The bounded producer closure exhausted its instruction budget.");
+                    }
+                    int before = invariant.Instructions;
+                    FieldScriptAnalysis producer = AnalyzeScriptCore(root.Entity, 0, root.Pc, remaining, null, 0, invariant);
+                    if (!producer.Complete)
+                    {
+                        return Reject(producer.Reason ?? "A producer has an incomplete native write contract.");
+                    }
+                    if (invariant.Writes.Overlaps(immutable))
+                    {
+                        return Reject("A native producer can overwrite an entry predicate byte.");
+                    }
+                    remaining -= invariant.Instructions - before;
                 }
-                int before = invariant.Instructions;
-                FieldScriptAnalysis producer = AnalyzeScriptCore(root.Entity, 0, root.Pc, remaining, null, 0, invariant);
-                if (!producer.Complete)
+                int count = candidates.Count;
+                candidates.ExceptWith(invariant.Writes);
+                if (candidates.Count == count)
                 {
-                    return Reject(producer.Reason ?? "A producer has an incomplete native write contract.");
+                    reads.UnionWith(invariant.AssumedReads);
+                    break;
                 }
-                if (invariant.Writes.Overlaps(immutable))
-                {
-                    return Reject("A native producer can overwrite an entry predicate byte.");
-                }
-                remaining -= invariant.Instructions - before;
             }
             return new(true, true, null, reads.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ThenBy(read => read.Word).ToArray());
         }

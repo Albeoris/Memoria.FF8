@@ -157,16 +157,10 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         {
             controller.Advance(1);
         }
-        bool nextBoundary = connectorRequested && controller.Failure is NotSupportedException && controller.Error?.Contains("No reachable unconsumed native event", StringComparison.Ordinal) == true;
         bool progressed = controller.Error is null && (conversationRequested || session.MapId != sourceMap || session.Machine.Variables.ReadWord(Memoria.FF7.Events.FieldBank.Persistent0Word, 0) != story);
-        Check(progressed || nextBoundary, $"The bounded native admission continuation did not leave its detour loop after {controller.Steps} callbacks: {controller.Error}; {policy.Status}; connector={connectorRequested}");
-        if (nextBoundary)
-        {
-            var actor = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key.StartsWith($"ff7:{sourceMap}:", StringComparison.Ordinal)).Events.Single(item => item.Event.Id == "actor:7:script:1");
-            Check(actor.UnavailableAttempts.Any(attempt => policy.State.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.MovementFailure is not null), "A failed owned-boundary search became an unscoped physical absence.");
-        }
+        Check(progressed, $"The bounded native admission continuation did not reach a conversation or native transition after {controller.Steps} callbacks: {controller.Error}; {policy.Status}; connector={connectorRequested}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded admission continuation changed its standalone source.");
-        Console.WriteLine($"PASS original native admission continuation after {controller.Steps} callbacks; connector={connectorRequested}, conversation={conversationRequested}, nextBoundary={nextBoundary}, map={session.MapId}; source unchanged.");
+        Console.WriteLine($"PASS original native admission continuation after {controller.Steps} callbacks; connector={connectorRequested}, conversation={conversationRequested}, map={session.MapId}; source unchanged.");
     }
 
     private static void CheckBlockedPortalSearch()
