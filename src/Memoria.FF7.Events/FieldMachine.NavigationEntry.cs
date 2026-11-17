@@ -124,7 +124,9 @@ public sealed partial class FieldMachine
                     }
                     if (invariant.Writes.Overlaps(immutable))
                     {
-                        return Reject("A native producer can overwrite an entry predicate byte.");
+                        FieldVariableRead written = immutable.First(invariant.Writes.Contains);
+                        var origin = invariant.WriteOrigins[written];
+                        return Reject($"{origin.Entity}:{origin.ProgramCounter:X4}: A native producer can overwrite entry predicate byte {written.Bank}/{written.Operand}.");
                     }
                     remaining -= invariant.Instructions - before;
                 }

@@ -64,6 +64,10 @@ internal static class NativeNavigationEntryProofTests
         var external = Create([0x80, 0x10, 0, 1, 0], activeProducer: false, childOffset: 0);
         Check(Prove(external.Machine).HasNoEffect, "An unrequested external body became an invented native producer.");
         Check(!Prove(external.Machine, entries: [new(2, 1)]).HasNoEffect, "A competing external entry, including a possible talk handler, escaped the closure.");
+        var safeTalk = Create([0x80, 0x10, 10, 1, 0], activeProducer: false, childOffset: 0);
+        Check(Prove(safeTalk.Machine, entries: [new(2, 1)]).HasNoEffect, "A covered talk producer writing disjoint bytes invalidated the line predicate.");
+        var clobberingTalk = Create([0x80, 0x10, 1, 1, 0], activeProducer: false, childOffset: 0);
+        Check(!Prove(clobberingTalk.Machine, entries: [new(2, 1)]).HasNoEffect, "A newly offered talk entry overwrote the line predicate through its word alias.");
         foreach (byte[] producer in new byte[][] { [0x99, 0x10, 0, 0], [0xC1, 0x22, 0x22, 0, 0, 2, 4, 6, 0], [0xA1, 0, 0], [0xD0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0], [0xFF, 0] })
         {
             var unsupported = Create(producer);

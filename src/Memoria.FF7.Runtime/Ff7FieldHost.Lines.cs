@@ -61,12 +61,17 @@ public sealed partial class Ff7FieldHost
     public bool RequestLineTalk(Ff7Actor actor)
     {
         bool requested = false;
-        foreach (Ff7Line line in Process.Lines.Where(line => line.Enabled == 1 && line.OnLine && ((line.ProximityAngle - actor.Direction + 32) & 255) < 64))
+        foreach (Ff7Line line in Process.Lines.Where(line => CanRequestLineTalk(line, actor)))
         {
             SetLine(line with { Talk = true });
             requested = true;
         }
         return requested;
+    }
+
+    internal static bool CanRequestLineTalk(Ff7Line line, Ff7Actor actor)
+    {
+        return line.Enabled == 1 && line.OnLine && ((line.ProximityAngle - actor.Direction + 32) & 255) < 64;
     }
 
     public void ClearLineOnLine()

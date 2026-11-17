@@ -16,7 +16,7 @@ public sealed partial class Ff7Session
         new(FieldBank.Persistent3Byte, 30, false)
     }).ToArray();
 
-    internal FieldNavigationEntryProof ReadNavigationEntryProof(int entity, int script, FieldInputState input)
+    internal FieldNavigationEntryProof ReadNavigationEntryProof(int entity, int script, FieldInputState input, bool talkContext = false)
     {
         Ff7FieldProcess process = Host.Process;
         if (World is not null || Battle is not null || HasPendingTick || Machine.CycleCursor is not null || !Machine.HasCompletedInitialCycle || process.GlobalCommand != Ff7GlobalCommand.None || process.PlayerLocked || process.Join is not null || process.Transition is not null || process.Dialogues.Any(dialogue => !dialogue.Completed) || process.Actors.Any(actor => actor.PlayerControlled && (actor.Ladder is not null || actor.Jump is not null || Host.HasScriptedMotion(actor))))
@@ -39,6 +39,25 @@ public sealed partial class Ff7Session
                 possibleEntries.Add(new(line.Entity, 1));
             }
         }
+        if (talkContext)
+        {
+            Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
+            possibleEntries.UnionWith(ReadNavigationTalkEntries(player, GetTalkTarget(), process.Lines));
+        }
         return Machine.ProveNavigationEntryHasNoEffect(entity, script, input, navigationExternalWrites, possibleEntries.ToArray());
     }
+    internal static FieldNavigationEntryPoint[] ReadNavigationTalkEntries(Ff7Actor player, Ff7Actor? selectedActor, IReadOnlyList<Ff7Line> lines)
+    {
+        HashSet<FieldNavigationEntryPoint> entries = [];
+        if (selectedActor is not null)
+        {
+            entries.Add(new(selectedActor.Entity, 1));
+        }
+        foreach (Ff7Line line in lines.Where(line => Ff7FieldHost.CanRequestLineTalk(line, player)))
+        {
+            entries.Add(new(line.Entity, 1));
+        }
+        return entries.ToArray();
+    }
+
 }

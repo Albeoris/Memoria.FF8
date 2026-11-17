@@ -74,6 +74,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         CheckNativeGoalPreview();
         CheckBlockedPortalSearch();
         CheckProtectedStripSearch();
+        CheckTalkProducerEntries();
         CheckOriginalForwardAdmission();
         CheckGatewayAdmission();
         CheckOriginalTargetBoundary();
@@ -105,6 +106,17 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(coupled with { AnalysisComplete = false }, [exit])), "An incomplete handler analysis authorized a coupled native exit.");
         Ff7AutoPlayTarget explicitGate = line with { GatewayIndex = 1, ChangesField = true, DestinationField = exit.DestinationField };
         Check(!Ff7AutoplayDriver.AllowsGatewayMove([exit, selected], source, to, Ff7AutoplayDriver.ReadTargetGatewayIndices(explicitGate, [exit, selected])), "Unique-destination coupling overrode an explicitly selected gateway index.");
+    }
+
+    private static void CheckTalkProducerEntries()
+    {
+        Ff7Actor player = new() { Slot = 0, Entity = 0, Model = 0, Direction = 0 };
+        Ff7Actor selected = new() { Slot = 1, Entity = 7, Model = 1 };
+        Ff7Line eligible = new(0, 3, 0, 0, 0, 1, 0, 0, OnLine: true, ProximityAngle: 0);
+        Ff7Line away = eligible with { Entity = 4, ProximityAngle = 128 };
+        var roots = Ff7Session.ReadNavigationTalkEntries(player, selected, [eligible, away, eligible with { Entity = 5, Enabled = 0 }]);
+        Check(roots.Contains(new(7, 1)) && roots.Contains(new(3, 1)) && roots.Length == 2, "Talk-context proof did not cover the actual actor and native eligible LINE talk entries.");
+        Check(Ff7Session.ReadNavigationTalkEntries(player, null, []).Length == 0, "Talk-context proof invented an actor request without a native selection.");
     }
 
     private static void CheckProtectedStripSearch()
@@ -157,8 +169,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         {
             controller.Advance(1);
         }
-        bool progressed = controller.Error is null && (conversationRequested || session.MapId != sourceMap || session.Machine.Variables.ReadWord(Memoria.FF7.Events.FieldBank.Persistent0Word, 0) != story);
-        Check(progressed, $"The bounded native admission continuation did not reach a conversation or native transition after {controller.Steps} callbacks: {controller.Error}; {policy.Status}; connector={connectorRequested}");
+        Check(controller.Error is null && conversationRequested, $"The bounded native admission continuation did not accept the native conversation after {controller.Steps} callbacks: {controller.Error}; {policy.Status}; connector={connectorRequested}");
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded admission continuation changed its standalone source.");
         Console.WriteLine($"PASS original native admission continuation after {controller.Steps} callbacks; connector={connectorRequested}, conversation={conversationRequested}, map={session.MapId}; source unchanged.");
     }

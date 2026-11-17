@@ -61,6 +61,7 @@ public sealed partial class FieldMachine
         public IReadOnlySet<FieldVariableRead> ImmutableBytes { get; } = immutableBytes;
         public HashSet<FieldVariableRead> Writes { get; } = [];
         public HashSet<FieldVariableRead> AssumedReads { get; } = [];
+        public Dictionary<FieldVariableRead, (int Entity, int ProgramCounter)> WriteOrigins { get; } = [];
         public int Instructions { get; set; }
 
         public bool CoversAllocation(int owner, FieldCommand command)
@@ -329,7 +330,14 @@ public sealed partial class FieldMachine
                 variables.WriteObserved = write =>
                 {
                     instructionWrites.Add(write);
-                    navigationInvariant?.Writes.UnionWith(Variables.SpatialSourceBytes(write));
+                    if (navigationInvariant is not null)
+                    {
+                        foreach (FieldVariableRead source in Variables.SpatialSourceBytes(write))
+                        {
+                            navigationInvariant.Writes.Add(source);
+                            navigationInvariant.WriteOrigins.TryAdd(source, (owner, pc));
+                        }
+                    }
                     if (variables.SpatialSourceBytes(write).Any(physicalBytes.Contains))
                     {
                         physicalValid = false;

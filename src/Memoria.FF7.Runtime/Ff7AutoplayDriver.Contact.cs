@@ -214,9 +214,9 @@ public sealed partial class Ff7AutoplayDriver
         if (!navigationLineSkips.TryGetValue(key, out bool skip))
         {
             skip = session.Machine.CanSkipScriptEntryForInput(target.Entity, target.Script, input);
-            if (!skip && !navigationLineTalk)
+            if (!skip)
             {
-                FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input);
+                FieldNavigationEntryProof proof = session.ReadNavigationEntryProof(target.Entity, target.Script, input, talkContext: navigationLineTalk);
                 skip = proof.Complete && proof.HasNoEffect;
             }
             navigationLineSkips.Add(key, skip);
