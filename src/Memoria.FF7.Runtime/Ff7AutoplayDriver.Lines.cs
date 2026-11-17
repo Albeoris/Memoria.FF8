@@ -45,6 +45,24 @@ public sealed partial class Ff7AutoplayDriver
         }
         if (touching && kind == Ff7AutoPlayTargetKind.LineCross)
         {
+            Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
+            Ff7NativeMoveResult Preview(Ff7AutoplayInput action)
+            {
+                var direction = Directions.Single(direction => direction.X == action.Horizontal && direction.Y == action.Vertical);
+                return session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), process.Actors, process.BlockedTriangles, false, process.LineBlocked);
+            }
+            bool Allows(Ff7AutoplayInput action, Ff7NativeMoveResult step)
+            {
+                bool rejected = navigationLineRejected;
+                bool admitted = AllowsBoundaryInput(action with { Run = run });
+                navigationLineRejected = rejected;
+                return admitted;
+            }
+            if (ChooseNativeLineCrossing(controlled, line, Preview, Allows) is Ff7AutoplayInput crossing)
+            {
+                navigationActionProgress = true;
+                return crossing with { Run = run };
+            }
             int side = Ff7Session.Side(a, b, current);
             var opposite = contacts.Where(candidate => side == 0 ? Ff7Session.Side(a, b, candidate.Point) != 0 : (long)side * Ff7Session.Side(a, b, candidate.Point) <= 0).OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).ToArray();
             if (opposite.Length == 0)
@@ -55,6 +73,20 @@ public sealed partial class Ff7AutoplayDriver
         }
         var goal = ChooseFloorContact(contacts, player);
         return Approach(goal.Point, goal.Triangle, run);
+    }
+
+    internal static Ff7AutoplayInput? ChooseNativeLineCrossing(Ff7Actor player, Ff7Line line, Func<Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7AutoplayInput, Ff7NativeMoveResult, bool> allows)
+    {
+        foreach (var direction in Directions)
+        {
+            Ff7AutoplayInput input = new(direction.X, direction.Y);
+            Ff7NativeMoveResult step = preview(input);
+            if (step.Moved && Ff7Session.CrossesLine(line, player, step.Actor) && allows(input, step))
+            {
+                return input;
+            }
+        }
+        return null;
     }
 
     internal static IReadOnlyList<(Vector3 Point, int Triangle)> DiscoverLineContacts(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blockedTriangles, Ff7Actor player, Ff7Line line)

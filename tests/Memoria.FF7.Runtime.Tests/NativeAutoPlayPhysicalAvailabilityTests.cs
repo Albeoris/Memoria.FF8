@@ -77,6 +77,8 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         CheckTalkProducerEntries();
         CheckRetainedFloorContact();
         CheckDirectedAdviceRefinement();
+        CheckNativeLineCrossing();
+        CheckOriginalNativeLineCrossing();
         CheckOriginalQueuedContact();
         CheckOriginalForwardAdmission();
         CheckGatewayAdmission();
@@ -148,6 +150,63 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3, ownedPortals: noAlternative).Previous[0] == -1, "No alternative advice fabricated an advancing path.");
         Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, [1 << 2], 0, 3, ownedPortals: rejectedAdvice).Previous[0] == -1, "Alternative advice ignored an actual native triangle restriction.");
         Check(Ff7AutoplayDriver.ReadApproachRoutes(mesh, blocked, 0, 3).Previous[0] == 1 && blocked[0] == 0 && rejectedAdvice.SetEquals([(0, 1)]), "Transient advice changed native topology or leaked into a new guide context.");
+    }
+
+    private static void CheckNativeLineCrossing()
+    {
+        Ff7Line line = new(0, 1, 0, -100, 0, 0, 100, 0);
+        Ff7Actor source = new() { Slot = 0, Entity = 0, Model = 0, X4096 = -4096, CollisionRadius = 4, Triangle = 0 };
+        Ff7Actor across = source with { X4096 = 4096 };
+        Check(Ff7Session.CrossesLine(line, source, across), "A native move crossing a touched LINE did not produce Across.");
+        Check(!Ff7Session.CrossesLine(line, source, source with { X4096 = -8192 }), "A same-side native move produced Across from mere proximity.");
+        Check(Ff7Session.CrossesLine(line, source, source with { X4096 = 0 }), "A native move reaching the LINE from a strict side lost its inclusive endpoint crossing.");
+        Check(Ff7Session.CrossesLine(line, source with { X4096 = 0 }, across), "A native move departing the exact LINE lost its crossing.");
+        Check(!Ff7Session.CrossesLine(line, source with { X4096 = 0 }, source with { X4096 = 0, Y4096 = 4096 }), "Moving along the exact LINE produced a side crossing.");
+        Check(!Ff7Session.CrossesLine(line, source with { X4096 = -4 * 4096 }, across), "The exclusive native contact radius was widened for crossing.");
+        Check(!Ff7Session.CrossesLine(line, source with { Z4096 = 10 * 4096 }, across), "A LINE on another native height layer admitted a crossing.");
+        Check(!Ff7Session.CrossesLine(line with { Enabled = 0 }, source, across), "A disabled native LINE produced a crossing.");
+        Check(Ff7Session.CrossesLine(line, source with { X4096 = -1 }, across with { X4096 = 1 }), "Native negative fixed-point flooring was replaced by floating-point truncation.");
+        Ff7NativeMoveResult Preview(Ff7AutoplayInput action)
+        {
+            return new(action.Horizontal < 0 ? source with { X4096 = -8192 } : across, false, true, []);
+        }
+        Ff7AutoplayInput? chosen = Ff7AutoplayDriver.ChooseNativeLineCrossing(source, line, Preview, (action, _) => action.Horizontal > 0);
+        Check(chosen is { Horizontal: 1, Vertical: -1 }, "Crossing selection preferred a nearby same-side move or an unadmitted actual crossing.");
+        Check(Ff7AutoplayDriver.ChooseNativeLineCrossing(source, line, Preview, (_, _) => false) is null, "No admitted native crossing fabricated an input.");
+        Check(Ff7AutoplayDriver.ChooseNativeLineCrossing(source, line, action => Preview(action) with { Moved = false }, (_, _) => true) is null, "A blocked projected side change was credited as a physical crossing.");
+    }
+
+    private static void CheckOriginalNativeLineCrossing()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_LINE_CROSSING_SAVE");
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(input).Ff7!);
+        Check(session.MapId == 558, "The native crossing fixture requires its recorded source field.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded crossing continuation reached a new choice boundary."));
+        Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+        Ff7AutoPlayTarget target = observation.Events.Single(target => target.Id == "line:1:entity:6:script:3");
+        policy.State.Active = null;
+        policy.State.DestinationField = 568;
+        policy.State.NavigationGoal = new(observation.NavigationKey, target.Id, target.ConditionFingerprint);
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        bool accepted = false;
+        session.InteractionScriptRequested += (entity, script, admitted) => accepted |= entity == 6 && script == 3 && admitted;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        for (int callback = 0; callback < 4096 && controller.Running && session.MapId == 558; callback++)
+        {
+            controller.Advance(1);
+        }
+        Check(accepted && session.MapId == 568 && controller.Error is null, $"The selected native crossing did not enter its actual scripted destination: accepted={accepted}, map={session.MapId}, error={controller.Error}, status={policy.Status}");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "The native crossing continuation queued a replay or changed its standalone source.");
+        Console.WriteLine($"PASS original selected LINE crossing reaches its native destination after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void CheckOriginalQueuedContact()

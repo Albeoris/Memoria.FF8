@@ -29,7 +29,6 @@ public sealed partial class Ff7FieldHost
     public void UpdateLineContacts(Ff7Actor fromActor, Ff7Actor toActor, bool moving)
     {
         Vector3 from = new(fromActor.X4096 >> 12, fromActor.Y4096 >> 12, fromActor.Z4096 >> 12);
-        Vector3 to = new(toActor.X4096 >> 12, toActor.Y4096 >> 12, from.Z);
         bool blocked = false;
         foreach (Ff7Line line in Process.Lines)
         {
@@ -45,9 +44,7 @@ public sealed partial class Ff7FieldHost
             if (moving && touching)
             {
                 blocked |= line.SlipDisabled == 1;
-                int fromSide = Ff7Session.Side(a, b, from);
-                int toSide = Ff7Session.Side(a, b, to);
-                bool across = fromSide >= 0 && toSide < 0 || toSide >= 0 && fromSide < 0 || fromSide > 0 && toSide <= 0 || toSide > 0 && fromSide <= 0;
+                bool across = Ff7Session.CrossesLine(line, fromActor, toActor);
                 bool exact = from.X == nearest.X && from.Y == nearest.Y;
                 byte angle = exact ? line.ProximityAngle : (Movement ?? throw new NotSupportedException("FFVII lines require native direction tables.")).Direction((int)(nearest.X - from.X), (int)(nearest.Y - from.Y));
                 bool push = exact || ((angle - toActor.Direction + 64) & 255) < 128;
@@ -92,6 +89,26 @@ public sealed partial class Ff7FieldHost
 
 public sealed partial class Ff7Session
 {
+    internal static bool CrossesLine(Ff7Line line, Ff7Actor fromActor, Ff7Actor toActor)
+    {
+        if (line.Enabled != 1)
+        {
+            return false;
+        }
+        Vector3 from = new(fromActor.X4096 >> 12, fromActor.Y4096 >> 12, fromActor.Z4096 >> 12);
+        Vector3 to = new(toActor.X4096 >> 12, toActor.Y4096 >> 12, from.Z);
+        Vector3 a = new(line.X1, line.Y1, line.Z1);
+        Vector3 b = new(line.X2, line.Y2, line.Z2);
+        int distance = DistanceToSegment(a, b, from, out _);
+        if (distance < 0 || distance >= unchecked(fromActor.CollisionRadius * fromActor.CollisionRadius))
+        {
+            return false;
+        }
+        int fromSide = Side(a, b, from);
+        int toSide = Side(a, b, to);
+        return fromSide >= 0 && toSide < 0 || toSide >= 0 && fromSide < 0 || fromSide > 0 && toSide <= 0 || toSide > 0 && fromSide <= 0;
+    }
+
     private void DispatchLineScripts()
     {
         foreach (var request in ReadNativeLineScriptRequests(() => Host))
