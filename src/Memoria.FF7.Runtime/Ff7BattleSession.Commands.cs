@@ -623,7 +623,7 @@ public sealed partial class Ff7BattleSession
                 }
                 else if (instruction.Opcode == 0xA3)
                 {
-                    AppendSounds(Ff7NativeBattleSound.SetChannelGain(state.Sounds ?? Ff7BattleSoundState.Empty, 1, instruction.Operands.Span[0]));
+                    AppendSounds(Ff7NativeBattleSound.SetChannelGain(state.Sounds ?? Ff7BattleSoundState.Empty, 1, 0, instruction.Operands.Span[0]));
                 }
                 else if (instruction.Opcode == 0xAD)
                 {

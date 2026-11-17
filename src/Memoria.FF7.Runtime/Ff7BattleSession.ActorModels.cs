@@ -254,6 +254,9 @@ public sealed partial class Ff7BattleSession
             {
                 switch (instruction.Opcode)
                 {
+                    case 0xA3:
+                        AppendSounds(Ff7NativeBattleSound.SetChannelGain(state.Sounds ?? Ff7BattleSoundState.Empty, 1, 0, instruction.Operands.Span[0]));
+                        break;
                     case 0x90:
                         ApplyActorPaletteColor(previous.Slot, instruction.Operands.Span);
                         break;

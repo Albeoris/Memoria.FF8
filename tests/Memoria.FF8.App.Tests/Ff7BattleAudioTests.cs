@@ -116,6 +116,28 @@ public sealed class Ff7BattleAudioTests
         Assert.Equal(paused, Assert.Single(live.Capture(0)).PositionFrames);
     }
 
+    [Fact]
+    public void BattleGainReceiptFadesTheResidentVoiceThroughTheSharedAudioClock()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("This installed-resource check requires MEMORIA_FF7_GAME_DIR.");
+        Ff7Installation installation = Ff7Installation.Discover(directory);
+        using GpuTestDevice device = new();
+        using Ff7Scene scene = new(device.Device, installation, "", new(50, 32000), _ => throw new InvalidOperationException());
+        scene.StartNewGame();
+        Ff7Session session = Assert.IsType<Ff7Session>(scene.Session);
+        SetOutput(scene, new PcmMixer());
+        Invoke(scene, "PlayBattleSound", new Ff7BattleSoundReceipt(1, 26, 64));
+        Invoke(scene, "PlayBattleSound", new Ff7BattleSoundReceipt(1, 0, 64) { ChannelGain = 0, ChannelGainDuration = 120 });
+        Assert.Equal(127, Assert.Single(Channels(scene).Capture(0)).NativeVolume);
+        session.AdvanceAudioClock(TimeSpan.Zero);
+        session.AdvanceAudioClock(TimeSpan.FromSeconds(1));
+        Invoke(scene, "RefreshNativeGains");
+        Assert.Equal(64, Assert.Single(Channels(scene).Capture(0)).NativeVolume);
+        session.AdvanceAudioClock(TimeSpan.FromSeconds(2));
+        Invoke(scene, "ApplyNativeResidentStops");
+        Assert.Empty(Channels(scene).Capture(0));
+    }
+
     private static Ff7SoundChannels Channels(Ff7Scene scene) => (Ff7SoundChannels)typeof(Ff7Scene).GetField("soundChannels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene)!;
 
     private static void SetOutput(Ff7Scene scene, PcmMixer mixer)

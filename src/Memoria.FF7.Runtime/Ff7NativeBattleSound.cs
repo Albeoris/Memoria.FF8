@@ -24,6 +24,8 @@ public sealed record Ff7BattleSoundReceipt(long Sequence, ushort Sound, byte Pan
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public byte? ChannelGain { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public byte ChannelGainDuration { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? ReleaseQueueBank { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
@@ -66,10 +68,10 @@ public static class Ff7NativeBattleSound
         return new(state with { Sequence = sequence }, [new(sequence, sound, 64) { ReleaseQueueBank = queueBank }]);
     }
 
-    public static Ff7BattleSoundUpdate SetChannelGain(Ff7BattleSoundState state, int channel, byte gain)
+    public static Ff7BattleSoundUpdate SetChannelGain(Ff7BattleSoundState state, int channel, byte gain, byte duration = 0)
     {
         long sequence = checked(state.Sequence + 1);
-        return new(state with { Sequence = sequence }, [new(sequence, 0, 64, channel) { ChannelGain = Math.Min(gain, (byte)127) }]);
+        return new(state with { Sequence = sequence }, [new(sequence, 0, 64, channel) { ChannelGain = Math.Min(gain, (byte)127), ChannelGainDuration = duration }]);
     }
 
     private static Ff7BattleSoundUpdate EmitCore(Ff7BattleSoundState state, ushort sound, byte pan, int channel, bool rawPan, bool playCached)

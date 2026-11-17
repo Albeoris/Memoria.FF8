@@ -216,6 +216,12 @@ if (args.Contains("--party-presentation-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--actor-reaction-sound-gain-only", StringComparer.Ordinal))
+{
+    NativeReactionSoundGainTests.Run();
+    return 0;
+}
+
 if (args.Contains("--actor-reaction-motion-only", StringComparer.Ordinal))
 {
     NativeReactionMotionTests.Run();
@@ -959,6 +965,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay world policy lifecycle", AutoPlayWorldPolicyTests.Run),
     ("native autoplay pre-battle world checkpoints", AutoPlayWorldBattleCheckpointTests.Run),
     ("native actor reaction fixed-motion ownership", NativeReactionMotionTests.Run),
+    ("native actor reaction sound gain ownership", NativeReactionSoundGainTests.Run),
     ("native delayed actor hitmark ownership", NativeActorHitmarkTests.Run),
     ("native autoplay global visit guards", AutoPlayVisitGuardTests.Run),
     ("native autoplay transition progress guard", NativeAutoPlayTransitionGuardTests.Run),

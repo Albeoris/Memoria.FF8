@@ -41,10 +41,10 @@ internal sealed partial class Ff7Scene
             DeliverGuestBattleSounds();
             return;
         }
+        ApplyNativeResidentStops();
+        RefreshNativeGains();
         if (session.Battle is null)
         {
-            ApplyNativeResidentStops();
-            RefreshNativeGains();
             RefreshNativePans();
             RefreshNativeFrequencies();
         }
@@ -317,9 +317,10 @@ internal sealed partial class Ff7Scene
         {
             return;
         }
-        if (request.ChannelGain is byte gain)
+        if (request.ChannelGain is not null)
         {
-            soundChannels.SetGain(request.Channel, NativeGain(gain, dialoguePreferences?.Invoke().SoundVolume ?? 100), gain);
+            Session!.Host.ApplyBattleSoundGain(request);
+            RefreshNativeGains();
             return;
         }
         if (request.Sound == 0)

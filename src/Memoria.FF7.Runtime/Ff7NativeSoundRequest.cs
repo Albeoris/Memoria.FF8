@@ -29,6 +29,16 @@ public sealed partial class Ff7FieldHost
         Process = Process with { SoundChannelStoppedByFade = stopped };
     }
 
+    public void ApplyBattleSoundGain(Ff7BattleSoundReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (receipt.Channel is < 1 or > 5 || receipt.ChannelGain is not byte gain || gain > 127 || receipt.Sound != 0 || receipt.RawPan || receipt.Pan != 64)
+        {
+            throw new InvalidDataException("The native battle sound gain request is invalid.");
+        }
+        SetSoundVolume(receipt.Channel, receipt.ChannelGainDuration, gain);
+    }
+
     public int PrepareBattleSoundPlayback(Ff7BattleSoundReceipt receipt, bool streamed)
     {
         ArgumentNullException.ThrowIfNull(receipt);
