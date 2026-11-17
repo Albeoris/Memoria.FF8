@@ -31,7 +31,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
             NativeGlobalRandom = new(123),
             NativeRetainedMemory = retained with { EffectMemory = NativeBattleEffectMemory.FromColdProcess() with { Textures = NativeBattleEffectTextureState.FromColdProcess(), PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() } }
         };
-        session.AttachPresentation(new(resources, new(rules, bindings, [])));
+        session.AttachPresentation(new(resources, NativeBattleHostedTestFixture.PrimitiveExecutionGraphics(new(rules, bindings, []))));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(session.Presentation);
         Assert.Null(process.ActiveActionToken);
         Assert.Null(Field("expandedInvocationProgress").GetValue(session));
@@ -133,7 +133,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
     {
         BattleCombatantDefinition[] party = Enumerable.Range(0, 11).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }).ToArray();
         BattleCombatantDefinition[] enemies = Enumerable.Range(0, 14).Select(index => new BattleCombatantDefinition { Id = $"enemy-{index}", Name = "Enemy", Information246 = 0 }).ToArray();
-        BattleDefinition definition = new() { Combatants = [.. party, .. enemies], NativeGlobalRandom = new(123) };
+        BattleDefinition definition = new() { Combatants = [.. party, .. enemies], NativeGlobalRandom = new(123), NativeClockRules = new(10), NativeBattleSpeed = 2 };
         if (witness)
         {
             definition = definition with

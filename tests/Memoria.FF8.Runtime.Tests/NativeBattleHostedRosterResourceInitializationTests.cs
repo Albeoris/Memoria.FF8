@@ -184,7 +184,7 @@ public sealed class NativeBattleHostedRosterResourceInitializationTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(imageHash) with { EffectMemory = memory with { PrimitiveProcess = memory.PrimitiveProcess!.Initialize500400() } }
         };
         NativeBattleGraphicsDefinition graphics = new(new(imageHash, [], []), bindings.IsDefault ? [] : bindings, []);
-        return new(new(definition, graphics), Model(7, true, bodyPose, linkedPose), party, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
+        return new(new(definition, NativeBattleHostedTestFixture.PrimitiveExecutionGraphics(graphics)), Model(7, true, bodyPose, linkedPose), party, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, textures, new(21), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
         {
             NativeTargets = [.. owners.Where(pair => pair.Value != Source).Select(pair => pair.Value is BattlePartyModelOwner
                 ? new NativeBattleEffectModelBinding(pair.Value, Model(pair.Key, true, bodyPose, linkedPose), party)

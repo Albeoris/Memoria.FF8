@@ -1543,18 +1543,19 @@ public static class NativeBattleLogicalPasses
 {
     public static (NativeBattlePrimitiveDrawMode Final, NativeBattleResolvedCommandList Commands, NativeBattlePcTextureWindowCache? Cache) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache = null, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
     {
-        return ExecuteCore(ordering, tables, initial, drawFlags, cache, null, readPhysical);
+        tables.Validate();
+        return ExecuteAdmitted(ordering, tables, initial, drawFlags, cache, null, readPhysical);
     }
 
     public static (NativeBattlePrimitiveDrawMode Final, NativeBattleResolvedCommandList Commands, NativeBattlePcTextureWindowCache? Cache) Execute(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, INativeBattleLogicalExecutionContext context, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical = null)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return ExecuteCore(ordering, tables, initial, 0, context.Cache, context, readPhysical);
+        tables.Validate();
+        return ExecuteAdmitted(ordering, tables, initial, 0, context.Cache, context, readPhysical);
     }
 
-    private static (NativeBattlePrimitiveDrawMode Final, NativeBattleResolvedCommandList Commands, NativeBattlePcTextureWindowCache? Cache) ExecuteCore(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache, INativeBattleLogicalExecutionContext? context, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical)
+    internal static (NativeBattlePrimitiveDrawMode Final, NativeBattleResolvedCommandList Commands, NativeBattlePcTextureWindowCache? Cache) ExecuteAdmitted(NativeBattleLogicalOrdering ordering, NativeBattlePrimitiveTables tables, NativeBattlePrimitiveDrawMode initial, uint drawFlags, NativeBattlePcTextureWindowCache? cache, INativeBattleLogicalExecutionContext? context, Func<NativeBattlePrimitiveReference, int, byte[]>? readPhysical)
     {
-        tables.Validate();
         if (ordering.ProxyCursor >= NativeBattlePrimitiveOrdering.ProxyCapacity)
         {
             context?.EndBatch();

@@ -92,7 +92,7 @@ public sealed partial class BattlePresentationProcess
                 }
             }
             bool encounterArrivalActive = ApplyEncounterArrivalBeforeDraw(graphics with { ActorModels = models.Set(owner, model) }, owner, ref model);
-            if (this.resources.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
+            if ((model.Flags0 & 2) != 0)
             {
                 NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.Set(owner, model) }, owner);
                 if ((model.Flags0 & 6) == 2 && (model.Flags2!.Value & 0x84) == 0)
@@ -248,7 +248,7 @@ public sealed partial class BattlePresentationProcess
                     ? NativeBattleBodyBoneMatrices.Publish508F60(model, bodySource, refreshResource.LinkedPoseSource)
                     : model with { CurrentBodyBoneMatrices = null };
             }
-            if (this.resources.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
+            if ((model.Flags0 & 2) != 0)
             {
                 NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { ActorModels = models.Set(owner, model) }, owner);
                 model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source."), ReadNativeModelScaleVector502AB0(graphics, model)) };

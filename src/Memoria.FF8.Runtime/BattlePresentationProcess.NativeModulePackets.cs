@@ -6,10 +6,11 @@ public sealed partial class BattlePresentationProcess
 {
     private NativeBattleGraphicsState SubmitNativeModulePackets(NativeBattleGraphicsState graphics)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null || graphics.ModuleDraws.IsEmpty)
+        if (graphics.ModuleDraws.IsEmpty)
         {
             return graphics;
         }
+        NativeBattleGraphicsRules rules = resources.NativeGraphics!.Rules;
         for (int index = 0; index < graphics.ModuleDraws.Length; index++)
         {
             NativeBattleModuleDraw draw = graphics.ModuleDraws[index];
@@ -55,9 +56,9 @@ public sealed partial class BattlePresentationProcess
                 }
                 batch = draw.Kind switch
                 {
-                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, meshResource!, projection, 17, 2, this.resources.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
+                    NativeBattleModuleDrawKind.Mesh => NativeBattleModulePackets.EmitMesh572200(draw, meshResource!, projection, 17, 2, rules.SummonColors ?? throw new NotSupportedException("Native572200 requires its authenticated interpolation constants.")),
                     NativeBattleModuleDrawKind.Sprite => NativeBattleModulePackets.EmitSprite571DC0(draw, projection, NativeCamera!.Roll, 17, 2),
-                    NativeBattleModuleDrawKind.Defensive => NativeBattleDefensivePackets.Emit570650(draw, resources.NativeDefensiveResources.Single(resource => resource.Variant == draw.Variant), projection, this.resources.NativeGraphics.Rules.SummonColors ?? throw new NotSupportedException("Native570650 requires its authenticated interpolation constants.")),
+                    NativeBattleModuleDrawKind.Defensive => NativeBattleDefensivePackets.Emit570650(draw, resources.NativeDefensiveResources.Single(resource => resource.Variant == draw.Variant), projection, rules.SummonColors ?? throw new NotSupportedException("Native570650 requires its authenticated interpolation constants.")),
                     _ => throw new NotSupportedException($"Native module draw{draw.Kind} requires its original primitive emission contract.")
                 };
             }

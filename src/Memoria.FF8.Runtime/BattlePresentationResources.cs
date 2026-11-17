@@ -50,6 +50,23 @@ public sealed class BattlePresentationResources
         InitialUiRandom = source.NativeBattleUiRandom;
     }
 
+    internal NativeBattleGraphicsDefinition RequirePrimitiveExecution()
+    {
+        NativeBattleGraphicsDefinition graphics = NativeGraphics ?? throw new InvalidDataException("Battle presentation requires its installed graphics definition.");
+        NativeBattlePrimitiveTables ordering = graphics.PrimitiveTables ?? throw new InvalidDataException("Battle presentation requires its native primitive dispatch tables.");
+        NativeSoftwarePrimitiveTable software = graphics.SoftwarePrimitiveTable ?? throw new InvalidDataException("Battle presentation requires its native software primitive dispatch table.");
+        if (graphics.PrimitiveCapabilities?.HardwareEnabled is null)
+        {
+            throw new InvalidDataException("Battle presentation requires its explicitly selected hardware execution capability.");
+        }
+        ordering.Validate();
+        if (software.Handlers.IsDefault || software.Handlers.Length != 256)
+        {
+            throw new InvalidDataException("Battle presentation requires its 256-entry native software primitive dispatch table.");
+        }
+        return graphics;
+    }
+
     internal BattleSourceGrouping SourceGrouping { get; }
     internal Func<NativeBattleEffectBinding, NativeBattleCinematicModelOperands>? ReadCinematicModelOperands { get; }
     internal ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; }

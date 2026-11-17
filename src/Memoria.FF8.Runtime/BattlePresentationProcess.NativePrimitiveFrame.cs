@@ -10,10 +10,6 @@ public sealed partial class BattlePresentationProcess
 
     private void InitializeNativePrimitiveDepth47CE10()
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null)
-        {
-            return;
-        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native47CE10 requires its retained primitive process owner.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native47CE10 requires its retained primitive process owner.");
         NativeBattlePrimitiveDepthState depth = process.Depth ?? throw new NotSupportedException("Native47CE10 requires its retained depth owner.");
@@ -24,10 +20,6 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleGraphicsState InitializeNativeGraphicsFrame500400(NativeBattleGraphicsState graphics)
     {
         graphics = graphics with { ModuleEffects = graphics.ModuleEffects.InitializeRinoaPhysicalHitStorage(graphics.Effects.StorageContract) };
-        if (this.resources.NativeGraphics?.PrimitiveTables is null)
-        {
-            return graphics;
-        }
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500400 requires its retained process primitive owner.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native500400 requires observed retained texture-page/buffer state; migrate the named standalone snapshot explicitly.");
         NativeEffectMemory = memory with { PrimitiveProcess = process.Initialize500400() };
@@ -41,10 +33,6 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState AppendNativePrimitiveBatch(NativeBattleGraphicsState graphics, NativeBattleModelPrimitiveBatch primitives, int? moduleDraw = null, string? textureSourceOwner = null)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null)
-        {
-            return graphics;
-        }
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native callback primitive submission requires its original initialized OT owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native callback primitive submission requires its process owner.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native callback primitive submission requires its retained native packet bank.");
@@ -80,10 +68,6 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState SubmitNativeStagePackets(NativeBattleGraphicsState graphics, NativeBattleStageState stage)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null)
-        {
-            return graphics;
-        }
         ImmutableArray<NativeBattleRawMesh> geometry = RequireNativeStageGeometry();
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native500FD0 packet submission requires its prior camera/register owner.");
         int[] bases = [4126, 4122, 17, 4382];
@@ -108,7 +92,7 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState SubmitNativeModelPackets502D40(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
+        if ((model.Flags0 & 6) != 2 || (model.Flags2!.Value & 0x84) != 0)
         {
             return graphics;
         }
@@ -218,7 +202,7 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState AppendNativeModelRendererPackets(NativeBattleGraphicsState graphics, NativeBattleModelPrimitiveBatch primitives, bool renderedObject, string? textureSourceOwner = null)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is not null && hostedModelPackets is { } hosted)
+        if (hostedModelPackets is { } hosted)
         {
             NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Hosted model packet publication requires its initialized ordering table.");
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Hosted model packet publication requires its process owner.");
@@ -244,10 +228,8 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleGraphicsState FinishNativePrimitiveFrame500900(NativeBattleGraphicsState graphics)
     {
         AdvanceNativeTimerDisplay4A9160(graphics);
-        if (this.resources.NativeGraphics?.PrimitiveTables is not { } tables)
-        {
-            return graphics;
-        }
+        NativeBattleGraphicsDefinition installed = resources.NativeGraphics!;
+        NativeBattlePrimitiveTables tables = installed.PrimitiveTables!;
         NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native500900 requires its original pending OT owner.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native500900 requires its process primitive memory.");
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native500900 requires its retained draw mode.");
@@ -272,11 +254,11 @@ public sealed partial class BattlePresentationProcess
             {
                 throw new NotSupportedException("Native500900 requires consistent retained aliases for its shared cached texture page.");
             }
-            NativeSoftwarePrimitiveTable softwareTable = this.resources.NativeGraphics.SoftwarePrimitiveTable ?? throw new NotSupportedException("Native500900 requires its original software dispatch table.");
-            bool hardware = this.resources.NativeGraphics.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native500900 requires its explicitly selected hardware execution capability.");
+            NativeSoftwarePrimitiveTable softwareTable = installed.SoftwarePrimitiveTable!;
+            bool hardware = installed.PrimitiveCapabilities!.HardwareEnabled!.Value;
             NativeBattleSoftwarePrimitiveExecution execution = new(software, memory.Textures ?? throw new NotSupportedException("Native500900 requires its retained shared VRAM image."), softwareTable, hardware, cache);
             execution.ApplyEnvironment45B660(buffer ^ 1);
-            var pass = NativeBattleLogicalPasses.Execute(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, execution, (reference, count) => ReadNativePhysicalPrimitive(reference, count));
+            var pass = NativeBattleLogicalPasses.ExecuteAdmitted(pending, tables, new(process.TexturePage) { TextureWindowBits = process.TextureWindowBits }, 0, execution.Cache, execution, ReadNativePhysicalPrimitive);
             commands = pass.Commands;
             textureSnapshots = execution.TextureSnapshots;
             process = process with { PublicationState03A = process.PublicationState03A is byte state ? state <= 16 ? (byte)0 : (byte)(state - 16) : null, TexturePage = pass.Final.TexturePage, TextureWindowBits = pass.Final.TextureWindowBits, TextureWindowCache = pass.Cache, Software = execution.State };

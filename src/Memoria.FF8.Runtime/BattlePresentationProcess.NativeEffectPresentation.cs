@@ -37,6 +37,8 @@ public sealed partial class BattlePresentationProcess
     /// <summary>The host retains its camera projection. Native control resources may register without acquiring a camera lease; their control programs are not executed here.</summary>
     private BattlePresentationProcess(NativeBattleEffectPresentationInputs inputs)
     {
+        ArgumentNullException.ThrowIfNull(inputs.Resources);
+        _ = inputs.Resources.RequirePrimitiveExecution();
         resources = inputs.Resources;
         presentationArena = inputs.Arena;
         presentationSceneContext = inputs.SceneContext;
@@ -395,14 +397,16 @@ public sealed partial class BattlePresentationProcess
         return result;
     }
 
-    internal NativeBattlePreparedPrimitiveFrame? PrepareEffectOverlay()
+    internal NativeBattlePreparedPrimitiveFrame PrepareEffectOverlay()
     {
-        if (NativeGraphics?.PrimitiveFrame is not { } frame || this.resources.NativeGraphics?.PrimitiveTables is not { } tables || NativeEffectMemory?.PrimitiveProcess is not { } process)
+        NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        if (graphics.PrimitiveFrame is null || NativeEffectMemory?.PrimitiveProcess is not { } process)
         {
-            return null;
+            throw new InvalidDataException("Native effect overlay requires its initialized primitive frame and process.");
         }
-        NativeBattleLogicalOrdering pending = SubmitNativeModulePackets(NativeGraphics).PrimitiveFrame!.Pending;
-        var executed = NativeBattleLogicalPasses.Execute(pending, tables, new(0) { TextureWindowBits = 0 }, 1, NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0, SpriteTileCacheControl1CCFD90 = 0 }, ReadNativePhysicalPrimitive);
+        NativeBattleLogicalOrdering pending = SubmitNativeModulePackets(graphics).PrimitiveFrame!.Pending;
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null) with { ScaleU = 0, ScaleV = 0, SpriteTileCacheControl1CCFD90 = 0 };
+        var executed = NativeBattleLogicalPasses.ExecuteAdmitted(pending, resources.NativeGraphics!.PrimitiveTables!, new(0) { TextureWindowBits = 0 }, 1, cache, null, ReadNativePhysicalPrimitive);
         return new(executed.Commands, [])
         {
             LastDescriptorPerspective = true,

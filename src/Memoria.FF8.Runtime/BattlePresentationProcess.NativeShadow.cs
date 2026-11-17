@@ -6,7 +6,7 @@ public sealed partial class BattlePresentationProcess
 {
     private NativeBattleGraphicsState SubmitNativeShadowPackets5088A0(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection, int tableBaseBucket, bool ordinaryModel, byte depthShift = 16, uint? privateOrderingAddress = null, bool pilotScreenSpace = false, bool pilotContinuous = true, NativeBattlePilotVisualIdentity? callerPilotIdentity = null)
     {
-        if (this.resources.NativeGraphics?.PrimitiveTables is null || (model.Flags0 & 0x20) != 0)
+        if ((model.Flags0 & 0x20) != 0)
         {
             return graphics;
         }

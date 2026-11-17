@@ -173,7 +173,7 @@ public sealed class NativeBattleHostedPresentationRandomTests
         BattleSession owner = CreateLogical();
         BattlePresentationProcess process = CreateProcess(owner, [2]);
         BattleDefinition selected = owner.ReadDefinition() with { LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0]) { Options978 = 1 } };
-        SetField(process, "resources", new BattlePresentationResources(selected, null));
+        SetField(process, "resources", new BattlePresentationResources(selected, NativeBattleHostedTestFixture.PrimitiveExecutionGraphics()));
         NativeBattleGraphicsState graphics = process.Graphics;
         NativeBattleUiServices ui = NativeBattleUiServices.Initialize();
         BattleNativeRenzokukenBlock block = new(0, [16, 9], NativeBattleRenzokukenRules.Timeline([16, 9]));

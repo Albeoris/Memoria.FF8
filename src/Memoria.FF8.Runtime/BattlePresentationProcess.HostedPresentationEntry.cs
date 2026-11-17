@@ -16,11 +16,11 @@ public sealed partial class BattlePresentationProcess
 
     internal BattlePresentationProcess(BattlePresentationResources presentationResources, BattlePresentationEntry entry, BattlePresentationServices services, Func<ushort, NativeBattleEffectBinding>? resolveEffect)
     {
+        NativeBattleGraphicsDefinition source = presentationResources.RequirePrimitiveExecution();
         resources = presentationResources;
         this.services = services;
         BattleModelRoster roster = entry.Roster;
         NativeBattleModelAliases aliases = entry.Aliases;
-        NativeBattleGraphicsDefinition source = this.resources.NativeGraphics ?? throw new InvalidDataException("Hosted entry requires its installed graphics definition.");
         NativeBattleRetainedMemory retained = this.resources.InitialState ?? throw new InvalidDataException("Hosted entry requires its retained native process memory.");
         if (this.resources.StageId is null || this.resources.NativeStageSource?.PhysicalSource is null || this.resources.NativeStageCameraBank is null ||
             this.resources.NativeEntryWaveFile is null || this.resources.InitialMusic is null || this.resources.InitialSound is null ||

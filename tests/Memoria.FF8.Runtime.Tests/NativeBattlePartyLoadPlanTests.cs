@@ -209,7 +209,7 @@ public sealed class NativeBattlePartyLoadPlanTests
 
     private static NativeBattleGraphicsDefinition GraphicsResources(ImmutableArray<NativeBattleModelDatSource> sources)
     {
-        return new(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = sources })], []);
+        return NativeBattleHostedTestFixture.PrimitiveExecutionGraphics(new(null!, [new("party", 0, new([0, 0]) { ModelLoadSources = sources })], []));
     }
 
     private static (NativeBattleModelLoader Loader, NativeBattleModelCpuResources Cpu, NativeBattleFileStaging Staging) Complete(NativeBattleModelLoader loader, NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleModelDatSource source, int? linkedRow)

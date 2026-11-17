@@ -15,7 +15,7 @@ internal static class NativeBattleHostedTestFixture
         BattleDefinition selected = definition ?? logical.ReadDefinition();
         BattleModelRoster roster = graphics.ActorModels.Roster;
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
-        SetField(process, "resources", new BattlePresentationResources(selected, graphicsResources));
+        SetField(process, "resources", new BattlePresentationResources(selected, PrimitiveExecutionGraphics(graphicsResources)));
         SetField(process, "services", typeof(BattleSession).GetMethod("CreateBattlePresentationServices", PrivateInstance)!.Invoke(logical, []));
         SetField(process, "hostedEntryRoster", roster);
         SetField(process, "hostedEntryAliases", aliases);
@@ -30,7 +30,7 @@ internal static class NativeBattleHostedTestFixture
         SetField(process, "presentationSounds", new List<NativeBattleModuleSound>());
         SetField(process, "presentationSequences", new List<NativeBattleForeignSequenceRequest>());
         SetField(process, "presentationActivations", new List<NativeBattleEffectActivation>());
-        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+        SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics.PrimitiveFrame is null ? graphics with { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() } : graphics);
         return process;
     }
 
@@ -63,6 +63,19 @@ internal static class NativeBattleHostedTestFixture
     {
         BattlePresentationServices services = (BattlePresentationServices)typeof(BattlePresentationProcess).GetField("services", PrivateInstance)!.GetValue(process)!;
         return services.CaptureModels(roster, null);
+    }
+
+    internal static NativeBattleGraphicsDefinition PrimitiveExecutionGraphics(NativeBattleGraphicsDefinition? graphics = null)
+    {
+        graphics ??= CreateGraphicsDefinition();
+        ImmutableArray<byte> bytes = ImmutableArray.CreateRange(new byte[256]);
+        ImmutableArray<uint> handlers = ImmutableArray.CreateRange(new uint[256]);
+        return graphics with
+        {
+            PrimitiveTables = graphics.PrimitiveTables ?? new(bytes, bytes, handlers, handlers, handlers),
+            SoftwarePrimitiveTable = graphics.SoftwarePrimitiveTable ?? new(handlers),
+            PrimitiveCapabilities = graphics.PrimitiveCapabilities ?? NativeBattlePrimitiveCapabilities.PrimaryRgba8()
+        };
     }
 
     internal static NativeBattleGraphicsDefinition CreateGraphicsDefinition(params NativeBattleGraphicsBinding[] bindings)

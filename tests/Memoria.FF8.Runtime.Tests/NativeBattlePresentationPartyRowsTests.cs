@@ -51,7 +51,7 @@ public sealed class NativeBattlePresentationPartyOwnershipTests
         BattleModelRoster roster = new(owners);
         NativeBattleModelAliases aliases = new(roster, []);
         var invocation = new NativeBattleEffectInvocation.Positioning(Source, roster, aliases);
-        return new(new(new(), null), new(0) { ModelId4 = 22 }, new([]), invocation, 201, NativeBattleEffectTextureState.FromColdProcess(), new(1), new(null, null, null, null), foreign)
+        return new(new(new(), NativeBattleHostedTestFixture.PrimitiveExecutionGraphics()), new(0) { ModelId4 = 22 }, new([]), invocation, 201, NativeBattleEffectTextureState.FromColdProcess(), new(1), new(null, null, null, null), foreign)
         {
             NativeTargets = targets,
             GuardianFormMode = GuardianFormInvocationMode.EntryOnly,

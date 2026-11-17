@@ -271,7 +271,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
             NativeEffectCatalog = [.. Enumerable.Range(1, 400).Select(effect => new NativeBattleEffectBinding((ushort)effect, effect == 1 ? 1u : 0u, 0))],
             NativeRetainedMemory = RetainedMemory(core)
         };
-        return new(new(definition, graphics), Model(source), resource, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, NativeBattleEffectTextureState.FromColdProcess(), new(0), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
+        return new(new(definition, NativeBattleHostedTestFixture.PrimitiveExecutionGraphics(graphics)), Model(source), resource, new NativeBattleEffectInvocation.Combat(packets, parameters), 1, NativeBattleEffectTextureState.FromColdProcess(), new(0), new(NativeBattleCuragaMatrices.Identity8DD770(), 512, 160, 108), [])
         {
             NativeTargets = [.. targets],
             DeferInvocation = true

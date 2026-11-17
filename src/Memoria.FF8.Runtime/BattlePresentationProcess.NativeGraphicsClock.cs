@@ -42,41 +42,36 @@ public sealed partial class BattlePresentationProcess
             }
             graphics = graphics with { Effects = effects.State };
             graphics = FrameGuardianFormIdleCamera(graphics, services.GuardianForm);
-            using NativeBattleLogicalOrderingTransaction? ordering = this.resources.NativeGraphics?.PrimitiveTables is not null && graphics.PrimitiveFrame is { } primitiveFrame ? new(primitiveFrame.Pending) : null;
-            using NativeBattleCommonPacketTransaction? common = ordering is not null ? new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process.")) : null;
-            if (ordering is not null)
-            {
-                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.View } };
-                NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = common!.View };
-            }
+            NativeBattlePrimitiveFrame primitiveFrame = graphics.PrimitiveFrame ?? throw new InvalidDataException("Native model producers require their initialized primitive frame.");
+            using NativeBattleLogicalOrderingTransaction ordering = new(primitiveFrame.Pending);
+            using NativeBattleCommonPacketTransaction common = new(NativeEffectMemory?.PrimitiveProcess ?? throw new NotSupportedException("Native model producers require their retained common packet process."));
+            graphics = graphics with { PrimitiveFrame = primitiveFrame with { Pending = ordering.View } };
+            NativeEffectMemory = NativeEffectMemory! with { PrimitiveProcess = common.View };
             try
             {
                 phaseTiming.Advance(NativeBattleTimedPhase.Models);
                 graphics = AdvanceNativeLoadedModels(graphics, flags, services);
                 phaseTiming.Advance(NativeBattleTimedPhase.StageAndProducerCommit);
                 graphics = AdvanceNativeStage506C30(graphics);
-                if (ordering is not null)
-                {
-                    graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
-                    NativeBattleEffectMemory produced = NativeEffectMemory ?? throw new NotSupportedException("Native model producers lost their retained common packet process.");
-                    NativeEffectMemory = produced with { PrimitiveProcess = common!.Freeze(produced.PrimitiveProcess ?? throw new NotSupportedException("Native model producers lost their retained common packet process.")) };
-                }
+                graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame! with { Pending = ordering.Freeze() } };
+                NativeBattleEffectMemory produced = NativeEffectMemory ?? throw new NotSupportedException("Native model producers lost their retained common packet process.");
+                NativeEffectMemory = produced with { PrimitiveProcess = common.Freeze(produced.PrimitiveProcess ?? throw new NotSupportedException("Native model producers lost their retained common packet process.")) };
             }
             catch
             {
-                if (common is not null && NativeEffectMemory is { PrimitiveProcess: { } publishedProcess } publishedMemory && ReferenceEquals(publishedProcess.CommonTransaction, common))
+                if (NativeEffectMemory is { PrimitiveProcess: { } publishedProcess } publishedMemory && ReferenceEquals(publishedProcess.CommonTransaction, common))
                 {
                     NativeEffectMemory = publishedMemory with { PrimitiveProcess = common.Freeze(publishedProcess) };
                 }
-                if (ordering is not null && NativeGraphics is { PrimitiveFrame: { } published } && ReferenceEquals(published.Pending.Transaction, ordering))
+                if (NativeGraphics is { PrimitiveFrame: { } published } && ReferenceEquals(published.Pending.Transaction, ordering))
                 {
                     NativeGraphics = NativeGraphics with { PrimitiveFrame = published with { Pending = ordering.Freeze() } };
                 }
                 throw;
             }
             // The committed owners are reused by the render tail; its resets are outside the producer journals.
-            common?.Dispose();
-            ordering?.Dispose();
+            common.Dispose();
+            ordering.Dispose();
             phaseTiming.Advance(NativeBattleTimedPhase.CameraAndSound);
             nativePilotSourceProjection = NativeCamera?.Projection;
             nativePilotSourceCamera = EncounterPresentationCamera;
