@@ -205,7 +205,7 @@ internal sealed class NativeBattleEffect316PresentationObserver
                 if (cursor >= start)
                 {
                     banks.Add(side);
-                    CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+                    CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
                     bool geometry = CurrentCommands.Any(command => command.Opcode is >= 0x20 and <= 0x3F && command.VertexPayload4.Length > 0);
                     firstGeometry |= oldAge is >= 20 and < 150 && geometry;
                     secondGeometry |= oldAge is >= 150 and < 300 && geometry;

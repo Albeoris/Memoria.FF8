@@ -56,7 +56,7 @@ public sealed class NativeBattleOverlayPilotMotionTests
             }
         }
         NativeBattleLogicalResolvedCommand changed = next.Primitives.LastCommands[0];
-        changed = changed with { Command = changed.Command with { PilotGeometry = changed.Command.PilotGeometry! with { Identity = changed.Command.PilotGeometry!.Identity with { Generation = 2 } } } };
+        changed = changed with { Command = changed.Command.ToCommand() with { PilotGeometry = changed.Command.PilotGeometry! with { Identity = changed.Command.PilotGeometry!.Identity with { Generation = 2 } } } };
         NativeBattlePreparedPresentation reused = next with { Primitives = next.Primitives with { LastCommands = [changed] } };
         renderer.RenderNativePilotPrimitiveFrame(first, reused, 0.5f);
         Assert.Equal(140 * scale + offsetX, capture.Vertices.Min(vertex => vertex.Position.X), 3);

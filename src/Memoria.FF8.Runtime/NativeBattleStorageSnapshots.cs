@@ -260,8 +260,19 @@ internal abstract class NativeBattleStorageContext
             }
             else if (value is NativeBattleResolvedCommandList commands)
             {
-                NativeBattleResolvedCommandList mapped = commands.MapPayloads(command => (NativeBattleLogicalCommand)MapObject(command)!, mode => (NativeBattlePrimitiveDrawMode)MapObject(mode)!);
+                Func<object?, object?> mapBacking = MapObject;
+                NativeBattleResolvedCommandList mapped = commands.MapPayloads(command => command.MapBacking(mapBacking), mode => (NativeBattlePrimitiveDrawMode)MapObject(mode)!);
                 result = mapped == commands ? value : mapped;
+            }
+            else if (value is NativeBattleLogicalCommandReference command)
+            {
+                NativeBattleLogicalCommandReference mapped = command.MapBacking(MapObject);
+                result = command.HasSameOwner(mapped) ? value : mapped;
+            }
+            else if (value is NativeBattlePlacedModelPrimitives)
+            {
+                // Placement admits only immutable raw model pages. Authored and foreign payloads map through their separate command backing.
+                result = value;
             }
             else if (value is INativeBattleStorageNode node)
             {

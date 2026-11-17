@@ -61,12 +61,12 @@ public sealed class NativeBattleArenaCaptureOrderingTests
         public int NormalCalls { get; private set; }
         private ushort page = 0x100;
 
-        public void ExecuteSoftware(NativeBattleLogicalCommand command)
+        public void ExecuteSoftware(NativeBattleLogicalCommandReference command)
         {
             throw new InvalidOperationException("A deferred host surface image has no software VRAM polygon.");
         }
 
-        public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
+        public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass)
         {
             NormalCalls++;
             page = mode.TexturePage!.Value;

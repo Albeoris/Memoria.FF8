@@ -73,7 +73,7 @@ public sealed class NativeBattleModelMaterialRenderingTests
     public void ActorMaterialRejectsGlobalScreenSampling()
     {
         NativeBattleLogicalResolvedCommand command = Quad(10, new("first"), FullWindowMode());
-        command = command with { Command = command.Command with { SceneCapture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.ScreenSample) } };
+        command = command with { Command = command.Command.ToCommand() with { SceneCapture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.ScreenSample) } };
         Assert.Throws<NotSupportedException>(() => new BattleRenderer(320, 216).RenderNativePrimitiveFrame(Frame([command]), Texture(0x7C00)));
     }
 

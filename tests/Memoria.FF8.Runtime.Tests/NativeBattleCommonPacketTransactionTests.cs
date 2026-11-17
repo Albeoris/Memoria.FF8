@@ -222,7 +222,7 @@ public sealed class NativeBattleCommonPacketTransactionTests
         using NativeBattleCommonPacketTransaction transaction = new(source);
         NativeBattlePrimitiveProcess current = transaction.View;
         ImmutableArray<NativeBattleCommonPacketStore>.Builder prefix = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
-        NativeBattleCommonPacketArena.AppendPrimitiveStores(prefix, 0, primitive, true);
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(prefix, 0, primitive.Words, primitive.PhysicalWriteMask, true);
         prefix.Add(new(0, [0x56, 0x34, 0x12], Known(3)));
         transaction.BeginCheckpoint();
         current = current.ApplyCommonWrites(prefix.ToImmutable());
@@ -231,7 +231,7 @@ public sealed class NativeBattleCommonPacketTransactionTests
         byte[] committed = current.ReadCommonPacket(0, 16);
         Assert.Equal(new byte[] { 0x56, 0x34, 0x12, 3 }, committed[..4]);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder suffix = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
-        NativeBattleCommonPacketArena.AppendPrimitiveStores(suffix, 16, primitive, true);
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(suffix, 16, primitive.Words, primitive.PhysicalWriteMask, true);
         suffix.Add(new(int.MaxValue, [8], [(NativeBattleGfPacketByteState)255]));
         transaction.BeginCheckpoint();
         Assert.Throws<InvalidDataException>(() => current.ApplyCommonWrites(suffix.ToImmutable()));

@@ -56,7 +56,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
             return [];
         }
         HashSet<NativeBattlePrimitiveReference> owned = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToHashSet();
-        return frame.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
+        return frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
     }
 
     internal static int AssertFrame(BattleSnapshot snapshot, ushort effect)

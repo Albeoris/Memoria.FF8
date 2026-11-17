@@ -19,7 +19,7 @@ public sealed class NativeBattleEffect290PresentationTests
         uint start = cursor >= second ? second : first;
         Assert.NotEqual(0u, arena);
         Assert.InRange(cursor, start, start + 0xC000);
-        Assert.Contains(primitive.LastCommands.Select(item => item.Command), command => command.Opcode is >= 0x20 and <= 0x3F &&
+        Assert.Contains(primitive.LastCommands.Select(item => item.Command.ToCommand()), command => command.Opcode is >= 0x20 and <= 0x3F &&
             command.VertexPayload4.Length == 4 && command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 &&
             command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8);
     }

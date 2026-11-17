@@ -13,7 +13,7 @@ internal static class NativeBattleRestorationSummonCaptureAssertions
         // References come from actual accepted native appends, independently of whether the producer captured geometry.
         var owned = selected.PresentationPackets.ToHashSet();
         int captured = 0;
-        foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command).Where(command => owned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+        foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => owned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
         {
             NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
             Assert.Equal(effect, geometry.Identity.Effect);

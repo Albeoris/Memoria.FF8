@@ -8,6 +8,19 @@ public static class NativeBattleCinematicSoftwareOrdering
     public static void Execute45CEE0(int proxyCursor, Func<ImmutableArray<NativeBattleLogicalCommand>> readCommands, INativeBattleLogicalExecutionContext context)
     {
         ArgumentNullException.ThrowIfNull(readCommands);
+        ExecuteAdmitted45CEE0(proxyCursor, () =>
+        {
+            NativeBattleCommandPages<NativeBattleLogicalCommandReference>.Builder commands = new();
+            foreach (NativeBattleLogicalCommand command in readCommands())
+            {
+                commands.Add(command);
+            }
+            return commands.Freeze();
+        }, context);
+    }
+
+    internal static void ExecuteAdmitted45CEE0(int proxyCursor, Func<NativeBattleCommandPages<NativeBattleLogicalCommandReference>> readCommands, INativeBattleLogicalExecutionContext context)
+    {
         ArgumentNullException.ThrowIfNull(context);
         if (proxyCursor < 0)
         {
@@ -18,7 +31,7 @@ public static class NativeBattleCinematicSoftwareOrdering
             return;
         }
         context.BeginOrdering();
-        foreach (NativeBattleLogicalCommand command in readCommands())
+        foreach (ref readonly NativeBattleLogicalCommandReference command in readCommands())
         {
             if (context.SoftwareTable.Handler(command.Opcode) != 0)
             {

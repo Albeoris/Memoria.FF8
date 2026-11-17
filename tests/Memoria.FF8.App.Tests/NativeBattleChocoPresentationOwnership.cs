@@ -16,7 +16,7 @@ internal sealed class NativeBattleChocoPresentationOwnership(ushort effect)
             return;
         }
         ImmutableHashSet<NativeBattlePrimitiveReference> references = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-        NativeBattleLogicalCommand[] owned = frame.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
+        NativeBattleLogicalCommand[] owned = frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
         foreach (NativeBattleLogicalCommand command in owned)
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);

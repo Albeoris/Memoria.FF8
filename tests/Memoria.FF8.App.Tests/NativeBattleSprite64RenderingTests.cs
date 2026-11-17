@@ -146,7 +146,7 @@ public sealed class NativeBattleSprite64RenderingTests
     {
         Capture capture = new();
         NativeBattleLogicalResolvedCommand command = Command(Mode());
-        command = command with { Command = command.Command with { VertexPayload4 = [1000, 2000, 3000, 4000] } };
+        command = command with { Command = command.Command.ToCommand() with { VertexPayload4 = [1000, 2000, 3000, 4000] } };
         NativeBattlePrimitiveFrame frame = Frame(command) with { LastDescriptorPerspective = true };
         new BattleRenderer(320, 216) { TriangleRenderer = capture }.RenderNativePrimitiveFrame(frame, Texture(31), capabilities: Capabilities());
         Assert.All(capture.Vertices, vertex =>

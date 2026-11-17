@@ -23,13 +23,15 @@ public readonly struct NativeBattlePilotGeometryReference
 
     public bool IsEmpty => owner is null;
     internal bool IsModel => owner is NativeBattleModelPilotPage;
+    internal bool HasModelEmissions(NativeBattleModelEmissionStorage emissions) => owner is NativeBattleModelPilotPage page && ReferenceEquals(page.Emissions, emissions);
     internal NativeBattlePilotVisualGeometry? AuthoredGeometry => Rich;
     private NativeBattlePilotVisualGeometry? Rich => owner as NativeBattlePilotVisualGeometry;
-    private ref readonly NativeBattleModelPilotGeometry Model => ref ((NativeBattleModelPilotPage)owner!).Read(index);
-    public NativeBattlePilotVisualIdentity Identity => owner is NativeBattleModelPilotPage ? Model.Identity : Rich?.Identity ?? default;
+    private ref readonly NativeBattleModelPilotRow Model => ref ((NativeBattleModelPilotPage)owner!).Read(index);
+    private ref readonly NativeBattleModelEmission Emission => ref ((NativeBattleModelPilotPage)owner!).ReadEmission(Model.Emission);
+    public NativeBattlePilotVisualIdentity Identity => owner is NativeBattleModelPilotPage ? Emission.PilotIdentity with { Primitive = Model.Primitive } : Rich?.Identity ?? default;
     public byte CornerCount => owner is NativeBattleModelPilotPage ? Model.CornerCount : Rich?.CornerCount ?? 0;
-    public bool Continuous => owner is NativeBattleModelPilotPage ? Model.Continuous : Rich?.Continuous ?? false;
-    public bool ScreenSpace => owner is NativeBattleModelPilotPage ? Model.ScreenSpace : Rich?.ScreenSpace ?? false;
+    public bool Continuous => owner is NativeBattleModelPilotPage ? Emission.PilotContinuous : Rich?.Continuous ?? false;
+    public bool ScreenSpace => owner is NativeBattleModelPilotPage ? Emission.PilotScreenSpace : Rich?.ScreenSpace ?? false;
     public NativeBattleForeignSurface? ForeignSurface => Rich?.ForeignSurface;
     public NativeBattlePilotSpriteGeometry? Sprite => Rich?.Sprite;
     public Vector4? SourceDepths => Rich?.SourceDepths;
@@ -60,8 +62,9 @@ public readonly struct NativeBattlePilotGeometryReference
         {
             return Rich;
         }
-        ref readonly NativeBattleModelPilotGeometry model = ref Model;
-        return new(model.Identity, model.A, model.B, model.C, model.D, model.CornerCount, model.Continuous) { ScreenSpace = model.ScreenSpace };
+        ref readonly NativeBattleModelPilotRow model = ref Model;
+        ref readonly NativeBattleModelEmission emission = ref Emission;
+        return new(emission.PilotIdentity with { Primitive = model.Primitive }, model.A, model.B, model.C, model.D, model.CornerCount, emission.PilotContinuous) { ScreenSpace = emission.PilotScreenSpace };
     }
 
     public static implicit operator NativeBattlePilotGeometryReference(NativeBattlePilotVisualGeometry? geometry)
@@ -70,7 +73,7 @@ public readonly struct NativeBattlePilotGeometryReference
     }
 }
 
-internal readonly record struct NativeBattleModelPilotGeometry(NativeBattlePilotVisualIdentity Identity, Vector3 A, Vector3 B, Vector3 C, Vector3 D, byte CornerCount, bool Continuous, bool ScreenSpace)
+internal readonly record struct NativeBattleModelPilotRow(Vector3 A, Vector3 B, Vector3 C, Vector3 D, int Primitive, int Emission, byte CornerCount)
 {
     internal Vector3 Corner(int corner)
     {
@@ -88,13 +91,19 @@ internal readonly record struct NativeBattleModelPilotGeometry(NativeBattlePilot
 /// <summary>Only the unpublished model builder can append; retained references never expose writable storage.</summary>
 internal sealed class NativeBattleModelPilotPage
 {
-    internal const int Capacity = 64;
-    private readonly NativeBattleModelPilotGeometry[] values = new NativeBattleModelPilotGeometry[Capacity];
+    private const int Capacity = 64;
+    private readonly NativeBattleModelPilotRow[] values = new NativeBattleModelPilotRow[Capacity];
     private int count;
 
+    internal NativeBattleModelPilotPage(NativeBattleModelEmissionStorage emissions)
+    {
+        Emissions = emissions;
+    }
+
+    internal NativeBattleModelEmissionStorage Emissions { get; }
     internal bool IsFull => count == Capacity;
 
-    internal NativeBattlePilotGeometryReference Append(in NativeBattleModelPilotGeometry value)
+    internal NativeBattlePilotGeometryReference Append(in NativeBattleModelPilotRow value)
     {
         if (IsFull)
         {
@@ -105,7 +114,7 @@ internal sealed class NativeBattleModelPilotPage
         return new(this, index);
     }
 
-    internal ref readonly NativeBattleModelPilotGeometry Read(int index)
+    internal ref readonly NativeBattleModelPilotRow Read(int index)
     {
         if ((uint)index >= (uint)count)
         {
@@ -113,4 +122,6 @@ internal sealed class NativeBattleModelPilotPage
         }
         return ref values[index];
     }
+
+    internal ref readonly NativeBattleModelEmission ReadEmission(int index) => ref Emissions.Read(index);
 }

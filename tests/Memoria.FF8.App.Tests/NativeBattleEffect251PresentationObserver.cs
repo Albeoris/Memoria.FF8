@@ -235,7 +235,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         uint buffer = state.ReadDword(ArenaGlobal);
         uint cursor = state.ReadDword(CursorGlobal);
         uint start = buffer + (uint)(root.ReadByte(15) == 0 ? FirstPacketOffset : SecondPacketOffset);
-        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8u && command.Packet.ByteOffset < cursor - 0x20DFAB8u).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8u && command.Packet.ByteOffset < cursor - 0x20DFAB8u).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
     }
 
     private static NativeBattleModulePoolTask[] Tasks(BattleSnapshot snapshot)

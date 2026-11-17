@@ -179,12 +179,12 @@ public sealed class NativeBattleModelTextureOwnerTests
         public int NormalCalls { get; private set; }
         public int SoftwareCalls { get; private set; }
 
-        public void ExecuteSoftware(NativeBattleLogicalCommand command)
+        public void ExecuteSoftware(NativeBattleLogicalCommandReference command)
         {
             SoftwareCalls++;
         }
 
-        public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
+        public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass)
         {
             NormalCalls++;
         }
@@ -200,7 +200,7 @@ public sealed class NativeBattleModelTextureOwnerTests
     {
         public int ValidationCalls { get; private set; }
 
-        public void ValidateModelTextureOwner(NativeBattleLogicalCommand command)
+        public void ValidateModelTextureOwner(NativeBattleLogicalCommandReference command)
         {
             Assert.Equal(FirstOwner, command.ModelTextureOwner);
             ValidationCalls++;

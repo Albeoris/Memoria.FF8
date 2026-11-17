@@ -34,7 +34,7 @@ internal static class NativeBattleModuleCaptureAssertions
             return 0;
         }
         int count = 0;
-        foreach (NativeBattleLogicalCommand command in primitive.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= first - 0x20DFAB8 && command.Packet.ByteOffset < end - 0x20DFAB8 && command.Opcode is >= 0x20 and < 0x60))
+        foreach (NativeBattleLogicalCommand command in primitive.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= first - 0x20DFAB8 && command.Packet.ByteOffset < end - 0x20DFAB8 && command.Opcode is >= 0x20 and < 0x60))
         {
             NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
             Assert.Equal(effect, geometry.Identity.Effect);

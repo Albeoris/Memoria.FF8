@@ -159,7 +159,7 @@ internal sealed class NativeBattleEffect54PresentationObserver
         if (currentRecordsInitialized && packetBase != 0 && cursor >= packetBase && cursor <= packetBase + 0x10000)
         {
             uint start = cursor >= packetBase + 0x8000 ? packetBase + 0x8000u : packetBase;
-            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8 && MatchesSprite(command, resources)).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8 && MatchesSprite(command, resources)).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
             if (CurrentCommands.Length > 0)
             {
                 geometry = true;

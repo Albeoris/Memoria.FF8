@@ -24,7 +24,7 @@ internal static class NativeBattleReachedCaptureAssertions
             Assert.False(previous?.Binding.Effect == 92 && previous.Pools.Any(pool => pool.Slots.Any(task => task.Callback == 0x755EE0 && (task.Flags & 1) != 0)), "Search lost its physical mesh rows before reached-producer coverage could inspect their final callback.");
             return;
         }
-        NativeBattleLogicalCommand[] common = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode is >= 0x20 and < 0x80).ToArray();
+        NativeBattleLogicalCommand[] common = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.WordOffset == 1 && command.Opcode is >= 0x20 and < 0x80).ToArray();
         HashSet<(NativeBattlePrimitiveReference Packet, int Word)> used = [];
         NativeBattleCameraProjection projection = prior.ReadFixturePresentation().NativeCamera?.Projection ?? throw new InvalidDataException("Search coverage requires its pre-callback projection.");
         for (int bank = 0; bank < effect.Pools.Length; bank++)

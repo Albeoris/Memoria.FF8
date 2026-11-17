@@ -32,12 +32,12 @@ public sealed record NativeBattleSoftwarePrimitiveState([property: JsonRequired]
         return new(NativeSoftwareDrawingEnvironmentState.FromColdProcess(), NativeSoftwareTextureState.FromColdProcess(), new(new(left, right), null), NativeSoftwareReciprocalTable.Initialize463280()) { ViewportInputs = new(640, 480, 0, 0), SpriteFilter = NativeBattleSpriteFilterState.FromRendererStartup(NativeBattlePrimitiveCapabilities.PrimaryRgba8().SpriteFilterStartupControl!.Value).ApplyViewport45B4C0(640, 480), DispatchFlags1CA8880 = 0 };
     }
 
-    public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] image, NativeBattleLogicalCommand command, NativeSoftwarePrimitiveTable table)
+    public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] image, NativeBattleLogicalCommandReference command, NativeSoftwarePrimitiveTable table)
     {
         return DrawPolygon(image, image, command, table);
     }
 
-    public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] framebuffer, byte[] textureImage, NativeBattleLogicalCommand command, NativeSoftwarePrimitiveTable table)
+    public NativeBattleSoftwarePrimitiveState DrawPolygon(byte[] framebuffer, byte[] textureImage, NativeBattleLogicalCommandReference command, NativeSoftwarePrimitiveTable table)
     {
         NativeSoftwareEnvironmentDerived environment = Environment.Derived ?? throw new NotSupportedException("Native software drawing requires its executed environment publication.");
         byte[] packet = new byte[checked((command.WordSpan.Length + 1) * 4)];

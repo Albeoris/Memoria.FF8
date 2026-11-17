@@ -23,7 +23,7 @@ public sealed partial class BattleRenderer
     private readonly LinkedList<SceneCaptureImage> recentSceneCaptureImages = [];
     private long sceneCaptureRetainedBytes;
 
-    private PixelImage ResolveSceneCaptureTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand command, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors)
+    private PixelImage ResolveSceneCaptureTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand command, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors)
     {
         NativeBattleSceneCaptureSample sample = command.DrawMode.SceneCaptureSample ?? throw new InvalidDataException("Scene sampling requires its retained source pixels.");
         sample.Capture.Validate();

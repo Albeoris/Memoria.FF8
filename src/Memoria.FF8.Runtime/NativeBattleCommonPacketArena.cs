@@ -20,29 +20,29 @@ public static class NativeBattleCommonPacketArena
 
     public static ImmutableArray<NativeBattleCommonPacketStore> PrimitiveStores(int address, NativeBattleGeometryPrimitive primitive, bool linked)
     {
-        NativeBattleCommonPacketStore store = CreatePrimitiveStore(address, primitive);
+        NativeBattleCommonPacketStore store = CreatePrimitiveStore(address, primitive.Words, primitive.PhysicalWriteMask);
         return linked && primitive.PhysicalWriteMask is not null ? [store, new(address, UnknownLinkBytes, UnknownLinkMask)] : [store];
     }
 
-    internal static void AppendPrimitiveStores(ImmutableArray<NativeBattleCommonPacketStore>.Builder stores, int address, NativeBattleModelPrimitive primitive, bool linked)
+    internal static void AppendPrimitiveStores(ImmutableArray<NativeBattleCommonPacketStore>.Builder stores, int address, NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask, bool linked)
     {
-        stores.Add(CreatePrimitiveStore(address, primitive));
-        if (linked && primitive.PhysicalWriteMask is not null)
+        stores.Add(CreatePrimitiveStore(address, words, physicalWriteMask));
+        if (linked && physicalWriteMask is not null)
         {
             stores.Add(new(address, UnknownLinkBytes, UnknownLinkMask));
         }
     }
 
-    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleModelPrimitive primitive)
+    private static NativeBattleCommonPacketStore CreatePrimitiveStore(int address, NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask)
     {
-        byte[] data = new byte[checked(4 * primitive.Words.Length)];
+        byte[] data = new byte[checked(4 * words.Length)];
         ImmutableArray<NativeBattleGfPacketByteState> mask;
-        if (primitive.PhysicalWriteMask is { } physicalMask)
+        if (physicalWriteMask is { } physicalMask)
         {
             mask = physicalMask;
-            for (int index = 0; index < primitive.Words.Length; index++)
+            for (int index = 0; index < words.Length; index++)
             {
-                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), primitive.Words[index]);
+                BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * index), words[index]);
             }
         }
         else

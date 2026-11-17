@@ -247,7 +247,7 @@ internal sealed class NativeBattleEffect313PresentationObserver
         uint start = cursor >= arena + 0x8000 ? arena + 0x8000u : arena;
         if (arena != 0 && cursor >= start && cursor <= start + 0x8000)
         {
-            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
             if (CurrentCommands.Length > 0)
             {
                 banks.Add(start == arena ? 0 : 1);

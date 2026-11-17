@@ -162,7 +162,7 @@ internal sealed class DiagnosticIdleBattleProbe
         {
             seenVersion = prepared.Version;
             geometryOwners.Clear();
-            foreach (NativeBattleLogicalResolvedCommand command in prepared.Primitives.LastCommands)
+            foreach (ref readonly NativeBattleLogicalResolvedCommand command in prepared.Primitives.LastCommands)
             {
                 if (command.Pass != 0 && !command.Command.Pilot.IsEmpty && command.Command.Pilot.Identity.Bank == 0x502D40 && command.Command.PresentationActorId is { } actorId && prepared.Primitives.ActorOpacity(actorId) > 0)
                 {

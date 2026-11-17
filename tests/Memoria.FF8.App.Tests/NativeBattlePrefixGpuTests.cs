@@ -290,7 +290,7 @@ internal static class NativeBattlePrefixFixture
         }
         (NativeBattlePreparedPrimitiveFrame frame, _) = Create(63, 63);
         NativeBattleLogicalResolvedCommand template = frame.LastCommands[0];
-        NativeBattleLogicalCommand command = template.Command with { Opcode = quad ? (byte)0x2C : (byte)0x24, Words = commandWords.MoveToImmutable() };
+        NativeBattleLogicalCommand command = template.Command.ToCommand() with { Opcode = quad ? (byte)0x2C : (byte)0x24, Words = commandWords.MoveToImmutable() };
         return (frame with { LastCommands = [template with { Command = command }], LastTextureSnapshots = [pixels] }, textures);
     }
 

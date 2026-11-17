@@ -27,7 +27,7 @@ public sealed class BattleExpandedSceneContinuationTests
         {
             battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
             world.SynchronizeBattlePresentation();
-            foreach (NativeBattleLogicalCommand command in battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Opcode is 0x24 or 0x2C && command.Packet.Bank is "off_B6D070" or "off_B6D094"))
+            foreach (NativeBattleLogicalCommand command in battle.Presentation!.Graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Opcode is 0x24 or 0x2C && command.Packet.Bank is "off_B6D070" or "off_B6D094"))
             {
                 Assert.True(command.ProjectedCoordinates.HasValue, $"Callback {battle.Presentation!.Graphics.Callback} lost full scene coordinates.");
                 var points = command.ProjectedCoordinates!.Value;
@@ -45,7 +45,7 @@ public sealed class BattleExpandedSceneContinuationTests
             if (output is not null && !packedDifference)
             {
                 NativeBattlePrimitiveFrame frame = battle.Presentation!.Graphics.PrimitiveFrame!;
-                NativeBattlePrimitiveFrame packed = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Select(item => item with { Command = item.Command with { ProjectedCoordinates = null } })) };
+                NativeBattlePrimitiveFrame packed = frame with { LastCommands = NativeBattleResolvedCommandList.From(frame.LastCommands.Select(item => item with { Command = item.Command.ToCommand() with { ProjectedCoordinates = null } })) };
                 BattleRenderer raster = new(640, 360, ViewportLayout.Fit(320, 240, 640, 360));
                 var memory = battle.Presentation!.Memory;
                 byte[] fullPixels = raster.RenderNativePrimitiveFrame(frame, memory.Textures, capabilities: source.ReadFixtureGraphicsDefinition()!.PrimitiveCapabilities, textureWindowCache: memory.PrimitiveProcess!.TextureWindowCache).ToArray();

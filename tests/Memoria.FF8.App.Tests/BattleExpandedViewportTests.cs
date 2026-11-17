@@ -93,7 +93,7 @@ public sealed class BattleExpandedViewportTests
     {
         ImmutableArray<BattleSceneScreenPoint> points = [new(8272 * 8, 54 * 8), new(8292 * 8, 54 * 8), new(8272 * 8, 72 * 8)];
         NativeBattlePrimitiveFrame frame = ExpandedFrame(points, normalViewport);
-        NativeBattlePrimitiveFrame wrapped = frame with { LastCommands = [frame.LastCommands[0] with { Command = frame.LastCommands[0].Command with { ProjectedCoordinates = null } }] };
+        NativeBattlePrimitiveFrame wrapped = frame with { LastCommands = [frame.LastCommands[0] with { Command = frame.LastCommands[0].Command.ToCommand() with { ProjectedCoordinates = null } }] };
         byte[] wrappedPixels = new BattleRenderer(320, 240).RenderNativePrimitiveFrame(wrapped, null);
         Assert.Contains(Enumerable.Range(0, 320 * 240), index => wrappedPixels[index * 4] > 0);
         byte[] cpu = new BattleRenderer(320, 240).RenderNativePrimitiveFrame(frame, null);
@@ -117,7 +117,7 @@ public sealed class BattleExpandedViewportTests
     {
         ImmutableArray<BattleSceneScreenPoint> points = [new(-8100 * 8, 54 * 8), new(100 * 8, 54 * 8), new(100 * 8, 90 * 8)];
         NativeBattlePrimitiveFrame frame = ExpandedFrame(points, normalViewport);
-        NativeBattleLogicalCommand original = frame.LastCommands[0].Command;
+        NativeBattleLogicalCommand original = frame.LastCommands[0].Command.ToCommand();
         NativeBattleLogicalCommand restored = JsonSerializer.Deserialize<NativeBattleLogicalCommand>(JsonSerializer.Serialize(original))!;
         Assert.Equal(points, restored.ProjectedCoordinates!.Value);
         Assert.Equal(original.Words, restored.Words);
@@ -147,7 +147,7 @@ public sealed class BattleExpandedViewportTests
     {
         NativeBattlePrimitiveFrame frame = Frame(0, 0, normalViewport, 0);
         uint Pack(BattleSceneScreenPoint point) => unchecked((ushort)point.X) | unchecked((uint)point.Y << 16);
-        NativeBattleLogicalCommand command = frame.LastCommands[0].Command with
+        NativeBattleLogicalCommand command = frame.LastCommands[0].Command.ToCommand() with
         {
             Words = [0x200000A0, Pack(points[0]), Pack(points[1]), Pack(points[2])],
             ProjectedCoordinates = points

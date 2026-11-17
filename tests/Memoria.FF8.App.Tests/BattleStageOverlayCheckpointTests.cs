@@ -102,7 +102,7 @@ public sealed class BattleStageOverlayCheckpointTests
 
     private static IEnumerable<NativeBattleLogicalCommand> Commands(BattleSession battle)
     {
-        return battle.Presentation?.Graphics?.PrimitiveFrame?.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "1D9BDC8" or "1D9B958") ?? [];
+        return battle.Presentation?.Graphics?.PrimitiveFrame?.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank is "1D9BDC8" or "1D9B958") ?? [];
     }
 
     private static void AssertOverlay(BattleSession battle)

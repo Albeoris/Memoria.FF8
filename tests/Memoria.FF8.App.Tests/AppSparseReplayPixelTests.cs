@@ -144,11 +144,11 @@ public sealed class AppSparseReplayPixelTests
         commands.Add(State(0xE1));
         commands.Add(State(0xE3));
         commands.Add(Quad(0x28102030, 16, 8, 304, 208, 100));
-        commands.Add(new(new(new("gouraud", 0, 0), 1, 0x30, [0x300000FF, Point(25, 20), 0x0000FF00, Point(285, 35), 0x00FF0000, Point(60, 195)], 1, [], null) { OrderingBucket = 50 }, new(0), 1));
+        commands.Add(new(new NativeBattleLogicalCommand(new("gouraud", 0, 0), 1, 0x30, [0x300000FF, Point(25, 20), 0x0000FF00, Point(285, 35), 0x00FF0000, Point(60, 195)], 1, [], null) { OrderingBucket = 50 }, new(0), 1));
         for (int blend = 0; blend < 4; blend++)
         {
             NativeBattleLogicalResolvedCommand command = Quad(0x2A204060, 40 + blend * 20, 35 + blend * 20, 220 + blend * 20, 150 + blend * 10, 7);
-            commands.Add(command with { Pass = 2, DrawMode = new((ushort)(blend << 5)), Command = command.Command with { PresentationActorId = blend == 1 ? "faded" : null } });
+            commands.Add(command with { Pass = 2, DrawMode = new((ushort)(blend << 5)), Command = command.Command.ToCommand() with { PresentationActorId = blend == 1 ? "faded" : null } });
         }
         NativeBattleLogicalCommand textured = new(new("texture", 0, 0), 1, 0x2C, [0x2C808080, Point(100, 30), 0, Point(300, 25), 0x010000FF, Point(110, 200), 0x0000FF00, Point(310, 190), 0x0000FFFF], 1, [724, 900, 1100, 1400], null) { OrderingBucket = 11, PresentationActorId = "faded" };
         commands.Add(new(textured, TextureMode(0x100, 64), 1));
@@ -185,7 +185,7 @@ public sealed class AppSparseReplayPixelTests
 
     private static NativeBattlePrimitiveDrawMode TextureMode(ushort page, int row) => new(page) { TextureWindowBits = 0, TextureSelection = new(row, 0, 0, 0, 256, 256, 1f / 256, 1f / 256, false, false), TexturePixelSnapshot = 0, SceneCopyPalette = [] };
 
-    private static NativeBattleLogicalResolvedCommand State(byte opcode) => new(new(new("state", 0, 0), 1, opcode, [(uint)opcode << 24], 1, [], null), new(null), 1);
+    private static NativeBattleLogicalResolvedCommand State(byte opcode) => new(new NativeBattleLogicalCommand(new("state", 0, 0), 1, opcode, [(uint)opcode << 24], 1, [], null), new(null), 1);
 
     private static NativeBattlePreparedPrimitiveFrame Frame(NativeBattleResolvedCommandList commands) => new(commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
 

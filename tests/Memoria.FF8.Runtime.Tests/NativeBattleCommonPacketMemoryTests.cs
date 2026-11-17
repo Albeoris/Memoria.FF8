@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -29,7 +29,7 @@ public sealed class NativeBattleCommonPacketMemoryTests
         ImmutableArray<NativeBattleCommonPacketStore> expected = NativeBattleCommonPacketArena.PrimitiveStores(0, primitive, linked);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         stores.Add(new(64, [0xCC], Known(1)));
-        NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, 0, primitive, linked);
+        NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, 0, primitive.Words, primitive.PhysicalWriteMask, linked);
         Assert.Equal(1 + (linked && physicalMask ? 2 : 1), stores.Count);
         for (int index = 0; index < expected.Length; index++)
         {

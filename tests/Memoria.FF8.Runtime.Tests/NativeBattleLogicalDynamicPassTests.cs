@@ -39,7 +39,7 @@ public sealed class NativeBattleLogicalDynamicPassTests
             Assert.Equal(expected[ordinal].Packet, delivery.Command.Packet);
             Assert.True(expected[ordinal].WordSpan.SequenceEqual(delivery.Command.WordSpan));
             Assert.Same(initial, delivery.DrawMode);
-            Assert.Same(result.Commands[ordinal].Command, delivery.Command);
+            Assert.True(result.Commands[ordinal].Command.HasSameOwner(delivery.Command));
             index++;
         }
         Assert.Equal(result.Commands.Count, index);
@@ -244,7 +244,7 @@ public sealed class NativeBattleLogicalDynamicPassTests
         Assert.Equal(new[] { "N0:20", "N1:20", "N2:20", "END" }, context.Log.ToArray());
     }
 
-    private static void SetMode(NativeBattleLogicalCommand command, Context context)
+    private static void SetMode(NativeBattleLogicalCommandReference command, Context context)
     {
         if (command.Opcode is 0xE3 or 0xE4 or 0xE5)
         {
@@ -294,17 +294,17 @@ public sealed class NativeBattleLogicalDynamicPassTests
         public NativeSoftwarePrimitiveTable SoftwareTable { get; init; } = new(Tables().PreprocessingHandlers);
         public NativeBattlePcTextureWindowCache? Cache { get; set; }
         public List<string> Log { get; } = [];
-        public Action<NativeBattleLogicalCommand>? Software { get; set; }
-        public Action<NativeBattleLogicalCommand, byte>? Normal { get; set; }
+        public Action<NativeBattleLogicalCommandReference>? Software { get; set; }
+        public Action<NativeBattleLogicalCommandReference, byte>? Normal { get; set; }
         public ushort? SharedPage { get; set; }
         public int Ends { get; private set; }
 
-        public void ExecuteSoftware(NativeBattleLogicalCommand command)
+        public void ExecuteSoftware(NativeBattleLogicalCommandReference command)
         {
             Log.Add($"S:{command.Opcode:X2}");
             Software?.Invoke(command);
         }
-        public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
+        public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass)
         {
             Log.Add($"N{pass}:{command.Opcode:X2}");
             SharedPage = mode.TexturePage;

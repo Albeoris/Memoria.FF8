@@ -12,7 +12,7 @@ internal static class NativeBattleRenzokukenCaptureAssertions
         }
         var owned = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToHashSet();
         int captured = 0;
-        foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80))
+        foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80))
         {
             NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
             Assert.Equal(effect, geometry.Identity.Effect);

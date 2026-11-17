@@ -55,7 +55,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094").ToArray();
+        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command.ToCommand()).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094").ToArray();
         foreach (NativeBattleLogicalCommand candidate in commands.Where(command => Matches(command, expected[0].Primitive)))
         {
             int start = candidate.Packet.ByteOffset - expected[0].Offset;
@@ -100,7 +100,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
             {
-                NativeBattleLogicalCommand command = resolved.Command;
+                NativeBattleLogicalCommand command = resolved.Command.ToCommand();
                 if (command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.Packet.ByteOffset == offset && command.WordOffset == 1 && command.OrderingBucket == primitive.Bucket && command.Words.AsSpan().SequenceEqual(primitive.Words.AsSpan().Slice(1)) && command.VertexPayload4.AsSpan().SequenceEqual(primitive.VertexPayload4.AsSpan()))
                 {
                     matched.Add(command.Packet);
@@ -133,7 +133,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             uint end = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(manager + 0x7C, 4));
             foreach (NativeBattleLogicalResolvedCommand resolved in primitive.LastCommands)
             {
-                NativeBattleLogicalCommand command = resolved.Command;
+                NativeBattleLogicalCommand command = resolved.Command.ToCommand();
                 if (command.Packet.Bank is "off_B6D070" or "off_B6D094" && command.Packet.ByteOffset >= 0 && (uint)command.Packet.ByteOffset < end && command.Opcode is >= 0x20 and < 0x80)
                 {
                     references.Add(command.Packet);

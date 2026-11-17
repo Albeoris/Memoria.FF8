@@ -146,7 +146,7 @@ public sealed class NativeBattleCavernAttackTests
             int proxyCount = frame.LastCommands.Select(item => item.Command.Packet).Distinct().Count();
             largestProxyCount = Math.Max(largestProxyCount, proxyCount);
             Assert.True(proxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity);
-            foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094"))
+            foreach (NativeBattleLogicalCommand command in frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094"))
             {
                 int end = command.Packet.ByteOffset + (command.WordOffset + command.Words.Length) * 4;
                 largestPacketEnd = Math.Max(largestPacketEnd, end);

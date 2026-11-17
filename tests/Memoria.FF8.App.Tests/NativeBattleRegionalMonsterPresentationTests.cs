@@ -96,7 +96,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                 if (native.MagicId is 168 or 179 or 180 && graphics.OriginalEffect is { } cloudBomb && cloudBomb.Binding.Effect == native.MagicId && (cloudBomb.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> references = cloudBomb.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-                    NativeBattleLogicalCommand[] owned = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
+                    NativeBattleLogicalCommand[] owned = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x40).ToArray();
                     foreach (NativeBattleLogicalCommand command in owned)
                     {
                         NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
@@ -116,7 +116,7 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     if (native.MagicId == 17)
                     {
                         ImmutableHashSet<NativeBattlePrimitiveReference> references = controlEffect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-                        owned = controlPrimitives.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
+                        owned = controlPrimitives.LastCommands.Select(item => item.Command.ToCommand()).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).ToArray();
                     }
                     else
                     {

@@ -45,7 +45,7 @@ public sealed class NativeBattleSceneReplayMemoTests
         NativeBattleEffectTextureState innerLeaf = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattleEffectTextureState outer = OuterTextures.WithPresentationTexture(actorId, new(NativeBattleEffectTextureState.FromColdProcess(), cache));
         NativeBattleLogicalResolvedCommand innerCommand = original.Frame.LastCommands[0];
-        innerCommand = innerCommand with { Command = innerCommand.Command with { ModelTextureOwner = new(actorId) } };
+        innerCommand = innerCommand with { Command = innerCommand.Command.ToCommand() with { ModelTextureOwner = new(actorId) } };
         NativeBattleSceneReplaySource modelSource = original with
         {
             Frame = original.Frame with { LastCommands = [innerCommand] },
@@ -54,7 +54,7 @@ public sealed class NativeBattleSceneReplayMemoTests
         NativeBattleLogicalResolvedCommand consumer = fixture.Frame.LastCommands[0];
         NativeBattleLogicalResolvedCommand outerCommand = innerCommand with
         {
-            Command = innerCommand.Command with { Pilot = consumer.Command.Pilot },
+            Command = innerCommand.Command.ToCommand() with { Pilot = consumer.Command.Pilot },
             DrawMode = innerCommand.DrawMode with { TexturePixelSnapshot = 1 }
         };
         NativeBattlePreparedPrimitiveFrame frame = fixture.Frame with
@@ -300,7 +300,7 @@ public sealed class NativeBattleSceneReplayMemoTests
             data[offset] = 31;
             data[offset + 1] = 0;
         }
-        source = source with { LastTextureSnapshots = [pixels with { Data = data.ToImmutableArray() }], LastCommands = [source.LastCommands[0] with { Command = source.LastCommands[0].Command with { PilotGeometry = null } }] };
+        source = source with { LastTextureSnapshots = [pixels with { Data = data.ToImmutableArray() }], LastCommands = [source.LastCommands[0] with { Command = source.LastCommands[0].Command.ToCommand() with { PilotGeometry = null } }] };
         var pool = ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty.Add(1, new(source, textures, BattleSceneVisibleArea.Native));
         return new(Consumer(pool, 1), textures);
     }

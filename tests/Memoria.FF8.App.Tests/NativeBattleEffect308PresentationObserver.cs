@@ -210,7 +210,7 @@ internal sealed class NativeBattleEffect308PresentationObserver
             return [];
         }
         uint start = cursor >= arena + SecondPacketOffset ? arena + SecondPacketOffset : arena + FirstPacketOffset;
-        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - arena && command.Packet.ByteOffset < cursor - arena).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - arena && command.Packet.ByteOffset < cursor - arena).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
     }
 
     public static NativeBattleLogicalCommand[] CurrentFadeCommands(BattleSnapshot current)

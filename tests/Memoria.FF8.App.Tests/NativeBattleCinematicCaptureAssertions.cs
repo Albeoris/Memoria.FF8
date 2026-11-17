@@ -11,7 +11,7 @@ internal static class NativeBattleCinematicCaptureAssertions
             return 0;
         }
         HashSet<NativeBattlePrimitiveReference> owned = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToHashSet();
-        NativeBattleLogicalCommand[] commands = frame.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80).ToArray();
+        NativeBattleLogicalCommand[] commands = frame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && command.Opcode is >= 0x20 and < 0x80).ToArray();
         AssertCommands(snapshot, effect, commands);
         return commands.Length;
     }

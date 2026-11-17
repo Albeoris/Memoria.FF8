@@ -12,7 +12,7 @@ internal static class NativeBattleContextBodyCaptureAssertions
             return 0;
         }
         HashSet<NativeBattlePrimitiveReference> owned = selected.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToHashSet();
-        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame.LastCommands.Select(item => item.Command).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).Where(command => command.Opcode is >= 0x20 and < 0x80).ToArray();
+        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame.LastCommands.Select(item => item.Command.ToCommand()).Where(command => owned.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet))).Where(command => command.Opcode is >= 0x20 and < 0x80).ToArray();
         NativeBattleReachedCaptureAssertions.Moving(effect, snapshot, commands);
         foreach (NativeBattleLogicalCommand command in commands)
         {

@@ -5,12 +5,14 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
-    private void DrawNativePrimitiveLine(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
+    private void DrawNativePrimitiveLine(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved)
     {
-        NativeBattleLogicalCommand command = resolved.Command;
+        NativeBattleLogicalCommandReference command = resolved.Command;
+        NativeBattlePrimitiveDrawMode drawMode = resolved.DrawMode;
+        byte pass = resolved.Pass;
         bool semi = (command.Opcode & 2) != 0;
         bool gouraud = (command.Opcode & 16) != 0;
-        if (resolved.Pass == 1 && semi || resolved.Pass == 2 && !semi)
+        if (pass == 1 && semi || pass == 2 && !semi)
         {
             return;
         }
@@ -23,7 +25,7 @@ public sealed partial class BattleRenderer
         NativeBattlePrimitiveDepthState depthState = frame.LastDepthState ?? throw new NotSupportedException("Native LINE2 requires its retained depth owner.");
         Span<NativeBattlePrimitiveDepthVertex> projected = stackalloc NativeBattlePrimitiveDepthVertex[4];
         depthState.Project461220(command.OrderingBucket ?? throw new InvalidDataException("Native LINE2 lacks its original OT bucket."), perspective, command.Flags20, depths, projected);
-        int blendMode = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
+        int blendMode = drawMode.BlendMode ?? throw new NotSupportedException("Native LINE2 requires its executed ABR.");
         NativeBattlePrimitiveColorState colorState = frame.LastColorState ?? throw new NotSupportedException("Native LINE2 requires its retained diffuse color owner.");
         PrimitiveVertex a = Vertex(0, projected[0]);
         PrimitiveVertex b = Vertex(1, projected[1]);
@@ -42,13 +44,13 @@ public sealed partial class BattleRenderer
                 3 => TriangleBlend.AlphaAdd,
                 _ => throw new NotSupportedException("Native LINE2 has no supported blend equation.")
             };
-            TriangleMaterial material = new(null, equation, TriangleDepthComparison.LessEqual, resolved.Pass == 1, 0, TriangleSampler.PointWrap);
+            TriangleMaterial material = new(null, equation, TriangleDepthComparison.LessEqual, pass == 1, 0, TriangleSampler.PointWrap);
             material = WithNativeActorOpacity(material, blend, frame.ActorOpacity(command.PresentationActorId));
             lines.DrawLine(Convert(a), Convert(b), material);
             ObserveLine();
             return;
         }
-        nativeTriangles.Add(new(a, b, default, null, blend, resolved.Pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
+        nativeTriangles.Add(new(a, b, default, null, blend, pass, 0, 0, Width - 1, 0, Height - 1, true, frame.ActorOpacity(command.PresentationActorId)));
         ObserveLine();
 
         PrimitiveVertex Vertex(int corner, NativeBattlePrimitiveDepthVertex depth)
@@ -56,8 +58,8 @@ public sealed partial class BattleRenderer
             int colorIndex = gouraud ? corner * 2 : 0;
             int coordinateIndex = gouraud ? corner * 2 + 1 : corner + 1;
             NativeBattlePrimitiveColor diffuse = colorState.Untextured(command.WordSpan[colorIndex], semi, blendMode);
-            Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, resolved.DrawMode);
-            if (TrySamplePilotVertex(command, corner, resolved.DrawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            Vector2 position = NativePrimitivePosition(command.WordSpan[coordinateIndex], command.Flags20, drawMode);
+            if (TrySamplePilotVertex(command, corner, drawMode, depthState, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;
                 depth = sampledDepth;
@@ -71,7 +73,7 @@ public sealed partial class BattleRenderer
             {
                 return;
             }
-            pilotSubmission = pilotSubmission with { MaterialSignature = PilotHash(PilotHash(pilotSubmission.MaterialSignature, command.Opcode), resolved.Pass) };
+            pilotSubmission = pilotSubmission with { MaterialSignature = PilotHash(PilotHash(pilotSubmission.MaterialSignature, command.Opcode), pass) };
             ObservePilotSubmittedCorner(command, 0, new(a.X, a.Y), new(a.Z, a.ReciprocalW), a.Uv, a.Color, a.Alpha);
             ObservePilotSubmittedCorner(command, 1, new(b.X, b.Y), new(b.Z, b.ReciprocalW), b.Uv, b.Color, b.Alpha);
         }

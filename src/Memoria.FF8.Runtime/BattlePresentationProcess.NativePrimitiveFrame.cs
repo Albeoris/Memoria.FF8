@@ -38,12 +38,24 @@ public sealed partial class BattlePresentationProcess
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native callback primitive submission requires its retained native packet bank.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native callback primitive submission has no allocated logical packet bank.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native callback primitive submission has no observed packet cursor.");
+        NativeBattlePlacedModelPrimitives? placed = null;
+        if (primitives.UsesRawRows && !primitives.IsEmpty)
+        {
+            ImmutableArray<NativeBattlePrimitiveReference>.Builder placements = ImmutableArray.CreateBuilder<NativeBattlePrimitiveReference>(primitives.Count);
+            int offset = cursor;
+            for (int index = 0; index < primitives.Count; index++)
+            {
+                placements.Add(new(bank, process.PacketBuffer, offset));
+                offset = checked(offset + primitives.ReadWords(index).Length * sizeof(uint));
+            }
+            placed = new(primitives, placements.MoveToImmutable(), moduleDraw, textureSourceOwner);
+        }
         using NativeBattleLogicalOrdering.Builder ordering = new(frame.Pending);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         for (int index = 0; index < primitives.Count; index++)
         {
-            NativeBattleModelPrimitive primitive = primitives[index];
-            int next = checked(cursor + primitive.Words.Length * 4);
+            NativeBattleImmutableSlice<uint> words = primitives.ReadWords(index);
+            int next = checked(cursor + words.Length * sizeof(uint));
             int capacity = process.CommonPacketWriteCapacity;
             if (next > capacity)
             {
@@ -52,10 +64,17 @@ public sealed partial class BattlePresentationProcess
             bool linked = ordering.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             if (!linked)
             {
-                ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), primitive.Words.Length * 4);
+                ordering.InvalidatePacketRange(new(bank, process.PacketBuffer, cursor), words.Length * sizeof(uint));
             }
-            NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, primitive, linked);
-            ordering.PrependModel(new(bank, process.PacketBuffer, cursor), primitives, index, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+            NativeBattleCommonPacketArena.AppendPrimitiveStores(stores, cursor, words, primitives.ReadPhysicalWriteMask(index), linked);
+            if (placed is not null)
+            {
+                ordering.PrependPlacedModel(placed, index);
+            }
+            else
+            {
+                ordering.PrependModel(new(bank, process.PacketBuffer, cursor), primitives, index, primitives.ReadVertexPayload4(index).IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+            }
             if (linked)
             {
                 stores.Add(new(cursor, ImmutableCollectionsMarshal.AsImmutableArray(NativeBattleLogicalOrdering.LinkBytes(ordering.LastHeaderLink)), NativeBattleCommonPacketArena.KnownLinkMask));
@@ -347,7 +366,7 @@ public sealed partial class BattlePresentationProcess
                 continue;
             }
 
-            NativeBattleResolvedCommandList.Builder filtered = new();
+            NativeBattleCommandPages<NativeBattleLogicalResolvedCommand>.Builder filtered = new();
             for (int earlier = 0; earlier < index; earlier++)
             {
                 filtered.Add(commands[earlier]);
@@ -360,7 +379,7 @@ public sealed partial class BattlePresentationProcess
                     filtered.Add(command);
                 }
             }
-            return filtered.Freeze();
+            return new(filtered.Freeze());
         }
         return commands;
     }

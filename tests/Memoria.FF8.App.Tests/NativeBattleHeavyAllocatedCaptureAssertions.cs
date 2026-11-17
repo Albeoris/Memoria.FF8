@@ -16,7 +16,7 @@ internal sealed class NativeBattleHeavyAllocatedCaptureAssertions(ushort selecte
             return;
         }
         ImmutableHashSet<NativeBattlePrimitiveReference> references = effect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-        NativeBattleLogicalCommand[] commands = primitive.LastCommands.Select(item => item.Command).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && (command.Opcode is >= 0x20 and < 0x40 or >= 0x60 and < 0x80)).ToArray();
+        NativeBattleLogicalCommand[] commands = primitive.LastCommands.Select(item => item.Command.ToCommand()).Where(command => references.Contains(NativeBattlePrimitiveProcess.NormalizeCommonReference(command.Packet)) && (command.Opcode is >= 0x20 and < 0x40 or >= 0x60 and < 0x80)).ToArray();
         foreach (NativeBattleLogicalCommand command in commands)
         {
             NativeBattlePilotVisualGeometry geometry = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);

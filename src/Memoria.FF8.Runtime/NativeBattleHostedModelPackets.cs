@@ -73,11 +73,12 @@ internal sealed class NativeBattleHostedModelPackets
         ValidateProxyCapacity(ordering, primitives.Count);
         int end = start;
         int largestPacket = 0;
+        ImmutableArray<NativeBattlePrimitiveReference>.Builder? placements = primitives.UsesRawRows && !primitives.IsEmpty ? ImmutableArray.CreateBuilder<NativeBattlePrimitiveReference>(primitives.Count) : null;
         for (int index = 0; index < primitives.Count; index++)
         {
-            NativeBattleModelPrimitive primitive = primitives[index];
-            int length = ValidatePrimitive(primitive);
+            int length = ValidatePrimitive(primitives.ReadWords(index), primitives.ReadPhysicalWriteMask(index));
             ValidateRange(end, length);
+            placements?.Add(Reference(bank, end));
             end = checked(end + length);
             largestPacket = Math.Max(largestPacket, length);
         }
@@ -86,6 +87,8 @@ internal sealed class NativeBattleHostedModelPackets
         {
             return links.ToImmutable();
         }
+
+        NativeBattlePlacedModelPrimitives? placed = placements is null ? null : new(primitives, placements.MoveToImmutable(), moduleDraw, textureSourceOwner);
 
         // One scratch packet per append. Only the working byte bank retains the encoded writes.
         Span<byte> scratch = largestPacket <= 256 ? stackalloc byte[largestPacket] : new byte[largestPacket];
@@ -97,10 +100,17 @@ internal sealed class NativeBattleHostedModelPackets
             int cursor = start;
             for (int index = 0; index < primitives.Count; index++)
             {
-                NativeBattleModelPrimitive primitive = primitives[index];
-                links.PrependModel(Reference(bank, cursor), primitives, index, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
-                WriteLinkedPrimitive(memory, cursor, primitive, links.LastHeaderLink, scratch);
-                cursor += primitive.Words.Length * sizeof(uint);
+                NativeBattleImmutableSlice<uint> words = primitives.ReadWords(index);
+                if (placed is not null)
+                {
+                    links.PrependPlacedModel(placed, index);
+                }
+                else
+                {
+                    links.PrependModel(Reference(bank, cursor), primitives, index, primitives.ReadVertexPayload4(index).IsEmpty ? (ushort)1 : (ushort)0, moduleDraw, textureSourceOwner);
+                }
+                WriteLinkedPrimitive(memory, cursor, words, primitives.ReadPhysicalWriteMask(index), links.LastHeaderLink, scratch);
+                cursor += words.Length * sizeof(uint);
             }
             return Commit(bank, end, links, memory);
         }
@@ -111,20 +121,20 @@ internal sealed class NativeBattleHostedModelPackets
         }
     }
 
-    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleModelPrimitive primitive, uint headerLink, Span<byte> scratch)
+    private static void WriteLinkedPrimitive(NativeBattleWorkingMemory memory, int address, NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask, uint headerLink, Span<byte> scratch)
     {
-        if (primitive.PhysicalWriteMask is not { } mask)
+        if (physicalWriteMask is not { } mask)
         {
             // TODO(TD-009): Other logical emitters do not establish actual padding/rejected stores.
             BinaryPrimitives.WriteUInt32LittleEndian(scratch, headerLink);
             memory.Write(address, scratch[..3]);
-            memory.MarkUnknown(address + 3, primitive.Words.Length * sizeof(uint) - 3);
+            memory.MarkUnknown(address + 3, words.Length * sizeof(uint) - 3);
             return;
         }
-        BinaryPrimitives.WriteUInt32LittleEndian(scratch, (primitive.Words[0] & 0xFF000000u) | (headerLink & 0xFFFFFFu));
-        for (int index = 1; index < primitive.Words.Length; index++)
+        BinaryPrimitives.WriteUInt32LittleEndian(scratch, (words[0] & 0xFF000000u) | (headerLink & 0xFFFFFFu));
+        for (int index = 1; index < words.Length; index++)
         {
-            BinaryPrimitives.WriteUInt32LittleEndian(scratch[(index * sizeof(uint))..], primitive.Words[index]);
+            BinaryPrimitives.WriteUInt32LittleEndian(scratch[(index * sizeof(uint))..], words[index]);
         }
 
         int linkEnd = 3;
@@ -164,7 +174,7 @@ internal sealed class NativeBattleHostedModelPackets
             if (attempt.Primitive is { } primitive)
             {
                 int end = checked(attempt.ByteOffsetRelative + attempt.PacketLength);
-                if (ValidatePrimitive(primitive) > attempt.PacketLength || end > batch.AllocationBytes)
+                if (ValidatePrimitive(primitive.Words, primitive.PhysicalWriteMask) > attempt.PacketLength || end > batch.AllocationBytes)
                 {
                     throw new InvalidDataException("Hosted linked packet leaves its accepted batch allocation.");
                 }
@@ -272,14 +282,14 @@ internal sealed class NativeBattleHostedModelPackets
         links.PrependModel(reference, primitive, flags20, moduleDraw, textureSourceOwner);
     }
 
-    private static int ValidatePrimitive(NativeBattleModelPrimitive primitive)
+    private static int ValidatePrimitive(NativeBattleImmutableSlice<uint> words, ImmutableArray<NativeBattleGfPacketByteState>? physicalWriteMask)
     {
-        if (primitive.Words.IsDefaultOrEmpty || primitive.Words.Length < 1 + (primitive.Words[0] >> 24))
+        if (words.IsDefaultOrEmpty || words.Length < 1 + (words[0] >> 24))
         {
             throw new InvalidDataException("Hosted model packet requires complete authored command words.");
         }
-        int length = checked(primitive.Words.Length * sizeof(uint));
-        if (primitive.PhysicalWriteMask is { } mask)
+        int length = checked(words.Length * sizeof(uint));
+        if (physicalWriteMask is { } mask)
         {
             ValidateMask(mask, length);
         }

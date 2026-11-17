@@ -51,7 +51,7 @@ internal static class NativeBattleControl18CastingAssertions
         NativeBattleOriginalEffectState effect = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         NativeBattleCinematicPacketScope? scope = effect.PresentationPacketScope;
         ImmutableHashSet<NativeBattlePrimitiveReference> auxiliary = effect.PresentationPackets.Select(NativeBattlePrimitiveProcess.NormalizeCommonReference).ToImmutableHashSet();
-        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Owned).ToArray();
+        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(Owned).ToArray();
 
         bool Owned(NativeBattleLogicalCommand command)
         {

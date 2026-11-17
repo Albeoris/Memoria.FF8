@@ -179,14 +179,15 @@ public sealed partial class BattleRenderer
         DrawNativePcUi(uiFrame, uiTexture, false);
         // Offscreen source packets have already populated VRAM and do not cover the visible framebuffer.
         Span<NativeBattlePrimitiveDepthVertex> projected = stackalloc NativeBattlePrimitiveDepthVertex[4];
-        foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
+        foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
             if (resolved.Pass == 0 || resolved.Command.Opcode is >= 0xE1 and <= 0xE6 || resolved.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.Source } capture && (capture.X >= 320 || capture.Y >= 216))
             {
                 continue;
             }
-            NativeBattleLogicalCommand command = resolved.Command;
-            if (command.ModelTextureOwner is not null && (command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } || resolved.DrawMode.SceneCaptureSample is not null))
+            NativeBattleLogicalCommandReference command = resolved.Command;
+            NativeBattlePrimitiveDrawMode drawMode = resolved.DrawMode;
+            if (command.ModelTextureOwner is not null && (command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.ScreenSample } || drawMode.SceneCaptureSample is not null))
             {
                 throw new NotSupportedException("A model texture command cannot also sample the global screen capture.");
             }
@@ -286,7 +287,7 @@ public sealed partial class BattleRenderer
                 {
                     affine &= projected[corner].ReciprocalW == 1;
                 }
-                texture = resolved.DrawMode.SceneCaptureSample is null
+                texture = drawMode.SceneCaptureSample is null
                     ? ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, quad ? 4 : 3, affine, out prefixUvScale)
                     : ResolveSceneCaptureTexture(frame, resolved, capabilities, colorState);
             }
@@ -296,7 +297,7 @@ public sealed partial class BattleRenderer
                 uint coordinate = words[coordinateWord];
                 uint color = words[gouraud ? corner * stride : 0];
                 bool foreignMaterial = foreignSurface is not null && capturedSurface is null;
-                int mode = foreignMaterial && !semi ? 0 : resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
+                int mode = foreignMaterial && !semi ? 0 : drawMode.BlendMode ?? throw new NotSupportedException("Native polygon diffuse color requires its executed ABR.");
                 NativeBattlePrimitiveColor diffuse = foreignMaterial ? colorState.Textured(color, semi, mode, false) : textured ? colorState.Textured(color, semi, mode, (command.Opcode & 1) != 0) : colorState.Untextured(color, semi, mode);
                 uint uv = textured ? words[coordinateWord + 1] : 0;
                 Vector2 coordinates = new((byte)uv, (byte)(uv >> 8));
@@ -304,20 +305,20 @@ public sealed partial class BattleRenderer
                 {
                     coordinates = capturedSurface.Uv[corner];
                 }
-                else if (textured && resolved.DrawMode.SceneCaptureSample is { } sceneSample)
+                else if (textured && drawMode.SceneCaptureSample is { } sceneSample)
                 {
-                    coordinates = SceneCaptureUv(sceneSample, resolved.DrawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
+                    coordinates = SceneCaptureUv(sceneSample, drawMode.TexturePage!.Value, uv, command.SceneCapture?.SampleCoordinates is { } samples ? samples[corner] : null);
                 }
                 else if (textured && foreignSurface is null)
                 {
-                    NativeBattlePcTextureWindowSelection window = resolved.DrawMode.TextureSelection!;
+                    NativeBattlePcTextureWindowSelection window = drawMode.TextureSelection!;
                     coordinates *= new Vector2(window.ScaleU, window.ScaleV);
                     coordinates *= prefixUvScale;
                 }
                 Vector2 position = !points.IsEmpty
-                    ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, resolved.DrawMode)
-                    : NativePrimitivePosition(coordinate, command.Flags20, resolved.DrawMode);
-                if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
+                    ? NativePrimitivePosition(points[corner].X, points[corner].Y, command.Flags20, drawMode)
+                    : NativePrimitivePosition(coordinate, command.Flags20, drawMode);
+                if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, drawMode, state, perspective, out Vector2 sampledPosition, out NativeBattlePrimitiveDepthVertex sampledDepth))
                 {
                     position = sampledPosition;
                     selectedDepth = sampledDepth;
@@ -334,7 +335,7 @@ public sealed partial class BattleRenderer
                 }
                 return new(position.X, position.Y, selectedDepth.Depth, selectedDepth.ReciprocalW, coordinates, diffuse.Rgb, diffuse.Alpha);
             }
-            int blend = (foreignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
+            int blend = (foreignSurface is null || capturedSurface is not null) && semi && resolved.Pass == 2 ? drawMode.BlendMode ?? throw new NotSupportedException("Native semi-transparent polygon requires its inherited ABR.") : -1;
             PrimitiveVertex a = At(0, projected[0], words, projectedPoints);
             PrimitiveVertex b = At(1, projected[1], words, projectedPoints);
             PrimitiveVertex c = At(2, projected[2], words, projectedPoints);
@@ -349,7 +350,7 @@ public sealed partial class BattleRenderer
                 TriangleMaterial original = hostMaterial.Material with { ActorOpacity = actorOpacity };
                 if (semi)
                 {
-                    int nativeBlend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native host-material overlays require their original blend equation.");
+                    int nativeBlend = drawMode.BlendMode ?? throw new NotSupportedException("Native host-material overlays require their original blend equation.");
                     original = WithNativeActorOpacity(NativePrimitiveMaterial(original.Texture, nativeBlend, resolved.Pass, original.CentroidTextureSampling) with { Sampler = original.Sampler }, nativeBlend, actorOpacity);
                 }
                 TriangleVertex Vertex(PrimitiveVertex vertex, int corner) => new(new(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, foreign.Uv[corner], new Vector4(vertex.Color / 255, vertex.Alpha / 255) * foreign.Colors[corner]);
@@ -436,10 +437,10 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, TexturePrimitiveSample? firstSample = null)
+    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, TexturePrimitiveSample? firstSample = null)
         => ResolveNativePrimitiveTexture(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, 0, false, out _, firstSample);
 
-    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
+    private PixelImage ResolveNativePrimitiveTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
         string? modelTextureActorId = null;
         bool sameTextureOrigins = sameNativeTextureOrigins;
@@ -464,10 +465,10 @@ public sealed partial class BattleRenderer
         return ApplySceneCopyTexture(frame, resolved, textures, capabilities, colorState, image);
     }
 
-    private PixelImage ResolveNativePrimitiveTextureCore(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, bool sameTextureOrigins, string? modelTextureActorId, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
+    private PixelImage ResolveNativePrimitiveTextureCore(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePcTextureWindowCache? textureWindowCache, IReadOnlyList<NativeBattleTextureReplacement>? replacements, NativeBattlePrimitiveColorState colorState, NativeBattleEffectTextureState? previousTextureOwner, bool sameReplacements, bool sameTextureOrigins, string? modelTextureActorId, int prefixCorners, bool affine, out Vector2 prefixUvScale, TexturePrimitiveSample? firstSample = null)
     {
         prefixUvScale = Vector2.One;
-        NativeBattleLogicalCommand command = resolved.Command;
+        NativeBattleLogicalCommandReference command = resolved.Command;
         PixelImage? texture;
         ushort page = resolved.DrawMode.TexturePage ?? throw new NotSupportedException("Native textured polygon requires its executed texture page.");
         _ = resolved.DrawMode.TextureWindowBits ?? throw new NotSupportedException("Native465CE0 requires its retained45BC60 texture-window owner; explicitly migrate the named snapshot.");
@@ -604,7 +605,7 @@ public sealed partial class BattleRenderer
         return texture!;
     }
 
-    private bool TryPlanNativePrefix(NativeBattleLogicalCommand command, int corners, bool affine, ushort page, ushort clut, byte? alternateShift, NativeBattlePcTextureWindowSelection window, NativeBattlePcTextureWindowPixels? retainedPixels, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, out int width, out int height)
+    private bool TryPlanNativePrefix(in NativeBattleLogicalCommandReference command, int corners, bool affine, ushort page, ushort clut, byte? alternateShift, NativeBattlePcTextureWindowSelection window, NativeBattlePcTextureWindowPixels? retainedPixels, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, out int width, out int height)
     {
         width = window.Width;
         height = window.Height;
@@ -801,9 +802,10 @@ public sealed partial class BattleRenderer
         return new(((corner & 1) == 0 ? coverage.Left : coverage.Right) * Width, (corner < 2 ? coverage.Top : coverage.Bottom) * Height);
     }
 
-    private void DrawNativePrimitiveTile(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
+    private void DrawNativePrimitiveTile(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand resolved)
     {
-        NativeBattleLogicalCommand command = resolved.Command;
+        NativeBattleLogicalCommandReference command = resolved.Command;
+        NativeBattlePrimitiveDrawMode drawMode = resolved.DrawMode;
         bool semi = (command.Opcode & 2) != 0;
         if (resolved.Pass == 1 && semi || resolved.Pass == 2 && !semi)
         {
@@ -814,7 +816,7 @@ public sealed partial class BattleRenderer
         {
             throw new InvalidDataException("Native TILE requires its original RGB, XY and selected size fields.");
         }
-        int blend = resolved.DrawMode.BlendMode ?? throw new NotSupportedException("Native TILE requires its executed ABR.");
+        int blend = drawMode.BlendMode ?? throw new NotSupportedException("Native TILE requires its executed ABR.");
         NativeBattlePrimitiveColor diffuse = (frame.LastColorState ?? throw new NotSupportedException("Native TILE requires its retained PC color owner.")).Untextured(command.WordSpan[0], semi, blend);
         ReadOnlySpan<int> sourceDepths = command.VertexPayloadSpan;
         bool perspective = !sourceDepths.IsEmpty && sourceDepths[0] != 0 && (frame.LastDescriptorPerspective ?? throw new NotSupportedException("Native TILE requires its executed descriptor depth mode."));
@@ -826,9 +828,9 @@ public sealed partial class BattleRenderer
         int height = point ? width : (ushort)(command.WordSpan[2] >> 16);
         PrimitiveVertex At(int px, int py, int corner)
         {
-            Vector2 position = NativePrimitivePosition(px, py, command.Flags20, resolved.DrawMode);
+            Vector2 position = NativePrimitivePosition(px, py, command.Flags20, drawMode);
             NativeBattlePrimitiveDepthVertex depth = vertices[0];
-            if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, resolved.DrawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
+            if (command.SceneCapture?.Kind != NativeBattleSceneCaptureKind.Image && TrySamplePilotVertex(command, corner, drawMode, frame.LastDepthState!, perspective, out Vector2 sampled, out NativeBattlePrimitiveDepthVertex sampledDepth))
             {
                 position = sampled;
                 depth = sampledDepth;

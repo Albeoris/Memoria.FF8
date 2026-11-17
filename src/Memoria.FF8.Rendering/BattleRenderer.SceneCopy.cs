@@ -56,7 +56,7 @@ public sealed partial class BattleRenderer
         {
             return;
         }
-        foreach (NativeBattleLogicalResolvedCommand command in frame.LastCommands)
+        foreach (ref readonly NativeBattleLogicalResolvedCommand command in frame.LastCommands)
         {
             if (HasUnprovedReplayMaterial(command))
             {
@@ -77,7 +77,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private static bool HasUnprovedReplayMaterial(NativeBattleLogicalResolvedCommand resolved)
+    private static bool HasUnprovedReplayMaterial(in NativeBattleLogicalResolvedCommand resolved)
     {
         byte opcode = resolved.Command.Opcode;
         bool drawable = (opcode & 0xE0) == 0x20 || opcode is 0x40 or 0x42 or 0x50 or 0x52 or 0x64 or 0x66 || (opcode & 0xFC) is 0x60 or 0x68;
@@ -115,7 +115,7 @@ public sealed partial class BattleRenderer
         sceneReplayContext.Memo = sceneReplayMemo;
     }
 
-    private PixelImage ApplySceneCopyTexture(NativeBattlePreparedPrimitiveFrame frame, NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors, PixelImage image)
+    private PixelImage ApplySceneCopyTexture(NativeBattlePreparedPrimitiveFrame frame, in NativeBattleLogicalResolvedCommand command, NativeBattleEffectTextureState? textures, NativeBattlePrimitiveCapabilities? capabilities, NativeBattlePrimitiveColorState colors, PixelImage image)
     {
         NativeBattlePcTextureWindowSelection window = command.DrawMode.TextureSelection ?? throw new InvalidDataException("Scene texture sampling requires its selected native window.");
         NativeBattlePcTextureWindowPixels? retained = command.DrawMode.TexturePixelSnapshot is int index

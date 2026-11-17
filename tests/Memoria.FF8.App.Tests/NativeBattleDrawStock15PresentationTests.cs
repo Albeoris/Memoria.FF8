@@ -190,7 +190,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 if (after?.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })
                 {
                     ImmutableHashSet<NativeBattlePrimitiveReference> capturedOwned = DrawStockPacketReferences(current);
-                    foreach (NativeBattleLogicalCommand command in current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => capturedOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
+                    foreach (NativeBattleLogicalCommand command in current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => capturedOwned.Contains(command.Packet) && command.Opcode is >= 0x20 and < 0x80))
                     {
                         Assert.True(command.PilotGeometry is not null, $"Draw Stock uncaptured owned pass at frame {current.Frame}: {command.Packet}, opcode {command.Opcode:X2}, word {command.WordOffset}.");
                         Assert.Equal((ushort)15, command.PilotGeometry!.Identity.Effect);

@@ -96,8 +96,8 @@ public sealed class NativeBattleCinematicSoftwareOrderingTests
         public bool HardwareEnabled => throw new InvalidOperationException("Private ordering does not inspect hardware capability.");
         public NativeSoftwarePrimitiveTable SoftwareTable { get; } = Table();
         public NativeBattlePcTextureWindowCache? Cache { get; set; }
-        public void ExecuteSoftware(NativeBattleLogicalCommand command) => Executed.Add(command.Opcode);
-        public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass) => throw new InvalidOperationException("Private ordering never delivers a normal handler.");
+        public void ExecuteSoftware(NativeBattleLogicalCommandReference command) => Executed.Add(command.Opcode);
+        public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass) => throw new InvalidOperationException("Private ordering never delivers a normal handler.");
         public NativeBattlePrimitiveDrawMode SynchronizeDrawMode(NativeBattlePrimitiveDrawMode mode) => throw new InvalidOperationException("Private ordering does not synchronize ordinary draw modes.");
         public void BeginOrdering() => Begins++;
         public void FlushSoftwareImage() => Flushes++;

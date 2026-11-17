@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect227PresentationTests
         Assert.InRange(cursor, start, end);
 
         NativeBattlePrimitiveFrame primitive = Assert.IsType<NativeBattlePrimitiveFrame>(NativeBattleFixtureState.ReadArchived<NativeBattlePrimitiveFrame>(graphics, "PrimitiveFrame"));
-        Assert.Contains(primitive.LastCommands.Select(item => item.Command), command => command.Opcode is >= 0x20 and <= 0x3F &&
+        Assert.Contains(primitive.LastCommands.Select(item => item.Command.ToCommand()), command => command.Opcode is >= 0x20 and <= 0x3F &&
             command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8 && command.Packet.ByteOffset < cursor - 0x20DFAB8);
     }
 }

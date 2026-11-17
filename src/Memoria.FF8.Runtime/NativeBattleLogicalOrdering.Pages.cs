@@ -18,6 +18,8 @@ public sealed partial record NativeBattleLogicalOrdering
         internal NativeBattleScreenCoverage? ScreenCoverage { get; init; }
         internal NativeBattleSceneCapture? SceneCapture { get; init; }
         internal PacketObservation? Observation { get; init; }
+        internal NativeBattlePlacedModelPrimitives? Placement { get; init; }
+        internal int PlacementRow { get; init; }
 
         internal PacketSlot(NativeBattleLogicalPacket packet) : this(packet.Reference, packet.Words, packet.Next, 0)
         {
@@ -71,6 +73,8 @@ public sealed partial record NativeBattleLogicalOrdering
         }
 
         internal NativeBattleLogicalProxy? Observation { get; init; }
+        internal NativeBattlePlacedModelPrimitives? Placement { get; init; }
+        internal int PlacementRow { get; init; }
 
         internal NativeBattleLogicalProxy Capture()
         {

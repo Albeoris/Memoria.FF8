@@ -319,7 +319,7 @@ public sealed class NativeBattleSmoothWholeActionTests
                 {
                     continue;
                 }
-                NativeBattleLogicalCommand command = resolved.Command;
+                NativeBattleLogicalCommand command = resolved.Command.ToCommand();
                 string key = $"{command.Packet.Bank}/0x{command.Opcode:X2}";
                 uncovered[key] = uncovered.TryGetValue(key, out Uncovered? prior)
                     ? prior with { Count = prior.Count + 1 }

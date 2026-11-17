@@ -36,7 +36,7 @@ public sealed class BattlePilotPresentationTests
         NativeBattlePreparedPresentation first = Frame(1, 0, effect);
         NativeBattlePreparedPresentation second = Frame(2, 10, effect);
         NativeBattleLogicalResolvedCommand nextCommand = second.Primitives.LastCommands[0];
-        nextCommand = nextCommand with { Command = nextCommand.Command with { Words = [0x2000FF00, Point(170, 108), Point(180, 108), Point(170, 118)] } };
+        nextCommand = nextCommand with { Command = nextCommand.Command.ToCommand() with { Words = [0x2000FF00, Point(170, 108), Point(180, 108), Point(170, 118)] } };
         second = second with { Primitives = second.Primitives with { LastCommands = [nextCommand] } };
         renderer.RenderNativePrimitiveFrame(first.Primitives, null);
         TriangleVertex original = capture.Vertices[0];
@@ -52,7 +52,7 @@ public sealed class BattlePilotPresentationTests
         Assert.Equal(170, capture.Vertices[0].Position.X);
         Assert.NotEqual(original.Color, capture.Vertices[0].Color);
         NativeBattleLogicalResolvedCommand heldCommand = first.Primitives.LastCommands[0];
-        heldCommand = heldCommand with { Command = heldCommand.Command with { PilotGeometry = heldCommand.Command.PilotGeometry! with { Continuous = false } } };
+        heldCommand = heldCommand with { Command = heldCommand.Command.ToCommand() with { PilotGeometry = heldCommand.Command.PilotGeometry! with { Continuous = false } } };
         NativeBattlePreparedPresentation discrete = first with { Primitives = first.Primitives with { LastCommands = [heldCommand] } };
         renderer.RenderNativePilotPrimitiveFrame(discrete, second, 0.525f);
         Assert.Equal(160, capture.Vertices[0].Position.X);
@@ -66,10 +66,10 @@ public sealed class BattlePilotPresentationTests
         NativeBattleLogicalResolvedCommand original = first.Primitives.LastCommands[0];
         NativeBattlePilotSpriteGeometry sprite = new(new(-10, 0, 0), new(10, 0, 0), new(-10, 10, 0), default, new(0, 0, 100), Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
         NativeBattlePilotVisualGeometry geometry = original.Command.PilotGeometry! with { A = new(-10, 0, 100), Sprite = sprite };
-        first = first with { Primitives = first.Primitives with { LastCommands = [original with { Command = original.Command with { PilotGeometry = geometry } }] } };
+        first = first with { Primitives = first.Primitives with { LastCommands = [original with { Command = original.Command.ToCommand() with { PilotGeometry = geometry } }] } };
         NativeBattlePilotSpriteGeometry nextSprite = sprite with { LocalA = new(-100, 0, 0), Origin = new(20, 0, 100), AxisX = Vector3.UnitX * 3 };
         NativeBattlePilotVisualGeometry nextGeometry = geometry with { A = new(-280, 0, 100), Sprite = nextSprite };
-        NativeBattlePreparedPresentation second = first with { Callback = 2, Primitives = first.Primitives with { LastCommands = [original with { Command = original.Command with { PilotGeometry = nextGeometry } }] } };
+        NativeBattlePreparedPresentation second = first with { Callback = 2, Primitives = first.Primitives with { LastCommands = [original with { Command = original.Command.ToCommand() with { PilotGeometry = nextGeometry } }] } };
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
         renderer.RenderNativePilotPrimitiveFrame(first, second, 0.5f);
@@ -86,7 +86,7 @@ public sealed class BattlePilotPresentationTests
         NativeBattlePreparedPresentation second = Frame(2, 10) with { PilotCamera = new(new(10, 0, 0), new(10, 0, 100), 100, 0) };
         NativeBattlePreparedPresentation missing = missingEarlier ? first : second;
         NativeBattleLogicalResolvedCommand command = missing.Primitives.LastCommands[0];
-        missing = missing with { Primitives = missing.Primitives with { LastCommands = [command with { Command = command.Command with { PilotGeometry = null } }] } };
+        missing = missing with { Primitives = missing.Primitives with { LastCommands = [command with { Command = command.Command.ToCommand() with { PilotGeometry = null } }] } };
         first = missingEarlier ? missing : first;
         second = missingEarlier ? second : missing;
         Capture capture = new();
@@ -130,7 +130,7 @@ public sealed class BattlePilotPresentationTests
             NativeBattlePreparedPresentation frame = Frame(callback, x);
             NativeBattleLogicalResolvedCommand resolved = frame.Primitives.LastCommands[0];
             NativeBattlePilotVisualGeometry geometry = resolved.Command.PilotGeometry! with { A = new(x, 0, 1025), B = new(x + 10, 0, 1025), C = new(x, 10, 1025), DepthOffset = -300, DepthQuantum = 4 };
-            resolved = resolved with { Command = resolved.Command with { PilotGeometry = geometry, VertexPayload4 = [724, 724, 724, 0] } };
+            resolved = resolved with { Command = resolved.Command.ToCommand() with { PilotGeometry = geometry, VertexPayload4 = [724, 724, 724, 0] } };
             return frame with { Primitives = frame.Primitives with { LastDescriptorPerspective = true, LastCommands = [resolved] } };
         }
     }
@@ -160,7 +160,7 @@ public sealed class BattlePilotPresentationTests
         Assert.Equal(0.75f, later.Alpha);
 
         NativeBattleLogicalResolvedCommand scene = first.Primitives.LastCommands[0];
-        scene = scene with { Command = scene.Command with { PilotGeometry = scene.Command.PilotGeometry! with { Identity = scene.Command.PilotGeometry!.Identity with { Effect = 0 } } } };
+        scene = scene with { Command = scene.Command.ToCommand() with { PilotGeometry = scene.Command.PilotGeometry! with { Identity = scene.Command.PilotGeometry!.Identity with { Effect = 0 } } } };
         renderer.RenderNativePrimitiveFrame(first.Primitives, null);
         NativeBattlePilotSubmission withoutScene = renderer.PilotSubmission;
         renderer.RenderNativePrimitiveFrame(first.Primitives with { LastCommands = [.. first.Primitives.LastCommands, scene] }, null);
@@ -169,7 +169,7 @@ public sealed class BattlePilotPresentationTests
         Assert.Equal(withoutScene.MaterialSignature, renderer.PilotSubmission.MaterialSignature);
         Assert.Equal(withoutScene.Corners, renderer.PilotSubmission.Corners);
         NativeBattleLogicalResolvedCommand degenerate = first.Primitives.LastCommands[0];
-        degenerate = degenerate with { Command = degenerate.Command with { Words = [0x200000FF, Point(160, 108), Point(160, 108), Point(160, 108)] } };
+        degenerate = degenerate with { Command = degenerate.Command.ToCommand() with { Words = [0x200000FF, Point(160, 108), Point(160, 108), Point(160, 108)] } };
         renderer.RenderNativePrimitiveFrame(first.Primitives with { LastCommands = [degenerate] }, null);
         Assert.Empty(capture.Vertices);
         Assert.Equal(0, renderer.PilotSubmission.Corners);
@@ -180,7 +180,7 @@ public sealed class BattlePilotPresentationTests
     {
         NativeBattlePreparedPresentation first = Frame(1, 0, 3);
         NativeBattleLogicalResolvedCommand command = first.Primitives.LastCommands[0];
-        first = first with { Primitives = first.Primitives with { LastCommands = [command with { Command = command.Command with { PilotGeometry = command.Command.PilotGeometry! with { Continuous = false } } }] } };
+        first = first with { Primitives = first.Primitives with { LastCommands = [command with { Command = command.Command.ToCommand() with { PilotGeometry = command.Command.PilotGeometry! with { Continuous = false } } }] } };
         NativeBattlePreparedPresentation second = Frame(2, 10, 3);
         Capture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture, PilotDiagnosticsEnabled = true };

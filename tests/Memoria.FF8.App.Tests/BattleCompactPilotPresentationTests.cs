@@ -76,7 +76,8 @@ public sealed class BattleCompactPilotPresentationTests
         if (compact)
         {
             NativeBattleModelPrimitiveBatch.Builder builder = new();
-            pilot = builder.AddPilot(new(identity, a, b, c, default, 3, !discrete, screenSpace));
+            int emission = builder.BeginEmission(new(null, null, null, identity, !discrete, screenSpace));
+            pilot = builder.AddPilot(new(a, b, c, default, identity.Primitive, emission, 3));
             builder.Freeze();
         }
         else

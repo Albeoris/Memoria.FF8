@@ -56,7 +56,7 @@ public sealed class BattleActorBoundsTests
         Assert.Equal("target", resolved.Command.PresentationActorId);
         Assert.Equal(body.Words, resolved.Command.Words);
         BattleRenderer renderer = new(320, 240);
-        renderer.RenderNativePrimitiveFrame(Frame(resolved.Command), null);
+        renderer.RenderNativePrimitiveFrame(Frame(resolved.Command.ToCommand()), null);
         Assert.True(renderer.TryGetActorBounds("target", out Vector4 bounds));
         Assert.Equal(new Vector4(80, 60, 100, 80), bounds);
 

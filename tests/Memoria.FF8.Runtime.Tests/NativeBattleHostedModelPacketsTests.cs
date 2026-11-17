@@ -70,11 +70,12 @@ public sealed class NativeBattleHostedModelPacketsTests
     public void Frozen_payload_pages_preserve_linked_bytes_order_and_retained_commands()
     {
         NativeBattleModelPrimitiveBatch.Builder builder = new();
+        int emission = builder.BeginEmission(new("extended-actor", null, null, default, false, false));
         NativeBattleGeometryPrimitive[] originals = Enumerable.Range(0, 130).Select(index => Triangle((ushort)(0x80 + index))).ToArray();
         foreach (NativeBattleGeometryPrimitive primitive in originals)
         {
             builder.AddRaw(primitive.Bucket, primitive.Words.AsSpan(), primitive.VertexPayload4.AsSpan(), primitive.ProjectedCoordinates!.Value.AsSpan(),
-                primitive.PhysicalWriteMask!.Value, default, "extended-actor", null);
+                primitive.PhysicalWriteMask!.Value, default, emission);
         }
         NativeBattleModelPrimitiveBatch batch = builder.Freeze();
 
@@ -238,7 +239,7 @@ public sealed class NativeBattleHostedModelPacketsTests
         reused.ResetFrame();
         ordering = ordering.ResetAfterDraw45D080();
         var result = NativeBattleLogicalPasses.Execute(ordering, PassTables(0x24), new(0), 0, readPhysical: reused.Read);
-        NativeBattleLogicalCommand command = Assert.Single(result.Commands).Command;
+        NativeBattleLogicalCommandReference command = Assert.Single(result.Commands).Command;
         Assert.Equal(triangle.Words.Skip(1).Take(6), command.Words.Take(6));
         Assert.Equal(triangle.Words[^1] | (uint)BinaryPrimitives.ReadUInt16LittleEndian(prior) << 16, command.Words[^1]);
         Assert.Equal(triangle.ProjectedCoordinates, command.ProjectedCoordinates);

@@ -189,7 +189,7 @@ internal sealed class NativeBattleEffect321PresentationObserver
         if (cursor >= start && cursor <= start + PacketLength)
         {
             string bank = start.ToString("X");
-            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == bank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor - start).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+            CurrentCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command.ToCommand()).Where(command => command.Packet.Bank == bank && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= 0 && command.Packet.ByteOffset < cursor - start).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
             if (CurrentCommands.Length > 0)
             {
                 banks.Add(start == FirstPacketAddress ? 0 : 1);

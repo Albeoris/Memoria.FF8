@@ -346,7 +346,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         uint commonEnd = Dword(core, manager + 0x7C);
         Assert.InRange(commonEnd, 0u, checked((uint)process.CommonPacketWriteCapacity));
         int commonBase = process.PacketBuffer * process.CommonPacketNominalCapacity;
-        return primitive.LastCommands.Select(item => item.Command).Where(IsOwned).ToArray();
+        return primitive.LastCommands.Select(item => item.Command.ToCommand()).Where(IsOwned).ToArray();
 
         bool IsOwned(NativeBattleLogicalCommand command)
         {

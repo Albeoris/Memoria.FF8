@@ -175,7 +175,7 @@ public sealed partial class BattlePresentationProcess
             bool hardware = this.resources.NativeGraphics?.PrimitiveCapabilities?.HardwareEnabled ?? throw new NotSupportedException("Native cinematic capture requires its selected backend capability.");
             NativeBattleSoftwarePrimitiveExecution execution = new(software, memory.Textures ?? throw new NotSupportedException("Native cinematic capture requires its shared VRAM image."), table, hardware, cache);
             NativeBattlePrimitiveTables tables = this.resources.NativeGraphics?.PrimitiveTables ?? throw new NotSupportedException("Native cinematic capture requires its original command lengths.");
-            NativeBattleCinematicSoftwareOrdering.Execute45CEE0(primitive.Pending.ProxyCursor ?? throw new NotSupportedException("Native cinematic traversal requires its retained proxy cursor."), () => primitive.Pending.Traverse(tables.WordLengths, ReadNativePhysicalPrimitive, lastRoot, address =>
+            NativeBattleCinematicSoftwareOrdering.ExecuteAdmitted45CEE0(primitive.Pending.ProxyCursor ?? throw new NotSupportedException("Native cinematic traversal requires its retained proxy cursor."), () => primitive.Pending.TraverseReferences(tables.WordLengths, ReadNativePhysicalPrimitive, lastRoot, address =>
             {
                 if (address < privateRoot || (address - privateRoot) / 4 >= privateEntries || ((address - privateRoot) & 3) != 0)
                 {

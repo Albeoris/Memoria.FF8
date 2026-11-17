@@ -78,16 +78,16 @@ public sealed class NativeBattleCompactPilotGeometryTests
     public void Physical_overlap_clears_current_pilot_reference_but_retains_snapshot_and_commands(bool reset)
     {
         NativeBattleModelPrimitiveBatch.Builder batchBuilder = new();
-        NativeBattlePilotGeometryReference pilot = batchBuilder.AddPilot(new(Geometry(0).Identity, new(0, 0, 100), new(10, 0, 100), new(0, 10, 100), default, 3, true, false));
+        NativeBattlePilotGeometryReference pilot = AddPilot(batchBuilder, Geometry(0));
         ImmutableArray<uint> words = [0x04000000, 0x200000FF, 0, 80, 80u << 16];
         ImmutableArray<int> depths = [100, 100, 100, 0];
-        batchBuilder.Add(new(20, words, depths) { Pilot = pilot });
+        batchBuilder.AddRaw(20, words.AsSpan(), depths.AsSpan(), [], [], pilot, 0);
         NativeBattleModelPrimitiveBatch batch = batchBuilder.Freeze();
         NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
         using (NativeBattleLogicalOrdering.Builder writer = new(ordering))
         {
-            writer.PrependModel(reference, batch, 0, 0, null, null);
+            writer.PrependPlacedModel(new(batch, [reference], null, null), 0);
             writer.ToImmutable();
         }
         NativeBattleLogicalCommand command = Assert.Single(ordering.Traverse(Lengths()));
@@ -133,7 +133,7 @@ public sealed class NativeBattleCompactPilotGeometryTests
         for (int index = 0; index < 256; index++)
         {
             NativeBattlePilotVisualGeometry geometry = Geometry(index);
-            NativeBattlePilotGeometryReference pilot = builder.AddPilot(new(geometry.Identity with { Primitive = index }, geometry.A, geometry.B, geometry.C, geometry.D, geometry.CornerCount, geometry.Continuous, geometry.ScreenSpace));
+            NativeBattlePilotGeometryReference pilot = AddPilot(builder, geometry with { Identity = geometry.Identity with { Primitive = index } });
             commands.Add(template with { Pilot = pilot });
         }
         builder.Freeze();
@@ -187,10 +187,16 @@ public sealed class NativeBattleCompactPilotGeometryTests
     private static NativeBattlePilotGeometryReference Compact(NativeBattlePilotVisualGeometry geometry)
     {
         NativeBattleModelPrimitiveBatch.Builder builder = new();
-        NativeBattlePilotGeometryReference reference = builder.AddPilot(new(geometry.Identity, geometry.A, geometry.B, geometry.C, geometry.D, geometry.CornerCount, geometry.Continuous, geometry.ScreenSpace));
+        NativeBattlePilotGeometryReference reference = AddPilot(builder, geometry);
         builder.Freeze();
         Assert.Throws<InvalidOperationException>(() => builder.AddPilot(default));
         return reference;
+    }
+
+    private static NativeBattlePilotGeometryReference AddPilot(NativeBattleModelPrimitiveBatch.Builder builder, NativeBattlePilotVisualGeometry geometry)
+    {
+        int emission = builder.BeginEmission(new(null, null, null, geometry.Identity, geometry.Continuous, geometry.ScreenSpace));
+        return builder.AddPilot(new(geometry.A, geometry.B, geometry.C, geometry.D, geometry.Identity.Primitive, emission, geometry.CornerCount));
     }
 
     private static NativeBattlePilotVisualGeometry Geometry(float x)

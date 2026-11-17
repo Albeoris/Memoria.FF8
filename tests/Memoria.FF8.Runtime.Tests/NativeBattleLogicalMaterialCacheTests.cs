@@ -75,12 +75,12 @@ public sealed class NativeBattleLogicalMaterialCacheTests
         public NativeBattlePcTextureWindowCache? Cache { get; set; } = ResetCache(1);
         public List<byte> NormalPasses { get; } = [];
 
-        public void ExecuteSoftware(NativeBattleLogicalCommand command)
+        public void ExecuteSoftware(NativeBattleLogicalCommandReference command)
         {
             throw new InvalidOperationException("This fixture has no software handlers.");
         }
 
-        public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
+        public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass)
         {
             NormalPasses.Add(pass);
         }
@@ -97,19 +97,19 @@ public sealed class NativeBattleLogicalMaterialCacheTests
         public NativeBattlePcTextureWindowCache ActorCache { get; private set; } = ResetCache(2);
         public List<string> Calls { get; } = [];
 
-        public void ValidateModelTextureOwner(NativeBattleLogicalCommand command)
+        public void ValidateModelTextureOwner(NativeBattleLogicalCommandReference command)
         {
             Assert.Equal(Owner, command.ModelTextureOwner);
         }
 
-        public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommand command)
+        public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommandReference command)
         {
             Assert.Equal(Owner, command.ModelTextureOwner);
             Calls.Add("get");
             return ActorCache;
         }
 
-        public void SetTextureCache(NativeBattleLogicalCommand command, NativeBattlePcTextureWindowCache? cache)
+        public void SetTextureCache(NativeBattleLogicalCommandReference command, NativeBattlePcTextureWindowCache? cache)
         {
             Assert.Equal(Owner, command.ModelTextureOwner);
             Calls.Add("set");

@@ -9,13 +9,13 @@ public sealed class NativeBattleResolvedCommandListTests
     [Fact]
     public void Frozen_pages_keep_order_and_survive_each_builder_lifetime()
     {
-        NativeBattleResolvedCommandList.Builder builder = new();
+        NativeBattleCommandPages<NativeBattleLogicalResolvedCommand>.Builder builder = new();
         NativeBattlePrimitiveDrawMode mode = new(0x65) { TextureWindowBits = 0x120 };
         for (int index = 0; index < 520; index++)
         {
             builder.Add(new(Command(index), mode, (byte)(index % 3)));
         }
-        NativeBattleResolvedCommandList published = builder.Freeze();
+        NativeBattleResolvedCommandList published = new(builder.Freeze());
         Assert.Throws<InvalidOperationException>(() => builder.Add(new(Command(700), mode, 0)));
         Assert.Throws<InvalidOperationException>(() => builder.Freeze());
         NativeBattleResolvedCommandList next = [new(Command(900), mode, 1)];
@@ -77,13 +77,13 @@ public sealed class NativeBattleResolvedCommandListTests
         NativeBattlePilotVisualGeometry geometry = new(new(1, 1, 0, 1, 0), default, default, default, default, 3) { ForeignSurface = surface };
         NativeBattleLogicalCommand rich = Command(256) with { PilotGeometry = geometry };
         NativeBattlePrimitiveDrawMode mode = new(0x65);
-        NativeBattleResolvedCommandList.Builder builder = new();
+        NativeBattleCommandPages<NativeBattleLogicalResolvedCommand>.Builder builder = new();
         for (int index = 0; index < 256; index++)
         {
             builder.Add(new(Command(index), mode, 1));
         }
         builder.Add(new(rich, mode, 2));
-        NativeBattleResolvedCommandList original = builder.Freeze();
+        NativeBattleResolvedCommandList original = new(builder.Freeze());
         NativeBattlePreparedPrimitiveFrame frame = new(original, []);
         NativeBattlePreparedPrimitiveFrame privateFork = NativeBattleStorageSnapshots.Fork(frame);
         NativeBattleResolvedCommandList forked = privateFork.LastCommands;
@@ -105,7 +105,7 @@ public sealed class NativeBattleResolvedCommandListTests
         NativeBattleResolvedCommandList original = Build(530, Command(1), new(0x65));
         Assert.Equal(original, BattlePresentationProcess.ExcludeSceneCopyCommands(original));
 
-        NativeBattleResolvedCommandList varied = NativeBattleResolvedCommandList.From(original.Select((value, index) => index is 256 or 512 ? value with { Command = value.Command with { Opcode = 0x80 } } : value));
+        NativeBattleResolvedCommandList varied = NativeBattleResolvedCommandList.From(original.Select((value, index) => index is 256 or 512 ? value with { Command = value.Command.ToCommand() with { Opcode = 0x80 } } : value));
         NativeBattleResolvedCommandList filtered = BattlePresentationProcess.ExcludeSceneCopyCommands(varied);
         Assert.Equal(528, filtered.Count);
         Assert.Equal(original.Take(256).Concat(original.Skip(257).Take(255)).Concat(original.Skip(513)), filtered);
@@ -135,12 +135,12 @@ public sealed class NativeBattleResolvedCommandListTests
 
     private static NativeBattleResolvedCommandList Build(int count, NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode)
     {
-        NativeBattleResolvedCommandList.Builder builder = new();
+        NativeBattleCommandPages<NativeBattleLogicalResolvedCommand>.Builder builder = new();
         for (int index = 0; index < count; index++)
         {
             builder.Add(new(command, mode, (byte)(index % 3)));
         }
-        return builder.Freeze();
+        return new(builder.Freeze());
     }
 
     private sealed record ArenaMaterial(NativeBattleEffectArena Arena) : INativeBattleForeignMaterial;

@@ -89,7 +89,7 @@ public sealed class NativeBattleAquaPresentationTests
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
-        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094").ToArray();
+        NativeBattleLogicalCommand[] commands = graphics.PrimitiveFrame!.LastCommands.Select(resolved => resolved.Command.ToCommand()).Where(command => command.Packet.Bank is "off_B6D070" or "off_B6D094").ToArray();
         foreach (NativeBattleLogicalCommand candidate in commands.Where(command => Matches(command, expected[0].Primitive)))
         {
             int start = candidate.Packet.ByteOffset - expected[0].Offset;

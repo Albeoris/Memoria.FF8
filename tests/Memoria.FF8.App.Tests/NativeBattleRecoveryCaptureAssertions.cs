@@ -14,7 +14,7 @@ internal static class NativeBattleRecoveryCaptureAssertions
         int count = 0;
         foreach (NativeBattleLogicalResolvedCommand resolved in graphics.PrimitiveFrame!.LastCommands)
         {
-            NativeBattleLogicalCommand command = resolved.Command;
+            NativeBattleLogicalCommand command = resolved.Command.ToCommand();
             // This family emits into its own physical primary packet arena. E1/E2 state and fixed screen rectangles remain discrete.
             if (command.Packet.Bank != "20DFAB8" || command.Opcode < 0x20 || command.Opcode >= 0x60)
             {

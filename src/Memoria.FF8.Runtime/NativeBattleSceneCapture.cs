@@ -58,7 +58,7 @@ public sealed record NativeBattleSceneCapture(BattleSceneVisibleArea Source, Nat
         return new Scope(previous, visibleArea);
     }
 
-    internal void MapSourcePacket(NativeBattleLogicalCommand command, Span<byte> packet)
+    internal void MapSourcePacket(NativeBattleLogicalCommandReference command, Span<byte> packet)
     {
         Validate();
         if (Kind is not (NativeBattleSceneCaptureKind.Source or NativeBattleSceneCaptureKind.SourceEnvironment) || Source == BattleSceneVisibleArea.Native || (command.Opcode & 0xE0) != 0x20)

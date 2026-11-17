@@ -21,7 +21,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         NativeBattleLogicalResolvedCommand visible = Quad(0x28, 0x006400, 200, 1);
         NativeBattleLogicalResolvedCommand source = Quad(0x28, 0x000064, 100, 1);
-        source = source with { Command = source.Command with { SceneCapture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.Source) { X = x, Y = y } } };
+        source = source with { Command = source.Command.ToCommand() with { SceneCapture = new(BattleSceneVisibleArea.Native, NativeBattleSceneCaptureKind.Source) { X = x, Y = y } } };
         NativeBattlePrimitiveFrame frame = Frame([visible, source]);
         BattleRenderer renderer = new(320, 216);
         byte[] expected = offscreen ? [0, 100, 0, 255] : [100, 0, 0, 255];
@@ -39,7 +39,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         NativeBattleLogicalResolvedCommand original = Quad(0x28, 0x006400, 200, 1);
         NativeBattleLogicalResolvedCommand copy = Quad(0x28, 0x000064, 100, 1);
-        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        copy = copy with { Command = copy.Command.ToCommand() with { PresentationActorId = "copy" } };
         NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([original, copy])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", opacity) };
         BattleRenderer renderer = new(320, 216);
         byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, null);
@@ -50,7 +50,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     public void Invisible_actor_does_not_occlude_later_packets_or_submit_gpu_geometry()
     {
         NativeBattleLogicalResolvedCommand copy = Quad(0x28, 0x000064, 100, 1);
-        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        copy = copy with { Command = copy.Command.ToCommand() with { PresentationActorId = "copy" } };
         NativeBattleLogicalResolvedCommand original = Quad(0x28, 0x006400, 200, 1);
         NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([copy, original])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", 0) };
         BattleRenderer renderer = new(320, 216);
@@ -68,7 +68,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     public void Gpu_actor_opacity_preserves_native_alpha_test_and_separates_coverage_from_fade(byte opcode, byte pass, TriangleBlend blend, bool replacesAlpha)
     {
         NativeBattleLogicalResolvedCommand copy = Quad(opcode, 0x646464, 100, pass);
-        copy = copy with { Command = copy.Command with { PresentationActorId = "copy" } };
+        copy = copy with { Command = copy.Command.ToCommand() with { PresentationActorId = "copy" } };
         NativeBattlePreparedPrimitiveFrame frame = NativeBattlePreparedPrimitiveFrame.From(Frame([copy])) with { ActorOpacities = ImmutableDictionary<string, float>.Empty.Add("copy", 0.5f) };
         TextureCapture capture = new();
         BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
@@ -89,7 +89,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
         NativeBattleLogicalResolvedCommand upper = RawCacheQuad();
-        NativeBattleLogicalResolvedCommand lower = upper with { Command = upper.Command with { Words = upper.Command.Words.SetItem(2, 0x40000700u) } };
+        NativeBattleLogicalResolvedCommand lower = upper with { Command = upper.Command.ToCommand() with { Words = upper.Command.Words.SetItem(2, 0x40000700u) } };
         NativeBattlePrimitiveFrame frame = Frame([upper, lower, upper]) with { LastTextureSnapshots = [held] };
         TextureCapture capture = new();
         SampleVariantTextureSource source = new();
@@ -112,8 +112,8 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(2, renderer.TextureDecoding.Value.FullFinalPreviousHits);
         Assert.Equal(new[] { source.FinalImages[1], source.FinalImages[1], source.FinalImages[0], source.FinalImages[0], source.FinalImages[1], source.FinalImages[1] }, capture.Textures);
 
-        upper = upper with { Command = upper.Command with { TextureSourceOwner = "changed-material-owner" } };
-        lower = lower with { Command = lower.Command with { TextureSourceOwner = "changed-material-owner" } };
+        upper = upper with { Command = upper.Command.ToCommand() with { TextureSourceOwner = "changed-material-owner" } };
+        lower = lower with { Command = lower.Command.ToCommand() with { TextureSourceOwner = "changed-material-owner" } };
         renderer.RenderNativePrimitiveFrame(frame with { LastCommands = [upper, lower, upper] }, state, effectTextureSource: source);
 
         Assert.Equal(new[] { 1, 2, 1, 2 }, source.AppliedKeys);
@@ -128,7 +128,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
         NativeBattlePcTextureWindowPixels held = NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, 8, 8), state);
         NativeBattleLogicalResolvedCommand template = RawCacheQuad();
-        NativeBattleLogicalCommand sprite = template.Command with { Opcode = 0x64, Words = [0x64808080, Point(10, 10), 0x40000700, 0x00020002] };
+        NativeBattleLogicalCommand sprite = template.Command.ToCommand() with { Opcode = 0x64, Words = [0x64808080, Point(10, 10), 0x40000700, 0x00020002] };
         NativeBattleLogicalResolvedCommand resolved = template with { Command = sprite, DrawMode = template.DrawMode with { SpriteFilter = new(0, uint.MaxValue) } };
         SampleVariantTextureSource source = new();
         TextureCapture capture = new();
@@ -1004,7 +1004,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         NativeBattleLogicalResolvedCommand Cover(byte opcode, uint color, int bucket, byte pass)
         {
             NativeBattleLogicalResolvedCommand item = Quad(opcode, color, bucket, pass);
-            return item with { Command = item.Command with { Words = [(uint)opcode << 24 | color, Point(0, 0), Point(320, 0), Point(0, 216), Point(320, 216)] } };
+            return item with { Command = item.Command.ToCommand() with { Words = [(uint)opcode << 24 | color, Point(0, 0), Point(320, 0), Point(0, 216), Point(320, 216)] } };
         }
         NativeBattlePrimitiveFrame frame = Frame([Cover(0x28, 0x000064, 100, 1), Cover(0x28, 0x640000, 200, 1), Cover(0x2A, 0xFFFFFF, 50, 2), Cover(0x2A, 0xFFFFFF, 50, 2)]);
         byte[] pixels = new BattleRenderer(960, 721).RenderNativePrimitiveFrame(frame, null);
@@ -1027,9 +1027,9 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     public void Battle_entry_depth_blend_keeps_the_sky_bucket_behind_overlapping_nearer_geometry()
     {
         NativeBattleLogicalResolvedCommand mountain = Quad(0x28, 0x000064, 4122, 1);
-        mountain = mountain with { Command = mountain.Command with { VertexPayload4 = [30000, 30000, 30000, 30000] } };
+        mountain = mountain with { Command = mountain.Command.ToCommand() with { VertexPayload4 = [30000, 30000, 30000, 30000] } };
         NativeBattleLogicalResolvedCommand sky = Quad(0x28, 0x640000, 4382, 1);
-        sky = sky with { Command = sky.Command with { VertexPayload4 = [29500, 29500, 29500, 29500] } };
+        sky = sky with { Command = sky.Command.ToCommand() with { VertexPayload4 = [29500, 29500, 29500, 29500] } };
         NativeBattlePrimitiveFrame frame = Frame([mountain, sky]) with { LastDescriptorPerspective = true };
         BattleRenderer renderer = new(320, 216);
         int sample = 4 * (20 * 320 + 20);
@@ -1072,7 +1072,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         BattleRenderer renderer = new(320, 216);
         NativeBattleLogicalResolvedCommand whole = Quad(0x28, 0x00FF00, 100, 1);
-        NativeBattleLogicalResolvedCommand eighth = whole with { Command = whole.Command with { Flags20 = 0, Words = [0x2800FF00, Point(80, 80), Point(240, 80), Point(80, 240), Point(240, 240)] } };
+        NativeBattleLogicalResolvedCommand eighth = whole with { Command = whole.Command.ToCommand() with { Flags20 = 0, Words = [0x2800FF00, Point(80, 80), Point(240, 80), Point(80, 240), Point(240, 240)] } };
         Assert.Equal(renderer.RenderNativePrimitiveFrame(Frame([whole]), null).ToArray(), renderer.RenderNativePrimitiveFrame(Frame([eighth]), null));
     }
 
@@ -1081,7 +1081,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         BattleRenderer renderer = new(320, 216);
         NativeBattleLogicalResolvedCommand quad = Quad(0x28, 0xFFFFFF, 100, 1);
-        NativeBattlePrimitiveFrame frame = Frame([quad with { Command = quad.Command with { VertexPayload4 = [1000, 1000, 1000, 1000] } }]);
+        NativeBattlePrimitiveFrame frame = Frame([quad with { Command = quad.Command.ToCommand() with { VertexPayload4 = [1000, 1000, 1000, 1000] } }]);
         Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame with { LastDescriptorPerspective = null }, null));
         Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame with { LastDepthState = null }, null));
         Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame with { LastColorState = null }, null));
@@ -1166,7 +1166,7 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
     {
         BattleRenderer renderer = new(320, 216);
         NativeBattleLogicalResolvedCommand texture = TexturedQuad(2);
-        texture = texture with { Pass = 1, Command = texture.Command with { Opcode = 0x2C, Words = texture.Command.Words.SetItem(0, 0x2C808080) } };
+        texture = texture with { Pass = 1, Command = texture.Command.ToCommand() with { Opcode = 0x2C, Words = texture.Command.Words.SetItem(0, 0x2C808080) } };
         byte[] pixels = renderer.RenderNativePrimitiveFrame(Frame([Quad(0x28, 100, 100, 1), texture]), Texture(color));
         Assert.Equal(expectedRed, pixels[4 * (20 * 320 + 20)]);
     }

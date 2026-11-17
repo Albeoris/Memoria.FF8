@@ -78,11 +78,13 @@ public sealed class NativeBattleModelPrimitiveBatchTests
     public void Published_model_pages_cannot_be_changed_by_their_builder()
     {
         NativeBattleModelPrimitiveBatch.Builder builder = new();
-        NativeBattleModelPrimitive value = EmitBatch(Mesh(false, 1))[0];
-        builder.Add(value);
+        int emission = builder.BeginEmission(new(null, null, null, Pilot, false, false));
+        uint[] words = [0x04000000, 0x200000FF, 0, 8, 8u << 16];
+        builder.AddRaw(23, words, [], [], [], default, emission);
         NativeBattleModelPrimitiveBatch frozen = builder.Freeze();
-        Assert.Throws<InvalidOperationException>(() => builder.Add(value));
-        Assert.Equal(value, frozen[0]);
+        Assert.Throws<InvalidOperationException>(() => builder.AddRaw(23, words, [], [], [], default, emission));
+        words[1] = 0;
+        Assert.Equal(0x200000FFu, frozen.ReadWords(0)[1]);
     }
 
     [Fact]

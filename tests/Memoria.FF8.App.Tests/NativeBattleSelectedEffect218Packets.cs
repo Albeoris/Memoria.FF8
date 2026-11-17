@@ -14,7 +14,7 @@ internal static class NativeBattleSelectedEffect218Packets
         Assert.InRange(end, first, process.CommonPacketWriteCapacity);
         NativeBattlePrimitiveFrame primitive = snapshot.ReadFixturePresentation().NativeGraphics?.PrimitiveFrame ?? throw new InvalidDataException("Effect218 visibility requires its current physical commands.");
         int bankOffset = checked(process.PacketBuffer * process.CommonPacketNominalCapacity);
-        return primitive.LastCommands.Select(value => value.Command).Where(IsOwned).ToArray();
+        return primitive.LastCommands.Select(value => value.Command.ToCommand()).Where(IsOwned).ToArray();
 
         bool IsOwned(NativeBattleLogicalCommand command)
         {

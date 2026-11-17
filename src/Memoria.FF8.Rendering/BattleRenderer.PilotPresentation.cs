@@ -29,9 +29,9 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private void ObservePilotSubmittedTriangle(NativeBattleLogicalResolvedCommand resolved, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
+    private void ObservePilotSubmittedTriangle(in NativeBattleLogicalResolvedCommand resolved, PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, int cornerA, int cornerB, int cornerC)
     {
-        NativeBattleLogicalCommand command = resolved.Command;
+        NativeBattleLogicalCommandReference command = resolved.Command;
         if (command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
             return;
@@ -50,7 +50,7 @@ public sealed partial class BattleRenderer
         ObservePilotSubmittedCorner(command, cornerC, new(c.X, c.Y), new(c.Z, c.ReciprocalW), c.Uv, c.Color, c.Alpha);
     }
 
-    private void ObservePilotSubmittedCorner(NativeBattleLogicalCommand command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
+    private void ObservePilotSubmittedCorner(in NativeBattleLogicalCommandReference command, int corner, Vector2 position, NativeBattlePrimitiveDepthVertex depth, Vector2 uv, Vector3 color, float alpha)
     {
         if (!PilotDiagnosticsEnabled || command.Pilot is not { IsEmpty: false } geometry || !NativeBattleSmoothPresentation.Supports(geometry.Identity.Effect))
         {
@@ -121,9 +121,9 @@ public sealed partial class BattleRenderer
 
         void Check(NativeBattlePreparedPrimitiveFrame frame)
         {
-            foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
+            foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
             {
-                NativeBattleLogicalCommand command = resolved.Command;
+                NativeBattleLogicalCommandReference command = resolved.Command;
                 if (resolved.Pass == 0 || command.Opcode is >= 0xE1 and <= 0xE6 or 0x02 or 0x80)
                 {
                     continue;
@@ -164,7 +164,7 @@ public sealed partial class BattleRenderer
         }
         pilotProjection = NativeBattlePilotVisualGeometry.SampleProjection(earlier.PilotProjection!, later.PilotProjection!, earlier.PilotCamera!, later.PilotCamera!, pilotAlpha);
         pilotNextGeometry.Clear();
-        foreach (NativeBattleLogicalResolvedCommand resolved in later.Primitives.LastCommands)
+        foreach (ref readonly NativeBattleLogicalResolvedCommand resolved in later.Primitives.LastCommands)
         {
             if (resolved.Command.Pilot is { IsEmpty: false } geometry)
             {
@@ -182,7 +182,7 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private bool TrySamplePilotVertex(NativeBattleLogicalCommand command, int corner, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
+    private bool TrySamplePilotVertex(in NativeBattleLogicalCommandReference command, int corner, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
     {
         position = default;
         depthVertex = default;

@@ -57,7 +57,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     public void FlushSoftwareImage() => PublishImage();
 
-    public void ValidateModelTextureOwner(NativeBattleLogicalCommand command)
+    public void ValidateModelTextureOwner(NativeBattleLogicalCommandReference command)
     {
         if (command.ModelTextureOwner is { } owner)
         {
@@ -70,12 +70,12 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
     }
 
-    public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommand command)
+    public NativeBattlePcTextureWindowCache? GetTextureCache(NativeBattleLogicalCommandReference command)
     {
         return command.ModelTextureOwner is { } owner ? WithCacheControls(RequireModelTexture(owner).Cache, RequireGlobalCache()) : Cache;
     }
 
-    public void SetTextureCache(NativeBattleLogicalCommand command, NativeBattlePcTextureWindowCache? cache)
+    public void SetTextureCache(NativeBattleLogicalCommandReference command, NativeBattlePcTextureWindowCache? cache)
     {
         if (command.ModelTextureOwner is not { } owner)
         {
@@ -149,7 +149,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         }
     }
 
-    public void ExecuteSoftware(NativeBattleLogicalCommand command)
+    public void ExecuteSoftware(NativeBattleLogicalCommandReference command)
     {
         if (command.Opcode == 0x80)
         {
@@ -207,7 +207,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         imageChanged = true;
     }
 
-    public void ExecuteNormal(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass)
+    public void ExecuteNormal(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass)
     {
         if (pass != 0 && LiveDispatchFlags != 0)
         {
@@ -289,12 +289,12 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         return ReferenceEquals(mode, command.DrawMode) ? command : command with { DrawMode = mode };
     }
 
-    public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
+    public NativeBattleLogicalResolvedCommand RetainTexturePixels(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
     {
         return new(command, RetainTextureDrawMode(command, mode, pass, selection), pass);
     }
 
-    private NativeBattlePrimitiveDrawMode RetainTextureDrawMode(NativeBattleLogicalCommand command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
+    private NativeBattlePrimitiveDrawMode RetainTextureDrawMode(NativeBattleLogicalCommandReference command, NativeBattlePrimitiveDrawMode mode, byte pass, NativeBattlePcTextureWindowSelection? selection)
     {
         bool sprite = pass != 0 && command.Opcode is 0x64 or 0x66;
         NativeBattleSpriteFilterState? spriteFilter = sprite ? State.SpriteFilter : mode.SpriteFilter;
@@ -396,7 +396,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
             (first.SceneCopies is { } copies ? second.SceneCopies is { } other && copies.SequenceEqual(other) : second.SceneCopies is null);
     }
 
-    private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalCommand command, ushort? texturePage)
+    private NativeBattleSceneCaptureSample RetainSceneCapture(NativeBattleSceneCapture capture, NativeBattleLogicalCommandReference command, ushort? texturePage)
     {
         capture = capture with { SampleCoordinates = null };
         capture.Validate();
@@ -425,7 +425,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
 
     }
 
-    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalCommand command, ushort? texturePage, NativeBattleEffectTextureState textureSource)
+    private ImmutableArray<ushort> RetainScenePalette(NativeBattleLogicalCommandReference command, ushort? texturePage, NativeBattleEffectTextureState textureSource)
     {
         ushort page = texturePage ?? throw new InvalidDataException("Scene sampling requires its executed texture page.");
         int depth = page >> 7 & 3;
@@ -490,7 +490,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         State = State with { Environment = NativeSoftwareDrawingEnvironment.EndBatch45D080(State.Environment), SceneCapture = null };
     }
 
-    private void ExecuteState(NativeBattleLogicalCommand command)
+    private void ExecuteState(NativeBattleLogicalCommandReference command)
     {
         if (command.WordSpan.Length != 1)
         {
@@ -543,7 +543,7 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         void Word(int offset, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset), value);
     }
 
-    private void ExecuteImageTransfer(NativeBattleLogicalCommand command)
+    private void ExecuteImageTransfer(NativeBattleLogicalCommandReference command)
     {
         if (command.WordSpan.Length != 4)
         {

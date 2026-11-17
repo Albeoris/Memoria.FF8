@@ -167,6 +167,7 @@ public static class NativeBattleRawGeometryPackets
         Span<uint> words = stackalloc uint[10];
         Span<int> depths = stackalloc int[4];
         Span<BattleSceneScreenPoint> coordinates = stackalloc BattleSceneScreenPoint[4];
+        int? emission = null;
         for (int polygonIndex = 0; polygonIndex < polygons.Length; polygonIndex++)
         {
             NativeBattleRawPolygon polygon = polygons[polygonIndex];
@@ -179,6 +180,11 @@ public static class NativeBattleRawGeometryPackets
             {
                 ReadOnlySpan<uint> packet = words[..(polygon.Quad ? 10 : 8)];
                 ReadOnlySpan<BattleSceneScreenPoint> retainedCoordinates = projectedCoordinates is null ? default : coordinates[..(polygon.Quad ? 4 : 3)];
+                if (modelResult is not null && !emission.HasValue)
+                {
+                    NativeBattleSceneCapture? sceneCapture = NativeBattleSceneCapture.Current;
+                    emission = modelResult.BeginEmission(new(actorId, sceneCapture is null ? material : null, sceneCapture, pilotIdentity.GetValueOrDefault(), pilotContinuous, pilotScreenSpace));
+                }
                 NativeBattlePilotGeometryReference pilotGeometry = default;
                 if (pilotIdentity is { } identity && (pilotWorldVertices is not null || pilotScreenSpace))
                 {
@@ -193,19 +199,19 @@ public static class NativeBattleRawGeometryPackets
                         }
                         return pilotWorldVertices![index];
                     }
-                    NativeBattlePilotVisualIdentity polygonIdentity = identity with { Primitive = unchecked(identity.Primitive * 65537 + polygonIndex) };
+                    int primitive = unchecked(identity.Primitive * 65537 + polygonIndex);
                     if (modelResult is not null)
                     {
-                        pilotGeometry = modelResult.AddPilot(new(polygonIdentity, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous, pilotScreenSpace));
+                        pilotGeometry = modelResult.AddPilot(new(Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, primitive, emission!.Value, (byte)(polygon.Quad ? 4 : 3)));
                     }
                     else
                     {
-                        pilotGeometry = new NativeBattlePilotVisualGeometry(polygonIdentity, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
+                        pilotGeometry = new NativeBattlePilotVisualGeometry(identity with { Primitive = primitive }, Corner(0), Corner(1), Corner(2), polygon.Quad ? Corner(3) : default, (byte)(polygon.Quad ? 4 : 3), pilotContinuous) { ScreenSpace = pilotScreenSpace };
                     }
                 }
                 if (modelResult is not null)
                 {
-                    modelResult.AddRaw(bucket, packet, depths, retainedCoordinates, NativeBattleGeometryPackets.RawPhysicalWriteMask(polygon.Quad), pilotGeometry, actorId, material);
+                    modelResult.AddRaw(bucket, packet, depths, retainedCoordinates, NativeBattleGeometryPackets.RawPhysicalWriteMask(polygon.Quad), pilotGeometry, emission!.Value);
                 }
                 else
                 {
