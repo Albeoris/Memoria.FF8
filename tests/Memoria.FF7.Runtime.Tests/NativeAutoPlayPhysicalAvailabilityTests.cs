@@ -124,6 +124,9 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(Ff7AutoplayDriver.SelectFloorContact([closer], Vector3.Zero, original) == closer, "An invalidated contact remained an advisory escape target.");
         Check(Ff7AutoplayDriver.SelectFloorContact([original, closer], Vector3.Zero, null) == closer, "A consumed or invalid native prefix prevented fresh contact selection.");
         Check(Ff7AutoplayDriver.SelectFloorContact([(original.Point, 7), closer], Vector3.Zero, original) == closer, "A contact on another floor inherited an old prefix solely by position.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([(closer.Point, 1), (closer.Point, 9)], Vector3.Zero, null, 9).Triangle == 9, "A duplicate contact point invented transit into another triangle instead of retaining its native current layer.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([(closer.Point, 1), (closer.Point, 9)], Vector3.Zero, (closer.Point, 1), 9).Triangle == 1, "A current-layer contact displaced a freshly validated executing native prefix.");
+        Check(Ff7AutoplayDriver.SelectFloorContact([(new Vector3(-10, 0, 0), 1), (new Vector3(10, 0, 0), 9)], Vector3.Zero, null, 9).Triangle == 1, "A different equal-distance point was mistaken for a duplicate native contact identity.");
     }
 
     private static void CheckDirectedAdviceRefinement()

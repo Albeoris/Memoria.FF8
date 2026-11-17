@@ -41,16 +41,17 @@ public sealed partial class Ff7AutoplayDriver
         {
             retained = (acceptedTarget, waypointDestination);
         }
-        return SelectFloorContact(contacts, Position3D(player), retained);
+        return SelectFloorContact(contacts, Position3D(player), retained, player.Triangle);
     }
 
-    internal static (Vector3 Point, int Triangle) SelectFloorContact(IReadOnlyList<(Vector3 Point, int Triangle)> contacts, Vector3 position, (Vector3 Point, int Triangle)? retained)
+    internal static (Vector3 Point, int Triangle) SelectFloorContact(IReadOnlyList<(Vector3 Point, int Triangle)> contacts, Vector3 position, (Vector3 Point, int Triangle)? retained, int? sourceTriangle = null)
     {
         if (retained is { } selected && contacts.Contains(selected))
         {
             return selected;
         }
-        return contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
+        var nearest = contacts.OrderBy(contact => Vector3.DistanceSquared(position, contact.Point)).ThenBy(contact => contact.Triangle).First();
+        return contacts.Where(contact => contact.Point == nearest.Point).OrderBy(contact => contact.Triangle == sourceTriangle ? 0 : 1).ThenBy(contact => contact.Triangle).First();
     }
 
     private static bool MatchesEscapeSource(Ff7Actor player, EscapeStep step)
