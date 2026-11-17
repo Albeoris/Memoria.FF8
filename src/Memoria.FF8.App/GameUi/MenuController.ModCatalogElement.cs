@@ -10,7 +10,7 @@ public sealed partial class MenuController
         private readonly MenuController menus;
         private readonly ModLibrarySnapshot snapshot;
         private readonly bool downloads;
-        private readonly RemoteModEntry[] entries;
+        private readonly CatalogRow[] entries;
         private readonly ModLibraryJob[] jobs;
         private readonly Dictionary<string, UiElement> controls = new();
         private readonly CatalogTable table;
@@ -24,7 +24,8 @@ public sealed partial class MenuController
         private float rowHeight;
         private bool wide;
         private int Count => downloads ? jobs.Length : entries.Length;
-        private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected) ?? menus.SelectedCatalog;
+        private bool IsMemoriaPackage => !downloads && entries.ElementAtOrDefault(selected)?.Id == CatalogMemoriaId;
+        private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected)?.Entry ?? menus.SelectedCatalog;
         private ModLibraryJob? Job => downloads ? jobs.ElementAtOrDefault(selected) : Entry is { } entry && menus.EntryJob(entry) is { } job && !(job.Phase == "Installed" && menus.ManagedRepairNeeded(entry)) ? job : null;
 
         public ModCatalogElement(MenuController menus)
@@ -32,9 +33,9 @@ public sealed partial class MenuController
             this.menus = menus;
             snapshot = menus.modLibrarySnapshot!;
             downloads = menus.IsDownloads;
-            entries = menus.FilteredCatalog();
+            entries = menus.CatalogRows();
             jobs = snapshot.Jobs.OrderBy(job => JobGroup(job)).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).ToArray();
-            selected = downloads ? Array.FindIndex(jobs, job => job.Id == menus.selectedDownloadId) : Array.FindIndex(entries, entry => CatalogIdentity(entry) == menus.selectedCatalogId);
+            selected = downloads ? Array.FindIndex(jobs, job => job.Id == menus.selectedDownloadId) : Array.FindIndex(entries, row => row.Id == menus.selectedCatalogId);
             if (selected < 0 && (downloads || menus.selectedCatalogId is null))
             {
                 selected = 0;
@@ -100,6 +101,10 @@ public sealed partial class MenuController
 
         private string PrimaryLabel()
         {
+            if (IsMemoriaPackage)
+            {
+                return "Settings";
+            }
             if (Job is { } job)
             {
                 return job.CanInstall ? "Install" : job.CanRetry ? "Retry" : job.CanResume ? "Resume" : downloads ? "Full details" : "View download";
@@ -115,14 +120,18 @@ public sealed partial class MenuController
             return Entry is { } entry && menus.ManagedMod(entry) is { Pending: true } ? "View pending change" : Entry is { } local && (menus.AssociatedMod(local) is not null || menus.ManagedMod(local) is not null) ? "View installed mod" : "Download & check";
         }
 
-        private bool CanPrimary() => Entry is not null && (Job is not null || menus.AssociatedMod(Entry) is not null || menus.ManagedMod(Entry) is not null || menus.CanDownload(Entry) && menus.CatalogEntryListed(Entry) && Entry.Links.Count > 0);
+        private bool CanPrimary() => IsMemoriaPackage || Entry is not null && (Job is not null || menus.AssociatedMod(Entry) is not null || menus.ManagedMod(Entry) is not null || menus.CanDownload(Entry) && menus.CatalogEntryListed(Entry) && Entry.Links.Count > 0);
         private void Primary()
         {
             if (!CanPrimary())
             {
                 return;
             }
-            if (Job is { } job)
+            if (IsMemoriaPackage)
+            {
+                menus.ExecuteModSettingsAction(new("mod-settings-open", ModRuntime.MemoriaPackageId));
+            }
+            else if (Job is { } job)
             {
                 if (job.CanInstall)
                 {
@@ -206,10 +215,10 @@ public sealed partial class MenuController
             {
                 menus.selectedDownloadId = job.Id;
             }
-            else if (entries.ElementAtOrDefault(selected) is { } entry)
+            else if (entries.ElementAtOrDefault(selected) is { } row)
             {
-                menus.selectedCatalogId = CatalogIdentity(entry);
-                menus.retainedCatalogEntry = entry;
+                menus.selectedCatalogId = row.Id;
+                menus.retainedCatalogEntry = row.Entry;
                 menus.selectedDownloadId = null;
             }
             if (invalidate)
@@ -382,7 +391,7 @@ public sealed partial class MenuController
                         canvas.ModPreview("", preview);
                     }
                     UiRect textBounds = new(inspector.X + 10, preview.Bottom + 8, Math.Max(0, inspector.Width - 20), Math.Max(0, available - previewHeight - 8));
-                    string detail = Entry is null ? "Select a mod to see its details." : Entry.Name + "\n" + Entry.Author + "\n" + (Job?.Phase ?? menus.CatalogStatus(Entry)) + "\n" + Entry.Description + "\n\nVersion " + Entry.Version + " · " + Entry.Category + "\n" + Entry.Edition + " · " + Entry.Language + "\nSource: " + Entry.SourceId + "\n" + (Job is { } job ? DownloadProgress(job) + "\n" + job.Details + (job.Error is null ? "" : "\nNeeds attention · Full details") : "Download checks package support before installation.") + (snapshot.Error is null ? "" : "\nA library operation needs attention · Full details");
+                    string detail = IsMemoriaPackage ? string.Join("\n", menus.LibraryDetails()) : Entry is null ? "Select a mod to see its details." : Entry.Name + "\n" + Entry.Author + "\n" + (Job?.Phase ?? menus.CatalogStatus(Entry)) + "\n" + Entry.Description + "\n\nVersion " + Entry.Version + " · " + Entry.Category + "\n" + Entry.Edition + " · " + Entry.Language + "\nSource: " + Entry.SourceId + "\n" + (Job is { } job ? DownloadProgress(job) + "\n" + job.Details + (job.Error is null ? "" : "\nNeeds attention · Full details") : "Download checks package support before installation.") + (snapshot.Error is null ? "" : "\nA library operation needs attention · Full details");
                     canvas.Text(detail, 17 * scale, textBounds, theme.Foreground, UiAlignment.Start, UiTextFlow.Wrap);
                 }
                 finally
@@ -405,15 +414,15 @@ public sealed partial class MenuController
                     for (int offset = 0; offset < owner.pageSize && owner.first + offset < owner.Count; offset++)
                     {
                         int index = owner.first + offset;
-                        RemoteModEntry entry = owner.downloads ? owner.jobs[index].Entry : owner.entries[index];
+                        RemoteModEntry? entry = owner.downloads ? owner.jobs[index].Entry : owner.entries[index].Entry;
                         UiRect row = new(Bounds.X, Bounds.Y + offset * owner.rowHeight, Bounds.Width, owner.rowHeight);
                         if (index == owner.selected)
                         {
                             theme.Selection(canvas, row);
                         }
                         theme.RowSeparator(canvas, new(row.X, row.Bottom - 1, row.Width, 1));
-                        canvas.Text(entry.Name, 17 * owner.scale, new(row.X + 8, row.Y + 4, Math.Max(0, row.Width - 16), row.Height * 0.45f), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
-                        string caption = owner.downloads ? JobGroupLabel(owner.jobs[index]) + " · " + owner.jobs[index].Phase : entry.Author + " · " + entry.Category + " · " + owner.menus.CatalogStatus(entry);
+                        canvas.Text(owner.downloads ? entry!.Name : owner.entries[index].Name, 17 * owner.scale, new(row.X + 8, row.Y + 4, Math.Max(0, row.Width - 16), row.Height * 0.45f), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+                        string caption = owner.downloads ? JobGroupLabel(owner.jobs[index]) + " · " + owner.jobs[index].Phase : entry is null ? owner.entries[index].Status : entry.Author + " · " + entry.Category + " · " + owner.menus.CatalogStatus(entry);
                         canvas.Text(caption, 13 * owner.scale, new(row.X + 8, row.Y + row.Height * 0.5f, Math.Max(0, row.Width - 16), row.Height * 0.4f), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
                     }
                     if (owner.Count == 0)

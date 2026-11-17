@@ -302,9 +302,9 @@ public sealed partial class MenuController
         if (action.Kind == "mod-settings-open")
         {
             string? packageId = action.SubjectId.Length > 0 ? action.SubjectId : selectedModId;
-            if (packageId is not null && modService is not null)
+            if (packageId is not null)
             {
-                modSettings = modService.ReadBehaviorSettings(packageId).ToArray();
+                modSettings = modService?.ReadBehaviorSettings(packageId).ToArray() ?? [];
                 if (modSettings.Length > 0 || packageId == ModRuntime.MemoriaPackageId && OfficialEntries.Any())
                 {
                     modSettingsPackageId = packageId;

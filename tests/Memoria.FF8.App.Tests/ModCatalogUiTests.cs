@@ -8,6 +8,55 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModCatalogUiTests
 {
     [Fact]
+    public void CatalogGroupsOfficialComponentsFirstAndOpensSharedSettings()
+    {
+        Library service = new();
+        service.UseOfficialProfile();
+        OfficialModComponent girl = OfficialModCatalog.GirlNextDoor;
+        OfficialModArtifact artifact = new("https://example.invalid/component.zip", 1000, 1200, new('a', 64));
+        girl = girl with { Latest = new("1.0.0", "[0.8.10,)", "memoria-girl-next-door-v1.0.0", "", artifact) };
+        RemoteModEntry official = new(OfficialModCatalog.SourceId, girl.CatalogId, girl.Name, "1.0.0") { Official = girl, Links = [artifact.Url] };
+        OfficialModComponent another = girl with { Id = "another-cover", RuntimePackageId = "Memoria/Another", SettingsKey = "Another", Name = "Another" };
+        RemoteModEntry second = official with { Id = another.CatalogId, Official = another, Name = another.Name };
+        RemoteModEntry external = service.View.Catalog.Entries[0] with { Name = "AAA external", Author = "Memoria" };
+        service.Publish(entries: [external, second, official]);
+        MenuController menu = Menu(service);
+        Assert.Equal(["Memoria", "AAA external"], menu.Entries.Select(entry => entry.Label));
+        UiView view = Arrange(menu);
+        using Bitmap bitmap = new(1280, 896);
+        using (PreviewCanvas canvas = new(bitmap))
+        {
+            view.Draw(canvas, new UiTheme());
+        }
+        Assert.Equal("Settings", Assert.IsType<UiButton>(Element(view, "library-primary")).Text);
+        Assert.Contains(menu.CurrentScreen.Details(menu), line => line.Contains(girl.Name));
+        Element(view, "library-primary").Key(UiKey.Confirm);
+        Assert.Equal("mod-settings", menu.ScreenId);
+        Assert.Contains(menu.Entries, entry => entry.Id == "official-memoria-girl-next-door");
+        Assert.Contains(menu.Entries, entry => entry.Id == "official-another-cover");
+        menu.Execute(new("official-setting", official.SourceId + ":" + official.Id, Value: "enable"));
+        Assert.Equal(["enable:Girl Next Door"], service.Commands);
+        menu.Back();
+        service.Publish(entries: [official, external, second]);
+        menu.RefreshModView();
+        Assert.Equal("Settings", Assert.IsType<UiButton>(Element(Arrange(menu), "library-primary")).Text);
+        menu.Push("mods-catalog-search");
+        foreach (char letter in girl.Name)
+        {
+            menu.EnterModSearchCharacter(letter);
+        }
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("Memoria", Assert.Single(menu.Entries).Label);
+        Guid jobId = Guid.NewGuid();
+        service.Publish(jobs: [Job(jobId, official, "Downloading", pause: true)]);
+        menu.RefreshModView();
+        menu.Push("mods-downloads");
+        Arrange(menu);
+        Assert.Equal(girl.Name, Assert.Single(menu.Entries).Label);
+        Assert.Contains(girl.Name, menu.CurrentScreen.Details(menu));
+    }
+
+    [Fact]
     public void NamespacedCatalogMatchesInstalledPreviousDescriptorWithoutDuplicateRow()
     {
         string root = Path.Combine(Path.GetTempPath(), "mod-catalog-identity-" + Guid.NewGuid().ToString("N"));

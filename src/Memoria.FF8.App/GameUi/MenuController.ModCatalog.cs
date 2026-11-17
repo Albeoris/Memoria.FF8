@@ -64,7 +64,10 @@ public sealed partial class MenuController
     private bool IsLibraryScreen => ScreenId is "mods-catalog" or "mods-downloads";
     private bool IsDownloads => ScreenId == "mods-downloads";
     private ModLibraryJob? SelectedDownload => modLibrarySnapshot?.Jobs.FirstOrDefault(job => job.Id == selectedDownloadId);
-    private RemoteModEntry? SelectedCatalog => modLibrarySnapshot?.Catalog.Entries.FirstOrDefault(entry => CatalogIdentity(entry) == selectedCatalogId) ?? retainedCatalogEntry;
+    private const string CatalogMemoriaId = "package:Memoria";
+    private sealed record CatalogRow(string Id, string Name, string Status, RemoteModEntry? Entry = null);
+    private bool IsCatalogMemoriaSelected => selectedCatalogId == CatalogMemoriaId;
+    private RemoteModEntry? SelectedCatalog => modLibrarySnapshot?.Catalog.Entries.FirstOrDefault(entry => CatalogIdentity(entry) == selectedCatalogId) ?? (IsCatalogMemoriaSelected ? null : retainedCatalogEntry);
     private ModPackageView? AssociatedMod(RemoteModEntry entry) => modService?.View.Packages.FirstOrDefault(package => package.Package.JunctionMetadata?.Id == entry.Id);
     private ModLibraryInstallation? ManagedMod(RemoteModEntry entry) => modLibrarySnapshot?.Installations.FirstOrDefault(receipt => receipt.SourceId == entry.SourceId && receipt.Id == entry.Id);
     private bool ManagedRepairNeeded(RemoteModEntry entry) => ManagedMod(entry) is { Pending: false, Available: false };
@@ -107,12 +110,28 @@ public sealed partial class MenuController
         (catalogFilter switch { 1 => CanDownload(entry) && EntryJob(entry) is null && AssociatedMod(entry) is null && ManagedMod(entry) is null, 2 => AssociatedMod(entry) is not null || ManagedMod(entry) is not null, 3 => EntryJob(entry) is not null, 4 => EntryJob(entry)?.Error is not null, 5 => entry.Official is not null, _ => true }))
         .OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(CatalogIdentity, StringComparer.Ordinal).ToArray();
 
+    private CatalogRow[] CatalogRows()
+    {
+        RemoteModEntry[] filtered = FilteredCatalog();
+        List<CatalogRow> rows = [];
+        if (filtered.Any(entry => entry.Official is not null))
+        {
+            rows.Add(new(CatalogMemoriaId, ModRuntime.MemoriaPackageId, MemoriaAvailability("Memoria")));
+        }
+        rows.AddRange(filtered.Where(entry => entry.Official is null).Select(entry => new CatalogRow(CatalogIdentity(entry), entry.Name, CatalogStatus(entry), entry)));
+        return rows.ToArray();
+    }
+
     private IReadOnlyList<MenuEntry> LibraryEntries() => IsDownloads
         ? (modLibrarySnapshot?.Jobs ?? []).Select(job => new MenuEntry(job.Id.ToString(), job.Entry.Name, job.Phase)).ToArray()
-        : FilteredCatalog().Select(entry => new MenuEntry(CatalogIdentity(entry), entry.Name, CatalogStatus(entry))).ToArray();
+        : CatalogRows().Select(row => new MenuEntry(row.Id, row.Name, row.Status)).ToArray();
 
     private IReadOnlyList<string> LibraryDetails()
     {
+        if (!IsDownloads && IsCatalogMemoriaSelected && selectedDownloadId is null)
+        {
+            return [ModRuntime.MemoriaPackageId, MemoriaAvailability("Memoria"), .. OfficialEntries.Select(PresentCatalogEntry).Select(entry => entry.Name + " · " + CatalogStatus(entry))];
+        }
         ModLibraryJob? job = IsDownloads || ScreenId == "mods-library-details" && selectedDownloadId is not null ? SelectedDownload : SelectedCatalog is { } selected ? EntryJob(selected) : null;
         RemoteModEntry? entry = job?.Entry ?? SelectedCatalog;
         if (entry is null)
