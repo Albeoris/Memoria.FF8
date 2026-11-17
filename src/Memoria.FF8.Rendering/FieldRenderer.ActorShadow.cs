@@ -14,8 +14,14 @@ public sealed partial class FieldRenderer
     private static readonly int[] ShadowSine = [0, 2896, 4096, 2896, 0, -2896, -4096, -2896];
     private static readonly int[] ShadowCosine = [4096, 2896, 0, -2896, -4096, -2896, 0, 2896];
 
+    public bool NativeFieldShadows { get; set; } = true;
+
     private void DrawActorShadow(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
     {
+        if (!NativeFieldShadows)
+        {
+            return;
+        }
         float lightingOpacity = 1;
         if (effectiveLighting is not null)
         {

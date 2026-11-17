@@ -21,7 +21,13 @@ public enum LightingProperty
     InnerCone,
     OuterCone,
     ShadowOpacity,
-    ShadowSoftness
+    ShadowSoftness,
+    ReceiverX,
+    ReceiverY,
+    ReceiverZ,
+    ReceiverWidth,
+    ReceiverExtent,
+    ReceiverHeading
 }
 
 public sealed partial class LightingEditorController
@@ -40,7 +46,12 @@ public sealed partial class LightingEditorController
 
     public void BeginPropertyEdit(LightingProperty property)
     {
-        if (!CommitPendingEdit() || Selected is null && property is not (LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness))
+        if (!CommitPendingEdit())
+        {
+            return;
+        }
+        bool hasTarget = IsReceiverProperty(property) ? SelectedReceiver is not null : Selected is not null || property is LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness;
+        if (!hasTarget)
         {
             return;
         }
@@ -162,6 +173,12 @@ public sealed partial class LightingEditorController
             LightingProperty.OuterCone => light?.OuterConeDegrees ?? 65,
             LightingProperty.ShadowOpacity => Draft.GroundShadow.Opacity,
             LightingProperty.ShadowSoftness => Draft.GroundShadow.Softness,
+            LightingProperty.ReceiverX => SelectedReceiver?.Center.X ?? 0,
+            LightingProperty.ReceiverY => SelectedReceiver?.Center.Y ?? 0,
+            LightingProperty.ReceiverZ => SelectedReceiver?.Center.Z ?? 0,
+            LightingProperty.ReceiverWidth => SelectedReceiver?.Width ?? 0,
+            LightingProperty.ReceiverExtent => SelectedReceiver?.Extent ?? 0,
+            LightingProperty.ReceiverHeading => SelectedReceiver?.HeadingDegrees ?? 0,
             _ => 0
         };
     }
@@ -183,6 +200,20 @@ public sealed partial class LightingEditorController
 
     private FieldLightingScene WithProperty(FieldLightingScene scene, LightingProperty property, float value)
     {
+        if (IsReceiverProperty(property) && SelectedReceiver is { } receiver)
+        {
+            FieldShadowReceiver editedReceiver = property switch
+            {
+                LightingProperty.ReceiverX => receiver with { Center = receiver.Center with { X = value } },
+                LightingProperty.ReceiverY => receiver with { Center = receiver.Center with { Y = value } },
+                LightingProperty.ReceiverZ => receiver with { Center = receiver.Center with { Z = value } },
+                LightingProperty.ReceiverWidth => receiver with { Width = value },
+                LightingProperty.ReceiverExtent => receiver with { Extent = value, Center = receiver.Kind == "wall" ? receiver.Center + Vector3.UnitZ * ((value - receiver.Extent) * 0.5f) : receiver.Center },
+                LightingProperty.ReceiverHeading => receiver with { HeadingDegrees = value },
+                _ => throw new ArgumentOutOfRangeException(nameof(property))
+            };
+            return ReplaceReceiver(scene, editedReceiver);
+        }
         if (property == LightingProperty.ShadowOpacity)
         {
             return scene with { GroundShadow = scene.GroundShadow with { Opacity = value } };
@@ -210,6 +241,11 @@ public sealed partial class LightingEditorController
             _ => light
         };
         return ReplaceLight(scene, edited);
+    }
+
+    private static bool IsReceiverProperty(LightingProperty property)
+    {
+        return property is >= LightingProperty.ReceiverX and <= LightingProperty.ReceiverHeading;
     }
 
     private static Vector3 NormalizeDirection(Vector3 direction)

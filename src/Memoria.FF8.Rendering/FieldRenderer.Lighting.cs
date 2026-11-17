@@ -10,6 +10,8 @@ public sealed partial class FieldRenderer
     private readonly Dictionary<int, LitActorPose> litActorPoses = [];
     private readonly Dictionary<int, FieldActorShadowState> lightingShadowStates = [];
     private readonly HashSet<int> shadowReceiverIds = [];
+    private readonly List<WalkmeshTriangle> nativeShadowReceiverDiagnostics = [];
+    private readonly List<FieldShadowReceiverGeometry> authoredShadowReceivers = [];
     private readonly List<FieldShadowTriangle> shadowCasters = [];
     private FieldLightingScene? effectiveLighting;
 
@@ -19,6 +21,7 @@ public sealed partial class FieldRenderer
     public string? LightingUnavailableReason { get; private set; }
     public string? LightingShadowDiagnostic { get; private set; }
     public IReadOnlyDictionary<int, FieldActorShadowState> LightingShadowStates => lightingShadowStates;
+    public IReadOnlyList<WalkmeshTriangle> LightingNativeShadowReceivers => nativeShadowReceiverDiagnostics;
 
     public Vector2? ProjectWorldPoint(Vector3 world)
     {
@@ -81,6 +84,8 @@ public sealed partial class FieldRenderer
         litActorPoses.Clear();
         lightingShadowStates.Clear();
         shadowReceiverIds.Clear();
+        nativeShadowReceiverDiagnostics.Clear();
+        authoredShadowReceivers.Clear();
         shadowCasters.Clear();
         IFieldLightingRenderer? backend = TriangleRenderer as IFieldLightingRenderer;
         if (backend?.FieldLightingSupported == true)
@@ -99,6 +104,18 @@ public sealed partial class FieldRenderer
         effectiveLighting = ActiveLighting;
         backend.SetFieldLighting(effectiveLighting);
         FieldSpotLight? primary = effectiveLighting.Lights.FirstOrDefault(light => light.Id == effectiveLighting.PrimaryLightId);
+        if (primary is { Enabled: true, Intensity: > 0 } && primary.Color != Vector3.Zero)
+        {
+            foreach (FieldShadowReceiver receiver in effectiveLighting.ShadowReceivers.Where(receiver => receiver.Enabled))
+            {
+                FieldShadowReceiverGeometry geometry = new(receiver);
+                if (geometry.IsWithinReach(primary, receiver.Kind == "wall"))
+                {
+                    authoredShadowReceivers.Add(geometry);
+                }
+            }
+        }
+        HashSet<int> nativeFallbackActors = [];
         foreach (ActorVisual actor in actors)
         {
             lightingShadowStates[actor.ObjectId] = FieldActorShadowState.IntentionalNone;
@@ -135,38 +152,65 @@ public sealed partial class FieldRenderer
             }
             LitActorPose litPose = new(world, normals);
             litActorPoses.Add(actor.ObjectId, litPose);
-            FieldActorShadowState state = SelectShadowState(actor, primary, world, out int support);
-            lightingShadowStates[actor.ObjectId] = state;
-            if (state != FieldActorShadowState.Silhouette)
+            if (!CanCastShadow(actor, primary, world))
             {
                 continue;
             }
-            AddShadowReceivers(support, primary!);
+            FieldActorShadowState nativeState = SelectNativeReceiver(actor, primary!, out int support);
+            if (nativeState != FieldActorShadowState.IntentionalNone)
+            {
+                nativeFallbackActors.Add(actor.ObjectId);
+            }
+            if (nativeState == FieldActorShadowState.Silhouette)
+            {
+                AddShadowReceivers(support, primary!);
+            }
+            else if (!authoredShadowReceivers.Any(receiver => receiver.CanReceiveShadow(primary!.Position, world)))
+            {
+                lightingShadowStates[actor.ObjectId] = nativeState;
+                if (nativeState == FieldActorShadowState.NativeFallback)
+                {
+                    LightingShadowDiagnostic = "Some actors have no matching support walkmesh triangle; their native shadow is gated by the Primary lamp.";
+                }
+                continue;
+            }
+            lightingShadowStates[actor.ObjectId] = FieldActorShadowState.Silhouette;
             AddShadowCasters(actor, model, litPose);
         }
-        if (shadowCasters.Count > 0 && !backend.PrepareFieldShadow(shadowCasters, out string? reason))
+        if (shadowCasters.Count == 0)
+        {
+            shadowReceiverIds.Clear();
+            authoredShadowReceivers.Clear();
+            return;
+        }
+        if (!backend.PrepareFieldShadow(shadowCasters, out string? reason))
         {
             LightingShadowDiagnostic = reason;
             foreach (int actor in lightingShadowStates.Where(pair => pair.Value == FieldActorShadowState.Silhouette).Select(pair => pair.Key).ToArray())
             {
-                lightingShadowStates[actor] = FieldActorShadowState.NativeFallback;
+                lightingShadowStates[actor] = nativeFallbackActors.Contains(actor) ? FieldActorShadowState.NativeFallback : FieldActorShadowState.IntentionalNone;
             }
             shadowReceiverIds.Clear();
+            authoredShadowReceivers.Clear();
+        }
+        foreach (int id in shadowReceiverIds.Order())
+        {
+            nativeShadowReceiverDiagnostics.Add(field.Walkmesh.Triangles[id]);
         }
     }
 
-    private FieldActorShadowState SelectShadowState(ActorVisual actor, FieldSpotLight? primary, Vector3[] world, out int support)
+    private static bool CanCastShadow(ActorVisual actor, FieldSpotLight? primary, Vector3[] world)
     {
-        support = -1;
         if (actor.GroundShadowRadii601To608 is { } shape && (shape.Count != 8 || actor.GroundShadowRadius601To608 is not null))
         {
             throw new NotSupportedException("Native ground-shadow shape requires exactly bytes601..608 and one current shape authority.");
         }
         bool zeroRadius = actor.GroundShadowRadii601To608 is { } radii ? radii.All(radius => radius == 0) : actor.GroundShadowRadius601To608 is not > 0;
-        if (!actor.GroundShadowEnabled || zeroRadius || actor.GroundShadowLevel609 is not > 0 || primary is null || !primary.Enabled || primary.Intensity <= 0 || primary.Color == Vector3.Zero || !world.Any(point => FieldLightingMath.Influence(primary, point) > 0))
-        {
-            return FieldActorShadowState.IntentionalNone;
-        }
+        return actor.GroundShadowEnabled && !zeroRadius && actor.GroundShadowLevel609 is > 0 && primary is { Enabled: true, Intensity: > 0 } && primary.Color != Vector3.Zero && world.Any(point => FieldLightingMath.Influence(primary, point) > 0);
+    }
+
+    private FieldActorShadowState SelectNativeReceiver(ActorVisual actor, FieldSpotLight primary, out int support)
+    {
         Vector3 center = actor.GroundShadowCentre ?? new Vector3(actor.X, actor.Y, actor.Z);
         if (!field.Walkmesh.TryPosition(center.X, center.Y, center.Z, 1, out _, out support))
         {
@@ -175,7 +219,6 @@ public sealed partial class FieldRenderer
             {
                 return FieldActorShadowState.IntentionalNone;
             }
-            LightingShadowDiagnostic = "Some actors have no matching support walkmesh triangle; their native shadow is gated by the Primary lamp.";
             return FieldActorShadowState.NativeFallback;
         }
         WalkmeshTriangle ground = field.Walkmesh.Triangles[support];
@@ -246,22 +289,80 @@ public sealed partial class FieldRenderer
 
     private void QueueLightingReceivers(List<(float Depth, Action Draw)> translucent)
     {
-        foreach (int id in shadowReceiverIds.Order())
+        foreach (WalkmeshTriangle receiver in nativeShadowReceiverDiagnostics)
         {
-            WalkmeshTriangle receiver = field.Walkmesh.Triangles[id];
-            ProjectedPoint a = ToViewport(camera.Project(receiver.A));
-            ProjectedPoint b = ToViewport(camera.Project(receiver.B));
-            ProjectedPoint c = ToViewport(camera.Project(receiver.C));
-            if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
+            if (authoredShadowReceivers.Count == 0)
             {
+                QueueLightingReceiverTriangle(translucent, receiver.A, receiver.B, receiver.C);
                 continue;
             }
-            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Alpha, false) with { PerspectiveDepth = true, FieldLighting = FieldLightingPass.GroundShadow };
-            TriangleVertex va = GpuVertex(a, Vector2.Zero, Vector4.One) with { WorldPosition = receiver.A };
-            TriangleVertex vb = GpuVertex(b, Vector2.Zero, Vector4.One) with { WorldPosition = receiver.B };
-            TriangleVertex vc = GpuVertex(c, Vector2.Zero, Vector4.One) with { WorldPosition = receiver.C };
-            translucent.Add((MathF.Floor((a.Depth + b.Depth + c.Depth) / 12) * 4, () => TriangleRenderer!.Draw(va, vb, vc, material)));
+            QueueLightingReceiverPolygons(translucent, [receiver.A, receiver.B, receiver.C], authoredShadowReceivers.Count);
         }
+        for (int index = 0; index < authoredShadowReceivers.Count; index++)
+        {
+            QueueLightingReceiverPolygons(translucent, authoredShadowReceivers[index].Corners, index);
+        }
+    }
+
+    private void QueueLightingReceiverPolygons(List<(float Depth, Action Draw)> translucent, Vector3[] polygon, int overlapCount)
+    {
+        List<Vector3[]> polygons = [polygon];
+        for (int index = 0; index < overlapCount && polygons.Count > 0; index++)
+        {
+            authoredShadowReceivers[index].SubtractFrom(polygons);
+        }
+        foreach (Vector3[] visible in polygons)
+        {
+            // Clip against the same near depth as FieldCamera.Project before perspective division.
+            Vector3[] clipped = new Vector3[visible.Length + 1];
+            int count = ClipReceiverNear(visible, clipped);
+            for (int index = 1; index + 1 < count; index++)
+            {
+                if (Vector3.Cross(clipped[index] - clipped[0], clipped[index + 1] - clipped[0]).LengthSquared() > 0.000001f)
+                {
+                    QueueLightingReceiverTriangle(translucent, clipped[0], clipped[index], clipped[index + 1]);
+                }
+            }
+        }
+    }
+
+    private int ClipReceiverNear(Vector3[] polygon, Span<Vector3> clipped)
+    {
+        const float near = 1.01f;
+        int count = 0;
+        Vector3 previous = polygon[^1];
+        float previousDepth = Vector3.Dot(camera.AxisZ, previous) + camera.Translation.Z;
+        foreach (Vector3 point in polygon)
+        {
+            float depth = Vector3.Dot(camera.AxisZ, point) + camera.Translation.Z;
+            if ((previousDepth >= near) != (depth >= near))
+            {
+                clipped[count++] = Vector3.Lerp(previous, point, (near - previousDepth) / (depth - previousDepth));
+            }
+            if (depth >= near)
+            {
+                clipped[count++] = point;
+            }
+            previous = point;
+            previousDepth = depth;
+        }
+        return count;
+    }
+
+    private void QueueLightingReceiverTriangle(List<(float Depth, Action Draw)> translucent, Vector3 worldA, Vector3 worldB, Vector3 worldC)
+    {
+        ProjectedPoint a = ToViewport(camera.Project(worldA));
+        ProjectedPoint b = ToViewport(camera.Project(worldB));
+        ProjectedPoint c = ToViewport(camera.Project(worldC));
+        if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
+        {
+            return;
+        }
+        TriangleMaterial material = GpuMaterial(null, TriangleBlend.Alpha, false) with { PerspectiveDepth = true, FieldLighting = FieldLightingPass.GroundShadow };
+        TriangleVertex va = GpuVertex(a, Vector2.Zero, Vector4.One) with { WorldPosition = worldA };
+        TriangleVertex vb = GpuVertex(b, Vector2.Zero, Vector4.One) with { WorldPosition = worldB };
+        TriangleVertex vc = GpuVertex(c, Vector2.Zero, Vector4.One) with { WorldPosition = worldC };
+        translucent.Add((MathF.Floor((a.Depth + b.Depth + c.Depth) / 12) * 4, () => TriangleRenderer!.Draw(va, vb, vc, material)));
     }
 
     private sealed record LitActorPose(Vector3[] World, Vector3[][] Normals);

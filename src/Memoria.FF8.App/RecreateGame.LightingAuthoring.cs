@@ -7,6 +7,7 @@ using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
@@ -350,6 +351,8 @@ internal sealed partial class RecreateGame
             lightingEditor.ReadClipboard = authoringClipboard.Paste;
             lightingEditor.WriteClipboard = authoringClipboard.Copy;
             lightingEditor.SetProjection(ProjectLightingPoint, PickLightingGround, LightingScreenRay);
+            lightingEditor.SetInspectionWalkmesh(current.Walkmesh.Triangles);
+            lightingEditor.SetReceiverDiagnostics(() => world!.LightingNativeShadowReceivers);
             gameMenus?.Close();
             presentationTiming.DiscardPendingTime();
             ResetLightingInput();
@@ -507,37 +510,40 @@ internal sealed partial class RecreateGame
         return LightingHostInputPolicy.FindConflict(keyboard.Profile, command, chord);
     }
 
-    private Vector2 FieldPixelToLightingDesign(Vector2 point)
+    private LightingEditorViewportMapping LightingViewportMapping()
     {
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
-        PixelBounds fit = ViewportLayout.Fit(world!.RenderWidth, world.RenderHeight, bounds.Width, bounds.Height);
-        float scale = Math.Min(bounds.Width / LightingEditorController.DesignWidth, bounds.Height / LightingEditorController.DesignHeight);
-        Vector2 offset = new((bounds.Width - LightingEditorController.DesignWidth * scale) / 2, (bounds.Height - LightingEditorController.DesignHeight * scale) / 2);
-        return (new Vector2(fit.X, fit.Y) + point * new Vector2(fit.Width / (float)world.RenderWidth, fit.Height / (float)world.RenderHeight) - offset) / scale;
+        return lightingEditor!.Viewport.Map(bounds.Width, bounds.Height, world!.RenderWidth, world.RenderHeight);
     }
 
-    private Vector2 LightingDesignToFieldPixel(Vector2 point)
+    private void DrawLightingField(Rectangle bounds)
     {
-        Rectangle bounds = GraphicsDevice.Viewport.Bounds;
-        PixelBounds fit = ViewportLayout.Fit(world!.RenderWidth, world.RenderHeight, bounds.Width, bounds.Height);
-        float scale = Math.Min(bounds.Width / LightingEditorController.DesignWidth, bounds.Height / LightingEditorController.DesignHeight);
-        Vector2 offset = new((bounds.Width - LightingEditorController.DesignWidth * scale) / 2, (bounds.Height - LightingEditorController.DesignHeight * scale) / 2);
-        return (point * scale + offset - new Vector2(fit.X, fit.Y)) * new Vector2(world.RenderWidth / (float)fit.Width, world.RenderHeight / (float)fit.Height);
+        Texture2D texture = PresentedFieldTexture;
+        LightingEditorViewportMapping mapping = lightingEditor!.Viewport.Map(bounds.Width, bounds.Height, texture.Width, texture.Height);
+        Microsoft.Xna.Framework.Vector2 position = new(bounds.X + mapping.FrameOrigin.X, bounds.Y + mapping.FrameOrigin.Y);
+        Microsoft.Xna.Framework.Vector2 scale = new(mapping.FieldScale.X, mapping.FieldScale.Y);
+        batch.Draw(texture, position, null, Color.White, 0, Microsoft.Xna.Framework.Vector2.Zero, scale, SpriteEffects.None, 0);
     }
 
     private Vector2? ProjectLightingPoint(Vector3 point)
     {
-        return world?.ProjectLightingPoint(point) is { } projected ? FieldPixelToLightingDesign(projected) : null;
+        return world?.ProjectLightingPoint(point) is { } projected ? LightingViewportMapping().FieldToDesign(projected) : null;
     }
 
     private Vector3? PickLightingGround(Vector2 point)
     {
-        return world!.TryPickLightingGround(LightingDesignToFieldPixel(point), out Vector3 position) ? position : null;
+        GameWorld currentWorld = world!;
+        Vector2 pixel = LightingViewportMapping().DesignToField(point);
+        if (pixel.X < 0 || pixel.Y < 0 || pixel.X >= currentWorld.RenderWidth || pixel.Y >= currentWorld.RenderHeight)
+        {
+            return null;
+        }
+        return currentWorld.TryPickLightingGround(pixel, out Vector3 position) ? position : null;
     }
 
     private LightingEditorRay? LightingScreenRay(Vector2 point)
     {
-        return world!.TryLightingScreenRay(LightingDesignToFieldPixel(point), out Vector3 origin, out Vector3 direction) ? new(origin, direction) : null;
+        return world!.TryLightingScreenRay(LightingViewportMapping().DesignToField(point), out Vector3 origin, out Vector3 direction) ? new(origin, direction) : null;
     }
 
     private void DrawLightingAuthoring(Rectangle bounds)

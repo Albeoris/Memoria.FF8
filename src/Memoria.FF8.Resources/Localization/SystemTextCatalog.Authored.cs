@@ -1213,6 +1213,10 @@ public static partial class SystemTextCatalog
         defaults["setting.voice-volume.option.2"] = "50%";
         defaults["setting.voice-volume.option.3"] = "25%";
         defaults["setting.voice-volume.option.4"] = "0%";
+        defaults["setting.native-field-shadows"] = "Native field shadows";
+        defaults["setting.native-field-shadows.help"] = "Show original circular character shadows in FFVIII fields, including when used as the lighting fallback.";
+        defaults["setting.native-field-shadows.option.0"] = "On";
+        defaults["setting.native-field-shadows.option.1"] = "Off";
         defaults["setting.vsync"] = "V-Sync";
         defaults["setting.vsync.help"] = "Synchronize presentation with display refresh; frame limits may cap it further. Shared across saves for this user.";
         defaults["setting.vsync.option.0"] = "On";

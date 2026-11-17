@@ -12,6 +12,7 @@ internal sealed record UiPreferences
     public int WindowHeight { get; init; } = 768;
     public bool BorderlessWindow { get; init; }
     public bool VSync { get; init; } = true;
+    public bool NativeFieldShadows { get; init; } = true;
     public bool ShowFps { get; init; }
     public bool ShowAchievementProgress { get; init; }
     public bool ShowEnemySpellNames { get; init; }
@@ -229,6 +230,15 @@ internal sealed record UiPreferences
                 "On" => this with { VSync = true },
                 "Off" => this with { VSync = false },
                 _ => throw new ArgumentException("V-Sync requires On or Off.")
+            };
+        }
+        if (key == "Native field shadows")
+        {
+            return value switch
+            {
+                "On" => this with { NativeFieldShadows = true },
+                "Off" => this with { NativeFieldShadows = false },
+                _ => throw new ArgumentException("Native field shadows requires On or Off.")
             };
         }
         if (key == "Battle FPS")

@@ -9,12 +9,14 @@ internal static class LightingEditorLayout
     internal static UiRect Sources => new(12, 82, 242, 556);
     internal static UiRect Properties => new(960, 82, 308, 556);
     internal static UiRect Footer => new(12, 648, 1256, 60);
-    internal static UiRect Add => new(24, 122, 102, 28);
-    internal static UiRect Delete => new(134, 122, 108, 28);
+    internal static UiRect Add => new(24, 122, 72, 28);
+    internal static UiRect AddFill => new(102, 122, 76, 28);
+    internal static UiRect Delete => new(184, 122, 58, 28);
     internal static UiRect Move => new(268, 84, 110, 28);
     internal static UiRect Rotate => new(386, 84, 110, 28);
     internal static UiRect Orbit => new(504, 84, 192, 28);
     internal static UiRect Pivot => new(704, 84, 142, 28);
+    internal static UiRect ResetView => new(854, 84, 94, 28);
     internal static UiRect Undo => new(736, 25, 76, 30);
     internal static UiRect Redo => new(820, 25, 76, 30);
     internal static UiRect Settings => new(904, 25, 100, 30);

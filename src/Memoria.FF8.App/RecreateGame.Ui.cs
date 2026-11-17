@@ -241,6 +241,8 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Random encounters");
         data.Settings["Window mode"] = uiPreferences.BorderlessWindow ? "Borderless" : "Windowed";
         data.SupportedActions.Add("config:Window mode");
+        data.Settings["Native field shadows"] = uiPreferences.NativeFieldShadows ? "On" : "Off";
+        data.SupportedActions.Add("config:Native field shadows");
         data.Settings["V-Sync"] = uiPreferences.VSync ? "On" : "Off";
         data.Settings["Graphics backend"] = uiPreferences.Graphics.Backend.ToString();
         data.SupportedActions.Add("config:Graphics backend");

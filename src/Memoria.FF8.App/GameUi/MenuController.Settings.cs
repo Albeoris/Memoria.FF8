@@ -86,6 +86,7 @@ public sealed partial class MenuController
             "Anti-aliasing" => preferences.Graphics.AntiAliasingLabel,
             "Window mode" => preferences.BorderlessWindow ? "Borderless" : "Windowed",
             "V-Sync" => preferences.VSync ? "On" : "Off",
+            "Native field shadows" => preferences.NativeFieldShadows ? "On" : "Off",
             "Field FPS" => preferences.FieldFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "World FPS" => preferences.WorldFps.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "Battle FPS" => preferences.BattleFps.ToString(System.Globalization.CultureInfo.InvariantCulture),

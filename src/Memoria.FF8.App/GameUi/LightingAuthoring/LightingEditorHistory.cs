@@ -60,6 +60,6 @@ public sealed class LightingEditorHistory
 
     public static bool Equal(FieldLightingScene first, FieldLightingScene second)
     {
-        return first.SchemaVersion == second.SchemaVersion && first.FieldName == second.FieldName && first.PrimaryLightId == second.PrimaryLightId && first.GroundShadow == second.GroundShadow && first.Lights.SequenceEqual(second.Lights);
+        return first.SchemaVersion == second.SchemaVersion && first.FieldName == second.FieldName && first.PrimaryLightId == second.PrimaryLightId && first.GroundShadow == second.GroundShadow && first.Lights.SequenceEqual(second.Lights) && first.ShadowReceivers.SequenceEqual(second.ShadowReceivers);
     }
 }

@@ -28,6 +28,11 @@ public sealed partial class LightingEditorController
 
     public void BeginTransform(LightingTransformTool tool, LightingAxis axis = LightingAxis.None, bool dragging = false)
     {
+        BeginTransform(tool, axis, dragging, pointer);
+    }
+
+    private void BeginTransform(LightingTransformTool tool, LightingAxis axis, bool dragging, Vector2 startPointer)
+    {
         if (!CommitProperty() || Selected is not { } selected)
         {
             return;
@@ -36,10 +41,10 @@ public sealed partial class LightingEditorController
         EndSlider(true);
         ActiveTool = tool;
         interactionPointerOffset = Vector2.Zero;
-        transform = new LightingTransform(Draft, selected, tool, axis, pointer) { Dragging = dragging };
+        transform = new LightingTransform(Draft, selected, tool, axis, startPointer) { Dragging = dragging };
         textUndo.Clear();
         textRedo.Clear();
-        Message = tool == LightingTransformTool.Translate ? "Move: X/Y/Z constrains; type a signed distance. Enter or left click confirms; right click cancels." : "Rotate: X/Y/Z selects a world axis; type signed degrees. Enter or left click confirms; right click cancels.";
+        Message = tool == LightingTransformTool.Translate ? "Choose an axis or type a signed distance." : "Choose an axis or type signed degrees.";
     }
 
     public void Constrain(LightingAxis axis)
@@ -66,6 +71,14 @@ public sealed partial class LightingEditorController
         interactionPointerOffset = Vector2.Zero;
         Message = "Transform committed.";
         return true;
+    }
+
+    private void FinishPointerTransform()
+    {
+        if (!ConfirmTransform() && transform is { } active)
+        {
+            active.Dragging = false;
+        }
     }
 
     public void CancelTransform()

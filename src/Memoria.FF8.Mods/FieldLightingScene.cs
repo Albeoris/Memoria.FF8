@@ -27,6 +27,33 @@ public sealed record FieldGroundShadowSettings
     public float Softness { get; init; } = 1;
 }
 
+/// <summary>A rectangular shadow receiver in field world coordinates. Heading measures the horizontal width axis from +X toward +Y.</summary>
+public sealed record FieldShadowReceiver
+{
+    public required string Id { get; init; }
+    public required string Kind { get; init; }
+    public bool Enabled { get; init; } = true;
+    public Vector3 Center { get; init; }
+    public float Width { get; init; }
+    public float Extent { get; init; }
+    public float HeadingDegrees { get; init; }
+
+    public (Vector3 U, Vector3 V) Axes()
+    {
+        (float sine, float cosine) = MathF.SinCos(HeadingDegrees * MathF.PI / 180);
+        Vector3 u = new(cosine, sine, 0);
+        return (u, Kind == "wall" ? Vector3.UnitZ : new Vector3(-sine, cosine, 0));
+    }
+
+    public Vector3[] Corners()
+    {
+        (Vector3 u, Vector3 v) = Axes();
+        Vector3 width = u * (Width * 0.5f);
+        Vector3 extent = v * (Extent * 0.5f);
+        return [Center - width - extent, Center + width - extent, Center + width + extent, Center - width + extent];
+    }
+}
+
 /// <summary>The complete lighting for one native field. An empty active scene deliberately illuminates no model surfaces.</summary>
 public sealed record FieldLightingScene
 {
@@ -35,6 +62,7 @@ public sealed record FieldLightingScene
     public IReadOnlyList<FieldSpotLight> Lights { get; init; } = [];
     public string? PrimaryLightId { get; init; }
     public FieldGroundShadowSettings GroundShadow { get; init; } = new();
+    public IReadOnlyList<FieldShadowReceiver> ShadowReceivers { get; init; } = [];
 
     public static FieldLightingScene Empty(string fieldName)
     {
@@ -48,6 +76,7 @@ public static class FieldLightingSceneIO
 {
     public const int MaximumEnabledLights = 8;
     public const int MaximumLights = 1024;
+    public const int MaximumShadowReceivers = 128;
     public const int MaximumDocumentBytes = 512 * 1024;
     public const string ComponentPath = "lighting/component.json";
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -88,7 +117,7 @@ public static class FieldLightingSceneIO
         int enabled = 0;
         foreach (FieldSpotLight light in scene.Lights)
         {
-            if (light is null || string.IsNullOrWhiteSpace(light.Id) || light.Id.Length > 80 || light.Id.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not ('_' or '-')) || !ids.Add(light.Id))
+            if (light is null || !ValidId(light.Id) || !ids.Add(light.Id))
             {
                 throw new InvalidDataException("Light IDs must be unique stable identifiers containing 1..80 ASCII letters, digits, underscores or hyphens.");
             }
@@ -121,12 +150,34 @@ public static class FieldLightingSceneIO
         {
             throw new InvalidDataException("Ground-shadow opacity must be within 0..1 and softness within 0..3 texels.");
         }
+        if (scene.ShadowReceivers is null || scene.ShadowReceivers.Count > MaximumShadowReceivers)
+        {
+            throw new InvalidDataException($"A lighting scene supports at most {MaximumShadowReceivers} authored shadow receivers.");
+        }
+        ids.Clear();
+        foreach (FieldShadowReceiver receiver in scene.ShadowReceivers)
+        {
+            if (receiver is null || !ValidId(receiver.Id) || !ids.Add(receiver.Id))
+            {
+                throw new InvalidDataException("Shadow receiver IDs must be unique stable identifiers containing 1..80 ASCII letters, digits, underscores or hyphens.");
+            }
+            if (receiver.Kind is not ("floor" or "wall") || !Finite(receiver.Center) || !float.IsFinite(receiver.HeadingDegrees) || receiver.HeadingDegrees is < -180 or > 180 || !float.IsFinite(receiver.Width) || receiver.Width <= 0 || !float.IsFinite(receiver.Extent) || receiver.Extent <= 0)
+            {
+                throw new InvalidDataException("A shadow receiver requires kind 'floor' or 'wall', a finite center, positive finite dimensions and a heading within -180..180 degrees.");
+            }
+            (Vector3 u, Vector3 v) = receiver.Axes();
+            Vector3 halfSize = Vector3.Abs(u * (receiver.Width * 0.5f)) + Vector3.Abs(v * (receiver.Extent * 0.5f));
+            if (!Finite(receiver.Center - halfSize) || !Finite(receiver.Center + halfSize))
+            {
+                throw new InvalidDataException("Shadow receiver corners must be finite world positions.");
+            }
+        }
     }
 
     public static FieldLightingScene Clone(FieldLightingScene scene)
     {
         Validate(scene);
-        return scene with { Lights = Array.AsReadOnly(scene.Lights.ToArray()) };
+        return scene with { Lights = Array.AsReadOnly(scene.Lights.ToArray()), ShadowReceivers = Array.AsReadOnly(scene.ShadowReceivers.ToArray()) };
     }
 
     public static byte[] Serialize(FieldLightingScene scene)
@@ -152,6 +203,13 @@ public static class FieldLightingSceneIO
             }
         }
         RequireProperties(document.RootElement.GetProperty("groundShadow"), "opacity", "softness");
+        if (document.RootElement.TryGetProperty("shadowReceivers", out JsonElement receivers) && receivers.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement receiver in receivers.EnumerateArray())
+            {
+                RequireProperties(receiver, "id", "kind", "enabled", "center", "width", "extent", "headingDegrees");
+            }
+        }
         FieldLightingScene scene = document.RootElement.Deserialize<FieldLightingScene>(JsonOptions) ?? throw new InvalidDataException("A lighting scene must be a JSON object.");
         Validate(scene);
         if (expectedFieldName is not null && !scene.FieldName.Equals(expectedFieldName, StringComparison.OrdinalIgnoreCase))
@@ -224,6 +282,11 @@ public static class FieldLightingSceneIO
     private static bool Finite(Vector3 value)
     {
         return float.IsFinite(value.X) && float.IsFinite(value.Y) && float.IsFinite(value.Z);
+    }
+
+    private static bool ValidId(string? id)
+    {
+        return !string.IsNullOrWhiteSpace(id) && id.Length <= 80 && id.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
     }
 
     private sealed class VectorConverter : JsonConverter<Vector3>

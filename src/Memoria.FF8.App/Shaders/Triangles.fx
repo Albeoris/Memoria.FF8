@@ -176,6 +176,7 @@ VSOutput Ff7UnderwaterVertexMain(Ff7UnderwaterVSInput input)
 }
 // Only field model albedo crosses this local sRGB/linear boundary. Backgrounds and legacy passes do not.
 float FieldLightingPass;
+float2 FieldLightingPreview;
 int FieldLightCount;
 int FieldPrimaryIndex;
 float4 FieldLightPositionRange[8];
@@ -280,9 +281,11 @@ float4 FieldShade(float4 albedo, VSOutput input)
             float3 incoming = 0;
             float influence = FieldInfluence(index, world, incoming);
             float visibility = index == FieldPrimaryIndex ? 1 - shadow.x : 1;
-            illumination += FieldLightColor[index].rgb * (influence * max(0, dot(normal, incoming)) * visibility);
+            float diffuse = max(0, (dot(normal, incoming) + FieldLightingPreview.y) / (1 + FieldLightingPreview.y));
+            illumination += FieldLightColor[index].rgb * (influence * diffuse * visibility);
         }
-        result = float4(FieldSrgb(FieldLinear(max(albedo.rgb, 0)) * illumination), albedo.a);
+        float3 surface = FieldLightingPreview.x > 0 ? float3(0.5, 0.5, 0.5) : albedo.rgb;
+        result = float4(FieldSrgb(FieldLinear(max(surface, 0)) * illumination), albedo.a);
     }
     return result;
 }

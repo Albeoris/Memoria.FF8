@@ -39,6 +39,7 @@ public sealed partial class FieldRenderer
     private Vector3 backgroundColor = new(128);
     private IReadOnlyDictionary<int, Vector3>? moduleColors;
     private FieldCamera camera;
+    public FieldCamera? InspectionCamera { get; set; }
     private readonly ModelTextureSampling modelTextureSampling;
     private readonly TileRaster[] background;
     private readonly Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>? backgroundPublication;
@@ -171,6 +172,8 @@ public sealed partial class FieldRenderer
             renderBackground = nextBackground;
             backgroundHardwareLayout = TriangleRenderer is not null;
         }
+        PrepareInspectionBackdrop(camera);
+        camera = InspectionCamera ?? camera;
         if (TriangleRenderer is not null)
         {
             TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));
@@ -196,8 +199,13 @@ public sealed partial class FieldRenderer
             {
                 selected = overrideVisible;
             }
-            if (!backgroundVisible || hiddenBackgroundModules?.Contains(tile.AnimationId) == true || !selected)
+            if (!ShouldDrawBackgroundTiles || !backgroundVisible || hiddenBackgroundModules?.Contains(tile.AnimationId) == true || !selected)
             {
+                continue;
+            }
+            if (InspectionCamera is not null)
+            {
+                DrawInspectionBackdropTile(raster, translucent);
                 continue;
             }
             DrawTile(raster);
@@ -386,7 +394,7 @@ public sealed partial class FieldRenderer
         BackgroundTile tile = raster.Tile;
         PixelImage image = tile.ResolvedImage;
         // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
-        Vector3 shade = moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundColor;
+        Vector3 shade = BackgroundTileShade(tile);
         float tileDepth = raster.Depth;
         if (TriangleRenderer is not null)
         {

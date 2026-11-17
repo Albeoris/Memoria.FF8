@@ -202,6 +202,7 @@ public static class MenuSettings
         new("Enemy spell names", "Show brief names of spells and abilities used by enemies. Off by default; shared by all saves.", ["Off", "On"]),
         new("Achievement progress", "Show achievement progress at the top of the screen. Achievement tracking and unlock notifications remain active when Off.", ["Off", "On"]),
         new("Window mode", "Choose a resizable window or borderless full-screen display. Alt+Enter toggles the mode. Shared across saves and retained across launches.", ["Windowed", "Borderless"]),
+        new("Native field shadows", "Show original circular character shadows in FFVIII fields, including when used as the lighting fallback.", ["On", "Off"]),
         new("V-Sync", "Synchronize presentation with display refresh; frame limits may cap it further. Shared across saves for this user.", ["On", "Off"]),
         new("Graphics backend", "Requires restart. The selected graphics backend applies on the next start. Auto tries Direct3D11, Direct3D12, then Vulkan on Windows. Other platforms use Vulkan. Restart now to preserve and resume the current game, or choose Later.", Memoria.FF8.Platform.GraphicsBackendSelection.Available(Memoria.FF8.Platform.HostPlatforms.Current).Select(backend => backend.ToString()).ToArray()),
         new("Anti-aliasing", "Smooth rendered edges with multisample anti-aliasing. Applies immediately and is shared by every save on this installation. Unsupported sample counts use the highest supported count up to the selected value.", ["Off", "MSAA 2x", "MSAA 4x", "MSAA 8x"]),

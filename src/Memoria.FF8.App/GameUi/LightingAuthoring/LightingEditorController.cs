@@ -28,6 +28,7 @@ public sealed partial class LightingEditorController
     private bool wasFocused = true;
     private Action? afterClose;
     private Vector3? pickedGround;
+    private (string LightId, Vector2 Position)? markerPress;
     private LightingTransform? transform;
     private LightingPropertyEdit? propertyEdit;
     private LightingSliderDrag? slider;
@@ -72,6 +73,7 @@ public sealed partial class LightingEditorController
     public LightingTransformTool ActiveTool { get; private set; }
     public LightingAxis ActiveAxis => transform?.Axis ?? LightingAxis.None;
     public bool HasPendingTransform => transform is not null;
+    internal bool IsDraggingLight => OverlayVisible && wasFocused && transform is { Dragging: true };
     public string NumericInput => transform?.Numeric ?? propertyEdit?.Text ?? "";
     public LightingProperty? EditingProperty => propertyEdit?.Property;
     public string Message { get; private set; } = "Insert adds a spotlight. No lamps means no model illumination.";
@@ -148,6 +150,16 @@ public sealed partial class LightingEditorController
 
     public void AddLight()
     {
+        AddLight(fill: false);
+    }
+
+    public void AddFillLight()
+    {
+        AddLight(fill: true);
+    }
+
+    private void AddLight(bool fill)
+    {
         if (!CommitPendingEdit())
         {
             return;
@@ -158,22 +170,26 @@ public sealed partial class LightingEditorController
             return;
         }
         bool enabled = Draft.Lights.Count(light => light.Enabled) < 8;
-        string name = "Spotlight " + (Draft.Lights.Count + 1).ToString(CultureInfo.InvariantCulture);
+        string kind = fill ? "Fill light" : "Spotlight";
+        string name = kind + " " + (Draft.Lights.Count + 1).ToString(CultureInfo.InvariantCulture);
+        Vector3 ground = pickedGround ?? Pivot;
+        Vector3 position = ground + (fill ? new Vector3(1, -1, 1) : Vector3.UnitZ * 1.5f) * actorScale;
         FieldSpotLight light = new()
         {
             Id = Guid.NewGuid().ToString("N"),
             Name = name,
             Enabled = enabled,
-            Position = (pickedGround ?? Pivot) + Vector3.UnitZ * actorScale * 1.5f,
-            Direction = -Vector3.UnitZ,
+            Position = position,
+            Direction = fill ? Vector3.Normalize(ground + Vector3.UnitZ * actorScale * 0.6f - position) : -Vector3.UnitZ,
+            Intensity = fill ? 0.35f : 1,
             Range = actorScale * 6,
-            InnerConeDegrees = 35,
-            OuterConeDegrees = 65
+            InnerConeDegrees = fill ? 55 : 35,
+            OuterConeDegrees = fill ? 80 : 65
         };
-        ApplyCommand(Draft with { Lights = [.. Draft.Lights, light], PrimaryLightId = Draft.Lights.Count == 0 ? light.Id : Draft.PrimaryLightId });
+        ApplyCommand(Draft with { Lights = [.. Draft.Lights, light], PrimaryLightId = !fill && Draft.Lights.Count == 0 ? light.Id : Draft.PrimaryLightId });
         SelectedId = light.Id;
         ListOffset = Math.Max(0, Draft.Lights.Count - LightingEditorLayout.VisibleLights);
-        Message = enabled ? "Spotlight added above the ground pivot. " + Shortcuts.Describe(LightingEditorCommand.Translate) + " moves; " + Shortcuts.Describe(LightingEditorCommand.Rotate) + " aims; world Z is height." : "Eight enabled lamps is the limit. Added a disabled spotlight; disable another lamp to enable it.";
+        Message = enabled ? kind + " added. Drag its marker to move it." : "Eight enabled lamps is the limit. Disable another lamp to enable the new source.";
     }
 
     public void DeleteSelected()
@@ -211,6 +227,11 @@ public sealed partial class LightingEditorController
 
     public void Undo()
     {
+        if (transform is { Dragging: true })
+        {
+            CancelTransform();
+            return;
+        }
         if (propertyEdit is not null || transform is not null && (transform.Numeric.Length > 0 || textUndo.Count > 0 || textRedo.Count > 0))
         {
             UndoText(false);
@@ -289,6 +310,9 @@ public sealed partial class LightingEditorController
 
     public void ToggleVisibility()
     {
+        EndViewportPan();
+        orbitingInspection = false;
+        markerPress = null;
         if (OverlayVisible)
         {
             hiddenPointer = pointer;

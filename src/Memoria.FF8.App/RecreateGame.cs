@@ -1534,7 +1534,13 @@ internal sealed partial class RecreateGame : Game
         long started = Stopwatch.GetTimestamp();
         bool smoothField = session.State.Scene == SceneKind.Field && uiPreferences.FieldFps == 60 && !options.ControlStep;
         float fieldInterpolation = smoothField ? (float)Math.Clamp(fieldSeconds * EventEngine.SimulationFps, 0, 1) : 1;
-        byte[] pixels = world.Render(lightingEditor is null ? elapsed : lightingFrozenTime, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField);
+        if (fieldGpu is not null)
+        {
+            fieldGpu.PreviewGrayFieldMaterial = lightingEditor?.PreviewGrayMaterial == true;
+            fieldGpu.PreviewWrappedFieldDiffuse = lightingEditor?.PreviewWrapLighting == true;
+        }
+        FieldCamera? inspectionCamera = lightingEditor is { InspectionView: true } && world.Field is { } inspectionField ? lightingEditor.InspectionCamera(inspectionField.GetCamera(world.Events.Scene.CameraIndex)) : null;
+        byte[] pixels = world.Render(lightingEditor is null ? elapsed : lightingFrozenTime, uiPreferences.RareCardMarkers, fieldGpu, worldInterpolation, fieldInterpolation, smoothField, uiPreferences.NativeFieldShadows, inspectionCamera, lightingEditor?.PreviewInspectionBackdrop == true);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         if (fieldGpu is null)
@@ -1589,7 +1595,7 @@ internal sealed partial class RecreateGame : Game
                 switch (FieldPresentationReadiness.SelectRenderer(session.State.Scene, world.CanPresentCurrentField, movie?.HasFrame == true))
                 {
                     case FieldPresentationRenderer.Movie:
-                        byte[] moviePixels = world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height, fieldGpu);
+                        byte[] moviePixels = world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height, fieldGpu, uiPreferences.NativeFieldShadows);
                         if (fieldGpu is null)
                         {
                             if (fieldTexture.Width != world.RenderWidth || fieldTexture.Height != world.RenderHeight)
@@ -1686,9 +1692,16 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null)
         {
-            Rectangle fieldBounds = sceneInspector is null ? bounds : SceneInspectorPreviewBounds(bounds);
-            PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, fieldBounds.Width, fieldBounds.Height);
-            batch.Draw(PresentedFieldTexture, new Rectangle(fieldBounds.X + fit.X, fieldBounds.Y + fit.Y, fit.Width, fit.Height), Color.White);
+            if (lightingEditor is not null)
+            {
+                DrawLightingField(bounds);
+            }
+            else
+            {
+                Rectangle fieldBounds = sceneInspector is null ? bounds : SceneInspectorPreviewBounds(bounds);
+                PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, fieldBounds.Width, fieldBounds.Height);
+                batch.Draw(PresentedFieldTexture, new Rectangle(fieldBounds.X + fit.X, fieldBounds.Y + fit.Y, fit.Width, fit.Height), Color.White);
+            }
         }
         if (lightingEditor is not null)
         {

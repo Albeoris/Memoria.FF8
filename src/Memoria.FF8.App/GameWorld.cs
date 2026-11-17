@@ -494,7 +494,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null, float worldInterpolation = 1, float fieldInterpolation = 1, bool smoothFieldAnimation = false)
+    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null, float worldInterpolation = 1, float fieldInterpolation = 1, bool smoothFieldAnimation = false, bool nativeFieldShadows = true, FieldCamera? inspectionCamera = null, bool previewInspectionBackdrop = false)
     {
         if (Events.PendingTripleTriad is not null)
         {
@@ -519,6 +519,9 @@ internal sealed partial class GameWorld : IDisposable
         fade.Validate();
         renderer!.TriangleRenderer = triangleRenderer;
         renderer.ActiveLighting = ActiveLighting;
+        renderer.NativeFieldShadows = nativeFieldShadows;
+        renderer.InspectionCamera = inspectionCamera;
+        renderer.InspectionBackdropEnabled = previewInspectionBackdrop;
         bool revealHiddenDrawPoint = Events.Scene.DrawPointEnabled != 0 && (Events.Scene.DrawPointDisplayParameter & 1) == 0 && session.CharacterVitals?.HasActivePassiveAbility(79) == true;
         byte[] pixels = renderer.Render(Events.BackgroundStates, sample.Actors, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: sample.BackgroundShades, backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: frame.DrawPointParticles, drawPointBlend: sample.DrawPointBlend, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw, backgroundVisibility: SceneBackgroundVisibility(), backgroundBlend: sample.Background, backgroundLayerScales: scroll.LayerScales, backgroundTileVisibility: modBackgroundVisibility, revealHiddenDrawPoint: revealHiddenDrawPoint, fieldParticles: frame.FieldParticleSprites, fieldParticleBlend: sample.FieldParticles, presentationFade: sample.Fade, fieldParticleTexture: Events.FieldParticleSprites.Count > 0 ? ReadFieldParticleTexture() : null);
         if (triangleRenderer is null)

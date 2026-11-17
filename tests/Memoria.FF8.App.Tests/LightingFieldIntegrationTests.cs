@@ -244,6 +244,30 @@ public sealed class LightingFieldIntegrationTests(ITestOutputHelper output)
             Assert.Equal(legacy, Render(scene with { FieldName = "another_field" }, "another-field"));
             Assert.Equal(legacy, Render(null, "inactive"));
 
+            if (outputName == "field-a-native")
+            {
+                FieldCamera camera = world.Field!.GetCamera(world.Events.Scene.CameraIndex);
+                Vector3 pivot = world.Field.Walkmesh.Triangles[0].A;
+                Matrix4x4 yaw = Matrix4x4.CreateRotationZ(0.08f);
+                Vector3 x = Vector3.TransformNormal(camera.AxisX, yaw);
+                Vector3 y = Vector3.TransformNormal(camera.AxisY, yaw);
+                Vector3 z = Vector3.TransformNormal(camera.AxisZ, yaw);
+                FieldCamera inspection = camera with
+                {
+                    AxisX = x,
+                    AxisY = y,
+                    AxisZ = z,
+                    Translation = camera.Translation + new Vector3(Vector3.Dot(camera.AxisX - x, pivot), Vector3.Dot(camera.AxisY - y, pivot), Vector3.Dot(camera.AxisZ - z, pivot))
+                };
+                world.Render(TimeSpan.Zero, rareCardMarkers: false, triangleRenderer: gpu, inspectionCamera: inspection);
+                Color[] geometryOnly = GpuTestDevice.Read(gpu.Target);
+                world.Render(TimeSpan.Zero, rareCardMarkers: false, triangleRenderer: gpu, inspectionCamera: inspection, previewInspectionBackdrop: true);
+                Color[] withBackdrop = GpuTestDevice.Read(gpu.Target);
+                Assert.True(geometryOnly.Zip(withBackdrop).Count(pair => pair.First != pair.Second) > 100);
+                Assert.True(legacy.Zip(withBackdrop).Count(pair => pair.First != pair.Second) > 100);
+                Assert.Equal(legacy, Render(null, "inspection-reset"));
+            }
+
             FieldSpotLight top = scene.Lights[4];
             FieldLightingScene primaryScene = scene with { PrimaryLightId = top.Id };
             Color[] primary = Render(primaryScene, "primary-shadow");

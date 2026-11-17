@@ -26,6 +26,19 @@ public sealed class FieldLightingTests : IDisposable
         Assert.Equal(FieldLightingSceneIO.Serialize(scene), FieldLightingSceneIO.Serialize(roundTrip));
     }
 
+    [Fact]
+    public void Old_documents_default_to_no_receivers_and_authored_patches_round_trip()
+    {
+        FieldLightingScene scene = FieldLightingSceneIO.Deserialize(Encoding.UTF8.GetBytes(Valid));
+        Assert.Empty(scene.ShadowReceivers);
+        FieldShadowReceiver floor = new() { Id = "floor-01", Kind = "floor", Center = new(15, -5, 7), Width = 50, Extent = 30 };
+        FieldShadowReceiver wall = new() { Id = "wall-01", Kind = "wall", Enabled = false, Center = new(4, 30, 40), Width = 60, Extent = 25, HeadingDegrees = 66 };
+        FieldLightingScene updated = scene with { ShadowReceivers = [floor, wall] };
+        Assert.Equal(updated.ShadowReceivers, FieldLightingSceneIO.Deserialize(FieldLightingSceneIO.Serialize(updated)).ShadowReceivers);
+        Assert.Throws<InvalidDataException>(() => FieldLightingSceneIO.Validate(updated with { ShadowReceivers = [floor, wall with { Id = floor.Id }] }));
+        Assert.Throws<InvalidDataException>(() => FieldLightingSceneIO.Validate(updated with { ShadowReceivers = [floor with { Width = 0 }] }));
+    }
+
     [Theory]
     [InlineData("\"schemaVersion\":1", "\"schemaVersion\":2")]
     [InlineData("\"schemaVersion\":1,", "")]

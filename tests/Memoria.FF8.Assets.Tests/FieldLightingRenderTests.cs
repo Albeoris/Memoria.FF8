@@ -155,6 +155,42 @@ public sealed class FieldLightingRenderTests
     }
 
     [Fact]
+    public void Authored_walls_receive_without_walkmesh_and_coplanar_duplicates_draw_once()
+    {
+        FieldAssets field = FixtureField(false);
+        RecordingLightingBackend backend = new();
+        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, -10, -1), Direction = Vector3.UnitY, Range = 30 };
+        FieldShadowReceiver wall = new() { Id = "wall", Kind = "wall", Center = new(0, 5, 1), Width = 10, Extent = 8 };
+        FieldLightingScene scene = new() { FieldName = field.Name, Lights = [light], PrimaryLightId = light.Id, ShadowReceivers = [wall, wall with { Id = "duplicate" }] };
+        FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = scene };
+        renderer.Render(new Dictionary<int, int>(), [FixtureActor(0)], TimeSpan.Zero);
+        Assert.Equal(FieldActorShadowState.Silhouette, renderer.LightingShadowStates[0]);
+        Assert.Equal(1, backend.CasterCount);
+        Assert.Equal(2, backend.GroundTriangles);
+        Assert.Empty(renderer.LightingNativeShadowReceivers);
+
+        renderer.ActiveLighting = scene with { ShadowReceivers = [wall with { Center = new(25, 5, 1) }] };
+        renderer.Render(new Dictionary<int, int>(), [FixtureActor(0)], TimeSpan.Zero);
+        Assert.Equal(FieldActorShadowState.IntentionalNone, renderer.LightingShadowStates[0]);
+        Assert.Equal(0, backend.CasterCount);
+        Assert.Equal(0, backend.GroundTriangles);
+    }
+
+    [Fact]
+    public void Coplanar_authored_floor_replaces_overlap_without_losing_native_coverage()
+    {
+        FieldAssets field = FixtureField(true);
+        RecordingLightingBackend backend = new();
+        FieldSpotLight light = new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 50 };
+        FieldShadowReceiver floor = new() { Id = "floor", Kind = "floor", Width = 20, Extent = 10, HeadingDegrees = 32 };
+        FieldLightingScene scene = new() { FieldName = field.Name, Lights = [light], PrimaryLightId = light.Id, ShadowReceivers = [floor] };
+        FieldRenderer renderer = new(field) { TriangleRenderer = backend, ActiveLighting = scene };
+        renderer.Render(new Dictionary<int, int>(), [FixtureActor(0)], TimeSpan.Zero);
+        Assert.Equal(2, renderer.LightingNativeShadowReceivers.Count);
+        Assert.InRange(backend.ReceiverArea, 1599.999f, 1600.001f);
+    }
+
+    [Fact]
     public void Editor_projection_and_ground_pick_use_native_camera_and_viewport()
     {
         FieldRenderer renderer = new(FixtureField(true), 960, 540);
@@ -180,16 +216,19 @@ public sealed class FieldLightingRenderTests
         public string? FieldLightingUnavailableReason => null;
         public int CasterCount { get; private set; }
         public int GroundTriangles { get; private set; }
+        public float ReceiverArea { get; private set; }
         public FieldLightingScene? Scene { get; private set; }
         public void Begin(int width, int height, Vector4 clearColor, float clearDepth = 1)
         {
             CasterCount = GroundTriangles = 0;
+            ReceiverArea = 0;
         }
         public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
         {
             if (material.FieldLighting == FieldLightingPass.GroundShadow)
             {
                 GroundTriangles++;
+                ReceiverArea += Vector3.Cross(b.WorldPosition - a.WorldPosition, c.WorldPosition - a.WorldPosition).Length() * 0.5f;
             }
         }
         public void End()

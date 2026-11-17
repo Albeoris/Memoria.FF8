@@ -22,7 +22,7 @@ internal static class SettingsPlacement
     internal static readonly IReadOnlyDictionary<string, SettingsPage> Pages = new Dictionary<string, SettingsPage>(StringComparer.Ordinal)
     {
         ["config-graphics"] = new("Graphics", "Presentation preferences shared across saves.",
-            ["Anti-aliasing", "Graphics backend", "Window mode", "V-Sync", "config-frame-limits", "Show FPS"]),
+            ["Anti-aliasing", "Graphics backend", "Window mode", "V-Sync", "config-frame-limits", "Native field shadows", "Show FPS"]),
         ["config-frame-limits"] = new("Frame rate limits", "Presentation caps; simulation speed is unchanged. V-Sync can limit output further.",
             ["Field FPS", "World FPS", "Battle FPS", "Menu FPS"]),
         ["config-audio"] = new("Audio", "Output levels shared across saves.",
@@ -59,6 +59,7 @@ internal static class SettingsPlacement
             ["Enemy spell names"] = "enemy-spell-names",
             ["Window mode"] = "window-mode",
             ["V-Sync"] = "vsync",
+            ["Native field shadows"] = "native-field-shadows",
             ["Graphics backend"] = "graphics-backend",
             ["Anti-aliasing"] = "msaa",
             ["Field FPS"] = "field-cap",
@@ -150,6 +151,7 @@ internal static class SettingsPlacement
                 "Enemy spell names" => "UiPreferences.ShowEnemySpellNames",
                 "Window mode" => "UiPreferences.BorderlessWindow",
                 "V-Sync" => "UiPreferences.VSync",
+                "Native field shadows" => "UiPreferences.NativeFieldShadows",
                 "Graphics backend" => "UiPreferences.Graphics.Backend",
                 "Anti-aliasing" => "UiPreferences.Graphics.MsaaSamples",
                 "Field FPS" => "UiPreferences.FieldFps",

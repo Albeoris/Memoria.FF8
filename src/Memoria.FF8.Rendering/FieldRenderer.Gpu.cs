@@ -27,7 +27,13 @@ public sealed partial class FieldRenderer
         TrianglePrimitives.Quad(TriangleRenderer!, origin, size, depth, color, material, uvEnd, uvStart, pointSampleRectangle);
     }
 
-    private void DrawGpuTile(TileRaster raster, Vector3 shade, bool translucentPass)
+    private Vector3 BackgroundTileShade(BackgroundTile tile)
+    {
+        // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
+        return moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 shade) ? shade : backgroundColor;
+    }
+
+    private void DrawGpuTile(TileRaster raster, Vector3 shade, bool translucentPass, InspectionBackdropQuad? inspection = null)
     {
         BackgroundTile tile = raster.Tile;
         bool blended = tile.Blend && tile.BlendMode != MapBlendMode.None;
@@ -46,11 +52,31 @@ public sealed partial class FieldRenderer
         BackgroundAtlasRegion region = GpuBackgroundRegion(tile.ResolvedImage);
         TriangleMaterial material = GpuMaterial(region.Image, blend, !translucentPass) with
         {
-            ClipRectangle = raster.Clip,
             MinimumAlpha = blended && !translucentPass ? 0.75f : 1f / 255,
             MaximumAlpha = translucentPass ? 0.75f : 1
         };
-        GpuQuad(raster.Origin, raster.Size, raster.Depth, new Vector4(shade / 128, 1), material, region.End, region.Start, pointSampleRectangle: true);
+        Vector4 color = new(shade / 128, 1);
+        if (inspection is { } quad)
+        {
+            // Keep point samples at a projected tile edge within its atlas region.
+            Vector2 inset = new(0.001f / region.Image.Width, 0.001f / region.Image.Height);
+            Vector2 regionSize = region.End - region.Start;
+            Vector2 start = Vector2.Clamp(region.Start + regionSize * quad.TextureStart, region.Start + inset, region.End - inset);
+            Vector2 end = Vector2.Clamp(region.Start + regionSize * quad.TextureEnd, region.Start + inset, region.End - inset);
+            DrawGpuInspectionBackdrop(quad, start, end, color, material with { PerspectiveDepth = true, CentroidTextureSampling = true });
+            return;
+        }
+        GpuQuad(raster.Origin, raster.Size, raster.Depth, color, material with { ClipRectangle = raster.Clip }, region.End, region.Start, pointSampleRectangle: true);
+    }
+
+    private void DrawGpuInspectionBackdrop(InspectionBackdropQuad tile, Vector2 uvStart, Vector2 uvEnd, Vector4 color, TriangleMaterial material)
+    {
+        TriangleVertex a = GpuVertex(tile.A, uvStart, color);
+        TriangleVertex b = GpuVertex(tile.B, new Vector2(uvEnd.X, uvStart.Y), color);
+        TriangleVertex c = GpuVertex(tile.C, new Vector2(uvStart.X, uvEnd.Y), color);
+        TriangleVertex d = GpuVertex(tile.D, uvEnd, color);
+        TriangleRenderer!.Draw(a, b, c, material);
+        TriangleRenderer.Draw(b, d, c, material);
     }
 
     private void DrawGpuFade(FieldFadeSample? fade)

@@ -91,6 +91,37 @@ public sealed class FieldLightingGpuTests
         Assert.True(moved[32 * 64 + 16].R < 255);
     }
 
+    [Fact]
+    public void Material_and_wrap_previews_are_local_to_authored_model_shading()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device);
+        FieldSpotLight lamp = Lamp();
+        FieldLightingScene scene = new() { FieldName = "scene_a", Lights = [lamp] };
+        (Color Model, Color Background) Sample(bool gray, bool wrap, Vector3 normal, FieldSpotLight activeLamp)
+        {
+            renderer.PreviewGrayFieldMaterial = gray;
+            renderer.PreviewWrappedFieldDiffuse = wrap;
+            renderer.Begin(64, 64, new Vector4(0.25f, 0.5f, 0.75f, 1));
+            renderer.SetFieldLighting(scene with { Lights = [activeLamp] });
+            TriangleVertex Vertex(float x, float y) => new(new Vector2(x, y), 0.5f, 1, Vector2.Zero, new Vector4(1, 0, 0, 1)) { WorldPosition = Vector3.Zero, WorldNormal = normal };
+            renderer.Draw(Vertex(8, 8), Vertex(56, 8), Vertex(8, 56), new TriangleMaterial(null) { FieldLighting = FieldLightingPass.Model });
+            renderer.End();
+            Color[] pixels = GpuTestDevice.Read(renderer.Target);
+            return (pixels[16 * 64 + 16], pixels[4 * 64 + 4]);
+        }
+
+        var nativeDiffuse = Sample(false, false, Vector3.UnitZ, lamp);
+        var grayMaterial = Sample(true, false, Vector3.UnitZ, lamp);
+        Assert.True(nativeDiffuse.Model.R > 0 && nativeDiffuse.Model.G == 0);
+        Assert.True(grayMaterial.Model.R == grayMaterial.Model.G && grayMaterial.Model.G == grayMaterial.Model.B && grayMaterial.Model.R > 0);
+        Assert.Equal(nativeDiffuse.Background, grayMaterial.Background);
+        Assert.Equal(Color.Black, Sample(false, false, Vector3.UnitX, lamp).Model);
+        Assert.True(Sample(false, true, Vector3.UnitX, lamp).Model.R > 0);
+        Assert.Equal(Color.Black, Sample(false, true, Vector3.UnitX, lamp with { Direction = Vector3.UnitZ }).Model);
+        Assert.Equal(nativeDiffuse, Sample(false, false, Vector3.UnitZ, lamp));
+    }
+
     private static FieldSpotLight Lamp() => new() { Id = "lamp", Name = "Lamp", Position = new(0, 0, 10), Range = 30 };
 
     [Theory]

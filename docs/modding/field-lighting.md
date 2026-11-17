@@ -4,17 +4,21 @@
 
 Open **Mods → Create → Create lighting mod**, enter a name with the keyboard, and create the package. **F2 → Mods** opens the same mod manager when the ordinary game menu is unavailable. To continue an existing project, choose **Edit lighting mod** and select it. Managed packages offer a writable custom copy. Creation and selection enable authoring preview independently of the package's installed activation.
 
-Visit an ordinary FFVIII field and press **Ctrl+L**. The current camera, animation sample and simulation freeze while lighting continues to render. An untouched field retains native lighting. Press **Insert** to add a spotlight above the actor or picked ground point; this switches the field to authored lighting. Select lights in the source list or by their viewport markers.
+Visit an ordinary FFVIII field and press **Ctrl+L**. The current camera, animation sample and simulation freeze while lighting continues to render. An untouched field retains native lighting. Press **Insert** or **Add light** to place a spotlight above the actor or picked ground point. **Add fill** places a broad, dim spotlight aimed toward the same area. Both switch the field to authored lighting.
 
-Use **G** to move a light and **R** to aim its beam. Press **X**, **Y** or **Z** to constrain the operation, then drag or enter a signed number. Enter or a left click confirms; a right click cancels. XYZ handles and rotation rings provide the same operations with the mouse. **Orbit around scene pivot** rotates position and direction together. **Pick scene pivot** changes only the editing pivot. The field camera and painted background stay fixed.
+Select lights in the source list or click their markers. Drag a marker to move its light in the camera plane. The panels hide during the drag so the marker, beam and handles remain visible. Release to commit or right-click to cancel. **G** moves a light and **R** aims its beam. Press **X**, **Y** or **Z** to constrain the operation, then move the pointer or enter a signed number. Enter or a left click confirms. The axis handles and rotation rings offer the same controls with the mouse. **Rotate light around pivot** rotates the light's position and direction together. Use **Pick scene pivot** to choose a new pivot on the walkmesh.
 
-The properties panel provides RGB gradient sliders, color swatches and editable numeric values. Click a numeric value to type a replacement; Enter commits it. Intensity, range, cone half-angles, position and aim also accept keyboard input. One slider or gizmo drag is one undo step. **Ctrl+Z/Ctrl+Y** undo and redo complete edits, including additions, deletions and Primary transfers.
+Scroll over the scene to zoom from 0.5? to 4? around the pointer. Middle-drag to pan and use **Reset view** to restore framing. Zoom keeps the painted background, models, and editor guides registered. **3D inspection** shows models and the walkmesh without the painted background. Alt + middle-drag orbits the inspection camera around the pivot. **Backdrop preview** limits the orbit angle and projects the visible painted tiles using their original drawing depth. Surfaces can stretch or separate because the stage contains only the painted view and approximate depth. **Game camera** restores the exact painted composition. **Gray material** shows model shading with neutral albedo, and **Wrap preview** softens the lighting falloff around surfaces for inspection. These view controls only affect the editor preview.
+
+The properties panel provides RGB gradient sliders, color swatches and editable numeric values. Click a value and press Enter after typing a replacement. One slider, marker or handle drag is one undo step. **Ctrl+Z/Ctrl+Y** undo and redo complete edits, including additions, deletions and Primary transfers.
 
 **Ctrl+S / Save field** validates and saves only this scene, leaving the editor open. **Cancel / Close** resumes gameplay; a dirty draft offers **Discard changes** or **Continue editing**. Successful earlier saves remain intact. Authoring stays enabled so the same shortcut opens the next field's independent light list. **Escape** hides or restores all editor panels and guides, keeps the scene frozen, and suspends editing. It does not close the editor. All these shortcuts can be changed in **Editor shortcuts**; preferences stay on the author's machine.
 
-The first explicitly added lamp becomes the Primary shadow source. Other lamps still illuminate models. Deleting that Primary leaves no authored shadow source until another lamp is selected explicitly. Removing every source restores native lighting and shadows. While at least one source remains in the scene, only enabled lamps contribute: disabling all of them or aiming every beam away produces zero model illumination. Disable authoring to restore installed-mod selection, or choose **Enable selected mod for normal play** to use saved lighting without the editor.
+**Add light** assigns the Primary shadow source when the scene has no lamps. **Add fill** preserves the current Primary assignment. Deleting the Primary leaves no authored shadow source until another lamp is selected explicitly. Removing every source restores native field lighting. **Config → Graphics → Native field shadows** is on by default and controls native circular shadows, including the native fallback under authored lighting. While the scene has sources, enabled lamps contribute where their beams reach models. Disable authoring to restore installed-mod selection, or choose **Enable selected mod for normal play** to use saved lighting without the editor.
 
 The selected package and shortcuts are remembered. Authoring starts off after an application restart; enable it again to edit the remembered package. Installed activation continues independently.
+
+Use **Receivers overlay** to see the walkmesh triangles currently selected for silhouette shadows and the authored shadow patches. **Add floor** places a horizontal rectangle using two opposite corners. The first click uses the picked walkmesh height or the scene pivot height. **Add wall** uses two endpoints along the bottom edge and gives the wall an initial height. Use the arrow buttons to select a patch, then edit its world-space center, width, depth or height, and heading. A wall's bottom stays fixed while you edit its height. Changes to patches are part of the field's undo and save history. The overlay is local to the editor.
 
 ## Package format
 
@@ -53,7 +57,18 @@ Each authored field has one complete document at `lighting/fields/<fieldName>.js
   "groundShadow": {
     "opacity": 0.5,
     "softness": 1
-  }
+  },
+  "shadowReceivers": [
+    {
+      "id": "wall-01",
+      "kind": "wall",
+      "enabled": true,
+      "center": [20, 60, 100],
+      "width": 150,
+      "extent": 200,
+      "headingDegrees": 0
+    }
+  ]
 }
 ```
 
@@ -63,7 +78,9 @@ The format permits eight enabled lamps and additional disabled entries, up to 10
 
 Enabling a lighting component does not by itself replace native lighting. A field with no document, or a saved scene with `"lights": []` and `"primaryLightId": null`, uses the original renderer path. At least one explicitly authored source is required to switch that field to spotlight shading, even if the source is currently disabled. This rule applies to normal play and authoring preview. There is no inherited source list or global mod light. Normal play selects the first lighting component in existing catalog precedence order for the entire supported field domain. A missing or empty scene retains native lighting and never falls through to another package. Disabling lighting also restores the original renderer path.
 
-Scene documents require every property shown above, reject unknown and duplicate properties, and are limited to 512 KiB. Invalid lighting rejects the candidate mod publication while preserving the last committed generation. Runtime parsing occurs during resource preparation, not per frame.
+Scene documents may omit `shadowReceivers`, which defaults to an empty array. Other scene properties and every property in each receiver entry are required. Documents reject unknown and duplicate properties and are limited to 512 KiB. Invalid lighting rejects the candidate mod publication while preserving the last committed generation. Runtime parsing occurs during resource preparation, not per frame.
+
+Each field supports up to 128 rectangular patches with unique IDs. The kind is `floor` or `wall`. Width and extent are positive world-space distances. Extent is depth for a floor and height for a wall. Heading ranges from -180 to 180 degrees and rotates the width axis from +X toward +Y.
 
 Saving changes only the current field's lighting payload. It compares the exact loaded revision, stages and flushes a new file, and atomically replaces the payload. An external edit or a conflicting editor save preserves the draft and reports a conflict. Saving does not enable the mod or modify another field, package metadata or unrelated content. Opening an untouched empty field creates no file. Managed and read-only packages require a new writable custom copy; copying retains their content under a new identity and leaves the source intact.
 
@@ -79,6 +96,6 @@ Only model albedo crosses a local sRGB-to-linear-to-sRGB boundary. Native textur
 
 The Primary uses one 1024-by-1024 perspective map at its actual position with the outer cone's full field of view. A capability-checked, single-sample floating-point color target stores reciprocal spotlight depth and native shadow level, with a separate ordinary depth attachment. This target uses opaque writes without alpha-preservation blending. Manual comparisons and nine-tap filtering use the authored softness radius. Receiver-plane depth gradients correct each comparison to the sampled texel centre, so a sloped surface does not shadow itself merely because neighboring samples have different depths. Primary occlusion affects only that lamp's model-lighting term. Ground opacity also follows local Primary color, intensity, range and cone contribution.
 
-Receiving geometry starts at the actor's supported walkmesh triangle and follows native adjacency within the lamp's bounded range. Stable source triangle IDs are submitted once across all actors; overlapping casters share one map. Receivers use the native translucent ordering and opaque depth tests, preserving foreground occlusion and keeping shadows below visible models. Painted walls or furniture are not reconstructed.
+Native receiving geometry starts at the actor's supported walkmesh triangle and follows native adjacency within the lamp's bounded range. Authored floor and wall patches extend shadow coverage independently of the walkmesh and have no effect on actor movement. A wall can receive a shadow from either side. Coplanar overlaps between authored patches and active walkmesh triangles are drawn once. Receivers use native translucent ordering and opaque depth tests. Patches receive shadows and add no new occluders or visible geometry to the scene.
 
-Within an authored scene, native shadow suppression, zero shadow radius/level, absent or noncontributing Primary lamps and invalid below-ground projections produce no shadow. A genuinely unavailable shadow target or missing supported ground produces a diagnosed native-shadow fallback only for actors with a contributing Primary. Fallback actors are excluded from the silhouette map. Empty scenes retain native shadows. Renderer capability failure is reported as unavailable and retains legacy gameplay. Shader artifacts are provided for Direct3D 11, Direct3D 12 and Vulkan; shader compilation alone does not establish runtime hardware coverage or performance.
+Within an authored scene, native shadow suppression, zero shadow radius or level, and an absent or noncontributing Primary lamp suppress casting. An unavailable shadow target can use a diagnosed native-shadow fallback when the actor has a native receiver path. A missing support triangle can also use the native fallback if no authored patch can receive the actor's shadow and the Primary is above the native shadow center. Fallback actors are excluded from the silhouette map. Empty scenes retain native shadow behavior. Renderer capability failure is reported as unavailable and retains legacy gameplay. Shader artifacts are provided for Direct3D 11, Direct3D 12 and Vulkan; shader compilation alone does not establish runtime hardware coverage or performance.

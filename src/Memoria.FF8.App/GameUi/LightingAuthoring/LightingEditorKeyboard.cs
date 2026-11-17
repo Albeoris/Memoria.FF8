@@ -87,7 +87,7 @@ public sealed record LightingShortcutSettings
             LightingEditorCommand.DeleteLight => "Delete selected light",
             LightingEditorCommand.Translate => "Move light",
             LightingEditorCommand.Rotate => "Aim light",
-            LightingEditorCommand.Orbit => "Orbit around scene pivot",
+            LightingEditorCommand.Orbit => "Rotate light around pivot",
             LightingEditorCommand.AxisX => "Constrain X",
             LightingEditorCommand.AxisY => "Constrain Y",
             LightingEditorCommand.AxisZ => "Constrain Z (height)",

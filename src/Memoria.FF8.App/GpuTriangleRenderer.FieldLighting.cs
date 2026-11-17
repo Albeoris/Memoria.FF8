@@ -18,6 +18,9 @@ public sealed partial class GpuTriangleRenderer
     private int fieldPrimaryIndex = -1;
 
     public bool FieldLightingSupported => effect.Parameters["FieldLightCount"] is not null && effect.Parameters["FieldShadowMatrix"] is not null && effect.Techniques["FieldLightingTechnique"] is not null && effect.Techniques["FieldShadowTechnique"] is not null;
+    internal bool PreviewGrayFieldMaterial { get; set; }
+    internal bool PreviewWrappedFieldDiffuse { get; set; }
+
     public string? FieldLightingUnavailableReason => FieldLightingSupported ? null : "This graphics effect has no field spotlight shader.";
 
     public void SetFieldLighting(FieldLightingScene? scene)
@@ -62,6 +65,7 @@ public sealed partial class GpuTriangleRenderer
         effect.Parameters["FieldPrimaryIndex"].SetValue(fieldPrimaryIndex);
         effect.Parameters["FieldShadowParameters"].SetValue(Vector4.Zero);
         effect.Parameters["FieldLightingPass"].SetValue(0f);
+        effect.Parameters["FieldLightingPreview"].SetValue(new Vector2(PreviewGrayFieldMaterial ? 1f : 0f, PreviewWrappedFieldDiffuse ? 0.3f : 0f));
         effect.Parameters["FieldShadowTexture"].SetValue((Texture2D?)null);
         device.Textures[1] = null;
     }

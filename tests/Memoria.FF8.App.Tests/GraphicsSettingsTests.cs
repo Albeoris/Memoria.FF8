@@ -39,6 +39,26 @@ public sealed class GraphicsSettingsTests
         }
     }
 
+    [Fact]
+    public void Native_field_shadow_option_is_on_for_legacy_preferences_and_persists()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, "{}");
+            UiPreferences legacy = UiPreferences.Load(path);
+            Assert.True(legacy.NativeFieldShadows);
+            UiPreferences disabled = legacy.WithInstallationSetting("Native field shadows", "Off", activeGame: true);
+            disabled.Save(path);
+            Assert.False(UiPreferences.Load(path).NativeFieldShadows);
+            Assert.True(disabled.WithSetting("Native field shadows", "On").NativeFieldShadows);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Theory]
     [InlineData("{\"Graphics\":null}")]
     [InlineData("{\"Graphics\":{\"MsaaSamples\":-1}}")]

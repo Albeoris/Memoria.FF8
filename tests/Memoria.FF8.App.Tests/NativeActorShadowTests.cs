@@ -321,6 +321,10 @@ public sealed class NativeActorShadowTests
         int center = (120 * 320 + 160) * 4;
         int halfway = (120 * 320 + 176) * 4;
         int outside = (120 * 320 + 200) * 4;
+        renderer.NativeFieldShadows = false;
+        Assert.Equal(baseline, renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero));
+        renderer.NativeFieldShadows = true;
+        Assert.Equal(shadow, renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero));
         Assert.InRange(shadow[center], (byte)104, (byte)108);
         Assert.True(shadow[halfway] > shadow[center] && shadow[halfway] < baseline[halfway]);
         Assert.Equal(baseline[outside], shadow[outside]);

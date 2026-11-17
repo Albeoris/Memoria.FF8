@@ -7,6 +7,8 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class LightingEditorController
 {
+    private const float MarkerDragThreshold = 4;
+
     public void ResetInput(KeyboardState keys, MouseState mouse)
     {
         keyboard.Reset(keys);
@@ -21,22 +23,23 @@ public sealed partial class LightingEditorController
             return;
         }
         view.Resize(Math.Max(1, width), Math.Max(1, height));
-        float scale = Math.Min(width / DesignWidth, height / DesignHeight);
-        scale = Math.Max(0.001f, scale);
         Vector2 previousPointer = pointer;
-        pointer = new Vector2((mouse.X - (width - DesignWidth * scale) * 0.5f) / scale, (mouse.Y - (height - DesignHeight * scale) * 0.5f) / scale);
+        pointer = LightingEditorViewport.WindowToDesign(new Vector2(mouse.X, mouse.Y), Math.Max(1, width), Math.Max(1, height));
         if (!focused || !wasFocused)
         {
             if (wasFocused)
             {
                 focusPointer = previousPointer;
+                markerPress = null;
+                EndViewportPan();
+                orbitingInspection = false;
             }
             else if (focused && OverlayVisible)
             {
                 interactionPointerOffset += pointer - focusPointer;
-                if (transform is { Dragging: true } active && mouse.LeftButton == ButtonState.Released)
+                if (transform is { Dragging: true } && mouse.LeftButton == ButtonState.Released)
                 {
-                    active.Dragging = false;
+                    FinishPointerTransform();
                 }
             }
             wasFocused = focused;
@@ -83,10 +86,22 @@ public sealed partial class LightingEditorController
         }
         if (rightPressed)
         {
+            markerPress = null;
+            EndViewportPan();
+            orbitingInspection = false;
             CancelTransform();
             CancelProperty();
             EndSlider(false);
+            CancelReceiverPlacement();
             PickingPivot = false;
+            return;
+        }
+        if (previousPanPointer is not null && HandleViewportInput(keys, mouse, oldMouse))
+        {
+            return;
+        }
+        if (orbitingInspection && HandleInspectionNavigation(keys, mouse, oldMouse, pointer, previousPointer))
+        {
             return;
         }
         if (propertyEdit is not null)
@@ -98,13 +113,30 @@ public sealed partial class LightingEditorController
             }
             return;
         }
+        if (markerPress is { } press)
+        {
+            if (mouse.LeftButton == ButtonState.Released || SelectedId != press.LightId)
+            {
+                markerPress = null;
+                return;
+            }
+            if (Vector2.DistanceSquared(pointer, press.Position) < MarkerDragThreshold * MarkerDragThreshold)
+            {
+                return;
+            }
+            markerPress = null;
+            BeginTransform(LightingTransformTool.Translate, LightingAxis.None, true, press.Position);
+        }
         foreach (LightingEditorCommand command in commands)
         {
-            Execute(command);
+            if (transform is not { Dragging: true } || command is LightingEditorCommand.AxisX or LightingEditorCommand.AxisY or LightingEditorCommand.AxisZ or LightingEditorCommand.Confirm or LightingEditorCommand.Undo)
+            {
+                Execute(command);
+            }
         }
         if (transform is not null)
         {
-            if (leftPressed && (LightingEditorLayout.Header.Contains(pointer.X, pointer.Y) || LightingEditorLayout.CancelEdit.Contains(pointer.X, pointer.Y)))
+            if (leftPressed && !transform.Dragging && (LightingEditorLayout.Header.Contains(pointer.X, pointer.Y) || LightingEditorLayout.CancelEdit.Contains(pointer.X, pointer.Y)))
             {
                 PointerPress(pointer);
                 return;
@@ -113,10 +145,13 @@ public sealed partial class LightingEditorController
             {
                 SetTransformNumeric(transform.Numeric[..^1]);
             }
-            UpdateTransform();
             if (leftPressed && !transform.Dragging || leftReleased && transform.Dragging)
             {
-                ConfirmTransform();
+                FinishPointerTransform();
+            }
+            else
+            {
+                UpdateTransform();
             }
             return;
         }
@@ -134,6 +169,10 @@ public sealed partial class LightingEditorController
             {
                 EndSlider(true);
             }
+            return;
+        }
+        if (HandleInspectionNavigation(keys, mouse, oldMouse, pointer, previousPointer) || HandleViewportInput(keys, mouse, oldMouse))
+        {
             return;
         }
         if (mouse.ScrollWheelValue != oldMouse.ScrollWheelValue && LightingEditorLayout.Sources.Contains(pointer.X, pointer.Y))
@@ -307,6 +346,10 @@ public sealed partial class LightingEditorController
         {
             return;
         }
+        if (HandleReceiverInput(position, true) || TryPressInspectionTool(position))
+        {
+            return;
+        }
         if (Hit(LightingEditorLayout.Save))
         {
             Save();
@@ -326,6 +369,10 @@ public sealed partial class LightingEditorController
         else if (Hit(LightingEditorLayout.Add))
         {
             AddLight();
+        }
+        else if (Hit(LightingEditorLayout.AddFill))
+        {
+            AddFillLight();
         }
         else if (Hit(LightingEditorLayout.Delete))
         {
@@ -347,6 +394,10 @@ public sealed partial class LightingEditorController
         {
             PickingPivot = !PickingPivot;
             Message = "Pick a valid walkmesh ground point to reposition the scene pivot. Lamp data stays unchanged.";
+        }
+        else if (Hit(LightingEditorLayout.ResetView))
+        {
+            Viewport.Reset();
         }
         else if (Hit(LightingEditorLayout.Enabled))
         {
@@ -375,7 +426,7 @@ public sealed partial class LightingEditorController
         {
             foreach (LightingProperty property in Enum.GetValues<LightingProperty>())
             {
-                if (Selected is null && property is not (LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness))
+                if (IsReceiverProperty(property) || Selected is null && property is not (LightingProperty.ShadowOpacity or LightingProperty.ShadowSoftness))
                 {
                     continue;
                 }
@@ -391,21 +442,38 @@ public sealed partial class LightingEditorController
                 }
             }
         }
-        else if (Hit(LightingEditorLayout.Header) || Hit(LightingEditorLayout.Footer))
+        else if (!IsViewportPointer(position))
         {
             return;
         }
-        else if (HitGizmo(position) is { } gizmo)
-        {
-            BeginTransform(gizmo.Tool, gizmo.Axis, true);
-        }
         else
         {
-            foreach (FieldSpotLight light in Draft.Lights.Reverse())
+            if (!PickingPivot)
             {
-                if (project(light.Position) is { } marker && Vector2.Distance(marker, position) <= 12)
+                FieldSpotLight? nearest = null;
+                float distanceSquared = 12 * 12;
+                foreach (FieldSpotLight light in Draft.Lights.Reverse())
                 {
-                    Select(light.Id);
+                    if (project(light.Position) is not { } marker)
+                    {
+                        continue;
+                    }
+                    float distance = Vector2.DistanceSquared(marker, position);
+                    if (distance < distanceSquared)
+                    {
+                        nearest = light;
+                        distanceSquared = distance;
+                    }
+                }
+                if (nearest is not null)
+                {
+                    Select(nearest.Id);
+                    markerPress = (nearest.Id, position);
+                    return;
+                }
+                if (HitGizmo(position) is { } gizmo)
+                {
+                    BeginTransform(gizmo.Tool, gizmo.Axis, true);
                     return;
                 }
             }

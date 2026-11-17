@@ -28,6 +28,11 @@ public sealed partial class LightingEditorController
             return;
         }
         DrawSceneGuides(canvas, theme);
+        if (IsDraggingLight)
+        {
+            return;
+        }
+        DrawReceiverGuides(canvas);
         Panel(canvas, LightingEditorLayout.Header);
         Panel(canvas, LightingEditorLayout.Sources);
         Panel(canvas, LightingEditorLayout.Properties);
@@ -41,11 +46,16 @@ public sealed partial class LightingEditorController
         Button(canvas, theme, LightingEditorLayout.Cancel, "Cancel / Close");
         Button(canvas, theme, LightingEditorLayout.Move, "Move", ActiveTool == LightingTransformTool.Translate);
         Button(canvas, theme, LightingEditorLayout.Rotate, "Aim", ActiveTool == LightingTransformTool.Rotate);
-        Button(canvas, theme, LightingEditorLayout.Orbit, "Orbit around scene pivot", ActiveTool == LightingTransformTool.Orbit);
+        Button(canvas, theme, LightingEditorLayout.Orbit, "Rotate light around pivot", ActiveTool == LightingTransformTool.Orbit);
         Button(canvas, theme, LightingEditorLayout.Pivot, "Pick scene pivot", PickingPivot);
+        Button(canvas, theme, LightingEditorLayout.ResetView, "Reset view");
+        DrawReceiverTools(canvas, theme);
+        DrawInspectionTools(canvas, theme);
         DrawSources(canvas, theme);
         DrawProperties(canvas, theme);
-        string hints = Shortcuts.Describe(LightingEditorCommand.Translate) + " Move   " + Shortcuts.Describe(LightingEditorCommand.Rotate) + " Aim   " + Shortcuts.Describe(LightingEditorCommand.AxisX) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisY) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisZ) + " axes   " + Shortcuts.Describe(LightingEditorCommand.Confirm) + " Confirm   Right click cancel edit   " + Shortcuts.Describe(LightingEditorCommand.ToggleVisibility) + " Hide UI";
+        string hints = transform is null
+            ? "Drag marker / " + Shortcuts.Describe(LightingEditorCommand.Translate) + " move  ·  " + Shortcuts.Describe(LightingEditorCommand.Rotate) + " aim  ·  Wheel zoom  ·  Middle-drag pan  ·  " + Shortcuts.Describe(LightingEditorCommand.ToggleVisibility) + " hide UI"
+            : Shortcuts.Describe(LightingEditorCommand.AxisX) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisY) + "/" + Shortcuts.Describe(LightingEditorCommand.AxisZ) + " constrain  ·  " + Shortcuts.Describe(LightingEditorCommand.Confirm) + " confirm  ·  Right click cancel";
         Label(canvas, Message, 14, new(24, 656, 1232, 21), ErrorColor);
         Label(canvas, hints, 13, new(24, 682, 1232, 18), theme.Muted);
         if (transform is not null || propertyEdit is not null)
@@ -57,17 +67,23 @@ public sealed partial class LightingEditorController
             string constraint = active.Axis == LightingAxis.None ? active.Tool == LightingTransformTool.Translate ? "camera plane" : active.Tool == LightingTransformTool.Rotate ? "camera axis" : "world Z" : "world " + active.Axis;
             string numeric = active.Numeric.Length == 0 ? "mouse" : active.Numeric + (active.Tool == LightingTransformTool.Translate ? " units" : "°");
             Panel(canvas, new(270, 566, 675, 34));
-            Label(canvas, active.Tool + "  /  " + constraint + "  /  " + numeric, 17, new(281, 574, 650, 24), theme.Foreground);
+            string tool = active.Tool switch
+            {
+                LightingTransformTool.Translate => "Move",
+                LightingTransformTool.Rotate => "Aim",
+                _ => "Rotate light around pivot"
+            };
+            Label(canvas, tool + "  /  " + constraint + "  /  " + numeric, 17, new(281, 574, 650, 24), theme.Foreground);
         }
         if (!string.IsNullOrEmpty(RendererStatus))
         {
-            Panel(canvas, new(270, 120, 675, 42));
-            Label(canvas, RendererStatus, 13, new(280, 128, 655, 28), ErrorColor);
+            Panel(canvas, new(270, 232, 675, 42));
+            Label(canvas, RendererStatus, 13, new(280, 240, 655, 28), ErrorColor);
         }
         if (SelectionLocationNotice is { } locationNotice)
         {
-            Panel(canvas, new(270, 170, 675, 48));
-            canvas.Text(locationNotice, 13, new(280, 176, 655, 38), ErrorColor);
+            Panel(canvas, new(270, 280, 675, 48));
+            canvas.Text(locationNotice, 13, new(280, 286, 655, 38), ErrorColor);
         }
         if (ShortcutsVisible)
         {
@@ -87,6 +103,7 @@ public sealed partial class LightingEditorController
     {
         Label(canvas, "SCENE SOURCES", 16, new(24, 94, 216, 22), theme.Foreground);
         Button(canvas, theme, LightingEditorLayout.Add, "Add light");
+        Button(canvas, theme, LightingEditorLayout.AddFill, "Add fill");
         Button(canvas, theme, LightingEditorLayout.Delete, "Delete", false, Selected is not null);
         for (int row = 0; row < LightingEditorLayout.VisibleLights && ListOffset + row < Draft.Lights.Count; row++)
         {
@@ -132,7 +149,7 @@ public sealed partial class LightingEditorController
         }
         else
         {
-            canvas.Text("Select a source from the list or click its world-space marker.\n\nMove changes position.\nAim changes beam direction.\nOrbit rotates both around the scene pivot.\n\nXY is ground; positive Z is height. Below-floor lamps are allowed.", 15, new(977, 130, 272, 290), theme.Muted);
+            canvas.Text("Click a light in the list or scene. Drag its marker to move it, or use the axis handles for a constrained move.\n\nXY is ground. Positive Z is height.", 15, new(977, 130, 272, 290), theme.Muted);
         }
         Label(canvas, "GROUND SHADOW", 13, new(972, 501, 282, 20), AccentColor);
         DrawSlider(canvas, theme, LightingProperty.ShadowOpacity);
@@ -196,7 +213,11 @@ public sealed partial class LightingEditorController
 
     private void DrawSceneGuides(IUiCanvas canvas, UiTheme theme)
     {
-        if (project(Pivot) is { } pivotScreen)
+        if (!IsDraggingLight)
+        {
+            DrawInspectionWalkmesh(canvas);
+        }
+        if ((!IsDraggingLight || ActiveTool == LightingTransformTool.Orbit) && project(Pivot) is { } pivotScreen)
         {
             canvas.Line(pivotScreen.X - 11, pivotScreen.Y, pivotScreen.X + 11, pivotScreen.Y, AccentColor, 2);
             canvas.Line(pivotScreen.X, pivotScreen.Y - 11, pivotScreen.X, pivotScreen.Y + 11, AccentColor, 2);
@@ -204,12 +225,16 @@ public sealed partial class LightingEditorController
         }
         foreach (FieldSpotLight light in Draft.Lights)
         {
+            bool selected = light.Id == SelectedId;
+            if (IsDraggingLight && !selected)
+            {
+                continue;
+            }
             if (project(light.Position) is not { } marker)
             {
                 continue;
             }
             UiColor color = light.Enabled ? LightColor(light) : new UiColor(120, 120, 120);
-            bool selected = light.Id == SelectedId;
             float radius = selected ? 10 : 7;
             canvas.Line(marker.X, marker.Y - radius, marker.X + radius, marker.Y, color, selected ? 3 : 2);
             canvas.Line(marker.X + radius, marker.Y, marker.X, marker.Y + radius, color, selected ? 3 : 2);
@@ -221,7 +246,7 @@ public sealed partial class LightingEditorController
                 DrawBeam(canvas, light, color);
             }
         }
-        LightingGizmoSegment? hover = HitGizmo(pointer);
+        LightingGizmoSegment? hover = transform is null ? HitGizmo(pointer) : null;
         foreach (LightingGizmoSegment segment in GizmoSegments())
         {
             UiColor color = AxisColors[(int)segment.Axis - 1];

@@ -214,6 +214,88 @@ public sealed class LightingEditorTests
     }
 
     [Fact]
+    public void Source_marker_click_selects_and_drag_hides_panels_until_one_world_space_edit_finishes()
+    {
+        LightingEditorController editor = Create();
+        editor.AddLight();
+        string source = editor.SelectedId!;
+        editor.Select(null);
+        Poll(editor, new(), 640, 360, true);
+        Poll(editor, new(), 642, 361, true);
+        Assert.Equal(source, editor.SelectedId);
+        Assert.False(editor.IsDraggingLight);
+        Poll(editor, new(), 642, 361);
+        Assert.Equal(1, editor.History.CommandCount);
+
+        Poll(editor, new(), 640, 360, true);
+        Poll(editor, new(), 665, 345, true);
+        Assert.True(editor.IsDraggingLight);
+        Assert.True(editor.OverlayVisible);
+        Assert.Equal(LightingAxis.None, editor.ActiveAxis);
+        AssertVector(new(25, 15, 150), editor.Selected!.Position);
+        RecordingCanvas canvas = new();
+        editor.BuildView().Draw(canvas, new UiTheme());
+        Assert.DoesNotContain(canvas.Texts, text => text.StartsWith("FIELD LIGHTS", StringComparison.Ordinal));
+        Assert.Contains(editor.Selected.Name, canvas.Texts);
+        Assert.True(canvas.LineCount > 100);
+
+        Poll(editor, new(), 1120, 300);
+        Assert.False(editor.HasPendingTransform);
+        Assert.False(editor.IsDraggingLight);
+        Assert.Null(editor.EditingProperty);
+        AssertVector(new(480, 60, 150), editor.Selected.Position);
+        Assert.Equal(2, editor.History.CommandCount);
+        canvas.Texts.Clear();
+        editor.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains(canvas.Texts, text => text.StartsWith("FIELD LIGHTS", StringComparison.Ordinal));
+        editor.Undo();
+        AssertVector(new(0, 0, 150), editor.Selected.Position);
+    }
+
+    [Fact]
+    public void Source_marker_drag_can_be_cancelled_and_focus_loss_preserves_last_preview()
+    {
+        LightingEditorController editor = Create();
+        editor.AddLight();
+        Poll(editor, new(), 640, 360, true);
+        Poll(editor, new(), 665, 345, true);
+        MouseState cancel = new(670, 345, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released);
+        editor.Poll(new(), cancel, true, 1280, 720);
+        Assert.False(editor.IsDraggingLight);
+        AssertVector(new(0, 0, 150), editor.Selected!.Position);
+        Assert.Equal(1, editor.History.CommandCount);
+
+        Poll(editor, new(), 640, 360);
+        Poll(editor, new(), 640, 360, true);
+        Poll(editor, new(), 665, 345, true);
+        editor.Poll(new(), Mouse(0, 0, false), false, 1280, 720);
+        Assert.False(editor.IsDraggingLight);
+        Poll(editor, new(), 1120, 300);
+        Assert.False(editor.HasPendingTransform);
+        AssertVector(new(25, 15, 150), editor.Selected.Position);
+        Assert.Equal(2, editor.History.CommandCount);
+    }
+
+    [Fact]
+    public void Add_fill_uses_a_broad_dim_spotlight_without_taking_the_primary_role()
+    {
+        LightingEditorController editor = Create();
+        Poll(editor, new(), 140, 136, true);
+        Poll(editor, new(), 140, 136);
+        FieldSpotLight fill = Assert.Single(editor.Draft.Lights);
+        Assert.Null(editor.Draft.PrimaryLightId);
+        Assert.StartsWith("Fill light", fill.Name);
+        Assert.InRange(fill.Intensity, 0.01f, 0.99f);
+        Assert.True(fill.OuterConeDegrees > 65);
+        editor.Undo();
+        editor.AddLight();
+        string primary = editor.Draft.PrimaryLightId!;
+        editor.AddFillLight();
+        Assert.Equal(primary, editor.Draft.PrimaryLightId);
+        Assert.Equal(2, editor.History.CommandCount);
+    }
+
+    [Fact]
     public void Hidden_transform_is_suspended_and_reappears_without_mouse_jump_or_keyboard_mutation()
     {
         LightingEditorController editor = Create();
