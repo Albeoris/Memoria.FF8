@@ -208,6 +208,18 @@ public sealed class StartupSequenceTests
     }
 
     [Fact]
+    public void Direct_mod_manager_launch_bypasses_the_startup_input_gate()
+    {
+        LaunchOptions options = LaunchOptions.Parse(["--open-mod-manager"]);
+        Assert.True(options.OpenModManager);
+        Assert.True(options.AcceptsPhysicalInput);
+        Assert.Equal(SceneKind.Title, options.InitialState.Scene);
+        StartupSequence sequence = new(StartupSequence.ShouldPlay(options));
+        Assert.Equal(StartupStage.Complete, sequence.Stage);
+        Assert.False(sequence.HandleInput(confirm: true, cancel: false));
+    }
+
+    [Fact]
     public void Startup_only_runs_on_a_fresh_title_launch()
     {
         LaunchOptions options = new();
