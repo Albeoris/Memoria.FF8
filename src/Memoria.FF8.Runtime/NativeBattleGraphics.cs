@@ -76,6 +76,11 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
 
     public void Validate()
     {
+        Validate(null);
+    }
+
+    internal void Validate(Func<BattleModelOwner, bool>? bindsForeignModel)
+    {
         if (ActorModels is null || NativeBindings is null || Effects is null || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault)
         {
             throw new InvalidDataException("Native graphics state requires its model owners, native bindings and valid callback gates.");
@@ -118,9 +123,19 @@ public sealed partial record NativeBattleGraphicsState([property: JsonRequired] 
         foreach (BattleModelEntry<BattleModelOwner> entry in ActorModels.Entries)
         {
             NativeBattleGraphicsModel model = entry.State;
-            if ((model.Flags0 & 2) != 0 && (model.SequenceState is null || model.ResourceFlags44 is null || model.Flags8 is null || model.Flags2 is null))
+            if ((model.Flags0 & 2) != 0)
             {
-                throw new InvalidDataException("Loaded native graphics model lacks its resource or model fields.");
+                if (bindsForeignModel?.Invoke(entry.Owner) == true)
+                {
+                    if (model.Transform is null || model.Flags2 is null)
+                    {
+                        throw new InvalidDataException("Loaded foreign graphics model lacks its bound transform or model flags.");
+                    }
+                }
+                else if (model.SequenceState is null || model.ResourceFlags44 is null || model.Flags8 is null || model.Flags2 is null)
+                {
+                    throw new InvalidDataException("Loaded native graphics model lacks its resource or model fields.");
+                }
             }
             if (model.LinkedModel is not null)
             {

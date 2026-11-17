@@ -30,17 +30,17 @@ public sealed class NativeBattleChoco100PresentationTests
         int queued = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, slot => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)5, header.Action);
         Assert.Equal((ushort)100, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.Equal((ushort)100, Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 5).MagicId);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Null(contact.Secondary);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)100, source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([100])[99];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[99]));
         NativeBattleChoco100Resources resources = installed.Choco100Resources!;
@@ -115,8 +115,8 @@ public sealed class NativeBattleChoco100PresentationTests
                 {
                     completions++;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 if (previousHp != hp)
                 {
                     Assert.Equal((ushort)100, previousHp);
@@ -262,7 +262,7 @@ public sealed class NativeBattleChoco100PresentationTests
             Assert.All(finished.Pools, pool => Assert.All(pool.Slots, task => Assert.Equal(0, task.Flags & 1)));
             Assert.Equal(0, battle.Presentation!.Memory.Active);
             Assert.Equal((ushort)0, battle.Presentation!.Memory.Choco100!.Io!.Busy);
-            Assert.Equal((ushort)93, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal((ushort)93, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.All(new[] { resources.SoundInitial, resources.SoundModel, resources.SoundDirector, resources.SoundCamera }, sound => Assert.Contains(heard, item => item.Sound == sound));
             NativeBattleRestorationPresentationTests.Publish(output, "completed", battle.Capture(), scene.Render(battle, 320, 224));
             BattleSession restored = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "completed.battle.json")));

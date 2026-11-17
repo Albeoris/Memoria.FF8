@@ -11,7 +11,7 @@ public sealed class NativeBattleGraphicProductionTests
         BattleSession battle = new(Definition([4, 0, 30, 7, 0], retained), BattleAtbMode.Normal);
         battle.Tick();
 
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
@@ -50,8 +50,8 @@ public sealed class NativeBattleGraphicProductionTests
     {
         BattleSession empty = new(Definition([30, 7, 0], null), BattleAtbMode.Normal);
         empty.Tick();
-        Assert.Equal((byte)1, empty.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, empty.NativeActionPackets.ContactCount);
+        Assert.Equal((byte)1, empty.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)0, empty.Presentation!.NativeActionPackets.ContactCount);
         Assert.Null(empty.NativeElementAttack[3]);
 
         BattleSession reached = new(Definition([4, 0, 30, 7, 0], null), BattleAtbMode.Normal);

@@ -114,6 +114,9 @@ public sealed partial class BattleSession
         expandedHostedEvent = nextEvent;
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch, encounterLoad);
+        PublishDiagnosticReflectionCandidates(candidate);
+        PublishDiagnosticCounterContacts(candidate, process, dispatch.AppendedHeaders);
+        publication.PublishParticipantCallbackObservations();
         ObserveDiagnosticHostedCompletionAcknowledged(process, receipt);
         if (ObservingDiagnosticCounter && nextEvent.LogicallyComplete && hostedEvent.Command.ExpandedAiCallback is { } participant)
         {

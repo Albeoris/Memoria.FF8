@@ -30,16 +30,11 @@ public sealed class BattleTimedInputBehaviorTests
     }
 
     [Fact]
-    public void Closing_ui_serializes_compactly_and_progresses_without_any_model_or_native_memory()
+    public void Closed_native_UI_projection_round_trips_without_any_model_resources()
     {
-        BattleTimedInputUi original = new(BattleTimedInputUiPhase.Closing, 3);
+        BattleTimedInputUi original = new(BattleTimedInputUiPhase.Closed);
         string json = JsonSerializer.Serialize(original);
         BattleTimedInputUi restored = JsonSerializer.Deserialize<BattleTimedInputUi>(json)!;
-        for (int tick = 0; tick < 12; tick++)
-        {
-            original = original.Advance(60);
-            restored = restored.Advance(60);
-        }
         Assert.Equal(original, restored);
         Assert.False(restored.OwnsInput);
         Assert.DoesNotContain("Native", json);

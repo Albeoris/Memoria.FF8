@@ -40,14 +40,14 @@ public sealed class NativeBattleDrain39PresentationTests
         int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint offset = source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal((ushort)39, header.Effect);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.True(contact.Primary.Amount6 > 0);
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
         Assert.Equal((byte)200, action.StatusAttack);
         Assert.Equal(Math.Min(9999, contact.Primary.Amount6 * action.StatusAttack / 100), Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Amount6);
         Assert.Equal(Math.Min(beforeInput.Definition.Combatants.Single(actor => actor.Id == caster).MaximumHp, beforeInput.Combatants.Single(actor => actor.Id == caster).CurrentHp + contact.Secondary.Amount6), source.Combatants.Single(actor => actor.Id == caster).CurrentHp);

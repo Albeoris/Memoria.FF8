@@ -48,7 +48,7 @@ public sealed class NativeBattleBadBreath300PresentationTests
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
@@ -56,6 +56,6 @@ public sealed class NativeBattleBadBreath300PresentationTests
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = 4 } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared Amount0 MISS presentation input with original command/action/sequence; actual HP/status retained; no status, accuracy, formula, ordinary command or AI admission", Before = contact, After = declared }));
-        return source with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) };
+        return source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) });
     }
 }

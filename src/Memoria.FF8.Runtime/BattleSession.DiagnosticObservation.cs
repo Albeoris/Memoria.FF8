@@ -86,7 +86,8 @@ public sealed partial class BattleSession
         int? actionId = observation.Header?.Action ?? native?.ActionId ?? action?.ActionId;
         byte? command = observation.Header?.Command ?? native?.Command;
         byte? callbackStage = action?.NativeAiCallbackStage;
-        if (CurrentExpandedHostedInvocation is { } invocation && invocation.Command.ActorId == actorId &&
+        ExpandedHostedInvocation? cast = ReadDiagnosticBoundCast(CurrentExpandedHostedInvocation, observation.Effect.Parameters?.Header);
+        if ((cast ?? CurrentExpandedHostedInvocation) is { } invocation && invocation.Command.ActorId == actorId &&
             invocation.Header.Command == command && invocation.Header.Action == actionId && invocation.Header.Effect == observation.Effect.RequestedEffect)
         {
             ability ??= invocation.Command.Ability;
@@ -109,7 +110,7 @@ public sealed partial class BattleSession
             NativeHeaderIndex = observation.OriginalHeader,
             NativeHeaderGeneration = observation.HeaderGeneration
         };
-        dispatch = CompleteDiagnosticReflection(dispatch);
+        dispatch = CompleteDiagnosticReflection(process, observation, cast, dispatch);
         ObserveDiagnosticInvocationDispatch(dispatch);
         process.PublishDiagnosticEnteredEffect(observer, dispatch, observation.Effect);
     }

@@ -70,19 +70,17 @@ public sealed class NativeBattleDrawCastCameraTests
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 restored?.Tick();
-                if (battle.ActiveAction is { Ability: BattleAbility.Draw } action)
+                if (battle.ActiveAction is { Ability: BattleAbility.Draw } action && battle.Presentation?.Graphics.ActionGraphics?.Header is { } header)
                 {
                     draw = true;
                     Assert.False(action.NativeDraw!.Failed);
                     if (restored is null)
                     {
-                        BattleSnapshot checkpoint = battle.Capture();
-                        BattleActionHeaderReference header = Assert.IsType<BattleActionHeaderReference>(action.NativeHeader);
-                        Assert.Equal((byte)0, checkpoint.NativeActionPackets!.ReadHeader(header).ReadRepeatModeMinusOne());
-                        Assert.Equal(new BattleEnemyActorModel(new(target.Id)), Assert.Single(checkpoint.NativeActionPackets.ReadHeaderContacts(header)).Primary.Recipient);
+                        BattleSnapshot checkpoint = battle.CaptureForContinuation();
+                        Assert.Equal((byte)0, checkpoint.ReadFixturePresentation().NativeActionPackets!.ReadHeader(header).ReadRepeatModeMinusOne());
+                        Assert.Equal(new BattleEnemyActorModel(new(target.Id)), Assert.Single(checkpoint.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(header)).Primary.Recipient);
                         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-mid-draw", checkpoint, null);
-                        restored = BattleSession.Restore(checkpoint);
-                        restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
+                        restored = battle.ForkForContinuation();
                         Assert.Equal(JsonSerializer.Serialize(checkpoint), JsonSerializer.Serialize(restored.Capture()));
                         Assert.Equal(presentation.Render(battle, 320, 224).ToArray(), presentation.Render(restored, 320, 224).ToArray());
                     }

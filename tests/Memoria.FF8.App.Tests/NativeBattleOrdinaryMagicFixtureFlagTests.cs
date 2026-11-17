@@ -58,7 +58,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(queued.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(queued.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint offset = queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
-        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+        NativeBattleActionHeaderSlot header = queued.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal((ushort)223, header.Effect);

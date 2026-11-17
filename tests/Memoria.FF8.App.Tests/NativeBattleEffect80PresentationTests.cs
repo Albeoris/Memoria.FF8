@@ -166,7 +166,7 @@ public sealed class NativeBattleEffect80PresentationTests
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Effect80 requires its allocated recipient status owner.");
         Assert.True(target.NativeParticipant!.Active);
         BattleCombatantSnapshot preparedTarget = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 13, -1, 352, 80, null));
@@ -181,7 +181,7 @@ public sealed class NativeBattleEffect80PresentationTests
         Assert.Equal(Initializer, binding.Initializer);
         Assert.Same(game.ReadNativeEffect80Resources(), binding.Effect80Resources);
         NativeBattlePresentationStatusMemory presentationStatus = (original.NativePresentationStatusMemory ?? throw new InvalidDataException("Effect80 requires its current physical presentation-status bank.")).Observe(5, preparedTarget.NativeStatus!.Presentation);
-        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(79, binding) },Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? preparedTarget : actor).ToArray(),NativePresentationStatusMemory = presentationStatus,NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(79, binding) },Combatants = original.Combatants.Select(actor => actor.Id == target.Id ? preparedTarget : actor).ToArray(),NativePresentationStatusMemory = presentationStatus}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeModelCpuResources), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeModelCpuResources));
         Assert.Equal(JsonSerializer.Serialize(original.NativeClock), JsonSerializer.Serialize(source.NativeClock));

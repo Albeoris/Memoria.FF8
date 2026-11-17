@@ -136,14 +136,14 @@ public sealed partial class BattleSession
         QueueNativeSpecialText(actor, target, text);
     }
 
-    private (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts, NativeBattleActionHeaderPreparation? Header) ResolveExpandedPhoenixRevival(BattleCombatant actor, BattleActionPresentation source, bool hosted)
+    private (BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts, NativeBattleActionHeaderPreparation Header) ResolveExpandedPhoenixRevival(BattleCombatant actor, BattleActionPresentation source)
     {
         // 484050 selects every allocated party row with the KO modifier before command 0/8 runs.
         BattleNativeAction revival = NativePhoenixRevivalAction() with { Name = source.NativeAction!.Name };
         BattleActionDefinition action = new(BattleAbility.Item, source.ActionId, revival.Name ?? "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
         BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy);
         BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, TargetRequest = request };
-        NativeBattleActionHeaderPreparation? header = hosted ? BuildExpandedActionHeaderPreparation(command, revival) : null;
+        NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, revival);
         ReserveExpandedAiInvocation(command, header);
         NativeBattleActionScratch previousScratch = nativeActionScratch;
         bool previousDeferral = deferringExpandedImpacts;
@@ -151,7 +151,7 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = revival.ActionId };
         try
         {
-            deferringExpandedImpacts = hosted;
+            deferringExpandedImpacts = true;
             var plan = PlanNativeHits(actor, command, revival);
             NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, command, action, revival, plan);
             return (command, ToHostedContacts(produced), header);

@@ -62,11 +62,11 @@ public sealed class NativeBattleWaterRepeatAbortTests
                 before = battle.Capture();
                 battle.Tick();
                 BattleSnapshot current = battle.CaptureForContinuation();
-                if (!produced && current.NativeActionPackets!.ActionCount != 0)
+                if (!produced && current.ReadFixturePresentation().NativeActionPackets!.ActionCount != 0)
                 {
-                    Assert.Equal(2, current.NativeActionPackets.ActionCount);
-                    Assert.Equal(1, current.NativeActionPackets.ContactCount);
-                    Assert.Equal(0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
+                    Assert.Equal(2, current.ReadFixturePresentation().NativeActionPackets!.ActionCount);
+                    Assert.Equal(1, current.ReadFixturePresentation().NativeActionPackets!.ContactCount);
+                    Assert.Equal(0, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
                     Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
                     produced = true;
                     Save("produced", current);

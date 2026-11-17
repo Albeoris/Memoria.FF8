@@ -128,7 +128,7 @@ public sealed class NativeBattleRegenCallbackTests
 
         graphics = (NativeBattleGraphicsState)Method("BeginNativeActionGraphics").Invoke(battle, [graphics, new BattleActionHeaderReference(0)])!;
         Assert.Equal(0x50BD80u, graphics.ActionGraphics!.Callback);
-        Assert.Equal((byte)0, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
+        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
         Assert.Equal(500, battle.ReadPresentedVital("party").HitPoints);
 
         var result = ((NativeBattleGraphicsState Graphics, byte Phase, bool Complete))Method("PollNativeActionGraphics").Invoke(battle, [graphics, (byte)0])!;
@@ -151,7 +151,7 @@ public sealed class NativeBattleRegenCallbackTests
         TakeAndDispatch(battle);
         Assert.Equal(0, battle.Combatants[0].CurrentHp);
         Assert.Empty(battle.QueuedActions);
-        Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ActionCount);
         Assert.Equal(0u, battle.Capture().NativeClock!.ActionPause);
     }
 
@@ -163,9 +163,9 @@ public sealed class NativeBattleRegenCallbackTests
         Field("nativePartyPresentation").SetValue(battle, new NativeBattlePartyPresentation([new(checked((ushort)hp), 1000, null, null) { DisplayedHitPointsQ12 = hp << 12 }, null, null]));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, Graphics(battle));
         TakeAndDispatch(battle);
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)0, battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
-        return battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)0, battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
+        return battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
     }
 
     private static NativeBattleGraphicsState Graphics(BattleSession battle)

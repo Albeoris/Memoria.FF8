@@ -57,20 +57,12 @@ public sealed partial class BattleSession
             : new(row.Write(0, name), NativeBattlePreparedScanExtraFailure.None);
     }
 
-    private ImmutableDictionary<string, float>? ReadPreparedActorOpacities()
+    private ImmutableDictionary<string, float> ReadPendingAllocationOpacities()
     {
-        if (encounterArrivals.IsEmpty && encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready })
+        if (encounterAllocation is not { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready } batch)
         {
-            return null;
+            return ImmutableDictionary<string, float>.Empty;
         }
-        ImmutableDictionary<string, float> opacities = encounterArrivals.Where(state => !state.Complete || state.Track.OpacityTo != 1).ToImmutableDictionary(state => state.Track.ActorId, state => state.Sample.Opacity, StringComparer.Ordinal);
-        if (encounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading or BattleEncounterAllocationPhase.Ready } batch)
-        {
-            foreach (string id in batch.ActorIds)
-            {
-                opacities = opacities.SetItem(id, 0);
-            }
-        }
-        return opacities;
+        return batch.ActorIds.ToImmutableDictionary(id => id, _ => 0f, StringComparer.Ordinal);
     }
 }

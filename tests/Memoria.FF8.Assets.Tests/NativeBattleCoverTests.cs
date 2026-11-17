@@ -31,7 +31,7 @@ public sealed class NativeBattleCoverTests
         Assert.Equal($"party{cover}", Assert.Single(covered.Events, entry => entry.Kind == "Damage").TargetId);
         if (!expanded)
         {
-            NativeBattleContactHalf contact = covered.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+            NativeBattleContactHalf contact = covered.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
             Assert.Equal(covered.ReadPresentationModelOwner($"party{cover}"), contact.Recipient);
             Assert.Equal(covered.ReadPresentationModelOwner($"party{target}"), contact.CoverSource);
         }

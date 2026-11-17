@@ -67,9 +67,9 @@ public sealed class NativeBattleEffectPresentationFileIoTests
         memory = NativeBattleEffectIo.Queue5341D0(memory, 1, NativeBattleEffectNodeMemory.ArenaAddress + 0x100, 1);
         NativeBattleEffectIoAdvance queued = NativeBattleEffectIo.Advance534210(memory);
         Assert.NotNull(queued.Request);
-        SetProperty(owner, nameof(BattleSession.NativeEffectMemory), queued.Memory);
-        SetProperty(owner, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(tim.Data.Length, queued.Request!.CompletionCallback, null));
-        SetProperty(owner, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(owner.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), queued.Memory);
+        NativeBattleHostedTestFixture.SetProperty(owner.Presentation!, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(tim.Data.Length, queued.Request!.CompletionCallback, null));
+        NativeBattleHostedTestFixture.SetProperty(owner.Presentation!, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
         NativeBattleCameraProjection projection = new(NativeBattleForeignModelGeometry.Identity, 216, 160, 108);
         NativeBattleCameraState camera = BattlePresentationProcess.BindEffectPresentationHostProjection(NativeBattleCameraState.FromColdProcess(), projection);
         SetProperty(owner, nameof(BattlePresentationProcess.NativeCamera), camera);

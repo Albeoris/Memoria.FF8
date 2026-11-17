@@ -34,7 +34,7 @@ internal static class NativeBattleChainGun190Fixture
         Assert.Equal(new NativeBattleEffectInitializerResource("mag149.tim", NativeBattleChainGun190Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(68128, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeChainGun190Resources(), binding.ChainGun190Resources);
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
@@ -70,6 +70,6 @@ internal static class NativeBattleChainGun190Fixture
             Assert.Equal(coldThird, NativeBattleContactPacketCodec.Encode(packets.ExportRetained().Contacts[2]!));
         }
         File.WriteAllText(Path.Combine(output, "controlled-contacts.json"), JsonSerializer.Serialize(new { Scenario = "Original ChainGun190 command8/action154/sequence14 and formation155; original party models0/1/2 loaded through the fixture pipeline; explicitly declared seven-HP counted presentation contacts with logical HP/status retained, no ordinary AOE formula or AI admission", Count = contactCount, Count2ThirdPhysicalOwner = contactCount == 2 ? "Retained actual loader-backed inactive contact ordinal2, untouched by this fixture" : null, ColdThird = coldThird, PhysicalThird = packets.ExportRetained().Contacts[2], Contacts = packets.ReadHeaderContacts(reference) }));
-        return source with { Combatants = actors, NativeActionPackets = packets };
+        return (source with { Combatants = actors}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets });
     }
 }

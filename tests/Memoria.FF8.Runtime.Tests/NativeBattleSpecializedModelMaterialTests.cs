@@ -71,7 +71,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
     {
         var (session, graphics, row) = Fixture("hosted", shared: false);
         NativeBattleEffectMemory frameMemory = session.Presentation!.Memory;
-        Set(session, nameof(BattleSession.NativeEffectMemory), frameMemory with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), frameMemory with { Textures = NativeBattleEffectTextureState.FromColdProcess() });
 
         graphics = Draw(method, session, graphics, row, frameMemory);
 
@@ -112,7 +112,7 @@ public sealed class NativeBattleSpecializedModelMaterialTests
             string owner = ownership == "missing" ? "other" : "selected";
             textures = textures.WithPresentationTexture(owner, new(NativeBattleEffectTextureState.FromColdProcess(), NativeBattlePcTextureWindowCache.Reset4647A0(null)));
         }
-        Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400(), Textures = textures });
         Set(session, nameof(BattleSession.NativeModelCpuResources), NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 3 });
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.FromColdProcess());
         Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(Identity, 1000, 160, 108) });

@@ -205,12 +205,12 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
                     NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(original.Parameters);
                     if (!selected && enemyCount > 1)
                     {
-                        NativeBattleContactPacket[] prepared = battle.NativeActionPackets.ReadHeaderContacts(parameters.Header).ToArray();
+                        NativeBattleContactPacket[] prepared = battle.Presentation!.NativeActionPackets.ReadHeaderContacts(parameters.Header).ToArray();
                         Assert.Equal(enemyCount, prepared.Length);
                         Assert.Equal(enemyCount, prepared.Select(contact => contact.Primary.Recipient).Distinct().Count());
                     }
                     selected = true;
-                    Assert.Equal((byte)slot, ReadOriginalModelOperand(battle.NativeActionPackets.ModelAliases, parameters.Source));
+                    Assert.Equal((byte)slot, ReadOriginalModelOperand(battle.Presentation!.NativeActionPackets.ModelAliases, parameters.Source));
                     if (!restoredLive && callback > 40)
                     {
                         RoundTripNext();
@@ -269,8 +269,8 @@ public sealed class NativeBattleGuardianCasterMatrixTests(NativeBattleGuardianCa
             Assert.Equal(observed.Random!.Lane, continued.Random!.Lane);
             Assert.Equal(observed.Random.Indexes.ToArray(), continued.Random.Indexes.ToArray());
             Assert.Equal(battle.Events, restored.Events);
-            Assert.Equal(observed.NativeActionPackets!.PublishedHeaders().ToArray(), continued.NativeActionPackets!.PublishedHeaders().ToArray());
-            Assert.Equivalent(observed.NativeActionPackets.ExportRetained(), continued.NativeActionPackets.ExportRetained(), strict: true);
+            Assert.Equal(observed.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray(), continued.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray());
+            Assert.Equivalent(observed.ReadFixturePresentation().NativeActionPackets!.ExportRetained(), continued.ReadFixturePresentation().NativeActionPackets!.ExportRetained(), strict: true);
             battle = restored;
         }
 

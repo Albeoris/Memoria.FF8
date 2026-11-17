@@ -21,7 +21,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         BattleSession session = Session([source], Roster(false, false));
         Load(session, 77, FirstEnemy);
         NativeBattleEffectMemory first = Drain(session);
-        Set(session, nameof(BattleSession.NativeEffectMemory), first);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), first);
         Load(session, 77, SecondEnemy);
         NativeBattleEffectTextureState queued = session.Presentation!.Memory.Textures!;
         Assert.Equal(0, queued.Count);
@@ -79,11 +79,11 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         BattleSession session = Session([EnemySource(77)], null);
         Load(session, 77, FirstOriginal);
         NativeBattleEffectMemory drained = Drain(session);
-        Set(session, nameof(BattleSession.NativeEffectMemory), drained);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), drained);
         string fileState = NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileIo!);
         string staging = NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileStaging!);
         const int ioResult = 0x1234;
-        Set(session, nameof(BattleSession.NativeEffectIoResult), ioResult);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), ioResult);
 
         Queue(session, 77, SecondOriginal);
         Assert.Equal((byte)0, session.NativeModelLoader!.Task!.Phase);
@@ -93,7 +93,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
 
         Assert.Null(session.NativeModelLoader!.Task);
         Assert.Equal(fileState, NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileIo!));
-        Assert.Equal(ioResult, session.NativeEffectIoResult);
+        Assert.Equal(ioResult, session.Presentation!.NativeEffectIoResult);
         Assert.Equal(staging, NativeBattleTestSnapshots.Json(session.Presentation!.NativeFileStaging!));
         Assert.Same(drained.Textures, session.Presentation!.Memory.Textures);
         NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
@@ -144,17 +144,17 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         BattleSession session = Session([EnemySource(77)], roster);
         NativeBattleModelTextureCache cache = session.Presentation!.ModelTextureCache;
         BattleModelRoster mismatch = new([FirstEnemy, new BattleEnemyActorModel(new("different"))]);
-        Set(session, nameof(BattleSession.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(mismatch));
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), NativeBattleModelTextureCache.FromColdProcess().WithPresentationRoster(mismatch));
         NativeBattleFileIoState file = session.Presentation!.NativeFileIo!;
         NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
         TargetInvocationException queueFailure = Assert.Throws<TargetInvocationException>(() => Queue(session, 77, FirstEnemy));
         Assert.IsType<InvalidDataException>(queueFailure.InnerException);
         Assert.Null(session.NativeModelLoader);
 
-        Set(session, nameof(BattleSession.NativeModelTextureCache), cache);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
         Queue(session, 77, FirstEnemy);
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = memory.Textures! with { PresentationTextures = memory.Textures!.PresentationTextures!.Remove("first") } });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Textures = memory.Textures! with { PresentationTextures = memory.Textures!.PresentationTextures!.Remove("first") } });
         TargetInvocationException pollFailure = Assert.Throws<TargetInvocationException>(() => Poll(session));
         Assert.IsType<InvalidDataException>(pollFailure.InnerException);
         Assert.Same(file, session.Presentation?.NativeFileIo);
@@ -182,7 +182,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
             }
         }
         cache.Validate();
-        Set(session, nameof(BattleSession.NativeModelTextureCache), cache);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
         NativeBattleModelLoader loader = session.NativeModelLoader!;
         NativeBattleFileIoState io = session.Presentation!.NativeFileIo!;
         NativeBattleFileStaging staging = session.Presentation!.NativeFileStaging!;
@@ -233,11 +233,11 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         }
         Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics);
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
-        Set(session, nameof(BattleSession.NativeModelTextureCache), cache);
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory);
-        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.Unknown());
-        Set(session, nameof(BattleSession.NativeEffectIoResult), 0);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), 0);
         return session;
     }
 

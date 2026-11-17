@@ -178,6 +178,8 @@ public sealed partial class BattleSession
 
     private void ReleaseExpandedHostedFence()
     {
+        diagnosticReflectedCasts?.Clear();
+        diagnosticReflectionSources?.Clear();
         if (ReferenceEquals(ActiveAction, expandedHostedEvent?.ActivePresentation))
         {
             ActiveAction = null;

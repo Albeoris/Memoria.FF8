@@ -109,7 +109,7 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         Field("definition").SetValue(session, definition with { NativeGraphics = new(rules, [], []) });
         BattleModelRoster roster = new([Original, AddedAlly, AddedEnemy]);
         NativeBattleModelAliases aliases = new(roster, [(NativeBattleModelSlot.Decode(3), Original)]);
-        Field("nativeActionPackets").SetValue(session, session.NativeActionPackets.WithRoster(roster, aliases));
+        Field("nativeActionPackets").SetValue(session, session.Presentation!.NativeActionPackets.WithRoster(roster, aliases));
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(2)
         {
             ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)77,

@@ -27,12 +27,6 @@ public sealed partial class BattleSession
         return succeeded;
     }
 
-    private static bool CanPressNativeTriggerWidget(NativeBattleTriggerWidget? widget, ushort? options)
-    {
-        return widget is { ClosingPhase: 0, PendingTrigger: false, Input.TriggerTiming: 0 } &&
-            (options.HasValue ? (options.Value & 1) == 0 : throw new NotSupportedException("Native trigger input requires its saved options WORD."));
-    }
-
     private static bool IsNativeTriggerWindowOpen(NativeBattleTriggerWidget widget)
     {
         return widget.Input.Phase is 4 or 6 && NativeGunbladeAttack.TriggerSucceeded(checked((short)(widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] + 5)));

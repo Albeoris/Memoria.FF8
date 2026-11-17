@@ -158,7 +158,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                 BattleSnapshot current = battle.CaptureForContinuation();
                 NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
                 selected |= graphics.OriginalEffect?.RequestedEffect == native.MagicId;
-                NativeBattleActionPacketsState packets = current.NativeActionPackets!;
+                NativeBattleActionPacketsState packets = current.ReadFixturePresentation().NativeActionPackets!;
                 if (packets.ContactCount > 0)
                 {
                     Assert.Equal(revival ? (byte)2 : (byte)1, packets.ContactCount);
@@ -223,7 +223,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
                     // B92/B1C are separate retained mirrors; entry does not promise to publish freshly declared raw status bits.
                     statusPresentationRemoved = (currentStatus.Presentation.Saved & initialSavedStatus) == 0 && (currentStatus.Presentation.Battle & initialBattleStatus) == 0;
                 }
-                ushort hp = current.NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (hp != displayedHp)
                 {
                     Assert.Equal(checked((ushort)initialHp), displayedHp);
@@ -261,7 +261,7 @@ public sealed class NativeBattleRemainingItemPresentationTests
             if (revival)
             {
                 Assert.Equal(expectedHp, completed.Combatants.Single(actor => actor.Id == "companion").CurrentHp);
-                Assert.Equal(checked((ushort)expectedHp), completed.NativePartyPresentation!.Rows[2]!.HitPoints);
+                Assert.Equal(checked((ushort)expectedHp), completed.ReadFixturePresentation().NativePartyPresentation!.Rows[2]!.HitPoints);
                 Assert.All(completed.Combatants.Where(actor => actor.Id is "target" or "companion"), actor => Assert.Equal(0, actor.NativeStatus!.Saved & 1));
             }
             Assert.Equal(casterInitialHp, completed.Combatants.Single(actor => actor.Id == "party").CurrentHp);

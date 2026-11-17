@@ -85,7 +85,7 @@ public sealed class NativeBattleEffect303PresentationTests
         Assert.True(latent.Untargetable);
         Assert.False(latent.AllocationPendingStatistics);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeStatus ?? throw new InvalidDataException("The original latent recipient requires its loaded status owner.");
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));

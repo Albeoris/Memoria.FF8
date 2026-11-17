@@ -44,7 +44,7 @@ public sealed class NativeBattleEffect312PresentationTests
         Assert.Equal(44, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(graphics, 3), pose).Length);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 285 && item.MagicId == 312 && item.KernelSection == 3 && item.KernelIndex == 285);
         Assert.Equal((byte)18, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 18, cameraChoice, 285, 312, null));
         BattleCombatantSnapshot[] contactActors = original.Combatants.ToArray();
@@ -59,7 +59,7 @@ public sealed class NativeBattleEffect312PresentationTests
         (packets, _) = packets.Publish(3);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([312])[311];
-        BattleSnapshot prepared = (original with { Combatants = contactActors,Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(311, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = ((original with { Combatants = contactActors,Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(311, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));

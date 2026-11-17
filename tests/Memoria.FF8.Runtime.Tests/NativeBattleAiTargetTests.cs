@@ -27,7 +27,7 @@ public sealed class NativeBattleAiTargetTests
         BattleSnapshot snapshot = Create([4, selector]).Capture();
 
         Assert.True(snapshot.NativeActionScratch!.TargetUnavailableB0E);
-        NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleActionHeaderSlot header = snapshot.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal((ushort)1, header.Action);
         Assert.Equal(0, header.ReadContactCount());
@@ -114,7 +114,7 @@ public sealed class NativeBattleAiTargetTests
 
         battle.Tick();
 
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
         Assert.Null(battle.ActiveAction);
         battle.Tick();
         Assert.Equal("enemy", battle.ActiveAction!.ActorId);
@@ -132,13 +132,13 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal(BattleRosterSlot.Ally(2), actors[4].Slot);
         Assert.Equal(BattleRosterSlot.Enemy(3), actors[6].Slot);
         Assert.Equal((ushort)0x40, ReadPublishedTargetMask(snapshot));
-        BattleActionHeaderReference header = snapshot.ActiveAction?.NativeHeader ?? Assert.Single(snapshot.QueuedActions, action => action.NativeHeader is not null).NativeHeader!.Value;
-        NativeBattleContactPacket contact = Assert.Single(snapshot.NativeActionPackets!.ReadHeaderContacts(header));
-        Assert.Equal(snapshot.NativeActionPackets!.ModelAliases.DecodeLiteral(6), contact.Primary.Recipient);
+        BattleActionHeaderReference header = Assert.IsType<BattleActionHeaderReference>(snapshot.ReadFixturePresentation().NativeActionPackets!.ActiveHeader);
+        NativeBattleContactPacket contact = Assert.Single(snapshot.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(header));
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeActionPackets!.ModelAliases.DecodeLiteral(6), contact.Primary.Recipient);
 
         BattleSession restored = BattleSession.Restore(snapshot);
         Assert.Equal(actors.Select(actor => actor.Slot), restored.Combatants.Select(actor => actor.Slot));
-        Assert.Equal(contact.Primary.Recipient, Assert.Single(restored.NativeActionPackets.ReadHeaderContacts(header)).Primary.Recipient);
+        Assert.Equal(contact.Primary.Recipient, Assert.Single(restored.Presentation!.NativeActionPackets.ReadHeaderContacts(header)).Primary.Recipient);
         battle.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
@@ -156,9 +156,9 @@ public sealed class NativeBattleAiTargetTests
 
     private static ushort ReadPublishedTargetMask(BattleSnapshot snapshot)
     {
-        Assert.Equal((byte)1, snapshot.NativeActionPackets!.ActionCount);
-        BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeHeader is not null).ToArray();
-        bool active = snapshot.ActiveAction?.NativeHeader is not null;
+        Assert.Equal((byte)1, snapshot.ReadFixturePresentation().NativeActionPackets!.ActionCount);
+        BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeQueuedCommand is not null).ToArray();
+        bool active = snapshot.ActiveAction is not null;
         Assert.Equal(1, queued.Length + (active ? 1 : 0));
         BattleTargetRequest request = active ? snapshot.ActiveAction!.TargetRequest : Assert.Single(queued).TargetRequest;
         return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, reference =>

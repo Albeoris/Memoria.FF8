@@ -121,15 +121,15 @@ public sealed class NativeBattleGilgamesh327PresentationTests
             Assert.Equal(0u, status.Battle);
             // Declared post-formula494410 output and subsequent47E2D0 cache, not a historical-state recovery.
             NativeBattleStatusSnapshot postFormulaStatus = status with { Saved = 1, Battle = 0x10000, Presentation = new(1, 0x10000) };
-            NativeBattleActionPacketsState packets = prepared.NativeActionPackets ?? throw new InvalidDataException("The component requires its existing physical action arena.");
+            NativeBattleActionPacketsState packets = prepared.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The component requires its existing physical action arena.");
             (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), kernel.Command, 0, -1, kernel.ActionId, kernel.MagicId, null));
             (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 3, 9, 0, 1, 0, 0x10000), null));
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = prepared.ReadFixturePresentation().NativeGraphics!;
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-            prepared = (prepared with
+            prepared = ((prepared with
             {
-                NativeActionPackets = packets,                Outcome = BattleOutcome.Victory,                Combatants = prepared.Combatants.Select(actor => actor.Id == controlledTargetId ? actor with { CurrentHp = 0, NativeStatus = postFormulaStatus } : actor).ToArray()            }).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+Outcome = BattleOutcome.Victory,Combatants = prepared.Combatants.Select(actor => actor.Id == controlledTargetId ? actor with { CurrentHp = 0, NativeStatus = postFormulaStatus } : actor).ToArray()            }).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         }
         string preparedBoundary = immune ? "prepared-support" : "prepared-post-formula";
         NativeBattleRestorationPresentationTests.Publish(output, preparedBoundary, prepared, null);
@@ -518,13 +518,13 @@ public sealed class NativeBattleGilgamesh327PresentationTests
 
         void ObserveFormula(BattleSnapshot after)
         {
-            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
+            NativeBattleActionHeaderSlot? producedHeader = after.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
             if (producedHeader?.FirstContact is BattleContactCursor contactIndex)
             {
-                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
+                NativeBattleContactPacket contact = after.ReadFixturePresentation().NativeActionPackets!.ReadContact(contactIndex);
                 if (!immune)
                 {
-                    Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(after.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
                     Assert.Equal((ushort)0, contact.Primary.Amount6);
                     Assert.Equal((byte)9, contact.Primary.Flags2);
                     Assert.Equal((byte)0, contact.Primary.HitFlags);
@@ -547,7 +547,7 @@ public sealed class NativeBattleGilgamesh327PresentationTests
                     expectedDamage = Math.Clamp(rawDamage, -9999, 9999);
                     Assert.Equal(0, expectedDamage);
                 }
-                Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+                Assert.Equal((byte)3, ReadOriginalModelOperand(after.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
                 Assert.Equal((ushort)expectedDamage!.Value, contact.Primary.Amount6);
                 Assert.Null(contact.Secondary);
                 Assert.Equal(immune ? initialTargetHp : 0, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);

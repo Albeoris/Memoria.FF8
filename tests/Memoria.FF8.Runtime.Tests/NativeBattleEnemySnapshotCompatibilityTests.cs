@@ -73,9 +73,9 @@ public sealed class NativeBattleEnemySnapshotCompatibilityTests
             }, BattleAtbMode.Normal);
             BattleSnapshot snapshot = battle.Capture();
             NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray(), Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray());
-            snapshot = (snapshot with
+            snapshot = ((snapshot with
             {
-                Definition = snapshot.Definition with { NativeGraphics = new(rules, [], []) },                NativePartyPresentation = new([null, null, null])            }).WithFixturePresentation(facts => facts with { NativeGraphics = OriginalGraphics([]), NativeModelCpuResources = cpu });
+                Definition = snapshot.Definition with { NativeGraphics = new(rules, [], []) }}).WithFixturePresentation(facts => facts with { NativePartyPresentation = new([null, null, null]) })).WithFixturePresentation(facts => facts with { NativeGraphics = OriginalGraphics([]), NativeModelCpuResources = cpu });
             historical = historical with { Battle = snapshot, NativeBattleMemory = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256) };
             using JsonDocument battleJson = JsonDocument.Parse(JsonSerializer.Serialize(snapshot, options));
             JsonElement current = battleJson.RootElement;

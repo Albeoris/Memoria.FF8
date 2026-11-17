@@ -104,9 +104,9 @@ public sealed class NativeBattleCompelledActionTests
 
     private static void AssertSilencedMagicAttempt(BattleSession battle)
     {
-        BattleActionHeaderReference header = battle.ActiveAction!.NativeHeader!.Value;
-        NativeBattleRetainedActionHeaderSlot original = battle.NativeActionPackets.ExportRetained().Headers[header.Ordinal];
-        NativeBattleActionDataReference data = Assert.IsType<NativeBattleActionDataReference>(battle.NativeActionPackets.ReadHeader(header).Data);
+        BattleActionHeaderReference header = battle.Presentation!.NativeActionPackets.ActiveHeader!.Value;
+        NativeBattleRetainedActionHeaderSlot original = battle.Presentation!.NativeActionPackets.ExportRetained().Headers[header.Ordinal];
+        NativeBattleActionDataReference data = Assert.IsType<NativeBattleActionDataReference>(battle.Presentation!.NativeActionPackets.ReadHeader(header).Data);
         Assert.Equal((byte)0, original.ReadOriginalByte(1));
         Assert.Equal((byte)10, original.ReadOriginalByte(2));
         Assert.Equal((byte)9, original.ReadOriginalByte(4));

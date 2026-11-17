@@ -65,7 +65,7 @@ public sealed class DiagnosticCounterObservationTests
         BattleSession battle = Fixture();
         List<BattleDiagnosticCounterContact> receipts = [];
         battle.DiagnosticCounterContactPublished += receipts.Add;
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 1, 4, -1, 0, 0, new(0x47E590, 0, "Control")));
         Set(battle, "nativeActionPackets", packets);
         Invoke(battle, "ObserveDiagnosticPreparedHeader", new BattleActionHeaderReference(0));
@@ -128,9 +128,9 @@ public sealed class DiagnosticCounterObservationTests
             // The single-contact component declares the same BD9 count that its native hit plan initializes.
             target.NativeRemainingHits = 1;
             BattleNativeAction native = new(253, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
-            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeader = new BattleActionHeaderReference(0), GunbladeTriggerTiming = 1 };
+            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, GunbladeTriggerTiming = 1 };
             BattleActionDefinition action = new(BattleAbility.Attack, 0, "Component contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
-            (NativeBattleActionPacketsState prepared, _) = battle.NativeActionPackets.Prepare(new(battle.NativeActionPackets.ModelAliases.DecodeLiteral(0), 1, 13, -1, 0, 0, null));
+            (NativeBattleActionPacketsState prepared, _) = battle.Presentation!.NativeActionPackets.Prepare(new(battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(0), 1, 13, -1, 0, 0, null));
             Set(battle, "nativeActionPackets", prepared);
             Invoke(battle, "ObserveDiagnosticPreparedHeader", new BattleActionHeaderReference(0));
             Invoke(battle, "SetNativeActionEvent", actor, (byte)2);

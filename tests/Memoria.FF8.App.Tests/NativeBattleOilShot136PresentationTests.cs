@@ -53,8 +53,8 @@ public sealed class NativeBattleOilShot136PresentationTests
         Assert.Equal(134176, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeOilShot136Resources(), binding.OilShot136Resources);
         Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.OilShot136!.PendingColdSources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

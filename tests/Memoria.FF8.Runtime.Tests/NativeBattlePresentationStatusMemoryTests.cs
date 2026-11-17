@@ -90,7 +90,7 @@ public sealed class NativeBattlePresentationStatusMemoryTests
     private static void Publish(BattleSession battle)
     {
         // Effect80's506690 contact reaches this same493D80/493840 status service.
-        BattleModelOwner party = battle.NativeActionPackets.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner party = battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(0);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, party, new(0))]);
         MethodInfo publish = typeof(BattleSession).GetMethod("PublishNativeReadyStatus", BindingFlags.NonPublic | BindingFlags.Instance)!;
         _ = publish.Invoke(battle, [graphics, new NativeBattleContactHalf(party, 0, 0, 0, 0, 0, 0)]);

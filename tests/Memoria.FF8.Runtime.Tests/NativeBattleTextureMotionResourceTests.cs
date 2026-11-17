@@ -25,22 +25,23 @@ public sealed class NativeBattleTextureMotionResourceTests
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
         cache = cache with { Rows = cache.Rows.SetItem(0, cache.Rows[0] with { Kind = 1 }) };
-        Set(nameof(BattleSession.NativeModelCpuResources), cpu);
-        Set(nameof(BattleSession.NativeModelTextureCache), cache);
-        Set(nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.Unknown());
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(session, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalGraphics([]));
+        void Set(string name, object value) => NativeBattleHostedTestFixture.SetProperty(process, name, value);
+        Set(nameof(BattlePresentationProcess.NativeModelCpuResources), cpu);
+        Set(nameof(BattlePresentationProcess.NativeModelTextureCache), cache);
+        Set(nameof(BattlePresentationProcess.NativeFileStaging), NativeBattleFileStaging.Unknown());
         NativeBattleGraphicsModel model = new(3) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
-        ImmutableArray<byte> Read() => (ImmutableArray<byte>)typeof(BattleSession).GetMethod("ReadNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model])!;
+        ImmutableArray<byte> Read() => (ImmutableArray<byte>)typeof(BattlePresentationProcess).GetMethod("ReadNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, [model])!;
         Assert.Equal(logical ? resource : guest, Read().ToArray());
-        typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
+        typeof(BattlePresentationProcess).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, [model, (byte)0]);
         Assert.Equal(logical ? 6 : 3, Read()[9]);
-        NativeBattleModelCpuResources changed = session.Presentation!.ModelCpuResources;
+        NativeBattleModelCpuResources changed = process.ModelCpuResources;
         NativeBattleResourcePointer opposite = new(new(0, logical ? 4 : layout.BankLength + 4) { Layout = layout, ResourceOnly = !logical }, null, guest.Length);
-        Assert.Equal(logical ? guest : resource, NativeBattleModelResourceView.Open(changed, session.Presentation!.NativeFileStaging!, opposite, guest.Length).Read(0, guest.Length));
-        Set(nameof(BattleSession.NativeModelCpuResources), NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(changed)));
+        Assert.Equal(logical ? guest : resource, NativeBattleModelResourceView.Open(changed, process.NativeFileStaging!, opposite, guest.Length).Read(0, guest.Length));
+        Set(nameof(BattlePresentationProcess.NativeModelCpuResources), NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(changed)));
         Assert.Equal(logical ? 6 : 3, Read()[9]);
         Assert.Equal(guest, bank.ReadGuest(4, guest.Length));
         Assert.Equal(resource, bank.Read(layout.BankLength + 4, resource.Length));
-        void Set(string property, object value) => typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
     }
 
     [Theory]

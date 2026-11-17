@@ -45,7 +45,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     {
         BattleSession session = Fixture();
         Dictionary<string, BattleNativeShotState> shots = Field<Dictionary<string, BattleNativeShotState>>(session, "nativeShotProcesses");
-        BattleNativeShotState before = new(0, Target, 160, 139, 9, phase) { UiSubframeTicks = 123 };
+        BattleNativeShotState before = new(0, Target, 160, 139, 9, phase);
         shots.Add("party", before);
         NativeBattleGraphicsState graphics = Graphics();
 

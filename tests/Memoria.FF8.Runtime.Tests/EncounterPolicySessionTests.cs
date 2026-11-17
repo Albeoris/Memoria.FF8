@@ -17,10 +17,10 @@ public sealed class EncounterPolicySessionTests
         }
         Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
         Assert.Equal(expectedCasts, battle.Events.Count(entry => entry.Kind == "Scan" && entry.ActorId == "enemy"));
-        Assert.Equal(expectedCasts, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(expectedCasts, battle.Presentation!.NativeActionPackets.ActionCount);
         if (doubleActive)
         {
-            Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+            Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         }
         Assert.Empty(battle.Combatants.Single(actor => actor.Id == "enemy").MagicStocks);
         Assert.Single(battle.ScanKnowledge.Observations);
@@ -55,10 +55,10 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Reflect"));
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == "enemy"));
         Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == "party").CurrentHp);
-        Assert.Equal(casts * 2, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(casts * 2, battle.Presentation!.NativeActionPackets.ActionCount);
         if (doubleActive)
         {
-            Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+            Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         }
         BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(snapshot);
@@ -137,11 +137,11 @@ public sealed class EncounterPolicySessionTests
         Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
         if (spellName == "Haste")
         {
-            Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
+            Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ContactCount);
             Assert.NotEqual(0u, battle.Capture().Combatants.Single(actor => actor.Id == "fourth").NativeStatus!.Battle & status);
             return;
         }
-        Assert.Equal((byte)3, battle.NativeActionPackets.ContactCount);
+        Assert.Equal((byte)3, battle.Presentation!.NativeActionPackets.ContactCount);
         foreach (string id in new[] { "enemy", "support", "assault" })
         {
             Assert.NotEqual(0u, battle.Capture().Combatants.Single(actor => actor.Id == id).NativeStatus!.Battle & status);
@@ -172,7 +172,7 @@ public sealed class EncounterPolicySessionTests
             if (battle.ActiveAction?.NativeAction?.PresentationOnly == true || battle.QueuedActions.Any(command => command.NativeAction?.PresentationOnly == true))
             {
                 sawControl = true;
-                sawHeader |= battle.ActiveAction?.NativeHeader is not null || battle.QueuedActions.Any(command => command.NativeHeader is not null);
+                sawHeader |= battle.Presentation?.NativeActionPackets.ActiveHeader is not null;
                 BattleSnapshot snapshot = battle.Capture();
                 battle = BattleSession.Restore(snapshot);
                 Assert.Equal(1ul, battle.EncounterPolicies!.Cursors["enemy"].CommittedTurns);
@@ -217,7 +217,7 @@ public sealed class EncounterPolicySessionTests
         }
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan" && entry.ActorId == "mirror"));
         Assert.Equal(Math.Min(casts, opponents), battle.ScanKnowledge.Observations.Length);
-        Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(casts, battle.Presentation!.NativeActionPackets.ActionCount);
         Assert.Equal(Math.Min(casts, opponents), battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
         BattleSession restored = BattleSession.Restore(battle.Capture());
         Assert.Equal(battle.EncounterPolicies.Cursors["mirror"].LastTargetIds.ToArray(), restored.EncounterPolicies!.Cursors["mirror"].LastTargetIds.ToArray());
@@ -253,7 +253,7 @@ public sealed class EncounterPolicySessionTests
         }
         Assert.Equal(casts, battle.Events.Count(entry => entry.Kind == "Scan"));
         Assert.Equal(Math.Min(casts, allies), battle.ScanKnowledge.Observations.Length);
-        Assert.Equal(casts, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(casts, battle.Presentation!.NativeActionPackets.ActionCount);
         Assert.Equal(Math.Min(casts, allies), battle.EncounterPolicies!.Cursors["mirror"].LastTargetIds.Length);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Scan" && entry.TargetId == "party");
         if (allies == 2)
@@ -286,7 +286,7 @@ public sealed class EncounterPolicySessionTests
         }
         Assert.Equal(3, battle.Events.Count(entry => entry.Kind == "Damage" && entry.ActorId == "enemy" && entry.TargetId == recipientId && entry.Amount > 0));
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Miss" || entry.Kind == "Reflect");
-        Assert.Equal(3, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(3, battle.Presentation!.NativeActionPackets.ActionCount);
         Assert.Equal(new[] { recipientId }, battle.EncounterPolicies!.Cursors["enemy"].LastTargetIds.ToArray());
         string otherId = recipientId == "enemy" ? "party" : "enemy";
         Assert.Equal(1000, battle.Combatants.Single(actor => actor.Id == otherId).CurrentHp);

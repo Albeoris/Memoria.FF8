@@ -215,7 +215,7 @@ public sealed class NativeBattleEffect290PresentationTests
         }
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 291 && row.MagicId == 290 && row.KernelSection == 3 && row.KernelIndex == 291);
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
@@ -227,7 +227,7 @@ public sealed class NativeBattleEffect290PresentationTests
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([290])[289];
         Assert.Same(game.ReadNativeEffect290Resources(), binding.Effect290Resources);
-        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(289, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(289, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(original.Combatants, source.Combatants);
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory));

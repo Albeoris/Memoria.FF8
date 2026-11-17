@@ -75,7 +75,7 @@ public sealed class NativeBattleRenzokukenCastTests
             {
                 BattleModelOwner owner = battle.ReadPresentationModelOwner(partyIds[slot]);
                 Assert.Same(battle.Presentation!.Graphics.ActorModels.Get(owner), ReadOriginalModelCell(battle.Presentation!.Graphics, slot));
-                Assert.True(battle.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte alias));
+                Assert.True(battle.Presentation!.NativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte alias));
                 Assert.Equal(slot, alias);
             }
         }
@@ -174,7 +174,7 @@ public sealed class NativeBattleRenzokukenCastTests
             Assert.Equal(expectedRandom.Lane, observedRandom.Lane);
             Assert.Equal(expectedRandom.Indexes, observedRandom.Indexes);
             Assert.Equal(actual.Events, copy.Events);
-            Assert.Equal(actual.NativeActionPackets.PublishedHeaders(), copy.NativeActionPackets.PublishedHeaders());
+            Assert.Equal(actual.Presentation!.NativeActionPackets.PublishedHeaders(), copy.Presentation!.NativeActionPackets.PublishedHeaders());
         }
     }
 }

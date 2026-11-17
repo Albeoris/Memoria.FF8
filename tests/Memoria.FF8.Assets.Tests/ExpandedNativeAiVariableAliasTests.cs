@@ -89,11 +89,11 @@ public sealed class ExpandedNativeAiVariableAliasTests
         if (expectContact && allyCount == 3)
         {
             // The physical path calculates contacts before publishing its queued header.
-            BattleActionHeaderReference header = checkpoint.ActiveAction?.NativeHeader ?? Assert.Single(checkpoint.QueuedActions, command => command.ActorId == enemyId && command.NativeHeader is not null).NativeHeader!.Value;
-            NativeBattleContactPacket[] published = checkpoint.NativeActionPackets!.ReadHeaderContacts(header).ToArray();
+            BattleActionHeaderReference header = Assert.IsType<BattleActionHeaderReference>(checkpoint.ReadFixturePresentation().NativeActionPackets!.ActiveHeader);
+            NativeBattleContactPacket[] published = checkpoint.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(header).ToArray();
             Assert.NotEmpty(published);
             Assert.All(published, contact => Assert.IsAssignableFrom<BattlePartyModelOwner>(contact.Primary.Recipient));
-            Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(restored.Capture().NativeActionPackets!.ReadHeaderContacts(header).ToArray()));
+            Assert.Equal(JsonSerializer.Serialize(published), JsonSerializer.Serialize(restored.Capture().ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(header).ToArray()));
         }
         int priorEvents = battle.Events.Count;
         BattleSnapshot continued = AdvanceUntil(battle, enemyId, started: false);

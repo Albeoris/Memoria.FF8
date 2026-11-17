@@ -377,7 +377,6 @@ public sealed record BattleSnapshot
     public BattleScanKnowledge ScanKnowledge { get; init; } = new();
     public BattleEncounterAllocationState? EncounterAllocation { get; init; }
     public BattleEncounterPolicyState? EncounterPolicies { get; init; }
-    public ImmutableArray<EncounterArrivalState> EncounterArrivals { get; init; } = [];
     public ImmutableDictionary<string, EncounterNativeEventState> EncounterNativeEvents { get; init; } = ImmutableDictionary<string, EncounterNativeEventState>.Empty;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleStorageGraph? StorageGraph { get; init; }

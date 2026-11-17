@@ -79,16 +79,16 @@ public sealed class BattlePlayerSaveCompatibilityTests(ITestOutputHelper output)
         for (int frame = 0; frame < 512 && !Completed(battle, caster.Id, 1); frame++)
         {
             battle.Tick();
-            if (draw is null && battle.ActiveAction is { Ability: BattleAbility.Draw, NativeDraw: { } result, NativeHeader: { } reference })
+            if (draw is null && battle.ActiveAction is { Ability: BattleAbility.Draw, NativeDraw: { } result } && battle.Presentation?.Graphics.ActionGraphics?.Header is { } reference)
             {
                 draw = result;
-                NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(reference);
+                NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(reference);
                 Assert.Equal((byte)6, header.Command);
                 Assert.Equal((byte)30, header.Sequence);
                 Assert.Equal((ushort)spell, header.Action);
                 Assert.Equal((ushort)15, header.Effect);
                 Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
-                NativeBattleContactHalf contact = Assert.Single(battle.NativeActionPackets.ReadHeaderContacts(reference)).Primary;
+                NativeBattleContactHalf contact = Assert.Single(battle.Presentation!.NativeActionPackets.ReadHeaderContacts(reference)).Primary;
                 Assert.Equal(new BattleEnemyActorModel(new(enemy.Id)), contact.Recipient);
                 Assert.Equal((ushort)0, contact.Amount6);
             }

@@ -43,18 +43,18 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
         {
             return;
         }
-        ushort beforeHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-        ushort currentHp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+        ushort beforeHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+        ushort currentHp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
         if (beforeHp != currentHp)
         {
-            Assert.Equal(source.NativePartyPresentation!.Rows[0]!.HitPoints, beforeHp);
+            Assert.Equal(source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints, beforeHp);
             Assert.Equal(Math.Max(0, beforeHp - 7), currentHp);
             hpTransitions++;
             Mark("contact-seven-presentation", current, cold);
         }
         for (int physical = 1; physical < 3; physical++)
         {
-            Assert.Equal(source.NativePartyPresentation!.Rows[physical]?.HitPoints, current.NativePartyPresentation!.Rows[physical]?.HitPoints);
+            Assert.Equal(source.ReadFixturePresentation().NativePartyPresentation!.Rows[physical]?.HitPoints, current.ReadFixturePresentation().NativePartyPresentation!.Rows[physical]?.HitPoints);
         }
         if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: Effect, ReturnedDescriptor: not null } effect)
         {
@@ -224,7 +224,7 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
             Assert.Equal(NativeBattleTemporaryMemory.Address, BinaryPrimitives.ReadUInt32LittleEndian(retainedTemporary.Read(NativeBattleTemporaryMemory.Cursor, 4)));
             temporary = true;
         }
-        if (prior.NativeActionPackets!.ActiveHeader != current.NativeActionPackets!.ActiveHeader || prior.NativeActionPackets.ActiveContact != current.NativeActionPackets.ActiveContact)
+        if (prior.ReadFixturePresentation().NativeActionPackets!.ActiveHeader != current.ReadFixturePresentation().NativeActionPackets!.ActiveHeader || prior.ReadFixturePresentation().NativeActionPackets!.ActiveContact != current.ReadFixturePresentation().NativeActionPackets!.ActiveContact)
         {
             Mark("descriptor-header-contact-cursor", current, cold);
         }
@@ -261,7 +261,7 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
         Assert.True(contactGlyph);
         Assert.True(drained);
         Assert.Equal(1, hpTransitions);
-        Assert.Equal(Math.Max(0, source.NativePartyPresentation!.Rows[0]!.HitPoints - 7), completed.NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal(Math.Max(0, source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints - 7), completed.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.Equal(ExpectedCallbacks.Order(), callbacks.Order());
         Assert.Equal(ProgrammeAddresses.Order(), programmes.Order());
         Assert.Equal(new[] { 0, 1 }, banks.Order());

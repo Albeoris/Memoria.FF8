@@ -29,19 +29,19 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         {
             battle.Tick();
             BattleSnapshot current = battle.Capture();
-            if (current.NativeActionPackets!.PublishedHeaders().Any(header => header.Slot.Command == 0 && header.Slot.Action == 3))
+            if (current.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().Any(header => header.Slot.Command == 0 && header.Slot.Action == 3))
             {
                 queued = current;
             }
         }
         Assert.NotNull(queued);
-        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.NativeActionPackets!.PublishedHeaders(), header => header.Slot.Command == 0 && header.Slot.Action == 3).Slot;
-        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, entrance.Source));
+        NativeBattleActionHeaderSlot entrance = Assert.Single(queued.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders(), header => header.Slot.Command == 0 && header.Slot.Action == 3).Slot;
+        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases, entrance.Source));
         Assert.Equal((byte)0, entrance.Sequence);
         Assert.Equal((ushort)0, entrance.Effect);
         Assert.Equal((byte)1, entrance.ReadContactCount());
-        NativeBattleContactPacket contact = queued.NativeActionPackets!.ReadContact(entrance.FirstContact);
-        Assert.Equal((byte)4, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = queued.ReadFixturePresentation().NativeActionPackets!.ReadContact(entrance.FirstContact);
+        Assert.Equal((byte)4, ReadOriginalModelOperand(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((byte)0, contact.Primary.Sequence);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
@@ -62,8 +62,8 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(observed.Random!.Lane, continued.Random!.Lane);
         Assert.Equal(observed.Random.Indexes.ToArray(), continued.Random.Indexes.ToArray());
         Assert.Equal(battle.Events, restored.Events);
-        Assert.Equal(observed.NativeActionPackets!.PublishedHeaders().ToArray(), continued.NativeActionPackets!.PublishedHeaders().ToArray());
-        Assert.Equivalent(observed.NativeActionPackets.ExportRetained(), continued.NativeActionPackets.ExportRetained(), strict: true);
+        Assert.Equal(observed.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray(), continued.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray());
+        Assert.Equivalent(observed.ReadFixturePresentation().NativeActionPackets!.ExportRetained(), continued.ReadFixturePresentation().NativeActionPackets!.ExportRetained(), strict: true);
     }
 
     [Theory]
@@ -173,7 +173,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
             if (effect.Parameters is { } parameters)
             {
                 invoked = true;
-                Assert.Equal((byte)5, ReadOriginalModelOperand(battle.NativeActionPackets.ModelAliases, parameters.Source));
+                Assert.Equal((byte)5, ReadOriginalModelOperand(battle.Presentation!.NativeActionPackets.ModelAliases, parameters.Source));
             }
             packets |= !effect.PresentationPackets.IsEmpty;
             if (invoked && effect.ReturnedDescriptor == 0)

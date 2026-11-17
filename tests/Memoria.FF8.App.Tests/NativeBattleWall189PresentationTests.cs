@@ -46,13 +46,13 @@ public sealed class NativeBattleWall189PresentationTests
         int descriptor = Assert.Single(sourceGraphics.Descriptors.Queue, index => sourceGraphics.Descriptors.Packets[index].Command == 104);
         uint relative = unchecked(sourceGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(relative % 20 == 0 && relative / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal(item.Effect, header.Effect);
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[item.Effect - 1]));
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.NotEqual(0u, (uint)action.Statuses0 | action.Statuses1);
         Assert.Equal(action.Statuses0, (ushort)(contact.Primary.SavedStatuses4 & action.Statuses0));

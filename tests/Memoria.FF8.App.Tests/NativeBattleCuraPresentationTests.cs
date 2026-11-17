@@ -76,7 +76,7 @@ public sealed class NativeBattleCuraPresentationTests
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(0, new(status.Saved, status.Battle)) };
-        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = before.ReadFixturePresentation().NativeActionPackets!;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), nativeCura.Command, 11, -1, nativeCura.ActionId, nativeCura.MagicId, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
@@ -84,7 +84,7 @@ public sealed class NativeBattleCuraPresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -115,8 +115,8 @@ public sealed class NativeBattleCuraPresentationTests
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedCura |= currentGraphics.OriginalEffect is { Binding.Entry: 0x889D60, Cura: not null };
                 hiddenTarget |= (ReadOriginalModelCell(currentGraphics, 0).Flags0 & 4) != 0;
-                ushort previousHp = beforeStep.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort presentedHp = snapshot.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = beforeStep.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort presentedHp = snapshot.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(presentedHp is 100 or 200, $"Controlled Cura contact changed the presented HP to{presentedHp}.");
                 if (previousHp != presentedHp)
                 {
@@ -181,7 +181,7 @@ public sealed class NativeBattleCuraPresentationTests
         Assert.True(peakChangedPixels > 0, "Original Cura effect-bank packets changed no RGB pixels.");
         Assert.True(continuedClone, "No visible Cura snapshot passed an independent next-callback continuation.");
         Assert.Equal(1, healingTransitions);
-        Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)200, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle), "Original Cura104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);

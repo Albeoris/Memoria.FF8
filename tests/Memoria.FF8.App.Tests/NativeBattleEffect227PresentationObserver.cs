@@ -46,7 +46,7 @@ internal sealed class NativeBattleEffect227PresentationObserver
         NativeBattleEffect227State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect227!;
         NativeBattleEffect227Resources resources = effect.Binding.Effect227Resources!;
         state.Validate();
-        Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.Header.Ordinal)).ReadContactCount());
+        Assert.Equal((byte)1, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.Header.Ordinal)).ReadContactCount());
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
         Dictionary<uint, NativeBattleModulePoolTask> previous = Tasks(prior);
         NativeBattleModulePoolTask? main = tasks.Values.FirstOrDefault(task => task.Callback == MainCallback);

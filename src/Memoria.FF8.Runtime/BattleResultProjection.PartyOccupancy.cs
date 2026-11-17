@@ -15,6 +15,7 @@ public static partial class BattleResultProjection
 
         byte?[] slots = entry.Select(row => (byte?)row).ToArray();
         List<byte> participating = [.. entry];
+        Dictionary<byte, ushort> releasedStatuses = [];
         foreach (BattlePartyOccupancyChange change in result.PartyOccupancyChanges)
         {
             int position = change.Slot.Position;
@@ -25,14 +26,19 @@ public static partial class BattleResultProjection
             if (change.IncomingRow is byte incoming)
             {
                 NativeCharacterVital saved = vitals.Records[incoming];
-                if (participating.Contains(incoming) || (saved.MemberFlags & 1) == 0 || (saved.Status & 1) != 0 ||
+                ushort status = releasedStatuses.GetValueOrDefault(incoming, saved.Status);
+                if (slots.Contains(incoming) || (saved.MemberFlags & 1) == 0 || (status & 1) != 0 ||
                     !admitted.PartyReplacementCandidates.TryGetValue(incoming, out BattleCombatantDefinition? candidate) ||
                     !candidate.IsPlayer || candidate.MagicRecordId != incoming || candidate.ModelId != saved.CharacterId)
                 {
-                    throw new InvalidDataException("A party occupancy receipt requires an installed, eligible and previously unallocated reserve.");
+                    throw new InvalidDataException("A party occupancy receipt requires an installed, eligible and currently unallocated reserve.");
                 }
-                participating.Add(incoming);
+                if (!participating.Contains(incoming))
+                {
+                    participating.Add(incoming);
+                }
             }
+            releasedStatuses[change.OutgoingRow] = change.OutgoingStatus;
             slots[position] = change.IncomingRow;
         }
         return (participating.ToArray(), slots.OfType<byte>().ToArray());

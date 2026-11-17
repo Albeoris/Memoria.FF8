@@ -115,17 +115,17 @@ public sealed class NativeBattleRegionalMonsterPresentationTests
                     }
                     if (graphics.OriginalEffect is { Binding.Effect: 248, Parameters: { } parameters })
                     {
-                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, parameters.Source));
-                        NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
-                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, header.Source));
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, parameters.Source));
+                        NativeBattleActionHeaderSlot header = current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, header.Source));
                         Assert.Equal((byte)252, header.Command);
                         Assert.Equal((byte)0, header.Sequence);
                         Assert.Equal((ushort)1, header.Action);
                         Assert.Equal((ushort)248, header.Effect);
                         Assert.Equal((byte)1, header.ReadContactCount());
-                        Assert.NotNull(current.NativeActionPackets!.ExportRetained().Headers[parameters.Header.Ordinal].FirstContactIndex);
-                        NativeBattleContactPacket contact = current.NativeActionPackets.ReadContact(header.FirstContact);
-                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+                        Assert.NotNull(current.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Headers[parameters.Header.Ordinal].FirstContactIndex);
+                        NativeBattleContactPacket contact = current.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+                        Assert.Equal((byte)3, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
                     }
                 }
                 produced |= current.Events.Any(item => item.Kind == "Windup" && item.ActorId == "monster");

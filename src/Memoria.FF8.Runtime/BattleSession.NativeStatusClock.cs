@@ -91,7 +91,7 @@ public sealed partial class BattleSession
 
     private bool TryDispatchPendingExpandedDoom()
     {
-        if (expandedPresentationProcess is null || nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
+        if (nativeBattleClock is { ActionPause: not 0 } || NativeScriptAllocationPaused)
         {
             return false;
         }

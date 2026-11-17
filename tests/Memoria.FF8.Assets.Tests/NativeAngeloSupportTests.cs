@@ -166,12 +166,11 @@ public sealed class NativeAngeloSupportTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleNativePlayerReaction.AngeloReverse, queued.NativePlayerReaction);
         Assert.Equal((ushort)0x4001, NativeBattleTargetRequestAdapter.ProjectOriginalWord(queued.TargetRequest, target => battle.Combatants.Single(actor => actor.Id == target.ActorId).Slot));
-        Assert.NotNull(queued.NativeHeader);
         BattleSnapshot prepared = battle.Capture();
-        NativeBattleActionHeaderSlot header = prepared.NativeActionPackets!.ReadHeader(queued.NativeHeader!.Value);
+        NativeBattleActionHeaderSlot header = prepared.ReadFixturePresentation().NativeActionPackets!.ReadHeader(prepared.ReadFixturePresentation().NativeActionPackets!.ActiveHeader!.Value);
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)13, header.Action);
-        NativeBattleContactPacket contact = prepared.NativeActionPackets.ReadContact(header.FirstContact);
+        NativeBattleContactPacket contact = prepared.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
         Assert.Equal(battle.ReadPresentationModelOwner("rinoa"), contact.Primary.Recipient);
         Assert.Null(contact.Secondary);
         int revivedHp = battle.Combatants[0].CurrentHp;
@@ -183,10 +182,10 @@ public sealed class NativeAngeloSupportTests
         string json = JsonSerializer.Serialize(prepared);
         BattleSession restored = BattleSession.Restore(prepared);
         Assert.Equal(json, JsonSerializer.Serialize(restored.Capture()));
-        NativeBattleActionPacketsState restoredPackets = restored.Capture().NativeActionPackets!;
+        NativeBattleActionPacketsState restoredPackets = restored.Capture().ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal(contact, restoredPackets.ReadContact(header.FirstContact));
         Assert.Equal(
-            NativeBattleContactPacketCodec.Encode(prepared.NativeActionPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]!),
+            NativeBattleContactPacketCodec.Encode(prepared.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Contacts[header.FirstContact.Ordinal]!),
             NativeBattleContactPacketCodec.Encode(restoredPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]!));
         for (int frame = 0; frame < 128 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {

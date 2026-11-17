@@ -80,7 +80,7 @@ internal static class NativeBattleLifecycleComponentSources
             throw new InvalidDataException("The lifecycle descriptor does not reference its physical native header table.");
         }
         int index = checked((int)((address - 0x1D280C4) / 20));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The lifecycle source lost its native action packets.");
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The lifecycle source lost its native action packets.");
         if (index >= packets.ActionCount)
         {
             throw new InvalidDataException("The lifecycle descriptor references an unpublished native header.");

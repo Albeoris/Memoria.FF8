@@ -84,9 +84,9 @@ public sealed class NativeBattleDirectEntryTests
         var fixture = Fixture(0x50BEE0, 0xED, 0, 188);
         NativeBattleEffectBinding binding = new(188, 0x5BE340, 0x5BE320);
         NativeBattleEffectMemory memory = fixture.Session.Presentation!.Memory with { Shot188 = NativeBattleShot188State.FromColdProcess() };
-        NativeBattleModelAliases aliases = fixture.Session.NativeActionPackets.ModelAliases;
+        NativeBattleModelAliases aliases = fixture.Session.Presentation!.NativeActionPackets.ModelAliases;
         NativeBattleOriginalEffectState selected = new(188, 187, binding, new(aliases.DecodeLiteral(0), 0, BattleModelTargets.From([aliases.DecodeLiteral(3)]), new BattleActionHeaderReference(0), 0, 0) { Parameter80 = 0 }, null);
-        NativeBattleShot188Frame opened = NativeBattleShot188.Enter(new(memory, selected, new(1)), fixture.Session.NativeActionPackets);
+        NativeBattleShot188Frame opened = NativeBattleShot188.Enter(new(memory, selected, new(1)), fixture.Session.Presentation!.NativeActionPackets);
         memory = opened.Memory.PublishEntry50AF20(binding, false);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(fixture.Session.Presentation!, memory);
         typeof(BattleSession).GetField("nativeCrtRandom", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(fixture.Session, opened.Random);
@@ -120,7 +120,7 @@ public sealed class NativeBattleDirectEntryTests
     public void Presentation_service_readiness_uses_the_current_native_header_and_branch_specific_handshake(uint callback, byte command, ushort action, byte ready, byte cameraMask, bool expected)
     {
         var fixture = Fixture(callback, command, action);
-        NativeBattleActionPacketsState packets = fixture.Session.NativeActionPackets;
+        NativeBattleActionPacketsState packets = fixture.Session.Presentation!.NativeActionPackets;
         if (callback == 0x50A9A0)
         {
             packets = packets.WriteSequence(new BattleActionHeaderReference(0), 2);
@@ -159,7 +159,7 @@ public sealed class NativeBattleDirectEntryTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess().PublishEntry50AF20(binding, false) with { Active = 1 };
         BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess() with { EffectMemory = memory }, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess());
-        NativeBattleActionPacketsState packets = session.NativeActionPackets;
+        NativeBattleActionPacketsState packets = session.Presentation!.NativeActionPackets;
         BattleModelOwner source = packets.ModelAliases.DecodeLiteral(0);
         BattleModelOwner target = packets.ModelAliases.DecodeLiteral(3);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(source, command, 0, 0, action, effect, null));

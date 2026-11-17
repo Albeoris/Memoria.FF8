@@ -118,7 +118,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         Assert.IsType<NotSupportedException>(Assert.Throws<TargetInvocationException>(() => poll.Invoke(battle, [active])).InnerException);
         Assert.Same(planned, battle.NativeModelLoader);
         Assert.Null(battle.Presentation?.NativeFileStaging);
-        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeEffectIoResult))!.SetValue(battle, -1);
+        NativeBattleHostedTestFixture.SetProperty(battle.Presentation!, nameof(BattlePresentationProcess.NativeEffectIoResult), -1);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileIo))!.SetValue(battle.Presentation!, NativeBattleFileIoState.FromColdProcess());
         object?[] arguments = [graphics];
         Assert.Equal(1, poll.Invoke(battle, arguments));

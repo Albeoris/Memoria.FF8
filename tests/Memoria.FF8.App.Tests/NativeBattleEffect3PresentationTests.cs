@@ -76,7 +76,7 @@ public sealed class NativeBattleEffect3PresentationTests
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, preparedParty.NativeStatus!.Presentation!) };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), nativeEffect3.Command, 11, -1, nativeEffect3.ActionId, nativeEffect3.MagicId, null));
         //This controlled presentation component substitutes an already-computed7HP damage contact.
         //The installed kernel supplies the pose sequence; no battle formula or formula RNG is replayed.
@@ -84,7 +84,7 @@ public sealed class NativeBattleEffect3PresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -114,8 +114,8 @@ public sealed class NativeBattleEffect3PresentationTests
                 NativeBattleGraphicsState currentGraphics = snapshot.ReadFixturePresentation().NativeGraphics!;
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedEffect3 |= currentGraphics.OriginalEffect is { Binding.Entry: 0x700C10, Pools.Length: 2 };
-                ushort previousHp = beforeStep.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort presentedHp = snapshot.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = beforeStep.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort presentedHp = snapshot.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(presentedHp is 100 or 93, $"Controlled Effect3 contact changed the presented HP to{presentedHp}.");
                 if (previousHp != presentedHp)
                 {
@@ -207,7 +207,7 @@ public sealed class NativeBattleEffect3PresentationTests
         Assert.True(peakChangedPixels > 0, "Original Thunder sprite packets changed no RGB pixels.");
         Assert.True(continuedClone, "No visible Effect3 snapshot passed an independent next-callback continuation.");
         Assert.Equal(1, contactTransitions);
-        Assert.Equal((ushort)93, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)93, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle), "Original Effect3104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);

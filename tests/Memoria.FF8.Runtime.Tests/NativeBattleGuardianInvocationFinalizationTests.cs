@@ -16,7 +16,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
     public void Finalization_consumes_the_original_active_header_only_when_the_module_requests_it(ushort effect, byte parameter81, bool publish)
     {
         BattleSession owner = Create(effect, parameter81);
-        NativeBattleActionPacketsState packets = owner.NativeActionPackets;
+        NativeBattleActionPacketsState packets = owner.Presentation!.NativeActionPackets;
         NativeBattleEffectPresentationStep result = owner.Presentation!.CompleteEffectPresentationInvocation();
         Assert.Equal(publish ? 2 : 0, result.Contacts.Length);
         if (publish)
@@ -33,7 +33,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         Assert.False(owner.Presentation!.HasPendingEffectPresentationEvents);
         Assert.Equal(0, owner.Presentation!.Memory.Active);
         Assert.Equal(0u, owner.Presentation!.Graphics.Flags & 0x10u);
-        Assert.Equal(packets, owner.NativeActionPackets);
+        Assert.Equal(packets, owner.Presentation!.NativeActionPackets);
         NativeBattleEffectPresentationStep repeated = owner.Presentation!.CompleteEffectPresentationInvocation();
         Assert.Empty(repeated.Contacts);
         Assert.Empty(repeated.Sounds);
@@ -46,10 +46,10 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         SetProperty(uninvoked, nameof(BattlePresentationProcess.EffectPresentationInvoked), false);
         Assert.Throws<InvalidOperationException>(() => uninvoked.Presentation!.CompleteEffectPresentationInvocation());
         BattleSession live = Create(203, 3);
-        SetProperty(live, nameof(BattleSession.NativeEffectMemory), live.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 1 });
+        NativeBattleHostedTestFixture.SetProperty(live.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), live.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 1 });
         Assert.Throws<InvalidOperationException>(() => live.Presentation!.CompleteEffectPresentationInvocation());
         BattleSession detached = Create(203, 3);
-        SetProperty(detached, nameof(BattleSession.NativeEffectMemory), detached.Presentation!.Memory with { DetachedReturnedTask = detached.Presentation!.Graphics.OriginalEffect });
+        NativeBattleHostedTestFixture.SetProperty(detached.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), detached.Presentation!.Memory with { DetachedReturnedTask = detached.Presentation!.Graphics.OriginalEffect });
         Assert.Throws<InvalidOperationException>(() => detached.Presentation!.CompleteEffectPresentationInvocation());
         Assert.All(new[] { uninvoked, live, detached }, owner => Assert.False(owner.Presentation!.HasPendingEffectPresentationEvents));
     }
@@ -105,7 +105,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         BattleModelOwner source = new BattlePartyActorModel(new("source"));
         BattleModelOwner target = new BattleEnemyActorModel(new("target"));
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0)), (3, target, new(0))], 0x10);
-        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(graphics.ActorModels.Roster, owner.NativeActionPackets.ExportRetained(), graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
+        NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(graphics.ActorModels.Roster, owner.Presentation!.NativeActionPackets.ExportRetained(), graphics.NativeBindings.CaptureAliases(graphics.ActorModels));
         (packets, _) = packets.Prepare(new(source, command, 14, -1, action, effect, null));
         (packets, _) = packets.AppendContact(new(new(source, 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.AppendContact(new(new(target, 5, 1, 0, 0, 11, 0), null));
@@ -115,7 +115,7 @@ public sealed class NativeBattleGuardianInvocationFinalizationTests
         NativeBattleOriginalEffectState selected = new(effect, effect - 1, new(effect, 1, 0), new(source, 0, BattleModelTargets.From([source, target]), new BattleActionHeaderReference(0), parameter81, 0), 0);
         graphics = graphics with { OriginalEffect = selected };
         SetProperty(owner, nameof(BattlePresentationProcess.NativeGraphics), graphics);
-        SetProperty(owner, nameof(BattleSession.NativeEffectMemory), owner.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 0, Active = 1 });
+        NativeBattleHostedTestFixture.SetProperty(owner.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), owner.Presentation!.Memory with { ReturnedTaskPointer1D96AAC = 0, Active = 1 });
         SetProperty(owner, nameof(BattlePresentationProcess.EffectPresentationInvoked), true);
         return owner;
     }

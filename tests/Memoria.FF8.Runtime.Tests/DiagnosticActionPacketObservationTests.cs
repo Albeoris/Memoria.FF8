@@ -31,7 +31,7 @@ public sealed class DiagnosticActionPacketObservationTests
         // Component-only packet/read-window fixture; it does not establish installed action admission.
         BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
         battle.DiagnosticEffectDispatched += static _ => { };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         if (!writeRepeat)
         {
             packets = NativeBattleActionPacketsState.Create(packets.Roster, NativeBattleRetainedActionPackets.Fresh(), packets.ModelAliases);
@@ -88,7 +88,7 @@ public sealed class DiagnosticActionPacketObservationTests
     public void Packet_observation_detaches_all_backing_arrays_records_and_preserves_native_values_without_side_effects()
     {
         var (battle, dispatch) = Fixture();
-        NativeBattleRetainedActionPackets source = battle.NativeActionPackets.ExportRetained();
+        NativeBattleRetainedActionPackets source = battle.Presentation!.NativeActionPackets.ExportRetained();
         string before = JsonSerializer.Serialize(source);
         string random = RandomOwners(battle);
         int events = battle.Events.Count;
@@ -114,7 +114,7 @@ public sealed class DiagnosticActionPacketObservationTests
         ImmutableCollectionsMarshal.AsArray(copy.Headers[0].Payload)![0] = 2;
         ImmutableCollectionsMarshal.AsArray(copy.Contacts)![0] = null;
         Assert.Equal(before, JsonSerializer.Serialize(source));
-        Assert.Equal(before, JsonSerializer.Serialize(battle.NativeActionPackets.ExportRetained()));
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Presentation!.NativeActionPackets.ExportRetained()));
         Assert.Equal(random, RandomOwners(battle));
         Assert.Equal(events, battle.Events.Count);
         Assert.Equal(10L, battle.NativeHostCallbacks);

@@ -51,7 +51,7 @@ public sealed class NativeBattleControlGraphicsTests
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0, sequence, -1, 9, 0, null));
         if (contact)
         {
@@ -61,7 +61,7 @@ public sealed class NativeBattleControlGraphicsTests
         BattleSnapshot boundary = battle.CaptureForContinuation();
         NativeBattleGraphicsState graphics = boundary.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((boundary with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((boundary.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleSession restored = BattleSession.Restore(NativeBattleSnapshotJson.Deserialize<BattleSnapshot>(NativeBattleSnapshotJson.Serialize(battle.Capture()))!);
         bool selected = false;
         bool waitedForSequence = false;

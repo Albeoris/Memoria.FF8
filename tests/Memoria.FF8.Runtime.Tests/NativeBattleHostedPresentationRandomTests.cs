@@ -295,10 +295,10 @@ public sealed class NativeBattleHostedPresentationRandomTests
             EntryReady = true,
             PrimitiveFrame = NativeBattlePrimitiveFrame.Clear()
         }, selected);
-        SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
-        SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess());
         SetProperty(process, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { ControlCursor = 0 });
-        SetProperty(process, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
         SetProperty(process, nameof(BattlePresentationProcess.NativeMusicProcess), new NativeBattleMusicProcessState(new(1, null, null, null, null, null), 0, null).InitializeCommands501C60());
         return process;
     }

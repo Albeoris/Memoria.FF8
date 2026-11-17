@@ -74,7 +74,19 @@ internal sealed record BattleSourcePlacementBinding(BattleSourceGroupId Group, i
 /// <summary>Authored model operands for one admitted source group at its current roster generation.</summary>
 internal sealed class BattleSourceBindings(ImmutableArray<BattleSourceMember> members, NativeBattleModelAliases aliases)
 {
-    public NativeBattleModelAliases ApplyAuthoredOperands(NativeBattleModelAliases physical) => physical.WithAuthoredOperands(aliases);
+    private NativeBattleModelAliases? lastPhysical;
+    private NativeBattleModelAliases? scoped;
+
+    public NativeBattleModelAliases ApplyAuthoredOperands(NativeBattleModelAliases physical)
+    {
+        if (scoped is not { } bound || !ReferenceEquals(lastPhysical, physical))
+        {
+            bound = physical.WithAuthoredOperands(aliases);
+            lastPhysical = physical;
+            scoped = bound;
+        }
+        return bound;
+    }
 
     public BattleModelOwner DecodeLiteral(byte operand) => aliases.DecodeLiteral(operand);
 

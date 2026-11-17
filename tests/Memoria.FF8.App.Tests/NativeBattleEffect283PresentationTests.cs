@@ -80,7 +80,7 @@ public sealed class NativeBattleEffect283PresentationTests
         Assert.False(participant.Untargetable);
         Assert.False(participant.AllocationPendingStatistics);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The selected component requires its current target status owner.");
-        NativeBattleActionPacketsState packets = original.NativeActionPackets ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
         int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 12, -1, 261, 283, null));
@@ -90,7 +90,7 @@ public sealed class NativeBattleEffect283PresentationTests
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
         Assert.Equal(priorContacts, packets.ReadHeader(header).FirstContact.Ordinal);
-        Assert.Equal(JsonSerializer.Serialize(original.NativeActionPackets.ExportRetained().Headers.Take(priorActions)), JsonSerializer.Serialize(packets.ExportRetained().Headers.Take(priorActions)));
+        Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Headers.Take(priorActions)), JsonSerializer.Serialize(packets.ExportRetained().Headers.Take(priorActions)));
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([283])[282];
         Assert.Equal(NativeBattleEffect283Profile.Entry, binding.Entry);
@@ -98,7 +98,7 @@ public sealed class NativeBattleEffect283PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag282.tim", NativeBattleEffect283Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(NativeBattleEffect283Profile.TextureLength, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeEffect283Resources(), binding.Effect283Resources);
-        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(282, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(282, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Arena), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory!.Arena));

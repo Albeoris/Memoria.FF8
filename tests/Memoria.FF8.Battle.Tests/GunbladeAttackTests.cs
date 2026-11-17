@@ -49,7 +49,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         Assert.Single(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(82, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal(2, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
+        Assert.Equal(2, session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
         Assert.False(session.TriggerGunblade());
         for (int frame = 0; frame < 1200 && session.ActiveAction is not null; frame++)
@@ -75,7 +75,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         DispatchToContact(restored);
         Assert.Equal(82, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal(2, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
+        Assert.Equal(2, session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(session.Capture()), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -95,7 +95,7 @@ public sealed class GunbladeAttackTests
         DispatchToContact(session);
         Assert.DoesNotContain(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(54, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal(0, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
+        Assert.Equal(0, session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class GunbladeAttackTests
         NativeBattleRandomState expected = session.Capture().Random!.Draw(out _);
         DispatchToContact(session);
         Assert.Equal(54, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
-        Assert.Equal(0, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
+        Assert.Equal(0, session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.HitFlags & 2);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Miss");
         Assert.DoesNotContain(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
@@ -119,7 +119,7 @@ public sealed class GunbladeAttackTests
         session.SetGunbladeMode(BattleGunbladeMode.Automatic);
         NativeBattleRandomState before = session.Capture().Random!;
         DispatchToContact(session);
-        NativeBattleContactHalf contact = session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        NativeBattleContactHalf contact = session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal(2, contact.HitFlags & 2);
         Assert.Equal((byte)6, contact.Sequence);
         Assert.Equal((ushort)0, contact.Amount6);

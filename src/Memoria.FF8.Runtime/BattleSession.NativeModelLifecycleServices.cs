@@ -30,7 +30,7 @@ public sealed partial class BattleSession
         }
         return new(facts.ToImmutable())
         {
-            ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty,
+            ActorOpacities = ReadPendingAllocationOpacities(),
             ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
             ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
         };
@@ -75,7 +75,7 @@ public sealed partial class BattleSession
             Shot = CaptureExpandedHostedShotOwner(roster),
             Duel = CaptureExpandedHostedDuelOwner(),
             Renzokuken = CaptureExpandedHostedRenzokukenFrame(),
-            ActorOpacities = ReadPreparedActorOpacities() ?? ImmutableDictionary<string, float>.Empty,
+            ActorOpacities = ReadPendingAllocationOpacities(),
             ReadScanDescriptor = owner => CaptureNativeScanDescriptor208(GetActor(RequireCanonicalGraphicsActorId(owner))),
             ReadScanExtra = owner => ReadNativeScanExtra71(GetActor(RequireCanonicalGraphicsActorId(owner)))
         };

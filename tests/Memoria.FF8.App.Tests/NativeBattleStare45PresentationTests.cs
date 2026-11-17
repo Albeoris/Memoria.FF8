@@ -60,7 +60,7 @@ public sealed class NativeBattleStare45PresentationTests
         Assert.Equal(258, mesh.Vertices.Length);
         Assert.Equal(434, mesh.Polygons.Count(face => !face.Quad));
         Assert.Equal(37, mesh.Polygons.Count(face => face.Quad));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

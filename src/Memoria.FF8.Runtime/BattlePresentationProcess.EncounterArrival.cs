@@ -55,6 +55,33 @@ public sealed partial class BattlePresentationProcess
     }
 
     private ImmutableArray<EncounterArrivalState> encounterArrivals = [];
+    private ImmutableArray<EncounterArrivalState> sampledArrivalTracks;
+    private ImmutableDictionary<string, float>? sampledAllocationOpacities;
+    private ImmutableDictionary<string, float>? sampledArrivalOpacities;
+
+    private ImmutableDictionary<string, float> ReadEncounterArrivalOpacities(ImmutableDictionary<string, float> allocationOpacities)
+    {
+        if (encounterArrivals.IsEmpty)
+        {
+            return allocationOpacities;
+        }
+        if (sampledArrivalOpacities is { } sampled && sampledArrivalTracks == encounterArrivals && ReferenceEquals(sampledAllocationOpacities, allocationOpacities))
+        {
+            return sampled;
+        }
+        ImmutableDictionary<string, float> opacities = allocationOpacities;
+        foreach (EncounterArrivalState arrival in encounterArrivals)
+        {
+            if ((!arrival.Complete || arrival.Track.OpacityTo != 1) && !allocationOpacities.ContainsKey(arrival.Track.ActorId))
+            {
+                opacities = opacities.Add(arrival.Track.ActorId, arrival.Sample.Opacity);
+            }
+        }
+        sampledArrivalTracks = encounterArrivals;
+        sampledAllocationOpacities = allocationOpacities;
+        sampledArrivalOpacities = opacities;
+        return opacities;
+    }
 
     public ImmutableArray<EncounterArrivalState> CaptureEncounterArrivals() => encounterArrivals;
 

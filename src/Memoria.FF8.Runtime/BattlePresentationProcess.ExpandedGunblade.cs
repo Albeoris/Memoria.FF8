@@ -2,8 +2,6 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    internal ushort? HostedTriggerOptions => this.resources.TriggerOptions;
-
     internal void PressHostedGunblade(long token, BattleModelOwner actor, NativeBattleTriggerWidget widget)
     {
         if (!HasBattleEntry || hostedFrameServices is not null || hostedPresentationInvocation is not { } invocation ||
@@ -25,7 +23,7 @@ public sealed partial class BattlePresentationProcess
         NativeGraphics = graphics with { TriggerWidget = widget with { PendingTrigger = true } };
     }
 
-    private static bool CanPressNativeTriggerWidget(NativeBattleTriggerWidget? widget, ushort? options)
+    internal static bool CanPressNativeTriggerWidget(NativeBattleTriggerWidget? widget, ushort? options)
     {
         return widget is { ClosingPhase: 0, PendingTrigger: false, Input.TriggerTiming: 0 } &&
             (options.HasValue ? (options.Value & 1) == 0 : throw new NotSupportedException("Native trigger input requires its saved options WORD."));

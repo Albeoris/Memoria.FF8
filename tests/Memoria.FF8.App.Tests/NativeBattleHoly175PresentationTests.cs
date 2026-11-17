@@ -30,16 +30,16 @@ public sealed class NativeBattleHoly175PresentationTests
         int descriptor = Assert.Single(graphics.Descriptors.Queue, slot => graphics.Descriptors.Packets[slot].Command == 104);
         uint delta = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(delta / 20))));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(delta / 20))));
         Assert.Equal(action.Command, header.Command);
         Assert.Equal(action.ActionId, header.Action);
         Assert.Equal((ushort)175, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        int target = ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient);
+        int target = ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient);
         Assert.InRange(target, 0, 2);
-        ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
+        ushort initialHp = source.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
         ushort finalHp = checked((ushort)(initialHp - 7));
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([175])[174];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[174]));
@@ -97,8 +97,8 @@ public sealed class NativeBattleHoly175PresentationTests
                     completions++;
                     end = current.NativeCrtRandom;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[target]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort previousHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
                 if (hp != previousHp)
                 {
                     Assert.Equal(initialHp, previousHp);

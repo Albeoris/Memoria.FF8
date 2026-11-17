@@ -96,8 +96,6 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
         Assert.Equal(style, process.Graphics.NativeOutcome?.FadeStyleE01);
         Assert.False(battle.CanChoosePlayerCommand("party-3"));
         Assert.Throws<InvalidOperationException>(() => battle.QueueAttack("party-3", "enemy-8"));
-        Assert.Equal((byte)0, battle.Escape.ExpandedOutcomeFrames);
-        Assert.Null(battle.ExpandedEscapeScreenFade);
         if (explicitTurn)
         {
             Assert.Equal(0, battle.AdvanceTurn());
@@ -170,7 +168,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (_, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, 4, 4, expanded: false, nativeClock: true);
+        var (_, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, 4, 4, expanded: false);
         selected = selected with
         {
             NativeFlags = (ushort)(0x80 | flags),
@@ -242,7 +240,7 @@ public sealed class ExpandedBattlePresentationProcessTerminalTests
 
     private static (BattleSession Battle, BattlePresentationProcess Process) Enter(GameAssets game, BattleAssets assets, BattleAtbMode mode, bool skipVictory = false, bool missingText = false)
     {
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true, nativeClock: true);
+        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         NativeLimitProgress options = selected.LimitProgress! with { Options978 = (ushort)(selected.LimitProgress!.Options978!.Value & ~1) };
         definition = definition with

@@ -19,23 +19,20 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
         Assert.SkipUnless(fixture is not null && File.Exists(fixture), "Configure a standalone mod encounter before its genuine terminal action.");
         GameSession session = new(GameSession.Load(fixture!));
         using GameWorld world = new(session, directory, validateWorldPresentation: false);
-        BattleSnapshot source = world.Battle!.Capture();
+        BattleSnapshot source = world.Battle!.CaptureForContinuation();
         Assert.Equal(EncounterBindingResolver.Disc1Edea, source.Definition.EncounterMod!.Encounter);
         Assert.Null(source.ActiveAction);
-        BattleSnapshot wipe = source with
+        BattleSnapshot wipe = (source with
         {
-            Mode = BattleAtbMode.TurnBased,
-            Combatants = source.Combatants.Select(actor => source.Definition.Combatants.Any(definition => definition.Id == actor.Id && definition.IsPlayer) ? actor with { CurrentHp = petrified ? actor.CurrentHp : 0, NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | (petrified ? 4 : 1)) } } : actor).ToArray(),
-            NativePartyPresentation = petrified ? source.NativePartyPresentation : source.NativePartyPresentation! with { Rows = source.NativePartyPresentation.Rows.Select(row => row is null ? null : row with { HitPoints = 0, DisplayedHitPointsQ12 = 0 }).ToImmutableArray() }
-        };
+            Mode = BattleAtbMode.TurnBased,            Combatants = source.Combatants.Select(actor => source.Definition.Combatants.Any(definition => definition.Id == actor.Id && definition.IsPlayer) ? actor with { CurrentHp = petrified ? actor.CurrentHp : 0, NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | (petrified ? 4 : 1)) } } : actor).ToArray()        }).WithFixturePresentation(facts => facts with { NativePartyPresentation = petrified ? source.ReadFixturePresentation().NativePartyPresentation : source.ReadFixturePresentation().NativePartyPresentation! with { Rows = source.ReadFixturePresentation().NativePartyPresentation!.Rows.Select(row => row is null ? null : row with { HitPoints = 0, DisplayedHitPointsQ12 = 0 }).ToImmutableArray() } });
         BattleSession Attach(BattleSnapshot snapshot) => (BattleSession)typeof(GameWorld).GetMethod("AttachNativeEffectResources", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(world, [BattleSession.Restore(snapshot)])!;
         BattleSession battle = Attach(wipe);
         FieldInfo clockOwner = typeof(BattleSession).GetField("nativeBattleClock", BindingFlags.Instance | BindingFlags.NonPublic)!;
         void CheckCompletionOwner(BattleSession current)
         {
-            if (current.ActiveAction is { NativeHeader: BattleActionHeaderReference header } active && header.Ordinal >= current.NativeActionPackets.ActionCount && clockOwner.GetValue(current) is NativeBattleClockState { ActionPause: 0 })
+            if (current.ActiveAction is { } active && current.Presentation?.Graphics.ActionGraphics?.Header is BattleActionHeaderReference header && header.Ordinal >= current.Presentation!.NativeActionPackets.ActionCount && clockOwner.GetValue(current) is NativeBattleClockState { ActionPause: 0 })
             {
-                Assert.Fail(JsonSerializer.Serialize(new { current.Frame, active.ActorId, active.ActionId, Header = header, current.NativeActionPackets.ActionCount, Scratch = current.Capture().NativeActionScratch, current.EncounterPolicies }));
+                Assert.Fail(JsonSerializer.Serialize(new { current.Frame, active.ActorId, active.ActionId, Header = header, current.Presentation!.NativeActionPackets.ActionCount, Scratch = current.Capture().NativeActionScratch, current.EncounterPolicies }));
             }
         }
         for (int callback = 0; callback < 20 && battle.EncounterPolicies?.TerminalStarted != true; callback++)
@@ -48,7 +45,7 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.All(battle.Combatants.Where(actor => actor.IsPlayer), actor => Assert.NotEqual(0, BattleSession.NativeSavedStatusBits(actor) & 5));
         Assert.DoesNotContain(battle.Events.Skip(source.Events.Length), entry => entry.Kind == "EncounterPolicy");
-        BattleSession restored = Attach(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        BattleSession restored = battle.ForkForContinuation();
         for (int callback = 0; callback < 2000 && battle.Outcome == BattleOutcome.Active; callback++)
         {
             battle.Tick();
@@ -61,10 +58,10 @@ public sealed class EncounterPartyDefeatTerminalContinuationTests
             battle.Frame,
             battle.Outcome,
             battle.EncounterPolicies,
-            Active = battle.ActiveAction is { } active ? new { active.ActorId, active.ActionId, active.NativeHeader } : null,
-            Queued = battle.QueuedActions.Select(action => new { action.ActorId, action.ActionId, action.NativeQueuedCommand, action.NativeAiCallbackStage, action.NativeHeader }),
-            battle.NativeActionPackets.ActionCount,
-            battle.NativeActionPackets.ContactCount,
+            Active = battle.ActiveAction is { } active ? new { active.ActorId, active.ActionId, NativeHeader = battle.Presentation?.Graphics.ActionGraphics?.Header } : null,
+            Queued = battle.QueuedActions.Select(action => new { action.ActorId, action.ActionId, action.NativeQueuedCommand, action.NativeAiCallbackStage }),
+            battle.Presentation!.NativeActionPackets.ActionCount,
+            battle.Presentation!.NativeActionPackets.ContactCount,
             Original = ReadOriginalModelCell(battle.Presentation!.Graphics, battle.Combatants.Single(actor => actor.Id == source.Definition.EncounterMod.OriginalActorId).RequireNativeActorIndex()).SequenceState,
             Clock = battle.Capture().NativeClock,
             Scratch = battle.Capture().NativeActionScratch,

@@ -383,14 +383,15 @@ internal sealed partial class AutoPlayController
     }
 
     /// <summary>Runs immediately, bounded by wall time only for keeping the graphical host responsive.</summary>
-    public void Advance(int stepBudget = 256)
+    public void Advance(int stepBudget = 256, Action<BattleSession>? advanceBattlePresentation = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(stepBudget, 1);
         if (!Running || Paused)
         {
             return;
         }
-        Memoria.AutoPlay.AutoPlayScheduler.Advance(stepBudget, () => Running && !Paused, () =>
+        bool waitingForDisplay = false;
+        Memoria.AutoPlay.AutoPlayScheduler.Advance(stepBudget, () => Running && !Paused && !waitingForDisplay, () =>
         {
             try
             {
@@ -398,7 +399,11 @@ internal sealed partial class AutoPlayController
                 advancing = true;
                 GameState location = session.State;
                 CheckIdleDeadline();
-                Tick();
+                Tick(advanceBattlePresentation is null ? null : active =>
+                {
+                    advanceBattlePresentation(active);
+                    waitingForDisplay = true;
+                });
                 RecoverNativeInputSearchLoss();
                 run.Steps++;
                 if (Running && EnteredLocation(location, session.State))
@@ -521,7 +526,7 @@ internal sealed partial class AutoPlayController
         return session.PrepareSnapshot();
     }
 
-    private void Tick()
+    private void Tick(Action<BattleSession>? advanceBattlePresentation)
     {
         GameWorld world;
         using (idleDeadline.Suspend())
@@ -535,7 +540,7 @@ internal sealed partial class AutoPlayController
             world.EnsureField();
         }
         ApplyBattlePolicy(world);
-        if (TryPlayBattle(world))
+        if (TryPlayBattle(world, advanceBattlePresentation))
         {
             return;
         }

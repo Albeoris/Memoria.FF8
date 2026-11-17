@@ -39,7 +39,7 @@ public sealed partial class BattleSession
     public void ConfigureDiagnosticTerminalHold(BattleDiagnosticTerminalHoldDeclaration declaration)
     {
         declaration.Validate();
-        if (DiagnosticTerminalHold is not null || Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || Outcome != BattleOutcome.Active || DebugOutcome is not null || (HasPendingExpandedTerminal || HasPendingExpandedEscape))
+        if (DiagnosticTerminalHold is not null || Frame != 0 || (NativeHostCallbacks ?? 0) != 0 || Outcome != BattleOutcome.Active || DebugOutcome is not null || HasPendingExpandedTerminal)
         {
             throw new InvalidOperationException("A diagnostic terminal hold must be declared once before the first battle callback.");
         }
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("The natural diagnostic terminal candidate differs from its declared hold.");
         }
-        if ((HasPendingExpandedTerminal || HasPendingExpandedEscape) || DebugOutcome is not null || Outcome != BattleOutcome.Active)
+        if (HasPendingExpandedTerminal || DebugOutcome is not null || Outcome != BattleOutcome.Active)
         {
             throw new InvalidOperationException("A diagnostic hold cannot roll back an admitted terminal outcome.");
         }
@@ -97,7 +97,7 @@ public sealed partial class BattleSession
     {
         BattleDiagnosticTerminalHoldState hold = DiagnosticTerminalHold ?? throw new InvalidOperationException("No diagnostic terminal hold was declared.");
         long callback = NativeHostCallbacks ?? Frame;
-        if (hold.Declaration.Candidate != BattleOutcome.Defeat || hold.Phase != BattleDiagnosticTerminalHoldPhase.Held || hold.Sequence != 1 || hold.Rearms != 0 || callback - hold.HeldCallback!.Value > hold.Declaration.MaximumCallbacks || Outcome != BattleOutcome.Active || (HasPendingExpandedTerminal || HasPendingExpandedEscape) || !NativeEntryReady || callback != expectedCallback || ObserveDiagnosticDrainBlockers().Count != 0 || DetermineOutcome() != BattleOutcome.Active)
+        if (hold.Declaration.Candidate != BattleOutcome.Defeat || hold.Phase != BattleDiagnosticTerminalHoldPhase.Held || hold.Sequence != 1 || hold.Rearms != 0 || callback - hold.HeldCallback!.Value > hold.Declaration.MaximumCallbacks || Outcome != BattleOutcome.Active || HasPendingExpandedTerminal || !NativeEntryReady || callback != expectedCallback || ObserveDiagnosticDrainBlockers().Count != 0 || DetermineOutcome() != BattleOutcome.Active)
         {
             throw new InvalidOperationException("Diagnostic rearm requires the first held defeat, full normal drain and a genuine active outcome after declared combat repairs.");
         }
@@ -145,7 +145,7 @@ public sealed partial class BattleSession
         }
         hold.Declaration.Validate();
         long callback = snapshot.NativeHostCallbacks ?? snapshot.Frame;
-        if (hold.Declaration.Candidate == BattleOutcome.Victory && (hold.Sequence > 1 || hold.Rearms != 0) || hold.HoldId == Guid.Empty || !Enum.IsDefined(hold.Phase) || hold.Sequence is < 0 or > 2 || hold.Rearms is < 0 or > 1 || hold.Rearms > hold.Sequence || hold.Receipts.IsDefault || hold.Receipts.Length > 5 || hold.Phase == BattleDiagnosticTerminalHoldPhase.Held && (hold.Sequence < 1 || hold.HeldFrame is null || hold.HeldCallback is null) || hold.Sequence == 0 && (hold.HeldFrame is not null || hold.HeldCallback is not null) || hold.HeldFrame > snapshot.Frame || hold.HeldCallback > callback || (hold.Phase is BattleDiagnosticTerminalHoldPhase.Armed or BattleDiagnosticTerminalHoldPhase.Held) && (Outcome != BattleOutcome.Active || (HasPendingExpandedTerminal || HasPendingExpandedEscape) || DebugOutcome is not null))
+        if (hold.Declaration.Candidate == BattleOutcome.Victory && (hold.Sequence > 1 || hold.Rearms != 0) || hold.HoldId == Guid.Empty || !Enum.IsDefined(hold.Phase) || hold.Sequence is < 0 or > 2 || hold.Rearms is < 0 or > 1 || hold.Rearms > hold.Sequence || hold.Receipts.IsDefault || hold.Receipts.Length > 5 || hold.Phase == BattleDiagnosticTerminalHoldPhase.Held && (hold.Sequence < 1 || hold.HeldFrame is null || hold.HeldCallback is null) || hold.Sequence == 0 && (hold.HeldFrame is not null || hold.HeldCallback is not null) || hold.HeldFrame > snapshot.Frame || hold.HeldCallback > callback || (hold.Phase is BattleDiagnosticTerminalHoldPhase.Armed or BattleDiagnosticTerminalHoldPhase.Held) && (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal || DebugOutcome is not null))
         {
             throw new InvalidDataException("Saved diagnostic terminal hold contradicts its phase, callback or terminal owner.");
         }

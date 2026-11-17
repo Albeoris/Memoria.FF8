@@ -148,7 +148,7 @@ public sealed class NativeBattleEffect69PresentationTests
         uint stage = original.ReadFixturePresentation().NativeStage!.SourceAddress1D9A820 ?? throw new InvalidDataException("Effect69 requires its actual loaded stage directory owner.");
         Assert.NotEqual(0u, stage);
         Assert.Equal(6, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(original.ReadFixturePresentation().NativeFileStaging!.Read(stage, 4)));
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 12, -1, 350, 69, null));
@@ -168,7 +168,7 @@ public sealed class NativeBattleEffect69PresentationTests
         Assert.Null(binding.InitializerResource);
         Assert.Null(binding.InitializerAsset);
         Assert.Same(game.ReadNativeEffect69Resources(), binding.Effect69Resources);
-        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(68, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(68, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(original.Combatants), JsonSerializer.Serialize(source.Combatants));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory));

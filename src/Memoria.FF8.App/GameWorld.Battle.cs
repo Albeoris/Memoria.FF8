@@ -214,7 +214,7 @@ internal sealed partial class GameWorld
         if (effectPreviewRequest is null && encounterId == 511 && encounter.Id == encounterId)
         {
             byte[] eligibleRows = Enumerable.Range(0, Math.Min(8, entryVitals.Records.Length))
-                .Where(row => (entryVitals.Records[row].MemberFlags & 1) != 0 && (entryVitals.Records[row].Status & 1) == 0)
+                .Where(row => (entryVitals.Records[row].MemberFlags & 1) != 0)
                 .Select(row => checked((byte)row)).ToArray();
             var admitted = combatants.ToDictionary(actor => checked((byte)actor.MagicRecordId!.Value));
             foreach (BattleCombatantDefinition candidate in CreateBattleParty(entryVitals, eligibleRows.Where(row => !admitted.ContainsKey(row)).ToArray()))

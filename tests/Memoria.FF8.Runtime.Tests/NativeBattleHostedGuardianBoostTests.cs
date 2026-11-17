@@ -17,9 +17,9 @@ public sealed class NativeBattleHostedGuardianBoostTests
     {
         (BattleSession child, long token) = Create(learned);
         Assert.Equal(learned, child.Presentation!.HostedGuardianBoost!.Enabled);
-        Assert.False(child.NativeActionPackets.ModelAliases.TryEncodeExact(Caster, out _));
+        Assert.False(child.Presentation!.NativeActionPackets.ModelAliases.TryEncodeExact(Caster, out _));
         SetWidget(child, child.Presentation!.HostedGuardianBoost! with { Phase = 4, Remaining = 1, Window = 1, WindowRemaining = 10, Percent = percent });
-        NativeBattleActionPacketsState original = child.NativeActionPackets;
+        NativeBattleActionPacketsState original = child.Presentation!.NativeActionPackets;
 
         Poll(child, postCore: true);
         BattlePresentationProcess.HostedGuardianBoostRequest request = Assert.IsType<BattlePresentationProcess.HostedGuardianBoostRequest>(child.Presentation!.PendingHostedGuardianBoost);
@@ -28,11 +28,11 @@ public sealed class NativeBattleHostedGuardianBoostTests
         Assert.Equal(Caster, request.Caster);
         Assert.Equal(expected, request.Percent);
         Assert.Equal((byte)6, child.Presentation!.HostedGuardianBoost!.Phase);
-        Assert.Same(original, child.NativeActionPackets);
+        Assert.Same(original, child.Presentation!.NativeActionPackets);
         Poll(child, publish: false);
         Assert.Null(child.Presentation!.HostedGuardianBoost);
         Assert.Same(request, child.Presentation!.PendingHostedGuardianBoost);
-        Assert.Same(original, child.NativeActionPackets);
+        Assert.Same(original, child.Presentation!.NativeActionPackets);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class NativeBattleHostedGuardianBoostTests
         SetWidget(child, child.Presentation!.HostedGuardianBoost! with { Phase = 5 });
         Poll(child, publish: false);
         BattlePresentationProcess.HostedGuardianBoostRequest request = child.Presentation!.PendingHostedGuardianBoost!;
-        NativeBattleActionPacketsState original = child.NativeActionPackets;
+        NativeBattleActionPacketsState original = child.Presentation!.NativeActionPackets;
 
         Assert.Throws<InvalidOperationException>(() => child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request with { }));
         Assert.Throws<InvalidOperationException>(() => other.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request));
@@ -83,15 +83,15 @@ public sealed class NativeBattleHostedGuardianBoostTests
         BattlePresentationProcess.PreparedHostedContactReplacement stale = child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
         Poll(child, publish: false);
         Assert.Throws<InvalidOperationException>(() => child.Presentation!.PublishHostedContactReplacement(stale));
-        Assert.Same(original, child.NativeActionPackets);
+        Assert.Same(original, child.Presentation!.NativeActionPackets);
         Assert.Same(request, child.Presentation!.PendingHostedGuardianBoost);
 
         BattlePresentationProcess.PreparedHostedContactReplacement ready = child.Presentation!.PrepareHostedContactReplacement(token, [Contact(4)], acknowledgeGuardian: request);
         child.Presentation!.ValidatePreparedHostedContactReplacement(ready);
         child.Presentation!.PublishHostedContactReplacement(ready);
         Assert.Null(child.Presentation!.PendingHostedGuardianBoost);
-        Assert.Equal((ushort)4, child.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
-        Assert.Same(original.ReadHeader(Header), child.NativeActionPackets.ReadHeader(Header));
+        Assert.Equal((ushort)4, child.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
+        Assert.Same(original.ReadHeader(Header), child.Presentation!.NativeActionPackets.ReadHeader(Header));
         Assert.Equal(token, child.Presentation!.HostedActiveActionToken);
         Assert.Throws<InvalidOperationException>(() => child.Presentation!.PublishHostedContactReplacement(ready));
     }
@@ -114,7 +114,7 @@ public sealed class NativeBattleHostedGuardianBoostTests
         Field("hostedBattlePresentation").SetValue(child, true);
         NativeBattleHostedTestFixture.InstallModelBindings(child, new NativeBattleGraphicsBinding("fourth", 1, new([0, 0])));
         long token = child.Presentation!.BeginHostedAction(new(Caster, 254, 1, -1, 64, 116, null), [Contact(0)]);
-        Field("nativeActionPackets").SetValue(child, child.NativeActionPackets.ActivateHeader(Header));
+        Field("nativeActionPackets").SetValue(child, child.Presentation!.NativeActionPackets.ActivateHeader(Header));
         NativeBattleGraphicsState registered = (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RegisterNativeGuardianBoost", PrivateInstance)!.Invoke(child, [child.Presentation!.Graphics, (ushort)64])!;
         SetGraphics(child, registered);
         return (child, token);

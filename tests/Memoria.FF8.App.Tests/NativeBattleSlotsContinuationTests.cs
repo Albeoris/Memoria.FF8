@@ -23,8 +23,8 @@ public sealed class NativeBattleSlotsContinuationTests
         battle.QueueAction(actorId, target, BattleAbility.Magic, 1, magicTargets: Enumerable.Repeat(target, casts).ToArray());
         battle.Tick();
         BattleSnapshot produced = battle.CaptureForContinuation();
-        Assert.Equal(casts, produced.NativeActionPackets!.ActionCount);
-        Assert.Equal(casts - 1, produced.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
+        Assert.Equal(casts, produced.ReadFixturePresentation().NativeActionPackets!.ActionCount);
+        Assert.Equal(casts - 1, produced.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
         NativeBattleDescriptorState descriptors = produced.ReadFixturePresentation().NativeGraphics!.Descriptors;
         Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
         Assert.Equal(JsonSerializer.Serialize(produced), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(produced))!).Capture()));
@@ -64,21 +64,21 @@ public sealed class NativeBattleSlotsContinuationTests
                 before = battle.Capture();
                 battle.AdvanceNativeGraphicsPresentation(callback);
                 BattleSnapshot current = battle.CaptureForContinuation();
-                if (!produced && current.NativeActionPackets!.ActionCount != 0)
+                if (!produced && current.ReadFixturePresentation().NativeActionPackets!.ActionCount != 0)
                 {
-                    Assert.Equal(3, current.NativeActionPackets.ActionCount);
-                    Assert.Equal(2, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
+                    Assert.Equal(3, current.ReadFixturePresentation().NativeActionPackets!.ActionCount);
+                    Assert.Equal(2, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
                     NativeBattleDescriptorState descriptors = current.ReadFixturePresentation().NativeGraphics!.Descriptors;
                     Assert.Single(descriptors.Queue.Where(index => descriptors.Packets[index].Command == 104));
                     produced = true;
                 }
-                if (current.ReadFixturePresentation().NativeGraphics?.ActionGraphics is { } context && current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
+                if (current.ReadFixturePresentation().NativeGraphics?.ActionGraphics is { } context && current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(context.Header.Ordinal)).Command == 16)
                 {
                     Assert.Equal(0, context.Header.Ordinal);
                 }
                 if (count % 8 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command).ToArray() }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.ReadFixturePresentation().NativeActionPackets!?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command).ToArray() }));
                 }
                 if (!restoredMidpoint && current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
                 {

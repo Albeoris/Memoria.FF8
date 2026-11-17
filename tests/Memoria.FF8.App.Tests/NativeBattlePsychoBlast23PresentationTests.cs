@@ -73,7 +73,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         Assert.Equal((byte)17, sequence);
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([23])[22];
         ImmutableArray<NativeBattleEffectBinding> catalog = source.Definition.NativeEffectCatalog.SetItem(22, binding);
-        NativeBattleActionPacketsState packets = (source.NativeActionPackets ?? throw new InvalidDataException("The standalone lacks its physical action arena.")).ResetCounts();
+        NativeBattleActionPacketsState packets = (source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The standalone lacks its physical action arena.")).ResetCounts();
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(6), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
         BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current target lacks its actual status banks.");
@@ -82,7 +82,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         packets.Validate();
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         NativeBattleRetainedMemory retained = source.Definition.NativeRetainedMemory ?? throw new InvalidDataException("The standalone lacks its retained definition mirror.");
-        BattleSnapshot prepared = (source with { NativeActionPackets = packets,Definition = source.Definition with { NativeEffectCatalog = catalog, NativeRetainedMemory = retained with { ActionPackets = packets.ExportRetained() } } }).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = ((source with { Definition = source.Definition with { NativeEffectCatalog = catalog, NativeRetainedMemory = retained with { ActionPackets = packets.ExportRetained() } } }).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(source.Combatants), JsonSerializer.Serialize(prepared.Combatants));
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.NativeGlobalRandom), JsonSerializer.Serialize(prepared.NativeGlobalRandom));

@@ -173,7 +173,7 @@ public sealed class IndependentGuardianItemTests
         BattleIndependentGuardianInvocation invocation = windup.ActiveAction!.IndependentGuardian!;
         Assert.Equal((byte)244, invocation.Action!.Command);
         Assert.Equal((byte)10, invocation.Level);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(windup.ActiveAction.NativeHeader!.Value);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(battle.Presentation!.NativeActionPackets.ActiveHeader!.Value);
         Assert.Equal((byte)244, header.Command);
         Assert.Equal(invocation.Action.ActionId == 15 ? (byte)11 : (byte)14, header.Sequence);
         Assert.Equal((uint)0x495050, header.Data!.ProducerAddress);
@@ -206,13 +206,13 @@ public sealed class IndependentGuardianItemTests
         BattleSession battle = Create(assets, 30, 0);
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
         battle.Tick();
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(battle.ActiveAction!.NativeHeader!.Value);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(battle.Presentation!.NativeActionPackets.ActiveHeader!.Value);
         Assert.Equal((byte)0, header.Command);
         Assert.Equal((byte)10, header.Sequence);
         Assert.Equal(9, header.Action & 0xFF);
         Assert.Equal((byte)0, header.ReadContactCount());
-        Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
-        Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Amount6);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ContactCount);
+        Assert.Equal(0, battle.Presentation!.NativeActionPackets.ReadContact(header.FirstContact).Primary.Amount6);
         Assert.Equal((uint)0x47EA30, header.Data!.ProducerAddress);
         Assert.Equal(30, header.Data.Argument);
         for (int frame = 0; frame < 1200 && !(battle.ActiveAction is null && battle.QueuedActions.Count == 0); frame++)

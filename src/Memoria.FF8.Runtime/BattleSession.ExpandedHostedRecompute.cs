@@ -76,6 +76,9 @@ public sealed partial class BattleSession
             progress.PresentedRoutedContacts = 0;
         }
         process.CommitRecomputedContacts(replacement);
+        PublishDiagnosticCounterContacts(candidate, process, replacement.AppendedHeaders, trigger is not null && invocation.PendingGunblade ? invocation.HeaderReference : null);
+        PublishDiagnosticReflectionCandidates(candidate);
+        publication.PublishParticipantCallbackObservations();
         PublishHostedGuardianFormAudio(form);
     }
 

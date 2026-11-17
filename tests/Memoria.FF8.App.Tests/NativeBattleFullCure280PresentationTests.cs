@@ -57,10 +57,10 @@ public sealed class NativeBattleFullCure280PresentationTests
                 BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(1000, current.Combatants.Single(actor => actor.Id == "party").CurrentHp);
                 Assert.Equal(1, Assert.Single(current.Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!, stock => stock.SpellId == action.ActionId).Count);
-                if (prior.NativePartyPresentation!.Rows[0]!.HitPoints != current.NativePartyPresentation!.Rows[0]!.HitPoints)
+                if (prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints != current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints)
                 {
-                    Assert.Equal((ushort)100, prior.NativePartyPresentation.Rows[0]!.HitPoints);
-                    Assert.Equal((ushort)1000, current.NativePartyPresentation.Rows[0]!.HitPoints);
+                    Assert.Equal((ushort)100, prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
+                    Assert.Equal((ushort)1000, current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
                     presentedHealings++;
                 }
                 NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;

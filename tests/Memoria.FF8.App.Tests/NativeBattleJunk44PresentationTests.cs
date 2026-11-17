@@ -67,13 +67,13 @@ public sealed class NativeBattleJunk44PresentationTests
         ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePresentationStatusMemory = presentationStatus };
         Assert.Equal(status.Saved, target.NativeStatus!.Presentation.Saved);
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
-        NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = ready.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 15, -1, 226, 44, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 226 && row.MagicId == 44).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot source = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
+        BattleSnapshot source = (ready.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([44])[43];
         Assert.Equal(NativeBattleJunk44Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleJunk44Profile.Initializer, binding.Initializer);

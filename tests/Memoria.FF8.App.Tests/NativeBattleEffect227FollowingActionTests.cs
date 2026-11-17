@@ -43,13 +43,13 @@ public sealed class NativeBattleEffect227FollowingActionTests
         Assert.Equal((byte)137, ReadOriginalModelCell(originalGraphics, 3).ModelId4);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 339 && row.MagicId == 227 && row.KernelSection == 3 && row.KernelIndex == 339);
         Assert.Equal((byte)13, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 13, cameraChoice, 339, 227, null));
         packets = NativeBattleEffect227PresentationTests.PublishDeclaredSelfContact(source, packets);
-        Assert.Equal(source.NativeActionPackets!.ContactCount + 1, packets.ContactCount);
+        Assert.Equal(source.ReadFixturePresentation().NativeActionPackets!.ContactCount + 1, packets.ContactCount);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        BattleSnapshot prepared = (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = (source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));

@@ -65,7 +65,7 @@ public sealed class NativeOrdinaryCommandTests
         BattleCombatant changed = battle.Combatants.Single(actor => actor.Id == "enemy");
         Assert.Equal(expectedLevel, changed.Level);
         Assert.Equal(template.Levels[expectedLevel].MaximumHp, changed.MaximumHp);
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         NativeBattleContactHalf contact = packets.ReadContact(header.FirstContact).Primary;
         Assert.Equal(0, contact.PresentedAmount);
@@ -277,7 +277,7 @@ public sealed class NativeOrdinaryCommandTests
         }
         else
         {
-            NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(battle.ActiveAction!.NativeHeader!.Value);
+            NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(battle.Presentation!.NativeActionPackets.ActiveHeader!.Value);
             Assert.Equal(failureMessage is null ? (byte)38 : (byte)0, header.Command);
             Assert.Equal(failureMessage is null ? (byte)14 : (byte)10, header.Sequence);
             Assert.Equal(failureMessage is null ? (ushort)6 : (ushort)9, header.Action);

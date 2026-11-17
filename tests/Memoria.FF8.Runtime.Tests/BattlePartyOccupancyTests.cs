@@ -19,7 +19,7 @@ public sealed class BattlePartyOccupancyTests
         FieldInfo pending = typeof(BattleSession).GetField("pendingPartyReplacements", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.Equal((byte)5, select.Invoke(battle, [vitals, (byte)0]));
 
-        ImmutableArray<PartyReplacementDescriptor> reserved = [new(new(BattleRosterSlot.Ally(1), 1, 5), "party-1", "party-5", PartyReplacementStage.Bind)];
+        ImmutableArray<PartyReplacementDescriptor> reserved = [new(new(BattleRosterSlot.Ally(1), 1, 5, 0), "party-1", "party-5", NativeBattleModelSlot.Decode(1), PartyReplacementStage.Bind)];
         pending.SetValue(battle, reserved);
         Assert.Equal((byte)6, select.Invoke(battle, [vitals, (byte)0]));
 
@@ -42,7 +42,7 @@ public sealed class BattlePartyOccupancyTests
         {
             EnemySlotCount = 1,
             NativeRewardItems = [],
-            PartyOccupancyChanges = [new(BattleRosterSlot.Ally(0), 0, 4), new(BattleRosterSlot.Ally(1), 1, null)]
+            PartyOccupancyChanges = [new(BattleRosterSlot.Ally(0), 0, 4, 0), new(BattleRosterSlot.Ally(1), 1, null, 0)]
         };
         NativeEconomy economy = new() { Version = 1, Rule = NativeEconomy.InitializationRule, InitOutSha256 = hash, Items = Enumerable.Repeat(new NativeItemStock(0, 0), NativeEconomy.ItemSlotCount).ToArray(), Gil = 0, PastGil = 0, EventBankGil72 = 0, EventBankPastGil76 = 0 };
         BattleEnemyRewardDefinition reward = new(0, 10, 20, 30, 255, false, 0, Enumerable.Repeat(new BattleStock(0, 0), 12).ToImmutableArray());
@@ -61,6 +61,18 @@ public sealed class BattlePartyOccupancyTests
         Assert.Throws<InvalidDataException>(() => Apply(result with { PartyOccupancyChanges = [.. result.PartyOccupancyChanges, result.PartyOccupancyChanges[0]] }));
         Assert.Throws<InvalidDataException>(() => Apply(result with { Party = result.Party.Where(member => member.Row != 0).ToArray() }));
 
+        BattleResult reentry = result with
+        {
+            PartyOccupancyChanges = [new(BattleRosterSlot.Ally(0), 0, 4, 0), new(BattleRosterSlot.Ally(1), 1, 0, 0)],
+            RewardEligibleGuardianForceIds = BattleResultProjection.EligibleGuardianForces(vitals, [4, 0, 2, 3])
+        };
+        BattleResultOwners reentered = Apply(reentry);
+        Assert.Equal(new byte[] { 4, 0, 2 }, reentered.CharacterVitals.CombatParty);
+        Assert.Equal((ushort)5, reentered.CharacterVitals.Records[0].HitPoints.Minimum);
+        Assert.Equal(new byte[] { 0, 2, 3, 4 }, reentered.Rewards.CharacterExperience.Keys.Order());
+        Assert.Throws<InvalidDataException>(() => Apply(reentry with { PartyOccupancyChanges = reentry.PartyOccupancyChanges.Reverse().ToImmutableArray() }));
+        Assert.Throws<InvalidDataException>(() => Apply(reentry with { PartyOccupancyChanges = reentry.PartyOccupancyChanges.SetItem(0, reentry.PartyOccupancyChanges[0] with { OutgoingStatus = 1 }) }));
+
         BattleResultOwners Apply(BattleResult current)
         {
             return BattleResultProjection.Apply(current, vitals, economy, new Dictionary<int, int> { [0] = 0 }, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = reward }, experience, null, false, admittedBattle: definition);
@@ -74,7 +86,7 @@ public sealed class BattlePartyOccupancyTests
             EncounterId = 511,
             MagicVitals = vitals,
             Combatants = [.. Enumerable.Range(0, 4).Select(PartyActor), new() { Id = "enemy", Name = "Enemy" }],
-            PartyReplacementCandidates = Enumerable.Range(4, 4).ToImmutableDictionary(row => checked((byte)row), PartyActor)
+            PartyReplacementCandidates = Enumerable.Range(0, 8).ToImmutableDictionary(row => checked((byte)row), PartyActor)
         };
     }
 

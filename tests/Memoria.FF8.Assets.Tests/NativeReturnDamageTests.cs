@@ -12,12 +12,11 @@ public sealed class NativeReturnDamageTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 0, twice: true);
-        Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
+        Until(battle, () => battle.Presentation!.NativeActionPackets.ActionCount != 0);
 
-        Assert.Equal((byte)4, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(new byte[] { 8, 0, 8, 0 }, battle.NativeActionPackets.PublishedHeaders().Take(4).Select(header => header.Slot.Command));
+        Assert.Equal((byte)4, battle.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal(new byte[] { 8, 0, 8, 0 }, battle.Presentation!.NativeActionPackets.PublishedHeaders().Take(4).Select(header => header.Slot.Command));
         Assert.Null(battle.ActiveAction);
-        Assert.Equal(new int?[] { 0, 1, 2, 3 }, battle.QueuedActions.Select(command => command.NativeHeader?.Ordinal));
         Assert.Equal(9500, battle.Combatants[1].CurrentHp);
         Assert.Equal((ushort)0, battle.Capture().Combatants[1].NativeParticipant!.ReturnDamage);
         Assert.Equal(new[] { "party", "enemy", "party", "enemy" }, battle.Events.Where(item => item.Kind == "Damage").Select(item => item.TargetId));
@@ -39,7 +38,7 @@ public sealed class NativeReturnDamageTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, before);
-        Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
+        Until(battle, () => battle.Presentation!.NativeActionPackets.ActionCount != 0);
         BattleSnapshot saved = battle.Capture();
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions, command => command.NativeQueuedCommand == 0);
         Assert.Equal((byte)0, queued.NativeQueuedCommand);
@@ -48,7 +47,7 @@ public sealed class NativeReturnDamageTests
         Assert.Equal((ushort)0, saved.Combatants[0].NativeParticipant!.ReturnDamage);
         Assert.Equal((ushort)0, saved.Combatants[1].NativeParticipant!.ReturnDamage);
         Assert.Equal(10000 - returned, battle.Combatants[1].CurrentHp);
-        Assert.Equal((ushort)returned, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
+        Assert.Equal((ushort)returned, battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(saved))!);
         for (int frame = 0; frame < 40; frame++)
         {
@@ -67,7 +66,7 @@ public sealed class NativeReturnDamageTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 0, twice: true);
-        Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
+        Until(battle, () => battle.Presentation!.NativeActionPackets.ActionCount != 0);
         Assert.Equal(new byte?[] { 8, 0, 8, 0 }, battle.QueuedActions.Select(command => command.NativeQueuedCommand));
         Assert.All(battle.QueuedActions, command => Assert.Equal((byte)1, command.NativeAiCallbackStage));
         Assert.Equal(77u, battle.Capture().NativeAiVariables![0]);
@@ -110,7 +109,7 @@ public sealed class NativeReturnDamageTests
         Assert.Null(missingParticipant.Capture().Combatants[0].NativeParticipant!.ReturnDamage);
         BattleSession battle = BattleSession.Restore(saved with { Combatants = [saved.Combatants[0] with { NativeParticipant = saved.Combatants[0].NativeParticipant! with { ReturnDamage = null } }, saved.Combatants[1]] });
         Assert.Null(battle.Capture().Combatants[0].NativeParticipant!.ReturnDamage);
-        Assert.Contains("Return Damage", Assert.Throws<NotSupportedException>(() => Until(battle, () => battle.NativeActionPackets.ActionCount != 0)).Message);
+        Assert.Contains("Return Damage", Assert.Throws<NotSupportedException>(() => Until(battle, () => battle.Presentation!.NativeActionPackets.ActionCount != 0)).Message);
     }
 
     private static BattleSession Create(GameAssets game, BattleAssets assets, ushort before, bool twice = false, bool deathCallback = false)

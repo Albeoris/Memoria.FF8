@@ -57,6 +57,7 @@ public sealed partial class BattleSession
         PreparedActionPublication publication = new(this, candidate, Restore(before));
         publication.Publish();
         process.CommitDispatch(prefix.Dispatch);
+        publication.PublishParticipantCallbackObservations();
     }
 
     private void StageRosterOperation(BattleCombatant caller, BattleRosterMutation.Operation operation)

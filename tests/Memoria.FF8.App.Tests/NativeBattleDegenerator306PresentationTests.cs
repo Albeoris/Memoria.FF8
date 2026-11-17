@@ -52,7 +52,7 @@ public sealed class NativeBattleDegenerator306PresentationTests
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
@@ -60,6 +60,6 @@ public sealed class NativeBattleDegenerator306PresentationTests
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit declared Amount0 presentation contact with original command/action/sequence and retained logical HP/status; non-MISS and MISS select native body/visibility branches only, without status, removal-formula, accuracy, ordinary command or AI admission", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
-        return source with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) };
+        return source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) });
     }
 }

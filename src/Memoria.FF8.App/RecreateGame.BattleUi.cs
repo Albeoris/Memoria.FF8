@@ -81,9 +81,7 @@ internal sealed partial class RecreateGame
 
     private bool UpdateBattleCore(TimeSpan elapsed, InputFrame input, TimeSpan presentationElapsed)
     {
-        PixelBounds sceneSize = ViewportLayout.WorldRenderTarget(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, options.WorldRenderLimit, false);
-        PixelBounds projection = ViewportLayout.Fit(320, 240, sceneSize.Width, sceneSize.Height);
-        using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(sceneSize.Width, sceneSize.Height, projection.X, projection.Y, projection.Width, projection.Height));
+        using IDisposable visibleArea = BeginBattleUpdateVisibleArea();
         if (fieldFaulted && debugBattle is null)
         {
             return false;
@@ -587,6 +585,13 @@ internal sealed partial class RecreateGame
         using DiagnosticHostPhaseTiming.Scope presentationTimingScope = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.BattlePresentationUpdate);
         using NativeBattlePhaseTiming.ObservationScope nativeTimingScope = NativeBattlePhaseTiming.Observe(diagnosticHostPhaseTiming.Enabled ? diagnosticHostPhaseTiming : null);
         active.AdvanceNativeGraphicsPresentation(elapsed);
+    }
+
+    private IDisposable BeginBattleUpdateVisibleArea()
+    {
+        PixelBounds sceneSize = ViewportLayout.WorldRenderTarget(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, options.WorldRenderLimit, false);
+        PixelBounds projection = ViewportLayout.Fit(320, 240, sceneSize.Width, sceneSize.Height);
+        return BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.FromViewport(sceneSize.Width, sceneSize.Height, projection.X, projection.Y, projection.Width, projection.Height));
     }
 
     private void PrepareBattleTexture(Rectangle bounds)

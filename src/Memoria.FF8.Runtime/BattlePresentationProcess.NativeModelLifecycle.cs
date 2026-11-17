@@ -12,6 +12,17 @@ public sealed partial class BattlePresentationProcess
         {
             NativeBattleModelActorFacts actorFacts = services.Facts[owner];
             NativeBattleGraphicsModel model = models.Get(owner);
+            if ((model.Flags0 & 1) != 0 && model.Flags8 is uint status && (status & 0x400000) != 0 &&
+                !graphics.Descriptors.Queue.Any(slot => graphics.Descriptors.Packets[slot] is { Command: 102 or 103, ModelSubject: NativeBattleDescriptorModelSubject.PlannedLoad load } && load.Owner == owner))
+            {
+                // 502AB0 unlinks the model callback before testing the drawable flag. 509D10 already hid the ejected model.
+                // Existing effect tasks can still read the retained row until a later 102 rebinds it.
+                NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Native508230 requires its current model resource table.");
+                NativeModelTextureCache = cache.ReleaseEjectedModel508230(owner, model.ModelId4 ?? throw new InvalidDataException("The ejected model has no current resource identity."));
+                models = models.Set(owner, model with { Flags0 = 0 });
+                graphics = graphics with { ActorModels = models };
+                continue;
+            }
             if ((model.Flags0 & 2) == 0)
             {
                 continue;

@@ -21,7 +21,7 @@ public sealed class ExpandedPresentationRosterTests
         BattleEnemyActorModel[] opponents = Enumerable.Range(0, enemies).Select(position => new BattleEnemyActorModel(new($"enemy-{position}"))).ToArray();
         BattleModelOwner[] expected = [.. party.Take(3), .. opponents.Take(4), .. party.Skip(3), .. opponents.Skip(4)];
         Assert.Equal(expected, roster.Owners);
-        Assert.Equal(expected, battle.NativeActionPackets.Roster.Owners);
+        Assert.Equal(expected, battle.Presentation!.NativeActionPackets.Roster.Owners);
         Assert.Equal(allies + enemies, roster.Count);
         Assert.Equal(party.Cast<BattlePartyModelOwner>(), roster.Party);
         Assert.Equal(opponents.Cast<BattleEnemyModelOwner>(), roster.Enemies);
@@ -44,14 +44,14 @@ public sealed class ExpandedPresentationRosterTests
         Assert.Equal(before, Snapshot(battle));
         BattleSession restored = BattleSession.Restore(captured);
         Assert.Equal(expected, restored.ReadBattlePresentationRoster().Owners);
-        Assert.Equal(expected, restored.NativeActionPackets.Roster.Owners);
+        Assert.Equal(expected, restored.Presentation!.NativeActionPackets.Roster.Owners);
     }
 
     [Fact]
     public void Constructor_without_retained_memory_starts_with_unknown_rows_and_known_zero_counts()
     {
         BattleSession battle = Create(3, 4, expanded: false);
-        NativeBattleRetainedActionPackets raw = battle.NativeActionPackets.ExportRetained();
+        NativeBattleRetainedActionPackets raw = battle.Presentation!.NativeActionPackets.ExportRetained();
 
         Assert.Equal((byte)0, raw.ActionCount);
         Assert.Equal(0, raw.ContactCount);
@@ -62,7 +62,7 @@ public sealed class ExpandedPresentationRosterTests
         Assert.All(raw.Contacts, Assert.Null);
 
         BattleModelOwner first = battle.ReadPresentationModelOwner("ally-0");
-        NativeBattleActionPacketsState prepared = battle.NativeActionPackets.Prepare(new(first, 1, 7, -1, 0, 0, null)).State;
+        NativeBattleActionPacketsState prepared = battle.Presentation!.NativeActionPackets.Prepare(new(first, 1, 7, -1, 0, 0, null)).State;
         Assert.Equal((byte)0, prepared.ExportRetained().Headers[0].ReadKnownByte(0));
     }
 
@@ -83,7 +83,7 @@ public sealed class ExpandedPresentationRosterTests
             Contacts = cold.Contacts.SetItem(0, NativeBattleContactPacketCodec.Decode(contact))
         };
         BattleSession battle = Create(4, 5, retained: memory with { ActionPackets = retained });
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         NativeBattleRetainedActionPackets raw = packets.ExportRetained();
 
         Assert.Null(battle.Presentation?.Graphics);

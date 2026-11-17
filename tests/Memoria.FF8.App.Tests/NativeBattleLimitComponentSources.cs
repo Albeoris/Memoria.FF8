@@ -176,11 +176,11 @@ internal static class NativeBattleLimitComponentSources
             {
                 uint argument = snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument;
                 uint offset = checked(argument - 0x1D280C4u);
-                if (offset % 20 != 0 || offset / 20 >= snapshot.NativeActionPackets!.ActionCount || offset / 20 >= NativeBattleRetainedActionPackets.HeaderCapacity)
+                if (offset % 20 != 0 || offset / 20 >= snapshot.ReadFixturePresentation().NativeActionPackets!.ActionCount || offset / 20 >= NativeBattleRetainedActionPackets.HeaderCapacity)
                 {
                     throw new InvalidDataException("The limit producer queued an invalid native action header pointer.");
                 }
-                NativeBattleActionHeaderSlot header = snapshot.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
+                NativeBattleActionHeaderSlot header = snapshot.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
                 if (header.Effect == effect && descriptors.Length == 1)
                 {
                     return snapshot;

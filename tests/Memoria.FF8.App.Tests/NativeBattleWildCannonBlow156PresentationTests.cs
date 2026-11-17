@@ -52,8 +52,8 @@ public sealed class NativeBattleWildCannonBlow156PresentationTests
         Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.RootBankStorage);
         Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.ChildBankStorage);
         Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.ReadDword(NativeBattleWildCannonBlow156Profile.CursorGlobal));
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

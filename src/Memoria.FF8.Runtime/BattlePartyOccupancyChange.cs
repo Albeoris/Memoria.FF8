@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattlePartyOccupancyChange([property: System.Text.Json.Serialization.JsonRequired] BattleRosterSlot Slot, [property: System.Text.Json.Serialization.JsonRequired] byte OutgoingRow, [property: System.Text.Json.Serialization.JsonRequired] byte? IncomingRow)
+public sealed record BattlePartyOccupancyChange([property: System.Text.Json.Serialization.JsonRequired] BattleRosterSlot Slot, [property: System.Text.Json.Serialization.JsonRequired] byte OutgoingRow, [property: System.Text.Json.Serialization.JsonRequired] byte? IncomingRow, [property: System.Text.Json.Serialization.JsonRequired] ushort OutgoingStatus)
 {
     internal NativeCharacterVitals ApplySavedBinding(NativeCharacterVitals vitals)
     {

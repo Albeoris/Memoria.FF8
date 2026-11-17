@@ -81,7 +81,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.False(HasActionDescriptor(battle));
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
-        Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)200, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.Single(battle.Events, entry => entry.NativeModuleSound?.Sound == 0x4946F);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_CURAGA_EVIDENCE");
         string evidenceId = "curaga-resumed-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
@@ -95,7 +95,7 @@ public sealed class NativeBattleCuragaPresentationTests
         settledClone.AdvanceNativeGraphicsPresentation(Callback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(settledClone.Capture()));
         Assert.Equal(soundsBefore, battle.Events.Count(entry => entry.NativeModuleSound?.Sound == 0x4946F));
-        Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)200, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle));
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);
@@ -162,7 +162,7 @@ public sealed class NativeBattleCuragaPresentationTests
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), nativeCuraga.Command, 11, -1, nativeCuraga.ActionId, nativeCuraga.MagicId, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
@@ -170,7 +170,7 @@ public sealed class NativeBattleCuragaPresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -209,8 +209,8 @@ public sealed class NativeBattleCuragaPresentationTests
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedCuraga |= currentGraphics.OriginalEffect is { Binding.Entry: 0x87DB10, Curaga: not null };
                 stageFaded |= battle.Presentation?.Stage?.Groups.Any(group => group.ColorDepth > 0) == true;
-                ushort previousHp = beforeStep.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort presentedHp = snapshot.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = beforeStep.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort presentedHp = snapshot.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(presentedHp is 100 or 200, $"Controlled Curaga contact changed the presented HP to{presentedHp}.");
                 if (previousHp != presentedHp)
                 {
@@ -276,7 +276,7 @@ public sealed class NativeBattleCuragaPresentationTests
         Assert.True(peakChangedPixels > 0, "Original Curaga effect-bank packets changed no RGB pixels.");
         Assert.True(continuedClone, "No visible Curaga snapshot passed an independent next-callback continuation.");
         Assert.Equal(1, healingTransitions);
-        Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)200, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle), "Original Curaga104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);

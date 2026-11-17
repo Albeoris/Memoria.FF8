@@ -41,13 +41,13 @@ public sealed class NativeBattleCactuar199PresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(kernel.Command, header.Command);
         Assert.Equal(kernel.ActionId, header.Action);
         Assert.Equal((ushort)199, header.Effect);
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal((byte)1, contact.Primary.Flags2);
         Assert.Equal(0, contact.Primary.ContactFlags & 0x1000);
@@ -129,13 +129,13 @@ public sealed class NativeBattleCactuar199PresentationTests
                 BattleSnapshot current = battle.CaptureForContinuation();
                 Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
                 NativeBattleOriginalEffectState? afterEffect = Selected(current);
-                NativeBattleContactPacket actualContact = current.NativeActionPackets!.ReadContact(header.FirstContact);
+                NativeBattleContactPacket actualContact = current.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
                 if (prior.NativeActionScratch!.GuardianFormulaE1E != true && current.NativeActionScratch!.GuardianFormulaE1E == true)
                 {
-                    Assert.Equal((ushort)7, prior.NativeActionPackets!.ReadContact(header.FirstContact).Primary.Amount6);
+                    Assert.Equal((ushort)7, prior.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact).Primary.Amount6);
                     Assert.True(actualContact.Primary.Amount6 > 7);
                     Assert.Equal((ushort)2000, actualContact.Primary.Amount6);
-                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, actualContact.Primary.Recipient));
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, actualContact.Primary.Recipient));
                     Assert.Equal(0, actualContact.Primary.HitFlags & 1);
                     int beforeHp = prior.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
                     int afterHp = current.Combatants.Single(actor => actor.Id == targetId).CurrentHp;
@@ -192,7 +192,7 @@ public sealed class NativeBattleCactuar199PresentationTests
                     }
                 }
                 Assert.Equal(targetInitialHp - formulaAmount.GetValueOrDefault(), current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
-                Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
+                Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativePartyPresentation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativePartyPresentation));
                 NativeBattleCactuar199State? state = current.ReadFixturePresentation().NativeEffectMemory?.Cactuar199;
                 if (state?.RawModel.DecodedPose is not null)
                 {

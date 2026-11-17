@@ -380,8 +380,8 @@ internal static class NativeBattleEffectFixtureExporter
                 {
                     // This fresh controlled post-formula component keeps the prior KO display while the logical result already holds seven HP.
                     ushort priorSaved = preparedStatus.Status.Presentation.Saved!.Value;
-                    NativeBattlePartyPresentation party = before.NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
-                    before = before with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) }, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) };
+                    NativeBattlePartyPresentation party = before.ReadFixturePresentation().NativePartyPresentation ?? throw new InvalidDataException("The revival fixture requires its initialized party display.");
+                    before = (before with { NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, status.Battle) }).WithFixturePresentation(facts => facts with { NativePartyPresentation = party with { Rows = party.Rows.SetItem(1, party.Rows[1]! with { HitPoints = 0 }) } });
                     NativeBattleGraphicsState priorGraphics = before.ReadFixturePresentation().NativeGraphics!;
                     NativeBattleGraphicsModel targetModel = ReadOriginalModelCell(priorGraphics, 1);
                     uint flags = definition.NativeGraphics!.Rules.Project(priorSaved, status.Battle);
@@ -404,7 +404,7 @@ internal static class NativeBattleEffectFixtureExporter
                 target = target with { NativeParticipant = target.NativeParticipant! with { RemainingHits = remainingHits } };
             }
             before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
-            NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+            NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
             BattleCombatantSnapshot selectedCaster = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
             byte sequence;
             if (request.CasterActorIndex >= 3)
@@ -446,7 +446,7 @@ internal static class NativeBattleEffectFixtureExporter
             (packets, _) = packets.Publish(1);
             NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The current entry lacks its native graphics owner.");
             (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-            BattleSnapshot pending = (before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+            BattleSnapshot pending = (before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
             boundary = "queued-action104";
             Save(boundary, pending);
             if (request.AdmissionProbeMaximumCallbacks > 0)

@@ -46,13 +46,13 @@ public sealed class NativeBattleMiniPulseCannon286PresentationTests
         ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePresentationStatusMemory = (ready.NativePresentationStatusMemory ?? throw new InvalidDataException("Mini Pulse Cannon requires its current physical presentation-status bank.")).Observe(0, target.NativeStatus!.Presentation) };
         Assert.Equal(status.Saved, target.NativeStatus!.Presentation.Saved);
         Assert.Equal(status.Battle, target.NativeStatus!.Presentation.Battle);
-        NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = ready.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)allocatedActor)), 8, 12, -1, 293, 286, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), assets.NativeActions.Single(row => row.Command == 8 && row.ActionId == 293 && row.MagicId == 286).DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot source = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
+        BattleSnapshot source = (ready.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([286])[285];
         Assert.Equal(NativeBattleMiniPulseCannon286Profile.Entry, binding.Entry);
         Assert.Equal(NativeBattleMiniPulseCannon286Profile.Initializer, binding.Initializer);

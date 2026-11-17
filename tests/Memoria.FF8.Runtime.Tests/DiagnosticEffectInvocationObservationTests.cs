@@ -63,7 +63,7 @@ public sealed class DiagnosticEffectInvocationObservationTests
         battle.DiagnosticEffectDispatched += _ =>
         {
         };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, _) = packets.Prepare(new(OriginalOwner(0), 241, 0, -1, 65532, 0, null));
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);

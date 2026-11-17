@@ -93,7 +93,7 @@ public sealed class NativeBattleHostedStageContactSamplingTests
             .Add(AddedEnemy, new("first-added-enemy", false, 140, 0, 0))
             .Add(LastEnemy, new("last-added-enemy", false, 140, 0, 0)));
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => Unloaded());
-        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, session.NativeActionPackets.WithRoster(roster, aliases));
+        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, session.Presentation!.NativeActionPackets.WithRoster(roster, aliases));
         ((List<BattleCombatant>)typeof(BattleSession).GetField("combatants", PrivateInstance)!.GetValue(session)!).Clear();
         ((Dictionary<string, BattleCombatant>)typeof(BattleSession).GetField("byId", PrivateInstance)!.GetValue(session)!).Clear();
         BindStage(session, final);

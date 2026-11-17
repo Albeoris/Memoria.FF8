@@ -33,8 +33,8 @@ internal sealed class NativeBattleEffect249PresentationObserver(BattleSnapshot s
     public void Observe(BattleSnapshot prior, BattleSnapshot current, Action<string, BattleSnapshot> cold)
     {
         Assert.Equal(JsonSerializer.Serialize(source.Random), JsonSerializer.Serialize(current.Random));
-        ushort beforeHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-        ushort afterHp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+        ushort beforeHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+        ushort afterHp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
         if (beforeHp != afterHp)
         {
             Assert.Equal(Math.Max(0, beforeHp - 7), afterHp);
@@ -92,8 +92,8 @@ internal sealed class NativeBattleEffect249PresentationObserver(BattleSnapshot s
             };
             Assert.Equal(249, current.ReadFixturePresentation().NativeEffectMemory!.Cinematic!.Effect);
             int header = effect.Parameters!.Header.Ordinal;
-            Assert.Equal((byte)1, current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
-            Assert.Equal((byte)0, current.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
+            Assert.Equal((byte)1, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadContactCount());
+            Assert.Equal((byte)0, current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(header)).ReadRepeatModeMinusOne());
             Assert.Equal(45, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).CurrentBodyBoneMatrices!.Matrices.Length);
             if (!initialized)
             {

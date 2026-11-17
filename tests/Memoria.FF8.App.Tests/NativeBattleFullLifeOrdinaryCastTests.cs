@@ -89,7 +89,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
             Assert.True(battle.NativeEntryReady);
             Assert.True(battle.Combatants.Single(actor => actor.Id == "party").IsReady);
             Assert.Equal(2, Assert.Single(battle.Combatants.Single(actor => actor.Id == "party").MagicStocks).Count);
-            Assert.Equal((ushort)0, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
+            Assert.Equal((ushort)0, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints);
             Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "target").CurrentHp);
             Assert.False(battle.Combatants.Single(actor => actor.Id == "target").IsAlive);
             Assert.Equal(1, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Saved & 1);
@@ -121,7 +121,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
                     clone = null;
                 }
-                NativeBattleActionPacketsState actionPackets = current.NativeActionPackets ?? throw new InvalidDataException("The ordinary Full-life cast lost its action packet owner.");
+                NativeBattleActionPacketsState actionPackets = current.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The ordinary Full-life cast lost its action packet owner.");
                 if (actionPackets.ContactCount > 0)
                 {
                     Assert.Equal((byte)1, actionPackets.ContactCount);
@@ -137,7 +137,7 @@ public sealed class NativeBattleFullLifeOrdinaryCastTests
                 selectedFullLife |= graphics.OriginalEffect is { Binding.Effect: 27, Restoration: not null };
                 cameraChanged |= JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera) != cameraBefore;
                 Assert.NotNull(current.ReadFixturePresentation().NativeCamera!.Projection!.View);
-                ushort hp = current.NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (hp != displayedHp)
                 {
                     Assert.Equal((ushort)0, displayedHp);

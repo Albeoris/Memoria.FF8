@@ -20,7 +20,7 @@ public sealed class NativeBattleSequenceParticleSessionTests
         var result = ((NativeBattleGraphicsState Graphics, int Offset))Invoke(session, "ScheduleNativeSequenceParticle", graphics, OriginalOwner(0), new NativeBattleAuxiliaryProgram([12, 1, 224], 0), true);
         Assert.Equal(3, result.Offset);
         Assert.Null(result.Graphics.ModuleEffects.Head);
-        Assert.Same(packets, session.NativeActionPackets);
+        Assert.Same(packets, session.Presentation!.NativeActionPackets);
     }
 
     [Fact]

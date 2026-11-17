@@ -157,7 +157,7 @@ public sealed class NativeBattleEffect70PresentationTests
         Assert.False(party.NativeParticipant.Hidden);
         // The declared post-formula input includes47E2D0's party B90/B18 to B92/B1C publication.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         int priorActions = packets.ActionCount;
         int priorContacts = packets.ContactCount;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(4), 8, 14, -1, 362, 70, null));
@@ -172,7 +172,7 @@ public sealed class NativeBattleEffect70PresentationTests
         Assert.Equal(Initializer, binding.Initializer);
         Assert.Equal(new NativeBattleEffectInitializerResource("mag069-259.tim", InitializerGlobal), binding.InitializerResource);
         Assert.Same(game.ReadNativeEffect70Resources(), binding.Effect70Resources);
-        BattleSnapshot source = (original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(69, binding) },Combatants = original.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray(),NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot source = ((original with { Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(69, binding) },Combatants = original.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray()}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(original.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray(), source.Combatants.Select(actor => new { actor.Id, actor.CurrentHp, Saved = actor.NativeStatus?.Saved, Battle = actor.NativeStatus?.Battle }).ToArray());

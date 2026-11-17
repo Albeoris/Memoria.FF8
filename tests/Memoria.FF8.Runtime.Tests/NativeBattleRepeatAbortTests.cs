@@ -16,16 +16,16 @@ public sealed class NativeBattleRepeatAbortTests
         BattleModelOwner enemy = battle.ReadPresentationModelOwner("enemy");
         NativeBattleContactPacket stale = new(new(enemy, 3, 8, 0, 1, 323, 0), null);
         BattleSnapshot snapshot = battle.Capture();
-        NativeBattleActionPacketsState retained = snapshot.NativeActionPackets!;
+        NativeBattleActionPacketsState retained = snapshot.ReadFixturePresentation().NativeActionPackets!;
         retained = retained.AppendContacts([stale, stale]).ResetCounts();
-        battle = BattleSession.Restore(snapshot with { NativeActionPackets = retained });
+        battle = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeActionPackets = retained }));
 
-        for (int frame = 0; frame < 300 && battle.NativeActionPackets.ActionCount < 2; frame++)
+        for (int frame = 0; frame < 300 && battle.Presentation!.NativeActionPackets.ActionCount < 2; frame++)
         {
             battle.Tick();
         }
 
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(2, packets.ActionCount);
         Assert.Equal(1, packets.ContactCount);

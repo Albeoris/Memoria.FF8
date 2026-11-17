@@ -83,11 +83,11 @@ public sealed class NativeBattleSlotsTargetTests
 
     private static BattleModelOwner[] Resolve(BattleSession battle, int repetitions)
     {
-        for (int frame = 0; frame < 300 && battle.NativeActionPackets.ActionCount < repetitions; frame++)
+        for (int frame = 0; frame < 300 && battle.Presentation!.NativeActionPackets.ActionCount < repetitions; frame++)
         {
             battle.Tick();
         }
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         Assert.Equal(repetitions, packets.ActionCount);
         return Enumerable.Range(0, repetitions).Select(index => packets.ReadContact(packets.ReadHeader(new BattleActionHeaderReference(index)).FirstContact).Primary.Recipient).ToArray();
     }

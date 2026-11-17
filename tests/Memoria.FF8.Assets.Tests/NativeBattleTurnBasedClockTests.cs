@@ -65,7 +65,7 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback, after.ReadFixturePresentation().NativeGraphics!.Callback);
         // Full-gauge registration may enqueue UI readiness; all presentation owners stay at their saved boundary.
         Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ReadFixturePresentation().NativeGraphics), NativeBattleSnapshotJson.Serialize(after.ReadFixturePresentation().NativeGraphics! with { UiServices = before.ReadFixturePresentation().NativeGraphics!.UiServices }));
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.NativeActionPackets), NativeBattleSnapshotJson.Serialize(after.NativeActionPackets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ReadFixturePresentation().NativeActionPackets!), NativeBattleSnapshotJson.Serialize(after.ReadFixturePresentation().NativeActionPackets!));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ActiveAction), NativeBattleSnapshotJson.Serialize(after.ActiveAction));
         Assert.Equal(before.NativeHostCallbacks!.Value + advanced, after.NativeHostCallbacks!.Value);
         Assert.Equal(before.NativeExamTimer!.ClockCalls + 4L * advanced, after.NativeExamTimer!.ClockCalls);
@@ -131,7 +131,7 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(beforePass.ActiveAction, passed.ActiveAction);
         Assert.Equal(beforePass.NativeClock.ActionPause, passed.NativeClock!.ActionPause);
         Assert.Equal(NativeBattleSnapshotJson.Serialize(beforePass.ReadFixturePresentation().NativeGraphics), NativeBattleSnapshotJson.Serialize(passed.ReadFixturePresentation().NativeGraphics! with { UiServices = beforePass.ReadFixturePresentation().NativeGraphics!.UiServices }));
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(beforePass.NativeActionPackets), NativeBattleSnapshotJson.Serialize(passed.NativeActionPackets));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(beforePass.ReadFixturePresentation().NativeActionPackets!), NativeBattleSnapshotJson.Serialize(passed.ReadFixturePresentation().NativeActionPackets!));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(passed), NativeBattleSnapshotJson.Serialize(restored.Capture()));
         SaveOptionalSnapshot(battle, nameof(Ready_player_without_menu_holds_gauges_and_statuses_during_original_action));
     }

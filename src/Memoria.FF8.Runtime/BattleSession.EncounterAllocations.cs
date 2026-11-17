@@ -124,7 +124,7 @@ public sealed partial class BattleSession
     private BattleRosterSlot[] ReadFreeEncounterRosterSlots(int limit)
     {
         return Enumerable.Range(0, ExpandedBattleFormation.MaximumEnemies).Select(BattleRosterSlot.Enemy)
-            .Where(slot => !enemies.Any(actor => actor.Slot == slot && actor.IsActive) && !IsEncounterRetirementPending(slot)).Take(limit).ToArray();
+            .Where(slot => enemies.All(actor => actor.Slot != slot) && !IsEncounterRetirementPending(slot)).Take(limit).ToArray();
     }
 
     private BattleCombatant ReadEncounterCopySource(BattleCombatant caster, string role)
@@ -155,7 +155,7 @@ public sealed partial class BattleSession
         }
         NativeBattleEnemyTemplate template = resolved.NativeTemplate!;
         NativeBattleStatusAllocation freshStatuses = template.NativeStatusAllocation ?? new(0, 0, resolved.NativeStatusResistances.ToImmutableArray());
-        NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, ai.Texts.ToArray()) : null;
+        NativeBattleAiDefinition? combatAbilities = resolved.NativeAi is { } ai ? new([[0], [0], [0], [0], [0]], ai.Abilities.ToArray(), ai.LevelBand, []) : null;
         double maximumHpMultiplier = definition.EncounterMod is { } mod && mod.Templates.ContainsKey(role) ? mod.ActorProperties.GetValueOrDefault(role + "/stats.maximumHpMultiplier", 1) : 1;
         int maximumHp = EncounterActorProperties.ScaleMaximumHp(source.MaximumHp, maximumHpMultiplier);
         return resolved with

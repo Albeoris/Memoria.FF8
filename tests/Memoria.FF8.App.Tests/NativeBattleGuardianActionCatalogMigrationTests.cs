@@ -48,7 +48,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         int targetIndex = Array.FindIndex(original.Combatants, actor => actor.NativeParticipant?.ActorIndex == 3);
         Assert.True(targetIndex >= 0);
         Assert.Null(original.Combatants[targetIndex].NativeParticipant!.RemainingHits);
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)1, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
         Assert.Single(Enumerable.Range(0, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount()), index => ReadOriginalModelOperand(packets.ModelAliases, packets.ReadContact(new BattleContactOccurrence(index)).Primary.Recipient) == 3);
         Assert.Equal((byte)0, NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game));
@@ -97,7 +97,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         Assert.Equal((ushort)193, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Empty(original.Definition.NativeActions);
         Assert.Null(original.ActiveAction);
-        NativeBattleActionHeaderSlot header = original.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleActionHeaderSlot header = original.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)254, header.Command);
         Assert.Equal((ushort)64, header.Action);
         BattleNativeAction retained = Assert.Single(original.Definition.ActionDefinitions, action => action.Ability == BattleAbility.GuardianForce && action.Id == 0).NativeAction!;

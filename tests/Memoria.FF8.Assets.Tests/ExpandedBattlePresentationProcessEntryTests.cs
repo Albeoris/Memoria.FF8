@@ -125,10 +125,47 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Equal(beforeElapsed + expected.Callbacks, process.Graphics.Callback);
         Assert.Equal(expected.Subticks, process.Graphics.PresentationSubticks);
         Assert.Equal(expected.HalfSubtick, process.Graphics.PresentationHalfSubtick);
+        BattleSession elapsedFork = logical.ForkForContinuation();
         logical.Tick();
-        Assert.Equal(beforeElapsed + expected.Callbacks, process.Graphics.Callback);
+        elapsedFork.Tick();
+        Assert.Equal(beforeElapsed + expected.Callbacks + 1, process.Graphics.Callback);
+        Assert.Equal(process.Graphics.Callback, elapsedFork.Presentation!.Graphics.Callback);
+        Assert.Equal(expected.Subticks, elapsedFork.Presentation.Graphics.PresentationSubticks);
+        Assert.Equal(expected.HalfSubtick, elapsedFork.Presentation.Graphics.PresentationHalfSubtick);
         Assert.Equal(logical.NativeHostCallbacks, process.Graphics.Callback);
         Assert.True(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, checked((int)process.Graphics.Callback)).HasSameClock(logical.NativeExamTimer!));
+    }
+
+    [Fact]
+    public void Arrival_completion_and_continuation_observe_the_current_presentation_owner()
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        var (definition, selected) = CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.AttachPresentation(new(selected));
+        for (int callback = 0; callback < EntryBudget && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        const string arrived = "enemy-8";
+        battle.StartEncounterArrival([new(arrived, 0, 0, 1, 0)]);
+        Assert.False(battle.EncounterArrivalComplete(arrived));
+        EncounterArrivalState started = Assert.Single(battle.CaptureEncounterArrivals());
+        Assert.False(started.Complete);
+
+        BattleSession fork = battle.ForkForContinuation();
+        for (int callback = 0; callback < 12 && !battle.EncounterArrivalComplete(arrived); callback++)
+        {
+            battle.Tick();
+            fork.Tick();
+        }
+        Assert.True(battle.EncounterArrivalComplete(arrived));
+        Assert.True(fork.EncounterArrivalComplete(arrived));
+        EncounterArrivalState completed = Assert.Single(battle.CaptureEncounterArrivals());
+        Assert.Equal(completed, Assert.Single(fork.CaptureEncounterArrivals()));
+        Assert.True(completed.ElapsedCallbacks > started.ElapsedCallbacks);
     }
 
     [Fact]
@@ -429,7 +466,7 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
         Assert.Null(logical.Presentation);
     }
 
-    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7, bool nativeClock = false)
+    internal static (BattleDefinition Logical, BattleDefinition Selected) CreateDefinitions(GameAssets game, BattleAssets assets, int allyCount, int enemyCount, int authoredCount, bool expanded, int encounterId = 7)
     {
         BattleEncounter encounter = assets.LoadEncounter(encounterId);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -472,15 +509,13 @@ public sealed class ExpandedBattlePresentationProcessEntryTests
             PersistentAiVariables = [1, 0, 0x1234, 0, 0, 0, 0, 0],
             Items = [new(1, 3)]
         };
-        if (nativeClock)
+        NativeInputConfiguration input = game.ReadNewGameInputConfiguration();
+        logical = logical with
         {
-            logical = logical with
-            {
-                NativeClockRules = assets.ReadNativeClockRules(),
-                NativeBattleSpeed = game.ReadNewGameInputConfiguration().NativeBattleSpeedByte,
-                NativeSavedOptions = game.ReadNewGameInputConfiguration().Options
-            };
-        }
+            NativeClockRules = assets.ReadNativeClockRules(),
+            NativeBattleSpeed = input.NativeBattleSpeedByte,
+            NativeSavedOptions = input.Options
+        };
         NativeBattleGraphicsRules rules = game.ReadNativeBattleGraphicsRules();
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition([.. party.Take(Math.Min(3, allyCount)), .. enemies.Take(authoredCount)], rules, encounter);
         if (allyCount > 3 || addedCount > 0)

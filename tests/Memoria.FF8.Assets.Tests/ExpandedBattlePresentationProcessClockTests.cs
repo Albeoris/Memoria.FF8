@@ -12,7 +12,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allies, enemies, 4, expanded: true, nativeClock: true);
+        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, allies, enemies, 4, expanded: true);
         uint options = (definition.NativeSavedOptions!.Value & ~1u) | (wait ? 1u : 0u);
         definition = definition with { NativeSavedOptions = options };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
@@ -88,7 +88,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true, nativeClock: true);
+        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         string source = gunblade ? "party-0" : "party-1";
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         definition = definition with
@@ -176,7 +176,7 @@ public sealed class ExpandedBattlePresentationProcessClockTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true, nativeClock: true);
+        var (definition, selected) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 4, 5, 4, expanded: true);
         NativeExamTimerState timer = NativeExamTimerState.FromColdProcess().SetRemaining(10000);
         definition = definition with
         {

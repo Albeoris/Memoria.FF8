@@ -65,17 +65,17 @@ public sealed class NativeBattleMeteor223PresentationTests
             int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
             uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
+            NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal((byte)2, header.Command);
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal((ushort)223, header.Effect);
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[222]));
             BattleContactCursor first = header.FirstContact;
-            contacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => source.NativeActionPackets.ReadContact(first.Advance(index))).ToArray();
+            contacts = Enumerable.Range(0, header.ReadContactCount()).Select(index => source.ReadFixturePresentation().NativeActionPackets!.ReadContact(first.Advance(index))).ToArray();
             Assert.Equal(10, contacts.Length);
             Assert.All(contacts, contact =>
             {
-                Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+                Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
                 Assert.Null(contact.Secondary);
                 Assert.True(contact.Primary.Amount6 > 0);
             });

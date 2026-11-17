@@ -79,14 +79,14 @@ public sealed class NativeBattleBlizzardPresentationTests
         NativeBattleStatusMirror presentation = new(status.Saved, status.Battle);
         // The controlled494410/47E2D0 producer updates both the physical bank and its actor projection.
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? actor with { NativeStatus = status with { Presentation = presentation } } : actor).ToArray(), NativePresentationStatusMemory = (before.NativePresentationStatusMemory ?? throw new InvalidDataException("The controlled formula producer requires its current physical presentation-status bank.")).Observe(party.NativeParticipant!.ActorIndex, presentation) };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), native.Command, 11, -1, native.ActionId, native.MagicId, null));
         // An explicit post-formula7HP presentation contact; no formula or previous gameplay is replayed.
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), native.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -134,9 +134,9 @@ public sealed class NativeBattleBlizzardPresentationTests
                 }
                 casting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 controller |= currentGraphics.OriginalEffect is { Binding: { Entry: 0x61ABA0, BlizzardResources: not null } };
-                ushort hp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(hp is 100 or 93);
-                if (hp != prior.NativePartyPresentation!.Rows[0]!.HitPoints)
+                if (hp != prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints)
                 {
                     Assert.Equal((ushort)93, hp);
                     contacts++;

@@ -164,14 +164,14 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.NotNull(after.DrawStock15);
                     Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.DrawStock15Executable);
                     NativeBattleEffectParameters parameters = after.Parameters!;
-                    NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
-                    Assert.Equal((byte)0, ReadOriginalModelOperand(current.NativeActionPackets!.ModelAliases, header.Source));
+                    NativeBattleActionHeaderSlot header = current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
+                    Assert.Equal((byte)0, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, header.Source));
                     Assert.Equal((byte)6, header.Command);
                     Assert.Equal((ushort)selectedSpell, header.Action);
                     Assert.Equal((ushort)15, header.Effect);
-                    Assert.Equal((byte)1, current.NativeActionPackets.ContactCount);
-                    NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(header.FirstContact).Primary;
-                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, half.Recipient));
+                    Assert.Equal((byte)1, current.ReadFixturePresentation().NativeActionPackets!.ContactCount);
+                    NativeBattleContactHalf half = current.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact).Primary;
+                    Assert.Equal((byte)3, ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, half.Recipient));
                     Assert.Equal((ushort)0, half.Amount6);
                     Assert.NotEqual(0, half.ContactFlags & 1);
                     Assert.Equal(JsonSerializer.Serialize(game.ReadNativeDrawStock15Resources().Animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation!.Source));
@@ -182,8 +182,8 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 {
                     contactTransitions++;
                     NativeBattleModulePoolTask target = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots.First(task => task.Callback == 0x8B0C70 && task.ReadByte(0x29) == 3);
-                    BattleContactCursor contactIndex = current.NativeActionPackets!.ReadHeader(current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
-                    NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(contactIndex).Primary;
+                    BattleContactCursor contactIndex = current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
+                    NativeBattleContactHalf half = current.ReadFixturePresentation().NativeActionPackets!.ReadContact(contactIndex).Primary;
                     Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics!.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == half.Recipient);
                     CheckNext("contact", current);
                 }
@@ -258,7 +258,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
                 prior = snapshot;
                 BattleSession restored = BattleSession.Restore(snapshot);
                 restored.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
-                Assert.Equal(snapshot.NativeActionPackets!.PublishedHeaders().ToArray(), restored.NativeActionPackets.PublishedHeaders().ToArray());
+                Assert.Equal(snapshot.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().ToArray(), restored.Presentation!.NativeActionPackets.PublishedHeaders().ToArray());
                 Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
                 byte[] checkpointPixels = scene.Render(restored, 320, 224).ToArray();
                 Assert.Equal(scene.Render(battle!, 320, 224).ToArray(), checkpointPixels);

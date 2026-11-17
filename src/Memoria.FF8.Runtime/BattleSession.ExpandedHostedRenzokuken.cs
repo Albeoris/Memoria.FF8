@@ -179,6 +179,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
+        publication.PublishParticipantCallbackObservations();
         PublishHostedGuardianFormAudio(form);
     }
 
@@ -227,7 +228,7 @@ public sealed partial class BattleSession
         return Outcome == BattleOutcome.Active && CaptureExpandedHostedRenzokukenFrame() is { } frame &&
             process.ActiveActionToken == frame.ActionToken && process.PendingTrigger is null &&
             process.TriggerWidget is { } widget && widget.Actor == frame.Owner.Actor && widget.SourceMagicId == frame.Owner.MagicId &&
-            CanPressNativeTriggerWidget(widget, process.TriggerOptions);
+            BattlePresentationProcess.CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
 
     private void AcknowledgeExpandedHostedRenzokukenRegistration(BattlePresentationProcess process, NativeBattleModelTriggerRegistered receipt, long? actionToken)
@@ -389,6 +390,7 @@ public sealed partial class BattleSession
         expandedHostedEvent = hostedEvent with { CompletionToken = dispatch.Completion?.Request.Token };
         expandedHostedActionToken = dispatch.Action?.Invocation.Token;
         process.CommitDispatch(dispatch);
+        publication.PublishParticipantCallbackObservations();
         PublishHostedGuardianFormAudio(form);
     }
 

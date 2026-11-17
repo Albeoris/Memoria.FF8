@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     public bool CanChoosePlayerCommand(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        if (Outcome != BattleOutcome.Active || HasPendingExpandedEscape || HasPendingExpandedTerminal || !NativeEntryReady || !actor.IsPlayer ||
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal || !NativeEntryReady || !actor.IsPlayer ||
             GetGuardianForm(actorId) is { } form && (form.Phase != BattleGuardianFormPhase.Active || form.RemainingTicks == 0))
         {
             return false;

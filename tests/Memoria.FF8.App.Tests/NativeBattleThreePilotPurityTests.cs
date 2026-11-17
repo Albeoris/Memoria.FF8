@@ -151,7 +151,7 @@ public sealed class NativeBattleThreePilotPurityTests
         object? graphicsOwner = battle.Presentation?.Graphics;
         object? cameraOwner = battle.Presentation?.Camera;
         object? ioOwner = battle.Presentation?.NativeFileIo;
-        NativeBattleActionPacketsState packetOwner = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packetOwner = battle.Presentation!.NativeActionPackets;
         NativeBattlePreparedPresentation? preparedOwner = battle.PreparedPresentation;
         long? nativeCallbacks = battle.NativeHostCallbacks;
         NativeBattlePilotVisualGeometry[] earlierGeometry = EffectGeometry(earlier, effect);
@@ -221,7 +221,7 @@ public sealed class NativeBattleThreePilotPurityTests
         Assert.Same(graphicsOwner, battle.Presentation?.Graphics);
         Assert.Same(cameraOwner, battle.Presentation?.Camera);
         Assert.Same(ioOwner, battle.Presentation?.NativeFileIo);
-        Assert.Same(packetOwner, battle.NativeActionPackets);
+        Assert.Same(packetOwner, battle.Presentation!.NativeActionPackets);
         Assert.Same(preparedOwner, battle.PreparedPresentation);
         Assert.Equal(nativeCallbacks, battle.NativeHostCallbacks);
         Assert.Empty(sampledEvents);

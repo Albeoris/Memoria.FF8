@@ -44,13 +44,13 @@ public sealed class NativeBattleScanTests
     {
         BattleSession battle = Create(61, alwaysShow, history: Empty().Add(priorModel));
         battle.QueueNativePlayerCommand("party", "enemy", 2, 1);
-        for (int admission = 0; admission < 7 && battle.NativeActionPackets.ActionCount == 0; admission++)
+        for (int admission = 0; admission < 7 && battle.Presentation!.NativeActionPackets.ActionCount == 0; admission++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        NativeBattleContactPacket packet = battle.NativeActionPackets.ReadContact(header.FirstContact);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactPacket packet = battle.Presentation!.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal(flags, packet.Primary.Flags2);
         Assert.Equal(messages, battle.Events.Count(entry => entry.Kind == "Scan"));
         NativeScannedModels after = battle.Capture().NativeScannedModels!;

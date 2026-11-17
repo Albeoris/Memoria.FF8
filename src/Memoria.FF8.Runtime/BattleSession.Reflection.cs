@@ -45,6 +45,7 @@ public sealed partial class BattleSession
                 FreeNativeMagic = true,
                 MagicReservationId = null
             };
+            RecordDiagnosticReflection(receipt.Source, command, receipt.Reflector, redirected, source);
             result.Add(new(command, CreatePresentationModelOwner(receipt.Reflector)));
         }
         return result.ToImmutable();

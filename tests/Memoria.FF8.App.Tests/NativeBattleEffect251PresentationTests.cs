@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect251PresentationTests
         BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(graphics, 3)!);
         BattleNativeAction action = Assert.Single(assets.NativeActions, item => item.Command == 8 && item.ActionId == 314 && item.MagicId == 251 && item.KernelSection == 3 && item.KernelIndex == 314);
         Assert.Equal((byte)33, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 33, unchecked((sbyte)action.RawRecord[4]), 314, 251, null));
         NativeBattleStatusSnapshot status = Assert.Single(original.Combatants, actor => actor.Id == ReadOriginalModelActorId(graphics, 0)).NativeStatus!;
         NativeBattleStatusSnapshot contactStatus = status.Presentation.Saved is null ? status with { Presentation = new(status.Saved, status.Battle) } : status;
@@ -65,7 +65,7 @@ public sealed class NativeBattleEffect251PresentationTests
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([251])[250];
-        BattleSnapshot prepared = (original with { Combatants = contactActors,Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(250, binding) },NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = ((original with { Combatants = contactActors,Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(250, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(graphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));

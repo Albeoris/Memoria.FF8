@@ -32,6 +32,7 @@ public sealed partial class BattleSession
     public void AttachPresentation(BattlePresentationResources resources, Func<BattleSession, BattleModelOwner, BattleRosterSlot, NativeBattleGraphicsBinding>? prepareModelBinding = null)
     {
         ArgumentNullException.ThrowIfNull(resources);
+        RequirePresentationClock();
         if (expandedPresentationProcess is not null || Frame != 0 || NativeHostCallbacks != 0 || ActiveAction is not null)
         {
             throw new InvalidOperationException("Hosted presentation can attach only before the expanded logical battle's first callback.");
@@ -46,6 +47,14 @@ public sealed partial class BattleSession
         InitializeExpandedPartyPresentation();
         NativeExamTimer = definition.NativeExamTimerAtEntry;
         expandedPresentationProcess = process;
+    }
+
+    private void RequirePresentationClock()
+    {
+        if (definition.NativeClockRules is null || nativeBattleClock is null)
+        {
+            throw new InvalidDataException("FFVIII battle presentation requires its installed ATB clock rules and current native clock state.");
+        }
     }
 
     private BattlePresentationServices CreateBattlePresentationServices()

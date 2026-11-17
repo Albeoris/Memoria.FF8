@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         {
             repair.Validate();
         }
-        if (Outcome != BattleOutcome.Active || (HasPendingExpandedTerminal || HasPendingExpandedEscape))
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal)
         {
             throw new NotSupportedException("Diagnostic repairs cannot reverse a terminal or pending native battle outcome.");
         }

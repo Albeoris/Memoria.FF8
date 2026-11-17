@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -17,6 +18,8 @@ internal sealed record NativeBattleFixtureState
     public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }
     public NativeBattleModelCpuResources? NativeModelCpuResources { get; init; }
     public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }
+    public NativeBattleActionPacketsState? NativeActionPackets { get; init; }
+    public NativeBattlePartyPresentation? NativePartyPresentation { get; init; }
 
     internal static T? ReadArchived<T>(JsonElement archive, string property, JsonSerializerOptions? options = null)
     {
@@ -52,7 +55,9 @@ internal static class NativeBattleFixtureObservations
             NativeModelLoader = state?.NativeModelLoader,
             NativeModelTextureCache = state?.NativeModelTextureCache,
             NativeModelCpuResources = state?.NativeModelCpuResources,
-            NativeGuardianBoost = continuation?.GuardianBoost
+            NativeGuardianBoost = continuation?.GuardianBoost,
+            NativeActionPackets = state?.NativeActionPackets,
+            NativePartyPresentation = ReadOriginalPartyVitals(snapshot)
         };
     }
 
@@ -60,7 +65,24 @@ internal static class NativeBattleFixtureObservations
     {
         BattlePresentationSnapshot continuation = snapshot.PresentationContinuation
             ?? throw new InvalidOperationException("The fixture requires a current typed battle continuation.");
-        NativeBattleFixtureState facts = project(snapshot.ReadFixturePresentation());
+        NativeBattleFixtureState observed = snapshot.ReadFixturePresentation();
+        NativeBattleFixtureState facts = project(observed);
+        BattleSession.BattleLogicalContinuation? logical = snapshot.LogicalContinuation;
+        if (!ReferenceEquals(facts.NativePartyPresentation, observed.NativePartyPresentation))
+        {
+            if (logical?.PartyVitals is not { } vitals || facts.NativePartyPresentation is not { } original)
+            {
+                throw new InvalidOperationException("The fixture requires the current canonical party-vitals continuation.");
+            }
+            foreach (BattleCombatantSnapshot actor in snapshot.Combatants)
+            {
+                if (actor.NativeParticipant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount } participant && original.Rows[participant.ActorIndex] is { } row)
+                {
+                    vitals = vitals.SetItem(actor.Id, row);
+                }
+            }
+            logical = logical with { PartyVitals = vitals };
+        }
         return snapshot with
         {
             PresentationContinuation = continuation with
@@ -76,10 +98,28 @@ internal static class NativeBattleFixtureObservations
                     NativeFileStaging = facts.NativeFileStaging,
                     NativeModelLoader = facts.NativeModelLoader,
                     NativeModelTextureCache = facts.NativeModelTextureCache,
-                    NativeModelCpuResources = facts.NativeModelCpuResources
+                    NativeModelCpuResources = facts.NativeModelCpuResources,
+                    NativeActionPackets = facts.NativeActionPackets
                 },
                 GuardianBoost = facts.NativeGuardianBoost
-            }
+            },
+            LogicalContinuation = logical
         };
+    }
+    private static NativeBattlePartyPresentation? ReadOriginalPartyVitals(BattleSnapshot snapshot)
+    {
+        if (snapshot.LogicalContinuation?.PartyVitals is not { } vitals)
+        {
+            return null;
+        }
+        var rows = new NativeBattlePartyPresentedVital?[NativeBattleSlots.AllyCount];
+        foreach (BattleCombatantSnapshot actor in snapshot.Combatants)
+        {
+            if (actor.NativeParticipant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount } participant)
+            {
+                rows[participant.ActorIndex] = vitals.GetValueOrDefault(actor.Id);
+            }
+        }
+        return new(rows.ToImmutableArray());
     }
 }

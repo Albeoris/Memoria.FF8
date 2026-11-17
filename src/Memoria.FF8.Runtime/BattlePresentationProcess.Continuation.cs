@@ -193,7 +193,14 @@ public sealed partial class BattlePresentationProcess
         LastStepActionToken = snapshot.LastStepAction;
         diagnosticHeaderGeneration = snapshot.DiagnosticGeneration;
         diagnosticHeaderGenerations = snapshot.DiagnosticGenerations?.ToDictionary();
-        Graphics.Validate();
+        if (snapshot.ExternalEffect is { } external)
+        {
+            Graphics.Validate(owner => external.Actors.TryGetValue(owner, out BattleExternalEffectActorState? actor) && actor.NativeResource is null);
+        }
+        else
+        {
+            Graphics.Validate();
+        }
         Memory.ValidateReturnedTaskOwner(Graphics.OriginalEffect);
         if (snapshot.ExternalEffect is { } externalEffect)
         {

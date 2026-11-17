@@ -392,8 +392,8 @@ public sealed class NativeBattleIfritFormPresentationTests
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(restored));
         Assert.Equal(original.Random!.Lane, restored.Random!.Lane);
         Assert.Equal(original.Random.Indexes.ToArray(), restored.Random.Indexes.ToArray());
-        NativeBattleActionPacketsState packets = original.NativeActionPackets!;
-        NativeBattleActionPacketsState resumedPackets = restored.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;
+        NativeBattleActionPacketsState resumedPackets = restored.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal(packets.PublishedHeaders().ToArray(), resumedPackets.PublishedHeaders().ToArray());
         foreach (var (reference, _) in packets.PublishedHeaders())
         {

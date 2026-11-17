@@ -13,11 +13,10 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         Assert.Equal((ushort)1060, cast.InitialTicks);
         Assert.Equal((ushort)1058, cast.RemainingTicks);
         Assert.Null(cast.Command.NativeAction);
-        Assert.Null(cast.Command.NativeHeader);
         Assert.Equal((byte?)254, cast.Command.NativeQueuedCommand);
         Assert.Equal(new NativeBattleAtbState(12000, 204), snapshot.Combatants[0].NativeAtb);
         Assert.Equal(170, snapshot.Combatants[0].Atb);
-        Assert.Equal(0, snapshot.NativeActionPackets!.ActionCount);
+        Assert.Equal(0, snapshot.ReadFixturePresentation().NativeActionPackets!.ActionCount);
         NativeBattleScriptTask task = snapshot.NativeScriptState.Tasks.Slots[CastSlot(snapshot)];
         Assert.Equal((byte)0, task.ReadByte(12));
         Assert.Equal((byte)254, task.ReadByte(13));

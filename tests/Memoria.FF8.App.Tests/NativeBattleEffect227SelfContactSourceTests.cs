@@ -25,8 +25,8 @@ public sealed class NativeBattleEffect227SelfContactSourceTests
             using GameAssets game = new(directory!);
             using BattleAssets assets = new(directory!);
             BattleSnapshot source = NativeBattleEffect227PresentationTests.PrepareSource(game, assets, output);
-            NativeBattleActionPacketsState packets = source.NativeActionPackets!;
-            int headerIndex = original.NativeActionPackets!.ActionCount;
+            NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
+            int headerIndex = original.ReadFixturePresentation().NativeActionPackets!.ActionCount;
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
             Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, header.Source));
             Assert.Equal((byte)8, header.Command);

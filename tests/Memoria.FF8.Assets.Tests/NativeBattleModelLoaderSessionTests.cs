@@ -47,7 +47,7 @@ public sealed class NativeBattleModelLoaderSessionTests
         }
         Assert.Equal(0x5077B0u, session.NativeModelLoader!.Task!.Callback);
         Assert.Equal((byte)1, session.NativeModelLoader.Task.Phase);
-        Assert.Equal(-1, session.NativeEffectIoResult);
+        Assert.Equal(-1, session.Presentation!.NativeEffectIoResult);
         Assert.Equal((byte?)1, ReadOriginalModelCell(session.Presentation!.Graphics, 0).EffectCounter97);
         Assert.Equal(0, ReadOriginalModelCell(session.Presentation!.Graphics, 0).Flags0 & 2);
         BattleSnapshot pending = session.Capture();

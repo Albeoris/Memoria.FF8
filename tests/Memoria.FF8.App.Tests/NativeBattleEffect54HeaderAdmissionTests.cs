@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect54HeaderAdmissionTests
         Assert.Equal(56, caster.ModelId);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 223 && row.MagicId == 54 && row.KernelSection == 3 && row.KernelIndex == 223);
         Assert.Equal((byte)11, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
-        NativeBattleActionPacketsState original = source.NativeActionPackets ?? throw new NotSupportedException("The source requires its current action packet owners.");
+        NativeBattleActionPacketsState original = source.ReadFixturePresentation().NativeActionPackets! ?? throw new NotSupportedException("The source requires its current action packet owners.");
         NativeBattleRetainedActionHeaderSlot retained = original.ExportRetained().Headers[original.ActionCount];
         Assert.Equal((byte)0, retained.ReadOriginalByte(17));
         string targetId = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0) ?? throw new NotSupportedException("The source requires its current physical target.");

@@ -64,9 +64,9 @@ public sealed class NativePlayerDrawMetadataTests
         battle.Tick();
         BattleNativeDrawContext result = Assert.IsType<BattleNativeDrawContext>(battle.ActiveAction!.NativeDraw);
         Assert.Equal(failed, result.Failed);
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ContactCount);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(failed ? (byte)0 : (byte)6, header.Command);
         Assert.Equal(failed ? (byte)10 : game.ReadNativeBattleCommandSequences()[10], header.Sequence);
         Assert.Equal(failed ? (ushort)9 : checked((ushort)selection), header.Action);
@@ -74,8 +74,8 @@ public sealed class NativePlayerDrawMetadataTests
         Assert.Equal(failed ? (byte)0 : (byte)1, header.ReadContactCount());
         Assert.Equal(0x47EBD0u, header.Data!.ProducerAddress);
         Assert.Equal((ushort)6, header.Data.Argument);
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
-        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(3), contact.Recipient);
+        NativeBattleContactHalf contact = battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        Assert.Equal(battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(3), contact.Recipient);
         Assert.Equal((ushort)0, contact.Amount6);
         Assert.Equal(hp, battle.Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(Enumerable.Repeat((ushort)4000, 16), battle.Capture().Combatants[0].GuardianForceCompatibility);

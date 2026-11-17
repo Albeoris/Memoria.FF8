@@ -158,11 +158,11 @@ public sealed class NativeBattleRestorationPresentationTests
             status = status with { Saved = (ushort)(status.Saved | native.Statuses0), Battle = status.Battle | native.Statuses1 };
         }
         target = target with { NativeStatus = status with { Presentation = new(priorSaved, priorBattle) } };
-        NativeBattlePartyPresentation party = before.NativePartyPresentation!;
+        NativeBattlePartyPresentation party = before.ReadFixturePresentation().NativePartyPresentation!;
         NativeBattlePartyPresentedVital targetRow = party.Rows[1]!;
         party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = healing ? (ushort)50 : resurrection ? (ushort)0 : targetRow.HitPoints }) };
-        before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle), NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(1, new(priorSaved, priorBattle)) };
-        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
+        before = (before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(),NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle),NativePresentationStatusMemory = before.NativePresentationStatusMemory!.Observe(1, new(priorSaved, priorBattle)) }).WithFixturePresentation(facts => facts with { NativePartyPresentation = party });
+        NativeBattleActionPacketsState packets = before.ReadFixturePresentation().NativeActionPackets!;
         byte sequence = definition.NativeCommandSequences[native.Command];
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
         ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
@@ -184,14 +184,14 @@ public sealed class NativeBattleRestorationPresentationTests
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(RequireOriginalModelOwner(graphics, 1), targetModel with { Flags8 = priorFlags, StatusTimers = priorTimers }) };
         if (effect == 24)
         {
-            BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
+            BattleSession idle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics })));
             BattleScenePresentation idleScene = new(assets, definition);
             string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
             string id = "restoration-poison-idle-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
             Publish(evidence, id + "-before", idle.Capture(), idleScene.Render(idle, 320, 224));
             idle.AdvanceNativeGraphicsPresentation(Callback);
             before = NativeBattleStorageSnapshots.Restore(idle.Capture());
-            packets = before.NativeActionPackets!;
+            packets = before.ReadFixturePresentation().NativeActionPackets!;
             graphics = before.ReadFixturePresentation().NativeGraphics!;
             byte[] withIcons = idleScene.Render(idle, 320, 224).ToArray();
             Publish(evidence, id + "-after", before, withIcons);
@@ -207,7 +207,7 @@ public sealed class NativeBattleRestorationPresentationTests
             Assert.True(iconRgb > 0, "Original poison icon packets changed no RGB pixels in the ordinary callback before104.");
         }
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
+        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } })));
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, bool requireCasting)
@@ -231,7 +231,7 @@ public sealed class NativeBattleRestorationPresentationTests
         int statusTransitions = 0;
         int hpTransitions = 0;
         int expectedStatusTransitions = initial.Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved == 0 ? 0 : 1;
-        int expectedHpTransitions = effect == 27 && initial.NativePartyPresentation!.Rows[1]!.HitPoints == 0 ? 1 : 0;
+        int expectedHpTransitions = effect == 27 && initial.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints == 0 ? 1 : 0;
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (effect == 27 && expectedStatusTransitions != 0)
         {
@@ -284,8 +284,8 @@ public sealed class NativeBattleRestorationPresentationTests
                     }
                     statusTransitions++;
                 }
-                ushort priorHp = before.NativePartyPresentation!.Rows[1]!.HitPoints;
-                ushort currentHp = after.NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort priorHp = before.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort currentHp = after.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (priorHp != currentHp)
                 {
                     Assert.Equal((ushort)0, priorHp);
@@ -352,7 +352,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.Equal(expectedStatusTransitions, statusTransitions);
         Assert.Equal(expectedHpTransitions, hpTransitions);
         Assert.Equal((ushort)0, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation.Saved);
-        Assert.Equal(effect == 27 ? (ushort)200 : (ushort)100, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
+        Assert.Equal(effect == 27 ? (ushort)200 : (ushort)100, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints);
         Assert.False(HasDescriptor(battle));
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);

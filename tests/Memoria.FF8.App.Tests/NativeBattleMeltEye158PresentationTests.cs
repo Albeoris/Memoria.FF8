@@ -54,8 +54,8 @@ public sealed class NativeBattleMeltEye158PresentationTests
         Assert.Same(game.ReadNativeMeltEye158Resources(), binding.MeltEye158Resources);
         Assert.True(binding.MeltEye158Resources!.SpriteA.ProjectedFrame571C80(0).NextOffset >= 0);
         Assert.True(binding.MeltEye158Resources.SpriteA.ProjectedFrame571C80(15).NextOffset < 0);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

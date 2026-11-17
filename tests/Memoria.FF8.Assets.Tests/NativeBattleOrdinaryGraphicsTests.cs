@@ -62,7 +62,7 @@ public sealed class NativeBattleOrdinaryGraphicsTests
             battle.Tick();
         }
         Assert.Equal(0x50BB00u, battle.Presentation!.Graphics.ActionGraphics!.Callback);
-        NativeBattleActionHeaderSlot header = battle.Capture().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleActionHeaderSlot header = battle.Capture().ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(unchecked((byte)action.RawRecord[4]), unchecked((byte)header.CameraChoice));
         Assert.Equal(ability.Sequence, header.Sequence);
         Assert.Equal(action.MagicId, header.Effect);

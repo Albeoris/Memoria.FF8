@@ -367,7 +367,7 @@ public sealed record EncounterPatchDocument
                 break;
             case EncounterPatchOperationKind.EnsureGroup:
                 Identity(op.Group, "group");
-                Strings(op.Members, "members", 4);
+                Strings(op.Members, "members", ExpandedBattleFormation.MaximumEnemies);
                 break;
             case EncounterPatchOperationKind.AddActionPolicy:
                 Identity(op.Policy, "policy");
@@ -416,7 +416,7 @@ public sealed record EncounterPatchDocument
             case EncounterPatchOperationKind.AddDamageRoute:
                 Identity(op.Route, "route");
                 Identity(op.SourceActor, "sourceActor");
-                Strings(op.Recipients, "recipients", 3);
+                Strings(op.Recipients, "recipients", ExpandedBattleFormation.MaximumEnemies);
                 Require(!op.Recipients.Contains(op.SourceActor!) && op.RecipientSelection == "livingActivatedInstances" && op.Mode == "redirectSplitEqually" && op.DamageKinds == "allPositiveHpDamage" && op.Mitigation == "alreadyResolved" && op.Remainder == "discard" && op.Overkill == "discard" && op.WithoutRecipients == "normalDamage", "Unsupported damage-routing contract.");
                 break;
             case EncounterPatchOperationKind.SetDamageRouteProperty:
@@ -479,7 +479,7 @@ public sealed record EncounterPatchDocument
         Require(!action.Spells.IsDefault && !action.Actors.IsDefault && action.SpellWeights is not null, "Action arrays/weights cannot be null/default.");
         if (action.Kind == "SummonGroup")
         {
-            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= ExpandedBattleFormation.MaximumEnemies && action.Spell is null && action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast and 1–3 templates.");
+            Require(action.CasterPresentation == "nativeCast" && action.Simultaneous == true && action.Atomic == true && action.Actors.Length is >= 1 and <= ExpandedBattleFormation.MaximumEnemies && action.Spell is null && action.Spells.IsEmpty && action.SpellWeights.IsEmpty && action.Target.ValueKind == JsonValueKind.Undefined && action.TargetPolicy is null && action.Selection is null && action.Casts.ValueKind == JsonValueKind.Undefined && action.ReflectionPolicy is null, "SummonGroup requires an atomic simultaneous native cast within the enemy roster capacity.");
             foreach (EncounterPatchSpawn spawn in action.Actors)
             {
                 Require(spawn is not null, "Null spawn.");

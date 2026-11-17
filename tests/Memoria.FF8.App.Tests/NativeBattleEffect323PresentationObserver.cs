@@ -105,9 +105,9 @@ internal sealed class NativeBattleEffect323PresentationObserver
                 Assert.Equal(priorRecipient + 1, retainedMain.ReadWord(0x10));
                 uint model = before.ReadDword(0x20 + priorRecipient * 4);
                 int actor = checked((int)((model - 0x1D972C0) / 156));
-                NativeBattleActionHeaderSlot header = current.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.Header.Ordinal));
+                NativeBattleActionHeaderSlot header = current.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(effect.Parameters!.Header.Ordinal));
                 BattleContactCursor first = header.FirstContact;
-                Contacts += Enumerable.Range(0, header.ReadContactCount()).Count(index => ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, current.NativeActionPackets.ReadContact(first.Advance(index)).Primary.Recipient) == actor);
+                Contacts += Enumerable.Range(0, header.ReadContactCount()).Count(index => ReadOriginalModelOperand(current.ReadFixturePresentation().NativeActionPackets!.ModelAliases, current.ReadFixturePresentation().NativeActionPackets!.ReadContact(first.Advance(index)).Primary.Recipient) == actor);
                 Assert.Equal(21, tasks.Values.Count(task => task.Callback == 0x65A660 && task.ReadWord(0x12) == 1));
                 recipientTriggered = true;
                 Mark("effect323-sorted-recipient-all-matching-contact-and-21-particle-births", current, cold);

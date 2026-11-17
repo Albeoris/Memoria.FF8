@@ -76,12 +76,12 @@ public sealed class DiagnosticEnemySubmissionTests
         BattleSession session = Create();
         BattleDiagnosticEffectDispatch? observed = null;
         session.DiagnosticEffectDispatched += dispatch => observed = dispatch;
-        BattleModelOwner party = session.NativeActionPackets.ModelAliases.DecodeLiteral(0);
-        BattleModelOwner enemy = session.NativeActionPackets.ModelAliases.DecodeLiteral(3);
+        BattleModelOwner party = session.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner enemy = session.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(3);
         BattleModelOwner recipient = new BattleForeignPartyModel(new("observed-target"));
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, party, new(2)), (2, recipient, new(2)), (3, enemy, new(2))], callback: 42);
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
-        NativeBattleActionPacketsState packets = session.NativeActionPackets.WithRoster(graphics.ActorModels.Roster, aliases);
+        NativeBattleActionPacketsState packets = session.Presentation!.NativeActionPackets.WithRoster(graphics.ActorModels.Roster, aliases);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(enemy, 2, 0, -1, 7, 3, null));
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
         NativeBattleEffectParameters? parameters = hasParameters ? new NativeBattleEffectParameters(enemy, 0, BattleModelTargets.From([recipient]), header, 0, 0).CaptureOriginalWindow(aliases) : null;

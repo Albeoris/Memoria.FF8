@@ -18,13 +18,13 @@ public sealed partial class BattleSession
         BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("Native party ejection requires its current presentation process.");
         byte outgoing = checked((byte)record);
         byte? incoming = SelectPartyReplacement(vitals, outgoing);
-        BattlePartyOccupancyChange change = new(slot, outgoing, incoming);
+        BattlePartyOccupancyChange change = new(slot, outgoing, incoming, (ushort)(NativeSavedStatusBits(actor) & 0xFFDF));
         NativeBattleModelSlot? original = actor.NativeActorIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null;
         PartyReplacementDescriptor? bind = incoming is byte next ? new(change, actor.Id, definition.PartyReplacementCandidates[next].Id, original, PartyReplacementStage.Bind) : null;
         PreparedHostedDispatch? dispatch = bind is null ? null : PreparePartyReplacement(process, [new HostedDispatchControl.PartyReplacement(bind)], []);
 
         actor.NativeStatus1 &= ~0x10000u;
-        actor.NativeStatus0 &= 0xFFDF;
+        actor.NativeStatus0 = change.OutgoingStatus;
         RemoveExpandedQueuedReadyInputs(actor.Id);
         actor.Atb = 0;
         actor.IsBusy = false;
@@ -32,7 +32,19 @@ public sealed partial class BattleSession
         actor.BindRosterSlot(null);
         NativeCharacterVital[] records = vitals.Records.ToArray();
         ushort hp = checked((ushort)actor.HumanHitPoints);
-        records[outgoing] = records[outgoing] with { HitPoints = new(hp, hp), Status = NativeSavedStatusBits(actor) };
+        NativeCharacterVital saved = records[outgoing];
+        BattleNativeCharacterGrowth growth = actor.NativeGrowth ?? saved.Growth;
+        records[outgoing] = saved with
+        {
+            HitPoints = new(hp, hp),
+            Status = change.OutgoingStatus,
+            HitPointBonus = growth.HitPointBonus,
+            StatBonuses = growth.StatBonuses.ToArray(),
+            BonusSources = growth.BonusSources,
+            KillCount = actor.NativeKillCount,
+            DeathCount = actor.NativeDeathCount,
+            GuardianForceCompatibility = actor.GuardianForceCompatibility?.ToArray()
+        };
         magicVitals = vitals with { Records = records };
         PartyOccupancyChanges = PartyOccupancyChanges.Add(change);
         StopTurnAdvance();
@@ -100,6 +112,7 @@ public sealed partial class BattleSession
         BattleSession candidate = CreatePreparedHostedActionCandidate(before);
         BattleCombatant incoming = candidate.AddPartyReplacementActor(source, descriptor.Change.Slot, descriptor.OriginalSlot is not null);
         candidate.magicVitals = descriptor.Change.ApplySavedBinding(candidate.magicVitals!);
+        candidate.InitializePartyReplacementActor(incoming, source, candidate.magicVitals.Records[row]);
         candidate.InitializePartyReplacementGauge(incoming);
         candidate.RefreshNativeKnownMagicStocks();
         candidate.expandedPartyPresentation = candidate.expandedPartyPresentation!.SetItem(incoming.Id, new(checked((ushort)incoming.CurrentHp), checked((ushort)incoming.MaximumHp), null, null) { DisplayedHitPointsQ12 = incoming.CurrentHp << 12 });
@@ -113,14 +126,24 @@ public sealed partial class BattleSession
         PreparedActionPublication publication = new(this, candidate, Restore(before));
         publication.Publish();
         process.CommitDispatch(dispatch);
+        publication.PublishParticipantCallbackObservations();
         Log("PartyReplacement", incoming.Id, descriptor.OutgoingActorId, 0, $"{incoming.Name} enters battle.");
     }
 
     private BattleCombatant AddPartyReplacementActor(BattleCombatantDefinition source, BattleRosterSlot slot, bool bindNative)
     {
-        if (slot.Side != BattleSide.Allies || !source.IsPlayer || source.MagicRecordId is null || allies.Any(actor => actor.Slot == slot) || byId.ContainsKey(source.Id))
+        if (slot.Side != BattleSide.Allies || !source.IsPlayer || source.MagicRecordId is null || allies.Any(actor => actor.Slot == slot))
         {
             throw new InvalidDataException("Party replacement requires an unallocated actor and a vacated ally slot.");
+        }
+        if (byId.TryGetValue(source.Id, out BattleCombatant? existing))
+        {
+            if (existing.Slot is not null || !existing.IsPlayer || existing.MagicRecordId != source.MagicRecordId || existing.ModelId != source.ModelId)
+            {
+                throw new InvalidDataException("Party replacement cannot reuse an occupied or different saved actor.");
+            }
+            existing.BindRosterSlot(slot, bindNative);
+            return existing;
         }
         BattleCombatant actor = CreateCombatant(source);
         actor.BindRosterSlot(slot, bindNative);
@@ -129,6 +152,34 @@ public sealed partial class BattleSession
         byId.Add(actor.Id, actor);
         BindBattleMagicOwner(actor);
         return actor;
+    }
+
+    private void InitializePartyReplacementActor(BattleCombatant actor, BattleCombatantDefinition source, NativeCharacterVital saved)
+    {
+        BattleCombatant initial = CreateCombatant(source with
+        {
+            CurrentHp = saved.HitPoints.Minimum,
+            NativeStatus0 = saved.Status,
+            NativeRetainedStatusBits = 0,
+            NativeGrowth = saved.Growth,
+            NativeMagicInventory = saved.MagicInventory,
+            NativeKillCount = saved.KillCount,
+            NativeDeathCount = saved.DeathCount,
+            GuardianForceCompatibility = saved.GuardianForceCompatibility
+        });
+        BindBattleMagicOwner(initial);
+        initial.ReprojectNativePlayerStatistics();
+        RestoreNativeParticipant(actor, CaptureNativeParticipant(initial));
+        actor.GuardianFormVitals = null;
+        actor.HumanHitPoints = initial.HumanHitPoints;
+        actor.MutableGuardianForceCompatibility = initial.GuardianForceCompatibility?.ToArray();
+        actor.RestoreMagicInventory(initial.NativeMagicInventory);
+        actor.RestoreDrawnMagic(initial.DrawnMagicIds.ToArray());
+        actor.RestoreDrawSlots(initial.NativeDrawSlots.ToArray());
+        actor.ReprojectNativePlayerStatistics();
+        RestoreNativeStatus(actor, CaptureNativeStatus(initial));
+        actor.IsBusy = false;
+        actor.LimitTurnCrisis = null;
     }
 
     private void InitializePartyReplacementGauge(BattleCombatant actor)

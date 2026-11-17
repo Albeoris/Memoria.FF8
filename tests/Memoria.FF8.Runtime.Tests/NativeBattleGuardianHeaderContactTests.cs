@@ -30,11 +30,11 @@ public sealed class NativeBattleGuardianHeaderContactTests
         Assert.Null(after.ActiveAction);
         Assert.Equal(JsonSerializer.Serialize(expectedRandom), JsonSerializer.Serialize(after.Random));
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal((byte)2, battle.NativeActionPackets.ContactCount);
-        Assert.Equal(new BattleEnemyActorModel(new("target-first")), battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient);
-        Assert.Equal(new BattleEnemyActorModel(new("target-second")), battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Recipient);
-        Assert.Equal((ushort)firstDamage, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
-        Assert.Equal((ushort)secondDamage, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
+        Assert.Equal((byte)2, battle.Presentation!.NativeActionPackets.ContactCount);
+        Assert.Equal(new BattleEnemyActorModel(new("target-first")), battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Recipient);
+        Assert.Equal(new BattleEnemyActorModel(new("target-second")), battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Recipient);
+        Assert.Equal((ushort)firstDamage, battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
+        Assert.Equal((ushort)secondDamage, battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(1)).Primary.Amount6);
         Assert.Equal(10000 - firstDamage, battle.Combatants.Single(item => item.Id == "target-first").CurrentHp);
         Assert.Equal(10000 - secondDamage, battle.Combatants.Single(item => item.Id == "target-second").CurrentHp);
         Assert.All(battle.Events.Where(item => item.Kind == "Damage"), item =>
@@ -68,7 +68,7 @@ public sealed class NativeBattleGuardianHeaderContactTests
         BattleSnapshot saved = battle.Capture();
         BattleSession missing = BattleSession.Restore(saved with { Definition = saved.Definition with { NativeActions = [] } });
         Assert.Throws<NotSupportedException>(() => Recompute(missing, 100));
-        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = saved.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleActionPacketsState unprepared = NativeBattleActionPacketsState.Create(packets.Roster, packets.ExportRetained(), packets.ModelAliases);
         typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, unprepared);
         Assert.Throws<InvalidDataException>(() => Recompute(battle, 100));
@@ -91,12 +91,12 @@ public sealed class NativeBattleGuardianHeaderContactTests
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Synthetic kernel-layout GF", BattleActionEffect.Native, 44, false, Level: 12, DamagePercent: 20) { NativeAction = native, NativeGuardianBoostAvailable = false };
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party-0", Name = "First party actor", IsPlayer = true }, new() { Id = "party-1", Name = "Second party actor", IsPlayer = true }, new() { Id = "target-second", Name = "Second contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 35 }, new() { Id = "target-first", Name = "First contact", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
-        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = saved.ReadFixturePresentation().NativeActionPackets!;
         (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(actor), headerCommand, sequence, -1, headerAction, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(4), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(2);
-        return BattleSession.Restore(saved with { NativeActionPackets = packets });
+        return BattleSession.Restore(saved.WithFixturePresentation(facts => facts with { NativeActionPackets = packets }));
     }
 
     private static void Recompute(BattleSession battle, byte percent)

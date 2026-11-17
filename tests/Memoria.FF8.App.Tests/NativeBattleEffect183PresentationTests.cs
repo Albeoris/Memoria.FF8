@@ -46,8 +46,8 @@ public sealed class NativeBattleEffect183PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag182.tim", NativeBattleEffect183Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(17440, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeEffect183Resources(), binding.Effect183Resources);
-        NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
-        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);

@@ -7,12 +7,10 @@ public sealed record NativeBattleEscapeState
     public int HeldFrames { get; init; }
     public bool Requested { get; init; }
     public bool Completed { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    public byte ExpandedOutcomeFrames { get; init; }
 
     public void Validate()
     {
-        if (HeldFrames is < 0 or >= 60 || !Held && (HeldFrames != 0 || Requested) || ExpandedOutcomeFrames > NativeBattleOutcomeCallbacks.Duration47DFC0(2) || ExpandedOutcomeFrames > 0 && (Completed || Requested))
+        if (HeldFrames is < 0 or >= 60 || !Held && (HeldFrames != 0 || Requested))
         {
             throw new InvalidDataException("Invalid consecutive escape-button hold state.");
         }
@@ -46,25 +44,6 @@ public sealed partial class BattleSession
     public NativeBattleEscapeState Escape => nativeEscape;
     private ushort EscapeFlags => definition.ExpandedFormationFlags is byte formationFlags ? NativeBattleEntryRules.MergeFlags(definition.NativeFlags, formationFlags) : ResolvedNativeFlags;
     public bool EscapeDisabled => nativeScriptState.EscapeDisabled ?? (EscapeFlags & 1) != 0;
-    public bool IsExpandedEscapeRunning => expandedPresentationProcess is null && !HasPendingExpandedEscape && Outcome == BattleOutcome.Active && nativeEscape.PresentationHeld;
-    public bool IsExpandedEscapeFinishing => HasPendingExpandedEscape || expandedHostedTerminal?.Outcome == BattleOutcome.Escaped || Outcome == BattleOutcome.Escaped;
-    public byte? ExpandedEscapeScreenFade
-    {
-        get
-        {
-            byte remaining = nativeEscape.ExpandedOutcomeFrames;
-            const short duration = NativeBattleOutcomeCallbacks.OutcomeFadeDuration501E10;
-            if (expandedPresentationProcess is not null || !IsExpandedEscapeFinishing || remaining > duration)
-            {
-                return null;
-            }
-            // 47E030 polls before 500900 runs the first fade callback and before 47CCB0 decrements the outcome clock.
-            return NativeBattleOutcomeCallbacks.InterpolateFade501D10((short)(duration - remaining), duration, 128, 0);
-        }
-    }
-
-    private bool HasPendingExpandedEscape => nativeEscape.ExpandedOutcomeFrames > 0;
-
     private bool EscapeAdvancesBattleTime => nativeEscape.Held && Outcome == BattleOutcome.Active && !HasPendingExpandedTerminal && NativeEntryReady && PendingSlotsDeal is null && BattleClockUi?.PauseDE9 != true;
     private bool UsesRealTimeBattleClock => Mode != BattleAtbMode.TurnBased || EscapeAdvancesBattleTime;
 
@@ -82,27 +61,14 @@ public sealed partial class BattleSession
 
     private void AdvanceNativeEscapeFrame()
     {
-        if (HasPendingExpandedEscape)
-        {
-            Frame = checked(Frame + 1);
-            byte remaining = NativeBattleOutcomeCallbacks.AdvanceCountdown47CCB0(nativeEscape.ExpandedOutcomeFrames);
-            nativeEscape = nativeEscape with { ExpandedOutcomeFrames = remaining, Completed = remaining == 0 };
-            if (remaining == 0)
-            {
-                CompleteBattleIfNeeded();
-            }
-            return;
-        }
         if (PendingSlotsDeal is not null || Outcome != BattleOutcome.Active || HasPendingExpandedTerminal || !NativeEntryReady || BattleClockUi?.PauseDE9 == true)
         {
             return;
         }
         if (nativeEscape.PresentationHeld != nativeEscape.Held)
         {
-            if (expandedPresentationProcess is { } process)
-            {
-                process.SetEscapePresentationHeld(nativeEscape.Held);
-            }
+            BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("Escape input requires its current presentation.");
+            process.SetEscapePresentationHeld(nativeEscape.Held);
             nativeEscape = nativeEscape with { PresentationHeld = nativeEscape.Held };
         }
         if (!nativeEscape.Held)
@@ -140,24 +106,14 @@ public sealed partial class BattleSession
     {
         get
         {
-                return ActiveAction is not null || ExpandedTimedLimitOwnsInput || HasQueuedRosterOperations || enemies.Any(HasExpandedEnemyDeathAction);
+            return ActiveAction is not null || ExpandedTimedLimitOwnsInput || HasQueuedRosterOperations || enemies.Any(HasExpandedEnemyDeathAction);
         }
     }
 
     private void BeginNativeEscape4862A0()
     {
         StopTurnAdvance();
-        if (expandedPresentationProcess is not null)
-        {
-            AdmitExpandedHostedTerminal(BattleOutcome.Escaped);
-            nativeEscape = nativeEscape with { Requested = false };
-            return;
-        }
-            if (definition.NativeGlobalMessages.Length > 1 && definition.NativeGlobalMessages[1] is { } text && definition.NativeMessageSpeed is byte speed)
-            {
-                QueueNativeDescriptorMessage(new(Frame, "NativeText", null, null, unchecked((byte)(8 * speed + 8)), text) { NativeMessageMode = 3, NativeTextIdentity = BattleTextIdentity.Global(1) });
-            }
-            nativeEscape = nativeEscape with { Requested = false, ExpandedOutcomeFrames = NativeBattleOutcomeCallbacks.Duration47DFC0(2) };
-            return;
+        AdmitExpandedHostedTerminal(BattleOutcome.Escaped);
+        nativeEscape = nativeEscape with { Requested = false };
     }
 }

@@ -6,18 +6,18 @@ public sealed class EncounterPresentationOnlyTests
     public void Casting_control_publishes_no_hp_contact_feedback_or_damage_reaction()
     {
         BattleSession battle = Create();
-        for (int frame = 0; frame < 10 && battle.NativeActionPackets.ActionCount == 0; frame++)
+        for (int frame = 0; frame < 10 && battle.Presentation!.NativeActionPackets.ActionCount == 0; frame++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(header.FirstContact).Primary;
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactHalf contact = battle.Presentation!.NativeActionPackets.ReadContact(header.FirstContact).Primary;
         Assert.Equal((byte)1, contact.Flags2);
         Assert.Equal((byte)0, contact.Sequence);
         Assert.Equal(0, contact.PresentedAmount);
         NativeBattleEffectsState effects = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena);
-        Assert.Same(effects, effects.PrependDamageText(contact.Recipient, contact.ContactFlags, contact.PresentedAmount, battle.NativeActionPackets.Roster));
+        Assert.Same(effects, effects.PrependDamageText(contact.Recipient, contact.ContactFlags, contact.PresentedAmount, battle.Presentation!.NativeActionPackets.Roster));
         Assert.Equal(900, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind is "Damage" or "Defeated");
         Assert.Equal((byte)0, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.PendingReaction!.Stage);

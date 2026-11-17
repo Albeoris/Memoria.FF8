@@ -112,8 +112,8 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
             Assert.Null(admitted.ReturnedDescriptor);
             Assert.Empty(admitted.Pools);
             NativeBattleEffectParameters parameters = Assert.IsType<NativeBattleEffectParameters>(admitted.Parameters);
-            Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets!.ModelAliases, parameters.Source));
-            Assert.True(parameters.TargetActors.IsSingle(queued.NativeActionPackets!.ModelAliases.DecodeLiteral(3)));
+            Assert.Equal((byte)3, ReadOriginalModelOperand(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases, parameters.Source));
+            Assert.True(parameters.TargetActors.IsSingle(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases.DecodeLiteral(3)));
             headerIndex = parameters.Header.Ordinal;
         }
         else
@@ -126,13 +126,13 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         {
             Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument);
         }
-        NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        NativeBattleActionHeaderSlot header = queued.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(effect, header.Effect);
-        NativeBattleContactPacket contact = queued.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = queued.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));
-        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.ReadFixturePresentation().NativeGraphics!.Callback }));
+        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.ReadFixturePresentation().NativeGraphics!.Callback }));
 
         return queued;
 

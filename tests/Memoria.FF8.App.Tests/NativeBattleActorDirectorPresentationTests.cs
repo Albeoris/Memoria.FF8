@@ -703,7 +703,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             Assert.True(exported.Status != "blocked", exported.FirstBlocker);
             if (effectId is 44 or 282 or 286)
             {
-                caster = ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).Source);
+                caster = ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(0)).Source);
                 Assert.InRange(caster, (byte)3, (byte)6);
             }
             prior = source;
@@ -711,8 +711,8 @@ public sealed class NativeBattleActorDirectorPresentationTests
             int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
             uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
-            NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
-            Assert.Equal(caster, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
+            NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
+            Assert.Equal(caster, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, header.Source));
             Assert.Equal(action.Command, header.Command);
             Assert.Equal(action.ActionId, header.Action);
             Assert.Equal(effectId, header.Effect);
@@ -750,7 +750,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal((byte)3, caster);
                 Assert.Equal((byte)3, contactActor);
                 Assert.Equal((byte)13, header.Sequence);
-                Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, source.NativeActionPackets.ReadContact(header.FirstContact).Primary.Recipient));
+                Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact).Primary.Recipient));
                 Assert.Equal(new NativeBattleEffectInitializerResource("mag314.tim", NativeBattleEffect315Profile.InitializerGlobal), original.InitializerResource);
                 Assert.Equal(NativeBattleEffect315Profile.TextureLength, original.InitializerAsset!.Data.Length);
                 Assert.Same(game.ReadNativeEffect315Resources(), original.Effect315Resources);
@@ -1002,7 +1002,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 NativeBattleMorph172State state = source.ReadFixturePresentation().NativeEffectMemory!.Morph172!;
                 Assert.NotNull(state.RootBankStorage);
                 Assert.NotNull(state.ChildBankStorage);
-                morph172Observations.Add(new { Boundary = "original-header-retained-without-contact", Header = header, Contact = source.NativeActionPackets!.ReadContact(header.FirstContact), Model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3) });
+                morph172Observations.Add(new { Boundary = "original-header-retained-without-contact", Header = header, Contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact), Model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3) });
             }
             if (effectId == 171)
             {
@@ -1543,9 +1543,9 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             Assert.Equal(originalAction is not null, exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(action.MagicId, exported.Selection.ShellEffect);
-            NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-            Assert.Equal(checked((byte)(header.FirstContact.Ordinal + 1)), source.NativeActionPackets.ContactCount);
-            Assert.Equal(contactActor, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+            NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+            Assert.Equal(checked((byte)(header.FirstContact.Ordinal + 1)), source.ReadFixturePresentation().NativeActionPackets!.ContactCount);
+            Assert.Equal(contactActor, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
             Assert.Equal(request.ControlledContactValue ?? (ushort)7, contact.Primary.Amount6);
             if (effectId == 297)
             {
@@ -1582,7 +1582,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             if (request.ControlledDrainContact)
             {
-                Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
+                Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
                 byte[] resistances = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!.Resistances ?? throw new InvalidDataException("The controlled drain target requires its actual resistance owner.");
                 Assert.Equal(40, resistances.Length);
                 int percent = Math.Max(0, action.StatusAttack - resistances[23]);
@@ -7287,9 +7287,9 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 }
                 Assert.Equal(logicalHp, completed.Combatants.Single(actor => actor.Id == target).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.Combatants.Single(actor => actor.Id == target).NativeStatus), JsonSerializer.Serialize(completed.Combatants.Single(actor => actor.Id == target).NativeStatus));
-                Assert.Equal(contact, completed.NativeActionPackets!.ReadContact(header.FirstContact));
-                NativeBattleRawContactPacket originalContact = Assert.IsType<NativeBattleRawContactPacket>(source.NativeActionPackets!.ExportRetained().Contacts[header.FirstContact.Ordinal]);
-                NativeBattleRawContactPacket completedContact = Assert.IsType<NativeBattleRawContactPacket>(completed.NativeActionPackets.ExportRetained().Contacts[header.FirstContact.Ordinal]);
+                Assert.Equal(contact, completed.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact));
+                NativeBattleRawContactPacket originalContact = Assert.IsType<NativeBattleRawContactPacket>(source.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Contacts[header.FirstContact.Ordinal]);
+                NativeBattleRawContactPacket completedContact = Assert.IsType<NativeBattleRawContactPacket>(completed.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Contacts[header.FirstContact.Ordinal]);
                 Assert.Equal(NativeBattleContactPacketCodec.Encode(originalContact), NativeBattleContactPacketCodec.Encode(completedContact));
                 File.WriteAllText(Path.Combine(output!, "effect298-native-observations.json"), JsonSerializer.Serialize(new { Callbacks = effect298Callbacks.Order(), Banks = effect298Banks.Order(), Programmes = effect298Programmes.Order(), Markers = effect298Markers.Order(), Domains = effect298Domains.Order(), VibrationHandle = effect298VibrationHandle, Counters = completed.ReadFixturePresentation().NativeEffectMemory!.Effect298!.ScriptCounterWrites, Observations = effect298Observations, CompletionScope = "Root stops child scans at old117, queues actual file360 at old118 and waits at119 for IO; retained child banks are not artificially drained. No controller or original sequence contact." }));
             }
@@ -7956,10 +7956,10 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.True(oilDefaultNodes > 0);
                 Assert.Equal(2, oilPacketBanks.Count);
                 NativeBattleStatusSnapshot oilSourceStatus = source.Combatants.Single(actor => actor.Id == target).NativeStatus!;
-                NativeBattleContactHalf oilContact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0)).Primary;
+                NativeBattleContactHalf oilContact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0)).Primary;
                 NativeBattleStatusMirror oilPresented = new(oilContact.SavedStatuses4, oilContact.BattleStatuses8);
                 Assert.Equal(JsonSerializer.Serialize(oilSourceStatus with { Presentation = oilPresented }), JsonSerializer.Serialize(completed.Combatants.Single(actor => actor.Id == target).NativeStatus));
-                Assert.Equal(oilPresented, completed.NativePresentationStatusMemory!.Rows[ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, oilContact.Recipient)]);
+                Assert.Equal(oilPresented, completed.NativePresentationStatusMemory!.Rows[ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, oilContact.Recipient)]);
                 File.WriteAllText(Path.Combine(output!, "oil-blast-native-observations.json"), JsonSerializer.Serialize(new { OrdinaryStaticNodes = oilOrdinaryNodes, DefaultActNodes = oilDefaultNodes, PrivateBankStarts = oilPacketBanks.Order().ToArray(), CustomTextureWindow = oilCustomRestored }));
             }
             if (effectId == 158)

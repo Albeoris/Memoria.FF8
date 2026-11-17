@@ -8,6 +8,9 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleModelBoundary? sourceBindingsOriginalBoundary;
     private (BattleModelOwner? First, BattleModelOwner? Second, BattleModelOwner? Third) sourceBindingPartyAliases;
     private readonly Dictionary<BattleSourceGroupId, BattleSourceBindings> sourceBindings = [];
+    private BattleModelRoster? scriptAliasRoster;
+    private NativeBattleModelBoundary? scriptAliasBoundary;
+    private NativeBattleModelAliases? scriptPhysicalAliases;
 
     internal BattleSourceBindings? ReadSourceBindings(NativeBattleGraphicsState graphics, BattleModelOwner owner)
     {
@@ -77,7 +80,13 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleModelAliases CaptureScriptAuthoredOperands(NativeBattleGraphicsState graphics, BattleModelOwner? caller)
     {
-        NativeBattleModelAliases physical = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
+        if (scriptPhysicalAliases is not { } physical || !ReferenceEquals(scriptAliasRoster, graphics.ActorModels.Roster) || !ReferenceEquals(scriptAliasBoundary, graphics.NativeBindings))
+        {
+            physical = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
+            scriptPhysicalAliases = physical;
+            scriptAliasRoster = graphics.ActorModels.Roster;
+            scriptAliasBoundary = graphics.NativeBindings;
+        }
         return caller is not null && ReadSourceBindings(graphics, caller) is { } bindings ? bindings.ApplyAuthoredOperands(physical) : physical;
     }
 

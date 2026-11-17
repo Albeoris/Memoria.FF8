@@ -58,7 +58,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
     {
         var (owner, child, graphics) = Fixture();
         EncounterArrivalState arrival = new(new("ally-3", 0, 0, 3, 0, OpacityFrom: 0.25f), new());
-        Field(owner, "encounterArrivals", ImmutableArray.Create(arrival));
+        child.RestoreEncounterArrivals(ImmutableArray.Create(arrival));
         Field(owner, "encounterAllocation", new BattleEncounterAllocationState("batch", "enemy-0", ["enemy-4"], ["target"], BattleEncounterAllocationPhase.Loading, 0));
         graphics = graphics with { Flags = 4 };
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
@@ -96,7 +96,7 @@ public sealed class NativeBattleHostedPreparedPresentationTests
             Text = scan.Text with { Initialized = true },
             Results = scan.Results with { ExtraTextBindings = [new(extraTextAddress, Enemy, 24)] }
         };
-        Set(child, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Scan = scan });
+        NativeBattleHostedTestFixture.SetProperty(child, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Scan = scan });
         graphics = graphics with { OriginalEffect = effect, UiServices = NativeBattleUiServices.Initialize() };
         Set(child, nameof(BattlePresentationProcess.NativeGraphics), graphics);
 
@@ -150,8 +150,8 @@ public sealed class NativeBattleHostedPreparedPresentationTests
             LinkedTextureSlots = modelOwner == Ally ? linked : null
         }) with { Callback = 11, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         BattlePresentationProcess child = NativeBattleHostedTestFixture.SeedProcess(owner, graphics);
-        Set(child, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
-        Set(child, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
+        NativeBattleHostedTestFixture.SetProperty(child, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess() with { ResourceStageId = 22 });
+        NativeBattleHostedTestFixture.SetProperty(child, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400() });
         return (owner, child, graphics);
     }
 

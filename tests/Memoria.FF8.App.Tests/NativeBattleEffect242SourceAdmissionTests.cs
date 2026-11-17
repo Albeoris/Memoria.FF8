@@ -227,7 +227,7 @@ public sealed class NativeBattleEffect242SourceAdmissionTests
         Assert.Equal(JsonSerializer.Serialize(source.NativeAiVariables), JsonSerializer.Serialize(queued.NativeAiVariables));
         Assert.Equal(JsonSerializer.Serialize(source.PersistentAiVariables), JsonSerializer.Serialize(queued.PersistentAiVariables));
         Assert.Equal(JsonSerializer.Serialize(source.Random), JsonSerializer.Serialize(queued.Random));
-        NativeBattleActionPacketsState packets = Assert.IsType<NativeBattleActionPacketsState>(queued.NativeActionPackets);
+        NativeBattleActionPacketsState packets = Assert.IsType<NativeBattleActionPacketsState>(queued.ReadFixturePresentation().NativeActionPackets!);
         packets.Validate();
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

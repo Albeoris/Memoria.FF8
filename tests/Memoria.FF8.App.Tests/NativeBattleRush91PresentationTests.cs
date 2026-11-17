@@ -27,7 +27,7 @@ public sealed class NativeBattleRush91PresentationTests
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
-        NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks physical action packets.");
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -114,7 +114,7 @@ public sealed class NativeBattleRush91PresentationTests
                 }
                 Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics!.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, task.ModelOwner, 3));
                 Assert.Equal(targetPostFormulaHp, current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
-                Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
+                Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativePartyPresentation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativePartyPresentation));
                 Assert.Equal(ReadOriginalModelCell(graphics, 3).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).ActiveStagedResourceRow100);
                 int newbornSprites = Tasks(afterEffect, 0x7611B0).Count(task => task.ReadWord(0x24) == 1);
                 if (newbornSprites > 0)

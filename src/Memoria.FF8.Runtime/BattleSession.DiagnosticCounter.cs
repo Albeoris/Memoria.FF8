@@ -92,7 +92,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void PublishDiagnosticCounterContacts(BattleSession candidate, BattlePresentationProcess process, ImmutableArray<BattleActionHeaderReference> admittedHeaders, bool triggerRecomputed = false)
+    private void PublishDiagnosticCounterContacts(BattleSession candidate, BattlePresentationProcess process, ImmutableArray<BattleActionHeaderReference> admittedHeaders, BattleActionHeaderReference? triggerRecomputed = null)
     {
         if (!ObservingDiagnosticCounter)
         {
@@ -103,13 +103,13 @@ public sealed partial class BattleSession
             diagnosticCounterContacts.AddOrUpdate(contact.Key, contact.Value);
         }
         NativeBattleActionPacketsState packets = process.ActionPackets;
-        foreach (BattleActionHeaderReference reference in admittedHeaders)
+        foreach (BattleActionHeaderReference reference in triggerRecomputed is { } triggerHeader ? admittedHeaders.Insert(0, triggerHeader) : admittedHeaders)
         {
             if (OriginalDiagnosticHeaderIndex(reference) is not int index || process.ReadDiagnosticCounterHeaderGeneration(index) is not long generation)
             {
                 continue;
             }
-            ExpandedHostedInvocation? invocation = expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().SingleOrDefault(operation => operation.HeaderReference == reference);
+            ExpandedHostedInvocation? invocation = FindDiagnosticCounterCast(reference);
             if (invocation is null)
             {
                 continue;
@@ -129,7 +129,7 @@ public sealed partial class BattleSession
                 {
                     diagnosticCounterPending[(recipient.Id, facts.Order)] = primary.Serial;
                 }
-                DiagnosticCounterContactPublished?.Invoke(new(primary, occurrence, triggerRecomputed, packets.ExportRetained().DetachDiagnosticCopy()));
+                DiagnosticCounterContactPublished?.Invoke(new(primary, occurrence, triggerRecomputed == reference, packets.ExportRetained().DetachDiagnosticCopy()));
             }
         }
     }
@@ -200,7 +200,7 @@ public sealed partial class BattleSession
         {
             if (OriginalDiagnosticHeaderIndex(reference) is not int headerIndex || process.ReadDiagnosticCounterHeaderGeneration(headerIndex) is not long generation ||
                 !process.ActionPackets.HasPublishedHeader(reference) ||
-                expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().SingleOrDefault(invocation => invocation.HeaderReference == reference) is not { Command.NativeAction: { } native } invocation ||
+                FindDiagnosticCounterCast(reference) is not { Command.NativeAction: { } native } invocation ||
                 NativeBattleTargetRequestAdapter.ProjectOriginalWord(invocation.Command.TargetRequest, ReadOriginalTargetSlot) is not ushort targets)
             {
                 continue;
@@ -209,5 +209,17 @@ public sealed partial class BattleSession
             ushort selected = (ushort)(targets & 0x7F);
             observer(new(NativeHostCallbacks ?? Frame, scope, entered.Queue.Epoch, receipt.Request.Stage, sha, entered.Actor.Id, entered.Actor.Index, header.Command, header.Action, header.Effect, header.Sequence, targets, selected, native.AttackFlags, headerIndex, generation));
         }
+    }
+
+    private ExpandedHostedInvocation? FindDiagnosticCounterCast(BattleActionHeaderReference reference)
+    {
+        foreach (ExpandedHostedInvocation invocation in expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>())
+        {
+            if (ReadDiagnosticBoundCast(invocation, reference) is { } bound)
+            {
+                return bound;
+            }
+        }
+        return null;
     }
 }

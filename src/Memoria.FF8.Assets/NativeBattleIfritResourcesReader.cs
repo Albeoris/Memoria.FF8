@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
@@ -30,6 +31,7 @@ public sealed partial class GameAssets
     private readonly Dictionary<int, NativeBattleScriptedInitializationDirectories> nativeCinematicInitializationDirectories = [];
     private readonly Dictionary<int, NativeBattleCinematicResources> nativeCinematicResources = [];
     private readonly Dictionary<int, NativeBattleCinematicModelOperands> nativeCinematicModelOperands = [];
+    private NativeExecutableMemory? nativeCinematicOperandImage;
 
     public NativeBattleCinematicModelOperands ReadNativeCinematicModelOperands(NativeBattleEffectBinding binding)
     {
@@ -46,7 +48,9 @@ public sealed partial class GameAssets
         if (!nativeCinematicModelOperands.TryGetValue(profile.Effect, out NativeBattleCinematicModelOperands? operands))
         {
             using var magic = OpenArchive("magic");
-            operands = NativeBattleCinematicOperandReader.Read(Read(magic, files[0].Name).ToImmutableArray());
+            NativeExecutableMemory image = nativeCinematicOperandImage ??= new(GameDataResources.ReadNativeExecutable(resources));
+            byte[] instructionTable = image.Read(profile.InstructionTable, 0x200 * sizeof(uint));
+            operands = NativeBattleCinematicOperandReader.Read(Read(magic, files[0].Name).ToImmutableArray(), profile, opcode => BinaryPrimitives.ReadUInt32LittleEndian(instructionTable.AsSpan(opcode * sizeof(uint))));
             nativeCinematicModelOperands.Add(profile.Effect, operands);
         }
         return operands;

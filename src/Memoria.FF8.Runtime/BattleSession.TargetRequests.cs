@@ -57,22 +57,6 @@ public sealed partial class BattleSession
     private BattleCombatant[] ResolveBattleTargets(BattleTargetRequest request, bool sampleRandom = true)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ushort? diagnosticWord = sampleRandom && diagnosticReflectionProduction is not null
-            ? NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot)
-            : null;
-        void ObserveOriginalResolution(int selected, int available, int resolved)
-        {
-            if (diagnosticWord is ushort word)
-            {
-                int modifiers = word >> 13;
-                if (request.Selection is BattleTargetSelection.RandomOnSide)
-                {
-                    modifiers &= ~4;
-                }
-                ObserveDiagnosticReflectionTargetResolution(word, selected, modifiers, available, resolved);
-            }
-        }
-
         bool allowReplacement = request.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy && !nativeScriptState.DisableAutomaticTargetReplacement;
         IEnumerable<BattleCombatant> SidePopulation(BattleSide side)
         {
@@ -87,7 +71,7 @@ public sealed partial class BattleSession
                 case BattleTargetSelection.None:
                     return [];
                 case NativeBattleTargetRequestAdapter.DeferredOperands original:
-                    var resolved = NativeBattleTargetRequestAdapter.ResolveDeferred(original, ReadOriginalTargetOccupant, reference => IsBattleTargetEligible(FindTargetActor(reference)!, request), allowReplacement, diagnosticWord is null ? null : ObserveOriginalResolution);
+                    var resolved = NativeBattleTargetRequestAdapter.ResolveDeferred(original, ReadOriginalTargetOccupant, reference => IsBattleTargetEligible(FindTargetActor(reference)!, request), allowReplacement);
                     unavailable = resolved.Unavailable;
                     return resolved.Targets.Select(reference => FindTargetActor(reference)!).ToArray();
                 case BattleTargetSelection.SideGroup group:

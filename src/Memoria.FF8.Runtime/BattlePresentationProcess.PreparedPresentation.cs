@@ -45,7 +45,7 @@ public sealed partial class BattlePresentationProcess
         ImmutableDictionary<string, float>? opacities = HasBattleEntry
             ? (hostedServices ?? hostedFrameServices)?.ActorOpacities ?? throw new InvalidOperationException("Hosted primitive publication requires the current frame's actor opacities.")
             : null;
-        return opacities is null ? primitives : primitives with { ActorOpacities = opacities };
+        return opacities is null ? primitives : primitives with { ActorOpacities = ReadEncounterArrivalOpacities(opacities) };
     }
 
     private NativeBattlePreparedScan? PrepareScanPresentation(NativeBattleGraphicsState graphics, BattlePresentationServices host)

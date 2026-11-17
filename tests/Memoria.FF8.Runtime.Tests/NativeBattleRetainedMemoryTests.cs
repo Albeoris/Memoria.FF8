@@ -17,9 +17,9 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal((byte)0, cold.ActionScratch.GuardianBoostPercent);
         Assert.Equal(0, cold.EffectIoResult);
         BattleSession unknown = new(Definition(), BattleAtbMode.Normal);
-        Assert.Throws<NotSupportedException>(() => unknown.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        Assert.Throws<NotSupportedException>(() => unknown.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         Assert.Null(unknown.NativeScriptState.AllocationControl);
-        Assert.Null(unknown.NativeEffectIoResult);
+        Assert.Null(unknown.Presentation!.NativeEffectIoResult);
         Assert.All(unknown.NativePartyStatusMirrors.Saved, Assert.Null);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattleAllocationControl>("{}"));
     }
@@ -35,15 +35,15 @@ public sealed class NativeBattleRetainedMemoryTests
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 3).ActivateHeader(new BattleActionHeaderReference(0));
         NativeBattleRetainedMemory observed = initial with { ActionPackets = packets.ExportRetained(), AllocationControl = new(5, true, true), PartyStatusMirrors = initial.PartyStatusMirrors.Observe(0, 0x20, 0x4000), EffectIoResult = -1 };
         BattleSession battle = new(Definition() with { NativeRetainedMemory = observed }, BattleAtbMode.Normal);
-        Assert.Equal(0, battle.NativeActionPackets.ActionCount);
-        Assert.Equal(0, battle.NativeActionPackets.ContactCount);
-        Assert.Equal(2, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
-        NativeBattleRetainedActionPackets retainedPackets = battle.NativeActionPackets.ExportRetained();
+        Assert.Equal(0, battle.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal(0, battle.Presentation!.NativeActionPackets.ContactCount);
+        Assert.Equal(2, battle.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        NativeBattleRetainedActionPackets retainedPackets = battle.Presentation!.NativeActionPackets.ExportRetained();
         Assert.Equal(37, retainedPackets.Contacts[0]!.Primary.Amount6);
         Assert.Equal(0, retainedPackets.ActiveHeaderIndex);
-        Assert.Null(battle.NativeActionPackets.ActiveHeader);
+        Assert.Null(battle.Presentation!.NativeActionPackets.ActiveHeader);
         Assert.Equal(observed.AllocationControl, battle.NativeScriptState.AllocationControl);
-        Assert.Equal(-1, battle.NativeEffectIoResult);
+        Assert.Equal(-1, battle.Presentation!.NativeEffectIoResult);
         GameSession process = GameSession.CreateColdProcess();
         process.SetBattle(battle.Capture());
         process.SetBattle(null);
@@ -54,9 +54,9 @@ public sealed class NativeBattleRetainedMemoryTests
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(process.State))!);
         Assert.Equal(JsonSerializer.Serialize(initial), JsonSerializer.Serialize(restored.State.NativeBattleMemory));
         BattleSession next = new(Definition() with { NativeRetainedMemory = restored.State.NativeBattleMemory }, BattleAtbMode.Normal);
-        Assert.Equal(0, next.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
+        Assert.Equal(0, next.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(17));
         Assert.Equal((ushort)0, next.NativePartyStatusMirrors.Saved[0]);
-        Assert.Equal(0, next.NativeEffectIoResult);
+        Assert.Equal(0, next.Presentation!.NativeEffectIoResult);
     }
 
     [Fact]

@@ -22,7 +22,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         this.source = source;
         this.effect = effect;
         this.contact = contact;
-        AssertQueuedInvocation(effect, header, contact, source.NativeActionPackets!.ModelAliases);
+        AssertQueuedInvocation(effect, header, contact, source.ReadFixturePresentation().NativeActionPackets!.ModelAliases);
         Assert.IsType<NativeBattleGilgameshProcess>(source.ReadFixturePresentation().NativeEffectMemory!.Gilgamesh).Validate();
         Assert.IsType<NativeBattlePcRenderRequest>(source.ReadFixturePresentation().NativeEffectMemory!.PcRenderRequest);
         Assert.NotNull(source.ReadFixturePresentation().NativeStage);

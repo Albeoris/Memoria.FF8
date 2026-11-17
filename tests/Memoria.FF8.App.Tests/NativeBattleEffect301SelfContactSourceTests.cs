@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             using BattleAssets assets = new(directory!);
             BattleSnapshot source = NativeBattleEffect301PresentationTests.PrepareSource(game, assets, output);
             original = NativeBattleEffectFamilyRunner.LoadSnapshot(Path.Combine(output, "allocation-ready-source.battle.json"));
-            NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+            NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
             int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
             NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
             byte actualCaster = ReadOriginalModelOperand(packets.ModelAliases, header.Source);

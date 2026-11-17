@@ -318,7 +318,6 @@ public sealed partial class BattleSession
             CompleteEncounterAllocationArrival();
             encounterPolicies = encounterPolicies with { PendingSummon = null };
         }
-        encounterArrivals = process.CaptureEncounterArrivals();
     }
 
     private void CleanupEncounterPoliciesAtTerminal()

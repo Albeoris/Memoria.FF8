@@ -128,39 +128,51 @@ internal sealed partial class GameWorld
         Dictionary<int, BattleEnemyPlacement> members = [];
         Queue<BattleEnemyPlacement> pending = new();
         HashSet<byte> unresolvedOperands = [];
-        HashSet<int> reservedSlots = [];
+        HashSet<NativeBattleAiAllocationSource> allocations = [];
         ImmutableArray<NativeBattleEffectBinding> effects = assets.ReadNativeEffectCatalog();
         Add(root);
         while (pending.TryDequeue(out BattleEnemyPlacement? actor))
         {
             HashSet<int> references = [];
-            HashSet<int> reserves = [];
+            HashSet<NativeBattleAiAllocationSource> reserves = [];
             HashSet<byte> operands = [];
             HashSet<ushort> reachedEffects = [];
             NativeBattleAiDefinition ai = BattleResources.ReadEnemyAi(actor.ModelId, 0);
             for (int band = 0; band < 3; band++)
             {
                 ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(ai with { LevelBand = band }, BattleResources.NativeActions, destination, originalEnemySlots: true,
-                    reserveSceneSlots: reserves, explicitEnemyModelReferences: references, rosterModel: actor.ModelId, requireValidInstalledSource: true,
-                    reachedEffects: reachedEffects, originalModelOperands: operands);
+                    explicitEnemyModelReferences: references, rosterModel: actor.ModelId, requireValidInstalledSource: true,
+                    reachedEffects: reachedEffects, originalModelOperands: operands, allocationSources: reserves);
                 if (admission != ExpandedAiAdmission.Supported)
                 {
                     throw new NotSupportedException($"Source formation {source.Id}, model {actor.NativeModelId} requires {admission}.");
                 }
             }
-            foreach (int reserve in reserves)
+            foreach (NativeBattleAiAllocationSource reserve in reserves)
             {
-                if (!placements.TryGetValue(reserve, out BattleEnemyPlacement? prototype) || !IsEnemyPrototype(prototype))
+                if (!placements.TryGetValue(reserve.SceneSlot, out BattleEnemyPlacement? prototype) || !IsEnemyPrototype(prototype))
                 {
-                    throw new NotSupportedException($"Source formation {source.Id} has no installed reserve for scene slot {reserve}.");
+                    throw new NotSupportedException($"Source formation {source.Id} has no installed reserve for scene slot {reserve.SceneSlot}.");
                 }
-                reservedSlots.Add(reserve);
+                allocations.Add(reserve);
                 Add(prototype);
+                if (reserve.RequestedModelOperand is byte authored)
+                {
+                    AddOperand(authored);
+                }
+                else
+                {
+                    // The native first-free search observes every earlier authored placement.
+                    foreach (BattleEnemyPlacement occupant in original)
+                    {
+                        Add(occupant);
+                    }
+                }
             }
             foreach (int model in references)
             {
                 BattleEnemyPlacement[] matches = original.Where(candidate => candidate.NativeModelId == model).ToArray();
-                if (matches.Length == 0 && !placements.Values.Any(candidate => reservedSlots.Contains(candidate.Slot) && candidate.NativeModelId == model))
+                if (matches.Length == 0 && !placements.Values.Any(candidate => allocations.Any(allocation => allocation.SceneSlot == candidate.Slot) && candidate.NativeModelId == model))
                 {
                     throw new NotSupportedException($"Source formation {source.Id} has no member for AI model operand {model}.");
                 }
@@ -219,9 +231,26 @@ internal sealed partial class GameWorld
                 }
             }
         }
-        if (unresolvedOperands.Count != 0 && reservedSlots.Count == 0)
+        if (unresolvedOperands.Count != 0)
         {
-            throw new NotSupportedException($"Source formation {source.Id} has no live or allocated model for original operand {unresolvedOperands.Min()}.");
+            int automaticPlacements = allocations.Where(allocation => allocation.RequestedModelOperand is null).Select(allocation => allocation.SceneSlot).Distinct().Count();
+            for (int operand = FirstEnemyModelOperand + original.Length; operand < FirstEnemyModelOperand + OriginalEnemyAliasCount; operand++)
+            {
+                bool explicitlyAllocated = allocations.Any(allocation => allocation.RequestedModelOperand == operand);
+                if (explicitlyAllocated)
+                {
+                    unresolvedOperands.Remove(checked((byte)operand));
+                }
+                else if (automaticPlacements > 0)
+                {
+                    unresolvedOperands.Remove(checked((byte)operand));
+                    automaticPlacements--;
+                }
+            }
+            if (unresolvedOperands.Count != 0)
+            {
+                throw new NotSupportedException($"Source formation {source.Id} has no live or allocated model for original operand {unresolvedOperands.Min()}.");
+            }
         }
         return new(root, [root, .. members.Values.Where(actor => actor.Slot != root.Slot).OrderBy(actor => actor.Slot)]);
 

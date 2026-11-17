@@ -52,7 +52,7 @@ public sealed class GameplayCombatTuningTests
         NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, command, action, native, null, false])!;
         Assert.Equal(200000 - expected, target.CurrentHp);
         Assert.Equal(expected, packet.Primary.PresentedAmount);
-        (NativeBattleActionPacketsState bank, BattleContactOccurrence occurrence) = battle.NativeActionPackets.AppendContact(packet);
+        (NativeBattleActionPacketsState bank, BattleContactOccurrence occurrence) = battle.Presentation!.NativeActionPackets.AppendContact(packet);
         NativeBattleRawContactPacket raw = Assert.IsType<NativeBattleRawContactPacket>(bank.ExportRetained().Contacts[0]);
         Assert.Equal(unchecked((ushort)expected), NativeBattleContactPacketCodec.Decode(NativeBattleContactPacketCodec.Encode(raw)).Primary.Amount6);
         NativeBattleContactPacket stored = bank.ReadContact(occurrence);

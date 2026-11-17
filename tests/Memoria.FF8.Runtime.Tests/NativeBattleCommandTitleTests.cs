@@ -39,7 +39,7 @@ public sealed class NativeBattleCommandTitleTests
         BattleSession child = Create(false, 3, true);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(child.Presentation?.Graphics);
         BattleSession logical = Create(false, 3, false);
-        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.NativeActionPackets.Roster);
+        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.Presentation!.NativeActionPackets.Roster);
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         typeof(BattleSession).GetField("hostedBattlePresentation", privateInstance)!.SetValue(child, true);
         typeof(BattleSession).GetField("hostedFrameServices", privateInstance)!.SetValue(child, services);

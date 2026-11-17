@@ -128,9 +128,9 @@ public sealed partial class BattleSession
         throw new InvalidDataException("The AI command has no reserved position in its hosted event.");
     }
 
-    private void ReserveExpandedAiInvocation(BattleActionPresentation command, NativeBattleActionHeaderPreparation? header)
+    private void ReserveExpandedAiInvocation(BattleActionPresentation command, NativeBattleActionHeaderPreparation header)
     {
-        if (preparingExpandedHostedAction && header is not null)
+        if (preparingExpandedHostedAction)
         {
             // The parent header precedes any commands emitted by an immediate stage4 counter.
             producingExpandedAiInvocation = new(header.Source, command);

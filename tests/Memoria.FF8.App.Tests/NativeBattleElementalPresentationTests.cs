@@ -24,7 +24,7 @@ public sealed class NativeBattleElementalPresentationTests
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         NativeBattleGraphicsState initialGraphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks its native graphics owner.");
-        NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks its physical action packets.");
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks its physical action packets.");
         int descriptorSlot = Assert.Single(initialGraphics.Descriptors.Queue, slot => initialGraphics.Descriptors.Packets[slot].Command == 104);
         uint offset = unchecked(initialGraphics.Descriptors.Packets[descriptorSlot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -48,7 +48,7 @@ public sealed class NativeBattleElementalPresentationTests
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Null(contact.Secondary);
-        ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
+        ushort initialHp = source.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort expectedHp = (ushort)(initialHp - 7);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1];
@@ -125,8 +125,8 @@ public sealed class NativeBattleElementalPresentationTests
                 {
                     Assert.True(++asynchronousCallbacks <= 512, "The explicit asynchronous completion/descriptor diagnostic budget was exceeded.");
                 }
-                ushort priorHp = prior.NativePartyPresentation!.Rows[target]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort priorHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
                 if (hp != priorHp)
                 {
                     Assert.Equal(initialHp, priorHp);
@@ -165,7 +165,7 @@ public sealed class NativeBattleElementalPresentationTests
             Assert.Equal(spec.Phases.Length, boundaries.Count);
             Assert.Contains(boundaries, item => item.EffectPackets > 0 && item.ChangedRgbPixels > 0);
             Assert.Equal(1, contactTransitions);
-            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[target]!.HitPoints);
+            Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints);
             Assert.Equal(spec.ChangesStage, stageChanged);
             Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
             NativeBattleModuleSound sound = Assert.Single(battle.Events, item => item.NativeModuleSound?.Sound == spec.Sound).NativeModuleSound!;
@@ -185,7 +185,7 @@ public sealed class NativeBattleElementalPresentationTests
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restoredCompleted.Capture()));
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(restoredCompleted, 320, 224).ToArray());
             Assert.False(HasAction(battle));
-            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[target]!.HitPoints);
+            Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints);
             audio.Update(restoredCompleted);
             Assert.Single(heard, item => item.Sound == spec.Sound);
             Report("checked", null);

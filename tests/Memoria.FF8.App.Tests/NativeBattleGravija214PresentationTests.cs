@@ -57,7 +57,7 @@ public sealed class NativeBattleGravija214PresentationTests
         Assert.NotNull(model.Rotation14);
         Assert.NotNull(model.ActiveResourceRow100);
         Assert.Null(model.ActiveStagedResourceRow100);
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

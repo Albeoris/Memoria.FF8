@@ -36,12 +36,12 @@ public sealed class NativeBattlePain34PresentationTests
         int queued = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
         uint relative = source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[queued].Argument - 0x1D280C4u;
         Assert.Equal(0u, relative % 20);
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(relative / 20))));
         Assert.Equal((byte)2, header.Command);
         Assert.Equal((ushort)45, header.Action);
         Assert.Equal((ushort)34, header.Effect);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)26, contact.Primary.SavedStatuses4);
         Assert.Equal((ushort)0, contact.Primary.Amount6);
         Assert.Equal(2, Stock(beforeInput));

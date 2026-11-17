@@ -20,8 +20,8 @@ public sealed class InstalledNativeActionExecutionTests
         session.Tick();
         Assert.Equal(2, session.Frame);
         Assert.Equal((byte)254, session.ActiveAction!.NativeQueuedCommand);
-        Assert.Equal(assets.NativeActions.Single(action => action.Command == 254 && action.ActionId == 64).Name, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Data!.FormattedText);
-        Assert.Equal((ushort)0, session.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
+        Assert.Equal(assets.NativeActions.Single(action => action.Command == 254 && action.ActionId == 64).Name, session.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Data!.FormattedText);
+        Assert.Equal((ushort)0, session.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Amount6);
         Assert.False(session.Capture().NativeActionScratch!.GuardianFormulaE1E);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Damage");
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(session.Capture()))!);
@@ -38,7 +38,7 @@ public sealed class InstalledNativeActionExecutionTests
             restored.Tick();
         }
         Assert.Single(session.Events, item => item.Kind == "Damage");
-        Assert.Equal((byte)0, session.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)0, session.Presentation!.NativeActionPackets.ActionCount);
         Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -50,10 +50,10 @@ public sealed class InstalledNativeActionExecutionTests
         BattleSession session = Create(assets, BattleAbility.Magic, fire.Id, enemyStatuses: 0x80);
         session.QueueAction("party-0", "enemy", BattleAbility.Magic, fire.Id);
         session.Tick();
-        Assert.Equal((byte)2, session.NativeActionPackets.ActionCount);
-        Assert.Equal((byte)2, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
-        Assert.Equal((byte)247, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Command);
-        Assert.Equal((byte)0, session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
+        Assert.Equal((byte)2, session.Presentation!.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)2, session.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).Command);
+        Assert.Equal((byte)247, session.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(1)).Command);
+        Assert.Equal((byte)0, session.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0)).ReadRepeatModeMinusOne());
         Assert.Equal(1, Assert.Single(session.Combatants[0].MagicStocks).Count);
         Assert.Equal(10000, session.Combatants[1].CurrentHp);
         Assert.Equal("party-0", Assert.Single(session.Events, item => item.Kind == "Damage").TargetId);

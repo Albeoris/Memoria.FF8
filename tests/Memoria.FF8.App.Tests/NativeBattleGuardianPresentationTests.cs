@@ -79,7 +79,7 @@ public sealed class NativeBattleGuardianPresentationTests
         NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.ReadFixturePresentation().NativeGraphics!).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
         Assert.All(visibleModels, model => Assert.NotNull(model.GeometryBounds52));
         Console.WriteLine($"Native entry: visiblemodels{visibleModels.Length}, shadowdrawmodes{shadowModes.Length}; zero modes is permitted when the actual camera culls every shadow.");
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         Assert.Equal((byte)0, packets.ActionCount);
         Assert.Equal((byte)0, packets.ContactCount);
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, before.Definition.NativeRetainedMemory!.ColdExecutableSha256);
@@ -93,7 +93,7 @@ public sealed class NativeBattleGuardianPresentationTests
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
         //The declared cold/manual-header component never invokes48E830/48EB40. This explicit input preserves native actor3's authenticated BSS byte; old snapshots receive no default.
-        BattleSnapshot pendingSource = (before with { Combatants = coldActors,NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot pendingSource = ((before with { Combatants = coldActors}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         Assert.Equal(new uint[] { 0x84, 0x85, 0x86 }, pendingSource.Definition.NativeMusicProcess!.Entry!.Sounds.Select(sound => sound.Sound));
         Assert.NotNull(pendingSource.NativeGlobalSoundProcess!.Rotation);
         Assert.All(pendingSource.NativeGlobalSoundProcess.OriginalEffectIds, value => Assert.NotNull(value));
@@ -198,7 +198,7 @@ public sealed class NativeBattleGuardianPresentationTests
             sawNativeFlash |= battle.Presentation!.Graphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
         }
         NativeBattleGraphicsModel finalCaster = ReadOriginalModelCell(battle.Presentation!.Graphics, 0);
-        string diagnostic = $"callback={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Callback}; actionPhase={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.Presentation?.Camera?.Mask}; descriptor={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
+        string diagnostic = $"callback={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Callback}; actionPhase={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.Presentation!.NativeEffectIoResult}; cameraMask={battle.Presentation?.Camera?.Mask}; descriptor={Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).OriginalEffect?.ReturnedDescriptor:X}; verifiedPrefix={prefixSnapshot is not null}";
         if (prefixSnapshot is not null && Environment.GetEnvironmentVariable("MEMORIA_FF8_GF_FRESH_BOUNDARY_OUTPUT") is { Length: > 0 } boundaryOutput)
         {
             PublishStandalone(boundaryOutput, prefixSnapshot);

@@ -71,7 +71,7 @@ public sealed class NativeBattleMagmaBreath48PresentationTests
             originalActors.Add(new { Actor = index, Definition = definition.Id, definition.ModelId, definition.SceneSlot, model.Flags0, model.Rotation14, ResourceRow100 = NativeBattleModelResourceRow.Address100(model), Bones = model.CurrentBodyBoneMatrices, World = model.GeometryWorldMatrix });
         }
         Assert.NotEqual(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3), ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 4));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

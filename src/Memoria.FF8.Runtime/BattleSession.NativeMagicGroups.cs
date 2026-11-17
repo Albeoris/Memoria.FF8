@@ -191,12 +191,10 @@ public sealed partial class BattleSession
 
     private void ResolveExpandedMagicGroup(BattleCombatant actor, BattleActionPresentation command)
     {
-        bool hosted = OwnsExpandedHostedInvocation;
         BattleActionDefinition action = FindAction(BattleAbility.Magic, command.ActionId);
-        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts = [];
         bool producedContacts = false;
         int firstOperation = expandedOperationCursor.Operations.Length;
-        List<NativeMagicReflectionReceipt>? reflections = hosted && actor.IsPlayer ? [] : null;
+        List<NativeMagicReflectionReceipt>? reflections = actor.IsPlayer ? [] : null;
 
         //485610 produces the whole group before484180 post-action status work or pending reactions.
         if (!producingExpandedAiCallback)
@@ -223,25 +221,17 @@ public sealed partial class BattleSession
                     return false;
                 }
                 BattleActionPresentation cast = MagicGroupInvocation(command, action, invocation, target);
-                (bool hasContacts, bool completed) = PublishExpandedMagicGroupInvocation(actor, cast, action, hosted, componentImpacts, reflections);
+                (bool hasContacts, bool completed) = PublishExpandedMagicGroupInvocation(actor, cast, action, reflections);
                 producedContacts |= hasContacts;
                 return completed;
             });
-            if (hosted && producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)))
+            if (producedContacts && (actor.IsPlayer || HasEncounterPolicy(actor)) && !TryGroupNativeMagicCasts(firstOperation, action.NativeAction!))
             {
-                if (!TryGroupNativeMagicCasts(firstOperation, action.NativeAction!))
-                {
-                    throw new InvalidDataException("The repeated native spell requires contiguous action headers.");
-                }
+                throw new InvalidDataException("The repeated native spell requires contiguous action headers.");
             }
             if (reflections is { Count: > 0 })
             {
                 StageExpandedRepeatReflection(actor, action, reflections);
-            }
-            if (!hosted && producedContacts)
-            {
-                resolvingNativeAction = command;
-                CompleteNativeActionStatuses(actor);
             }
         }
         finally
@@ -250,34 +240,18 @@ public sealed partial class BattleSession
             resolvingNativeAction = null;
             nativeActionCommitDepth--;
         }
-        if (!hosted)
-        {
-            FlushExpandedEnemyReactions();
-        }
         if (producingExpandedAiCallback)
         {
             return;
         }
         if (!producedContacts)
         {
-            if (hosted)
-            {
-                nativeReactionOrder = null;
-            }
+            nativeReactionOrder = null;
             CompleteActionPresentation(command, "Magic group has no contacts.");
             return;
         }
 
-        if (hosted)
-        {
-            ActiveAction = command with { Phase = BattleActionPhase.Recovery, MagicReservationId = null };
-            return;
-        }
-        foreach ((BattleActionPresentation cast, ImmutableArray<ExpandedBattleContact> contacts) in componentImpacts)
-        {
-            PublishExpandedImpacts(cast, contacts);
-        }
-        CompleteActionPresentation(command, "Repeated magic completed.");
+        ActiveAction = command with { Phase = BattleActionPhase.Recovery, MagicReservationId = null };
     }
 
     private bool TryGroupNativeMagicCasts(int firstOperation, BattleNativeAction native, byte command = 2)
@@ -326,8 +300,7 @@ public sealed partial class BattleSession
             catalog[action.MagicId - 1] is { Entry: not 0 } binding && binding.Effect == action.MagicId;
     }
 
-    private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, bool hosted,
-        List<(BattleActionPresentation Command, ImmutableArray<ExpandedBattleContact> Contacts)> componentImpacts, List<NativeMagicReflectionReceipt>? reflections)
+    private (bool HasContacts, bool Completed) PublishExpandedMagicGroupInvocation(BattleCombatant actor, BattleActionPresentation cast, BattleActionDefinition action, List<NativeMagicReflectionReceipt>? reflections)
     {
         BattleNativeAction native = action.NativeAction!;
         var hitPlan = PlanNativeHits(actor, cast, native);
@@ -347,47 +320,32 @@ public sealed partial class BattleSession
 
         resolvingNativeAction = cast;
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = false, EventLane = 2, Command = 2, Action = native.ActionId };
-        NativeBattleActionHeaderPreparation? hostedHeader = hosted ? BuildExpandedActionHeaderPreparation(cast, native) : null;
+        NativeBattleActionHeaderPreparation hostedHeader = BuildExpandedActionHeaderPreparation(cast, native);
         int operationStart = expandedOperationCursor.Operations.Length;
         ReserveExpandedAiInvocation(cast, hostedHeader);
-        deferringExpandedImpacts = hosted;
+        deferringExpandedImpacts = true;
         NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, cast, action, native, hitPlan,
             collectReflection: reflections is null ? null : reflector => reflections.Add(new(cast, reflector)));
         deferringExpandedImpacts = false;
         if (produced.Contacts.IsEmpty)
         {
-            if (hostedHeader is not null)
-            {
-                expandedOperationCursor.Operations = expandedOperationCursor.Operations.RemoveAt(operationStart);
-                producingExpandedAiInvocation = null;
-            }
+            expandedOperationCursor.Operations = expandedOperationCursor.Operations.RemoveAt(operationStart);
+            producingExpandedAiInvocation = null;
             return (false, false);
         }
         ImmutableArray<ExpandedBattleContact> contacts = ToHostedContacts(produced);
         if (reflections is not null)
         {
-            StageExpandedHostedInvocation(cast, hostedHeader!, contacts, TakePendingHostedEnemyDraw());
+            StageExpandedHostedInvocation(cast, hostedHeader, contacts, TakePendingHostedEnemyDraw());
             return (true, !produced.RepeatAborted && produced.PublishedCount != 0);
         }
 
         (BattleActionPresentation? reflection, ImmutableArray<ExpandedBattleContact> reflectedContacts, NativeBattleActionHeaderPreparation? reflectionHeader) =
             ResolveExpandedReflection(actor, cast, action, produced.Reflector, reflected);
-        if (hostedHeader is not null)
+        StageExpandedHostedInvocation(cast, hostedHeader, contacts, TakePendingHostedEnemyDraw());
+        if (reflection is not null)
         {
-            StageExpandedHostedInvocation(cast, hostedHeader, contacts, TakePendingHostedEnemyDraw());
-            if (reflection is not null)
-            {
-                StageExpandedHostedInvocation(reflection, reflectionHeader!, reflectedContacts, null);
-            }
-        }
-        else
-        {
-            CommitExpandedEnemyDraw(contacts[0].RecipientId, ref pendingEnemyDraw);
-            componentImpacts.Add((cast, contacts));
-            if (reflection is not null)
-            {
-                componentImpacts.Add((reflection, reflectedContacts));
-            }
+            StageExpandedHostedInvocation(reflection, reflectionHeader!, reflectedContacts, null);
         }
         // Preserve contacts from a partial invocation, while leaving its stock and affinity uncommitted.
         return (true, !produced.RepeatAborted && produced.PublishedCount != 0);

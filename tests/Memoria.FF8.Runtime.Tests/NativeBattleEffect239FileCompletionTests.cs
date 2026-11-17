@@ -46,8 +46,8 @@ public sealed class NativeBattleEffect239FileCompletionTests
         }, BattleAtbMode.Normal);
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess().Write(0x2798218, [0x31, 0xFF, 0x72]).MarkUnknown(0x279821A, 1);
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory with { ScriptedEffects = core });
-        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(length, callback, null));
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { ScriptedEffects = core });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(length, callback, null));
         return session;
     }
 

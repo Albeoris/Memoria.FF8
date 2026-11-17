@@ -65,7 +65,7 @@ public sealed partial class BattlePresentationProcess
     internal NativeBattleTriggerWidget? TriggerWidget => Graphics.TriggerWidget;
     internal NativeBattleTriggerReceipt? PendingTrigger => Graphics.PendingTrigger;
     internal NativeBattlePresentationCompletionRequested? PendingCompletion => PendingHostedCompletion;
-    internal ushort? TriggerOptions => HostedTriggerOptions;
+    internal ushort? TriggerOptions => resources.TriggerOptions;
 
 
 

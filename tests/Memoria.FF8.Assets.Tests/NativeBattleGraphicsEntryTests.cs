@@ -243,7 +243,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal(cached, changed.ReadPresentedVital("party-0").HitPoints);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(changed.Capture()))!);
         Assert.Equal(changed.ReadPresentedVital("party-0"), restored.ReadPresentedVital("party-0"));
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativePartyPresentation = null }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativePartyPresentation = null })));
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal((ushort)9, Assert.Single(battle.Capture().NativeScriptState.WaitCounters));
         //AA admits contact; the factual header remains in windup until its final descriptor10 completes.
         Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);
-        Assert.Equal(beforeText.ActiveAction!.NativeHeader, battle.ActiveAction.NativeHeader);
+        Assert.Equal(beforeText.ReadFixturePresentation().NativeActionPackets!.ActiveHeader, battle.Presentation!.NativeActionPackets.ActiveHeader);
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "ActionComplete"), battle.Events.Count(item => item.Kind == "ActionComplete"));
         Assert.Single(battle.Events, item => item.Kind == "NativeText");
         Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));

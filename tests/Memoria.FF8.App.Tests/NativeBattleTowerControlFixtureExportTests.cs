@@ -126,7 +126,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         {
             NativeBattleEffectBinding binding = ready.Definition.NativeEffectCatalog[effect - 1];
             Assert.Equal(effect, binding.Effect);
-            NativeBattleActionPacketsState packets = ready.NativeActionPackets!.ResetCounts();
+            NativeBattleActionPacketsState packets = ready.ReadFixturePresentation().NativeActionPackets!.ResetCounts();
             (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(5), 252, 1, -1, 1, effect, null));
             BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.ActorIndex == 0);
             NativeBattleStatusSnapshot status = target.NativeStatus!;
@@ -135,7 +135,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             packets.Validate();
             (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
             NativeBattleRetainedMemory mirror = ready.Definition.NativeRetainedMemory!;
-            BattleSnapshot queued = (ready with { NativeActionPackets = packets,Definition = ready.Definition with { NativeRetainedMemory = mirror with { ActionPackets = packets.ExportRetained() } } }).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
+            BattleSnapshot queued = ((ready with { Definition = ready.Definition with { NativeRetainedMemory = mirror with { ActionPackets = packets.ExportRetained() } } }).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
             Assert.Equal(JsonSerializer.Serialize(ready.Combatants), JsonSerializer.Serialize(queued.Combatants));
             Assert.Equal(JsonSerializer.Serialize(ready.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(queued.ReadFixturePresentation().NativeEffectMemory));
             Assert.Equal(JsonSerializer.Serialize(ready.NativeCrtRandom), JsonSerializer.Serialize(queued.NativeCrtRandom));

@@ -28,7 +28,7 @@ public sealed class NativeBattleBio22PresentationTests
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics);
-        NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(source.NativeActionPackets);
+        NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(source.ReadFixturePresentation().NativeActionPackets!);
         int descriptor = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint headerOffset = unchecked(graphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(headerOffset % 20 == 0 && headerOffset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -41,7 +41,7 @@ public sealed class NativeBattleBio22PresentationTests
         Assert.Equal((byte)0, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Null(contact.Secondary);
-        Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)100, source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([22])[21];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[21]));
         NativeBattleBio22Resources resources = game.ReadNativeBio22Resources();
@@ -115,8 +115,8 @@ public sealed class NativeBattleBio22PresentationTests
                 {
                     completions++;
                 }
-                ushort hpBefore = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hpAfter = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hpBefore = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hpAfter = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 if (hpBefore != hpAfter)
                 {
                     Assert.Equal((ushort)100, hpBefore);
@@ -155,7 +155,7 @@ public sealed class NativeBattleBio22PresentationTests
             Assert.True(initialized);
             Assert.Equal(1, completions);
             Assert.Equal(1, contacts);
-            Assert.Equal((ushort)93, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal((ushort)93, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.True(firstChanged && secondChanged && thirdChanged && fourthChanged && paletteChanged);
             Assert.True(geometryPeak > 0 && particlePeak > 0 && packetCallbacks > 0);
             Assert.Contains((short)1024, stageDepths);
@@ -205,7 +205,7 @@ public sealed class NativeBattleBio22PresentationTests
                 Completions = completions,
                 ContactHpTransitions = contacts,
                 InitialHp = 100,
-                FinalHp = battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints,
+                FinalHp = battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints,
                 AllFourMeshesChanged = firstChanged && secondChanged && thirdChanged && fourthChanged,
                 OwnerChanges = new { First = firstChanged, Second = secondChanged, Third = thirdChanged, Fourth = fourthChanged, Palette = paletteChanged },
                 GeometryPeak = geometryPeak,

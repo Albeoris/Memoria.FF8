@@ -70,7 +70,7 @@ internal static class DetachedExpandedAiFixture
         Assert.Equal(expected.QueuedActions, actual.QueuedActions);
         Assert.Equal(expected.NativeAllocations.Select(allocation => (allocation.Id, allocation.SceneSlot, allocation.Generation)),
             actual.NativeAllocations.Select(allocation => (allocation.Id, allocation.SceneSlot, allocation.Generation)));
-        Assert.Equal(live.NativeActionPackets.Roster.Owners, copy.NativeActionPackets.Roster.Owners);
+        Assert.Equal(live.Presentation!.NativeActionPackets.Roster.Owners, copy.Presentation!.NativeActionPackets.Roster.Owners);
         Assert.Equal(live.Combatants.Count, copy.Combatants.Count);
         foreach ((BattleCombatant expectedActor, BattleCombatant actualActor) in live.Combatants.Zip(copy.Combatants))
         {

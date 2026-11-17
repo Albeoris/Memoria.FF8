@@ -271,7 +271,7 @@ public sealed class BattleGuardianFormLifecycleTests
         BattleSession battle = Active(ready: true);
         battle.QueueGuardianFormAction("actor", "enemy", BattleGuardianFormAction.Fire);
         battle.Tick();
-        Assert.NotNull(battle.ActiveAction!.NativeHeader);
+        Assert.NotNull(battle.Presentation!.NativeActionPackets.ActiveHeader);
         int damageCount = battle.Events.Count(item => item.Kind == "Damage" && item.ActorId == "actor");
         battle.InstantVictory();
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
@@ -299,7 +299,7 @@ public sealed class BattleGuardianFormLifecycleTests
         Assert.Equal((ushort)79, action.NativeAction!.ActionId);
         Assert.Equal((byte)1, action.NativeAction.AttackType);
         Assert.Equal((byte)12, action.NativeSequence);
-        Assert.NotNull(action.NativeHeader);
+        Assert.NotNull(battle.Presentation!.NativeActionPackets.ActiveHeader);
         Assert.Equal(stock, Actor(battle).MagicStocks);
         Assert.Equal(items, battle.Items);
         BattleSession restored = RoundTrip(battle.Capture());

@@ -32,8 +32,8 @@ public sealed class NativeBattleEffect331PresentationTests
         uint argument = source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument;
         Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
         int slot = checked((int)((argument - 0x1D280C4u) / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(slot));
-        Assert.Equal((byte)3, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(slot));
+        Assert.Equal((byte)3, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, header.Source));
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)13, header.Sequence);
         Assert.Equal((ushort)313, header.Action);

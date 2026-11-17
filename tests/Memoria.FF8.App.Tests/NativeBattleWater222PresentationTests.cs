@@ -33,7 +33,7 @@ public sealed class NativeBattleWater222PresentationTests
         uint offset = unchecked(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
-        NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.NativeActionPackets);
+        NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.ReadFixturePresentation().NativeActionPackets!);
         NativeBattleActionHeaderSlot header = actionPackets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)5, header.Action);
@@ -41,7 +41,7 @@ public sealed class NativeBattleWater222PresentationTests
         NativeBattleContactPacket contact = actionPackets.ReadContact(header.FirstContact);
         Assert.Equal((byte)0, ReadOriginalModelOperand(actionPackets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        Assert.Equal((ushort)100, original.NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)100, original.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectMemory inherited = Assert.IsType<NativeBattleEffectMemory>(original.ReadFixturePresentation().NativeEffectMemory);
         Assert.Null(inherited.ScriptedEffects);
         Assert.Null(inherited.ScriptedGraphics);
@@ -61,9 +61,9 @@ public sealed class NativeBattleWater222PresentationTests
             replacement = replacement.AppendContacts(actionPackets.ReadHeaderContacts(reference));
             (replacement, _) = replacement.Publish(slot.ReadContactCount());
         }
-        BattleSnapshot source = (original with
+        BattleSnapshot source = ((original with
         {
-            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(221, binding) },            NativeActionPackets = replacement        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = inherited with { ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } });
+            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(221, binding) }}).WithFixturePresentation(facts => facts with { NativeActionPackets = replacement })).WithFixturePresentation(facts => facts with { NativeEffectMemory = inherited with { ScriptedEffects = NativeBattleScriptedEffectMemory.FromColdProcess(), ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() } });
         NativeBattleRestorationPresentationTests.Publish(output, "controlled-input", source, null);
         File.WriteAllText(Path.Combine(output, "fixture-selection.json"), JsonSerializer.Serialize(new
         {
@@ -122,8 +122,8 @@ public sealed class NativeBattleWater222PresentationTests
                 {
                     completions++;
                 }
-                ushort hpBefore = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hpAfter = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hpBefore = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hpAfter = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 if (hpBefore != hpAfter)
                 {
                     Assert.Equal((ushort)100, hpBefore);
@@ -172,7 +172,7 @@ public sealed class NativeBattleWater222PresentationTests
             Assert.True(initialized);
             Assert.Equal(1, completions);
             Assert.Equal(1, contacts);
-            Assert.Equal((ushort)93, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal((ushort)93, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.Equal(new short[] { 363, 364, 365 }, files.Distinct().Order().ToArray());
             Assert.Equal(files.Count, ioCompletions);
             Assert.True(packetCallbacks > 0);
@@ -251,7 +251,7 @@ public sealed class NativeBattleWater222PresentationTests
             ("scroll", slots.Any(item => item.Kind == 0x15)),
             ("actor-override", slots.Any(item => item.Kind == 0x26)),
             ("io-pending", core.Read(0x2798219, 1)[0] != 0),
-            ("contact-applied", snapshot.NativePartyPresentation!.Rows[0]!.HitPoints == 93)
+            ("contact-applied", snapshot.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints == 93)
         ];
         return candidates.Where(item => item.Ready && requested.Contains(item.Name)).Select(item => item.Name).FirstOrDefault();
     }

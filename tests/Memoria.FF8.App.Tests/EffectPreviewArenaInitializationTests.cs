@@ -22,7 +22,7 @@ public sealed class EffectPreviewArenaInitializationTests
         int dispatches = 0;
         active.DiagnosticEffectDispatched += _ => dispatches++;
         active.PublishDiagnosticAbilityPreview(3, 1);
-        NativeBattleActionHeaderSlot header = active.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleActionHeaderSlot header = active.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal(254, header.Command);
         Assert.Equal(65, header.Action);
         Assert.Equal(selected.MagicId, header.Effect);

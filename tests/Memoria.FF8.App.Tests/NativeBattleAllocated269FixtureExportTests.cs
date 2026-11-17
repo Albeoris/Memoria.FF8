@@ -43,13 +43,13 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattlePresentationStatusMemory presentation = (ready.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared contact requires its physical presentation status owner.")).Observe(0, target.NativeStatus!.Presentation);
         ready = ready with { Combatants = ready.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePresentationStatusMemory = presentation, Definition = ready.Definition with { NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([269]) } };
-        NativeBattleActionPacketsState packets = ready.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = ready.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)0, packets.ActionCount);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)caster)), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot queued = (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot queued = (ready.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         string readyPath = Save("after-entry", ready);
         string queuedPath = Save("queued-action104", queued);
         BattleSession cold = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(queued));

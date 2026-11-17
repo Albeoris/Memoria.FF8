@@ -45,7 +45,7 @@ public sealed class NativeZombieRevivalMagicTests
             battle.QueueAction("caster", "zombie", BattleAbility.Magic, spell.Id, magicTargets: flow == "triple" ? ["zombie", "zombie", "zombie"] : null);
         }
         battle.Tick();
-        NativeBattleContactHalf zombieContact = battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
+        NativeBattleContactHalf zombieContact = battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary;
         Assert.Equal(0, zombieContact.Amount6);
         Assert.Equal(0, zombieContact.HitFlags & 1);
         Assert.Equal(1, zombieContact.SavedStatuses4 & 1);

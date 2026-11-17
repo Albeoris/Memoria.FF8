@@ -215,6 +215,22 @@ public sealed record NativeBattleModelTextureCache([property: JsonRequired] Immu
         return this with { Rows = rows, PresentationActors = PresentationActors?.Remove(resourceIndex), BlockedSlots = modelRetained || PresentationRoster is not null ? BlockedSlots : (ushort)(BlockedSlots & ~mask), EnemyTextureMotion = modelRetained ? EnemyTextureMotion : EnemyTextureMotion.Remove(row.ModelId!.Value) };
     }
 
+    internal NativeBattleModelTextureCache ReleaseEjectedModel508230(BattleModelOwner owner, byte modelId)
+    {
+        ImmutableArray<NativeBattleModelTextureCacheRow> rows = Rows;
+        ImmutableDictionary<int, BattleModelOwner>? owners = PresentationActors;
+        for (int index = 0; index < Rows.Length; index++)
+        {
+            NativeBattleModelTextureCacheRow row = Rows[index];
+            if (row.Kind != 0 && row.ModelId == modelId && (PresentationActors is null || PresentationActors.GetValueOrDefault(index) == owner))
+            {
+                rows = rows.SetItem(index, row with { Kind = 0 });
+                owners = owners?.Remove(index);
+            }
+        }
+        return this with { Rows = rows, PresentationActors = owners };
+    }
+
     internal int SelectHostedLoadAlias(NativeBattleModelLoadTask task, BattleModelOwner owner)
     {
         Validate();

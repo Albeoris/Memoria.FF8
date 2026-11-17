@@ -13,7 +13,7 @@ public sealed class NativeBattleRetainedModelColorTests
         NativeBattleRetainedMemory modelSeed = retained with { ModelColors40 = [0x00123456u, null, null, null, null, null, 0x00ABCDEFu] };
         BattleSnapshot snapshot = Snapshot(retained);
         NativeBattleGraphicsState graphics = GraphicsWithColors(snapshot, modelSeed);
-        BattleModelOwner party = snapshot.NativeActionPackets!.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner party = snapshot.ReadFixturePresentation().NativeActionPackets!.ModelAliases.DecodeLiteral(0);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(party, graphics.ActorModels.Get(party) with { Flags0 = 3 }) };
         snapshot = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = graphics });
         NativeBattleRetainedMemory captured = NativeBattleRetainedMemory.Capture(snapshot, retained.ColdExecutableSha256);
@@ -61,7 +61,7 @@ public sealed class NativeBattleRetainedModelColorTests
 
     private static NativeBattleGraphicsState GraphicsWithColors(BattleSnapshot snapshot, NativeBattleRetainedMemory modelSeed)
     {
-        NativeBattleModelAliases aliases = snapshot.NativeActionPackets!.ModelAliases;
+        NativeBattleModelAliases aliases = snapshot.ReadFixturePresentation().NativeActionPackets!.ModelAliases;
         NativeBattleModelBoundary boundary = NativeBattleModelBoundary.FromRetainedMemory(modelSeed);
         BattleActorModels models = new([]);
         (boundary, models) = boundary.BindOriginalSlot(NativeBattleModelSlot.Decode(0), aliases.DecodeLiteral(0), models);

@@ -69,7 +69,7 @@ public sealed class NativeBattleComponentTerminalTextureTests(ITestOutputHelper 
     private void ObserveFingerprint(string boundary, BattleSession battle, BattleComponentTextureQuiescenceObservation? observation)
     {
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         object[] rows = observation?.Textures.Tasks.Select(row =>
         {
             NativeBattleAuxiliaryTask task = graphics.Auxiliary.Slots[row.Slot];

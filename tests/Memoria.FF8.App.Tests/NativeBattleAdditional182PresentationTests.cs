@@ -49,7 +49,7 @@ public sealed class NativeBattleAdditional182PresentationTests
         Assert.Equal(new NativeBattleEffectInitializerResource("mag181.tim", NativeBattleAdditional182Profile.InitializerGlobal), binding.InitializerResource);
         Assert.Equal(165504, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeAdditional182Resources(), binding.Additional182Resources);
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
@@ -58,6 +58,6 @@ public sealed class NativeBattleAdditional182PresentationTests
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original command29/action10/sequence11 and formation94; declared Amount0 post-formula presentation contact with logical HP/status retained; contact BYTE3 bit4 selects the native director/camera/sound only, without formula, accuracy, status, ordinary command, AI or card-conversion admission", DeclaredHitFlags = hitFlags, Before = contact, After = declared }));
-        return source with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) };
+        return source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets.ReplaceHeaderContacts(new BattleActionHeaderReference(0), [declared]) });
     }
 }

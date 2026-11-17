@@ -107,6 +107,7 @@ public sealed partial class BattleSession
         expandedPartyPresentation = candidate.expandedPartyPresentation;
         expandedHostedEvent = hosted;
         process.CommitDispatch(dispatch);
+        publication.PublishParticipantCallbackObservations();
     }
 
     private BattleSession CreateExpandedHostedFormCandidate(BattleSnapshot before)
@@ -138,6 +139,7 @@ public sealed partial class BattleSession
             process.CommitGuardianFormChange(visual);
             PublishHostedGuardianFormAudio(visual);
         }
+        publication.PublishParticipantCallbackObservations();
     }
 
     private void PublishHostedGuardianFormAudio(PreparedHostedGuardianFormChange? visual)

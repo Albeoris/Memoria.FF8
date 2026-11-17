@@ -42,7 +42,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.GuardianAnimationSkip);
         Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 });
         Assert.True(source.ActiveAction is { NativeQueuedCommand: 254, GuardianFormInvocation: null });
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.ReadFixturePresentation().NativeGraphics!.ActionGraphics!.Header.Ordinal));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.ReadFixturePresentation().NativeGraphics!.ActionGraphics!.Header.Ordinal));
         Assert.Equal((byte)254, header.Command);
         int guardian = header.Action - 64;
         Assert.InRange(guardian, 0, 15);
@@ -155,7 +155,7 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         Assert.All(actualDamage, item => Assert.Equal(target, item.TargetId));
         Assert.Equal(expectedDamage, actualDamage);
         Assert.Equal(expectedDamage.Sum(item => item.Amount), actualDamage.Sum(item => item.Amount));
-        Assert.Equal(JsonSerializer.Serialize(expected.NativeActionPackets), JsonSerializer.Serialize(actual.NativeActionPackets));
+        Assert.Equal(JsonSerializer.Serialize(expected.ReadFixturePresentation().NativeActionPackets!), JsonSerializer.Serialize(actual.ReadFixturePresentation().NativeActionPackets!));
         Assert.Equal(JsonSerializer.Serialize(expected.GuardianForces), JsonSerializer.Serialize(actual.GuardianForces));
         Assert.Equal(expected.NativeGlobalRandom, actual.NativeGlobalRandom);
         Assert.Equal(expected.NativeGlobalRandomCalls, actual.NativeGlobalRandomCalls);

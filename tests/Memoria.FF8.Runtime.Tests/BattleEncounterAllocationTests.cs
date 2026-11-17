@@ -182,18 +182,18 @@ public sealed class BattleEncounterAllocationTests
         int index = Array.FindIndex(snapshot.Combatants, actor => actor.Id == batch.ActorIds[0]);
         snapshot.Combatants[index] = snapshot.Combatants[index] with { Atb = BattleSession.AtbMaximum, NativeStatus = snapshot.Combatants[index].NativeStatus! with { Saved = 0x20 } };
         battle = BattleSession.Restore(snapshot);
-        for (int frame = 0; frame < 8 && battle.NativeActionPackets.ActionCount == 0; frame++)
+        for (int frame = 0; frame < 8 && battle.Presentation!.NativeActionPackets.ActionCount == 0; frame++)
         {
             battle.Tick();
         }
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(4), header.Source);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        Assert.Equal(battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(4), header.Source);
         Assert.Equal((byte)8, header.Command);
         Assert.Equal((byte)7, header.Sequence);
         Assert.Equal((ushort)1, header.Action);
-        Assert.Equal((byte)1, battle.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(4));
-        Assert.Equal(battle.NativeActionPackets.ModelAliases.DecodeLiteral(0), battle.NativeActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ExportRetained().Headers[0].ReadOriginalByte(4));
+        Assert.Equal(battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(0), battle.Presentation!.NativeActionPackets.ReadContact(header.FirstContact).Primary.Recipient);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Message");
         Assert.Null(battle.GetCombatantDefinition(batch.ActorIds[0]).Rewards);
     }

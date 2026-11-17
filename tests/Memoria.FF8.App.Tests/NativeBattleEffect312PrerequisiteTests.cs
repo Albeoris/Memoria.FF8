@@ -33,12 +33,12 @@ public sealed class NativeBattleEffect312PrerequisiteTests
         Assert.Equal((ushort)74, ability.Id);
         Assert.Equal((byte)12, ability.Sequence);
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!;
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot prepared = (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = (source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } });
         NativeBattleRestorationPresentationTests.Publish(output!, "before-prerequisite", prepared, null);
         BattleSession session = NativeBattleEffect312PresentationTests.Restore(prepared, game);
         bool unlinked = false;

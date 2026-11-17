@@ -334,8 +334,8 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                     queuedNext.Tick();
                     audio.Update(battle);
                     BattleActionPresentation? active = battle.ActiveAction;
-                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.Presentation!.Graphics.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{active?.NativeHeader}");
-                    if (active is { ActorId: "party", NativeQueuedCommand: 1, NativeHeader: not null })
+                    nextObservations.Add($"{callback + 1}:frame{battle.Frame}/callback{battle.Presentation!.Graphics.Callback}/actor{active?.ActorId}/command{active?.NativeQueuedCommand}/header{battle.Presentation?.Graphics.ActionGraphics?.Header}");
+                    if (active is { ActorId: "party", NativeQueuedCommand: 1 } && battle.Presentation?.Graphics.ActionGraphics?.Header is not null)
                     {
                         nextDispatched = true;
                         break;

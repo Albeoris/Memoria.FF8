@@ -43,8 +43,8 @@ public sealed class NativeBattleRevivalDiagnosticResolutionTests
         BattleEvent healing = Assert.Single(battle.Events, item => item.Kind == "Healing");
         Assert.Equal(restoredHp, healing.Amount);
         Assert.Equal("fallen", healing.TargetId);
-        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
-        NativeBattleContactPacket contact = battle.NativeActionPackets.ReadContact(header.FirstContact);
+        NativeBattleActionHeaderSlot header = battle.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+        NativeBattleContactPacket contact = battle.Presentation!.NativeActionPackets.ReadContact(header.FirstContact);
         Assert.Equal(battle.ReadPresentationModelOwner(battle.Combatants.Single(actor => actor.Slot == new BattleRosterSlot(BattleSide.Allies, 1)).Id), contact.Primary.Recipient);
         Assert.Equal((ushort)restoredHp, contact.Primary.Amount6);
         Assert.Equal(1, contact.Primary.HitFlags & 1);

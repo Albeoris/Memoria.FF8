@@ -16,12 +16,12 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         BattleSession unobserved = BattleSession.Restore(battle.Capture());
         if (admitted)
         {
-            BattleActionPresentation command = new("party", "requested", BattleActionPhase.Recovery, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("requested")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.GuardianForce, 0) { NativeHeader = new BattleActionHeaderReference(0) };
+            BattleActionPresentation command = new("party", "requested", BattleActionPhase.Recovery, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("requested")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.GuardianForce, 0);
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(battle, command);
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(unobserved, command);
         }
         typeof(BattleSession).GetField("diagnosticDispatchSerial", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, 5L);
-        NativeBattleRetainedActionPackets original = battle.NativeActionPackets.ExportRetained();
+        NativeBattleRetainedActionPackets original = battle.Presentation!.NativeActionPackets.ExportRetained();
         NativeBattleRawContactPacket retained = Assert.IsType<NativeBattleRawContactPacket>(original.Contacts[0]);
         NativeBattleRetainedActionHeaderSlot header = original.Headers[0];
         List<BattleDiagnosticResolution> resolutions = [];
@@ -72,11 +72,11 @@ public sealed class NativeBattleDiagnosticContactProvenanceTests
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Synthetic kernel-layout GF", BattleActionEffect.Native, 44, false, Level: 12, DamagePercent: 20) { NativeAction = native, NativeGuardianBoostAvailable = false };
         BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = [native], ActionDefinitions = [action], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "requested", Name = "Requested", MaximumHp = 10000, CurrentHp = 10000 }, new() { Id = "recipient", Name = "Recipient", MaximumHp = 10000, CurrentHp = 10000, Spirit = 5 }] }, BattleAtbMode.TurnBased);
         BattleSnapshot saved = battle.Capture();
-        NativeBattleActionPacketsState packets = saved.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = saved.ReadFixturePresentation().NativeActionPackets!;
         (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 254, 14, -1, 64, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(4), 5, 1, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        return BattleSession.Restore(saved with { NativeActionPackets = packets });
+        return BattleSession.Restore(saved.WithFixturePresentation(facts => facts with { NativeActionPackets = packets }));
     }
 
     private static void Recompute(BattleSession battle)

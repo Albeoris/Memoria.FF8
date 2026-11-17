@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect301FollowingActionTests
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
         string warmVertices = ReadOriginalModelCell(originalGraphics, casterIndex).CurrentBodyBoneMatrices!.SkeletonSha256;
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(checked((byte)casterIndex)), 8, 12, cameraChoice, 152, 282, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect301FollowingActionTests
         BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.Id == targetId);
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattleEffectBinding binding = game.ReadNativeEffectCatalogForEffects([282])[281];
-        BattleSnapshot prepared = (source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(281, binding) },Combatants = source.Combatants.Select(actor => actor.Id == targetId ? target : actor).ToArray(),NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = ((source with { Definition = source.Definition with { NativeEffectCatalog = source.Definition.NativeEffectCatalog.SetItem(281, binding) },Combatants = source.Combatants.Select(actor => actor.Id == targetId ? target : actor).ToArray()}).WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));

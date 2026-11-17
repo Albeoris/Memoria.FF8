@@ -72,7 +72,7 @@ public sealed class NativeBattleCurePresentationTests
         //This explicitly supplies the formula producer replaced by the controlled packet below; enemy DAT247 masks do not apply to actor0.
         BattleCombatantSnapshot preparedParty = party with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == party.Id ? preparedParty : actor).ToArray() };
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 11, -1, 21, 1, null));
         //This is a controlled presentation component, after the battle formula has already produced its healing contact.
         //The installed kernel supplies the pose sequence;100 HP isolates506690/493D80 timing and duplicate application.
@@ -80,7 +80,7 @@ public sealed class NativeBattleCurePresentationTests
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -111,8 +111,8 @@ public sealed class NativeBattleCurePresentationTests
                 selectedCasting |= currentGraphics.ActionGraphics?.Callback == 0x50A9A0;
                 selectedCure |= currentGraphics.OriginalEffect is { Binding.Entry: 0x8D6A00, Cure: not null };
                 hiddenTarget |= (ReadOriginalModelCell(currentGraphics, 0).Flags0 & 4) != 0;
-                ushort previousHp = beforeStep.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort presentedHp = snapshot.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = beforeStep.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort presentedHp = snapshot.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 Assert.True(presentedHp is 100 or 200, $"Controlled Cure contact changed the presented HP to{presentedHp}.");
                 if (previousHp != presentedHp)
                 {
@@ -177,7 +177,7 @@ public sealed class NativeBattleCurePresentationTests
         Assert.True(peakChangedPixels > 0, "Original Cure effect-bank packets changed no RGB pixels.");
         Assert.True(continuedClone, "No visible Cure snapshot passed an independent next-callback continuation.");
         Assert.Equal(1, healingTransitions);
-        Assert.Equal((ushort)200, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)200, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         Assert.False(HasActionDescriptor(battle), "Original Cure104 did not complete within the diagnostic callback bound.");
         Assert.Equal(0u, battle.Presentation!.Graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, battle.Presentation!.Memory.Active);

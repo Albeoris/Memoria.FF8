@@ -107,21 +107,6 @@ public sealed partial class BattleSession
         QueueExpandedAutomaticGuardian(id);
     }
 
-    private void ExpandNativeAutomaticGuardian(BattleCombatant actor)
-    {
-        byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage7 lacks its actual selector BYTE1D28E14.");
-        BattleNativeAction action = FindInstalledNativeAction(245, id);
-        byte flags = action.TargetFlags ?? throw new InvalidDataException("Native independent GF row lacks its original target flags.");
-        BattleTargetRequest request = CreateAutomaticTargetRequest(flags);
-        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutomaticGuardian, 245, id, request);
-        if (id == 1)
-        {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.PhoenixRevival, 0, 8, new(new BattleTargetSelection.SideGroup(BattleTargetSide.Allies), BattleTargetEligibility.SavedStatus, true, BattleTargetReplacement.UseCurrentBattlePolicy));
-        }
-    }
-
-
-
     private static BattleNativeAction NativePhoenixRevivalAction()
     {
         //48FE20 command0/8 sets element0, status attack255, saved status1 and battle status0 before491940.

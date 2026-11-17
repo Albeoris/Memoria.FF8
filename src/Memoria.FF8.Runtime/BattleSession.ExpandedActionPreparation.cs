@@ -35,8 +35,13 @@ public sealed partial class BattleSession
             }
             owner.CopyCandidateState(candidate, state, preparedExpandedAction: true);
             published = true;
-            if (candidate.participantCallbackObservations is { } observations)
+        }
+
+        internal void PublishParticipantCallbackObservations()
+        {
+            if (published && candidate.participantCallbackObservations is { } observations)
             {
+                candidate.participantCallbackObservations = null;
                 foreach (BattleParticipantCallbackReceipt observation in observations)
                 {
                     owner.ObserveDiagnosticParticipantCallback(observation);
@@ -57,6 +62,7 @@ public sealed partial class BattleSession
         candidate.nativeAffinityAction = nativeAffinityAction;
         candidate.participantCallbackObservations = ObservingDiagnosticCounter ? [] : null;
         candidate.diagnosticCounterTracksContacts = ObservingDiagnosticCounter;
+        candidate.trackDiagnosticReflections = DiagnosticEffectDispatched is not null;
         if (expandedPresentationProcess is { } process)
         {
             candidate.readHostedAiHeapMessage = process.ReadAiHeapMessage;
@@ -110,12 +116,14 @@ public sealed partial class BattleSession
             expandedHostedEvent = hostedEvent;
             expandedHostedActionToken = admission.Action?.Invocation.Token;
             process.CommitDispatch(admission);
+            PublishDiagnosticReflectionCandidates(candidate);
             PublishDiagnosticCounterContacts(candidate, process, admission.AppendedHeaders);
         }
         else if (form is not null)
         {
             process.CommitGuardianFormChange(form);
         }
+        publication.PublishParticipantCallbackObservations();
         PublishHostedGuardianFormAudio(form);
     }
 

@@ -66,19 +66,10 @@ public sealed partial class BattleCombatant
 public sealed partial class BattleSession
 {
     private NativeBattleUiServices? expandedTurnClockObservation;
-    private NativeBattleUiServices? ExpandedClockUi => expandedPresentationProcess?.Graphics.UiServices ?? expandedTurnClockObservation;
-    private NativeBattleUiServices? BattleClockUi => ExpandedClockUi;
-    private bool HasPolledNativeBattleClock => nativeBattleClock is not null && (expandedPresentationProcess is not null || expandedTurnClockObservation is not null);
-    private bool HasGraphicsClockOwner => expandedPresentationProcess is not null || expandedTurnClockObservation is not null;
-
-
+    private NativeBattleUiServices? BattleClockUi => Presentation?.Graphics.UiServices ?? expandedTurnClockObservation;
 
     internal void AdvanceExpandedUiAtbService(NativeBattleUiServices ui)
     {
-        if (nativeBattleClock is null)
-        {
-            return;
-        }
         AdvanceNativeUiAtbService(ui, combatants.Any(actor => actor.IsPlayer && CanChoosePlayerCommand(actor.Id)));
     }
 

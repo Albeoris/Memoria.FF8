@@ -20,7 +20,7 @@ public sealed class NativeBattleDuelProtocolTests
         Assert.Equal(original with { MoveSetId = moveSet, Selection1D28DEF = moveSet, Phase = phase }, states["party"] with { Ui = null });
         Assert.Equal(action >= 6 ? BattleTimedInputUiPhase.Closing : BattleTimedInputUiPhase.Active, session.GetDuelUi("party")!.Phase);
         Assert.Empty(session.QueuedActions);
-        Assert.Equal((byte)0, session.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)0, session.Presentation!.NativeActionPackets.ActionCount);
         Assert.Throws<TargetInvocationException>(() => Invoke(session, "QueueNativeDuelChoice", "party", new BattleNativeDuelChoice(moveSet, action, "Move", true, action >= 6, [1])));
         BattleNativeDuelState restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(states["party"]));
         Assert.Equal(states["party"].Selection1D28DEF, restored.Selection1D28DEF);
@@ -99,7 +99,7 @@ public sealed class NativeBattleDuelProtocolTests
 
         void InstallHeader(ushort selectedEffect)
         {
-            NativeBattleActionPacketsState current = session.NativeActionPackets;
+            NativeBattleActionPacketsState current = session.Presentation!.NativeActionPackets;
             var packets = NativeBattleActionPacketsState.Create(current.Roster, NativeBattleRetainedActionPackets.Fresh(), current.ModelAliases);
             (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 241, 0, -1, actionId, selectedEffect, null));
             (packets, _) = packets.Publish(0);
@@ -118,7 +118,7 @@ public sealed class NativeBattleDuelProtocolTests
         BattleSession session = Fixture();
         BattleNativeAction control = (BattleNativeAction)typeof(BattleSession).GetMethod("CreateNativeDuelControl241", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [(ushort)65532, (ushort)0])!;
         Queue<BattleAttackCommand> queue = (Queue<BattleAttackCommand>)typeof(BattleSession).GetField("actions", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(session)!;
-        queue.Enqueue(new("party", "enemy", Target(), BattleAbility.EnemyAbility, 65532) { NativeAction = control, NativeQueuedCommand = 241, NativeHeader = new BattleActionHeaderReference(0) });
+        queue.Enqueue(new("party", "enemy", Target(), BattleAbility.EnemyAbility, 65532) { NativeAction = control, NativeQueuedCommand = 241 });
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Invoke(session, "ValidateNativeDuelControlOwners")).InnerException);
         States(session).Add("party", new(0, Target(), 400, 0, BattleNativeDuelPhase.Finisher) { Selection1D28DEF = 254 });
         Invoke(session, "ValidateNativeDuelControlOwners");

@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8;
 
-/// <summary>Projects the player's saved combat party into the shared encounter and laboratory scaffold.</summary>
+/// <summary>Projects the player's saved combatants into the shared battle roster.</summary>
 internal static class BattlePartyProjection
 {
     public static BattleActionDefinition[] CreateActions(NativeCharacterVitals vitals, IReadOnlyList<BattleActionDefinition> installed)

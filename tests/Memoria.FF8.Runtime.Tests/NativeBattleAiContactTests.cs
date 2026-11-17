@@ -16,16 +16,16 @@ public sealed class NativeBattleAiContactTests
         BattleNativeAction native = new(8, 1, 3, 1) { MagicId = 0, AttackType = 27, Power = 1, HitCount = 1, TargetFlags = 0, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 0, Critical = 0, PowerModifier = 0, LevelModifier = 0, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
         BattleSession battle = new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = [native], Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", InitialAtb = BattleSession.AtbMaximum, MaximumHp = 1000, CurrentHp = 1000, NativeCombatantFlags = 0x10, NativeAi = ai }] }, BattleAtbMode.Normal);
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int callback = 0; callback < 10 && battle.NativeActionPackets.ActionCount == 0; callback++)
+        for (int callback = 0; callback < 10 && battle.Presentation!.NativeActionPackets.ActionCount == 0; callback++)
         {
             battle.Tick();
             restored.Tick();
         }
-        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)1, battle.Presentation!.NativeActionPackets.ActionCount);
         BattleSnapshot snapshot = battle.Capture();
         Assert.Equal(lane, snapshot.NativeActionScratch!.EventLane);
         Assert.Equal(expectedVariable, snapshot.Combatants[1].NativeParticipant!.Variables[0]);
-        Assert.Equal(stage == 1 ? (byte)18 : (byte)5, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Sequence);
+        Assert.Equal(stage == 1 ? (byte)18 : (byte)5, battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.Sequence);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -48,14 +48,14 @@ public sealed class NativeBattleAiContactTests
         NativeBattleContactPacket Hit(BattleSession session)
         {
             session.QueueNativePlayerCommand("party", "enemy", 8, 1);
-            for (int admission = 0; admission < 7 && session.NativeActionPackets.ActionCount == 0; admission++)
+            for (int admission = 0; admission < 7 && session.Presentation!.NativeActionPackets.ActionCount == 0; admission++)
             {
                 session.Tick();
             }
-            Assert.Equal((byte)1, session.NativeActionPackets.ActionCount);
-            NativeBattleActionHeaderSlot header = session.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
+            Assert.Equal((byte)1, session.Presentation!.NativeActionPackets.ActionCount);
+            NativeBattleActionHeaderSlot header = session.Presentation!.NativeActionPackets.ReadHeader(new BattleActionHeaderReference(0));
             Assert.Equal((byte)1, header.ReadContactCount());
-            return session.NativeActionPackets.ReadContact(header.FirstContact);
+            return session.Presentation!.NativeActionPackets.ReadContact(header.FirstContact);
         }
     }
 }

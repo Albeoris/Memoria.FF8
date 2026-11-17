@@ -64,13 +64,13 @@ public sealed class NativeBattleBackAttackPresentationTests
 
         // Friendly targeting exercises the same recipient contract with the original player turn sequence.
         battle.QueueAttack("party-3", "party-0");
-        for (int callback = 0; callback < 1200 && battle.NativeActionPackets!.ContactCount == 0; callback++)
+        for (int callback = 0; callback < 1200 && battle.Presentation!.NativeActionPackets!.ContactCount == 0; callback++)
         {
             battle.Tick();
         }
-        Assert.True(battle.NativeActionPackets!.ContactCount > 0);
+        Assert.True(battle.Presentation!.NativeActionPackets!.ContactCount > 0);
         Assert.Equal(0u, battle.Combatants.Single(actor => actor.Id == "party-0").NativeStatus1 & 0x800000u);
-        Assert.Equal(0u, battle.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.BattleStatuses8 & 0x800000u);
+        Assert.Equal(0u, battle.Presentation!.NativeActionPackets.ReadContact(new BattleContactOccurrence(0)).Primary.BattleStatuses8 & 0x800000u);
         BattleSession restored = RoundTrip(battle);
         bool completed = false;
         for (int callback = 0; callback < 1200; callback++)
@@ -82,7 +82,7 @@ public sealed class NativeBattleBackAttackPresentationTests
             {
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
             }
-            if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.NativeActionPackets.ActionCount == 0 && target.Sequence == 1 && (target.Flags8!.Value & rearGraphicsFlag) == 0)
+            if (battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation!.NativeActionPackets.ActionCount == 0 && target.Sequence == 1 && (target.Flags8!.Value & rearGraphicsFlag) == 0)
             {
                 completed = true;
                 break;

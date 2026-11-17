@@ -98,7 +98,7 @@ public sealed class NativeBattleSharedModelMaterialTests
         NativeBattleOriginalEffectState effect = Effect(89);
         NativeBattleRinoa89Frame frame = new(session.Presentation!.Memory, effect, session.Presentation!.NativeFileStaging!, new(1));
         NativeBattleRinoa89CaptureStep begun = NativeBattleRinoa89Capture.Begin6FBEE0(frame, graphics.PrimitiveFrame!.Pending);
-        Set(session, nameof(BattleSession.NativeEffectMemory), begun.Frame.Memory);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), begun.Frame.Memory);
         SetField(session, "nativeCrtRandom", new NativeCrtRandomState(1));
         graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = graphics.PrimitiveFrame with { Pending = begun.Ordering } };
 
@@ -135,7 +135,7 @@ public sealed class NativeBattleSharedModelMaterialTests
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400();
         process = process with { Software = process.Software! with { EnvironmentBuffers = NativeSoftwareDrawingEnvironmentBuffers.Initialize500400(new byte[92].ToImmutableArray()) } };
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory with { PrimitiveProcess = process, Textures = hosted ? Textures() : memory.Textures, Arena = NativeBattleEffectArena.Clear().Write(Coefficients, new byte[8]), ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { PrimitiveProcess = process, Textures = hosted ? Textures() : memory.Textures, Arena = NativeBattleEffectArena.Clear().Write(Coefficients, new byte[8]), ScriptedGraphics = memory.ScriptedGraphics!.InitializeGeom56BAA0() });
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess() with { ScratchMaximum = 4 };
         NativeBattleModelCpuBank bank = cpu.Cpu.GetBank(0);
         for (int row = 0; row < 4; row++)

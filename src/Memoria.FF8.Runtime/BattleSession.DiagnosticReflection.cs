@@ -7,8 +7,7 @@ public sealed record BattleDiagnosticReflection(uint ProducerAddress, long Sourc
 {
     public BattleDiagnosticReflectionTargetProvenance? TargetProvenance { get; init; }
 }
-public sealed record BattleDiagnosticReflectionTargetResolution(ushort InputMask, ushort SelectedMask, byte Modifiers, ushort AvailableMask, bool DisableAutomaticReplacement, ushort ResultMask);
-public sealed record BattleDiagnosticReflectionTargetProvenance(uint ProducerAddress, int HeaderIndex, long HeaderGeneration, int FirstContactIndex, ImmutableArray<BattleDiagnosticReflectionTargetResolution> Resolutions, ImmutableArray<byte> ContactRecipients);
+public sealed record BattleDiagnosticReflectionTargetProvenance(int HeaderIndex, long HeaderGeneration, int FirstContactIndex, ImmutableArray<byte> ContactRecipients);
 public sealed record BattleDiagnosticReflectionRejection(int? SourceHeaderIndex, long? ExpectedSourceGeneration, long? ActualSourceGeneration, long? SourceDispatchSerial, int PendingHeaderCount, int ObservedHeaderCount, BattleDiagnosticReflection? Candidate);
 
 public static class BattleDiagnosticReflectionLineage
@@ -35,40 +34,11 @@ public static class BattleDiagnosticReflectionLineage
     {
         if (proof.TargetProvenance is not { } targets)
         {
-            return child.NativeTargetMask == selectedMask;
+            return child.NativeTargetMask == (selectedMask & 0x7F);
         }
-        if (targets.ProducerAddress != 0x48E830 || targets.HeaderIndex != proof.ReflectedHeaderIndex || targets.HeaderGeneration != proof.ReflectedHeaderGeneration || targets.FirstContactIndex is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || targets.Resolutions.IsDefaultOrEmpty || targets.Resolutions.Length > NativeBattleRetainedActionPackets.ContactCapacity || targets.ContactRecipients.IsDefaultOrEmpty || targets.ContactRecipients.Length > NativeBattleRetainedActionPackets.ContactCapacity - targets.FirstContactIndex)
+        if (targets.HeaderIndex != proof.ReflectedHeaderIndex || targets.HeaderGeneration != proof.ReflectedHeaderGeneration || targets.FirstContactIndex is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || targets.ContactRecipients.IsDefaultOrEmpty || targets.ContactRecipients.Length > NativeBattleRetainedActionPackets.ContactCapacity - targets.FirstContactIndex)
         {
             return false;
-        }
-        ushort resolved = 0;
-        foreach (BattleDiagnosticReflectionTargetResolution resolution in targets.Resolutions)
-        {
-            if (resolution is null)
-            {
-                return false;
-            }
-            int modifiers = selectedMask >> 13;
-            int selected = selectedMask & 0x1FFF;
-            if ((modifiers & 1) != 0)
-            {
-                selected = resolution.SelectedMask;
-                modifiers &= ~4;
-                if (selected != 0 && ((selected & (selected - 1)) != 0 || (selected & (proof.RecipientIndex < 3 ? 7 : 120)) == 0))
-                {
-                    return false;
-                }
-            }
-            if (resolution.InputMask != selectedMask || resolution.SelectedMask != selected || resolution.Modifiers != modifiers || (resolution.AvailableMask & ~0x7F) != 0)
-            {
-                return false;
-            }
-            int result = NativeBattleTargetRequestAdapter.ResolveObservedOriginalWord(checked((ushort)(selected | (modifiers << 13))), resolution.AvailableMask, resolution.DisableAutomaticReplacement);
-            if (resolution.ResultMask != result || (result & ~0x7F) != 0)
-            {
-                return false;
-            }
-            resolved |= resolution.ResultMask;
         }
         ushort contacts = 0;
         foreach (byte recipient in targets.ContactRecipients)
@@ -77,184 +47,128 @@ public static class BattleDiagnosticReflectionLineage
             {
                 return false;
             }
-            contacts |= (ushort)(1 << recipient);
+            contacts |= checked((ushort)(1 << recipient));
         }
-        return contacts == resolved && child.NativeTargetMask == contacts;
+        return child.NativeTargetMask == contacts;
     }
 }
 
 public sealed partial class BattleSession
 {
-
-    private sealed record PendingDiagnosticReflection(int SourceHeader, long SourceGeneration, string ActorId, byte ActorIndex, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, byte SourceCommand, ushort SourceActionId, BattleNativeAction Source, BattleNativeAction Reflected, ushort TargetMask)
-    {
-        internal List<BattleDiagnosticReflectionTargetResolution>? Resolutions { get; set; }
-        internal BattleDiagnosticReflectionTargetProvenance? PublishedTargets { get; set; }
-    }
-    private Dictionary<int, long>? diagnosticHeaderGenerations;
-    private Dictionary<int, BattleDiagnosticEffectDispatch>? diagnosticHeaderDispatches;
-    private Dictionary<int, PendingDiagnosticReflection>? diagnosticReflectedHeaders;
-    private PendingDiagnosticReflection? diagnosticReflectionProduction;
-    private long diagnosticHeaderGeneration;
+    private sealed record DiagnosticReflectedCast(BattleActionPresentation Source, string ReflectorId, byte ReflectorIndex, uint ReflectorStatuses1, string RecipientId, byte RecipientIndex, BattleNativeAction Original, BattleNativeAction Reflected);
+    private bool trackDiagnosticReflections;
+    private Dictionary<BattleActionPresentation, DiagnosticReflectedCast>? diagnosticReflectedCasts;
+    private Dictionary<BattleActionPresentation, BattleDiagnosticEffectDispatch>? diagnosticReflectionSources;
 
     private static int? OriginalDiagnosticHeaderIndex(BattleActionHeaderReference? header)
     {
         return header is { } reference && reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? reference.Ordinal : null;
     }
 
-    private NativeBattleActionPacketsState RequireDiagnosticPresentationPackets()
+    private void RecordDiagnosticReflection(BattleActionPresentation source, BattleActionPresentation reflected, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction original)
     {
-        return (Presentation ?? throw new InvalidOperationException("Diagnostic packet observation requires the current presentation process.")).ActionPackets;
-    }
-
-    private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
-    {
-        if ((DiagnosticEffectDispatched is null && !ObservingDiagnosticCounter) || OriginalDiagnosticHeaderIndex(reference) is not int header)
+        if (!trackDiagnosticReflections || reflector.NativeActorIndex is not int reflectorIndex || recipient.NativeActorIndex is not int recipientIndex)
         {
             return;
         }
-        diagnosticHeaderGenerations ??= [];
-        diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
-        diagnosticHeaderDispatches?.Remove(header);
-        diagnosticReflectedHeaders?.Remove(header);
-        if (diagnosticReflectionProduction is { } proof && RequireDiagnosticPresentationPackets().ReadHeader(reference).Command == 247)
-        {
-            diagnosticReflectedHeaders ??= [];
-            diagnosticReflectedHeaders[header] = proof;
-        }
+        diagnosticReflectedCasts ??= new(ReferenceEqualityComparer.Instance);
+        diagnosticReflectedCasts.Add(reflected, new(source, reflector.Id, checked((byte)reflectorIndex), reflector.NativeStatus1, recipient.Id, checked((byte)recipientIndex), original,
+            reflected.NativeAction ?? throw new InvalidOperationException("A prepared reflection requires its installed action.")));
     }
 
-    private void ResetDiagnosticReflectionHeaders(bool retainHostedPending = false)
+    private void PublishDiagnosticReflectionCandidates(BattleSession candidate)
     {
-        diagnosticCounterContacts.Clear();
-        if (diagnosticHeaderGenerations is null)
+        if (candidate.diagnosticReflectedCasts is not { } staged)
         {
             return;
         }
-        if (retainHostedPending)
+        diagnosticReflectedCasts ??= new(ReferenceEqualityComparer.Instance);
+        foreach ((BattleActionPresentation command, DiagnosticReflectedCast proof) in staged)
         {
-            foreach (int header in diagnosticHeaderGenerations.Keys.ToArray())
-            {
-                if (!OwnsPendingDiagnosticHostedHeader(header))
-                {
-                    diagnosticHeaderGenerations.Remove(header);
-                }
-            }
+            diagnosticReflectedCasts.Add(command, proof);
         }
-        else
-        {
-            diagnosticHeaderGenerations.Clear();
-        }
-        diagnosticHeaderDispatches?.Clear();
-        diagnosticReflectedHeaders?.Clear();
-        diagnosticReflectionProduction = null;
     }
 
-    private bool OwnsPendingDiagnosticHostedHeader(int header)
+    private static ExpandedHostedInvocation? ReadDiagnosticBoundCast(ExpandedHostedInvocation? current, BattleActionHeaderReference? entered)
     {
-        for (int i = expandedOperationCursor.Next; i < expandedOperationCursor.Operations.Length; i++)
-        {
-            if (expandedOperationCursor.Operations[i] is ExpandedHostedInvocation { HeaderReference: { } reference } invocation &&
-                header >= reference.Ordinal && header <= reference.Ordinal + invocation.FollowingCasts.Length)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private PendingDiagnosticReflection? PrepareDiagnosticReflection(BattleActionHeaderReference reference, BattleCombatant actor, BattleCombatant reflector, BattleCombatant recipient, BattleNativeAction source, BattleNativeAction reflected, BattleTargetRequest targets)
-    {
-        if (DiagnosticEffectDispatched is null || OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
+        if (current?.HeaderReference is not { } first || entered is not { } reference)
         {
             return null;
         }
-        NativeBattleActionHeaderSlot original = RequireDiagnosticPresentationPackets().ReadHeader(reference);
-        return new(header, generation, actor.Id, checked((byte)actor.RequireNativeActorIndex()), reflector.Id, checked((byte)reflector.RequireNativeActorIndex()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), original.Command, original.Action, source, reflected, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native reflection evidence requires its original target word."));
+        int offset = reference.Ordinal - first.Ordinal;
+        if (offset == 0)
+        {
+            return current;
+        }
+        return offset > 0 && offset <= current.FollowingCasts.Length ? current.FollowingCasts[offset - 1] : null;
     }
 
-    private void ObserveDiagnosticReflectionTargetResolution(ushort input, int selected, int modifiers, int available, int result)
-    {
-        if (diagnosticReflectionProduction is not { } pending || nativeActionScratch.Command != 247)
-        {
-            return;
-        }
-        pending.Resolutions ??= [];
-        if (pending.Resolutions.Count < NativeBattleRetainedActionPackets.ContactCapacity)
-        {
-            pending.Resolutions.Add(new(input, checked((ushort)selected), checked((byte)modifiers), checked((ushort)available), nativeScriptState.DisableAutomaticTargetReplacement, checked((ushort)result)));
-        }
-    }
-
-    private void ObserveDiagnosticPublishedReflectionHeader(BattleActionHeaderReference reference)
-    {
-        if (OriginalDiagnosticHeaderIndex(reference) is not int header || diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.TryGetValue(header, out var pending) || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation))
-        {
-            return;
-        }
-        NativeBattleActionHeaderSlot slot = RequireDiagnosticPresentationPackets().ReadHeader(reference);
-        if (slot.FirstContact.Ordinal >= NativeBattleContactAddress.NativeRowCount)
-        {
-            return;
-        }
-        int firstContact = slot.FirstContact.Ordinal;
-        int count = slot.ReadContactCount();
-        ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
-        for (int index = 0; index < count; index++)
-        {
-            BattleContactCursor cursor = slot.FirstContact.Advance(index);
-            BattleModelOwner owner = RequireDiagnosticPresentationPackets().ReadContact(cursor).Primary.Recipient;
-            if (cursor.Ordinal >= NativeBattleContactAddress.NativeRowCount || !RequireDiagnosticPresentationPackets().ModelAliases.TryEncodeExact(owner, out byte originalOwner))
-            {
-                return;
-            }
-            recipients.Add(originalOwner);
-        }
-        pending.PublishedTargets = new(0x48E830, header, generation, firstContact, pending.Resolutions?.ToImmutableArray() ?? [], recipients.MoveToImmutable());
-    }
-
-    private BattleDiagnosticEffectDispatch CompleteDiagnosticReflection(BattleDiagnosticEffectDispatch dispatch)
-    {
-        if (dispatch.NativeHeaderIndex is not int header || diagnosticHeaderGenerations is not { } generations || !generations.TryGetValue(header, out long generation) || generation != dispatch.NativeHeaderGeneration)
-        {
-            return RejectDiagnosticReflection(dispatch, "CHILD_HEADER_GENERATION_MISSING");
-        }
-        if (dispatch.NativeCommand == 247)
-        {
-            if (diagnosticReflectedHeaders is not { } reflectedHeaders || !reflectedHeaders.Remove(header, out var pending))
-            {
-                dispatch = RejectDiagnosticReflection(dispatch, "PENDING_HEADER_ABSENT");
-            }
-            else if (!generations.TryGetValue(pending.SourceHeader, out long sourceGeneration))
-            {
-                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_HEADER_GENERATION_MISSING", pending);
-            }
-            else if (sourceGeneration != pending.SourceGeneration)
-            {
-                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_HEADER_GENERATION_STALE", pending, sourceGeneration);
-            }
-            else if (diagnosticHeaderDispatches is not { } dispatches || !dispatches.TryGetValue(pending.SourceHeader, out var source))
-            {
-                dispatch = RejectDiagnosticReflection(dispatch, "SOURCE_DISPATCH_MISSING", pending, sourceGeneration);
-            }
-            else
-            {
-                BattleDiagnosticReflection proof = new(0x487DF0, source.Serial, pending.SourceHeader, pending.SourceGeneration, header, generation, pending.ActorId, pending.ActorIndex, pending.ReflectorId, pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, pending.SourceCommand, pending.SourceActionId, pending.Source.MagicId, pending.Source.AttackType, pending.Source.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, pending.Reflected.TargetFlags.GetValueOrDefault(), pending.TargetMask) { TargetProvenance = pending.PublishedTargets };
-                BattleDiagnosticEffectDispatch candidate = dispatch with { Reflection = proof };
-                dispatch = BattleDiagnosticReflectionLineage.Matches(candidate, source) ? candidate : RejectDiagnosticReflection(dispatch, "LINEAGE_FIELDS_REJECTED", pending, sourceGeneration, source.Serial, proof);
-            }
-        }
-        diagnosticHeaderDispatches ??= [];
-        diagnosticHeaderDispatches[header] = dispatch;
-        return dispatch;
-    }
-
-    private BattleDiagnosticEffectDispatch RejectDiagnosticReflection(BattleDiagnosticEffectDispatch dispatch, string reason, PendingDiagnosticReflection? pending = null, long? sourceGeneration = null, long? sourceSerial = null, BattleDiagnosticReflection? candidate = null)
+    private BattleDiagnosticEffectDispatch CompleteDiagnosticReflection(BattlePresentationProcess process, BattlePresentationEffectObservation observation, ExpandedHostedInvocation? cast, BattleDiagnosticEffectDispatch dispatch)
     {
         if (dispatch.NativeCommand != 247)
         {
+            if (cast is not null && diagnosticReflectedCasts?.Values.Any(proof => ReferenceEquals(proof.Source, cast.Command)) == true)
+            {
+                diagnosticReflectionSources ??= new(ReferenceEqualityComparer.Instance);
+                diagnosticReflectionSources[cast.Command] = dispatch;
+            }
             return dispatch;
         }
-        return dispatch with { ReflectionRejectionReason = reason, ReflectionRejection = new(pending?.SourceHeader, pending?.SourceGeneration, sourceGeneration, sourceSerial, diagnosticReflectedHeaders?.Count ?? 0, diagnosticHeaderDispatches?.Count ?? 0, candidate) };
+        if (cast is null || diagnosticReflectedCasts is not { } staged || !staged.Remove(cast.Command, out DiagnosticReflectedCast? pending))
+        {
+            return Reject("PENDING_HEADER_ABSENT");
+        }
+        if (diagnosticReflectionSources is not { } sources || !sources.TryGetValue(pending.Source, out BattleDiagnosticEffectDispatch? source) ||
+            source.NativeHeaderIndex is not int sourceHeader || source.NativeHeaderGeneration is not long sourceGeneration)
+        {
+            return Reject("SOURCE_DISPATCH_MISSING");
+        }
+        if (!staged.Values.Any(proof => ReferenceEquals(proof.Source, pending.Source)))
+        {
+            sources.Remove(pending.Source);
+        }
+        long? liveSourceGeneration = process.ReadDiagnosticCounterHeaderGeneration(sourceHeader);
+        if (liveSourceGeneration != sourceGeneration)
+        {
+            return Reject("SOURCE_HEADER_GENERATION_STALE", source, liveSourceGeneration);
+        }
+        if (dispatch.NativeHeaderIndex is not int headerIndex || dispatch.NativeHeaderGeneration is not long headerGeneration ||
+            dispatch.NativeActorIndex is not byte actorIndex || dispatch.ActorId is not { } actorId || observation.Header is not { } header ||
+            source.NativeCommand is not byte sourceCommand || source.ActionId is not int sourceAction || header.FirstContact.Ordinal >= NativeBattleContactAddress.NativeRowCount)
+        {
+            return Reject("CHILD_HEADER_GENERATION_MISSING", source, liveSourceGeneration);
+        }
+        NativeBattleActionPacketsState packets = process.ActionPackets;
+        int count = header.ReadContactCount();
+        ImmutableArray<byte>.Builder recipients = ImmutableArray.CreateBuilder<byte>(count);
+        for (int index = 0; index < count; index++)
+        {
+            BattleContactCursor cursor = header.FirstContact.Advance(index);
+            if (cursor.Ordinal >= NativeBattleContactAddress.NativeRowCount || !packets.ModelAliases.TryEncodeExact(packets.ReadContact(cursor).Primary.Recipient, out byte originalRecipient))
+            {
+                return Reject("CHILD_CONTACT_NOT_ORIGINAL", source, liveSourceGeneration);
+            }
+            recipients.Add(originalRecipient);
+        }
+        byte targetFlags = pending.Reflected.TargetFlags.GetValueOrDefault();
+        ushort selected = checked((ushort)((1 << pending.RecipientIndex) | ((targetFlags & 1) != 0 ? 0x4000 : 0) | ((targetFlags & 2) != 0 ? 0x2000 : 0)));
+        BattleDiagnosticReflection evidence = new(0x487DF0, source.Serial, sourceHeader, sourceGeneration, headerIndex, headerGeneration, actorId, actorIndex, pending.ReflectorId,
+            pending.ReflectorIndex, pending.ReflectorStatuses1, pending.RecipientId, pending.RecipientIndex, sourceCommand, checked((ushort)sourceAction), pending.Original.MagicId,
+            pending.Original.AttackType, pending.Original.AttackFlags, pending.Reflected.ActionId, pending.Reflected.MagicId, targetFlags, selected)
+        {
+            TargetProvenance = new(headerIndex, headerGeneration, header.FirstContact.Ordinal, recipients.MoveToImmutable())
+        };
+        BattleDiagnosticEffectDispatch linked = dispatch with { Reflection = evidence };
+        return BattleDiagnosticReflectionLineage.Matches(linked, source) ? linked : Reject("LINEAGE_FIELDS_REJECTED", source, liveSourceGeneration, evidence);
+
+        BattleDiagnosticEffectDispatch Reject(string reason, BattleDiagnosticEffectDispatch? sourceDispatch = null, long? activeGeneration = null, BattleDiagnosticReflection? evidence = null)
+        {
+            return dispatch with
+            {
+                ReflectionRejectionReason = reason,
+                ReflectionRejection = new(sourceDispatch?.NativeHeaderIndex, sourceDispatch?.NativeHeaderGeneration, activeGeneration, sourceDispatch?.Serial,
+                    diagnosticReflectedCasts?.Count ?? 0, diagnosticReflectionSources?.Count ?? 0, evidence)
+            };
+        }
     }
 }

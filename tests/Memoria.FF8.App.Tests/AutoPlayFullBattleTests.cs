@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -33,7 +34,7 @@ public sealed class AutoPlayBattlePolicyTests
 public sealed class AutoPlayFullBattleTests
 {
     [Fact]
-    public void PendingNativeEncounterUsesOrdinaryCommandsRestoresAndReturnsItsActualResultOnce()
+    public void PendingNativeEncounterUsesOrdinaryCommandsForksAndReturnsItsActualResultOnce()
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "main.zzz")), "Select Remastered resources for this reached full-combat check.");
@@ -59,15 +60,13 @@ public sealed class AutoPlayFullBattleTests
                 Assert.True(session.State.FullBattlePlaythrough);
                 if (!restored && battle.ActiveAction is not null)
                 {
-                    string path = TestResources.ArtifactFile("native-active-battle.ff8");
-                    session.Save(path, compact: true);
-                    GameSession second = new(GameSession.Load(path));
-                    using GameWorld replay = new(second, directory, validateWorldPresentation: false);
-                    replay.EnsureField();
+                    BattleSession fork = battle.ForkForContinuation();
                     BattleInput input = AutoPlayController.PlanBattleInput(battle);
-                    Assert.Equal(input, AutoPlayController.PlanBattleInput(replay.Battle!));
-                    Assert.Equal(world.ApplyBattleInput(input), replay.ApplyBattleInput(input));
-                    AssertStateEqual(session.PrepareSnapshot(), second.PrepareSnapshot());
+                    Assert.Equal(input, AutoPlayController.PlanBattleInput(fork));
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    fork.Tick();
+                    AssertStateEqual(battle.Capture(), fork.Capture());
+                    Assert.Equal(battle.Presentation!.Graphics.Callback, fork.Presentation!.Graphics.Callback);
                     restored = true;
                 }
                 if (battle.CanReturnToField)
@@ -98,7 +97,51 @@ public sealed class AutoPlayFullBattleTests
         Assert.Fail("The reached native encounter did not return within the bounded ordinary-command continuation.");
     }
 
-    private static void AssertStateEqual(GameState first, GameState second)
+    [Fact]
+    public void Host_elapsed_is_used_once_and_explicit_callbacks_resume_after_autoplay()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameSession session = new(ExpandedBattleEffectMatrixTests.PrepareField(directory, assets.ReadColdProcessNativeBattleMemory()));
+        session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
+        using GameWorld world = new(session, directory, sharedAssets: assets);
+        ExpandedBattleInstalledEntry.Prepare(world, session, _ => { }, allies: 3, additionalEnemies: 0);
+        string output = TestResources.ArtifactFile("autoplay-battle-elapsed");
+        AutoPlayController controller = new(session, () => world, _ => throw new InvalidOperationException("The live entry must keep its source world."), output, deadlineTime: new PausedInspectionClock(), fullBattlePlaythroughOverride: true);
+        controller.StartFromCurrentState();
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: ExpandedBattleInstalledEntry.Seed));
+        BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
+        BattlePresentationProcess presentation = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
+        Assert.False(presentation.EntryReady);
+        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromMilliseconds(10));
+        Assert.Equal(0L, presentation.Graphics.Callback);
+
+        GameplayClock clock = new();
+        clock.Configure(3, 200);
+        int submissions = 0;
+        controller.Advance(256, active =>
+        {
+            Assert.Same(battle, active);
+            submissions++;
+            active.AdvanceNativeGraphicsPresentation(clock.Advance(TimeSpan.FromMilliseconds(30), session.State.Scene, battle: true));
+            world.SynchronizeBattlePresentation();
+        });
+
+        Assert.Null(controller.Error);
+        Assert.Equal(1, submissions);
+        Assert.Equal(TimeSpan.FromMilliseconds(60), clock.Total);
+        Assert.Equal(1L, presentation.Graphics.Callback);
+        BattleSession fork = battle.ForkForContinuation();
+        controller.Stop();
+        world.ApplyBattleInput(new(BattleInputKind.Tick));
+        fork.Tick();
+        Assert.Equal(2L, presentation.Graphics.Callback);
+        Assert.Equal(presentation.Graphics.Callback, fork.Presentation!.Graphics.Callback);
+        Assert.Equal(presentation.Graphics.PresentationSubticks, fork.Presentation.Graphics.PresentationSubticks);
+        Assert.Equal(presentation.Graphics.PresentationHalfSubtick, fork.Presentation.Graphics.PresentationHalfSubtick);
+    }
+
+    private static void AssertStateEqual(BattleSnapshot first, BattleSnapshot second)
     {
         JsonElement expected = JsonSerializer.SerializeToElement(first);
         JsonElement actual = JsonSerializer.SerializeToElement(second);

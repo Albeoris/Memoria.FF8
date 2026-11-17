@@ -36,7 +36,7 @@ public sealed class NativeBattleRecover93PresentationTests
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
-        NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks physical action packets.");
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -53,7 +53,7 @@ public sealed class NativeBattleRecover93PresentationTests
         Assert.Equal((byte)1, (byte)(contact.Primary.HitFlags & 1));
         Assert.Null(contact.Secondary);
         Assert.Equal((byte)4, ReadOriginalModelCell(graphics, 0).ModelId4);
-        ushort initialHp = source.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
+        ushort initialHp = source.ReadFixturePresentation().NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
         Assert.Equal((ushort)(revival ? 0 : 100), initialHp);
         ushort expectedHp = (ushort)(initialHp + 7);
         if (revival)
@@ -64,7 +64,7 @@ public sealed class NativeBattleRecover93PresentationTests
             Assert.Equal(0, status.Saved & 1);
             Assert.Equal((ushort)(status.Saved | 1), status.Presentation.Saved);
             Assert.Equal(0, contact.Primary.SavedStatuses4 & 1);
-            Assert.Equal((ushort)100, source.NativePartyPresentation.Rows[0]!.HitPoints);
+            Assert.Equal((ushort)100, source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         }
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([effectId])[effectId - 1];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
@@ -125,8 +125,8 @@ public sealed class NativeBattleRecover93PresentationTests
                 {
                     completions++;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
+                ushort previousHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[targetIndex]!.HitPoints;
                 if (previousHp != hp)
                 {
                     Assert.Equal(initialHp, previousHp);
@@ -137,7 +137,7 @@ public sealed class NativeBattleRecover93PresentationTests
                 Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, targetIndex).ActiveStagedResourceRow100);
                 if (revival)
                 {
-                    Assert.Equal((ushort)100, current.NativePartyPresentation.Rows[0]!.HitPoints);
+                    Assert.Equal((ushort)100, current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
                 }
                 sawModelTim |= current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
                 if (fadeCounter is >= 35 and <= 76)
@@ -187,7 +187,7 @@ public sealed class NativeBattleRecover93PresentationTests
             Assert.Equal(1536, stagePeak);
             Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
             Assert.Equal(stageHighBytes!, battle.Presentation!.Stage.Groups.Select(group => group.ColorFlags).ToArray());
-            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[targetIndex]!.HitPoints);
+            Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[targetIndex]!.HitPoints);
             if (revival)
             {
                 BattleCombatantSnapshot target = battle.Capture().Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == targetIndex);

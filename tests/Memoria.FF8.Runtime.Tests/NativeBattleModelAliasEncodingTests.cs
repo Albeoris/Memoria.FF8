@@ -115,6 +115,48 @@ public sealed class NativeBattleModelAliasEncodingTests
         Assert.Equal(Enemy, before.DecodeLiteral(6));
     }
 
+    [Fact]
+    public void Authored_enemy_operands_stay_local_when_one_identical_source_group_rebinds()
+    {
+        BattleEnemyActorModel first = new(new("first"));
+        BattleEnemyActorModel second = new(new("second"));
+        BattleEnemyActorModel replacement = new(new("replacement"));
+        BattleSourceGroupId firstGroup = new(8);
+        BattleSourceGroupId secondGroup = new(9);
+        string formationHash = new('A', 64);
+        BattleDefinition definition = new()
+        {
+            Combatants = [new() { Id = first.Actor.ActorId, Name = "First", SceneSlot = 8, ModelId = 10 }, new() { Id = second.Actor.ActorId, Name = "Second", SceneSlot = 9, ModelId = 10 }],
+            AddedEnemySources = ImmutableSortedDictionary<int, BattleEnemyRosterSource>.Empty
+                .Add(8, new(87, 0, formationHash) { Group = firstGroup, OriginalEnemyOrdinal = 0 })
+                .Add(9, new(87, 0, formationHash) { Group = secondGroup, OriginalEnemyOrdinal = 0 })
+        };
+        BattleSourceGrouping sources = new(definition);
+        NativeBattleGraphicsModel row = new(0);
+        NativeBattleModelSlot operand = NativeBattleModelSlot.Decode(3);
+        NativeBattleModelBoundary boundary = new(Enumerable.Repeat(row, 7));
+        BattleActorModels models = new([new(first, row), new(second, row)]);
+        (boundary, models) = boundary.BindOriginalSlot(operand, Enemy, models);
+        NativeBattleModelAliases physical = boundary.CaptureAliases(models);
+        Assert.Equal(firstGroup, sources.FindGroup(first));
+        Assert.Equal(secondGroup, sources.FindGroup(second));
+
+        NativeBattleModelAliases firstView = sources.Bind(firstGroup, models, boundary, []).ApplyAuthoredOperands(physical);
+        NativeBattleModelAliases secondView = sources.Bind(secondGroup, models, boundary, []).ApplyAuthoredOperands(physical);
+        Assert.Equal(first, firstView.DecodeAuthoredOperand(3));
+        Assert.Equal(second, secondView.DecodeAuthoredOperand(3));
+        Assert.Equal(Enemy, firstView.DecodeLiteral(3));
+
+        BattleActorModels nextModels = models.Remove(first).Add(replacement, row);
+        NativeBattleModelAliases nextPhysical = boundary.CaptureAliases(nextModels);
+        NativeBattleModelAliases nextFirst = sources.Bind(firstGroup, nextModels, boundary, [new(replacement, 0, 26, operand)]).ApplyAuthoredOperands(nextPhysical);
+        NativeBattleModelAliases nextSecond = sources.Bind(secondGroup, nextModels, boundary, []).ApplyAuthoredOperands(nextPhysical);
+        Assert.Equal(replacement, nextFirst.DecodeAuthoredOperand(3));
+        Assert.Equal(second, nextSecond.DecodeAuthoredOperand(3));
+        Assert.Equal(Enemy, nextFirst.DecodeLiteral(3));
+        Assert.Equal(first, firstView.DecodeAuthoredOperand(3));
+    }
+
     private static NativeBattleModelAliases OriginalAliases() =>
         new(new([Party, Enemy]), [(NativeBattleModelSlot.Decode(2), Party), (NativeBattleModelSlot.Decode(6), Enemy)]);
 }

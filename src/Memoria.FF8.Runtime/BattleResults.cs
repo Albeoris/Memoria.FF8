@@ -95,9 +95,9 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         }
         Encounter.Validate();
         if (PartyOccupancyChanges.IsDefault || PartyOccupancyChanges.Any(change => change is null || change.Slot.Side != BattleSide.Allies ||
-            change.Slot.Position >= ExpandedBattleFormation.MaximumAllies || change.OutgoingRow >= NativeCharacterVitals.ExtendedRecordCount ||
+            change.Slot.Position >= ExpandedBattleFormation.MaximumAllies || change.OutgoingRow >= NativeCharacterVitals.ExtendedRecordCount || (change.OutgoingStatus & 0x20) != 0 ||
             change.IncomingRow is byte incoming && (Encounter.Formation != 511 || incoming >= NativeCharacterVitals.NativeRecordCount || incoming == change.OutgoingRow)) ||
-            !PartyOccupancyChanges.IsEmpty && RewardPolicy != BattleRewardPolicy.NativeCombat)
+            !PartyOccupancyChanges.IsEmpty && RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly)
         {
             throw new InvalidDataException("Battle outcome requires ordered native party occupancy facts.");
         }
@@ -180,7 +180,15 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
         EncounterTerminal?.Validate(this);
-        HashSet<byte> departed = PartyOccupancyChanges.Select(change => change.OutgoingRow).ToHashSet();
+        HashSet<byte> departed = [];
+        foreach (BattlePartyOccupancyChange change in PartyOccupancyChanges)
+        {
+            departed.Add(change.OutgoingRow);
+            if (change.IncomingRow is byte incoming)
+            {
+                departed.Remove(incoming);
+            }
+        }
         bool partyCanAct = Party.Any(member => !departed.Contains(member.Row) && (member.StatusAfter & 5) == 0);
         if (Outcome == BattleOutcome.Victory && EncounterTerminal is null && !partyCanAct || Outcome == BattleOutcome.Defeat && partyCanAct)
         {

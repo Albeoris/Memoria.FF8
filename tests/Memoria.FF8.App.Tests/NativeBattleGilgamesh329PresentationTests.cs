@@ -284,12 +284,12 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                     NativeBattleModulePoolTask advancedContact = Assert.Single(after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => (task.Flags & 1) != 0 && task.Callback == attackCallback);
                     Assert.Equal((ushort)(contactCounter + 1), advancedContact.ReadWord(12));
                     NativeBattleEffectParameters parameters = effect!.Parameters!;
-                    NativeBattleActionHeaderSlot header = before.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
-                    NativeBattleContactHalf half = before.NativeActionPackets.ReadContact(header.FirstContact).Primary;
-                    Assert.Equal(half.Sequence, ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics!, ReadOriginalModelOperand(before.NativeActionPackets.ModelAliases, half.Recipient)).Sequence);
+                    NativeBattleActionHeaderSlot header = before.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(parameters.Header.Ordinal));
+                    NativeBattleContactHalf half = before.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact).Primary;
+                    Assert.Equal(half.Sequence, ReadOriginalModelCell(after.ReadFixturePresentation().NativeGraphics!, ReadOriginalModelOperand(before.ReadFixturePresentation().NativeActionPackets!.ModelAliases, half.Recipient)).Sequence);
                     Assert.Equal(1, createdText);
                     Assert.Equal(initialTargetHp - expectedDamage!.Value, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
-                    contactsPresented.Add(new { CounterBefore = contactCounter, CounterAfter = contactCounter + 1, ActorIndex = ReadOriginalModelOperand(before.NativeActionPackets.ModelAliases, half.Recipient), half.Sequence, half.Amount6, DamageTextPublications = createdText });
+                    contactsPresented.Add(new { CounterBefore = contactCounter, CounterAfter = contactCounter + 1, ActorIndex = ReadOriginalModelOperand(before.ReadFixturePresentation().NativeActionPackets!.ModelAliases, half.Recipient), half.Sequence, half.Amount6, DamageTextPublications = createdText });
                     sawContactPresentation = true;
                 }
                 if (after.ReadFixturePresentation().NativeEffectMemory?.Gilgamesh?.VibrationHandle is int currentHandle && currentHandle > 0 && after.NativeVibrationProcess!.IsPlaying(currentHandle))
@@ -447,10 +447,10 @@ public sealed class NativeBattleGilgamesh329PresentationTests
 
         void ObserveFormula(BattleSnapshot after)
         {
-            NativeBattleActionHeaderSlot? producedHeader = after.NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
+            NativeBattleActionHeaderSlot? producedHeader = after.ReadFixturePresentation().NativeActionPackets!.PublishedHeaders().Select(header => header.Slot).FirstOrDefault(header => header.Command == 245 && header.Action == selectedAction && header.Effect == selectedEffect);
             if (producedHeader?.FirstContact is BattleContactCursor contactIndex)
             {
-                NativeBattleContactPacket contact = after.NativeActionPackets.ReadContact(contactIndex);
+                NativeBattleContactPacket contact = after.ReadFixturePresentation().NativeActionPackets!.ReadContact(contactIndex);
                 if (!sawFormulaHeader)
                 {
                     Assert.Equal(JsonSerializer.Serialize(lastTickRandomAfterOneDraw), JsonSerializer.Serialize(after.Random));
@@ -460,7 +460,7 @@ public sealed class NativeBattleGilgamesh329PresentationTests
                     expectedDamage = Math.Clamp(rawDamage, -9999, 9999);
                     Assert.True(expectedDamage > 1);
                 }
-                Assert.Equal((byte)3, ReadOriginalModelOperand(after.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+                Assert.Equal((byte)3, ReadOriginalModelOperand(after.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
                 Assert.Equal((ushort)expectedDamage!.Value, contact.Primary.Amount6);
                 Assert.Null(contact.Secondary);
                 Assert.Equal(initialTargetHp - expectedDamage.Value, after.Combatants.Single(actor => actor.Id == targetId).CurrentHp);

@@ -147,7 +147,7 @@ internal static class NativeBattleEffectFamilyRunner
             NativeBattleDescriptorState descriptors = battle.Presentation!.Graphics.Descriptors;
             Require(descriptors.Queue.Count(slot => descriptors.Packets[slot].Command == 104) == 1, "The fixture requires exactly one live action104 descriptor.");
             NativeBattleDescriptorPacket descriptor = descriptors.Packets[descriptors.Queue.Single(slot => descriptors.Packets[slot].Command == 104)];
-            ValidateActionIdentity(descriptor, source.NativeActionPackets, source.ReadFixturePresentation().NativeGraphics!.ActionGraphics, item);
+            ValidateActionIdentity(descriptor, source.ReadFixturePresentation().NativeActionPackets!, source.ReadFixturePresentation().NativeGraphics!.ActionGraphics, item);
             passed.Add(stage);
             BattleScenePresentation scene = new(assets, source.Definition);
             if (phase == "cold")

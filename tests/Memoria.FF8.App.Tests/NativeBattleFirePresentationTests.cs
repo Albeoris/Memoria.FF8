@@ -75,13 +75,13 @@ public sealed class NativeBattleFirePresentationTests
         {
             AssertNativeFileIoHostPump(before);
         }
-        NativeBattleActionPacketsState packets = battle.NativeActionPackets;
+        NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.ReadFixturePresentation().NativeGraphics!;
         (NativeBattleDescriptorState descriptors, _) = graphics.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + (uint)header.Ordinal * 20));
-        battle = BattleSession.Restore((before with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore((before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors } }));
         BattleScenePresentation scene = new(assets, definition);
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
@@ -261,7 +261,7 @@ public sealed class NativeBattleFirePresentationTests
         probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
         Assert.Equal(callback + 1, probe.Presentation!.Graphics.Callback);
         Assert.Equal((short)1, probe.Presentation!.NativeFileIo!.Rows[0].Countdown);
-        Assert.Equal(-1, probe.NativeEffectIoResult);
+        Assert.Equal(-1, probe.Presentation!.NativeEffectIoResult);
         string mid = JsonSerializer.Serialize(probe.Capture());
         probe.Tick();
         Assert.Equal(mid, JsonSerializer.Serialize(probe.Capture()));
@@ -271,7 +271,7 @@ public sealed class NativeBattleFirePresentationTests
             probe.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(probe));
             clone.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(clone));
             Assert.Equal(JsonSerializer.Serialize(probe.Capture()), JsonSerializer.Serialize(clone.Capture()));
-            Assert.Equal(step == 0 ? -1 : 40960, probe.NativeEffectIoResult);
+            Assert.Equal(step == 0 ? -1 : 40960, probe.Presentation!.NativeEffectIoResult);
         }
         Assert.Equal(callback + 3, probe.Presentation!.Graphics.Callback);
         Assert.Equal((short)0, probe.Presentation!.NativeFileIo.ActiveCount);
@@ -282,7 +282,7 @@ public sealed class NativeBattleFirePresentationTests
         paused.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(paused));
         Assert.Equal(callback, paused.Presentation!.Graphics.Callback);
         Assert.Equal((short)2, paused.Presentation!.NativeFileIo!.Rows[0].Countdown);
-        Assert.Equal(-1, paused.NativeEffectIoResult);
+        Assert.Equal(-1, paused.Presentation!.NativeEffectIoResult);
         BattleSession old = BattleSession.Restore(entry.WithFixturePresentation(facts => facts with { NativeFileIo = null }));
         Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(old)));
         Assert.Null(old.Presentation?.NativeFileIo);

@@ -49,11 +49,9 @@ public sealed class CrossEditionBattleReturnTests
         Assert.True(source.Battle!.NativeEntryReady);
         GameState pending = sourceSession.PrepareSnapshot();
         BattleSnapshot entry = pending.Battle!;
-        BattleSnapshot defeated = entry with
+        BattleSnapshot defeated = (entry with
         {
-            Combatants = entry.Combatants.Select(actor => entry.Definition.Combatants.Any(definition => definition.Id == actor.Id && definition.IsPlayer) ? actor with { CurrentHp = 0, NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | 1) } } : actor).ToArray(),
-            NativePartyPresentation = entry.NativePartyPresentation! with { Rows = entry.NativePartyPresentation.Rows.Select(row => row is null ? null : row with { HitPoints = 0, DisplayedHitPointsQ12 = 0 }).ToImmutableArray() }
-        };
+            Combatants = entry.Combatants.Select(actor => entry.Definition.Combatants.Any(definition => definition.Id == actor.Id && definition.IsPlayer) ? actor with { CurrentHp = 0, NativeStatus = actor.NativeStatus! with { Saved = (ushort)(actor.NativeStatus.Saved | 1) } } : actor).ToArray()        }).WithFixturePresentation(facts => facts with { NativePartyPresentation = entry.ReadFixturePresentation().NativePartyPresentation! with { Rows = entry.ReadFixturePresentation().NativePartyPresentation!.Rows.Select(row => row is null ? null : row with { HitPoints = 0, DisplayedHitPointsQ12 = 0 }).ToImmutableArray() } });
         pending = pending with { Battle = defeated };
         GameSession physicalSession = new(pending);
         using GameWorld physicalSource = new(physicalSession, directory, sharedAssets: sourceAssets);

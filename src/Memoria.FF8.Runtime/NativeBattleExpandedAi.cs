@@ -9,20 +9,22 @@ public enum ExpandedAiAdmission
     RequiresOriginalSlots
 }
 
+public readonly record struct NativeBattleAiAllocationSource(int SceneSlot, byte? RequestedModelOperand);
+
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, bool requireValidInstalledSource = false, ISet<ushort>? reachedEffects = null, ISet<byte>? originalModelOperands = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, bool requireValidInstalledSource = false, ISet<ushort>? reachedEffects = null, ISet<byte>? originalModelOperands = null, ISet<NativeBattleAiAllocationSource>? allocationSources = null)
     {
-        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, requireValidInstalledSource, reachedEffects, originalModelOperands, default);
+        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, requireValidInstalledSource, reachedEffects, originalModelOperands, allocationSources, default);
     }
 
     internal static ExpandedAiAdmission EvaluateRebound(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, string> references)
     {
-        return Evaluate(program, actions, formation, null, false, null, null, null, null, false, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
+        return Evaluate(program, actions, formation, null, false, null, null, null, null, false, null, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
     }
 
-    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, bool requireValidInstalledSource, ISet<ushort>? reachedEffects, ISet<byte>? originalModelOperands, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
+    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, bool requireValidInstalledSource, ISet<ushort>? reachedEffects, ISet<byte>? originalModelOperands, ISet<NativeBattleAiAllocationSource>? allocationSources, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
     {
         if (program.Scripts is not { Length: 5 } || program.Scripts.Any(script => script is null) ||
             program.LevelBand is < 0 or > 2 || program.Abilities is not { Length: 48 } || program.Abilities.Any(ability => ability is null) || program.Texts is null)
@@ -97,6 +99,7 @@ public static class NativeBattleExpandedAi
                 if (opcode is 31 or 52 or 59)
                 {
                     reserveSceneSlots?.Add(instruction[0]);
+                    allocationSources?.Add(new(instruction[0], opcode == 59 && instruction[1] != 0 ? instruction[1] : null));
                 }
                 if (originalModelOperands is not null)
                 {

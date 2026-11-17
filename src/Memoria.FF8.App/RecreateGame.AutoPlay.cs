@@ -120,7 +120,7 @@ internal sealed partial class RecreateGame
             return true;
         }
         autoPlayAdvancedThisFrame = true;
-        autoPlay.Advance(256);
+        autoPlay.Advance(256, active => AdvanceAutoPlayBattlePresentation(active, gameTime.ElapsedGameTime));
         fieldSeconds = 0;
         presentedDialogue = null;
         dialoguePages.Clear();
@@ -128,6 +128,26 @@ internal sealed partial class RecreateGame
         ShowAutoPlayFailure();
         fieldAudio?.Update();
         return true;
+    }
+
+    private void AdvanceAutoPlayBattlePresentation(BattleSession active, TimeSpan presentationElapsed)
+    {
+        TimeSpan elapsed = gameplayClock.Advance(presentationElapsed, session.State.Scene, events?.RequiresRealTimeFieldInput == true, true);
+        using IDisposable visibleArea = BeginBattleUpdateVisibleArea();
+        AdvanceMeasuredBattlePresentation(active, elapsed);
+        battlePresentationUpdated = true;
+        presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
+        world!.SynchronizeBattlePresentation();
+        if (ReferenceEquals(active, world.Battle))
+        {
+            EnsureBattleHud(active);
+            battleHud!.AdvancePresentation(elapsed);
+        }
+        else
+        {
+            SynchronizeBattleAudio(active);
+        }
+        SynchronizeBattleAudio();
     }
 
     private void ShowAutoPlayFailure()

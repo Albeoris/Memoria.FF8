@@ -82,7 +82,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                     Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters);
                     Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters);
                     Assert.Equal(JsonSerializer.Serialize(game.ReadNativeChainGun190Resources().Camera), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation!.Source));
-                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.NativeActionPackets!.ExportRetained().Contacts[2], CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, ColorRegistersAfterTick = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
+                    observations.Add(new { Boundary = "setup-main1", ActualPhysicalThird = current.ReadFixturePresentation().NativeActionPackets!.ExportRetained().Contacts[2], CrtBeforeTick = prior.NativeCrtRandom, CrtAfterTick = current.NativeCrtRandom, GeometryBeforeTick = prior.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, GeometryAfterTick = current.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, ColorRegistersAfterTick = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters, Records = state.ReadView(RecordsAddress, 12 * RecordStride), LoadedPartyModels = ReadOriginalModelCells(current.ReadFixturePresentation().NativeGraphics!).Take(3).ToArray(), Scope = "Actual complete graphics Tick CRT and GTE publication; exact effect-local RNG branches are covered by the dedicated Runtime tests" });
                     ColdNext("setup-main1", current);
                 }
                 if (!beforeContacts && main?.ReadWord(12) == 30)
@@ -93,8 +93,8 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                 if (oldMain?.ReadWord(12) == 30 && main?.ReadWord(12) == 31)
                 {
                     contactCrossings++;
-                    Assert.Equal(contactCount, current.NativeActionPackets!.ReadHeaderContacts(after!.Parameters!.Header).Length);
-                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.NativeActionPackets.ReadHeaderContacts(after.Parameters.Header) });
+                    Assert.Equal(contactCount, current.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(after!.Parameters!.Header).Length);
+                    observations.Add(new { Boundary = "old30-contact", current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, Count = contactCount, DeclaredContacts = current.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(after.Parameters.Header) });
                 }
                 for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
@@ -103,7 +103,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
                     {
                         continue;
                     }
-                    var declared = current.NativeActionPackets!.ReadHeaderContacts(new BattleActionHeaderReference(0));
+                    var declared = current.ReadFixturePresentation().NativeActionPackets!.ReadHeaderContacts(new BattleActionHeaderReference(0));
                     NativeBattleContactPacket contact = Assert.Single(declared, item => item.Primary.Recipient == text.ModelOwner);
                     int targetOrdinal = declared.IndexOf(contact);
                     Assert.InRange(targetOrdinal, 0, contactCount - 1);
@@ -195,7 +195,7 @@ public sealed class NativeBattleChainGun190MultiTargetPresentationTests
 
     private static void AssertSetupRecords(BattleSnapshot snapshot, int contactCount)
     {
-        NativeBattleActionPacketsState packets = snapshot.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = snapshot.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)contactCount, packets.ReadHeader(new BattleActionHeaderReference(0)).ReadContactCount());
         Assert.Equal((byte)(contactCount == 2 ? 0 : 2), packets.ExportRetained().Contacts[2]!.Primary.ActorIndex);
         if (contactCount == 2)

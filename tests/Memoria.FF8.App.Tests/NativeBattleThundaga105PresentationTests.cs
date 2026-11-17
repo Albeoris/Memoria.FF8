@@ -33,19 +33,19 @@ public sealed class NativeBattleThundaga105PresentationTests
         uint delta = unchecked(initial.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(delta % 20 == 0 && delta / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(delta / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(kernel.Command, header.Command);
         Assert.Equal(kernel.ActionId, header.Action);
         Assert.Equal((ushort)105, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(initial.ActionGraphics is null || initial.ActionGraphics.Header.Ordinal == headerIndex);
         BattleContactCursor contactIndex = header.FirstContact;
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(contactIndex);
-        int target = ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient);
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(contactIndex);
+        int target = ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient);
         Assert.InRange(target, 0, 2);
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Null(contact.Secondary);
-        ushort initialHp = source.NativePartyPresentation!.Rows[target]!.HitPoints;
+        ushort initialHp = source.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort finalHp = (ushort)(initialHp - 7);
         uint? initialColor = ReadOriginalModelCell(initial, target).Color40;
@@ -117,8 +117,8 @@ public sealed class NativeBattleThundaga105PresentationTests
                     completions++;
                     controllerEnd = current.NativeCrtRandom;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[target]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort previousHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints;
                 if (hp != previousHp)
                 {
                     Assert.Equal(initialHp, previousHp);
@@ -196,7 +196,7 @@ public sealed class NativeBattleThundaga105PresentationTests
             Assert.Equal(9, boundaries.Count);
             Assert.Equal(1, completions);
             Assert.Equal(1, contacts);
-            Assert.Equal(finalHp, battle.Capture().NativePartyPresentation!.Rows[target]!.HitPoints);
+            Assert.Equal(finalHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[target]!.HitPoints);
             Assert.Equal(initialColor, ReadOriginalModelCell(battle.Presentation!.Graphics, target).Color40);
             Assert.Equal(310, fragmentFaces);
             Assert.True(debrisPeak > 0);

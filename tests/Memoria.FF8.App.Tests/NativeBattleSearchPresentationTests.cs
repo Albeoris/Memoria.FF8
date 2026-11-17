@@ -27,7 +27,7 @@ public sealed class NativeBattleSearchPresentationTests
         using BattleAssets assets = new(directory);
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics ?? throw new InvalidDataException("The fixture lacks native graphics.");
-        NativeBattleActionPacketsState packets = source.NativeActionPackets ?? throw new InvalidDataException("The fixture lacks physical action packets.");
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The fixture lacks physical action packets.");
         int slot = Assert.Single(graphics.Descriptors.Queue, index => graphics.Descriptors.Packets[index].Command == 104);
         uint offset = unchecked(graphics.Descriptors.Packets[slot].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
@@ -42,7 +42,7 @@ public sealed class NativeBattleSearchPresentationTests
         Assert.Equal((byte)0, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Null(contact.Secondary);
-        ushort initialHp = source.NativePartyPresentation!.Rows[0]!.HitPoints;
+        ushort initialHp = source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
         Assert.True(initialHp >= 7);
         ushort expectedHp = (ushort)(initialHp - 7);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([92])[91];
@@ -96,8 +96,8 @@ public sealed class NativeBattleSearchPresentationTests
                 {
                     completions++;
                 }
-                ushort previousHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort previousHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 if (previousHp != hp)
                 {
                     Assert.Equal(initialHp, previousHp);
@@ -132,7 +132,7 @@ public sealed class NativeBattleSearchPresentationTests
             Assert.Equal(1, completions);
             Assert.True(sawTargetOverride);
             Assert.True(sawModelTim);
-            Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             NativeBattleOriginalEffectState finished = Assert.IsType<NativeBattleOriginalEffectState>(battle.Presentation!.Graphics.OriginalEffect);
             Assert.Equal((ushort)92, finished.Binding.Effect);
             Assert.Equal(0x755130u, finished.Binding.Entry);

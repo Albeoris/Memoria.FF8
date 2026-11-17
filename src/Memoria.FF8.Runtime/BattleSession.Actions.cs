@@ -58,7 +58,7 @@ public sealed partial class BattleSession
             ValidateNativeActionContract(native);
             ValidateIndependentGuardianItem(actor, native);
         }
-        if (Outcome != BattleOutcome.Active || HasPendingExpandedEscape || !actor.IsReady || RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
+        if (Outcome != BattleOutcome.Active || HasPendingExpandedTerminal || !actor.IsReady || RequiresNativeCompelledCommand(actor) || !actor.Abilities.Contains(ability) || !IsValidSelectedActionTarget(actor, action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }

@@ -137,12 +137,12 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
         }
         Assert.True(session.NativeEntryReady);
         BattleSnapshot entry = session.CaptureForContinuation();
-        NativeBattleActionPacketsState packets = session.NativeActionPackets;
+        NativeBattleActionPacketsState packets = session.Presentation!.NativeActionPackets;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 0, 0, 0, 7, 0), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = entry.ReadFixturePresentation().NativeGraphics!.Descriptors.Enqueue(104, 128, checked(0x1D280C4u + 20u * (uint)header.Ordinal));
-        session = BattleSession.Restore((entry with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = entry.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } }));
+        session = BattleSession.Restore((entry.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = entry.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } }));
         //Run actual50AFC0/phase1 preparation once; the module entry has not been invoked at phase2.
         for (int callback = 0; callback < 200 && !session.Presentation!.Graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 2); callback++)
         {

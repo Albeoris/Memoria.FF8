@@ -313,7 +313,7 @@ public sealed class LiveEvidenceValidationTests
                 RecipientId = "enemy6",
                 RecipientIndex = 6,
                 ReflectedTargetMask = 64,
-                TargetProvenance = new(0x48E830, 1, 3, 0, [new(64, 64, 0, 8, false, 8)], [3])
+                TargetProvenance = new(1, 3, 0, [3])
             };
         }
         child["reflection"] = JsonSerializer.SerializeToNode(proof, RecordJson.Options);

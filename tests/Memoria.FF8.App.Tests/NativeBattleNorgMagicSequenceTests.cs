@@ -164,7 +164,7 @@ public sealed class NativeBattleNorgMagicSequenceTests(ITestOutputHelper output)
         Assert.Null(graphics.Effects.Head);
         Assert.Null(graphics.Auxiliary.Head);
         Assert.Null(graphics.ModuleEffects.Head);
-        Assert.Equal(0, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(0, battle.Presentation!.NativeActionPackets.ActionCount);
     }
 
     private static object[] Inventory(BattleSession battle, BattleDefinition definition)

@@ -2,8 +2,6 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private bool nativeGraphicsPresentationDriven;
-
     public void AdvanceNativeGraphicsPresentation(TimeSpan elapsed, TimeSpan? idleWorkBudget = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(elapsed.Ticks);
@@ -14,7 +12,6 @@ public sealed partial class BattleSession
         BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("A live battle requires its bound presentation.");
         RequireExpandedPresentationDispatchIdle();
         long callbacks = process.AccumulateElapsed(elapsed);
-        nativeGraphicsPresentationDriven = true;
         if (GuardianAnimationSkipPending)
         {
             AdvanceSkippedGuardianFormPresentation(idleWorkBudget ?? TimeSpan.FromMilliseconds(8));

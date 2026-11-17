@@ -13,7 +13,7 @@ public sealed partial class BattleSession
             expandedHostedActionToken is long token && process.ActiveActionToken == token &&
             CurrentExpandedHostedInvocation is { PendingGunblade: true } invocation &&
             process.TriggerWidget is { SourceMagicId: null } widget && widget.Actor == invocation.Header.Source &&
-            CanPressNativeTriggerWidget(widget, process.TriggerOptions);
+            BattlePresentationProcess.CanPressNativeTriggerWidget(widget, process.TriggerOptions);
     }
 
     private void AcknowledgeExpandedGunbladeRegistration(NativeBattleModelTriggerRegistered receipt, long? actionToken)

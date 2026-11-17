@@ -63,7 +63,7 @@ public sealed class NativeBattleEnemyMicroMissiles284PresentationTests
         NativeBattlePoseSource recipientPose = assets.ReadNativeGraphicsResource(recipientDefinition).PoseSource ?? throw new InvalidDataException("The original recipient requires its current skeleton.");
         Assert.Equal(23, NativeBattleBodyBoneMatrices.Require(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 0), recipientPose).Length);
         Assert.Equal(22, Enumerable.Range(0, recipientPose.BoneCount).Count(bone => System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(recipientPose.Skeleton.AsSpan().Slice(16 + bone * 48)) >= 0));
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(0));
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

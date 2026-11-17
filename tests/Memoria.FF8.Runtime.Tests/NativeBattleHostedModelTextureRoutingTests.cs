@@ -65,7 +65,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         Assert.Equal((ushort)0x22, beforeSecond.Textures.ReadVramWord(0, 0));
         Assert.True(beforeSecond.Cache.Rows[0].Regions[0].CurrentPixels);
 
-        Set(session, nameof(BattleSession.NativeEffectMemory), first);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), first);
         Motion(session, Second, copy);
         NativeBattleEffectMemory pending = session.Presentation!.Memory;
         NativeBattleEffectMemory independentlyRestored = NativeBattleTestSnapshots.Independent(pending);
@@ -86,7 +86,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         BattleSession session = fixture.Session;
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleEffectTextureState global = memory.Textures! with { PresentationTextures = null };
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = global });
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Textures = global });
         Upload(session, OriginalOwner(index), 0x10);
         Motion(session, First, new(1, 0, 1, 1, 0, 0));
         NativeBattleEffectMemory queued = session.Presentation!.Memory;
@@ -116,7 +116,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         {
             NativeBattleEffectMemory memory = session.Presentation!.Memory;
             NativeBattleEffectTextureState textures = memory.Textures!;
-            Set(session, nameof(BattleSession.NativeEffectMemory), memory with { Textures = textures with { PresentationTextures = textures.PresentationTextures!.Remove("first") } });
+            NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { Textures = textures with { PresentationTextures = textures.PresentationTextures!.Remove("first") } });
         }
         NativeBattleEffectMemory before = session.Presentation!.Memory;
         TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => Upload(session, First, 0x10));
@@ -144,7 +144,7 @@ public sealed class NativeBattleHostedModelTextureRoutingTests
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.FromColdProcess().WithPresentationRoster(roster, Aliases(roster));
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         Set(session, nameof(BattlePresentationProcess.NativeGraphics), graphics);
-        Set(session, nameof(BattleSession.NativeEffectMemory), memory);
+        NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
         return (session, cpu, roster);
     }

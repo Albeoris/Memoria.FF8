@@ -25,7 +25,7 @@ internal sealed partial class AutoPlayController
         }
     }
 
-    private bool TryPlayBattle(GameWorld world)
+    private bool TryPlayBattle(GameWorld world, Action<BattleSession>? advanceBattlePresentation)
     {
         if (world.Battle is null && world.Events.PendingInteractiveBattle is null && world.Events.PendingMenuBattle is null && session.State.RandomEncounters?.Pending is null)
         {
@@ -53,6 +53,15 @@ internal sealed partial class AutoPlayController
             Status = $"Battle {active.EncounterId} · frame {active.Frame} · {run.Steps} steps";
             BattleInput input = PlanBattleInput(active);
             var before = BattleProgress(active);
+            if (input.Kind == BattleInputKind.Tick && advanceBattlePresentation is not null)
+            {
+                advanceBattlePresentation(active);
+                if (!ReferenceEquals(world.Battle, active) || before != BattleProgress(active))
+                {
+                    ResetIdleDeadline();
+                }
+                return true;
+            }
             world.ApplyBattleInput(input);
             if (!ReferenceEquals(world.Battle, active))
             {

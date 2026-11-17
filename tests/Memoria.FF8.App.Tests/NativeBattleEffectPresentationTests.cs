@@ -86,7 +86,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleStatusMirror expectedStatus = new(targetStatus.Saved, targetStatus.Battle);
         int expectedStatusTransitions = targetStatus.Presentation == expectedStatus ? 0 : 1;
         ushort expectedHp = checked((ushort)initial.Combatants.Single(actor => actor.Id == "target").CurrentHp);
-        ushort initialDisplayedHp = initial.NativePartyPresentation!.Rows[1]!.HitPoints;
+        ushort initialDisplayedHp = initial.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
         int expectedHpTransitions = initialDisplayedHp == expectedHp ? 0 : 1;
         string? initialMorph = requireMorphAndFlash ? MorphJson(initial, effect) : null;
         bool morphed = false;
@@ -134,8 +134,8 @@ public sealed class NativeBattleEffectPresentationTests
                     }
                     statusTransitions++;
                 }
-                ushort priorHp = before.NativePartyPresentation!.Rows[1]!.HitPoints;
-                ushort currentHp = after.NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort priorHp = before.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
+                ushort currentHp = after.ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (priorHp != currentHp)
                 {
                     Assert.Equal(initialDisplayedHp, priorHp);
@@ -208,7 +208,7 @@ public sealed class NativeBattleEffectPresentationTests
             Assert.True(capturedGeometry > 0);
         }
         Assert.Equal(expectedStatus, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation);
-        Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
+        Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[1]!.HitPoints);
         Assert.Equal(initial.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(initial.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");

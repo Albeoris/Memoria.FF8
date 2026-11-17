@@ -141,7 +141,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         BattleAttackCommand item = new(Fourth, Fourth, Target(Fourth), BattleAbility.Item, 1) { ReservedNativeItemSlot = itemSlot };
         BattleAttackCommand callback = new("ally-0", "ally-0", Target("ally-0")) { ExpandedAiCallback = NativeBattleFixtureObservations.CreateCallback("ally-0", 0, 7) };
         BattleAttackCommand reaction = new(Fourth, "enemy", Target("enemy")) { NativePlayerReaction = BattleNativePlayerReaction.Counter };
-        BattleAttackCommand header = new(Fourth, "enemy", Target("enemy")) { NativeHeader = new BattleActionHeaderReference(0) };
+        BattleAttackCommand header = new(Fourth, "enemy", Target("enemy"));
         BattleAttackCommand other = new(Eleventh, "enemy", Target("enemy"));
         BattleAttackCommand charged = new(Fourth, "enemy", Target("enemy"), BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
         BattleAttackCommand renzokuken = new(Fourth, "enemy", Target("enemy"), BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };

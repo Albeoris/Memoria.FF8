@@ -22,7 +22,7 @@ public sealed class NativeBattleEffectParticipantResourceTests
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(battle.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         NativeBattleSequenceState sequence = new() { Default2 = 14 };
         NativeBattleGraphicsModel source = new(3) { ModelId4 = 0, FileSelector128 = 0, FileSelector129 = 0, Flags2 = 4, SequenceState = sequence, LinkedTransform = new(default, default) };
-        BattleModelOwner owner = battle.NativeActionPackets.ModelAliases.DecodeLiteral(0);
+        BattleModelOwner owner = battle.Presentation!.NativeActionPackets.ModelAliases.DecodeLiteral(0);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, owner, source)]);
         typeof(BattleSession).GetField("presentationSourceOwner", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, owner);
         MethodInfo load = typeof(BattleSession).GetMethod("InitializeEffectPresentationSourceResources", BindingFlags.Instance | BindingFlags.NonPublic)!;

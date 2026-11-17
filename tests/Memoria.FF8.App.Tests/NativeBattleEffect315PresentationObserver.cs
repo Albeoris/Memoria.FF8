@@ -95,7 +95,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
                     NativeBattleModulePoolTask next = effect.Pools[1].Slots[slot];
                     if ((task.Flags & 1) != 0 && task.Callback == 0x598E70 && unchecked((short)task.ReadWord(0xC)) == 112 && unchecked((short)next.ReadWord(0xC)) == 113)
                     {
-                        NativeBattleActionPacketsState packets = current.NativeActionPackets!;
+                        NativeBattleActionPacketsState packets = current.ReadFixturePresentation().NativeActionPackets!;
                         BattleContactCursor first = packets.ReadHeader(effect.Parameters!.Header).FirstContact;
                         NativeBattleContactHalf half = packets.ReadContact(first).Primary;
                         Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, half.Recipient));

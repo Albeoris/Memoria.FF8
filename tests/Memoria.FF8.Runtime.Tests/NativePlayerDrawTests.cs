@@ -80,21 +80,21 @@ public sealed class NativePlayerDrawTests
             NativeKnownMagic = new(NativeInputConfiguration.OriginalInitHash, [0, 0])
         }, BattleAtbMode.TurnBased);
         BattleSnapshot before = initial.Capture();
-        NativeBattleActionPacketsState packets = before.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = before.ReadFixturePresentation().NativeActionPackets!;
         (packets, BattleActionHeaderReference retained) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 2, 11, -1, 1, 2, null));
         (packets, _) = packets.Publish(0);
         packets = packets.WritePlayerRepeatMode(retained, 3).ResetCounts();
         Assert.Equal((byte)2, packets.ExportRetained().Headers[0].ReadOriginalByte(17));
-        BattleSession battle = BattleSession.Restore(before with { NativeActionPackets = packets });
+        BattleSession battle = BattleSession.Restore(before.WithFixturePresentation(facts => facts with { NativeActionPackets = packets }));
 
         battle.QueueAction("party", "source", BattleAbility.Draw, 1, cast, drawCastTargetId: cast ? "source2" : null);
         battle.Tick();
 
         BattleActionPresentation active = Assert.IsType<BattleActionPresentation>(battle.ActiveAction);
         Assert.Equal(failed, active.NativeDraw!.Failed);
-        BattleActionHeaderReference reference = Assert.IsType<BattleActionHeaderReference>(active.NativeHeader);
+        BattleActionHeaderReference reference = Assert.IsType<BattleActionHeaderReference>(battle.Presentation!.NativeActionPackets.ActiveHeader);
         Assert.Equal(retained, reference);
-        packets = battle.NativeActionPackets;
+        packets = battle.Presentation!.NativeActionPackets;
         Assert.Equal(1, packets.ActionCount);
         NativeBattleActionGraphicsState graphics = NativeBattleActionGraphics.Normalize(packets, reference);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(reference);

@@ -322,7 +322,7 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        session.SetLiveBattle(null);
+        session.SetBattle(null);
         session.Restore(session.State with { Scene = SceneKind.Title });
     }
 }

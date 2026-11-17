@@ -127,7 +127,7 @@ public sealed class NativeBattleBreath235ComponentTests
                 Assert.Null(loaded.ReturnedDescriptor);
                 Assert.Empty(loaded.Pools);
             }
-            NativeBattleActionPacketsState packets = Assert.IsType<NativeBattleActionPacketsState>(source.NativeActionPackets);
+            NativeBattleActionPacketsState packets = Assert.IsType<NativeBattleActionPacketsState>(source.ReadFixturePresentation().NativeActionPackets!);
             byte caster = 3;
             NativeBattleContactPacket contact;
             if (graphics.ActionGraphics is { } original)
@@ -148,7 +148,7 @@ public sealed class NativeBattleBreath235ComponentTests
             (packets, _) = packets.Publish(1);
             Assert.Equal(0x50B190u, NativeBattleActionGraphics.SelectService(packets.ReadHeader(header)).Callback);
             (NativeBattleDescriptorState descriptors, _) = NativeBattleDescriptorState.Clear().EnqueueAction(128, header);
-            return (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } });
+            return (source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = graphics with { Descriptors = descriptors, ActionGraphics = null, OriginalEffect = null } });
         }
 
         void Publish(string name, BattleSnapshot snapshot) => NativeBattleRestorationPresentationTests.Publish(output!, name, snapshot, scene.Render(BattleSession.Restore(snapshot), 320, 224).ToArray());

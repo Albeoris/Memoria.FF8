@@ -43,13 +43,13 @@ public sealed class NativeBattleEffect210FollowingActionTests
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 315 && row.MagicId == 210 && row.KernelSection == 3 && row.KernelIndex == 315);
         Assert.Equal((byte)54, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(caster.ModelId, caster.Level), action));
         NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.Id == targetId).NativeStatus!;
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         sbyte cameraChoice = unchecked((sbyte)action.RawRecord[4]);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 54, cameraChoice, 315, 210, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
         (NativeBattleDescriptorState descriptors, _) = originalGraphics.Descriptors.EnqueueAction(128, header);
-        BattleSnapshot prepared = (source with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
+        BattleSnapshot prepared = (source.WithFixturePresentation(facts => facts with { NativeActionPackets = packets })).WithFixturePresentation(facts => facts with { NativeGraphics = originalGraphics with { Descriptors = descriptors } });
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(originalGraphics)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(source.Combatants, prepared.Combatants);
@@ -141,9 +141,9 @@ public sealed class NativeBattleEffect210FollowingActionTests
             Completed = completed,
             Completions = completions,
             HeaderIndex = header.Ordinal,
-            InitialActionCount = source.NativeActionPackets!.ActionCount,
-            InitialContactCount = source.NativeActionPackets.ContactCount,
-            Packets = new { result.NativeActionPackets!.ActionCount, result.NativeActionPackets.ContactCount, result.NativeActionPackets.ActiveHeader, PreparedHeader = result.NativeActionPackets.ReadHeader(header) },
+            InitialActionCount = source.ReadFixturePresentation().NativeActionPackets!.ActionCount,
+            InitialContactCount = source.ReadFixturePresentation().NativeActionPackets!.ContactCount,
+            Packets = new { result.ReadFixturePresentation().NativeActionPackets!.ActionCount, result.ReadFixturePresentation().NativeActionPackets!.ContactCount, result.ReadFixturePresentation().NativeActionPackets!.ActiveHeader, PreparedHeader = result.ReadFixturePresentation().NativeActionPackets!.ReadHeader(header) },
             lastGraphics.ActionGraphics,
             DescriptorQueue = lastGraphics.Descriptors.Queue,
             Effect = lastEffect is null ? null : new

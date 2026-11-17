@@ -208,7 +208,7 @@ public sealed class NativeBattleEffect301PresentationTests
         BattleSession producer = BattleSession.Restore(prepared);
         producer.AttachNativeEffectResourceResolver(id => game.ReadNativeEffectCatalogForEffects([id])[id - 1]);
         BattleSnapshot source = NativeBattleLimitComponentSources.AwaitQueued(producer, 301);
-        NativeBattleActionPacketsState packets = source.NativeActionPackets!;
+        NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         int headerIndex = Assert.Single(Enumerable.Range(0, packets.ActionCount), index => packets.ReadHeader(new BattleActionHeaderReference(index)).Effect == 301);
         NativeBattleActionHeaderSlot header = packets.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(checked((byte)casterIndex), ReadOriginalModelOperand(packets.ModelAliases, header.Source));

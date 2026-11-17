@@ -84,20 +84,20 @@ public sealed class NativeBattleMoogle96PresentationTests
         uint offset = unchecked(graphics.Descriptors.Packets[queued].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
+        NativeBattleActionHeaderSlot header = source.ReadFixturePresentation().NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal((byte)240, header.Command);
         Assert.Equal((ushort)6, header.Action);
         Assert.Equal((ushort)96, header.Effect);
         Assert.Equal((byte)0, header.ReadRepeatModeMinusOne());
         Assert.True(graphics.ActionGraphics is null || graphics.ActionGraphics.Header.Ordinal == headerIndex);
         Assert.Equal((ushort)96, Assert.Single(assets.NativeActions, action => action.Command == 240 && action.ActionId == 6).MagicId);
-        NativeBattleContactPacket contact = source.NativeActionPackets.ReadContact(header.FirstContact);
-        Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
+        NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
+        Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
         Assert.Equal(1, contact.Primary.HitFlags & 1);
         Assert.Null(contact.Secondary);
         Assert.Equal((byte)0, ReadOriginalModelCell(graphics, 0).ModelId4);
-        Assert.Equal((ushort)100, source.NativePartyPresentation!.Rows[0]!.HitPoints);
+        Assert.Equal((ushort)100, source.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
         NativeBattleEffectBinding installed = game.ReadNativeEffectCatalogForEffects([96])[95];
         Assert.Equal(JsonSerializer.Serialize(installed), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[95]));
         NativeBattleMoogle96Resources resources = installed.Moogle96Resources!;
@@ -166,8 +166,8 @@ public sealed class NativeBattleMoogle96PresentationTests
                 {
                     completions++;
                 }
-                ushort beforeHp = prior.NativePartyPresentation!.Rows[0]!.HitPoints;
-                ushort hp = current.NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort beforeHp = prior.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
+                ushort hp = current.ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints;
                 if (beforeHp != hp)
                 {
                     Assert.Equal((ushort)100, beforeHp);
@@ -287,7 +287,7 @@ public sealed class NativeBattleMoogle96PresentationTests
             Assert.NotNull(vibrationHandle);
             Assert.False(battle.Capture().NativeVibrationProcess!.IsPlaying(vibrationHandle.GetValueOrDefault()));
             Assert.Equal(127, battle.Capture().NativeGlobalSoundProcess!.MusicPlayback!.ReadGain(0));
-            Assert.Equal((ushort)107, battle.Capture().NativePartyPresentation!.Rows[0]!.HitPoints);
+            Assert.Equal((ushort)107, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[0]!.HitPoints);
             Assert.All(battle.Presentation!.Stage.Groups, group => Assert.Equal((short)0, group.ColorDepth));
             Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => (byte)((group.Flags & 0xFD) | ((group.Flags >> 1) & 2))).ToArray(), battle.Presentation!.Stage.Groups.Select(group => group.Flags).ToArray());
             for (int actor = 3; actor < 7; actor++)
