@@ -158,6 +158,13 @@ if (args.Contains("--multiply-only", StringComparer.Ordinal))
     return 0;
 }
 
+if (args.Contains("--division-only", StringComparer.Ordinal))
+{
+    ExtendedTests.ByteDivisionOperandsAndContinuation();
+    Console.WriteLine("PASS native byte division operands, unsigned quotient, zero refusal, same-pass completion and cold continuation");
+    return 0;
+}
+
 if (args.Contains("--party-turn-only", StringComparer.Ordinal))
 {
     NativePartyTurnOpcodeTests.Run();
@@ -283,6 +290,7 @@ var tests = new (string Name, Action Run)[]
     ("native palette range multiply operands and continuation", ExtendedTests.PaletteRangeMultiplyOperandsAndContinuation),
     ("native movement facing operands and continuation", ExtendedTests.MovementFacingOperandsAndContinuation),
     ("native byte multiply operands and continuation", ExtendedTests.ByteMultiplyOperandsAndContinuation),
+    ("native byte division operands and continuation", ExtendedTests.ByteDivisionOperandsAndContinuation),
     ("native item packed operands and same-cycle continuation", ExtendedTests.ItemOperandsAndContinuation),
     ("native fixed animation movement operands and continuation", ExtendedTests.FixedAnimationMoveOperandsAndContinuation),
     ("native fixed facing movement operands and continuation", ExtendedTests.FixedFacingMoveOperandsAndContinuation),

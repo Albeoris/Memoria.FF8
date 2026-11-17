@@ -60,6 +60,51 @@ internal static class ExtendedTests
         Throws<FieldExecutionException>(() => truncated.AdvanceTick());
     }
 
+    public static void ByteDivisionOperandsAndContinuation()
+    {
+        foreach (var (left, right, expected) in new[] { (255, 1, 255), (255, 2, 127), (255, 255, 1), (128, 255, 0), (200, 3, 66), (0, 255, 0) })
+        {
+            byte[] code = Code(0, 0x8B, 0x62, 8, 10, 0x80, 0x50, 20, 99, 0x5F, 0x12, 0);
+            RecordingHost host = new() { Complete = true };
+            FieldMachine vm = New(code, host);
+            vm.Initialize();
+            vm.Variables.WriteWord(FieldBank.MapWord, 8, unchecked((short)(0xAB00 | left)));
+            vm.Variables.WriteWord(FieldBank.Persistent0Word, 10, unchecked((short)(0xCD00 | right)));
+            FieldMachine cold = FieldMachine.Restore(Program(code), JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(vm.Capture()))!, new RecordingHost { Complete = true });
+            vm.AdvanceTick();
+            cold.AdvanceTick();
+            Check((byte)expected, vm.Variables.ReadByte(FieldBank.MapByte, 8));
+            Check((byte)0xAB, vm.Variables.ReadByte(FieldBank.MapByte, 9));
+            Check((byte)right, vm.Variables.ReadByte(FieldBank.Persistent0Byte, 10));
+            Check((byte)0xCD, vm.Variables.ReadByte(FieldBank.Persistent0Byte, 11));
+            Check((byte)99, vm.Variables.ReadByte(FieldBank.MapByte, 20));
+            Check(26, vm.Capture().Entities[0].ProgramCounter);
+            Check(0, host.Requests.Count);
+            Check(JsonSerializer.Serialize(vm.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        }
+        FieldMachine literal = New(Code(0, 0x8B, 0x50, 18, 10, 0x5F, 0x12, 0), new RecordingHost { Complete = true });
+        literal.Initialize();
+        literal.Variables.WriteByte(FieldBank.MapByte, 18, 249);
+        literal.AdvanceTick();
+        Check((byte)24, literal.Variables.ReadByte(FieldBank.MapByte, 18));
+        foreach (byte selectors in new byte[] { 0x50, 0x62 })
+        {
+            FieldMachine zero = New(Code(0, 0x8B, selectors, 8, 0, 0x80, 0x50, 20, 99, 0), new RecordingHost { Complete = true });
+            zero.Initialize();
+            zero.Variables.WriteWord(FieldBank.MapWord, 8, unchecked((short)0xABFF));
+            FieldVmSnapshot before = zero.Capture();
+            Throws<FieldExecutionException>(() => zero.AdvanceTick());
+            FieldVmSnapshot after = zero.Capture();
+            Check(before.Entities[0].ProgramCounter, after.Entities[0].ProgramCounter);
+            Check(Convert.ToHexString(before.MapVariables), Convert.ToHexString(after.MapVariables));
+            Check(Convert.ToHexString(before.PersistentVariables), Convert.ToHexString(after.PersistentVariables));
+            Check(0, after.PendingRequests!.Length);
+        }
+        FieldMachine truncated = New(Code(0, 0x8B, 0x50, 18).Take(20).ToArray(), new RecordingHost { Complete = true });
+        truncated.Initialize();
+        Throws<FieldExecutionException>(() => truncated.AdvanceTick());
+    }
+
     public static void LineSlipOperandsAndContinuation()
     {
         foreach (byte value in new byte[] { 0, 1, 255 })
