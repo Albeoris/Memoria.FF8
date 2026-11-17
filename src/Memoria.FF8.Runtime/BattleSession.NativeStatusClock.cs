@@ -18,8 +18,27 @@ public sealed partial class BattleSession
         }
         ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
         // The caller already admitted the earlier DEB/UI gates.
-        foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive))
+        const int originalCount = NativeBattleSlots.Count;
+        const int addedEnemyStart = originalCount + ExpandedBattleFormation.MaximumAllies;
+        Span<int> occupied = stackalloc int[addedEnemyStart + ExpandedBattleFormation.MaximumEnemies];
+        occupied.Clear();
+        for (int row = 0; row < combatants.Count; row++)
         {
+            BattleCombatant actor = combatants[row];
+            if (!actor.IsActive || actor.Slot is not { } slot)
+            {
+                continue;
+            }
+            int position = actor.NativeActorIndex ?? (slot.Side == BattleSide.Allies ? originalCount : addedEnemyStart) + slot.Position;
+            occupied[position] = row + 1;
+        }
+        foreach (int row in occupied)
+        {
+            if (row == 0)
+            {
+                continue;
+            }
+            BattleCombatant actor = combatants[row - 1];
             if ((NativeSavedStatusBits(actor) & 5) != 0)
             {
                 continue;

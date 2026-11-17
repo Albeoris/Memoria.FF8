@@ -62,26 +62,26 @@ public sealed class NativeBattleCinematicSessionPublicationTests
         }
         NativeBattlePrimitiveProcess process = NativeBattlePrimitiveProcess.FromColdProcess().Initialize500400().ApplyCommonWrite(0, Enumerable.Repeat((byte)0xA5, 128).ToImmutableArray(), Enumerable.Repeat(NativeBattleGfPacketByteState.Known, 128).ToImmutableArray());
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Arena = frame.Arena, ScriptedEffects = frame.Core, PrimitiveProcess = process, ScriptedGraphics = NativeBattleScriptedGraphicsMemory.FromColdProcess().InitializeGeom56BAA0() };
-        BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
-        typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.Initialize() with { Projection = new(null, 216, 160, 108) });
+        BattlePresentationProcess session = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
+        typeof(BattlePresentationProcess).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session, NativeBattleCameraState.Initialize() with { Projection = new(null, 216, 160, 108) });
         NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         NativeBattleOriginalEffectState effect = new(202, 201, new(202, 1, 0), null, null);
         using (NativeBattleTaskOperation operation = new(memory, effect))
         {
             string method = grid ? "DrawNativeCinematicGrid28" : "DrawNativeCinematicPointCloud27";
             object?[] args = grid ? [frame, 0x2000, resources, graphics, null] : [frame, 0x2000, graphics];
-            var result = ((NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics))typeof(BattleSession).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(session, args)!;
-            Assert.Equal(expectedBytes, session.Presentation!.Memory.PrimitiveProcess!.ByteCursor);
+            var result = ((NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics))typeof(BattlePresentationProcess).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(session, args)!;
+            Assert.Equal(expectedBytes, session.Memory.PrimitiveProcess!.ByteCursor);
             Assert.Equal(2, result.Graphics.PrimitiveFrame!.Pending.Packets.Length);
-            Assert.Null(session.Presentation!.Memory.PrimitiveProcess.CommonTransaction);
+            Assert.Null(session.Memory.PrimitiveProcess.CommonTransaction);
             NativeBattleEffectArenaTransaction.RequireCommittedForCapture(frame.Arena.Working);
-            byte code = session.Presentation!.Memory.PrimitiveProcess.ReadCommonPacket(3, 1)[0];
-            session.Presentation!.Memory.PrimitiveProcess.ApplyCommonWrite(3, [9], [NativeBattleGfPacketByteState.Known]);
+            byte code = session.Memory.PrimitiveProcess.ReadCommonPacket(3, 1)[0];
+            session.Memory.PrimitiveProcess.ApplyCommonWrite(3, [9], [NativeBattleGfPacketByteState.Known]);
             Assert.NotEqual((byte)9, code);
         }
-        Assert.Equal(expectedBytes, session.Presentation!.Memory.PrimitiveProcess!.ByteCursor);
-        Assert.NotEqual((byte)9, session.Presentation!.Memory.PrimitiveProcess.ReadCommonPacket(3, 1)[0]);
+        Assert.Equal(expectedBytes, session.Memory.PrimitiveProcess!.ByteCursor);
+        Assert.NotEqual((byte)9, session.Memory.PrimitiveProcess.ReadCommonPacket(3, 1)[0]);
     }
 
     [Theory]
@@ -95,12 +95,12 @@ public sealed class NativeBattleCinematicSessionPublicationTests
         NativeBattleOriginalEffectState coldSelected = System.Text.Json.JsonSerializer.Deserialize<NativeBattleOriginalEffectState>(System.Text.Json.JsonSerializer.Serialize(selected))!;
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
         NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 28, 329, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
-        typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
-        MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        BattlePresentationProcess session = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
+        typeof(BattlePresentationProcess).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
+        MethodInfo poll = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
         NativeBattleGraphicsState direct = (NativeBattleGraphicsState)poll.Invoke(session, [graphics])!;
         NativeBattleGraphicsState cold = (NativeBattleGraphicsState)poll.Invoke(session, [graphics with { OriginalEffect = coldSelected }])!;
-        Assert.Same(memory, session.Presentation?.Memory);
+        Assert.Same(memory, session.Memory);
         Assert.Equal(NativeBattleTestSnapshots.Json(graphics), NativeBattleTestSnapshots.Json(direct));
         Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(cold));
         Assert.Contains(reusedAddress, selected.PresentationPackets);

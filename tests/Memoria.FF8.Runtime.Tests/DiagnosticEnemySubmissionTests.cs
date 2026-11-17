@@ -83,10 +83,10 @@ public sealed class DiagnosticEnemySubmissionTests
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleActionPacketsState packets = session.Presentation!.NativeActionPackets.WithRoster(graphics.ActorModels.Roster, aliases);
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(enemy, 2, 0, -1, 7, 3, null));
-        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Presentation!, packets);
         NativeBattleEffectParameters? parameters = hasParameters ? new NativeBattleEffectParameters(enemy, 0, BattleModelTargets.From([recipient]), header, 0, 0).CaptureOriginalWindow(aliases) : null;
         NativeBattleOriginalEffectState effect = new(3, 2, new(3, 0, 0), parameters, null);
-        typeof(BattleSession).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, effect]);
+        typeof(BattlePresentationProcess).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [graphics, effect]);
         Assert.Equal(hasParameters ? (ushort?)4 : null, observed!.NativeTargetMask);
     }
 
@@ -100,6 +100,7 @@ public sealed class DiagnosticEnemySubmissionTests
             NativeActions = [action],
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, SceneSlot = 0, NativeCombatantFlags = 1, NativeAi = ai, InitialAtb = BattleSession.AtbMaximum }]
         }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session);
         session.ConfigureDiagnosticScheduling(true);
         return session;
     }

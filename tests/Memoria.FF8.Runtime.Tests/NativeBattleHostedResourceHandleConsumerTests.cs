@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedResourceHandleConsumerTests
 {
-    private static readonly MethodInfo ReadAddress = typeof(BattleSession).GetMethod("NativeModelResourceAddress100", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo ReadAddress = typeof(BattlePresentationProcess).GetMethod("NativeModelResourceAddress100", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     [Fact]
     public void Session_row_address_tracks_current_owner_and_preserves_staged_precedence()
@@ -14,6 +14,7 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(session);
         NativeBattleGraphicsModel native = new(0) { ActiveResourceRow100 = 10 };
         NativeBattleGraphicsModel extended = native with { ActiveResourceRow100 = 11 };
         Assert.Equal(NativeBattleModelResourceRowAddress.Encode(10), Address(session, native));
@@ -108,6 +109,6 @@ public sealed class NativeBattleHostedResourceHandleConsumerTests
 
     private static uint Address(BattleSession session, NativeBattleGraphicsModel model)
     {
-        return (uint)ReadAddress.Invoke(session, [model])!;
+        return (uint)ReadAddress.Invoke(session.Presentation!, [model])!;
     }
 }

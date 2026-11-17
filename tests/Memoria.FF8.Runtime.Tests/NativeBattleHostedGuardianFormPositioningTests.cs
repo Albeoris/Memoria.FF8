@@ -13,7 +13,7 @@ public sealed class NativeBattleHostedGuardianFormPositioningTests
         BattlePartyActorModel caster = new(new("added-form"));
         BattleModelRoster roster = new([caster]);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, new(roster, []), _ => new(0));
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadGuardianFormPositioning", BindingFlags.Static | BindingFlags.NonPublic)!;
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadGuardianFormPositioning", BindingFlags.Static | BindingFlags.NonPublic)!;
         uint firstContact = NativeBattleContactAddress.EncodeOriginal(new(0));
 
         Assert.Equal(firstContact, BinaryPrimitives.ReadUInt32LittleEndian(Read(header + 8, 4)));

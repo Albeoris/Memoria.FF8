@@ -125,6 +125,6 @@ public sealed class NativeLimitGraphicsCallbackTests
 
     private static NativeBattleGraphicsState Invoke(BattleSession session, NativeBattleGraphicsState graphics, uint callback)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("InvokeNativeDescriptorCallback", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, callback, 0u])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("InvokeNativeDescriptorCallback", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [graphics, callback, 0u])!;
     }
 }

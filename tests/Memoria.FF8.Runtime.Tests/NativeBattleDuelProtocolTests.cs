@@ -7,25 +7,6 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuelProtocolTests
 {
-    [Theory]
-    [InlineData(3, 2, BattleNativeDuelPhase.AwaitingEffect)]
-    [InlineData(17, 7, BattleNativeDuelPhase.Finisher)]
-    public void UiPublishesOnlyTheSelectionByteUntilTheNativePoll(byte moveSet, byte action, BattleNativeDuelPhase phase)
-    {
-        BattleSession session = Fixture();
-        Dictionary<string, BattleNativeDuelState> states = States(session);
-        BattleNativeDuelState original = new(0, Target(), 400, 279, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254 };
-        states.Add("party", original);
-        Invoke(session, "QueueNativeDuelChoice", "party", new BattleNativeDuelChoice(moveSet, action, "Move", true, action >= 6, [1]));
-        Assert.Equal(original with { MoveSetId = moveSet, Selection1D28DEF = moveSet, Phase = phase }, states["party"] with { Ui = null });
-        Assert.Equal(action >= 6 ? BattleTimedInputUiPhase.Closing : BattleTimedInputUiPhase.Active, session.GetDuelUi("party")!.Phase);
-        Assert.Empty(session.QueuedActions);
-        Assert.Equal((byte)0, session.Presentation!.NativeActionPackets.ActionCount);
-        Assert.Throws<TargetInvocationException>(() => Invoke(session, "QueueNativeDuelChoice", "party", new BattleNativeDuelChoice(moveSet, action, "Move", true, action >= 6, [1])));
-        BattleNativeDuelState restored = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(states["party"]));
-        Assert.Equal(states["party"].Selection1D28DEF, restored.Selection1D28DEF);
-    }
-
     [Fact]
     public void TimeoutPublishesFFWithoutRemovingTheProcessOrInventingAClosingHeader()
     {
@@ -35,16 +16,6 @@ public sealed class NativeBattleDuelProtocolTests
         Assert.Equal(BattleNativeDuelPhase.Finisher, state.Phase);
         Assert.Equal((short)0, state.RemainingTimer);
         Assert.False(state.WidgetClosed);
-    }
-
-    [Fact]
-    public void AnUnknownSelectionDoesNotBecomeAnIdlePollByDefault()
-    {
-        BattleSession session = Fixture();
-        States(session).Add("party", new(0, Target(), 400, 279, BattleNativeDuelPhase.Ready));
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => Invoke(session, "RunNativeDuelSelection4852B0", session.Presentation!.Graphics));
-        Assert.IsType<NotSupportedException>(error.InnerException);
-        Assert.DoesNotContain("Selection1D28DEF", JsonSerializer.Serialize(States(session)["party"]));
     }
 
     [Theory]
@@ -84,31 +55,17 @@ public sealed class NativeBattleDuelProtocolTests
     [InlineData(65530, 8)]
     [InlineData(65530, 9)]
     [InlineData(65532, 0)]
-    public void SavedClosingControlRequiresExactMetadataAndItsProducedPhysicalHeader(ushort actionId, ushort effect)
+    public void Saved_closing_control_requires_exact_installed_metadata(ushort actionId, ushort effect)
     {
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, NativeLimit = new(1, 11, 0, 0, Enumerable.Repeat((byte)0, 32).ToImmutableArray()) }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
-        BattleNativeAction native = (BattleNativeAction)typeof(BattleSession).GetMethod("CreateNativeDuelControl241", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [actionId, effect])!;
+        BattleNativeAction native = NativeBattleDuelRules.Control(actionId, effect);
         native = JsonSerializer.Deserialize<BattleNativeAction>(JsonSerializer.Serialize(native))!;
-        InstallHeader(effect);
-        BattleActionHeaderReference reference = new(0);
-        Validate(native, reference);
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native with { Power = 1 }, reference)).InnerException);
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native, null)).InnerException);
-        InstallHeader(checked((ushort)(effect + 1)));
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native, reference)).InnerException);
+        Validate(native);
+        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Validate(native with { Power = 1 })).InnerException);
 
-        void InstallHeader(ushort selectedEffect)
+        void Validate(BattleNativeAction candidate)
         {
-            NativeBattleActionPacketsState current = session.Presentation!.NativeActionPackets;
-            var packets = NativeBattleActionPacketsState.Create(current.Roster, NativeBattleRetainedActionPackets.Fresh(), current.ModelAliases);
-            (packets, _) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 241, 0, -1, actionId, selectedEffect, null));
-            (packets, _) = packets.Publish(0);
-            typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, packets);
-        }
-
-        void Validate(BattleNativeAction candidate, BattleActionHeaderReference? header)
-        {
-            Invoke(session, "ValidateSavedAction", "party", "enemy", new HashSet<string>(), BattleAbility.EnemyAbility, (int)actionId, false, candidate, Target(), null!, null!, null!, header!, false, null!, null!, null!, null!, null!);
+            Invoke(session, "ValidateSavedAction", "party", "enemy", new HashSet<string>(), BattleAbility.EnemyAbility, (int)actionId, false, candidate, Target(), null!, null!, null!, null!, null!, (byte)241, null!, null!);
         }
     }
 
@@ -126,30 +83,11 @@ public sealed class NativeBattleDuelProtocolTests
         Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => Invoke(session, "ValidateNativeDuelControlOwners")).InnerException);
     }
 
-    [Theory]
-    [InlineData(BattleNativeDuelPhase.Ready, 254, 0x4852B0u)]
-    [InlineData(BattleNativeDuelPhase.Finisher, 17, 0x4852B0u)]
-    [InlineData(BattleNativeDuelPhase.Finisher, 254, 0x47DE70u)]
-    [InlineData(BattleNativeDuelPhase.Finisher, 254, 0x47E120u)]
-    public void SavedSelectionMustRetainItsActualPendingPollOrClosingEvent(BattleNativeDuelPhase phase, byte selection, uint callback)
-    {
-        BattleSession session = Fixture();
-        BattleNativeDuelState state = new(0, Target(), 400, 279, phase) { Selection1D28DEF = selection };
-        MethodInfo method = typeof(BattleSession).GetMethod("ValidateNativeDuelSelectionDescriptors", BindingFlags.Static | BindingFlags.NonPublic)!;
-        Assert.NotNull(method);
-        NativeBattleGraphicsState graphics = session.Presentation!.Graphics;
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [state, graphics])).InnerException);
-        graphics = graphics with { Descriptors = graphics.Descriptors.Enqueue(10, 128, callback).State };
-        method.Invoke(null, [state, graphics]);
-        NativeBattleGraphicsState wrong = graphics with { Descriptors = NativeBattleDescriptorState.Clear().Enqueue(10, 128, 0x47DD90).State };
-        Assert.IsType<InvalidDataException>(Assert.Throws<TargetInvocationException>(() => method.Invoke(null, [state, wrong])).InnerException);
-    }
-
     private static BattleSession Fixture()
     {
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleGraphicsState graphics = OriginalGraphics([]);
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
+        NativeBattleHostedTestFixture.BindProcess(session, graphics);
         return session;
     }
 

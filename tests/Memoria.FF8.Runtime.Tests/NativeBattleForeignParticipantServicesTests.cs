@@ -10,6 +10,7 @@ public sealed class NativeBattleForeignParticipantServicesTests
     public void Host_bone_observer_publishes_actual_point_and_geometry_registers_without_native_resource_rows()
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "source", Name = "Source", IsPlayer = true }, new() { Id = "target", Name = "Target" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         NativeBattleModelTransform transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096);
         NativeBattlePosedActor pose = new(NativeBattleForeignPlacement.World(transform, 0, 0, 0), [new(10, 20, 30), new(10, 20, 80)], (selector, fraction) =>
         {
@@ -19,11 +20,11 @@ public sealed class NativeBattleForeignParticipantServicesTests
         });
         BattleModelOwner owner = new BattleForeignEnemyModel(new("host"));
         NativeBattleForeignActor actor = new(owner, transform, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = actor });
+        typeof(BattlePresentationProcess).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = actor });
         BattleActorModels models = new([new(owner, new NativeBattleGraphicsModel(2) { Transform = transform, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 })]);
         NativeBattleGraphicsState graphics = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
-        MethodInfo observe = typeof(BattleSession).GetMethod("ObserveNativeGraphicsBoneAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var result = ((NativeBattleEffectMemory Memory, NativeBattleVector Point))observe.Invoke(battle, [NativeBattleEffectMemory.FromColdProcess(), graphics, owner, (byte)0, (short)1024])!;
+        MethodInfo observe = typeof(BattlePresentationProcess).GetMethod("ObserveNativeGraphicsBoneAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var result = ((NativeBattleEffectMemory Memory, NativeBattleVector Point))observe.Invoke(battle.Presentation!, [NativeBattleEffectMemory.FromColdProcess(), graphics, owner, (byte)0, (short)1024])!;
         Assert.Equal(new NativeBattleVector(110, 220, 330), result.Point);
         Assert.Equal(new int?[] { 110, 220, 330 }, result.Memory.ScriptedColorRegisters!.Mac.ToArray());
         Assert.Null(battle.Presentation?.ModelCpuResources);

@@ -146,6 +146,6 @@ public sealed class NativeBattleRingSequenceSchedulingTests
 
     private static NativeBattleGraphicsState Schedule(BattleSession session, NativeBattleGraphicsState graphics, int requested)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("ScheduleNativeRingSequence505C00", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, Party, requested])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ScheduleNativeRingSequence505C00", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [graphics, Party, requested])!;
     }
 }

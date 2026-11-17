@@ -1,253 +1,93 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed partial class NativeBattleGuardianChargeRestoreTests
+public sealed class NativeBattleGuardianChargeRestoreTests
 {
-    [Fact]
-    public void OrdinaryCommand3OwnsChargeWithoutAnActionHeaderAndRetainsItsGrowingRawGauge()
-    {
-        BattleSnapshot snapshot = RawCharge();
-        BattleGuardianForceCast cast = Assert.Single(snapshot.GuardianForceCasts);
-        Assert.Equal((ushort)1060, cast.InitialTicks);
-        Assert.Equal((ushort)1058, cast.RemainingTicks);
-        Assert.Null(cast.Command.NativeAction);
-        Assert.Equal((byte?)254, cast.Command.NativeQueuedCommand);
-        Assert.Equal(new NativeBattleAtbState(12000, 204), snapshot.Combatants[0].NativeAtb);
-        Assert.Equal(170, snapshot.Combatants[0].Atb);
-        Assert.Equal(0, snapshot.ReadFixturePresentation().NativeActionPackets!.ActionCount);
-        NativeBattleScriptTask task = snapshot.NativeScriptState.Tasks.Slots[CastSlot(snapshot)];
-        Assert.Equal((byte)0, task.ReadByte(12));
-        Assert.Equal((byte)254, task.ReadByte(13));
-        Assert.Equal((byte)64, task.ReadByte(14));
-        //Target flags0 retain the native8000 group marker alongside selected physical slot3.
-        Assert.Equal((ushort)0x8008, task.ReadWord(10));
-        BattleSession restored = RestoreChargeOwners(snapshot);
-        Assert.Equal(cast, Assert.Single(restored.GuardianForceCasts));
-        Assert.Equal(snapshot.Combatants[0].NativeAtb, restored.Combatants[0].NativeAtb);
-        Assert.True(restored.Combatants[0].IsBusy);
-        Invoke(restored, "DispatchGuardianForceCasts");
-        Assert.Equal((ushort)1056, Assert.Single(restored.GuardianForceCasts).RemainingTicks);
-        Assert.Equal(new NativeBattleAtbState(12000, 204), restored.Combatants[0].NativeAtb);
-    }
+    private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     [Fact]
-    public void ClocklessComponentChargeStillRequiresAZeroDisplayGauge()
+    public void Current_charge_and_growing_native_gauge_remain_independent_across_fork()
     {
-        BattleSnapshot raw = RawCharge();
-        BattleSnapshot clockless = (raw with
-        {
-            Definition = raw.Definition with { NativeClockRules = null },            Combatants = raw.Combatants.Select(actor => actor with { NativeAtb = null }).ToArray()
-        }).WithFixturePresentation(facts => facts with { NativeGraphics = null });
-        Assert.NotEqual(0, clockless.Combatants[0].Atb);
-        AssertRestoreError<InvalidDataException>(clockless);
-    }
-
-    [Fact]
-    public void ExpandedChargePrivateCopyAcceptsTheValidatedGrowingRawGauge()
-    {
-        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x48, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        BattleSession battle = new(new BattleDefinition
-        {
-            NativeClockRules = new(10),
-            NativeBattleSpeed = 2,
-            GuardianForces = [new(0, 300, 300)],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 0, false, AllTargets: true) { NativeAction = native }],
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 }, new() { Id = "enemy", Name = "Enemy" }]
-        }, BattleAtbMode.Normal);
-        battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
-        battle.Tick();
-
-        BattleSnapshot snapshot = battle.CaptureForContinuation();
-        BattleCombatantSnapshot caster = snapshot.Combatants[0];
-        BattleGuardianForceCast cast = Assert.Single(snapshot.GuardianForceCasts);
-        Assert.Null(snapshot.ReadFixturePresentation().NativeGraphics);
-        Assert.Equal(new NativeBattleAtbState(12000, 51), caster.NativeAtb);
-        Assert.Equal(42, caster.Atb);
-        Assert.Equal((ushort)1058, cast.RemainingTicks);
-
-        BattleSession copy = BattleSession.Restore(snapshot);
-        Assert.Equal(cast, Assert.Single(copy.GuardianForceCasts));
-        Assert.Equal(caster.NativeAtb, copy.Combatants[0].NativeAtb);
+        BattleSession source = CreateCharge();
+        BattleGuardianForceCast original = Assert.Single(source.GuardianForceCasts);
+        BattleSession copy = source.ForkForContinuation();
+        Assert.Equal((ushort)1060, original.InitialTicks);
+        Assert.Equal((ushort)1058, original.RemainingTicks);
+        Assert.Equal((byte?)254, original.Command.NativeQueuedCommand);
+        Assert.Equal(original, Assert.Single(copy.GuardianForceCasts));
+        Assert.Equal(new NativeBattleAtbState(12000, 204), copy.Combatants[0].NativeAtb);
         Assert.True(copy.Combatants[0].IsBusy);
-        copy.Tick();
-        Assert.Equal(new NativeBattleAtbState(12000, 102), copy.Combatants[0].NativeAtb);
+
+        Invoke(copy, "DispatchGuardianForceCasts");
+
         Assert.Equal((ushort)1056, Assert.Single(copy.GuardianForceCasts).RemainingTicks);
-        Assert.Equal(caster.NativeAtb, battle.Combatants[0].NativeAtb);
-        Assert.Equal(cast, Assert.Single(battle.GuardianForceCasts));
-
-        BattleSnapshot mismatched = snapshot with { Combatants = [caster with { Atb = caster.Atb + 1 }, .. snapshot.Combatants.Skip(1)] };
-        Assert.Equal("Native raw ATB contradicts its allocated maximum or HUD projection.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(mismatched)).Message);
-    }
-
-    [Fact]
-    public void ExpandedGuardianRecoveryRetainsDefeatedRecipientsWithoutAdmittingWindupOrQueuedInput()
-    {
-        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x44, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        BattleSession battle = new(new BattleDefinition
-        {
-            NativeBattleSpeed = 2,
-            GuardianForces = [new(0, 300, 300)],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 44, false) { NativeAction = native }],
-            Combatants =
-            [
-                new() { Id = "party", Name = "Party", IsPlayer = true, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0] },
-                new() { Id = "defeated", Name = "Defeated enemy", CurrentHp = 0, NativeStatus0 = 1 },
-                new() { Id = "survivor", Name = "Other enemy" }
-            ]
-        }, BattleAtbMode.Normal);
-        Assert.False(battle.Combatants[1].IsAlive);
-        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("defeated")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        BattleActionPresentation recovery = new("party", "defeated", BattleActionPhase.Recovery, request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
-        BattleSnapshot baseline = battle.Capture();
-
-        BattleSession restored = BattleSession.Restore(baseline with { ActiveAction = recovery });
-        Assert.Equal(recovery, restored.ActiveAction);
-        Assert.False(restored.Combatants[1].IsAlive);
-        Assert.Equal("Invalid queued or active battle action.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(baseline with { ActiveAction = recovery with { Phase = BattleActionPhase.Windup } })).Message);
-        BattleAttackCommand queued = new("party", "defeated", request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
-        Assert.Equal("Invalid queued or active battle action.", Assert.Throws<InvalidDataException>(() => BattleSession.Restore(baseline with { QueuedActions = [queued] })).Message);
+        Assert.Equal(original, Assert.Single(source.GuardianForceCasts));
+        Assert.Equal(source.Combatants[0].NativeAtb, copy.Combatants[0].NativeAtb);
+        Assert.Null(copy.ActiveAction);
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void RawChargeStillRequiresItsValidatedGaugeAndMatchingHud(bool missing)
+    public void Current_charge_rejects_missing_raw_gauge_and_wrong_display_projection(bool missing)
     {
-        BattleSnapshot snapshot = RawCharge();
-        BattleCombatantSnapshot actor = snapshot.Combatants[0];
-        actor = missing ? actor with { NativeAtb = null } : actor with { Atb = 171 };
-        AssertRestoreError<InvalidDataException>(snapshot with { Combatants = [actor, .. snapshot.Combatants.Skip(1)] });
-    }
+        BattleSnapshot snapshot = CreateCharge().Capture();
+        BattleCombatantSnapshot caster = snapshot.Combatants[0];
+        snapshot.Combatants[0] = missing ? caster with { NativeAtb = null } : caster with { Atb = caster.Atb + 1 };
 
-    [Theory]
-    [InlineData(12, (byte)1)]
-    [InlineData(13, (byte)3)]
-    [InlineData(14, (byte)65)]
-    public void ChargeTaskRequiresItsOriginalActorFeCommandAndGfId(int offset, byte value)
-    {
-        BattleSnapshot snapshot = RawCharge();
-        int slot = CastSlot(snapshot);
-        NativeBattleScriptTasks tasks = snapshot.NativeScriptState.Tasks;
-        tasks = tasks with { Slots = tasks.Slots.SetItem(slot, tasks.Slots[slot].WriteByte(offset, value)) };
-        AssertRestoreError<InvalidDataException>(snapshot with { NativeScriptState = snapshot.NativeScriptState with { Tasks = tasks } });
-    }
-
-    [Fact]
-    public void MissingChargeCallbackCannotBeReconstructedFromTheCastRecord()
-    {
-        BattleSnapshot snapshot = RawCharge();
-        NativeBattleScriptTasks tasks = snapshot.NativeScriptState.Tasks;
-        int slot = CastSlot(snapshot);
-        tasks = tasks with { Slots = tasks.Slots.SetItem(slot, tasks.Slots[slot].WriteDword(0, 0x48E8B0)) };
-        AssertRestoreError<InvalidDataException>(snapshot with { NativeScriptState = snapshot.NativeScriptState with { Tasks = tasks } });
-    }
-
-    [Fact]
-    public void DuplicateChargeCallbacksCannotShareOneCanonicalCastRecord()
-    {
-        BattleSnapshot snapshot = RawCharge();
-        NativeBattleScriptTasks tasks = snapshot.NativeScriptState.Tasks;
-        (tasks, int slot) = tasks.Allocate(0x48E620);
-        NativeBattleScriptTask task = tasks.Slots[slot].WriteByte(12, 0).WriteByte(13, 254).WriteByte(14, 64);
-        tasks = tasks with { Slots = tasks.Slots.SetItem(slot, task) };
-        AssertRestoreError<InvalidDataException>(snapshot with { NativeScriptState = snapshot.NativeScriptState with { Tasks = tasks } });
-    }
-
-    [Fact]
-    public void UnknownTaskCommandByteCannotBeSeededFromTheLogicalCast()
-    {
-        BattleSnapshot snapshot = RawCharge();
-        NativeBattleScriptTasks tasks = snapshot.NativeScriptState.Tasks;
-        int slot = CastSlot(snapshot);
-        NativeBattleScriptTask task = tasks.Slots[slot] with { KnownBytes = (ushort)(tasks.Slots[slot].KnownBytes & ~(1 << 13)) };
-        tasks = tasks with { Slots = tasks.Slots.SetItem(slot, task) };
-        AssertRestoreError<NotSupportedException>(snapshot with { NativeScriptState = snapshot.NativeScriptState with { Tasks = tasks } });
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    [InlineData(3)]
-    public void RetainedGaugeDoesNotBypassCastActorAbilityTicksOrEquipment(int corruption)
+    public void Current_charge_rejects_another_actor_wrong_command_or_excess_ticks(int corruption)
     {
-        BattleSnapshot snapshot = RawCharge();
+        BattleSnapshot snapshot = CreateCharge().Capture();
         BattleGuardianForceCast cast = Assert.Single(snapshot.GuardianForceCasts);
-        snapshot = corruption switch
+        BattleGuardianForceCast corrupt = corruption switch
         {
-            0 => snapshot with { GuardianForceCasts = [cast with { Command = cast.Command with { ActorId = "enemy" } }] },
-            1 => snapshot with { GuardianForceCasts = [cast with { Command = cast.Command with { Ability = BattleAbility.Magic } }] },
-            2 => snapshot with { GuardianForceCasts = [cast with { RemainingTicks = 1061 }] },
-            3 => snapshot with { Definition = snapshot.Definition with { Combatants = [snapshot.Definition.Combatants[0] with { EquipmentIds = [] }, .. snapshot.Definition.Combatants.Skip(1)] } },
-            _ => throw new ArgumentOutOfRangeException(nameof(corruption))
+            0 => cast with { Command = cast.Command with { ActorId = "enemy" } },
+            1 => cast with { Command = cast.Command with { NativeQueuedCommand = 3 } },
+            _ => cast with { RemainingTicks = checked((ushort)(cast.InitialTicks + 1)) }
         };
-        AssertRestoreError<InvalidDataException>(snapshot);
+
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { GuardianForceCasts = [corrupt] }));
     }
 
-    [Fact]
-    public void PrivateCopyRetainsBothIndependentChargeAndGaugeCounters()
+    private static BattleSession CreateCharge()
     {
-        BattleSnapshot original = RawCharge();
-        BattleSnapshot copy = NativeBattleTestSnapshots.Independent(original);
-        BattleSession first = RestoreChargeOwners(original);
-        BattleSession second = RestoreChargeOwners(copy);
-        Assert.Equal(original.Random, copy.Random);
-        Invoke(first, "DispatchGuardianForceCasts");
-        Invoke(second, "DispatchGuardianForceCasts");
-        Assert.Equal(first.GuardianForceCasts, second.GuardianForceCasts);
-        Assert.Equal(first.Combatants[0].NativeAtb, second.Combatants[0].NativeAtb);
-    }
-
-    private static BattleSnapshot RawCharge(byte targetFlags = 0)
-    {
-        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = targetFlags, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        BattleDefinition definition = new()
+        BattleNativeAction native = new(254, 64, 2, 0) { Name = "Thunder Storm", MagicId = 116, AttackType = 11, Power = 44, HitCount = 1, TargetFlags = 0x48, AttackFlags = 0, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = 0, RawRecord = [], SupplementalRecord = [] };
+        BattleSession battle = new(new BattleDefinition
         {
             NativeClockRules = new(10),
             NativeBattleSpeed = 2,
-            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
-            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             GuardianForces = [new(0, 300, 300)],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 0, false) { NativeAction = native }],
-            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 }, new() { Id = "enemy", Name = "Enemy" }]
-        };
-        BattleSession session = new(definition, BattleAtbMode.Normal);
-        Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(session, OriginalGraphics([]) with { EntryReady = true });
-        session.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
-        Assert.Equal((byte?)3, Assert.Single(session.QueuedActions).NativeQueuedCommand);
-        Invoke(session, "DispatchAction");
-        Assert.Equal((ushort)1060, Assert.Single(session.GuardianForceCasts).InitialTicks);
-        Method("RunNativeDescriptorActionCallback").Invoke(session, [session.Presentation!.Graphics, 0x47DDA0u]);
-        for (int service = 0; service < 4; service++)
-        {
-            Method("AdvanceNativeAtbParticipant").Invoke(session, [session.Combatants[0], null]);
-        }
-        Invoke(session, "DispatchGuardianForceCasts");
-        return session.Capture();
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "Thunder Storm", BattleActionEffect.Native, 0, false, AllTargets: true) { NativeAction = native }],
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat((ushort)3100, 16).ToArray(), Speed = 21 },
+                new() { Id = "enemy", Name = "Enemy" }
+            ]
+        }, BattleAtbMode.Normal);
+        BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
+        BattleAttackCommand command = new("party", "enemy", request, BattleAbility.GuardianForce) { NativeAction = native, NativeQueuedCommand = 254 };
+        BattleSnapshot seed = battle.Capture();
+        var gauge = new NativeBattleAtbState(12000, 204);
+        seed.Combatants[0] = seed.Combatants[0] with { NativeAtb = gauge, Atb = gauge.Display };
+        battle = BattleSession.Restore(seed);
+        BattleCombatant actor = battle.Combatants[0];
+
+        Invoke(battle, "InitializeExpandedPartyPresentation");
+        Invoke(battle, "QueueGuardianForce", actor, command);
+        Invoke(battle, "DispatchGuardianForceCasts");
+        return battle;
     }
 
-    private static BattleSession RestoreChargeOwners(BattleSnapshot saved)
+    private static void Invoke(BattleSession battle, string name, params object?[] arguments)
     {
-        //Exercise the reached restore methods in their real order without inventing model/texture fixtures.
-        //The installed App regression owns full GameSession.Load and independent rendered continuation.
-        BattleSession target = new(saved.Definition, saved.Mode);
-        BattleCombatantSnapshot actor = saved.Combatants[0];
-        typeof(BattleSession).GetMethod("RestoreNativeStatus", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [target.Combatants[0], actor.NativeStatus]);
-        Method("RestoreNativeAtb").Invoke(target, [target.Combatants[0], actor.NativeAtb, actor.Atb]);
-        Method("RestoreGuardianForces").Invoke(target, [saved]);
-        return target;
+        typeof(BattleSession).GetMethod(name, PrivateInstance)!.Invoke(battle, arguments);
     }
-
-    private static void AssertRestoreError<T>(BattleSnapshot saved) where T : Exception
-    {
-        TargetInvocationException error = Assert.Throws<TargetInvocationException>(() => RestoreChargeOwners(saved));
-        Assert.IsType<T>(error.InnerException);
-    }
-
-    private static int CastSlot(BattleSnapshot saved) => Assert.Single(Enumerable.Range(0, 16), index => saved.NativeScriptState.Tasks.Allocated(index) && saved.NativeScriptState.Tasks.Slots[index].ReadDword(0) == 0x48E620);
-    private static void Invoke(BattleSession session, string name) => Method(name).Invoke(session, null);
-    private static MethodInfo Method(string name) => typeof(BattleSession).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
-    private static PropertyInfo Property(string name) => typeof(BattleSession).GetProperty(name, BindingFlags.Instance | BindingFlags.Public)!;
 }

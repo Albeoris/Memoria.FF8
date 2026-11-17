@@ -15,7 +15,7 @@ public sealed class NativeBattleSequenceParticleSessionTests
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(1), 0, 0, 4, 0, 0, 0), null));
         (packets, _) = packets.Publish(2);
         packets = packets.ActivateHeader(new BattleActionHeaderReference(0)).AdvanceContact();
-        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Presentation!, packets);
         NativeBattleGraphicsState graphics = Graphics() with { ActionGraphics = new(new BattleActionHeaderReference(0), BattleRetainedModelReference.Capture(OriginalOwner(0), OriginalAliases), new BattleContactCursor(0), BattleRetainedModelSelection.Capture(BattleModelTargets.From([OriginalOwner(1)]), OriginalAliases), BattleRetainedModelSelection.Empty, null, BattleRetainedModelReference.Capture(OriginalOwner(1), OriginalAliases), 0, null, 0x50BB00) };
         var result = ((NativeBattleGraphicsState Graphics, int Offset))Invoke(session, "ScheduleNativeSequenceParticle", graphics, OriginalOwner(0), new NativeBattleAuxiliaryProgram([12, 1, 224], 0), true);
         Assert.Equal(3, result.Offset);
@@ -43,6 +43,7 @@ public sealed class NativeBattleSequenceParticleSessionTests
     private static BattleSession CreateSession()
     {
         BattleSession session = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess());
         return session;
     }

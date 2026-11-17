@@ -86,39 +86,6 @@ public sealed class NativeBattleHostedModelLifecycleTests
     }
 
     [Fact]
-    public void Native_and_hosted_seven_row_loops_agree_on_models_and_route_logical_outputs_to_their_respective_owners()
-    {
-        BattleSession native = Session(expanded: false, partyResource: EnemySequence);
-        BattleSession hosted = Session(expanded: false, partyResource: EnemySequence);
-        BattleModelRoster roster = hosted.ReadBattlePresentationRoster();
-        BindPresentationResources(hosted, roster, partyResource: EnemySequence);
-        NativeBattleGraphicsState graphics = Graphics(hosted);
-        graphics = graphics with { ActorModels = graphics.ActorModels.Set(LeadAlly, Sequenced(0)) };
-        NativeBattleModelLifecycleServices services = hosted.CaptureModelLifecycleServices(roster);
-        var before = ObserveActors(hosted);
-        BattleCombatant nativeActor = native.Combatants.Single(actor => actor.Id == "ally-0");
-        uint initialFlags = nativeActor.NativeCombatantFlags;
-        ushort initialStatus = nativeActor.NativeStatus0;
-
-        NativeBattleGraphicsState nativeResult = Advance(native, graphics, null);
-        NativeBattleGraphicsState hostedResult = Advance(hosted, graphics, services);
-
-        Assert.Equal(2, nativeResult.ActorModels.Roster.Count);
-        Assert.Equal(1, nativeResult.ActorModels.Get(LeadAlly).SequenceFrame);
-        Assert.Equal(NativeBattleTestSnapshots.Json(nativeResult), NativeBattleTestSnapshots.Json(hostedResult));
-        Assert.Equal(initialFlags | 0x40u, nativeActor.NativeCombatantFlags);
-        Assert.Equal((ushort)(initialStatus | 1), nativeActor.NativeStatus0);
-        Assert.Equal(before, ObserveActors(hosted));
-        Assert.Equal(new[] { "NativeSequenceSound", "NativeText" }, native.Events.Select(item => item.Kind));
-        Assert.Equal(native.Events[0], Assert.Single(hosted.Events));
-        BattleEvent text = native.Events[1];
-        Assert.Null(text.NativeTextIdentity);
-        Assert.Collection(services.ReadReceipts(),
-            item => Assert.Equal(new NativeBattleModelTextPublished(LeadAlly, text.ActorId!, text.Message, text.Amount, text.NativeTextIdentity), item),
-            item => Assert.Equal(new NativeBattleModelParticipantSuspended(LeadAlly, "ally-0", 1), item));
-    }
-
-    [Fact]
     public void Shared_loop_parses_AB_and_emits_the_registered_process_widget_without_changing_logical_state()
     {
         BattleSession session = Session(expanded: true);

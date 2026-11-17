@@ -123,7 +123,7 @@ public sealed class NativeBattleGuardianFormVisibilityTests
 
     private static NativeBattleGraphicsState RestoreVisibility(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
     {
-        return (NativeBattleGraphicsState)typeof(BattleSession).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, presentation])!;
+        return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("RestoreGuardianFormVisibility", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [graphics, presentation])!;
     }
 
     private static void AssertVisibility(NativeBattleGraphicsState graphics, NativeBattleGuardianFormPresentation presentation)
@@ -143,6 +143,6 @@ public sealed class NativeBattleGuardianFormVisibilityTests
     private static void Return(BattleSession battle)
     {
         BattleGuardianFormState form = new("actor", 2, "ifrit-v1", BattleGuardianFormPhase.Active, 1, 1) { EntryCompleted = true };
-        typeof(BattleSession).GetMethod("ReturnGuardianFormPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.Combatants[0], form]);
+        typeof(BattlePresentationProcess).GetMethod("ReturnGuardianFormPresentation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle.Presentation!, [battle.Combatants[0], form]);
     }
 }

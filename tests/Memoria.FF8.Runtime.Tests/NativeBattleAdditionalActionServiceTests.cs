@@ -73,6 +73,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session);
         Set(session, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess());
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), session.Presentation!.Memory with { Active = 1 });
         NativeBattleActionPacketsState packets = session.Presentation!.NativeActionPackets;
@@ -80,7 +81,7 @@ public sealed class NativeBattleAdditionalActionServiceTests
         BattleModelOwner other = new BattleForeignPartyModel(new("hidden-party"));
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(source, 2, 0, 0, 65535, 1, null));
         (packets, _) = packets.Publish(0);
-        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session.Presentation!, packets);
         NativeBattleActionGraphicsState context = new(header, new BattleRetainedModelReference.CanonicalOwner(source), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, null, callback);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, source, new(0)), (2, other, new(0))], flags: 0x10) with
         {
@@ -92,11 +93,11 @@ public sealed class NativeBattleAdditionalActionServiceTests
 
     private static (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) Poll(BattleSession session, NativeBattleGraphicsState graphics, byte phase)
     {
-        return ((NativeBattleGraphicsState, byte, bool))typeof(BattleSession).GetMethod("PollNativeActionGraphics", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, phase])!;
+        return ((NativeBattleGraphicsState, byte, bool))typeof(BattlePresentationProcess).GetMethod("PollNativeActionGraphics", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [graphics, phase])!;
     }
 
     private static void Set(BattleSession session, string property, object value)
     {
-        typeof(BattleSession).GetProperty(property)!.SetValue(session, value);
+        typeof(BattlePresentationProcess).GetProperty(property)!.SetValue(session.Presentation!, value);
     }
 }

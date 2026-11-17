@@ -118,11 +118,16 @@ public sealed class NativeBattleHostedTriggerWidgetTests
 
     private static BattleNativeRenzokukenBlock Block() => NativeBattleRenzokukenRules.ReadBlock([0xAB, 1, 0, 0xA0, 1, 0xA1], 0, new byte[] { 15, 9 });
 
-    private static BattleSession Session() => new(new BattleDefinition
+    private static BattleSession Session()
     {
-        Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
-        LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]) { Options978 = 0 }
-    }, BattleAtbMode.Normal);
+        BattleSession session = new(new BattleDefinition
+        {
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }],
+            LimitProgress = new(new string('0', 64), 0, 0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]) { Options978 = 0 }
+        }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session, Graphics());
+        return session;
+    }
 
     private static NativeBattleGraphicsState Graphics()
     {
@@ -136,7 +141,7 @@ public sealed class NativeBattleHostedTriggerWidgetTests
 
     private static NativeBattleGraphicsState Prepare(BattleSession owner, NativeBattleGraphicsState graphics, BattleModelOwner model, NativeBattleSequenceCue cue)
     {
-        MethodInfo method = typeof(BattleSession).GetMethod("PrepareNativeTriggerWidget", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        return Assert.IsType<NativeBattleGraphicsState>(method.Invoke(owner, [graphics, model, cue]));
+        MethodInfo method = typeof(BattlePresentationProcess).GetMethod("PrepareNativeTriggerWidget", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return Assert.IsType<NativeBattleGraphicsState>(method.Invoke(owner.Presentation!, [graphics, model, cue]));
     }
 }

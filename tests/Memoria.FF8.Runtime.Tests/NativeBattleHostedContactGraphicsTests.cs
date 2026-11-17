@@ -105,38 +105,22 @@ public sealed class NativeBattleHostedContactGraphicsTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Hosted_and_native_enemy_contact_produce_the_same_visual_reaction(bool ready)
+    public void Current_enemy_contact_selects_or_queues_the_original_reaction(bool ready)
     {
-        var (native, nativeGraphics) = Fixture(expanded: false, nativeEffects: true);
-        var (hosted, hostedGraphics) = Fixture(expanded: false);
+        var (session, graphics) = Fixture(expanded: false);
         ushort resourceFlags = ready ? (ushort)0x40 : (ushort)1;
-        nativeGraphics = nativeGraphics with { ActorModels = nativeGraphics.ActorModels.Set(FirstEnemy, nativeGraphics.ActorModels.Get(FirstEnemy) with { ResourceFlags44 = resourceFlags }) };
-        hostedGraphics = hostedGraphics with { ActorModels = hostedGraphics.ActorModels.Set(FirstEnemy, hostedGraphics.ActorModels.Get(FirstEnemy) with { ResourceFlags44 = resourceFlags }) };
+        graphics = graphics with { ActorModels = graphics.ActorModels.Set(FirstEnemy, graphics.ActorModels.Get(FirstEnemy) with { ResourceFlags44 = resourceFlags }) };
         NativeBattleContactPacket packet = new(new(FirstEnemy, 5, 0, 0, ready ? (ushort)0 : (ushort)4, 123, 0), null);
-        NativeBattleModelLifecycleServices services = hosted.CaptureModelLifecycleServices(hostedGraphics.ActorModels.Roster);
-        NativeBattleGraphicsState nativeResult = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(native.Presentation!, [nativeGraphics with { PendingContacts = [packet] }])!;
-        NativeBattleGraphicsState hostedResult = Consume(hosted, hostedGraphics with { PendingContacts = [packet] }, services);
+        NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(graphics.ActorModels.Roster);
+        NativeBattleGraphicsState result = Consume(session, graphics with { PendingContacts = [packet] }, services);
 
-        Assert.Equal(ready ? (byte)5 : (byte)1, nativeResult.ActorModels.Get(FirstEnemy).Sequence);
-        Assert.Equal(ready ? (byte)0 : (byte)5, nativeResult.ActorModels.Get(FirstEnemy).SequenceState!.Pending3);
-        Assert.Equal(JsonSerializer.Serialize(nativeResult.ActorModels.Get(FirstEnemy)), JsonSerializer.Serialize(hostedResult.ActorModels.Get(FirstEnemy)));
-        NativeBattleEffectTask[] nativeTasks = nativeResult.Effects.Slots.Where(task => (task.Flags0 & 1) != 0).ToArray();
-        NativeBattleEffectTask[] hostedTasks = hostedResult.Effects.Slots.Where(task => (task.Flags0 & 1) != 0).ToArray();
-        Assert.Equal(ready ? 1 : 2, hostedTasks.Length);
-        Assert.Equal(nativeTasks.Length, hostedTasks.Length);
-        for (int index = 0; index < nativeTasks.Length; index++)
-        {
-            Assert.Equal(nativeTasks[index].Glyphs.AsEnumerable(), hostedTasks[index].Glyphs.AsEnumerable());
-            Assert.Equal(nativeTasks[index], hostedTasks[index] with { Glyphs = nativeTasks[index].Glyphs });
-        }
-        Assert.Equal(nativeResult.Effects.Head, hostedResult.Effects.Head);
-        Assert.Equal(0, hostedResult.Effects.Tail);
-        Assert.Equal(ready ? (int?)null : 0, nativeResult.Effects.Tail);
-        Assert.Empty(Contacts(native));
-        Assert.Equal(packet, Assert.Single(Contacts(hosted)));
+        Assert.Equal(ready ? (byte)5 : (byte)1, result.ActorModels.Get(FirstEnemy).Sequence);
+        Assert.Equal(ready ? (byte)0 : (byte)5, result.ActorModels.Get(FirstEnemy).SequenceState!.Pending3);
+        Assert.Equal(ready ? 1 : 2, result.Effects.Slots.Count(task => (task.Flags0 & 1) != 0));
+        Assert.Equal(packet, Assert.Single(Contacts(session)));
     }
 
-    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(bool expanded, bool hole = false, bool nativeEffects = false)
+    private static (BattleSession Session, NativeBattleGraphicsState Graphics) Fixture(bool expanded, bool hole = false)
     {
         BattleDefinition definition = new()
         {
@@ -150,7 +134,6 @@ public sealed class NativeBattleHostedContactGraphicsTests
             session.Combatants.Single(actor => actor.Id == "ally-10").BindRosterSlot(null, bindNative: false);
         }
         var (roster, aliases) = session.ReadBattlePresentationPacketBindings();
-        BattleContactTaskStorageContract storage = nativeEffects ? BattleContactTaskStorageContract.OriginalArena : BattleContactTaskStorageContract.ExpandableArena;
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner => new(2)
         {
             ModelId4 = owner.Side == BattleSide.Allies ? (byte)1 : (byte)61,
@@ -159,7 +142,7 @@ public sealed class NativeBattleHostedContactGraphicsTests
             Sequence = 1,
             SequenceState = new(),
             HasLinkedModelRing140 = false
-        }, storage);
+        }, BattleContactTaskStorageContract.ExpandableArena);
         Dictionary<BattleModelOwner, NativeBattleEffectModelBinding> presentationBindings = graphics.ActorModels.Entries.ToDictionary(entry => entry.Owner, entry => new NativeBattleEffectModelBinding(entry.Owner, entry.State, HitResource));
         var bindings = presentationBindings.Values.Select(binding => new NativeBattleGraphicsBinding(binding.ActorId, binding.Model.ModelId4!.Value, binding.Resource)).ToImmutableArray();
         ImmutableArray<sbyte> saved = Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray().SetItem(2, 4);

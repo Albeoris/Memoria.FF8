@@ -111,7 +111,8 @@ public sealed class NativeBattleExpandedModelLifecycleTests
         (bank, BattleActionHeaderReference header) = bank.Prepare(new(headerActor, 8, headerSequence, -1, actionId, 0, null));
         (bank, _) = bank.Publish(0);
         bank = bank.ActivateHeader(header);
-        Field("nativeActionPackets").SetValue(session, bank);
+        NativeBattleHostedTestFixture.BindProcess(session);
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "nativeActionPackets", bank);
         NativeBattleActionGraphicsState action = new(mismatchedIndex ? header.Advance(1) : header, BattleRetainedModelReference.Capture(headerActor, aliases), new BattleContactCursor(0), BattleRetainedModelSelection.Empty, BattleRetainedModelSelection.Empty, null, null, 0, null, 0);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => NativeBattleGraphicsModels.ClearUnloadedModel(null, null, null, null, null)) with { ActionGraphics = action };
         NativeBattleModelLifecycleServices services = session.CaptureModelLifecycleServices(session.ReadBattlePresentationRoster());
@@ -121,7 +122,7 @@ public sealed class NativeBattleExpandedModelLifecycleTests
 
         NativeBattleModelParticipantSuspended receipt = Assert.IsType<NativeBattleModelParticipantSuspended>(Assert.Single(services.ReadOrderedReceipts()));
         Assert.Same(captured ? bank.ReadHeader(header) : null, receipt.ActiveHeader);
-        Field("nativeActionPackets").SetValue(session, OriginalPackets());
+        NativeBattleHostedTestFixture.SetField(session.Presentation!, "nativeActionPackets", OriginalPackets());
         Invoke(session, "AcknowledgeExpandedModelSuspension", roster, receipt);
         BattleEncounterPolicyState? state = (BattleEncounterPolicyState?)Field("encounterPolicies").GetValue(session);
         Assert.Equal(terminal, state?.TerminalReached == true);

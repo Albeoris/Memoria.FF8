@@ -33,9 +33,18 @@ internal static class NativeBattleHostedTestFixture
         return process;
     }
 
-    internal static void BindProcess(BattleSession logical, NativeBattleGraphicsState graphics, NativeBattleGraphicsDefinition? graphicsResources = null)
+    internal static void BindProcess(BattleSession logical, NativeBattleGraphicsState? graphics = null, NativeBattleGraphicsDefinition? graphicsResources = null)
     {
+        if (graphics is null)
+        {
+            var (roster, aliases) = logical.ReadBattlePresentationPacketBindings();
+            graphics = Graphics(roster, aliases, _ => new(0));
+        }
         BattlePresentationProcess process = SeedProcess(logical, graphics, graphicsResources);
+        if (logical.ReadDefinition().NativeRetainedMemory?.EffectMemory is { } effectMemory)
+        {
+            SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), NativeBattleStorageSnapshots.Fork(effectMemory));
+        }
         typeof(BattleSession).GetField("expandedPresentationProcess", PrivateInstance)!.SetValue(logical, process);
     }
 

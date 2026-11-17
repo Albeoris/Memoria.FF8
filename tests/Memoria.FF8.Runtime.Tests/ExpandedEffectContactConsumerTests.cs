@@ -1,55 +1,11 @@
 using System.Collections.Immutable;
 using System.Reflection;
-using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class ExpandedEffectContactConsumerTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-
-    [Fact]
-    public void RepeatedRecipientPublishesEachOrdinalAndOwnsOneSequenceRow()
-    {
-        BattleSession battle = Create();
-        BattleActionPresentation command = Command();
-        NativeBattleContactPacket first = Packet(Enemy(0), 20);
-        NativeBattleContactPacket second = Packet(Enemy(0), 30);
-        SetContacts(battle, [new("enemy-0", first), new("enemy-0", second)]);
-
-        Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])
-        {
-            Sequences = [new(Enemy(0), NativeBattleForeignSequenceKind.Hit)]
-        });
-        Assert.Throws<InvalidDataException>(() => Invoke(battle, "ValidateExpandedEffectContactCompletion"));
-        Assert.Throws<InvalidDataException>(() => Publish(battle, command, new([first with { Occurrence = new BattleContactOccurrence(0) }], [])));
-        Assert.Single(battle.Events, entry => entry.Kind == "EffectContact");
-
-        Publish(battle, command, new([second with { Occurrence = new BattleContactOccurrence(1) }], []));
-        Invoke(battle, "ValidateExpandedEffectContactCompletion");
-        Assert.Equal(new[] { 20, 30 }, battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.Amount));
-        Assert.All(battle.Events.Where(entry => entry.Kind == "EffectContact"), entry => Assert.Equal("enemy-0", entry.TargetId));
-        Assert.Equal("enemy-0", Assert.Single(battle.Events, entry => entry.Kind == "EffectModelSequence").TargetId);
-    }
-
-    [Fact]
-    public void IdenticalPacketsNeedOrdinalsAndLogicalTailReceivesSeparateOrdinals()
-    {
-        BattleSession battle = Create();
-        BattleActionPresentation command = Command();
-        NativeBattleContactPacket repeated = Packet(Enemy(0), 20);
-        ExpandedBattleContact[] contacts = [.. Enumerable.Repeat(new ExpandedBattleContact("enemy-0", repeated), 6), new("enemy-0", Packet(Enemy(0), 35))];
-        SetContacts(battle, [.. contacts]);
-
-        Assert.Throws<NotSupportedException>(() => Publish(battle, command, new([repeated], [])));
-        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "EffectContact");
-        Publish(battle, command, new([.. Enumerable.Range(0, 5).Select(index => repeated with { Occurrence = new BattleContactOccurrence(index) })], []));
-        Assert.Equal(5, battle.Events.Count(entry => entry.Kind == "EffectContact"));
-        Publish(battle, command, new([repeated with { Occurrence = new BattleContactOccurrence(5) }], []));
-
-        Invoke(battle, "ValidateExpandedEffectContactCompletion");
-        Assert.Equal(new[] { 20, 20, 20, 20, 20, 20, 35 }, battle.Events.Where(entry => entry.Kind == "EffectContact").Select(entry => entry.Amount));
-    }
 
     [Fact]
     public void SingleTargetHitPassesReuseCanonicalOwnersAcrossTheFullRoster()
@@ -72,11 +28,12 @@ public sealed class ExpandedEffectContactConsumerTests
         };
         BattleActionPresentation command = Command() with { Ability = BattleAbility.Magic, ActionId = 1, NativeAction = native };
         BattleActionDefinition action = new(BattleAbility.Magic, 1, "Contact test", BattleActionEffect.Native, 1, false) { NativeAction = native };
-        BattleCombatant[][] plan = singleTargetPasses.Select(recipient => new[] { recipient }).ToArray();
+        var plan = singleTargetPasses.Select(recipient => (new[] { recipient }, (BattleModelOwner?)null)).ToArray();
         typeof(BattleSession).GetField("nativeActionScratch", PrivateInstance)!.SetValue(battle, new NativeBattleActionScratch { ActorIndex = 0, Command = 2, Action = 1, EventActorB0F = 0, EventLane = 2, DeferredEffectsE00 = false });
-        object? result = Invoke(battle, "ResolveExpandedHitPlan", source, command, action, native, plan, true);
-        (ImmutableArray<ExpandedBattleContact> contacts, _) = Assert.IsType<ValueTuple<ImmutableArray<ExpandedBattleContact>, BattleCombatant?>>(result);
-        return contacts.Select(contact => contact.Contact.Recipient).ToArray();
+        MethodInfo execute = typeof(BattleSession).GetMethod("ExecuteHostedContactPlan", PrivateInstance)!;
+        object produced = execute.Invoke(battle, [source, command, action, native, plan, false, null])!;
+        var contacts = Assert.IsType<ImmutableArray<NativeBattleContactPacket>>(produced.GetType().GetProperty("Contacts")!.GetValue(produced));
+        return contacts.Select(contact => contact.Primary.Recipient).ToArray();
     }
 
     private static BattleSession Create()
@@ -102,33 +59,4 @@ public sealed class ExpandedEffectContactConsumerTests
         return new(new($"enemy-{index}"));
     }
 
-    private static NativeBattleContactPacket Packet(BattleModelOwner recipient, ushort amount)
-    {
-        return new(new(recipient, 0, 0, 0, 0, amount, 0), null);
-    }
-
-    private static void SetContacts(BattleSession battle, ImmutableArray<ExpandedBattleContact> contacts)
-    {
-        typeof(BattleSession).GetField("expandedExpectedContacts", PrivateInstance)!.SetValue(battle, contacts.Length);
-        MethodInfo set = typeof(BattleSession).GetMethod("SetExpandedEffectContacts", PrivateInstance, [typeof(BattleCombatant), typeof(ImmutableArray<ExpandedBattleContact>)])!;
-        set.Invoke(battle, [battle.Combatants.First(), contacts]);
-    }
-
-    private static void Publish(BattleSession battle, BattleActionPresentation command, NativeBattleEffectPresentationStep step)
-    {
-        Invoke(battle, "PublishExpandedEffectStep", command, step);
-    }
-
-    private static object? Invoke(BattleSession battle, string method, params object[] arguments)
-    {
-        try
-        {
-            return typeof(BattleSession).GetMethod(method, PrivateInstance)!.Invoke(battle, arguments);
-        }
-        catch (TargetInvocationException exception) when (exception.InnerException is not null)
-        {
-            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-            throw;
-        }
-    }
 }

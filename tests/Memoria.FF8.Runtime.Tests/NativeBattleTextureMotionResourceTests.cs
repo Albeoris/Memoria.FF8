@@ -58,11 +58,12 @@ public sealed class NativeBattleTextureMotionResourceTests
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
         NativeBattleModelTextureCache cache = NativeBattleModelTextureCache.FromColdProcess();
         cache = cache with { Rows = cache.Rows.SetItem(0, cache.Rows[0] with { Kind = 3 }) };
+        NativeBattleHostedTestFixture.BindProcess(session);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelTextureCache))!.SetValue(session.Presentation!, cache);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeFileStaging))!.SetValue(session.Presentation!, NativeBattleFileStaging.Unknown().Write(target.NativePlacementAddress, bytes));
         NativeBattleGraphicsModel model = new(16) { TextureResourceIndex = 0, TextureAllocationMask = 1 };
-        typeof(BattleSession).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [model, (byte)0]);
+        typeof(BattlePresentationProcess).GetMethod("AdvanceNativeTextureMotion", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [model, (byte)0]);
         NativeBattleModelCpuResources restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelCpuResources>(NativeBattleTestSnapshots.Json(session.Presentation!.ModelCpuResources));
         Assert.Equal(6, NativeBattleModelResourceView.Open(restored, session.Presentation!.NativeFileStaging!, new NativeBattleResourcePointer(target, null, bytes.Length), bytes.Length).Read(9, 1)[0]);
         Assert.Equal(5, NativeBattleModelResourceView.Open(restored, session.Presentation!.NativeFileStaging!, pin, bytes.Length).Read(9, 1)[0]);

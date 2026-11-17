@@ -38,9 +38,10 @@ public sealed class NativeBattleForeignReadySequenceTests
     private static (BattleSession Battle, NativeBattleGraphicsState Graphics) Fixture(bool canReact, NativeBattleGraphicsResource? resource = null)
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "source", Name = "Source", IsPlayer = true }, new() { Id = "target", Name = "Target" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         NativeBattleModelTransform transform = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096);
         NativeBattleForeignActor actor = new(Owner, transform, new(100, 200, 300, 0), (_, _) => throw new InvalidOperationException()) { CanReact = canReact, NativeResource = resource };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [Owner] = actor });
+        typeof(BattlePresentationProcess).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [Owner] = actor });
         BattleActorModels models = new([new(Owner, new NativeBattleGraphicsModel(2) { Transform = transform })]);
         NativeBattleGraphicsState graphics = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
         return (battle, graphics);
@@ -48,12 +49,12 @@ public sealed class NativeBattleForeignReadySequenceTests
 
     private static NativeBattleGraphicsState Select(BattleSession battle, NativeBattleGraphicsState graphics, int sequence)
     {
-        MethodInfo select = typeof(BattleSession).GetMethod("SelectNativeReadyHeaderSequence505CE0", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        return (NativeBattleGraphicsState)select.Invoke(battle, [graphics, Owner, sequence])!;
+        MethodInfo select = typeof(BattlePresentationProcess).GetMethod("SelectNativeReadyHeaderSequence505CE0", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return (NativeBattleGraphicsState)select.Invoke(battle.Presentation!, [graphics, Owner, sequence])!;
     }
 
     private static IEnumerable<NativeBattleForeignSequenceRequest> Requests(BattleSession battle)
     {
-        return (IEnumerable<NativeBattleForeignSequenceRequest>)typeof(BattleSession).GetField("presentationSequences", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle)!;
+        return (IEnumerable<NativeBattleForeignSequenceRequest>)typeof(BattlePresentationProcess).GetField("presentationSequences", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(battle.Presentation!)!;
     }
 }

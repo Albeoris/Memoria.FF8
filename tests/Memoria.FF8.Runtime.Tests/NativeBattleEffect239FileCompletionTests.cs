@@ -44,6 +44,7 @@ public sealed class NativeBattleEffect239FileCompletionTests
             NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session);
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess().Write(0x2798218, [0x31, 0xFF, 0x72]).MarkUnknown(0x279821A, 1);
         NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeEffectMemory), memory with { ScriptedEffects = core });
@@ -57,6 +58,6 @@ public sealed class NativeBattleEffect239FileCompletionTests
     }
     private static void Pump(BattleSession session)
     {
-        typeof(BattleSession).GetMethod("PumpNativeFileIo482590", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, null);
+        typeof(BattlePresentationProcess).GetMethod("PumpNativeFileIo482590", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, null);
     }
 }

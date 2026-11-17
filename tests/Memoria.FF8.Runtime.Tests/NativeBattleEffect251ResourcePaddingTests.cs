@@ -40,17 +40,18 @@ public sealed class NativeBattleEffect251ResourcePaddingTests
             cpu = cpu with { EnemyResources = ImmutableDictionary<int, NativeBattleModelCpuBank>.Empty.Add(7, bank), Rows = cpu.Rows.SetItem(0, cpu.Rows[0].Set(12, selected)) };
         }
         BattleSession session = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(session);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         NativeBattlePoseSource source = new((logical ? resource : guest).ToImmutableArray(), [1]);
         NativeBattleGraphicsModel model = new(3) { ActiveResourceRow100 = 0, CurrentBodyBoneMatrices = new(NativeBattleBodyBoneMatrices.Identity(source), [NativeBattleCuragaMatrices.Identity8DD770()]), SequenceState = new() { DecodedPose = new(new(0, 0, 0), [new(new(0, 0, 0), new(1024, 1024, 1024))], false) } };
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, new BattlePartyActorModel(new("party")), model)]);
         NativeBattleEffect251Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), new(251, 250, new(251, 1, 1), null, null), new(42), NativeBattleEffect251State.FromColdProcess()) { Staging = NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()).Write(NativeBattleTemporaryMemory.Address, new byte[128]) };
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeEffect251BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        Assert.Equal(unknown ? null : (short?)(logical ? 0x2222 : 0x1111), (short?)read.Invoke(session, [graphics, frame, 0, 0]));
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadNativeEffect251BonePadding", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.Equal(unknown ? null : (short?)(logical ? 0x2222 : 0x1111), (short?)read.Invoke(session.Presentation!, [graphics, frame, 0, 0]));
         object?[] arguments = [graphics, frame, 0, source];
-        frame = (NativeBattleEffect251Frame)typeof(BattleSession).GetMethod("RestoreNativeEffect251BoundsPose", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, arguments)!;
+        frame = (NativeBattleEffect251Frame)typeof(BattlePresentationProcess).GetMethod("RestoreNativeEffect251BoundsPose", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, arguments)!;
         graphics = (NativeBattleGraphicsState)arguments[0]!;
-        Assert.Equal((short)0, (short?)read.Invoke(session, [graphics, frame, 0, 0]));
+        Assert.Equal((short)0, (short?)read.Invoke(session.Presentation!, [graphics, frame, 0, 0]));
         NativeBattleResourcePointer opposite = new(new(0, logical ? 4 : far) { Layout = layout, ResourceOnly = !logical }, null, 64);
         byte[] unchanged = NativeBattleModelResourceView.Open(session.Presentation!.ModelCpuResources, frame.Staging!, opposite, 64).Read(50, 2);
         Assert.Equal(BitConverter.GetBytes((ushort)(logical ? 0x1111 : 0x2222)), unchanged);

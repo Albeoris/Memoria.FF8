@@ -60,6 +60,7 @@ public sealed class DiagnosticEffectInvocationObservationTests
     private static (BattleSession Battle, BattleDiagnosticEffectDispatch Dispatch, NativeBattleOriginalEffectState Entered, NativeBattleOriginalEffectState Published) Fixture()
     {
         BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 1 }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         battle.DiagnosticEffectDispatched += _ =>
         {
         };
@@ -68,7 +69,7 @@ public sealed class DiagnosticEffectInvocationObservationTests
         (packets, _) = packets.AppendContact(new(new(OriginalOwner(3), 0, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
-        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle.Presentation!, packets);
         typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, 485L);
         typeof(BattleSession).GetField("diagnosticDispatchSerial", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, 5L);
         Invoke(battle, "ObserveDiagnosticPreparedHeader", 0);

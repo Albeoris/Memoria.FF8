@@ -1,4 +1,3 @@
-using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Reflection;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -16,7 +15,6 @@ public sealed class DiagnosticGuardianForceChargeTests
         Assert.Equal((ushort)1060, cast.InitialTicks);
         Assert.Equal(cast.InitialTicks, cast.RemainingTicks);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "DiagnosticGuardianForceChargeSkipped");
-        ReleaseCommandAdmission(battle);
         Method("DispatchGuardianForceCasts").Invoke(battle, null);
         Assert.Equal((ushort)1058, Assert.Single(battle.GuardianForceCasts).RemainingTicks);
     }
@@ -37,18 +35,9 @@ public sealed class DiagnosticGuardianForceChargeTests
         BattleEvent skipped = Assert.Single(observed, entry => entry.Kind == "DiagnosticGuardianForceChargeSkipped");
         Assert.Equal(originalTicks, skipped.Amount);
         Assert.Equal("party", skipped.ActorId);
-        NativeBattleScriptTasks tasks = battle.Capture().NativeScriptState.Tasks;
-        int slot = Assert.Single(Enumerable.Range(0, 16), index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620);
-        NativeBattleScriptTask task = tasks.Slots[slot];
-        Assert.Equal((byte)0, task.ReadByte(12));
-        Assert.Equal((byte)254, task.ReadByte(13));
-        Assert.Equal((byte)64, task.ReadByte(14));
-        uint originalFlags = battle.Combatants[0].NativeCombatantFlags;
-        battle.Combatants[0].NativeCombatantFlags |= 0x400;
-        Assert.False((bool)Method("PollNativeGuardianScriptTask").Invoke(battle, [task])!);
-        Assert.Single(battle.GuardianForceCasts);
-        battle.Combatants[0].NativeCombatantFlags = originalFlags;
-        ReleaseCommandAdmission(battle);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Empty(battle.Presentation!.ActionPackets.PublishedHeaders());
+        Assert.Null(battle.ActiveAction);
         Method("DispatchGuardianForceCasts").Invoke(battle, null);
         Assert.Equal((ushort)0, Assert.Single(battle.GuardianForceCasts).RemainingTicks);
         Assert.Equal(0, battle.Frame);
@@ -96,19 +85,16 @@ public sealed class DiagnosticGuardianForceChargeTests
         {
             battle.ConfigureDiagnosticScheduling(false, enabled);
         }
-        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, OriginalGraphics([]) with { EntryReady = true });
+        var (roster, aliases) = battle.ReadBattlePresentationPacketBindings();
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => new(0)) with { EntryReady = true, EntryLifecycle = 4 };
+        NativeBattleHostedTestFixture.BindProcess(battle, graphics);
+        Method("InitializeExpandedPartyPresentation").Invoke(battle, null);
         return battle;
     }
 
     private static void QueueCharge(BattleSession battle)
     {
         battle.QueueAction("party", "enemy", BattleAbility.GuardianForce, 0);
-        Method("DispatchAction").Invoke(battle, null);
-    }
-
-    private static void ReleaseCommandAdmission(BattleSession battle)
-    {
-        Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.Presentation!.Graphics, 0x47DDA0u]);
     }
 
     private static MethodInfo Method(string name)

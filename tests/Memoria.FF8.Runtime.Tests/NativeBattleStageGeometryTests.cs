@@ -50,7 +50,9 @@ public sealed class NativeBattleStageGeometryTests
             NativeStageSource = new(0, [null, null, null, null], [], new("stage:TIM", [])) { Callback = new(callback, null), Geometry = [mesh] },
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         };
-        return new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(battle);
+        return battle;
     }
 
     private static NativeBattleRawMesh Mesh(short x) => new([new(new(x, 0, 0), 0)], []) { StageGroup = 1 };
@@ -62,6 +64,6 @@ public sealed class NativeBattleStageGeometryTests
 
     private static ImmutableArray<NativeBattleRawMesh> Geometry(BattleSession battle)
     {
-        return (ImmutableArray<NativeBattleRawMesh>)typeof(BattleSession).GetMethod("RequireNativeStageGeometry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null)!;
+        return (ImmutableArray<NativeBattleRawMesh>)typeof(BattlePresentationProcess).GetMethod("RequireNativeStageGeometry", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle.Presentation!, null)!;
     }
 }

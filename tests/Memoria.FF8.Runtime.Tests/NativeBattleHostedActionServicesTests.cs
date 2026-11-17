@@ -6,9 +6,9 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleHostedActionServicesTests
 {
     private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly MethodInfo ModelsBusy = typeof(BattleSession).GetMethod("NativeActionModelsBusy", PrivateInstance)!;
-    private static readonly MethodInfo HeaderGeometry = typeof(BattleSession).GetMethod("PrepareNativeHeaderGeometry", PrivateInstance)!;
-    private static readonly MethodInfo TypedGeometry = typeof(BattleSession).GetMethod("PrepareNativeActionGeometry", PrivateInstance, null,
+    private static readonly MethodInfo ModelsBusy = typeof(BattlePresentationProcess).GetMethod("NativeActionModelsBusy", PrivateInstance)!;
+    private static readonly MethodInfo HeaderGeometry = typeof(BattlePresentationProcess).GetMethod("PrepareNativeHeaderGeometry", PrivateInstance)!;
+    private static readonly MethodInfo TypedGeometry = typeof(BattlePresentationProcess).GetMethod("PrepareNativeActionGeometry", PrivateInstance, null,
         [typeof(NativeBattleGraphicsState), typeof(BattleModelOwner), typeof(BattleModelTargets), typeof(BattleModelTargets), typeof(bool)], null)!;
 
     private static readonly BattlePartyActorModel OriginalAlly = new(new("ally"));
@@ -195,6 +195,7 @@ public sealed class NativeBattleHostedActionServicesTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(session);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         return session;
     }
@@ -248,7 +249,7 @@ public sealed class NativeBattleHostedActionServicesTests
         NativeBattleModelAliases aliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         NativeBattleActionPacketsState storage = NativeBattleActionPacketsState.Create(graphics.ActorModels.Roster, NativeBattleRetainedActionPackets.Fresh(), aliases);
         (NativeBattleActionPacketsState packets, _) = storage.Prepare(new(source, command, 0, -1, 0, 0, null));
-        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session.Presentation!, packets);
     }
 
     private static void InstallForeignBones(BattleSession session, NativeBattleGraphicsState graphics, List<BattleModelOwner> reads, params BattleModelOwner[] owners)
@@ -263,22 +264,22 @@ public sealed class NativeBattleHostedActionServicesTests
                 return transform.Position28 with { Y = bone };
             }));
         }
-        typeof(BattleSession).GetField("presentationForeignActors", PrivateInstance)!.SetValue(session, actors);
+        typeof(BattlePresentationProcess).GetField("presentationForeignActors", PrivateInstance)!.SetValue(session.Presentation!, actors);
     }
 
     private static bool Busy(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        return (bool)ModelsBusy.Invoke(session, [graphics, context])!;
+        return (bool)ModelsBusy.Invoke(session.Presentation!, [graphics, context])!;
     }
 
     private static NativeBattleGraphicsState PrepareHeader(BattleSession session, NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context)
     {
-        return (NativeBattleGraphicsState)HeaderGeometry.Invoke(session, [graphics, context])!;
+        return (NativeBattleGraphicsState)HeaderGeometry.Invoke(session.Presentation!, [graphics, context])!;
     }
 
     private static NativeBattleGraphicsState PrepareTyped(BattleSession session, NativeBattleGraphicsState graphics, BattleModelOwner actor, BattleModelTargets source, BattleModelTargets targets, bool sourceHasNonActorSelectors = false)
     {
-        return (NativeBattleGraphicsState)TypedGeometry.Invoke(session, [graphics, actor, source, targets, sourceHasNonActorSelectors])!;
+        return (NativeBattleGraphicsState)TypedGeometry.Invoke(session.Presentation!, [graphics, actor, source, targets, sourceHasNonActorSelectors])!;
     }
 
     private static void AssertInvalid(Action act)

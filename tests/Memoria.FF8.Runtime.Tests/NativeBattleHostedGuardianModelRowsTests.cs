@@ -173,10 +173,11 @@ public sealed class NativeBattleHostedGuardianModelRowsTests
         {
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        typeof(BattleSession).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(owner, packets);
+        NativeBattleHostedTestFixture.BindProcess(owner);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(owner.Presentation!, packets);
         var graphics = NativeBattleHostedTestFixture.Graphics(roster, new(roster, []), Models(NativeBattleDiablos325Tests.Fixture().Models).Get);
-        MethodInfo callback = typeof(BattleSession).GetMethod("AdvanceNativePandemona291Targets", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        TargetInvocationException invalid = Assert.Throws<TargetInvocationException>(() => callback.Invoke(owner, [frame, NativeBattleEffectNodeMemory.ArenaAddress + creature, 224, null, graphics, false]));
+        MethodInfo callback = typeof(BattlePresentationProcess).GetMethod("AdvanceNativePandemona291Targets", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        TargetInvocationException invalid = Assert.Throws<TargetInvocationException>(() => callback.Invoke(owner.Presentation!, [frame, NativeBattleEffectNodeMemory.ArenaAddress + creature, 224, null, graphics, false]));
         Assert.Contains("execution reference", Assert.IsType<InvalidDataException>(invalid.InnerException).Message, StringComparison.OrdinalIgnoreCase);
     }
 

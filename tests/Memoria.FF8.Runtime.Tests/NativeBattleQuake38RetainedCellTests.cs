@@ -84,6 +84,7 @@ public sealed class NativeBattleQuake38RetainedCellTests
             Combatants = [new() { Id = "party", Name = "Ally", IsPlayer = true }, new() { Id = "first-enemy", Name = "Enemy", ModelId = 30 }],
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess()
         }, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(session);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleQuake38State state = memory.Quake38!;
         state.SetWord(0x278C8E8, 8192).SetWord(0x278C8E6, 8192);
@@ -99,7 +100,7 @@ public sealed class NativeBattleQuake38RetainedCellTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(Party, 1, 7, -1, 38, 0, null));
         (packets, _) = packets.AppendContact(new(new(FirstEnemy, 4, 0, 0, 0, 0, 0), null));
         (packets, _) = packets.Publish(1);
-        typeof(BattleSession).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session, packets);
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", PrivateInstance)!.SetValue(session.Presentation!, packets);
         var parameters = new NativeBattleEffectParameters(Party, 0, BattleModelTargets.From([FirstEnemy]), header, 0, 0);
         var resources = new NativeBattleQuake38Resources(null!, null!, null!, null!, null!, new byte[1024].ToImmutableArray(), [], [], [], [], [], 0, 0);
         NativeBattleEffectTaskPool pool = NativeBattleEffectTaskPool.Initialize(0x1000, 0x2000, 64, 1);

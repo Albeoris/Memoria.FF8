@@ -144,7 +144,10 @@ public sealed partial class BattleSession
         BattleActionPresentation command = new(actor.Id, actor.Id, BattleActionPhase.Recovery, SelectBattleTarget(actor), BattleAbility.EnemyAbility, id) { NativeQueuedCommand = 0, NativeAction = native, NativeSequence = 0 };
         BattleActionDefinition definition = new(command.Ability, id, native.Name!, BattleActionEffect.Native, 0, true) { NativeAction = native };
         NativeBattleActionHeaderPreparation header = BuildExpandedActionHeaderPreparation(command, native);
-        _ = RequirePresentationModelOwner(ReadBattlePresentationRoster(), actor);
+        if (producingExpandedAiCallback)
+        {
+            ReserveExpandedAiInvocation(command, header);
+        }
         nativeActionScratch = nativeActionScratch with { Command = 0, Action = id, DeferredEffectsE00 = false };
         nativeActionCommitDepth++;
         deferringExpandedImpacts = true;

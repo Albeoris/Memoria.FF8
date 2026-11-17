@@ -44,15 +44,15 @@ public sealed class EncounterCameraPatchTests
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess() with { CurrentPose = source });
         NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { OriginalEffect = new(1, 0, new(1, 0x8D6A00, 0), null, null) };
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(session.Presentation!, graphics);
-        System.Reflection.PropertyInfo presentation = typeof(BattleSession).GetProperty("EncounterPresentationCamera", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        System.Reflection.PropertyInfo presentation = typeof(BattlePresentationProcess).GetProperty("EncounterPresentationCamera", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         NativeBattleEffectMemory active = NativeBattleEffectMemory.FromColdProcess() with { Active = 1 };
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, active);
-        Assert.Equal(source, presentation.GetValue(session));
+        Assert.Equal(source, presentation.GetValue(session.Presentation!));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, session.Presentation!.Camera with { CapturedPose = source });
-        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session));
+        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session.Presentation!));
         NativeBattleEffectMemory completed = NativeBattleTestSnapshots.RestoreJson<NativeBattleEffectMemory>(NativeBattleTestSnapshots.Json(active with { Active = 0 }));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, completed);
-        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session));
+        Assert.Equal(EncounterCameraPresentation.Elevate(source, 12), presentation.GetValue(session.Presentation!));
         Assert.Same(graphics.OriginalEffect, session.Presentation!.Graphics.OriginalEffect);
         Assert.Equal(source, session.Presentation!.Camera.CurrentPose);
     }
@@ -143,7 +143,7 @@ public sealed class EncounterCameraPatchTests
 
     private static NativeBattleCameraPose PrepareCamera(BattleSession session)
     {
-        return Assert.IsType<NativeBattleCameraPose>(typeof(BattleSession).GetMethod("PrepareEncounterCamera", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [session.Presentation?.Camera]));
+        return Assert.IsType<NativeBattleCameraPose>(typeof(BattlePresentationProcess).GetMethod("PrepareEncounterCamera", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, [session.Presentation?.Camera]));
     }
 
     private static NativeBattleGraphicsModel CameraModel(int x)

@@ -175,8 +175,8 @@ public sealed class NativeBattleActionGeometryMaskTests
     [InlineData(17, 70000, 4464)]
     public void Expression_distance_variables_read_signed_WORDs_from_their_DWORD_owners(byte variable, int value, int expected)
     {
-        BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeGraphicsActionVariable", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        BattlePresentationProcess session = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadNativeGraphicsActionVariable", BindingFlags.NonPublic | BindingFlags.Instance)!;
         NativeBattleGraphicsState graphics = CreateGraphics() with { ActionContext = new(new BattleRetainedModelReference.OriginalSlot(NativeBattleModelSlot.Decode(0)), BattleRetainedModelSelection.Capture(Selection(8), OriginalAliases), false) { UnadjustedDistance = value, ContactDistance = value } };
         Assert.Equal(expected, Assert.IsType<int>(read.Invoke(session, [graphics, variable])));
     }

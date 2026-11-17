@@ -9,6 +9,7 @@ public sealed class NativeBattleCinematicForeignEntityAnchorTests
     public void Entity_anchor_uses_current_host_pose_and_publishes_full_mac_registers_without_native_resource_rows()
     {
         BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "source", Name = "Source", IsPlayer = true }, new() { Id = "target", Name = "Target" }] }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         NativeBattleModelTransform original = new(new(100, 200, 300), new(100, 200, 300), 0, 0, 4096);
         NativeBattleModelTransform current = original with { Position28 = new(10000, 20000, 30000) };
         int reads = 0;
@@ -21,13 +22,13 @@ public sealed class NativeBattleCinematicForeignEntityAnchorTests
         });
         BattleModelOwner owner = new BattleForeignEnemyModel(new("host"));
         NativeBattleForeignActor foreign = new(owner, original, default!, (_, _) => throw new InvalidOperationException()) { Pose = pose };
-        typeof(BattleSession).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = foreign });
-        typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, NativeBattleEffectMemory.FromColdProcess());
+        typeof(BattlePresentationProcess).GetField("presentationForeignActors", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor> { [owner] = foreign });
+        typeof(BattlePresentationProcess).GetField("nativeEffectMemory", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle.Presentation!, NativeBattleEffectMemory.FromColdProcess());
         BattleActorModels models = new([new(owner, new NativeBattleGraphicsModel(2) { Transform = current, Rotation12 = 0, Rotation14 = 0, Rotation16 = 0 })]);
         NativeBattleGraphicsState graphics = new(models, NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.ExpandableArena));
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create();
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeCinematicEntityAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        NativeBattleCinematicEntityAnchor result = (NativeBattleCinematicEntityAnchor)read.Invoke(battle, [frame, graphics, owner, (short)240])!;
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadNativeCinematicEntityAnchor", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        NativeBattleCinematicEntityAnchor result = (NativeBattleCinematicEntityAnchor)read.Invoke(battle.Presentation!, [frame, graphics, owner, (short)240])!;
         Assert.Equal(1, reads);
         Assert.Equal(10010, result.Point.X);
         Assert.Equal(20020, result.Point.Y);

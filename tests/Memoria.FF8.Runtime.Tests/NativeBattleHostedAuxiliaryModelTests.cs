@@ -231,10 +231,11 @@ public sealed class NativeBattleHostedAuxiliaryModelTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(Roster, Aliases, _ => new(0));
-        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeModelDeformation50F2E0", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeModelDeformation50F2E0", BindingFlags.Instance | BindingFlags.NonPublic)!;
         object?[] arguments = [graphics, RemoveOwner(state).Slots[0]];
-        TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => advance.Invoke(battle, arguments));
+        TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => advance.Invoke(battle.Presentation!, arguments));
         Assert.IsType<InvalidDataException>(invocation.InnerException);
         Assert.Same(graphics, arguments[0]);
         Assert.Null(battle.Presentation?.Graphics);

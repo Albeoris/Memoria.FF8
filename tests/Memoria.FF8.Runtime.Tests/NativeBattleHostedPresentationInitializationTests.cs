@@ -195,7 +195,7 @@ public sealed class NativeBattleHostedPresentationInitializationTests
     public void CameraAliasReferencesReachHostedRowsWhileLiteralSevenAndEightRemainUnsupported()
     {
         BattlePresentationProcess owner = BattlePresentationProcess.CreateEffectPresentation(Inputs(7, 24, NativeBattleScriptedEffectMemory.FromColdProcess(), 1));
-        MethodInfo transform = typeof(BattleSession).GetMethod("TransformNativeCameraReference", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        MethodInfo transform = typeof(BattlePresentationProcess).GetMethod("TransformNativeCameraReference", BindingFlags.Instance | BindingFlags.NonPublic)!;
         NativeBattleCameraPoint Read(byte reference) => (NativeBattleCameraPoint)transform.Invoke(owner, [reference, new NativeBattleCameraPoint(0, 0, 0), 0u])!;
         Assert.Equal(new NativeBattleCameraPoint(700, 0, 107), Read(0x9F));
         Assert.Equal(new NativeBattleCameraPoint(2400, 0, 124), Read(0xAF));

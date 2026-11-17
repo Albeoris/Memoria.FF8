@@ -65,9 +65,10 @@ public sealed class NativeBattleContactReaderTests
                 new() { Id = "enemy", Name = "Enemy" }
             ]
         }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         const BindingFlags instancePrivate = BindingFlags.Instance | BindingFlags.NonPublic;
-        typeof(BattleSession).GetField("nativeActionPackets", instancePrivate)!.SetValue(battle, packets);
-        MethodInfo reader = typeof(BattleSession).GetMethod("ReadNativeEffect312Physical", instancePrivate)!;
+        typeof(BattlePresentationProcess).GetField("nativeActionPackets", instancePrivate)!.SetValue(battle.Presentation!, packets);
+        MethodInfo reader = typeof(BattlePresentationProcess).GetMethod("ReadNativeEffect312Physical", instancePrivate)!;
         NativeBattleGraphicsState graphics = OriginalGraphics([]);
         NativeBattleOriginalEffectState effect = new(312, 311, new(312, 1, 1), null, null);
         NativeBattleEffect312Frame frame = new(NativeBattleEffectMemory.FromColdProcess(), effect, new(1), NativeBattleEffect312State.FromColdProcess())
@@ -75,7 +76,7 @@ public sealed class NativeBattleContactReaderTests
             Staging = NativeBattleFileStaging.Unknown().Write(0x1D287DC, new byte[] { 0xA1, 0xB2 })
         };
 
-        NativeBattleEffectArena Read(uint address, int length) => (NativeBattleEffectArena)reader.Invoke(battle, [graphics, frame, address, length])!;
+        NativeBattleEffectArena Read(uint address, int length) => (NativeBattleEffectArena)reader.Invoke(battle.Presentation!, [graphics, frame, address, length])!;
 
         Assert.Equal(new byte[] { 0x34, 0x12 }, Read(0x1D287CA, 2).Read(0, 2));
         Assert.Equal(extra, packets.ReadContact(new BattleContactOccurrence(49)).Primary.Recipient);

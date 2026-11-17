@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -10,16 +9,13 @@ public sealed class NativeBattleInitialCallbackAdmissionTests
     [InlineData(0x10u, true, true, false)]
     [InlineData(0x80000010u, true, false, true)]
     [InlineData(0x80000010u, true, true, false)]
-    [InlineData(0u, true, false, false)]
-    [InlineData(0x80000000u, true, false, false)]
+    [InlineData(0u, true, false, true)]
+    [InlineData(0x80000000u, true, false, true)]
     [InlineData(0x10u, false, false, false)]
     [InlineData(0x80000010u, false, false, false)]
-    public void InitialCallbackRequiresAllocatedPresentActorWithClearLowByteSuspensionBit(uint flags, bool allocated, bool suspended, bool admitted)
+    public void InitialCallbackRequiresAnOccupiedUnsuspendedActor(uint flags, bool allocated, bool suspended, bool admitted)
     {
         BattleSession battle = Create(new BattleCombatantDefinition { Id = "enemy", Name = "Enemy", SceneSlot = 0, NativeCombatantFlags = flags, InitialActive = allocated, InitialSuspended = suspended });
-        Assert.Empty(battle.QueuedActions);
-
-        QueueInitialCallbacks(battle);
 
         if (admitted)
         {
@@ -42,12 +38,10 @@ public sealed class NativeBattleInitialCallbackAdmissionTests
             new() { Id = "suspended", Name = "Suspended", NativeCombatantFlags = 0x10, InitialSuspended = true, InitialHidden = true, InitialUntargetable = true },
             new() { Id = "last", Name = "Last", NativeCombatantFlags = 0x80000010 });
 
-        QueueInitialCallbacks(battle);
-
         Assert.Equal(new[] { "first", "last" }, battle.QueuedActions.Select(command => command.ActorId));
         Assert.Equal(new[] { 3, 5 }, battle.QueuedActions.Select(command => battle.Combatants.Single(actor => actor.Id == command.ExpandedAiCallback!.Actor.ActorId).NativeActorIndex!.Value));
         BattleSnapshot snapshot = battle.Capture();
-        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
+        BattleSession restored = battle.ForkForContinuation();
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal(new[] { "first", "last" }, restored.QueuedActions.Select(command => command.ActorId));
         BattleCombatant suspended = restored.Combatants.Single(actor => actor.Id == "suspended");
@@ -56,11 +50,6 @@ public sealed class NativeBattleInitialCallbackAdmissionTests
 
     private static BattleSession Create(params BattleCombatantDefinition[] enemies)
     {
-        return new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, .. enemies] }, BattleAtbMode.TurnBased);
-    }
-
-    private static void QueueInitialCallbacks(BattleSession battle)
-    {
-        typeof(BattleSession).GetMethod("QueueNativeInitialParticipants", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null);
+        return new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, .. enemies.Select(enemy => enemy with { NativeAi = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) })] }, BattleAtbMode.TurnBased);
     }
 }

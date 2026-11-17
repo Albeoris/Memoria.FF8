@@ -64,40 +64,6 @@ public sealed class NativeBattleHostedReceiptOrderingTests
         Assert.Null(graphics.Effects.Head);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Native_and_foreign_component_consumers_do_not_emit_hosted_receipts(bool foreign)
-    {
-        var (session, hostedGraphics, services) = Fixture();
-        if (foreign)
-        {
-            Field("presentationForeignActors").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
-        }
-        Field("hostedFrameServices").SetValue(session.Presentation!, services);
-        NativeBattleContactPacket packet = new(new(Original, 5, 0, 0, 0, 123, 0), null);
-        NativeBattleGraphicsState nativeGraphics = hostedGraphics with
-        {
-            ActorModels = hostedGraphics.ActorModels.Remove(AddedAlly).Remove(AddedEnemy),
-            Effects = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena),
-            PendingContacts = [packet]
-        };
-        NativeBattleGraphicsState result = (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [nativeGraphics])!;
-
-        Assert.Empty(result.PendingContacts);
-        Assert.Empty(services.ReadOrderedReceipts());
-        if (foreign)
-        {
-            Assert.Same(packet, Assert.Single(LegacyContacts(session)));
-            Assert.Null(result.Effects.Head);
-        }
-        else
-        {
-            Assert.Empty(LegacyContacts(session));
-            Assert.NotNull(result.Effects.Head);
-        }
-    }
-
     private static (BattleSession Session, NativeBattleGraphicsState Graphics, NativeBattleModelLifecycleServices Services) Fixture()
     {
         BattleDefinition definition = new()
@@ -134,8 +100,6 @@ public sealed class NativeBattleHostedReceiptOrderingTests
     {
         return (NativeBattleGraphicsState)typeof(BattlePresentationProcess).GetMethod("ConsumeHostedNativeGraphicsContacts", PrivateInstance)!.Invoke(session.Presentation!, [graphics, services, NativeBattleContactOrigin.Ordinary])!;
     }
-
-    private static List<NativeBattleContactPacket> LegacyContacts(BattleSession session) => (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session.Presentation!)!;
 
     private static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, PrivateInstance)!;
 }

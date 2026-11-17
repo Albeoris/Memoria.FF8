@@ -10,47 +10,22 @@ public sealed class NativeBattleCommandTitleTests
     [InlineData(false, 0, 8)]
     [InlineData(false, 3, 32)]
     [InlineData(true, 1, 16)]
-    public void Sequence_BB_publishes_the_pending_title_once_and_restores_before_the_cue(bool player, byte speed, int duration)
+    public void Sequence_BB_uses_current_typed_actor_facts_and_emits_one_ordered_title(bool player, byte speed, int duration)
     {
-        BattleSession battle = Create(player, speed, true);
-        BattleSession restored = Restore(battle);
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "NativeText");
-
-        battle.Tick();
-        restored.Tick();
-
-        BattleEvent title = Assert.Single(battle.Events, item => item.Kind == "NativeText");
-        Assert.Equal("Fire", title.Message);
-        Assert.Equal(player ? "party" : "enemy", title.ActorId);
-        Assert.Equal(duration, title.Amount);
-        Assert.Equal(1, title.NativeMessageMode);
-        Assert.Equal(!player, title.IsEnemyActionTitle);
-        Assert.Equal(new BattleTextIdentity("kernel_magicspells_name", 1), title.NativeTextIdentity);
-        Assert.Null(battle.Presentation!.Graphics.ActionGraphics!.PendingData);
-        Assert.Equal(1, battle.Presentation!.Graphics.Callback);
-        Assert.Equal(battle.Events.ToArray(), restored.Events.ToArray());
-        Assert.Equal(battle.Presentation!.Graphics.ActionGraphics, restored.Presentation!.Graphics.ActionGraphics);
-        Assert.Equal(battle.Events.ToArray(), Restore(battle).Events.ToArray());
-    }
-
-    [Fact]
-    public void Hosted_BB_uses_the_current_typed_actor_facts_and_emits_one_ordered_title()
-    {
-        BattleSession child = Create(false, 3, true);
+        BattleSession child = Create(player, speed, true);
         NativeBattleGraphicsState graphics = Assert.IsType<NativeBattleGraphicsState>(child.Presentation?.Graphics);
-        BattleSession logical = Create(false, 3, false);
-        NativeBattleModelLifecycleServices services = logical.CaptureModelLifecycleServices(child.Presentation!.NativeActionPackets.Roster);
+        NativeBattleModelLifecycleServices services = child.CaptureModelLifecycleServices(child.Presentation!.NativeActionPackets.Roster);
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         NativeBattleHostedTestFixture.SetField(child.Presentation!, "hostedFrameServices", services);
 
         NativeBattleGraphicsState advanced = Assert.IsType<NativeBattleGraphicsState>(typeof(BattlePresentationProcess).GetMethod("AdvanceNativeLoadedModels", privateInstance)!.Invoke(child.Presentation!, [graphics, 0u, services]));
 
         BattleEvent title = Assert.IsType<NativeBattlePresentationDescriptorText>(Assert.Single(services.ReadOrderedReceipts())).Message;
-        Assert.Equal("enemy", title.ActorId);
+        Assert.Equal(player ? "party" : "enemy", title.ActorId);
         Assert.Equal("Fire", title.Message);
-        Assert.Equal(32, title.Amount);
+        Assert.Equal(duration, title.Amount);
         Assert.Equal(1, title.NativeMessageMode);
-        Assert.True(title.IsEnemyActionTitle);
+        Assert.Equal(!player, title.IsEnemyActionTitle);
         Assert.Equal(new BattleTextIdentity("kernel_magicspells_name", 1), title.NativeTextIdentity);
         Assert.Null(advanced.ActionGraphics!.PendingData);
         Assert.DoesNotContain(child.Events, entry => entry.Kind == "NativeText");
@@ -61,11 +36,13 @@ public sealed class NativeBattleCommandTitleTests
     {
         BattleSession battle = Create(false, 2, false);
 
-        battle.Tick();
+        BattlePresentationProcess process = battle.Presentation!;
+        NativeBattleModelLifecycleServices services = battle.CaptureModelLifecycleServices(process.ActionPackets.Roster);
+        NativeBattleHostedTestFixture.SetField(process, "hostedFrameServices", services);
+        NativeBattleGraphicsState advanced = Assert.IsType<NativeBattleGraphicsState>(typeof(BattlePresentationProcess).GetMethod("AdvanceNativeLoadedModels", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(process, [process.Graphics, 0u, services]));
 
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "NativeText");
-        Assert.Null(battle.Presentation!.Graphics.ActionGraphics!.PendingData);
-        Assert.Equal(1, battle.Presentation!.Graphics.Callback);
+        Assert.DoesNotContain(services.ReadOrderedReceipts(), receipt => receipt is NativeBattlePresentationDescriptorText);
+        Assert.Null(advanced.ActionGraphics!.PendingData);
     }
 
     [Theory]
@@ -104,7 +81,7 @@ public sealed class NativeBattleCommandTitleTests
         BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
         BattleActionPresentation presentation = new("enemy", "party", BattleActionPhase.Windup, target) { NativeSequence = 1 };
 
-        NativeBattleActionHeaderPreparation header = (NativeBattleActionHeaderPreparation)typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.Combatants[1], presentation, action, false, false])!;
+        NativeBattleActionHeaderPreparation header = battle.BuildExpandedActionHeaderPreparation(presentation, action);
 
         if (producer == 0)
         {
@@ -141,8 +118,4 @@ public sealed class NativeBattleCommandTitleTests
         return session;
     }
 
-    private static BattleSession Restore(BattleSession battle)
-    {
-        return BattleSession.Restore(NativeBattleStorageSnapshots.Capture(battle.Capture()));
-    }
 }

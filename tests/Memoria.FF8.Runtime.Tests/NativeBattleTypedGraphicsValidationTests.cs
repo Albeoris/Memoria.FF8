@@ -153,11 +153,12 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         {
             Combatants = [new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(session);
         NativeBattleOriginalEffectState pending = completed with { ReturnedDescriptor = null };
         NativeBattleEffectMemory idleMemory = NativeBattleEffectMemory.FromColdProcess().InitializeReturnedTask500870();
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, idleMemory);
-        MethodInfo invoke = typeof(BattleSession).GetMethod("InvokeNativeOriginalEffect", instance, [typeof(NativeBattleGraphicsState), typeof(bool)])!;
-        TargetInvocationException pendingError = Assert.Throws<TargetInvocationException>(() => invoke.Invoke(session, [graphics with { OriginalEffect = pending }, true]));
+        MethodInfo invoke = typeof(BattlePresentationProcess).GetMethod("InvokeNativeOriginalEffect", instance, [typeof(NativeBattleGraphicsState), typeof(bool)])!;
+        TargetInvocationException pendingError = Assert.Throws<TargetInvocationException>(() => invoke.Invoke(session.Presentation!, [graphics with { OriginalEffect = pending }, true]));
         Assert.Contains("bound source", Assert.IsType<InvalidDataException>(pendingError.InnerException).Message);
         Assert.Same(idleMemory, session.Presentation?.Memory);
 
@@ -166,8 +167,8 @@ public sealed class NativeBattleTypedGraphicsValidationTests
         NativeBattleEffectMemory memory = idleMemory.AssignReturnedTask(active) with { DetachedReturnedTask = detached ? active : null };
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, memory);
         graphics = graphics with { OriginalEffect = detached ? effect : active };
-        MethodInfo advance = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", instance)!;
-        TargetInvocationException activeError = Assert.Throws<TargetInvocationException>(() => advance.Invoke(session, [graphics]));
+        MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeOriginalEffect", instance)!;
+        TargetInvocationException activeError = Assert.Throws<TargetInvocationException>(() => advance.Invoke(session.Presentation!, [graphics]));
         Assert.Contains("bound source", Assert.IsType<InvalidDataException>(activeError.InnerException).Message);
         Assert.Same(memory, session.Presentation?.Memory);
     }

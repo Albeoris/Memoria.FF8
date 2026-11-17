@@ -21,9 +21,10 @@ public sealed class NativeBattleScanDescriptorTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = player ? 0 : model }
             ]
         }, BattleAtbMode.Normal);
+        NativeBattleHostedTestFixture.BindProcess(battle);
         int index = battle.Combatants.Single(actor => actor.IsPlayer == player).RequireNativeActorIndex();
-        MethodInfo read = typeof(BattleSession).GetMethod("ReadNativeScanDescriptor208", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        NativeBattleScanByteOwner descriptor = Assert.IsType<NativeBattleScanByteOwner>(read.Invoke(battle, [index]));
+        MethodInfo read = typeof(BattlePresentationProcess).GetMethod("ReadNativeScanDescriptor208", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        NativeBattleScanByteOwner descriptor = Assert.IsType<NativeBattleScanByteOwner>(read.Invoke(battle.Presentation!, [index]));
         Assert.Equal(expected, descriptor.ReadByte(0xBB));
     }
 }

@@ -26,13 +26,13 @@ public sealed class NativeBattleGroup30PublicationTests
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = 0, DetachedReturnedTask = null };
         string frozenMemory = NativeBattleTestSnapshots.Json(memory);
         NativeBattleGraphicsState graphics = new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 28, 329, Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalEffects()) { OriginalEffect = selected, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        BattleSession session = (BattleSession)RuntimeHelpers.GetUninitializedObject(typeof(BattleSession));
-        typeof(BattleSession).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
-        MethodInfo poll = typeof(BattleSession).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        BattlePresentationProcess session = (BattlePresentationProcess)RuntimeHelpers.GetUninitializedObject(typeof(BattlePresentationProcess));
+        typeof(BattlePresentationProcess).GetField("nativeEffectMemory", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(session, memory);
+        MethodInfo poll = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeOriginalEffect", BindingFlags.NonPublic | BindingFlags.Instance)!;
         NativeBattleGraphicsState direct = (NativeBattleGraphicsState)poll.Invoke(session, [graphics])!;
         NativeBattleGraphicsState cold = (NativeBattleGraphicsState)poll.Invoke(session, [graphics with { OriginalEffect = coldSelected }])!;
-        Assert.Same(memory, session.Presentation?.Memory);
-        Assert.Equal(frozenMemory, NativeBattleTestSnapshots.Json(session.Presentation?.Memory));
+        Assert.Same(memory, session.Memory);
+        Assert.Equal(frozenMemory, NativeBattleTestSnapshots.Json(session.Memory));
         Assert.Equal(NativeBattleTestSnapshots.Json(graphics), NativeBattleTestSnapshots.Json(direct));
         Assert.Equal(NativeBattleTestSnapshots.Json(direct), NativeBattleTestSnapshots.Json(cold));
         Assert.Equal(frozen, JsonSerializer.Serialize(direct.OriginalEffect));

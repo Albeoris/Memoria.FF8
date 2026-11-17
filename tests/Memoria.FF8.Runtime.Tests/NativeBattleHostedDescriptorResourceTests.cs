@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleHostedDescriptorResourceTests
 {
-    private static readonly MethodInfo ReadByte = typeof(BattleSession).GetMethod("ReadNativeDescriptorByte", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo ReadByte = typeof(BattlePresentationProcess).GetMethod("ReadNativeDescriptorByte", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     private static readonly BattlePartyModelOwner Ally = new BattlePartyActorModel(new("ally"));
     private static readonly BattlePartyModelOwner Extra = new BattlePartyActorModel(new("extra"));
@@ -89,7 +89,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
 
     private static byte Read(BattleSession session, NativeBattleGraphicsState graphics, uint address)
     {
-        return (byte)ReadByte.Invoke(session, [graphics, address])!;
+        return (byte)ReadByte.Invoke(session.Presentation!, [graphics, address])!;
     }
 
     private static BattleSession Session(NativeBattleModelCpuResources cpu)
@@ -103,6 +103,7 @@ public sealed class NativeBattleHostedDescriptorResourceTests
             ]
         };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        NativeBattleHostedTestFixture.BindProcess(session);
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeModelCpuResources))!.SetValue(session.Presentation!, cpu);
         return session;
     }
