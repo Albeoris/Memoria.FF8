@@ -22,6 +22,12 @@ The resource-free preview accepts `--ff7` in addition to its existing capture/se
 dotnet run --project tools/Memoria.FF8.TitleScene.Preview -c Release -f net10.0-windows -- --ff7 --resolution 1920x1080 --time 4 --output meteor-title.png
 ```
 
+The meteor has a stable upper-left key, a teal tail-side rim and a final fill at six percent of key power. Artist source offsets `(-3,+3,+2)`, `(+3,+1,-2)` and `(0,-1,+4)` become object-space toward-light vectors `(-1.797,-3.843,-2)`, `(3.161,+0.083,+2)` and `(-0.341,+0.94,-4)`. Each key/rim visibility query takes at most 24 solid samples with a moderate penumbra, corresponding to a source radius of roughly half the rock radius at the key distance. Microfacet slopes use the geometric tangent frame, with the mass normal controlling the light horizon. There is no ambient term, additive stone edge light or bright overlay; only the golden cracks emit. Rim and flame share `1 + 0.055 sin(3.2t) + 0.025 sin(7.1t)`, bounded to +/-8 percent. The existing fixed exposure shoulder remains `1 - exp(-1.5 color)`; there is no bloom pass.
+
+For lighting authoring, add `--meteor-lighting full|key|rim|fill|key-rim` with `--ff7`. These views select the key, rim, fill or key plus rim; `full` is the ordinary default. Isolated views gate flame, glow, sparks and crack emission so each source can be assessed separately. Use `--background-only` to omit the foreground wordmark. Preview reports name the selected pass. Key-only and fill-only views may produce identical frames at different times. This is an authoring control, with no player configuration option. Library callers can select the same view through `TitleSceneRenderer.MeteorLighting`; FFVIII ignores it.
+
+The meteor uses object coordinates with X along the upper-right tail, Y perpendicular toward the lower-right and Z away from the camera. Screen-space lighting descriptions instead use X right, Y up and Z toward the camera; convert directions between these conventions before using them in the solid's lighting calculations.
+
 Rebuild all three compiled shader profiles and the manifest with `tools/Update-Shaders.ps1` after editing HLSL. Ordinary builds use the embedded effects and need no compiler, model exporter, OBJ loader or game artwork.
 
 ## FFVIII fabric

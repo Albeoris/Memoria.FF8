@@ -54,6 +54,7 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
 {
     public bool CrestOnly { get; init; }
     public TitleSceneStyle Style { get; init; } = TitleSceneStyle.FinalFantasyVIII;
+    public MeteorLightingPass? MeteorLighting { get; init; }
     public int SequenceFrames { get; init; }
     public double SequenceStep { get; init; } = 0.25;
 
@@ -74,6 +75,20 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
 
             switch (argument)
             {
+                case "--meteor-lighting":
+                    options = options with
+                    {
+                        MeteorLighting = Value() switch
+                        {
+                            "full" => MeteorLightingPass.Full,
+                            "key" => MeteorLightingPass.Key,
+                            "rim" => MeteorLightingPass.Rim,
+                            "fill" => MeteorLightingPass.Fill,
+                            "key-rim" => MeteorLightingPass.KeyAndRim,
+                            _ => throw new ArgumentException("Meteor lighting must be full, key, rim, fill or key-rim.")
+                        }
+                    };
+                    break;
                 case "--ff7":
                     options = options with { Style = TitleSceneStyle.FinalFantasyVII };
                     break;
@@ -122,8 +137,16 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
                     options = options with { SequenceStep = step };
                     break;
                 default:
-                    throw new ArgumentException($"Unknown argument: {argument}. Options: --ff7 --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
+                    throw new ArgumentException($"Unknown argument: {argument}. Options: --ff7 --meteor-lighting full|key|rim|fill|key-rim --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
             }
+        }
+        if (options.MeteorLighting is not null && options.Style != TitleSceneStyle.FinalFantasyVII)
+        {
+            throw new ArgumentException("--meteor-lighting requires --ff7.");
+        }
+        if (options.MeteorLighting is not null && options.CrestOnly)
+        {
+            throw new ArgumentException("--meteor-lighting cannot be combined with --crest.");
         }
         return options;
     }
@@ -162,7 +185,10 @@ internal sealed class PreviewGame : Game
     protected override void LoadContent()
     {
         long initializationStarted = Stopwatch.GetTimestamp();
-        scene = new TitleSceneRenderer(GraphicsDevice, options.Style);
+        scene = new TitleSceneRenderer(GraphicsDevice, options.Style)
+        {
+            MeteorLighting = options.MeteorLighting ?? MeteorLightingPass.Full
+        };
         if (!options.BackgroundOnly)
         {
             artwork = new TitleArtworkRenderer(GraphicsDevice, options.Style);
@@ -194,7 +220,8 @@ internal sealed class PreviewGame : Game
             Render(options.Time + 8);
             GraphicsDevice.GetBackBufferData(pixels);
             int changedPixels = reference.Where((color, index) => color != pixels[index]).Count();
-            if (changedPixels == 0)
+            bool expectsAnimation = options.Style != TitleSceneStyle.FinalFantasyVII || options.MeteorLighting is null or MeteorLightingPass.Full or MeteorLightingPass.Rim or MeteorLightingPass.KeyAndRim;
+            if (changedPixels == 0 && expectsAnimation)
             {
                 throw new InvalidOperationException("Animation check failed: time + 8 produced an identical frame.");
             }
@@ -227,6 +254,7 @@ internal sealed class PreviewGame : Game
             {
                 Scene = "Title",
                 Style = options.Style.ToString(),
+                MeteorLighting = options.Style == TitleSceneStyle.FinalFantasyVII ? (options.MeteorLighting ?? MeteorLightingPass.Full).ToString() : null,
                 Field = (int?)null,
                 Frame = 0,
                 AnimationSeconds = options.Time,

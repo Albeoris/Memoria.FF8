@@ -9,6 +9,7 @@
 float Time;
 float Aspect;
 float InverseHeight;
+float4 MeteorLightWeights;
 #if VULKAN || DIRECTX12
 Texture2D Texture : register(t0);
 sampler TextureSampler : register(s0) = sampler_state
@@ -72,9 +73,42 @@ float3 MeteorNormal(float3 p)
     return normalize(float3(MeteorDistance(p + float3(e, 0, 0)) - d, MeteorDistance(p + float3(0, e, 0)) - d, MeteorDistance(p + float3(0, 0, e)) - d));
 }
 
+// Shared by the luminous flame and its reflected light; the key stays stable.
+float FlameLightIntensity()
+{
+    return 1 + 0.055 * sin(Time * 3.2) + 0.025 * sin(Time * 7.1);
+}
+
+float MeteorLightVisibility(float3 p, float3 normal, float3 lightDirection)
+{
+    float visibility = 1;
+    float travel = 0.025;
+    float3 origin = p + normal * 0.012;
+    // A source radius of roughly .5R at the key's distance gives a soft,
+    // bounded penumbra. Only the solid participates, never the emissive plume.
+    [loop]
+    for (int step = 0; step < 24; step++)
+    {
+        float distance = MeteorDistance(origin + lightDirection * travel);
+        if (distance < 0.0008)
+        {
+            return 0;
+        }
+        visibility = min(visibility, 10 * distance / travel);
+        travel += clamp(distance * 0.85, 0.012, 0.18);
+        if (travel > 2.5)
+        {
+            break;
+        }
+    }
+    return saturate(visibility);
+}
+
 // Surface coordinates are fixed to the rock. Combustion travels around it.
 float3 MeteorMaterial(float3 p, float3 n)
 {
+    float3 geometryNormal = n;
+    float3 massNormal = normalize(p * float3(0.88 * 0.88, 1.05 * 1.05, 1));
     float3 grain = p * float3(8, 15, 12);
     float3 cell = floor(grain);
     float first = 20;
@@ -113,19 +147,44 @@ float3 MeteorMaterial(float3 p, float3 n)
     float seams = 1 - smoothstep(0.008, 0.045, ridges);
     float flakes = fbm(p * 71);
     float bevel = 1 - smoothstep(0.04, 0.24, ridges);
-    float3 facetNormal = float3(hash(nearest + 11) - 0.5, hash(nearest + 29) - 0.5, -0.3);
-    n = normalize(n + facetNormal * 0.8 + nearestDelta * bevel * 1.3);
-    float3 light = normalize(float3(-0.7, -0.8, -0.9));
-    float diffuse = saturate(dot(n, light));
-    float greenBounce = saturate(dot(n, normalize(float3(0.9, 0.5, -0.6))));
-    float3 stone = lerp(float3(0.018, 0.034, 0.041), float3(0.12, 0.19, 0.22), plates);
-    stone *= (0.17 + diffuse * 1.7) * (0.55 + flakes * 0.9);
-    stone *= 1 - seams * 0.7;
-    stone += float3(0.005, 0.10, 0.078) * greenBounce * (0.2 + plates);
+    float3 tangent = normalize(cross(geometryNormal, abs(geometryNormal.z) < 0.9 ? float3(0, 0, 1) : float3(0, 1, 0)));
+    float3 bitangent = cross(geometryNormal, tangent);
+    float3 facetSlope = tangent * (hash(nearest + 11) - 0.5) + bitangent * (hash(nearest + 29) - 0.5);
+    float3 bevelSlope = nearestDelta - geometryNormal * dot(nearestDelta, geometryNormal);
+    n = normalize(geometryNormal + facetSlope * 0.55 + bevelSlope * bevel * 0.65);
+
+    // Artist coordinates: X right, Y up, Z toward the camera. Transform the
+    // supplied source offsets (-3,3,2), (3,1,-2), (0,-1,4) into object space:
+    // X follows the tail, Y is screen-down, camera is on -Z. These vectors point
+    // FROM the surface TOWARD each source, as required by N dot L.
+    float3 keyDirection = normalize(float3(-1.797, -3.843, -2));
+    float3 rimDirection = normalize(float3(3.161, 0.083, 2));
+    float3 fillDirection = normalize(float3(-0.341, 0.94, -4));
+    float3 viewDirection = float3(0, 0, -1);
+    float3 albedo = lerp(float3(0.018, 0.034, 0.041), float3(0.12, 0.19, 0.22), plates);
+    albedo *= (0.55 + flakes * 0.9) * (1 - seams * 0.7);
+    float3 stone = 0;
+    float keyFacing = saturate(dot(n, keyDirection)) * smoothstep(-0.08, 0.12, dot(massNormal, keyDirection));
+    if (MeteorLightWeights.x > 0 && keyFacing > 0)
+    {
+        float shadow = MeteorLightVisibility(p, geometryNormal, keyDirection);
+        float specular = pow(saturate(dot(n, normalize(keyDirection + viewDirection))), 32) * 0.08;
+        stone += (albedo * keyFacing + specular * keyFacing) * float3(0.95, 1, 1.08) * 3.6 * shadow * MeteorLightWeights.x;
+    }
+    float rimFacing = saturate(dot(n, rimDirection)) * smoothstep(-0.04, 0.16, dot(massNormal, rimDirection));
+    if (MeteorLightWeights.y > 0 && rimFacing > 0)
+    {
+        float shadow = MeteorLightVisibility(p, geometryNormal, rimDirection);
+        float edge = pow(1 - saturate(dot(massNormal, viewDirection)), 1.5);
+        float specular = pow(saturate(dot(n, normalize(rimDirection + viewDirection))), 24) * 0.18;
+        stone += (albedo * rimFacing + specular * rimFacing) * float3(0.04, 1, 0.74) * 16 * edge * shadow * FlameLightIntensity() * MeteorLightWeights.y;
+    }
+    // No ambient term. A final camera-side source contributes 6% of key power.
+    float fillFacing = saturate(dot(normalize(massNormal * 0.6 + n * 0.4), fillDirection));
+    stone += albedo * fillFacing * float3(0.95, 1, 1.08) * (3.6 * 0.06) * MeteorLightWeights.z;
     float hotCracks = seams * smoothstep(0.57, 0.72, noise(p * 6.3 + 17));
-    stone += float3(0.95, 0.34, 0.035) * hotCracks * (0.7 + 0.3 * sin(Time * 1.3 + p.x * 6));
-    float edge = pow(1 - saturate(-n.z), 3);
-    stone += float3(0.015, 0.46, 0.32) * edge;
+    // Only the golden fissures emit; all other stone brightness is reflected.
+    stone += float3(0.95, 0.34, 0.035) * hotCracks * (0.7 + 0.3 * sin(Time * 1.3 + p.x * 6)) * MeteorLightWeights.w;
     return stone;
 }
 
@@ -174,7 +233,7 @@ float3 Combustion(float2 q)
     fire += float3(0.48, 1.8, 1.5) * front * (0.18 + frontNoise * frontNoise * 2.5);
     float halo = exp(-dot(q * float2(2.7, 5), q * float2(2.7, 5)));
     fire += float3(0.002, 0.12, 0.075) * halo;
-    return fire;
+    return fire * FlameLightIntensity();
 }
 
 float3 AblationSparks(float2 q)
@@ -223,7 +282,7 @@ float4 SurfacePixel(float4 position : SV_POSITION, float4 color : COLOR0, float2
     float mist = fbm(float3(p * 3, Time * 0.014));
     float3 result = float3(0.002, 0.009, 0.013) + float3(0.001, 0.027, 0.019) * mist;
     result += float3(0.0, 0.045, 0.028) * exp(-dot((p - float2(-0.25, 0.2)) * 2.8, (p - float2(-0.25, 0.2)) * 2.8));
-    result += Combustion(q);
+    result = (result + Combustion(q)) * MeteorLightWeights.w;
     // Orthographic camera through the independent 3D solid. A bounded footprint
     // and fixed maximum step count keep cost independent of elapsed time.
     [branch]
@@ -249,13 +308,9 @@ float4 SurfacePixel(float4 position : SV_POSITION, float4 color : COLOR0, float2
             float3 hitPosition = ray + float3(0, 0, depth);
             float3 normal = MeteorNormal(hitPosition);
             result = MeteorMaterial(hitPosition, normal);
-            // Thin ablation over the surface connects the fire to the rock.
-            float ablation = pow(1 - saturate(-normal.z), 4);
-            result += Combustion(q) * (0.05 + ablation * 0.65);
         }
     }
-    result += Lifestream(p);
-    result += AblationSparks(q);
+    result += (Lifestream(p) + AblationSparks(q)) * MeteorLightWeights.w;
     // Preserve a quiet menu area while allowing the lower streams to frame it.
     return float4(result, 1);
 }
@@ -268,9 +323,9 @@ float4 CompositePixel(float4 position : SV_POSITION, float4 color : COLOR0, floa
     float underlineY = 469.0 / 900.0 + 103.0 / 900.0 * wordmarkScale;
     float underline = exp(-abs(p.y - underlineY) / max(InverseHeight * 0.65, 0.00045));
     underline *= 1 - smoothstep(0.58 * wordmarkScale, 0.75 * wordmarkScale, abs(p.x));
-    result += float3(0.12, 0.55, 0.39) * underline;
+    result += float3(0.12, 0.55, 0.39) * underline * MeteorLightWeights.w;
     float2 glint = (p - float2(0, underlineY)) * float2(240, 1900);
-    result += float3(0.25, 0.8, 0.6) * exp(-dot(glint, glint));
+    result += float3(0.25, 0.8, 0.6) * exp(-dot(glint, glint)) * MeteorLightWeights.w;
     float vignette = 1 - 0.38 * smoothstep(0.45, 1.1, length(float2(p.x, (p.y - 0.4) * 1.2)));
     result = 1 - exp(-result * 1.5);
     return float4(result * vignette, 1);

@@ -42,6 +42,9 @@ public sealed class TitleSceneRenderer : IDisposable
         whitePixel.SetData(new[] { Color.White });
     }
 
+    /// <summary>Selects an authoring view for the FFVII meteor. Ignored by the FFVIII scene.</summary>
+    public MeteorLightingPass MeteorLighting { get; set; } = MeteorLightingPass.Full;
+
     /// <summary>Draws into the current render target. Bounds use the current viewport's local coordinates; time is supplied by the host.</summary>
     public void Draw(Rectangle bounds, double seconds)
     {
@@ -54,6 +57,20 @@ public sealed class TitleSceneRenderer : IDisposable
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;
+        }
+
+        Vector4 meteorLightWeights = Vector4.One;
+        if (style == TitleSceneStyle.FinalFantasyVII)
+        {
+            meteorLightWeights = MeteorLighting switch
+            {
+                MeteorLightingPass.Full => Vector4.One,
+                MeteorLightingPass.Key => new Vector4(1f, 0f, 0f, 0f),
+                MeteorLightingPass.Rim => new Vector4(0f, 1f, 0f, 0f),
+                MeteorLightingPass.Fill => new Vector4(0f, 0f, 1f, 0f),
+                MeteorLightingPass.KeyAndRim => new Vector4(1f, 1f, 0f, 0f),
+                _ => throw new ArgumentOutOfRangeException(nameof(MeteorLighting), MeteorLighting, "Unknown meteor lighting pass.")
+            };
         }
 
         EnsureSurface(bounds.Width, bounds.Height);
@@ -75,6 +92,10 @@ public sealed class TitleSceneRenderer : IDisposable
                 effect.Parameters["LightIntensity"].SetValue(TitleSceneAnimation.LightIntensity(seconds));
                 effect.Parameters["VortexRotation"].SetValue(TitleSceneAnimation.VortexRotation(seconds));
                 effect.Parameters["VortexTravel"].SetValue(TitleSceneAnimation.VortexTravel(seconds));
+            }
+            if (style == TitleSceneStyle.FinalFantasyVII)
+            {
+                effect.Parameters["MeteorLightWeights"].SetValue(meteorLightWeights);
             }
             effect.Parameters["Aspect"].SetValue((float)bounds.Width / bounds.Height);
             effect.Parameters["InverseHeight"].SetValue(1.0f / bounds.Height);
