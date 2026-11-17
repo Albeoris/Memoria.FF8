@@ -562,10 +562,6 @@ internal sealed partial class RecreateGame
                 view.Draw(uiCanvas, uiTheme);
             }
         }
-        else if (lightingAuthoringEnabled && lightingStore is not null && session.State.Scene == SceneKind.Field && gameMenus?.IsOpen != true)
-        {
-            uiCanvas.Text("Authoring preview: " + lightingStore.Package.Name + " · " + lightingShortcuts.Describe(LightingEditorCommand.OpenEditor) + " — Edit scene lights", 16, new(bounds.X + 12, bounds.Bottom - 30, bounds.Width - 24, 26), new UiColor(255, 224, 156));
-        }
         if (lightingEditor is null && world?.LightingUnavailableReason is { } unavailable)
         {
             uiCanvas.Text("Field lighting unavailable: " + unavailable, 16, new(bounds.X + 12, bounds.Bottom - 58, bounds.Width - 24, 26), new UiColor(255, 199, 118));
