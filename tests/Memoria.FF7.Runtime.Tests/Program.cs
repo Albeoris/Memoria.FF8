@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--world-control-only", StringComparer.Ordinal))
+{
+    AutoPlayWorldControlTests.Run();
+    return 0;
+}
+
 if (args.Contains("--autoplay-entry-readiness-only", StringComparer.Ordinal))
 {
     AutoPlayEntryReadinessTests.Run();
@@ -904,6 +910,7 @@ var tests = new (string Name, Action Run)[]
     ("native autoplay unexecuted frontier priority", NativeAutoPlayPolicyPlanningTests.Run),
     ("native autoplay gateway topology", AutoPlayGatewayTopologyTests.Run),
     ("native world semantic completion availability", AutoPlayWorldSemanticAvailabilityTests.Run),
+    ("native world intrinsic control", AutoPlayWorldControlTests.Run),
     ("native autoplay destination novelty", NativeAutoPlayDestinationPreferenceTests.Run),
     ("native autoplay world input preview", AutoPlayWorldMovementTests.Run),
     ("native autoplay world frontier catalog", AutoPlayWorldFrontierCatalogTests.Run),

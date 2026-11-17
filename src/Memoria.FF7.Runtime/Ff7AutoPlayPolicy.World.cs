@@ -74,7 +74,7 @@ public sealed partial class Ff7AutoPlayPolicy
         ObserveWorldAllocation();
         Ff7WorldRuntime world = session.World!;
         Ff7AutoPlayObservation observation = ObserveWorldPlanner(world);
-        if (State.Active is { Kind: not Ff7AutoPlayTargetKind.WorldMesh and not Ff7AutoPlayTargetKind.WorldModel } field)
+        if (State.Active is { Kind: not Ff7AutoPlayTargetKind.WorldMesh and not Ff7AutoPlayTargetKind.WorldModel and not Ff7AutoPlayTargetKind.WorldControl } field)
         {
             if (IsAcceptedWorldArrival(field, world.Process, session.Host.Process.Transition))
             {
@@ -97,6 +97,11 @@ public sealed partial class Ff7AutoPlayPolicy
                 return default;
             }
         }
+        if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldControl } control)
+        {
+            return AdvanceWorldControl(world, observation, control);
+        }
+        ReplanConsumedWorldProbeForControl();
         if (State.Active is { Kind: Ff7AutoPlayTargetKind.WorldMesh or Ff7AutoPlayTargetKind.WorldModel, Accepted: true } active && State.WorldDispatch is { } dispatch)
         {
             WorldSnapshot execution = world.Machine.Capture();
@@ -173,6 +178,10 @@ public sealed partial class Ff7AutoPlayPolicy
                 }
                 string? incomplete = worldCatalogs.Values.SelectMany(catalog => catalog.Scripts).FirstOrDefault(script => !script.Complete)?.Reason;
                 throw new NotSupportedException(incomplete ?? "No reachable unconsumed field-entry frontier remains in the bounded native world catalog.");
+            }
+            if (TryBeginWorldControl(next, observation))
+            {
+                return AdvanceWorldControl(world, observation, State.Active!);
             }
             if (!TryBeginWorldModelEvent(next, observation, physicalGuards))
             {
@@ -302,6 +311,16 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 events[model.Id] = new(model.Id, model.Analysis.MayEnterField ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: model.Analysis.ChangesPersistentState, ConditionSignature: WorldModelCondition(model));
             }
+        }
+        foreach (string id in events.Keys.Where(id => id.StartsWith("control:", StringComparison.Ordinal)).ToArray())
+        {
+            events.Remove(id);
+        }
+        worldControlCatalog.Clear();
+        foreach (Ff7AutoPlayWorldControlObservation control in world.ReadAutoPlayControlFrontiers())
+        {
+            worldControlCatalog.Add(control.Id, control);
+            events[control.Id] = new(control.Id, AutoPlayEventKind.Interaction, ConditionSignature: control.ConditionFingerprint);
         }
         planner.Observe(new(worldVisit, vm.ProgramIdentity), events.Values.ToArray());
         ReobserveUnattributedWorldTransfers(State.Coverage.Visits.Single(visit => visit.Visit.Key == worldVisit), worldCatalogs.Values.SelectMany(catalog => catalog.Scripts), visited.SourceProgressEntries);

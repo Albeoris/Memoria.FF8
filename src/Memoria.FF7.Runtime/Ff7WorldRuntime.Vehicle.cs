@@ -213,8 +213,7 @@ public sealed partial class Ff7WorldRuntime
         Ff7WorldEntity transport = RequireEntity(controlledModel);
         bool cancel = (input.Held & 0x40) != 0;
         int heldTicks = vehicle.CancelHeldTicks;
-        int terrain = transport.Terrain & 31;
-        if (vehicle.DismountPhase == 0 && movementEnabled && !cancel && heldTicks is > 0 and < 15 && (controlledModel != SubmarineModel || terrain == 18) && CanLeaveSurfaceVehicle(controlledModel, terrain))
+        if (vehicle.DismountPhase == 0 && !cancel && heldTicks is > 0 and < 15 && CanStartSurfaceVehicleDismount(transport))
         {
             movementEnabled = false;
             controlLock = 2;
@@ -239,6 +238,12 @@ public sealed partial class Ff7WorldRuntime
     {
         uint mask = model switch { 3 => 1u, 5 => 0x70u, 6 => 0x221B0F83u, SubmarineModel => uint.MaxValue, _ => 0 };
         return (mask & (1u << terrain)) != 0;
+    }
+
+    private bool CanStartSurfaceVehicleDismount(Ff7WorldEntity transport)
+    {
+        int terrain = transport.Terrain & 31;
+        return Resources.World == 0 && controlledModel is 3 or 5 or 6 or SubmarineModel && transport.Model == controlledModel && movementEnabled && (controlledModel != SubmarineModel || terrain == 18) && CanLeaveSurfaceVehicle(controlledModel, terrain);
     }
 
     private Ff7WorldEntity OffsetDismountingVehicle(Ff7WorldEntity transport)
