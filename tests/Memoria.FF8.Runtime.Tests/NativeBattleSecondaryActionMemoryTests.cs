@@ -25,7 +25,7 @@ public sealed class NativeBattleSecondaryActionMemoryTests
         BattleCombatantSnapshot[] participants = boundary.Combatants.ToArray();
         NativeBattleParticipantSnapshot source = participants[1].NativeParticipant!;
         participants[1] = participants[1] with { NativeParticipant = source with { LastAction = new(previousClass, 7, 2, 99, 4, 0), RemainingHits = 0 } };
-        battle = BattleSession.Restore(boundary with { Combatants = participants, NativeActionMemory = boundary.NativeActionMemory!.WithAction(source.ActorIndex, participants[1].NativeParticipant!.LastAction) });
+        battle = BattleSession.Restore(boundary with { Combatants = participants, NativeActionMemory = boundary.NativeActionMemory!.WithAction(source.OriginalSlot!.Value.Offset, participants[1].NativeParticipant!.LastAction) });
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         battle.Tick();
         restored.Tick();

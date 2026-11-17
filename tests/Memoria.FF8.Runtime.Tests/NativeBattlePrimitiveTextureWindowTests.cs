@@ -15,6 +15,20 @@ public sealed class NativeBattlePrimitiveTextureWindowTests
     }
 
     [Fact]
+    public void Texture_rectangle_preserves_region_json_and_rejects_missing_or_default_bounds()
+    {
+        const string json = """{"WindowBits":0,"Rectangle":{"X":0,"Y":0,"Width":256,"Height":256},"CurrentPixels":true,"RetainedPixels":null}""";
+        NativeBattlePcTextureWindowRegion region = Assert.IsType<NativeBattlePcTextureWindowRegion>(JsonSerializer.Deserialize<NativeBattlePcTextureWindowRegion>(json));
+        Assert.Equal(new NativeBattlePrimitiveTextureWindow(0, 0, 256, 256), region.Rectangle);
+        Assert.Equal(json, JsonSerializer.Serialize(region));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattlePcTextureWindowRegion>("""{"WindowBits":0,"CurrentPixels":true}"""));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeBattlePcTextureWindowRegion>("""{"WindowBits":0,"Rectangle":null,"CurrentPixels":true}"""));
+        NativeBattleEffectTextureState textures = NativeBattleEffectTextureState.FromColdProcess();
+        Assert.Throws<InvalidDataException>(() => NativeBattlePcTextureWindowPixels.Capture(0, default, textures));
+        Assert.Throws<InvalidDataException>(() => NativeBattlePcTextureWindowPixels.Capture(0, new(0, 0, -1, 16), textures));
+    }
+
+    [Fact]
     public void Executed_E2_replaces_only_its_24_bit_retained_window_and_E1_preserves_it()
     {
         NativeBattlePrimitiveDrawMode before = new(123);

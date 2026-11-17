@@ -47,7 +47,7 @@ public sealed partial class BattleSession
     private AiTargetSelection SelectAiActorOperand(int operand, BattleCombatant? caller = null)
     {
         (NativeBattleTargetRequestAdapter.OriginalWordProjection projection, bool allowsKo) = NativeBattleTargetRequestAdapter.DecodeAiActorOperand(operand);
-        if (caller is not null && ReadDonorSource(caller) is not null && projection.RequiresOriginalSlots && projection.Operands.Slots is [var slot] && slot.Side == BattleSide.Enemies)
+        if (caller is not null && ReadScopedEnemySource(caller) is not null && projection.RequiresOriginalSlots && projection.Operands.Slots is [var slot] && slot.Side == BattleSide.Enemies)
         {
             return FindSourceOriginalActor(caller, NativeBattleSlots.Encode(slot)) is { } donor ? SelectAiActor(donor) : EmptyAiTargets;
         }

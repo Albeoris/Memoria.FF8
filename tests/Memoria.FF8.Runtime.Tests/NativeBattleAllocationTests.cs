@@ -36,7 +36,7 @@ public sealed class NativeBattleAllocationTests
     {
         BattleSession battle = Create([52, 6, 52, 6, 0]);
         BattleSnapshot saved = battle.Capture();
-        Assert.Equal(new[] { 4, 5 }, saved.Combatants.Where(actor => actor.Id.StartsWith("native-allocation-")).Select(actor => actor.NativeParticipant!.ActorIndex));
+        Assert.Equal(new[] { 4, 5 }, saved.Combatants.Where(actor => actor.Id.StartsWith("native-allocation-")).Select(actor => (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset));
         Assert.Equal(2, saved.NativeAllocations.Length);
         Assert.All(saved.NativeAllocations, allocation => Assert.Equal(6, allocation.SceneSlot));
         Assert.False(battle.Combatants.Single(actor => actor.Id == "enemy-6").IsActive);
@@ -69,7 +69,7 @@ public sealed class NativeBattleAllocationTests
         BattleCombatant replacement = battle.Combatants.Single(actor => actor.Id == "native-allocation-2");
         Assert.False(released.IsActive);
         Assert.True(replacement.IsActive);
-        Assert.Equal(4, saved.Combatants.Single(actor => actor.Id == replacement.Id).NativeParticipant!.ActorIndex);
+        Assert.Equal(4, saved.Combatants.Single(actor => actor.Id == replacement.Id).NativeParticipant!.OriginalSlot!.Value.Offset);
         Assert.Equal(replacement.Id, Assert.Single(battle.Events, item => item.Kind == "Activated").ActorId);
         Assert.Equal(2, saved.NativeAllocations[1].Generation);
         Assert.Equal(JsonSerializer.Serialize(saved), JsonSerializer.Serialize(BattleSession.Restore(saved).Capture()));

@@ -311,7 +311,7 @@ public sealed class EncounterNativeDamageRoutingTests
         }
         BattleSnapshot completed = battle.Capture();
         NativeBattleEnemyAllocation replacement = completed.NativeAllocations.Single(allocation => allocation.Generation == 3);
-        Assert.Equal(-1, completed.Combatants.Single(actor => actor.Id == oldCopy).NativeParticipant!.ActorIndex);
+        Assert.Null(completed.Combatants.Single(actor => actor.Id == oldCopy).NativeParticipant!.OriginalSlot);
         Assert.Equal(0, completed.Combatants.Single(actor => actor.Id == replacement.Id).NativeParticipant!.TurnCount);
         Assert.True(battle.Combatants.Single(actor => actor.Id == replacement.Id).IsActive);
         Assert.True(battle.Combatants.Single(actor => actor.Id == "fourth").IsAlive);

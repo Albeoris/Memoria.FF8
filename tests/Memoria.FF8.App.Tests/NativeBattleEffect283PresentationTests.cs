@@ -72,7 +72,7 @@ public sealed class NativeBattleEffect283PresentationTests
             Assert.NotEmpty(geometry);
             loaded.Add(new { ActorIndex = actor, definition.ModelId, pose.BoneCount, MaximumObjectVertices = geometry.Max(mesh => mesh.Vertices.Length), model.Flags0, model.Color44, model.Transform, model.CurrentBodyBoneMatrices, model.SequenceState });
         }
-        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4);
+        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4);
         NativeBattleParticipantSnapshot participant = target.NativeParticipant!;
         Assert.True(participant.Active);
         Assert.False(participant.Hidden);

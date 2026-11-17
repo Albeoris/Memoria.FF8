@@ -38,7 +38,7 @@ public sealed partial class BattleSession
             }
         }
         BattleCombatant source = GetActor(sourceActorId);
-        if (source.IsPlayer || !source.IsAlive || source.SceneSlot is not int sceneSlot || source.NativeAllocationPendingStatistics)
+        if (source.IsPlayer || !source.IsAlive || source.SceneSlot is null || source.NativeAllocationPendingStatistics)
         {
             throw new InvalidOperationException("Encounter allocation requires its living enemy caster and scene owner.");
         }
@@ -74,6 +74,7 @@ public sealed partial class BattleSession
                 EncounterBatchId = batchId,
                 EncounterRole = role,
                 InheritedFromActorId = copySource.Id,
+                DonorSource = ReadDonorSource(copySource),
                 TemplateSource = new(BattleSourceGroupId.ForEncounterCopy(generation), inherited.SceneSlot, inherited.OriginalEnemyOrdinal)
             };
             scopeGroups[index] = (definition.EncounterMod?.Templates.GetValueOrDefault(role)?.Group, inherited.Namespace);
@@ -98,7 +99,6 @@ public sealed partial class BattleSession
                 actor.NativeCombatantFlags = 0xC2;
             }
             StopTurnAdvance();
-            nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
             if (nativeBattleClock is not null)
             {
                 SetNativeBattleClockActive(false);
@@ -117,7 +117,7 @@ public sealed partial class BattleSession
                 PreparedHostedDispatch dispatch = process.PrepareDispatch([], controls: controls, allocations: [initial]);
                 process.ValidatePreparedDispatch(dispatch);
                 HostedEncounterLoadCheckpoint? checkpoint = process.PrepareEncounterLoad(encounterAllocation, dispatch);
-                BindCurrentEncounterAllocation(first, load.SceneSlot);
+                BindCurrentEncounterAllocation(first);
                 process.CommitDispatch(dispatch, checkpoint);
             }
             return encounterAllocation;
@@ -294,7 +294,7 @@ public sealed partial class BattleSession
         BattleEncounterAllocationState batch = encounterAllocation!;
         BattleCombatant actor = GetActor(batch.ActorIds[batch.LoadingIndex]);
         HostedDispatchControl.LoadEnemy load = ReadHostedEncounterAllocationLoad(actor);
-        BindCurrentEncounterAllocation(actor, load.SceneSlot);
+        BindCurrentEncounterAllocation(actor);
         StageExpandedHostedControl(load);
         StageExpandedHostedControl(new HostedDispatchControl.AllocationStatistics());
     }
@@ -310,10 +310,10 @@ public sealed partial class BattleSession
         return new(enemy, slot, original, scene, actor.ModelId);
     }
 
-    private void BindCurrentEncounterAllocation(BattleCombatant actor, int scene)
+    private void BindCurrentEncounterAllocation(BattleCombatant actor)
     {
         RecordLastNativeAllocation(actor);
-        nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)scene), true, true) };
+        nativeScriptState = nativeScriptState with { AllocationControl = new(ReadNativeAllocationSourceScene(actor), true, true) };
     }
 
     private void PrepareHostedEncounterBatch(BattlePresentationProcess process, ImmutableArray<HostedModelLoadAdmission> initialLoads)
@@ -375,7 +375,7 @@ public sealed partial class BattleSession
         HostedDispatchControls controls = new([load, new HostedDispatchControl.AllocationStatistics()], []);
         PreparedHostedDispatch dispatch = process.PrepareDispatch([], controls: controls, allocations: [admission]);
         process.ValidatePreparedDispatch(dispatch);
-        BindCurrentEncounterAllocation(nextActor, load.SceneSlot);
+        BindCurrentEncounterAllocation(nextActor);
         encounterAllocation = batch with { LoadingIndex = next };
         process.CommitDispatch(dispatch);
     }

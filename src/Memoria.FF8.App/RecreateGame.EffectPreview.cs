@@ -25,6 +25,25 @@ internal sealed partial class RecreateGame
     private EffectComponentFrameMeasurements? effectComponentMeasurements;
     private long? effectComponentDrainedTimestamp;
     private BattleDiagnosticComponentAdmission? effectPreviewSourceAdmission;
+
+    private BattleComponentAdmissionIdentity? ObserveComponentAdmissionIdentity()
+    {
+        if (effectPreviewSourceAdmission is not { } source)
+        {
+            return null;
+        }
+        string actorId = source.Actor switch
+        {
+            BattlePartyActorModel party => party.Actor.ActorId,
+            BattleEnemyActorModel enemy => enemy.Actor.ActorId,
+            _ => throw new InvalidDataException("Component admission requires its canonical battle actor.")
+        };
+        return new(source.Effect, source.Command, source.Action, source.OriginalActorIndex, source.HeaderIndex, source.Callback)
+        {
+            ActorId = actorId,
+            HeaderReference = new(source.HeaderIndex)
+        };
+    }
     private int effectComponentInactivePresentedFrames;
     private readonly EffectComponentTerminalTextureTracker effectComponentTerminalTextures = new();
 
@@ -119,7 +138,7 @@ internal sealed partial class RecreateGame
             }
             if ((effectPreviewDispatch is not null || effectPreviewSourceAdmission is not null) && !effectPreviewPresented)
             {
-                effectPreviewGate!.Write("visual-started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: (object?)effectPreviewDispatch ?? effectPreviewSourceAdmission, dispatchUtc: effectPreviewDispatchUtc);
+                effectPreviewGate!.Write("visual-started", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: (object?)effectPreviewDispatch ?? ObserveComponentAdmissionIdentity(), dispatchUtc: effectPreviewDispatchUtc);
                 if (request.AbilityId is null && effectComponentSource is null)
                 {
                     effectPreviewGate.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "graphical-preview-initialized", effect = effectPreviewExpectedEffect });
@@ -152,7 +171,7 @@ internal sealed partial class RecreateGame
                     {
                         EffectComponentFrameReport measurements = effectComponentMeasurements!.Complete(effectComponentDrainedTimestamp);
                         string output = request.Presentation?.ReceiptDirectory ?? options.ControlDirectory!;
-                        WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new { scope = "installed-source-controlled-component-gpu-presentation", source_sha256 = effectComponentSource.Sha256, effect = effectPreviewExpectedEffect, native_dispatch = effectPreviewDispatch, native_admission = effectPreviewSourceAdmission, completion_kind = "drained", completed = true, drained = true, resident_tasks_remain = false, terminal_texture_certificate = (BattleComponentTerminalTextureCertificate?)null, tail_presented_frames = diagnosticPresentedFrames - effectPreviewDrainedFrame.Value, host = new { backend = GraphicsHostReadiness.Backend, vsync = uiPreferences.VSync, presentation_interval = GraphicsDevice.PresentationParameters.PresentationInterval.ToString(), frame_limit = uiPreferences.BattleFps, width = GraphicsDevice.PresentationParameters.BackBufferWidth, height = GraphicsDevice.PresentationParameters.BackBufferHeight, msaa_samples = GraphicsDevice.PresentationParameters.MultiSampleCount, inactive_presented_frames = effectComponentInactivePresentedFrames }, measurements });
+                        WriteDiagnosticJson(Path.Combine(output, "component-measurements.json"), new { scope = "installed-source-controlled-component-gpu-presentation", source_sha256 = effectComponentSource.Sha256, effect = effectPreviewExpectedEffect, native_dispatch = effectPreviewDispatch, native_admission = ObserveComponentAdmissionIdentity(), completion_kind = "drained", completed = true, drained = true, resident_tasks_remain = false, terminal_texture_certificate = (BattleComponentTerminalTextureCertificate?)null, tail_presented_frames = diagnosticPresentedFrames - effectPreviewDrainedFrame.Value, host = new { backend = GraphicsHostReadiness.Backend, vsync = uiPreferences.VSync, presentation_interval = GraphicsDevice.PresentationParameters.PresentationInterval.ToString(), frame_limit = uiPreferences.BattleFps, width = GraphicsDevice.PresentationParameters.BackBufferWidth, height = GraphicsDevice.PresentationParameters.BackBufferHeight, msaa_samples = GraphicsDevice.PresentationParameters.MultiSampleCount, inactive_presented_frames = effectComponentInactivePresentedFrames }, measurements });
                         effectPreviewGate!.Write("completed", active.NativeHostCallbacks ?? 0, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: new { scope = "controlled-component", completion_kind = "drained", completed = true, drained = true, resident_tasks_remain = false, terminal_texture_certificate = (BattleComponentTerminalTextureCertificate?)null, effect = effectPreviewExpectedEffect });
                     }
                     else

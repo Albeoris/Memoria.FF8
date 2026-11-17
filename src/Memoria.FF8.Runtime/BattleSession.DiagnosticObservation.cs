@@ -10,6 +10,9 @@ public sealed record BattleDiagnosticEffectDispatch(long Serial, long Callback, 
     public string? NativeAiScriptSha256 { get; init; }
     public ushort? NativeTargetMask { get; init; }
     public byte? NativeActorIndex { get; init; }
+    public BattleRosterSlot? ActorSlot { get; init; }
+    public BattleActionHeaderReference? HeaderReference { get; init; }
+    public ImmutableArray<string> ContactActorIds { get; init; } = [];
     public int? NativeHeaderIndex { get; init; }
     public long? NativeHeaderGeneration { get; init; }
     public BattleDiagnosticReflection? Reflection { get; init; }
@@ -28,10 +31,26 @@ public sealed record BattleDiagnosticSupportingInvocation([property: JsonRequire
         }
     }
 }
-public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] ImmutableArray<byte> HeaderPayload, [property: JsonRequired] uint HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte> ContactPayload);
+public sealed record BattleDiagnosticNativeContact([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] long DispatchSerial, [property: JsonRequired] string SubmittedTargetId, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte? RecipientIndex, [property: JsonRequired] int? HeaderIndex, [property: JsonRequired] ImmutableArray<byte>? HeaderPayload, [property: JsonRequired] uint? HeaderUnknownByteMask, [property: JsonRequired] int? FirstContactIndex, [property: JsonRequired] int? RetainedContactIndex, [property: JsonRequired] ImmutableArray<byte>? ContactPayload)
+{
+    public BattleRosterSlot? ActorSlot { get; init; }
+    public BattleRosterSlot? RecipientSlot { get; init; }
+    public BattleActionHeaderReference? HeaderReference { get; init; }
+    public long HeaderGeneration { get; init; }
+    public BattleContactOccurrence? Occurrence { get; init; }
+    public int FirstContactOrdinal { get; init; }
+    public int ContactCount { get; init; }
+}
 public sealed record BattleDiagnosticPeriodicStatus([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte? OriginalRecipientOperand, [property: JsonRequired] int StatusBit, [property: JsonRequired] short TimerBefore, [property: JsonRequired] int Decrement, [property: JsonRequired] short TimerAfter, [property: JsonRequired] ushort SavedStatuses, [property: JsonRequired] uint BattleStatuses, [property: JsonRequired] int MaximumHp, [property: JsonRequired] int ResolvedAmount, [property: JsonRequired] long Callback);
-public sealed record BattleDiagnosticNativeHpWord([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int ScriptIndex, [property: JsonRequired] int ProgramCounter, [property: JsonRequired] ImmutableArray<byte> ScriptBytes, [property: JsonRequired] byte Opcode, [property: JsonRequired] ushort Operand, [property: JsonRequired] short Amount, [property: JsonRequired] ushort BeforeHpWord, [property: JsonRequired] ushort AfterHpWord, [property: JsonRequired] long Callback);
-public sealed record BattleDiagnosticNativeStatusRemoval([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte NativeCommand, [property: JsonRequired] ushort NativeActionId, [property: JsonRequired] uint ActionStatuses1, [property: JsonRequired] uint AppliedBattleStatuses);
+public sealed record BattleDiagnosticNativeHpWord([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte? RecipientIndex, [property: JsonRequired] int ModelId, [property: JsonRequired] int ScriptIndex, [property: JsonRequired] int ProgramCounter, [property: JsonRequired] ImmutableArray<byte> ScriptBytes, [property: JsonRequired] byte Opcode, [property: JsonRequired] ushort Operand, [property: JsonRequired] short Amount, [property: JsonRequired] ushort BeforeHpWord, [property: JsonRequired] ushort AfterHpWord, [property: JsonRequired] long Callback)
+{
+    public BattleRosterSlot? RecipientSlot { get; init; }
+}
+public sealed record BattleDiagnosticNativeStatusRemoval([property: JsonRequired] uint ProducerAddress, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] byte? RecipientIndex, [property: JsonRequired] byte NativeCommand, [property: JsonRequired] ushort NativeActionId, [property: JsonRequired] uint ActionStatuses1, [property: JsonRequired] uint AppliedBattleStatuses)
+{
+    public BattleRosterSlot? ActorSlot { get; init; }
+    public BattleRosterSlot? RecipientSlot { get; init; }
+}
 public sealed record BattleDiagnosticResolution(long Frame, long Callback, string Kind, string? ActorId, string? OriginalTargetId, string ActualTargetId, int ResolvedAmount, int ActualAmount, int BeforeHp, int AfterHp, string HpOwner)
 {
     public BattleDiagnosticNativeContact? NativeContact { get; init; }
@@ -44,6 +63,7 @@ public sealed record BattleDiagnosticStock(int MagicId, int Quantity);
 public sealed record BattleDiagnosticCombatant(string Id, int CurrentHp, int MaximumHp, ushort Statuses0, uint Statuses1, BattleDiagnosticStock[] MagicStocks)
 {
     public int? NativeIndex { get; init; }
+    public BattleRosterSlot? Slot { get; init; }
     public int? ModelId { get; init; }
     public string[]? NativeAiScriptSha256 { get; init; }
 }
@@ -107,10 +127,17 @@ public sealed partial class BattleSession
             NativeAiScriptSha256 = scriptSha256,
             NativeTargetMask = observation.OriginalTargets,
             NativeActorIndex = observation.OriginalActor,
+            ActorSlot = source?.Slot,
+            HeaderReference = observation.Effect.Parameters?.Header,
+            ContactActorIds = observation.Header?.ContactCount is not null && observation.Effect.Parameters is { } parameters ? ReadDiagnosticContactActorIds(process.ActionPackets, parameters.Header) : [],
             NativeHeaderIndex = observation.OriginalHeader,
             NativeHeaderGeneration = observation.HeaderGeneration
         };
         dispatch = CompleteDiagnosticReflection(process, observation, cast, dispatch);
+        if (DiagnosticResolution is not null && dispatch is { NativeCommand: 254, HeaderReference: not null, NativeHeaderGeneration: > 0 })
+        {
+            diagnosticGuardianDispatch = dispatch;
+        }
         ObserveDiagnosticInvocationDispatch(dispatch);
         process.PublishDiagnosticEnteredEffect(observer, dispatch, observation.Effect);
     }
@@ -173,7 +200,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (next.IsPlayer || next.NativeActorIndex is not (>= 3 and <= 6) || next.NativeAi is null || next.ResolvedNativeLevel is null || next.NativeAllocationPendingStatistics || (next.NativeCombatantFlags & 0xC3) != 1 || next.IsBusy || !CanNativeBattleActorAct(next))
+        if (next.IsPlayer || next.Slot is not { Side: BattleSide.Enemies } || next.NativeAi is null || next.ResolvedNativeLevel is null || next.NativeAllocationPendingStatistics || (next.NativeCombatantFlags & 0xC3) != 1 || next.IsBusy || !CanNativeBattleActorAct(next))
         {
             return false;
         }
@@ -188,16 +215,16 @@ public sealed partial class BattleSession
 
     private static BattleDiagnosticCombatant ObserveDiagnosticCombatant(BattleCombatant actor)
     {
-        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeActorIndex, ModelId = actor.ModelId, NativeAiScriptSha256 = actor.NativeAi?.Scripts.Select(script => Convert.ToHexString(SHA256.HashData(script))).ToArray() };
+        return new(actor.Id, actor.CurrentHp, actor.MaximumHp, actor.NativeStatus0, actor.NativeStatus1, actor.NativeMagicSlots.Where(stock => stock.SpellId != 0).Select(stock => new BattleDiagnosticStock(stock.SpellId, stock.Count)).ToArray()) { NativeIndex = actor.NativeActorIndex, Slot = actor.Slot, ModelId = actor.ModelId, NativeAiScriptSha256 = actor.NativeAi?.Scripts.Select(script => Convert.ToHexString(SHA256.HashData(script))).ToArray() };
     }
 
     private void ObserveDiagnosticNativeHpWord(BattleCombatant actor, int scriptIndex, int pc, byte[] script, ushort operand, int before)
     {
-        if ((DiagnosticResolution is not null || preparedResolutionObservations is not null) && actor.NativeActorIndex is int index)
+        if ((DiagnosticResolution is not null || preparedResolutionObservations is not null))
         {
             long callback = NativeHostCallbacks ?? Frame;
             short amount = unchecked((short)operand);
-            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, checked((byte)index), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback);
+            BattleDiagnosticNativeHpWord proof = new(0x487DF0, actor.Id, ReadDiagnosticOriginalOperand(actor), actor.ModelId, scriptIndex, pc, script.ToImmutableArray(), 60, operand, amount, unchecked((ushort)before), unchecked((ushort)actor.CurrentHp), callback) { RecipientSlot = actor.Slot };
             PublishDiagnosticResolution(new(Frame, callback, "native_ai_hp_word", null, actor.Id, actor.Id, amount, amount, before, actor.CurrentHp, actor.IsPlayer ? "character" : "enemy") { NativeHpWord = proof });
         }
     }
@@ -217,13 +244,25 @@ public sealed partial class BattleSession
         }
         string? actorId = actor?.Id ?? action?.ActorId;
         BattleDiagnosticNativeStatusRemoval? removal = null;
-        if (kind == "damage" && before > amount && after == 0 && actor?.NativeActorIndex is int actorIndex && target.NativeActorIndex is int recipientIndex &&
+        if (kind == "damage" && before > amount && after == 0 && actor is not null &&
             actor.Id == action?.ActorId && action.NativeAction is { } native && (native.Statuses1 & 0x10000) != 0 && (NativeBattleStatusBits(target) & 0x10000) != 0)
         {
-            removal = new(0x494410, checked((byte)actorIndex), checked((byte)recipientIndex), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target));
+            removal = new(0x494410, ReadDiagnosticOriginalOperand(actor), ReadDiagnosticOriginalOperand(target), action.NativeQueuedCommand ?? native.Command, native.ActionId, native.Statuses1, NativeBattleStatusBits(target)) { ActorSlot = actor.Slot, RecipientSlot = target.Slot };
         }
-        BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientIndex == target.NativeActorIndex && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null ? projection : null;
-        PublishDiagnosticResolution(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy") { NativeStatusRemoval = removal, DiagnosticRepair = repair });
+        BattleDiagnosticRepairProjection? repair = diagnosticRepairProjection is { } projection && projection.Request.ActorId == target.Id && projection.RecipientSlot == target.Slot && projection.RecipientIndex == ReadDiagnosticOriginalOperand(target) && projection.Frame == Frame && projection.Callback == (NativeHostCallbacks ?? Frame) && nativeContactWorking is null ? projection : null;
+        BattleDiagnosticNativeContact? contact = diagnosticGuardianContact is { } witness && witness.RecipientId == target.Id && nativeContactWorking is { CommittingSecondary: false } working &&
+            working.Actor.Id == witness.ActorId && action?.NativeAction is { Command: 254 } ? witness : null;
+        PublishDiagnosticResolution(new(Frame, NativeHostCallbacks ?? Frame, kind, actorId, contact?.RecipientId ?? action?.TargetId ?? target.Id, target.Id, amount, Math.Abs(after - before), before, after, target.IsPlayer ? "character" : "enemy")
+        {
+            NativeContact = contact,
+            NativeStatusRemoval = removal,
+            DiagnosticRepair = repair
+        });
+    }
+
+    private static byte? ReadDiagnosticOriginalOperand(BattleCombatant actor)
+    {
+        return actor.NativeActorIndex is int index ? checked((byte)index) : null;
     }
 
     private void PublishDiagnosticResolution(BattleDiagnosticResolution resolution)

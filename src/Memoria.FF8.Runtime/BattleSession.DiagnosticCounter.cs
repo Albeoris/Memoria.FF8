@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 namespace Memoria.FF8.Runtime;
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterActor([property: JsonRequired] string Id, [property: JsonRequired] byte Index, [property: JsonRequired] int ModelId, [property: JsonRequired] int Hp, [property: JsonRequired] bool Active, [property: JsonRequired] uint CombatantFlags, [property: JsonRequired] NativeBattleLastAction? LastAction, [property: JsonRequired] NativeBattlePendingReaction PendingReaction, [property: JsonRequired] ImmutableArray<uint> Variables)
+public sealed record BattleDiagnosticCounterActor([property: JsonRequired] string Id, [property: JsonRequired] byte? Index, [property: JsonRequired] int ModelId, [property: JsonRequired] int Hp, [property: JsonRequired] bool Active, [property: JsonRequired] uint CombatantFlags, [property: JsonRequired] string? LastAttackerId, [property: JsonRequired] NativeBattleLastAction? LastAction, [property: JsonRequired] NativeBattlePendingReaction PendingReaction, [property: JsonRequired] ImmutableArray<uint> Variables)
 {
     [JsonRequired]
     public ushort SavedStatuses { get; init; }
@@ -13,7 +13,11 @@ public sealed record BattleDiagnosticCounterActor([property: JsonRequired] strin
     public uint BattleStatuses { get; init; }
 }
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterPrimary([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte RecipientIndex, [property: JsonRequired] byte QueuedCommand, [property: JsonRequired] ushort ActionId, [property: JsonRequired] byte InternalCommand, [property: JsonRequired] int BeforeHp, [property: JsonRequired] int AfterHp, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] BattleDiagnosticCounterActor Recipient, [property: JsonRequired] bool Preliminary);
+public sealed record BattleDiagnosticCounterPrimary([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] string RecipientId, [property: JsonRequired] byte? RecipientIndex, [property: JsonRequired] byte QueuedCommand, [property: JsonRequired] ushort ActionId, [property: JsonRequired] byte InternalCommand, [property: JsonRequired] int BeforeHp, [property: JsonRequired] int AfterHp, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] BattleDiagnosticCounterActor Recipient, [property: JsonRequired] bool Preliminary)
+{
+    public BattlePartyActorReference? Attacker { get; init; }
+    public BattleEnemyActorReference? Target { get; init; }
+}
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticCounterContact([property: JsonRequired] BattleDiagnosticCounterPrimary Primary, [property: JsonRequired] int ContactIndex, [property: JsonRequired] bool TriggerRecomputed, [property: JsonRequired] NativeBattleRetainedActionPackets Packets);
 public enum BattleDiagnosticCounterCallbackPhase
@@ -26,11 +30,15 @@ public enum BattleDiagnosticCounterCallbackPhase
     Completed
 }
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterCallback([property: JsonRequired] long Epoch, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] BattleRosterSlot Slot, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] ushort Stage, [property: JsonRequired] byte? PendingOrder, [property: JsonRequired] long? PrimarySerial);
+public sealed record BattleDiagnosticCounterCallback([property: JsonRequired] long Epoch, [property: JsonRequired] long Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] BattleRosterSlot Slot, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] ushort Stage, [property: JsonRequired] byte? PendingOrder, [property: JsonRequired] long? PrimarySerial);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record BattleDiagnosticCounterCallbackObservation([property: JsonRequired] BattleDiagnosticCounterCallbackPhase Phase, [property: JsonRequired] long Callback, [property: JsonRequired] BattleDiagnosticCounterCallback Queue, [property: JsonRequired] BattleDiagnosticCounterActor Actor, [property: JsonRequired] int? AiStage = null, [property: JsonRequired] long? AiScope = null, [property: JsonRequired] string? ScriptSha256 = null);
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record BattleDiagnosticCounterCommand([property: JsonRequired] long Callback, [property: JsonRequired] long AiScope, [property: JsonRequired] long CallbackEpoch, [property: JsonRequired] byte AiStage, [property: JsonRequired] string ScriptSha256, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort ActionId, [property: JsonRequired] ushort EffectId, [property: JsonRequired] byte Sequence, [property: JsonRequired] ushort QueuedTargetMask, [property: JsonRequired] ushort SelectedTargetMask, [property: JsonRequired] byte AttackFlags, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration);
+public sealed record BattleDiagnosticCounterCommand([property: JsonRequired] long Callback, [property: JsonRequired] long AiScope, [property: JsonRequired] long CallbackEpoch, [property: JsonRequired] byte AiStage, [property: JsonRequired] string ScriptSha256, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] byte Command, [property: JsonRequired] ushort ActionId, [property: JsonRequired] ushort EffectId, [property: JsonRequired] byte Sequence, [property: JsonRequired] ushort? QueuedTargetMask, [property: JsonRequired] ushort? SelectedTargetMask, [property: JsonRequired] byte AttackFlags, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration)
+{
+    public BattlePartyActorReference? SelectedParty { get; init; }
+    public BattleEnemyActorReference? SelectedEnemy { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -41,7 +49,7 @@ public sealed partial class BattleSession
     private long diagnosticCounterPrimarySerial;
     private long diagnosticCounterQueueEpoch;
     private long diagnosticCounterAiSerial;
-    private sealed record DiagnosticCounterContactFacts(string ActorId, byte ActorIndex, byte QueuedCommand, ushort ActionId, byte InternalCommand, int BeforeHp, int AfterHp, BattleDiagnosticCounterActor Recipient, bool Preliminary, byte Order);
+    private sealed record DiagnosticCounterContactFacts(BattlePartyActorReference Attacker, BattleEnemyActorReference Target, byte QueuedCommand, ushort ActionId, byte InternalCommand, int BeforeHp, int AfterHp, BattleDiagnosticCounterActor Recipient, bool Preliminary, byte Order);
     private bool diagnosticCounterTracksContacts;
     private readonly ConditionalWeakTable<NativeBattleContactPacket, DiagnosticCounterContactFacts> diagnosticCounterContacts = new();
     private readonly Dictionary<(string Actor, byte Order), long> diagnosticCounterPending = [];
@@ -50,7 +58,7 @@ public sealed partial class BattleSession
     private BattleDiagnosticCounterCallback? diagnosticCounterCurrentCallback;
     private (long Serial, int Stage, string Sha)? diagnosticCounterAiScope;
 
-    private static BattleDiagnosticCounterActor CaptureDiagnosticCounterActor(BattleCombatant actor) => new(actor.Id, checked((byte)actor.RequireNativeActorIndex()), actor.ModelId, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags, actor.LastNativeAction, actor.NativePendingReaction, actor.AiVariables.ToImmutableArray()) { SavedStatuses = NativeSavedStatusBits(actor), BattleStatuses = NativeBattleStatusBits(actor) };
+    private static BattleDiagnosticCounterActor CaptureDiagnosticCounterActor(BattleCombatant actor) => new(actor.Id, ProjectOriginalActionActor(actor), actor.ModelId, actor.CurrentHp, actor.IsActive, actor.NativeCombatantFlags, actor.LastAttackerId, actor.LastNativeAction, actor.NativePendingReaction, actor.AiVariables.ToImmutableArray()) { SavedStatuses = NativeSavedStatusBits(actor), BattleStatuses = NativeBattleStatusBits(actor) };
 
     private void ResetDiagnosticCounterOwners()
     {
@@ -76,12 +84,12 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionPresentation? command = resolvingNativeAction ?? ActiveAction;
-        if (command?.NativeAction is not { } native || contact.Actor.NativeActorIndex is not int actorIndex || recipient.NativeActorIndex is null)
+        if (command?.NativeAction is not { } native || !contact.Actor.IsPlayer || recipient.IsPlayer)
         {
             return;
         }
         byte queued = command.NativeQueuedCommand ?? native.Command;
-        contact.DiagnosticPrimary = new(contact.Actor.Id, checked((byte)actorIndex), queued, native.ActionId, native.Command, hp.Before, hp.After, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary, order);
+        contact.DiagnosticPrimary = new(new(contact.Actor.Id), new(recipient.Id), queued, native.ActionId, native.Command, hp.Before, hp.After, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary, order);
     }
 
     private void ObserveDiagnosticCounterResolvedContact(NativeContactWorking working, NativeBattleContactPacket packet)
@@ -124,7 +132,16 @@ public sealed partial class BattleSession
                 }
                 diagnosticCounterContacts.Remove(invocation.Contacts[ordinal].Packet);
                 BattleDiagnosticCounterActor recipient = facts.Recipient;
-                BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, facts.ActorId, facts.ActorIndex, recipient.Id, recipient.Index, facts.QueuedCommand, facts.ActionId, facts.InternalCommand, facts.BeforeHp, facts.AfterHp, index, generation, recipient, facts.Preliminary);
+                if (header.Source != new BattlePartyActorModel(facts.Attacker) || invocation.Contacts[ordinal].Packet.Primary.Recipient != new BattleEnemyActorModel(facts.Target))
+                {
+                    throw new InvalidDataException("Counter contact facts disagree with the committed header and recipient owners.");
+                }
+                byte? sourceAlias = packets.ModelAliases.TryEncodeExact(header.Source, out byte original) ? original : null;
+                BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, facts.Attacker.ActorId, sourceAlias, facts.Target.ActorId, recipient.Index, facts.QueuedCommand, facts.ActionId, facts.InternalCommand, facts.BeforeHp, facts.AfterHp, index, generation, recipient, facts.Preliminary)
+                {
+                    Attacker = facts.Attacker,
+                    Target = facts.Target
+                };
                 if (!facts.Preliminary)
                 {
                     diagnosticCounterPending[(recipient.Id, facts.Order)] = primary.Serial;
@@ -136,7 +153,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticParticipantCallback(BattleParticipantCallbackReceipt receipt)
     {
-        if (!ObservingDiagnosticCounter || FindTargetActor(receipt.Request.Actor) is not { IsPlayer: false, Slot: { } slot, NativeActorIndex: int alias } actor)
+        if (!ObservingDiagnosticCounter || FindTargetActor(receipt.Request.Actor) is not { IsPlayer: false, Slot: { } slot } actor)
         {
             return;
         }
@@ -145,7 +162,7 @@ public sealed partial class BattleSession
         {
             long? primary = receipt.Request.Stage == 2 && receipt.Reaction is { Stage: 2, Order: byte order } &&
                 diagnosticCounterPending.Remove((actor.Id, order), out long serial) ? serial : null;
-            BattleDiagnosticCounterCallback queue = new(++diagnosticCounterQueueEpoch, callback, actor.Id, slot, checked((byte)alias), receipt.Request.Stage, receipt.Reaction?.Order, primary);
+            BattleDiagnosticCounterCallback queue = new(++diagnosticCounterQueueEpoch, callback, actor.Id, slot, ProjectOriginalActionActor(actor), receipt.Request.Stage, receipt.Reaction?.Order, primary);
             diagnosticCounterCallbacks.Add(receipt.Request, queue);
             DiagnosticCounterCallbackObserved?.Invoke(new(BattleDiagnosticCounterCallbackPhase.Queued, callback, queue, CaptureDiagnosticCounterActor(actor)));
         }
@@ -200,14 +217,25 @@ public sealed partial class BattleSession
         {
             if (OriginalDiagnosticHeaderIndex(reference) is not int headerIndex || process.ReadDiagnosticCounterHeaderGeneration(headerIndex) is not long generation ||
                 !process.ActionPackets.HasPublishedHeader(reference) ||
-                FindDiagnosticCounterCast(reference) is not { Command.NativeAction: { } native } invocation ||
-                NativeBattleTargetRequestAdapter.ProjectOriginalWord(invocation.Command.TargetRequest, ReadOriginalTargetSlot) is not ushort targets)
+                FindDiagnosticCounterCast(reference) is not { Command.NativeAction: { } native } invocation)
             {
                 continue;
             }
             NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(reference);
-            ushort selected = (ushort)(targets & 0x7F);
-            observer(new(NativeHostCallbacks ?? Frame, scope, entered.Queue.Epoch, receipt.Request.Stage, sha, entered.Actor.Id, entered.Actor.Index, header.Command, header.Action, header.Effect, header.Sequence, targets, selected, native.AttackFlags, headerIndex, generation));
+            if (receipt.Request.Actor is not BattleEnemyActorReference enemy || header.Source != new BattleEnemyActorModel(enemy))
+            {
+                continue;
+            }
+            BattleTargetRequest request = invocation.Command.TargetRequest;
+            BattleActorReference? selectedActor = request.Selection is BattleTargetSelection.Explicit { Actors: [var single] } ? single :
+                request.OriginalProjection?.Operands.Slots is [var slot] ? ReadOriginalTargetOccupant(slot) : null;
+            ushort? targets = NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, ReadOriginalTargetSlot);
+            ushort? selected = targets is ushort word ? (ushort)(word & 0x7F) : null;
+            observer(new(NativeHostCallbacks ?? Frame, scope, entered.Queue.Epoch, receipt.Request.Stage, sha, entered.Actor.Id, entered.Actor.Index, header.Command, header.Action, header.Effect, header.Sequence, targets, selected, native.AttackFlags, headerIndex, generation)
+            {
+                SelectedParty = selectedActor as BattlePartyActorReference,
+                SelectedEnemy = selectedActor as BattleEnemyActorReference
+            });
         }
     }
 

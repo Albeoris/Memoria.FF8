@@ -35,7 +35,7 @@ internal sealed record BattlePresentationServices(
     Func<BattleModelOwner, NativeBattleModelTextureBinding, NativeBattleModelTextureBinding?, NativeBattlePreparedActor> ReadPreparedActor,
     Func<BattleModelOwner, NativeBattlePreparedScanActor?> ReadPreparedScanActor,
     Func<BattleModelOwner, NativeBattlePreparedScanExtra> ReadPreparedScanExtra,
-    Func<bool> ObservesEffects,
+    Func<bool> ObservesActionHeaders,
     Action<BattlePresentationProcess, BattlePresentationEffectObservation> ObserveEffect,
     Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket> DescriptorRemoved,
     Action<BattlePresentationProcess> FrameEnded,

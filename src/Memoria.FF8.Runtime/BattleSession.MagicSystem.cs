@@ -225,7 +225,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = GetActor(confirmed.TargetId);
         BattleSmartAttackPreview now = SelectSmartAttack(actor, target, confirmed.ForcePhysical, command.MagicReservationId);
-        bool same = SmartNativeIndex(target) == confirmed.TargetIndex && now.TargetSlot == confirmed.TargetSlot && target.IsAlive && target.IsActive && !target.Untargetable && now.Ability == confirmed.Ability && now.Ability is BattleAbility.Magic or BattleAbility.Draw && now.ActionId == confirmed.ActionId && now.CastCount == confirmed.CastCount && now.DrawSourceId == confirmed.DrawSourceId && now.DrawSourceIndex == confirmed.DrawSourceIndex && now.DrawSourceSlot == confirmed.DrawSourceSlot;
+        bool same = now.TargetSlot == confirmed.TargetSlot && target.IsAlive && target.IsActive && !target.Untargetable && now.Ability == confirmed.Ability && now.Ability is BattleAbility.Magic or BattleAbility.Draw && now.ActionId == confirmed.ActionId && now.CastCount == confirmed.CastCount && now.DrawSourceId == confirmed.DrawSourceId && now.DrawSourceIndex == confirmed.DrawSourceIndex && now.DrawSourceSlot == confirmed.DrawSourceSlot;
         if (same)
         {
             return command;

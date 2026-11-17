@@ -46,7 +46,7 @@ public sealed class NativeBattleEnergyBomber217PresentationTests
         BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
         for (int index = 0; index < 2; index++)
         {
-            BattleCombatantSnapshot actor = Assert.Single(source.Combatants, candidate => candidate.NativeParticipant!.ActorIndex == index + 3);
+            BattleCombatantSnapshot actor = Assert.Single(source.Combatants, candidate => candidate.NativeParticipant!.OriginalSlot?.Offset == index + 3);
             BattleCombatantDefinition original = Assert.Single(source.Definition.Combatants, candidate => candidate.Id == actor.Id);
             Assert.Equal(index, original.SceneSlot);
             Assert.Equal(index + 112, original.ModelId);
@@ -62,7 +62,7 @@ public sealed class NativeBattleEnergyBomber217PresentationTests
         NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original command8/action316/sequence16 and both formation796 enemies; declared seven-HP post-formula contact with logical HP/status retained; no physical formula, accuracy, ordinary AI turn or command admission", Contact = contact }));

@@ -12,7 +12,7 @@ public sealed class BattleNativeActorBindingTests
         BattleSession battle = new(new BattleDefinition { Combatants = [.. Party(3), .. enemies] }, BattleAtbMode.Normal);
         BattleSnapshot saved = battle.Capture();
         Assert.Equal(Enumerable.Range(0, 7), battle.Combatants.Select(actor => actor.RequireNativeActorIndex()));
-        Assert.Equal(Enumerable.Range(0, 7), saved.Combatants.Select(actor => actor.NativeParticipant!.ActorIndex));
+        Assert.Equal(Enumerable.Range(0, 7), saved.Combatants.Select(actor => (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset));
         Assert.Equal(Enumerable.Range(0, 7), Restore(saved).Combatants.Select(actor => actor.RequireNativeActorIndex()));
     }
 
@@ -146,7 +146,7 @@ public sealed class BattleNativeActorBindingTests
             }
         }
         Assert.Equal(3, Assert.Single(battle.Combatants, actor => actor.Id == "enemy").RequireNativeActorIndex());
-        Assert.All(battle.Capture().Combatants.Take(allies.Length), actor => Assert.Equal(-1, actor.NativeParticipant!.ActorIndex));
+        Assert.All(battle.Capture().Combatants.Take(allies.Length), actor => Assert.Null(actor.NativeParticipant!.OriginalSlot));
     }
 
     private static BattleCombatantDefinition[] Party(int count)

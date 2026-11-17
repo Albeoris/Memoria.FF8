@@ -77,7 +77,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal(0, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
         NativeBattleParticipantSnapshot pendingActor = Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
-        int actualIndex = pendingActor.ActorIndex;
+        int actualIndex = pendingActor.OriginalSlot!.Value.Offset;
         Assert.InRange(actualIndex, 3, 6);
         Assert.Equal(actualIndex, Assert.IsType<NativeBattleTargetRequestAdapter.OriginalPreviousOperand>(pending.NativeLastAllocatedTarget).Operand);
         Assert.True(pendingActor.AllocationPendingStatistics);
@@ -110,7 +110,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         NativeBattleParticipantSnapshot active = Assert.Single(ready.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
         Assert.True(active.Active);
         Assert.False(active.Hidden || active.Untargetable || active.Suspended || active.AllocationPendingStatistics);
-        Assert.Equal(actualIndex, active.ActorIndex);
+        Assert.Equal(actualIndex, active.OriginalSlot!.Value.Offset);
         Assert.Contains(session.Events, entry => entry.Kind == "NativeSpawn" && entry.TargetId == allocated.Id);
         Assert.Contains(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
         BattleCombatantDefinition currentDefinition = session.GetCombatantDefinition(allocated.Id);
@@ -133,7 +133,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         Assert.Equal((byte)12, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(110, currentDefinition.Level), Assert.Single(assets.NativeActions, action => action.Command == 8 && action.ActionId == 293 && action.MagicId == 286)));
         NativeBattleParticipantSnapshot retainedCaller = Assert.Single(ready.Combatants, actor => actor.Id == caller.Id).NativeParticipant!;
         Assert.True(retainedCaller.Active);
-        Assert.Equal(new NativeBattleVector(0, 0, -4600), ReadOriginalModelCell(graphics, retainedCaller.ActorIndex).Transform!.Position28);
+        Assert.Equal(new NativeBattleVector(0, 0, -4600), ReadOriginalModelCell(graphics, retainedCaller.OriginalSlot!.Value.Offset).Transform!.Position28);
         BattleCombatantDefinition otherPrototype = prototypes.Single(actor => actor.SceneSlot == 2);
         NativeBattleParticipantSnapshot dormantOther = Assert.Single(ready.Combatants, actor => actor.Id == otherPrototype.Id).NativeParticipant!;
         Assert.False(dormantOther.Active);

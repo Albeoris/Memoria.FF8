@@ -56,7 +56,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
             BattleCombatantSnapshot actor = Assert.Single(source.Combatants, current => current.Id == actorId);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.True(actor.NativeParticipant!.Active);
-            Assert.Equal((byte)physical, actor.NativeParticipant.ActorIndex);
+            Assert.Equal((byte)physical, actor.NativeParticipant.OriginalSlot!.Value.Offset);
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);

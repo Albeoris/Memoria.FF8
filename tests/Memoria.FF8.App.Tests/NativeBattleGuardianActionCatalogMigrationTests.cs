@@ -45,7 +45,7 @@ public sealed class NativeBattleGuardianActionCatalogMigrationTests
         (JsonNode originalNode, JsonNode migratedNode) = Prepare(source!, assets);
         BattleSnapshot original = originalNode.Deserialize<BattleSnapshot>()!;
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, original.Definition.NativeRetainedMemory!.ColdExecutableSha256);
-        int targetIndex = Array.FindIndex(original.Combatants, actor => actor.NativeParticipant?.ActorIndex == 3);
+        int targetIndex = Array.FindIndex(original.Combatants, actor => actor.NativeParticipant?.OriginalSlot?.Offset == 3);
         Assert.True(targetIndex >= 0);
         Assert.Null(original.Combatants[targetIndex].NativeParticipant!.RemainingHits);
         NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets!;

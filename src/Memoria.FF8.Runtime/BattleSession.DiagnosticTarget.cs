@@ -2,7 +2,10 @@ using System.Security.Cryptography;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticTarget(string ActorId, int? Stage, int Model, int? SceneSlot, int PhysicalIndex, uint Flags, int HitPoints, bool Alive, bool StatisticsReady, string InitializationScriptSha256, long Callback);
+public sealed record BattleDiagnosticTarget(string ActorId, int? Stage, int Model, int? SceneSlot, int? PhysicalIndex, uint Flags, int HitPoints, bool Alive, bool StatisticsReady, string InitializationScriptSha256, long Callback)
+{
+    public BattleRosterSlot? Slot { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -11,6 +14,6 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         byte[] startup = actor.NativeAi?.Scripts[0] ?? throw new NotSupportedException("Diagnostic target verification requires its original initialization script.");
-        return new(actor.Id, definition.StageId, actor.ModelId, actor.SceneSlot, actor.NativeActorIndex ?? NativeBattleSlots.Unassigned, actor.NativeCombatantFlags, actor.CurrentHp, actor.IsAlive, !actor.NativeAllocationPendingStatistics && actor.ResolvedNativeLevel is not null, Convert.ToHexString(SHA256.HashData(startup)).ToLowerInvariant(), NativeHostCallbacks ?? Frame);
+        return new(actor.Id, definition.StageId, actor.ModelId, actor.SceneSlot, actor.NativeActorIndex, actor.NativeCombatantFlags, actor.CurrentHp, actor.IsAlive, !actor.NativeAllocationPendingStatistics && actor.ResolvedNativeLevel is not null, Convert.ToHexString(SHA256.HashData(startup)).ToLowerInvariant(), NativeHostCallbacks ?? Frame) { Slot = actor.Slot };
     }
 }

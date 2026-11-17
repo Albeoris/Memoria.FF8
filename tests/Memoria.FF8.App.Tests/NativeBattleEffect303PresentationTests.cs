@@ -78,13 +78,13 @@ public sealed class NativeBattleEffect303PresentationTests
             }
             loaded.Add(new { ActorIndex = index, definition.ModelId, definition.SceneSlot, SkeletonSha256 = Convert.ToHexString(SHA256.HashData(pose.Skeleton.AsSpan())), BoneCount = pose.BoneCount, CurrentBones = model.CurrentBodyBoneMatrices, model.GeometryWorldMatrix, model.ActiveResourceRow100, model.SequenceState });
         }
-        NativeBattleParticipantSnapshot latent = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeParticipant!;
+        NativeBattleParticipantSnapshot latent = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4).NativeParticipant!;
         Assert.True(latent.Active);
         Assert.True(latent.Hidden);
         Assert.True(latent.Suspended);
         Assert.True(latent.Untargetable);
         Assert.False(latent.AllocationPendingStatistics);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeStatus ?? throw new InvalidDataException("The original latent recipient requires its loaded status owner.");
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4).NativeStatus ?? throw new InvalidDataException("The original latent recipient requires its loaded status owner.");
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         Assert.Equal((byte)1, packets.ActionCount);
         Assert.Equal((byte)1, packets.ContactCount);

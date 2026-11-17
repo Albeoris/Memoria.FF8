@@ -83,7 +83,7 @@ public sealed partial class BattleSession
                 break;
 
             case BattleRosterMutation.Operation.Activate activate:
-                BattlePreviousTarget activationTarget = activate.Target is NativeBattleTargetRequestAdapter.OriginalPreviousOperand originalOperand && ReadDonorSource(caller) is not null
+                BattlePreviousTarget activationTarget = activate.Target is NativeBattleTargetRequestAdapter.OriginalPreviousOperand originalOperand && ReadScopedEnemySource(caller) is not null
                     ? new BattlePreviousTarget.Actor(TargetActorReference(RequireSourceOriginalActor(caller, originalOperand.Operand))) : activate.Target;
                 StageHostedNativeActivation(activationTarget);
                 break;

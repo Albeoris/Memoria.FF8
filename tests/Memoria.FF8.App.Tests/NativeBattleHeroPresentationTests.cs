@@ -98,7 +98,7 @@ public sealed class NativeBattleHeroPresentationTests
                 Assert.Equal((byte)1, source.ReadFixturePresentation().NativeActionPackets!.ActionCount);
                 Assert.Equal((byte)1, source.ReadFixturePresentation().NativeActionPackets!.ContactCount);
                 NativeBattleContactPacket firstContact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(header.FirstContact);
-                BattleCombatantSnapshot enemy = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3);
+                BattleCombatantSnapshot enemy = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
                 NativeBattleStatusSnapshot status = enemy.NativeStatus ?? throw new InvalidDataException("The second controlled target lacks its native status owner.");
                 byte remainingHits = NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game);
                 enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { RemainingHits = remainingHits } };

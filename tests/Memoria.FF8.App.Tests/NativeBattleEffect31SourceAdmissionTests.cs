@@ -62,7 +62,7 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);
-            Assert.Equal((byte)physical, actor.NativeParticipant.ActorIndex);
+            Assert.Equal((byte)physical, actor.NativeParticipant.OriginalSlot!.Value.Offset);
             NativeBattleGraphicsModel model = ReadOriginalModelCell(graphics, physical);
             Assert.NotEqual(0, model.Flags0 & 2);
             Assert.Null(model.ReadLinkedModel());

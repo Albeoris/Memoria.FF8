@@ -21,8 +21,8 @@ public sealed class MixedBattleRosterTests
         BattleSession battle = Start(definition with { Combatants = combatants });
         Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference("original-0"), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
         battle.Tick();
-        Assert.Equal(3, Participant(battle, "original-0").ActorIndex);
-        Assert.Equal(-1, Participant(battle, "ally-3").ActorIndex);
+        Assert.Equal(3, Participant(battle, "original-0").OriginalSlot!.Value.Offset);
+        Assert.Null(Participant(battle, "ally-3").OriginalSlot);
         Assert.Null(battle.Combatants.Single(actor => actor.Id == "ally-3").NativeActorIndex);
         BattleCombatant first = battle.Combatants.Single(actor => actor.Id == "native-allocation-1");
         BattleCombatant replacement = battle.Combatants.Single(actor => actor.Id == "native-allocation-2");
@@ -30,7 +30,7 @@ public sealed class MixedBattleRosterTests
         Assert.Null(first.Slot);
         Assert.Equal(4, replacement.NativeActorIndex);
         Assert.Equal(BattleRosterSlot.Enemy(1), replacement.Slot);
-        Assert.Equal(4, Participant(battle, replacement.Id).ActorIndex);
+        Assert.Equal(4, Participant(battle, replacement.Id).OriginalSlot!.Value.Offset);
         Assert.Equal(new[] { "native-allocation-1", "native-allocation-2" }, battle.Events.Where(entry => entry.Kind == "NativeSpawn").Select(entry => entry.TargetId));
         Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(replacement.Id), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
 
@@ -43,7 +43,7 @@ public sealed class MixedBattleRosterTests
             Assert.True(actor.IsActive);
             Assert.Equal(80 + index, actor.CurrentHp);
             Assert.Null(actor.NativeActorIndex);
-            Assert.Equal(-1, Participant(battle, actor.Id).ActorIndex);
+            Assert.Null(Participant(battle, actor.Id).OriginalSlot);
         }
         Assert.Equal(definition.AddedEnemySources!.ToArray(), battle.ReadDefinition().AddedEnemySources!.ToArray());
         AssertNextCallbackAfterRestore(battle);
@@ -109,7 +109,7 @@ public sealed class MixedBattleRosterTests
 
         BattleSnapshot snapshot = Start(definition).Capture();
         BattleCombatantSnapshot[] forged = snapshot.Combatants.Select(actor => actor.Id == added.Id
-            ? actor with { NativeParticipant = actor.NativeParticipant! with { ActorIndex = 4 } }
+            ? actor with { NativeParticipant = actor.NativeParticipant! with { OriginalSlot = NativeBattleModelSlot.Decode(4) } }
             : actor).ToArray();
         Assert.Throws<InvalidDataException>(() => DetachedExpandedAiFixture.Restore(snapshot with { Combatants = forged }));
     }
@@ -119,11 +119,11 @@ public sealed class MixedBattleRosterTests
     {
         BattleDefinition definition = MixedDefinition(3, 4, 4, 0);
         BattleSession native = Start(definition with { UsesOriginalEnemySlots = false, AddedEnemySources = null });
-        Assert.Equal(Enumerable.Range(0, 7), native.Capture().Combatants.Select(actor => actor.NativeParticipant!.ActorIndex));
+        Assert.Equal(Enumerable.Range(0, 7), native.Capture().Combatants.Select(actor => (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset));
         AssertNextCallbackAfterRestore(native);
 
         BattleSession original = Start(definition with { AddedEnemySources = null });
-        Assert.Equal(Enumerable.Range(3, 4), original.Capture().Combatants.Where(actor => actor.Id.StartsWith("original-", StringComparison.Ordinal)).Select(actor => actor.NativeParticipant!.ActorIndex));
+        Assert.Equal(Enumerable.Range(3, 4), original.Capture().Combatants.Where(actor => actor.Id.StartsWith("original-", StringComparison.Ordinal)).Select(actor => (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset));
         AssertNextCallbackAfterRestore(original);
 
         BattleDefinition legacy = MixedDefinition(4, 1, 1, 2);

@@ -31,7 +31,7 @@ public sealed class BattleEncounterAllocationTests
             Assert.Null(battle.GetCombatantDefinition(id).NativeMug);
         });
         Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(battle.Capture().Random));
-        Assert.Equal(new[] { 5, 6 }, battle.Capture().Combatants.Where(actor => batch.ActorIds.Contains(actor.Id)).Select(actor => actor.NativeParticipant!.ActorIndex));
+        Assert.Equal(new[] { 5, 6 }, battle.Capture().Combatants.Where(actor => batch.ActorIds.Contains(actor.Id)).Select(actor => (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset));
         battle.BeginEncounterAllocationArrival();
         BattleSnapshot arrival = battle.Capture();
         BattleSession restored = BattleSession.Restore(arrival);

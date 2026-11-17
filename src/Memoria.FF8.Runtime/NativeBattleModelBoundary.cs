@@ -1,23 +1,26 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public readonly record struct NativeBattleModelSlot
 {
-    private NativeBattleModelSlot(byte offset)
+    [JsonConstructor]
+    internal NativeBattleModelSlot(byte offset)
     {
+        if (offset >= NativeBattleModelBoundary.CellCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
         Offset = offset;
     }
 
+    [JsonInclude]
     internal byte Offset { get; }
     public BattleSide Side => Offset < 3 ? BattleSide.Allies : BattleSide.Enemies;
 
     public static NativeBattleModelSlot Decode(byte operand)
     {
-        if (operand >= NativeBattleModelBoundary.CellCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(operand));
-        }
         return new(operand);
     }
 }

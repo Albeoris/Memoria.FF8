@@ -33,7 +33,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
     {
         BattleSnapshot beforeEntry = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-entry.battle.json"));
         BattleSnapshot beforeInput = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(fixture, "before-ordinary-input.battle.json"));
-        BattleCombatantSnapshot initialEnemy = beforeEntry.Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == 3);
+        BattleCombatantSnapshot initialEnemy = beforeEntry.Combatants.Single(actor => actor.NativeParticipant?.OriginalSlot?.Offset == 3);
         BattleCombatantDefinition enemyDefinition = beforeEntry.Definition.Combatants.Single(actor => actor.Id == initialEnemy.Id);
         uint originalFlags = assets.ReadEnemyNativeCombatantFlags(enemyDefinition.ModelId);
         Assert.Equal(originalFlags, enemyDefinition.NativeCombatantFlags);

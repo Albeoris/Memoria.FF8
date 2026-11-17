@@ -15,7 +15,7 @@ public sealed partial class BattlePresentationProcess
 
     private void ObserveDiagnosticCommittedHostedHeaders(ImmutableArray<BattleActionHeaderReference> headers)
     {
-        if (services?.ObservesEffects() != true)
+        if (services?.ObservesActionHeaders() != true)
         {
             return;
         }
@@ -73,12 +73,16 @@ public sealed partial class BattlePresentationProcess
     {
         ArgumentNullException.ThrowIfNull(dispatch);
         _ = RequireDiagnosticActionPacketOwner(dispatch);
-        if (diagnosticPacketReadEffect is not { Parameters: { } parameters } effect ||
-            OriginalDiagnosticSource(parameters) is null || dispatch.NativeHeaderIndex is not int header)
+        if (diagnosticPacketReadEffect is not { Parameters: { } parameters } effect)
         {
-            throw new InvalidOperationException("Diagnostic invocation requires the current original source and header.");
+            throw new InvalidOperationException("Diagnostic invocation requires the entered effect and its current header.");
         }
-        return new(effect.RequestedEffect, effect.Binding.Effect, OriginalDiagnosticSource(parameters) ?? throw new NotSupportedException("Diagnostic invocation requires an original source alias."), header, parameters.Parameter80, parameters.Parameter81, parameters.Parameter82);
+        return new(effect.RequestedEffect, effect.Binding.Effect, OriginalDiagnosticSource(parameters), dispatch.NativeHeaderIndex, parameters.Parameter80, parameters.Parameter81, parameters.Parameter82)
+        {
+            ActorId = dispatch.ActorId,
+            ActorSlot = dispatch.ActorSlot,
+            HeaderReference = parameters.Header
+        };
     }
 
     /// <summary>Detaches only the already-published physical action packet domain during its actual synchronous dispatch observation.</summary>
@@ -86,14 +90,29 @@ public sealed partial class BattlePresentationProcess
     {
         ArgumentNullException.ThrowIfNull(dispatch);
         _ = RequireDiagnosticActionPacketOwner(dispatch);
+        if (dispatch.NativeHeaderIndex is null)
+        {
+            throw new InvalidOperationException("Original packet inspection requires the current header within the retained native rows.");
+        }
         nativeActionPackets.Validate();
         return nativeActionPackets.ExportRetained().DetachDiagnosticCopy();
+    }
+
+    public BattlePartyActorReference ObserveDiagnosticCounterRecipient(BattleDiagnosticEffectDispatch dispatch)
+    {
+        ArgumentNullException.ThrowIfNull(dispatch);
+        _ = RequireDiagnosticActionPacketOwner(dispatch);
+        if (diagnosticPacketReadEffect?.Parameters?.Targets is not { Count: 1 } targets || targets.Enumerate().Single() is not BattlePartyActorModel party)
+        {
+            throw new InvalidDataException("Counter retaliation requires its actual single party recipient.");
+        }
+        return party.Actor;
     }
 
     internal (long Token, NativeBattleActionHeaderSlot Header, ImmutableArray<BattleModelOwner> Recipients) ReadDiagnosticTimedInputPackets(BattleDiagnosticEffectDispatch dispatch)
     {
         NativeBattleActionHeaderSlot header = RequireDiagnosticActionPacketOwner(dispatch);
-        if (hostedPresentationInvocation is not { } invocation || invocation.Header.Ordinal != dispatch.NativeHeaderIndex)
+        if (hostedPresentationInvocation is not { } invocation || invocation.Header != dispatch.HeaderReference)
         {
             throw new InvalidOperationException("Timed input diagnostics require the current presentation token and its committed header.");
         }
@@ -104,14 +123,13 @@ public sealed partial class BattlePresentationProcess
     private NativeBattleActionHeaderSlot RequireDiagnosticActionPacketOwner(BattleDiagnosticEffectDispatch dispatch)
     {
         if (!ReferenceEquals(dispatch, diagnosticPacketReadDispatch) || diagnosticPacketReadThread != Environment.CurrentManagedThreadId ||
-            dispatch.Serial <= 0 || dispatch.NativeHeaderIndex is not int header || header is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity ||
+            dispatch.Serial <= 0 || dispatch.HeaderReference is not { } reference ||
             dispatch.NativeHeaderGeneration is not long generation || generation <= 0 || diagnosticHeaderGenerations is not { } generations ||
-            !generations.TryGetValue(header, out long actualGeneration) || actualGeneration != generation ||
-            nativeActionPackets.ActiveHeader != new BattleActionHeaderReference(header))
+            !generations.TryGetValue(reference.Ordinal, out long actualGeneration) || actualGeneration != generation ||
+            nativeActionPackets.ActiveHeader != reference)
         {
             throw new InvalidOperationException("Diagnostic action packets require the same-thread entered effect and its actual header generation.");
         }
-        BattleActionHeaderReference reference = new(header);
         NativeBattleActionHeaderSlot source = nativeActionPackets.ReadHeader(reference);
         if (diagnosticPacketReadEffect is not { Parameters: { } parameters } effect ||
             dispatch.ActorId != ReadGraphicsPresentationId(source.ReflectedCaster ?? source.Source) ||

@@ -31,13 +31,13 @@ internal sealed record DiagnosticGuardianForcePreparation([property: JsonRequire
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record DiagnosticTargetExpectation([property: JsonRequired] string ActorId, [property: JsonRequired] int Stage, [property: JsonRequired] int Model, [property: JsonRequired] int SceneSlot, [property: JsonRequired] int PhysicalIndex, [property: JsonRequired] uint FlagsMask, [property: JsonRequired] uint FlagsValue, [property: JsonRequired] int? OpeningAction, [property: JsonRequired] ushort? OpeningEffect)
+internal sealed record DiagnosticTargetExpectation([property: JsonRequired] string ActorId, [property: JsonRequired] int Stage, [property: JsonRequired] int Model, [property: JsonRequired] int SceneSlot, [property: JsonRequired] int? PhysicalIndex, [property: JsonRequired] uint FlagsMask, [property: JsonRequired] uint FlagsValue, [property: JsonRequired] int? OpeningAction, [property: JsonRequired] ushort? OpeningEffect)
 {
     internal void Validate()
     {
-        if (string.IsNullOrWhiteSpace(ActorId) || ActorId.Length > 128 || Stage is < 0 or > 255 || Model is < 0 or > 238 || SceneSlot is < 0 or > 7 || PhysicalIndex is < 3 or > 6 || (FlagsMask & 0xC3) != 0xC3 || (FlagsValue & 0xC3) != 1 || (FlagsValue & ~FlagsMask) != 0 || OpeningAction is <= 0 || OpeningEffect is 0 || OpeningAction.HasValue != OpeningEffect.HasValue)
+        if (string.IsNullOrWhiteSpace(ActorId) || ActorId.Length > 128 || Stage is < 0 or > 255 || Model is < 0 or > 238 || SceneSlot < 0 || PhysicalIndex is < 3 or > 6 || (FlagsMask & 0xC3) != 0xC3 || (FlagsValue & 0xC3) != 1 || (FlagsValue & ~FlagsMask) != 0 || OpeningAction is <= 0 || OpeningEffect is 0 || OpeningAction.HasValue != OpeningEffect.HasValue)
         {
-            throw new InvalidDataException("Diagnostic target requires an explicit original stage/model/scene/physical identity and active visible targetable unsuspended flags; opening action/effect must be a positive pair or explicitly null.");
+            throw new InvalidDataException("Diagnostic target requires its stage, model, admitted scene and optional original alias together with active visible targetable unsuspended flags. Opening action and effect must be a positive pair or both null.");
         }
     }
 }
@@ -167,9 +167,9 @@ internal sealed partial class GameWorld
             return null;
         }
         BattleDiagnosticTarget target = active.ObserveDiagnosticTarget(expected.ActorId);
-        if (target.Stage != expected.Stage || target.Model != expected.Model || target.SceneSlot != expected.SceneSlot || target.PhysicalIndex != expected.PhysicalIndex || (target.Flags & expected.FlagsMask) != expected.FlagsValue || !target.Alive || target.HitPoints <= 0 || !target.StatisticsReady)
+        if (target.Stage != expected.Stage || target.Model != expected.Model || target.SceneSlot != expected.SceneSlot || target.Slot is not { Side: BattleSide.Enemies } || target.PhysicalIndex != expected.PhysicalIndex || (target.Flags & expected.FlagsMask) != expected.FlagsValue || !target.Alive || target.HitPoints <= 0 || !target.StatisticsReady)
         {
-            throw new InvalidOperationException("The initialized live target does not satisfy the declared original participant contract.");
+            throw new InvalidOperationException("The initialized live target does not match the declared admitted participant.");
         }
         DiagnosticTargetReceipt receipt = new(target, diagnosticOpeningDispatch, diagnosticOpeningCompleted, expected.OpeningAction is null ? "Direct initialized participant identity; no opening action was declared. Campaign progression requires separate provenance." : "Direct initialized participant and completed original opening; campaign progression requires separate provenance.");
         if (DiagnosticReceipt is { Target: null } initializer)

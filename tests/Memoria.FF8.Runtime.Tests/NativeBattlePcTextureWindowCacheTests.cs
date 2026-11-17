@@ -297,8 +297,8 @@ public sealed class NativeBattlePcTextureWindowCacheTests
             Assert.Equal(wrapped.Selection, value.Selection);
             Assert.Equal(JsonSerializer.Serialize(wrapped.Cache), JsonSerializer.Serialize(value.Cache));
             Assert.Equal(ReferenceEquals(cache, wrapped.Cache), ReferenceEquals(cache, value.Cache));
-            NativeBattlePcTextureWindowPixels? pixels = value.Cache.PixelWords(value.Selection, out NativeBattlePrimitiveTextureWindow? rectangle);
-            Assert.Same(value.Cache.Rows[value.Selection.Row].Regions[value.Selection.Slot].Rectangle, rectangle);
+            NativeBattlePcTextureWindowPixels? pixels = value.Cache.PixelWords(value.Selection, out NativeBattlePrimitiveTextureWindow rectangle);
+            Assert.Equal(value.Cache.Rows[value.Selection.Row].Regions[value.Selection.Slot].Rectangle, rectangle);
             Assert.Same(wrapped.Cache.PixelWords(wrapped.Selection), pixels);
         }
     }
@@ -312,6 +312,11 @@ public sealed class NativeBattlePcTextureWindowCacheTests
         Assert.Throws<InvalidDataException>(() => cache.PixelWords(selection with { Slot = 1 }, out _));
         Assert.Throws<InvalidDataException>(() => cache.PixelWords(selection with { Row = 96 }, out _));
         Assert.Throws<NotSupportedException>(() => cache.PixelWords(selection with { UsesRetainedPixelWords = true }, out _));
+        NativeBattlePcTextureWindowRow row = cache.Rows[selection.Row];
+        NativeBattlePcTextureWindowRegion corruptRegion = row.Regions[selection.Slot] with { Rectangle = default };
+        NativeBattlePcTextureWindowCache corrupt = cache with { Rows = cache.Rows.SetItem(selection.Row, row with { Regions = row.Regions.SetItem(selection.Slot, corruptRegion) }) };
+        Assert.Throws<InvalidDataException>(corrupt.Validate);
+        Assert.Throws<InvalidDataException>(() => corrupt.PixelWords(selection, out _));
         NativeBattlePcTextureWindowCache stale = cache.Invalidate464850(0, 0, 63, 255, NativeBattleEffectTextureState.FromColdProcess());
         Assert.Throws<InvalidDataException>(() => stale.PixelWords(selection, out _));
     }

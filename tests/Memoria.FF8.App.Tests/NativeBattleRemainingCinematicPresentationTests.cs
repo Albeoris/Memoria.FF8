@@ -89,7 +89,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             Assert.Null(contact.Secondary);
             if (selectFixture is not null)
             {
-                NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!;
+                NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == contactActor).NativeStatus!;
                 Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
                 Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
                 File.WriteAllText(Path.Combine(output!, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit seven-HP post-formula presentation with original Blue Magic command/action/sequence and retained logical HP/status; no formula, ordinary command or AI admission", Contact = contact }));

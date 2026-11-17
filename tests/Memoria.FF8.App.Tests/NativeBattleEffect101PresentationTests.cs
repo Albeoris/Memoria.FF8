@@ -40,7 +40,7 @@ public sealed class NativeBattleEffect101PresentationTests
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT101_EVIDENCE") ?? throw new InvalidDataException("Select an evidence directory for the original Effect101 component.");
         (NativeEffectFixtureExportResult exported, BattleSnapshot source) = NativeBattleEffectFixtureExporter.Prepare(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
-        BattleCombatantSnapshot caster = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.ActorIndex == 3);
+        BattleCombatantSnapshot caster = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(1, casterSource.SceneSlot);
         Assert.Equal(109, casterSource.ModelId);
@@ -50,7 +50,7 @@ public sealed class NativeBattleEffect101PresentationTests
         NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original command8/action290/caster sequence13, actual recipient sequence14 has no contact event; declared seven-HP packet remains unused, logical HP/status retained; no formula, accuracy, ordinary AI turn or command admission", ExpectedContacts = 0, ExpectedGlyphs = 0, Contact = contact }));

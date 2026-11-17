@@ -115,7 +115,7 @@ internal sealed class NativeBattleEffect303PresentationObserver
             Assert.NotNull(state.RootBankStorage);
             Mark("effect303-root-detached", current, cold);
         }
-        NativeBattleParticipantSnapshot target = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeParticipant!;
+        NativeBattleParticipantSnapshot target = current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4).NativeParticipant!;
         if (!target.Hidden && !target.Suspended && !target.Untargetable)
         {
             activated = true;

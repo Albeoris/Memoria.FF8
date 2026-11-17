@@ -97,7 +97,7 @@ public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnem
     public NativeBattleStatusAllocation? NativeStatusAllocation { get; init; }
     public uint NativeCombatantFlags { get; init; }
 }
-public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, int ActorIndex, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
+public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, [property: System.Text.Json.Serialization.JsonRequired] BattleRosterSlot? OccupiedSlot, [property: System.Text.Json.Serialization.JsonRequired] NativeBattleModelSlot? OriginalSlot, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool ReprojectedEncounterCopy { get; init; }

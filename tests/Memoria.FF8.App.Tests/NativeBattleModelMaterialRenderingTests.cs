@@ -24,7 +24,7 @@ public sealed class NativeBattleModelMaterialRenderingTests
         NativeBattlePcTextureWindowRegion region = row.Regions[selection.Slot] with { CurrentPixels = false, RetainedPixels = retained };
         NativeBattlePcTextureWindowCache cache = resolved.Cache with { Rows = resolved.Cache.Rows.SetItem(selection.Row, row with { Regions = row.Regions.SetItem(selection.Slot, region) }) };
         NativeBattlePrimitiveDrawMode mode = new(0) { TextureWindowBits = window, TextureSelection = selection, TexturePixelSnapshot = useFrameSnapshot ? 0 : null };
-        NativeBattlePrimitiveFrame frame = Frame([Quad(10, new("first"), mode), Quad(40, new("second"), mode), Quad(70, null, mode)]);
+        NativeBattlePrimitiveFrame frame = Frame([Quad(10, new("first"), mode), Quad(40, new("second"), mode), Quad(70, null, mode), Quad(100, new("first"), mode), Quad(130, new("second"), mode)]);
         if (useFrameSnapshot)
         {
             frame = frame with { LastTextureSnapshots = [retained] };
@@ -32,11 +32,14 @@ public sealed class NativeBattleModelMaterialRenderingTests
 
         NativeBattleEffectTextureState textures = global.WithPresentationTexture("first", new(Texture(0x001F), cache)).WithPresentationTexture("second", new(Texture(0x03E0), cache));
         BattleRenderer renderer = new(320, 216) { PilotDiagnosticsEnabled = true };
-        byte[] first = renderer.RenderNativePrimitiveFrame(frame, textures, textureWindowCache: cache);
+        byte[] first = renderer.RenderNativePrimitiveFrame(frame, textures, textureWindowCache: cache).ToArray();
         AssertPixel(first, 20, 255, 0, 0);
         AssertPixel(first, 50, 0, 255, 0);
         AssertPixel(first, 80, 0, 0, 255);
+        AssertPixel(first, 110, 255, 0, 0);
+        AssertPixel(first, 140, 0, 255, 0);
         Assert.Equal(2, renderer.TextureDecoding!.Value.RawPaletteMismatches);
+        Assert.Equal(2, renderer.TextureDecoding!.Value.FullFinalCurrentHits);
 
         byte[] repeated = renderer.RenderNativePrimitiveFrame(frame, textures, textureWindowCache: cache);
         Assert.Equal(first, repeated);
@@ -47,7 +50,12 @@ public sealed class NativeBattleModelMaterialRenderingTests
         AssertPixel(changed, 20, 255, 255, 0);
         AssertPixel(changed, 50, 0, 255, 0);
         AssertPixel(changed, 80, 0, 0, 255);
+        AssertPixel(changed, 110, 255, 255, 0);
+        AssertPixel(changed, 140, 0, 255, 0);
         Assert.Equal(2, renderer.TextureDecoding!.Value.FullFinalPreviousHits);
+
+        NativeBattleEffectTextureState missing = updated with { PresentationTextures = updated.PresentationTextures!.Remove("first") };
+        Assert.Throws<InvalidDataException>(() => renderer.RenderNativePrimitiveFrame(frame, missing, textureWindowCache: cache));
     }
 
     [Theory]

@@ -357,7 +357,7 @@ public sealed class AuthoredRosterBattleHostTests
             Assert.Same(committedPrefix[index], battle.Events[index]);
         }
         Assert.Equal(battle.Events.Skip(eventStart), observed);
-        Assert.Single(observed.Where(entry => entry is { Kind: "ActionComplete", ActorId: casterId }));
+        Assert.Single(observed, entry => entry is { Kind: "ActionComplete", ActorId: casterId });
         if (spell == 1 && reflectionMask != 0)
         {
             Assert.Contains(resolutions, value => value is { Kind: "damage", ActualAmount: > 0 } && value.ActualTargetId.StartsWith("party-", StringComparison.Ordinal));

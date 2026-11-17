@@ -39,7 +39,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Equal((ushort)301, header.Effect);
             Assert.Equal((byte)1, header.ReadContactCount());
             NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
-            BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == actualCaster);
+            BattleCombatantSnapshot self = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == actualCaster);
             Assert.Equal(actualCaster, ReadOriginalModelOperand(packets.ModelAliases, contact.Primary.Recipient));
             Assert.Equal(self.NativeStatus!.Presentation.Saved, contact.Primary.SavedStatuses4);
             Assert.Equal(self.NativeStatus.Presentation.Battle, contact.Primary.BattleStatuses8);

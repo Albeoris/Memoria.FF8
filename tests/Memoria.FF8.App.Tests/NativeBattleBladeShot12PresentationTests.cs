@@ -79,7 +79,7 @@ public sealed class NativeBattleBladeShot12PresentationTests
         NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original Blade Shot12 command8/action7/sequence15 and formation218; actual model9 object7 mesh-mask80 owner and current caster31/recipient23+linked2 bone owners, declared first physical seven-HP presentation with logical HP/status retained; no formula, accuracy, ordinary command or AI turn admission", CasterMeshMask124 = casterModel.SequenceState!.MeshMask124, Object7Vertices = object7.Vertices.Length, Contact = contact }));

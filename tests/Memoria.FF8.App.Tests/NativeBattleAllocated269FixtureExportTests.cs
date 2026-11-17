@@ -34,11 +34,11 @@ public sealed class NativeBattleAllocated269FixtureExportTests
         NativeBattleEnemyAllocation allocation = Assert.Single(ready.NativeAllocations);
         Assert.Equal(3, allocation.SceneSlot);
         BattleCombatantSnapshot allocated = Assert.Single(ready.Combatants, actor => actor.Id == allocation.Id);
-        Assert.Equal(caster, allocated.NativeParticipant!.ActorIndex);
+        Assert.Equal(caster, allocated.NativeParticipant!.OriginalSlot!.Value.Offset);
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 266 && row.MagicId == 269);
         byte sequence = NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(94, allocated.NativeParticipant!.ResolvedLevel ?? throw new InvalidDataException("The allocated original caster requires its resolved native level.")), action);
         Assert.Equal((byte)15, sequence);
-        BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.ActorIndex == 0);
+        BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The declared contact requires its actual target status owner.");
         target = target with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } };
         NativeBattlePresentationStatusMemory presentation = (ready.NativePresentationStatusMemory ?? throw new InvalidDataException("The declared contact requires its physical presentation status owner.")).Observe(0, target.NativeStatus!.Presentation);

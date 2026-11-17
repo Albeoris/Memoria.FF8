@@ -72,14 +72,14 @@ public sealed class NativeBattleEffect289PresentationTests
             Assert.NotEmpty(geometry);
             loaded.Add(new { ActorIndex = actor, definition.ModelId, pose.BoneCount, MaximumObjectVertices = geometry.Max(mesh => mesh.Vertices.Length), model.Flags0, model.Color44, model.Transform, model.CurrentBodyBoneMatrices, model.SequenceState });
         }
-        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4);
+        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4);
         NativeBattleParticipantSnapshot participant = target.NativeParticipant!;
         Assert.True(participant.Active);
         Assert.False(participant.Hidden);
         Assert.False(participant.Suspended);
         Assert.False(participant.Untargetable);
         Assert.False(participant.AllocationPendingStatistics);
-        BattleCombatantSnapshot selectedParty = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
+        BattleCombatantSnapshot selectedParty = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0);
         NativeBattleStatusSnapshot status = selectedParty.NativeStatus ?? throw new InvalidDataException("The selected component requires its current target status owner.");
         NativeBattleActionPacketsState packets = original.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The selected component requires its retained current action packet owner.");
         int priorActions = packets.ActionCount;

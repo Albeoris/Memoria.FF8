@@ -1,8 +1,10 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>45BC60's PC cropped texture rectangle; this is separate from a PSX per-pixel texture-window mask.</summary>
-public sealed record NativeBattlePrimitiveTextureWindow(int X, int Y, int Width, int Height)
+public readonly record struct NativeBattlePrimitiveTextureWindow(int X, int Y, int Width, int Height)
 {
+    internal bool FitsPage => X is >= 0 and < 256 && Y is >= 0 and < 256 && Width > 0 && Width <= 256 - X && Height > 0 && Height <= 256 - Y;
+
     public static NativeBattlePrimitiveTextureWindow Decode45BC60(uint bits)
     {
         bits &= 0xFFFFFF;

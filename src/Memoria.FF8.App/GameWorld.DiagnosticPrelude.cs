@@ -19,7 +19,7 @@ internal sealed partial class GameWorld
         BattleCombatantDefinition targetSource = active.GetCombatantDefinition(expectedTarget.ActorId);
         bool authoredActivation = !declaration.RequireNativeAllocation && request.Roster is not null;
         string deathHash = Convert.ToHexStringLower(SHA256.HashData(source.NativeAi?.Scripts[3] ?? throw new NotSupportedException("Prelude requires the original predecessor death callback.")));
-        if (!attacker.IsPlayer || predecessor.IsPlayer || predecessor.ModelId != declaration.DefeatedModel || predecessor.SceneSlot != declaration.DefeatedSceneSlot || !source.InitialActive || !predecessor.IsAlive || targetSource.ModelId != expectedTarget.Model || targetSource.SceneSlot != expectedTarget.SceneSlot || targetSource.NativeTemplate is null || targetSource.InitialActive == declaration.RequireNativeAllocation || !string.Equals(deathHash, declaration.DeathScriptSha256, StringComparison.OrdinalIgnoreCase))
+        if (!attacker.IsPlayer || predecessor.IsPlayer || predecessor.ModelId != declaration.DefeatedModel || predecessor.SceneSlot != declaration.DefeatedSceneSlot || !source.InitialActive || !predecessor.IsAlive || expectedTarget.PhysicalIndex is null || expectedTarget.SceneSlot >= 8 || targetSource.ModelId != expectedTarget.Model || targetSource.SceneSlot != expectedTarget.SceneSlot || targetSource.NativeTemplate is null || targetSource.InitialActive == declaration.RequireNativeAllocation || !string.Equals(deathHash, declaration.DeathScriptSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Prelude does not match the original predecessor, target prototype, allocation origin or death-script identity.");
         }
@@ -28,7 +28,7 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("Prelude activation requires an initially suspended authored successor.");
         }
         int initialHp = predecessor.CurrentHp;
-        int predecessorIndex = active.ObserveDiagnosticTarget(predecessor.Id).PhysicalIndex;
+        int predecessorIndex = active.ObserveDiagnosticTarget(predecessor.Id).PhysicalIndex ?? throw new NotSupportedException("Prelude requires its original predecessor alias.");
         string targetInitializationHash = Convert.ToHexStringLower(SHA256.HashData(targetSource.NativeAi?.Scripts[0] ?? throw new NotSupportedException("Prelude target requires its original initialization script.")));
         long started = Stopwatch.GetTimestamp();
         long startCallback = active.NativeHostCallbacks ?? throw new NotSupportedException("Prelude requires its existing native callback ledger.");

@@ -33,14 +33,16 @@ public sealed partial class BattleSession
             }
         }
 
+        ImmutableArray<BattleDiagnosticNativeContact> proof = PrepareDiagnosticGuardianContacts(process, invocation);
         PublishExpandedHostedRecompute(process, roster, token, invocation, candidate => invocation with
         {
-            Contacts = candidate.ResolveExpandedGuardianContacts(invocation, request.Percent),
+            Contacts = candidate.ResolveExpandedGuardianContacts(invocation, request.Percent, proof),
             PendingGuardian = false
         }, guardian: request);
+        diagnosticGuardianDispatch = null;
     }
 
-    private ImmutableArray<ExpandedBattleContact> ResolveExpandedGuardianContacts(ExpandedHostedInvocation invocation, byte percent)
+    private ImmutableArray<ExpandedBattleContact> ResolveExpandedGuardianContacts(ExpandedHostedInvocation invocation, byte percent, ImmutableArray<BattleDiagnosticNativeContact> proof)
     {
         ushort actionId = invocation.Header.Action;
         BattleNativeAction native = FindInstalledNativeAction(254, actionId);
@@ -58,8 +60,10 @@ public sealed partial class BattleSession
         try
         {
             var contacts = ImmutableArray.CreateBuilder<ExpandedBattleContact>(recipients.Length);
-            foreach (BattleCombatant recipient in recipients)
+            for (int index = 0; index < recipients.Length; index++)
             {
+                BattleCombatant recipient = recipients[index];
+                diagnosticGuardianContact = proof.IsEmpty ? null : proof[index];
                 NativeBattleContactPacket packet = ResolveInstalledNativeHitWithContact(caster, recipient, command, action, native);
                 contacts.Add(new(recipient.Id, packet));
             }
@@ -67,6 +71,7 @@ public sealed partial class BattleSession
         }
         finally
         {
+            diagnosticGuardianContact = null;
             nativeActionCommitDepth--;
             deferringExpandedImpacts = false;
             resolvingNativeAction = null;

@@ -90,7 +90,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
         Assert.Equal(allocated.Id, allocation.Id);
         BattleCombatantSnapshot pendingActor = Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id);
         NativeBattleParticipantSnapshot pendingParticipant = pendingActor.NativeParticipant ?? throw new InvalidDataException("The pending original allocation lacks its participant owner.");
-        int actualIndex = pendingParticipant.ActorIndex;
+        int actualIndex = pendingParticipant.OriginalSlot!.Value.Offset;
         Assert.InRange(actualIndex, 3, 6);
         Assert.True(pendingParticipant.AllocationPendingStatistics);
         Assert.True(pending.NativeScriptState.AllocationControl!.ActionGate);
@@ -122,7 +122,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
         Assert.False(activeParticipant.Untargetable);
         Assert.False(activeParticipant.Suspended);
         Assert.False(activeParticipant.AllocationPendingStatistics);
-        Assert.Equal(actualIndex, activeParticipant.ActorIndex);
+        Assert.Equal(actualIndex, activeParticipant.OriginalSlot!.Value.Offset);
         Assert.Contains(session.Events, entry => entry.Kind == "NativeSpawn" && entry.TargetId == allocated.Id);
         Assert.Contains(session.Events, entry => entry.Kind == "Activated" && entry.ActorId == allocated.Id);
         BattleCombatantDefinition currentDefinition = session.GetCombatantDefinition(allocated.Id);
@@ -154,7 +154,7 @@ internal static class NativeBattleEvilEye282FixturePreparation
             BattleCombatantSnapshot retained = Assert.Single(ready.Combatants, actor => actor.Id == companion.Id);
             Assert.True(retained.NativeParticipant!.Active);
             Assert.Equal(companion.ModelId, session.GetCombatantDefinition(companion.Id).ModelId);
-            int companionIndex = retained.NativeParticipant!.ActorIndex;
+            int companionIndex = retained.NativeParticipant!.OriginalSlot!.Value.Offset;
             BattleEnemyPlacement source = Assert.Single(formation.Slots, slot => slot.Slot == companion.SceneSlot);
             Assert.Equal(source.NativePosition, ReadOriginalModelCell(graphics, companionIndex).Transform!.Position28);
         }

@@ -58,7 +58,7 @@ public sealed class NativeBattleRecover93PresentationTests
         ushort expectedHp = (ushort)(initialHp + 7);
         if (revival)
         {
-            BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == targetIndex);
+            BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant?.OriginalSlot?.Offset == targetIndex);
             NativeBattleStatusSnapshot status = target.NativeStatus!;
             Assert.Equal(7, target.CurrentHp);
             Assert.Equal(0, status.Saved & 1);
@@ -190,7 +190,7 @@ public sealed class NativeBattleRecover93PresentationTests
             Assert.Equal(expectedHp, battle.Capture().ReadFixturePresentation().NativePartyPresentation!.Rows[targetIndex]!.HitPoints);
             if (revival)
             {
-                BattleCombatantSnapshot target = battle.Capture().Combatants.Single(actor => actor.NativeParticipant?.ActorIndex == targetIndex);
+                BattleCombatantSnapshot target = battle.Capture().Combatants.Single(actor => actor.NativeParticipant?.OriginalSlot?.Offset == targetIndex);
                 Assert.Equal(7, target.CurrentHp);
                 Assert.Equal(0, target.NativeStatus!.Saved & 1);
                 Assert.NotNull(target.NativeStatus.Presentation.Saved);

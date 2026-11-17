@@ -469,7 +469,14 @@ public sealed partial class BattleSession
         {
             BattleDefinition snapshotDefinition = snapshot.Definition;
             snapshotDefinition.Tuning?.RequireCurrentBattleStatusRules();
-            snapshot = NativeBattleStorageSnapshots.Restore(snapshot with { Definition = null! }) with { Definition = snapshotDefinition };
+            BattlePresentationSnapshot? presentation = snapshot.PresentationContinuation;
+            BattleLogicalContinuation? continuation = snapshot.LogicalContinuation;
+            snapshot = NativeBattleStorageSnapshots.Restore(snapshot with { Definition = null!, PresentationContinuation = null, LogicalContinuation = null }) with
+            {
+                Definition = snapshotDefinition,
+                PresentationContinuation = presentation,
+                LogicalContinuation = continuation
+            };
             if ((snapshot.Definition.MagicVitals is not null) != (snapshot.MagicVitals is not null))
             {
                 throw new InvalidDataException("A battle checkpoint with magic rules requires its authoritative banks and reservations.");
@@ -1213,7 +1220,12 @@ public sealed partial class BattleSession
         foreach (BattleCombatantSnapshot saved in snapshot.Combatants)
         {
             BattleCombatant actor = GetActor(saved.Id);
-            RestoreNativeParticipant(actor, saved.NativeParticipant);
+            NativeBattleParticipantSnapshot participant = saved.NativeParticipant ?? throw new InvalidDataException("Battle checkpoint lacks its current participant binding.");
+            if (actor.IsPlayer && (actor.Slot != participant.OccupiedSlot || actor.NativeActorIndex != participant.OriginalSlot?.Offset))
+            {
+                throw new InvalidDataException("Saved party model binding disagrees with the admitted row occupancy.");
+            }
+            RestoreNativeParticipant(actor, participant);
             actor.RestoreMagicInventory(saved.NativeMagicInventory ?? throw new InvalidDataException("Battle snapshot lacks its physical magic inventory; migrate it explicitly."));
             actor.RestoreDrawnMagic(saved.DrawnMagicIds);
             actor.RestoreDrawSlots(saved.NativeDrawSlots ?? throw new InvalidDataException("Battle snapshot lacks its physical Draw bank; migrate it explicitly."));
@@ -1240,10 +1252,7 @@ public sealed partial class BattleSession
             actor.LimitTurnCrisis = saved.LimitTurnCrisis;
             ValidateStocks(saved.MagicStocks, 32);
         }
-        if (UsesOriginalEnemySlots)
-        {
-            ValidateExpandedOriginalEnemySlots();
-        }
+        ValidateRestoredRoster(snapshot);
         RestoreNativeElementAttack(snapshot.NativeElementAttack);
         (snapshot.NativeScriptState ?? throw new InvalidDataException("Native battle script state is missing.")).Validate();
         RestoreGuardianForces(snapshot);
@@ -1253,10 +1262,6 @@ public sealed partial class BattleSession
         RestoreNativeBattleClock(snapshot.NativeClock);
         ValidateNativeSupportEntryOwner();
         HashSet<string> busy = new(StringComparer.Ordinal);
-        if (combatants.Where(actor => actor.IsActive).GroupBy(actor => actor.Slot).Any(group => group.Count() != 1))
-        {
-            throw new InvalidDataException("Several active battle allocations occupy the same physical slot.");
-        }
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
             if (command.ExpandedAiCallback is { } callback)
@@ -1585,7 +1590,7 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in allies)
         {
             BattleCombatant replacement = candidate.GetActor(actor.Id);
-            if (actor.Slot != replacement.Slot)
+            if (actor.Slot != replacement.Slot || actor.NativeActorIndex != replacement.NativeActorIndex)
             {
                 actor.BindRosterSlot(replacement.Slot, replacement.NativeActorIndex is not null);
             }

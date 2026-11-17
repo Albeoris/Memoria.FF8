@@ -31,11 +31,11 @@ public sealed partial class BattleSession
 
     private BattlePreviousTarget? ReadAiLastAllocation(BattleCombatant caller)
     {
-        if (ReadDonorSource(caller)?.Group is not { } group)
+        if (ReadScopedEnemySource(caller)?.Group is not { } group)
         {
             return nativeLastAllocatedTarget;
         }
-        NativeBattleEnemyAllocation? latest = nativeAllocations.LastOrDefault(allocation => allocation.DonorSource?.Group == group);
+        NativeBattleEnemyAllocation? latest = nativeAllocations.LastOrDefault(allocation => (allocation.TemplateSource?.Group ?? allocation.DonorSource?.Group) == group);
         return latest is null ? null : new BattlePreviousTarget.Actor(TargetActorReference(GetActor(latest.Id)));
     }
     public IReadOnlyList<uint>? PersistentAiVariables => persistentAiVariables?.ToArray();
@@ -543,25 +543,14 @@ public sealed partial class BattleSession
 
     private bool IsAddedEnemy(BattleCombatantDefinition actor) => !actor.IsPlayer && actor.SceneSlot is int slot && definition.AddedEnemySources?.ContainsKey(slot) == true;
 
-    private bool RetainsNativeActorIndex(BattleCombatant actor) => UsesOriginalEnemySlots && !actor.IsPlayer && !IsAddedEnemy(actor);
+    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.Slot, actor.NativeActorIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { ReprojectedEncounterCopy = actor.NativeLevelReprojected && nativeAllocations.Any(allocation => allocation.Id == actor.Id && allocation.ResolvedDefinition is not null), MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
 
-    private NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, RetainsNativeActorIndex(actor) ? actor.NativeActorIndex ?? NativeBattleSlots.Unassigned : NativeBattleSlots.Unassigned, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { ReprojectedEncounterCopy = actor.NativeLevelReprojected && nativeAllocations.Any(allocation => allocation.Id == actor.Id && allocation.ResolvedDefinition is not null), MaximumHitPoints = actor.IsPlayer && actor.NativePlayerStatRules is not null && actor.GuardianFormVitals is null ? actor.MaximumHp : null, StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.HumanElementDefenses.ToArray(), PreviousTarget = actor.PreviousAiTarget, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits, ActorReferences = actor.AiActorReferences.Count == 0 ? null : new(actor.AiActorReferences) };
-
-    private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
+    private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot saved)
     {
-        if (saved is null)
-        {
-            actor.NativeReturnDamage = null;
-            actor.NativePendingReaction = new(null, null);
-            actor.NativeRemainingHits = null;
-            if (actor.NativeAi is not null || actor.SceneSlot is not null)
-            {
-                throw new InvalidDataException("Battle participant lacks its explicit native lifecycle state.");
-            }
-            return;
-        }
-        bool retainsPhysicalSlot = RetainsNativeActorIndex(actor);
-        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < NativeBattleSlots.Unassigned or >= NativeBattleSlots.Count || saved.Active && saved.ActorIndex < 0 && retainsPhysicalSlot || !retainsPhysicalSlot && saved.ActorIndex != NativeBattleSlots.Unassigned || saved.ActorIndex >= 0 && actor.Side != NativeBattleSlots.Decode(saved.ActorIndex).Side || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
+        int capacity = actor.IsPlayer ? ExpandedBattleFormation.MaximumAllies : ExpandedBattleFormation.MaximumEnemies;
+        if (saved.OccupiedSlot is { } slot && (slot.Side != actor.Side || (uint)slot.Position >= capacity) ||
+            saved.Active && saved.OccupiedSlot is null || saved.OriginalSlot is { } original && (saved.OccupiedSlot is not { } occupied || NativeBattleSlots.TryEncode(occupied) != original.Offset) ||
+            saved.Variables is null || saved.Variables.Length != 8 || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
         {
             throw new InvalidDataException("Battle participant has invalid native allocation or AI owner state.");
         }
@@ -590,10 +579,7 @@ public sealed partial class BattleSession
             }
             actor.NativeCombatantFlags = flags;
         }
-        if (retainsPhysicalSlot)
-        {
-            actor.BindRosterSlot(saved.ActorIndex == NativeBattleSlots.Unassigned ? null : NativeBattleSlots.Decode(saved.ActorIndex));
-        }
+        actor.BindRosterSlot(saved.OccupiedSlot, bindNative: saved.OriginalSlot.HasValue);
         BattleCombatantDefinition? copy = nativeAllocations.SingleOrDefault(allocation => allocation.Id == actor.Id)?.ResolvedDefinition;
         if (saved.ReprojectedEncounterCopy && (copy is null || saved.ResolvedLevel is null))
         {

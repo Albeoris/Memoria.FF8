@@ -83,14 +83,14 @@ public static class VictoryTerminalHoldValidation
             }
             foreach (BattleDiagnosticCombatant actor in receipt.Party)
             {
-                if (actor.NativeIndex is not (>= 0 and < 3) || actor.CurrentHp <= 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses0 & 5) != 0 || (actor.Statuses1 & 0x80010000) != 0 || !before.TryGetValue(actor.Id, out JsonElement first) || !after.TryGetValue(actor.Id, out JsonElement last) || first.GetProperty("native_index").GetInt32() != actor.NativeIndex || last.GetProperty("native_index").GetInt32() != actor.NativeIndex || receipt.Kind == "released" && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), last))
+                if (!LiveEvidenceValidation.IsObservedPartyPlacement(actor) || actor.CurrentHp <= 0 || actor.CurrentHp > actor.MaximumHp || (actor.Statuses0 & 5) != 0 || (actor.Statuses1 & 0x80010000) != 0 || !LiveEvidenceValidation.HasObservedBattleIdentity(before, actor.Id, actor.Slot, actor.NativeIndex) || !LiveEvidenceValidation.HasObservedBattleIdentity(after, actor.Id, actor.Slot, actor.NativeIndex) || receipt.Kind == "released" && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actor, RecordJson.Options), after[actor.Id]))
                 {
                     throw new InvalidDataException("Victory hold changed its living party owner or release state.");
                 }
             }
         }
-        JsonElement[] enemies = before.Values.Where(actor => actor.GetProperty("native_index").ValueKind == JsonValueKind.Number && actor.GetProperty("native_index").GetInt32() is >= 3 and < 7).ToArray();
-        if (enemies.Length == 0 || enemies.Any(actor => !after.TryGetValue(actor.GetProperty("id").GetString()!, out JsonElement last) || last.GetProperty("native_index").ValueKind == JsonValueKind.Number && (last.GetProperty("statuses0").GetInt32() & 5) == 0 && (last.GetProperty("statuses1").GetUInt32() & 0x10000) == 0))
+        JsonElement[] enemies = before.Values.Where(actor => LiveEvidenceValidation.ReadObservedRosterSlot(actor)?.Side == BattleSide.Enemies).ToArray();
+        if (enemies.Length == 0 || enemies.Any(actor => !after.TryGetValue(actor.GetProperty("id").GetString()!, out JsonElement last) || LiveEvidenceValidation.ReadObservedRosterSlot(last) is not null && (last.GetProperty("statuses0").GetInt32() & 5) == 0 && (last.GetProperty("statuses1").GetUInt32() & 0x10000) == 0))
         {
             throw new InvalidDataException("Victory hold lacks the actual natural enemy KO or ejection outcome.");
         }

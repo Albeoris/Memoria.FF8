@@ -173,7 +173,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                             Assert.NotEqual(0, selectedContact.Primary.HitFlags & 1);
                             Assert.Equal(0, beforeHp);
                             Assert.Equal(selectedContact.Primary.Amount6, afterHp);
-                            Assert.Equal(source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == selectedSlot).CurrentHp, afterHp);
+                            Assert.Equal(source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == selectedSlot).CurrentHp, afterHp);
                         }
                         else
                         {

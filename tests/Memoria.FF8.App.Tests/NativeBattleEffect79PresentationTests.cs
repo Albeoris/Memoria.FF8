@@ -71,14 +71,14 @@ public sealed class NativeBattleEffect79PresentationTests
             Assert.NotEmpty(geometry);
             loaded.Add(new { ActorIndex = actor, definition.ModelId, pose.BoneCount, MaximumObjectVertices = geometry.Max(mesh => mesh.Vertices.Length), model.Flags0, model.Color44, model.Transform, model.CurrentBodyBoneMatrices, model.SequenceState });
         }
-        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4);
+        BattleCombatantSnapshot target = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4);
         NativeBattleParticipantSnapshot participant = target.NativeParticipant!;
         Assert.True(participant.Active);
         Assert.False(participant.Hidden);
         Assert.False(participant.Suspended);
         Assert.False(participant.Untargetable);
         Assert.False(participant.AllocationPendingStatistics);
-        BattleCombatantSnapshot selectedTarget = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3);
+        BattleCombatantSnapshot selectedTarget = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
         NativeBattleStatusSnapshot status = selectedTarget.NativeStatus ?? throw new InvalidDataException("The selected component requires its current target status owner.");
         Assert.Equal(100, selectedTarget.CurrentHp);
         Assert.Equal((ushort)0, status.Saved);

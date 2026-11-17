@@ -34,7 +34,7 @@ public sealed class NativeBattleNorgOrbTests
                 if (orb.NativeParticipant!.Variables[0] == color && battle.ObserveDiagnosticDrainBlockers().Count == 0 && battle.CanChoosePlayerCommand("party-0"))
                 {
                     Assert.Equal(0u, orb.NativeParticipant.Variables[1]);
-                    int physical = orb.NativeParticipant.ActorIndex;
+                    int physical = orb.NativeParticipant.OriginalSlot!.Value.Offset;
                     NativeBattleGraphicsModel model = ReadOriginalModelCell(battle.Presentation!.Graphics, physical);
                     NativeBattleModelCpuResources cpu = battle.Presentation!.ModelCpuResources;
                     NativeBattleModelCpuResourceRow row = cpu.Rows[model.TextureResourceIndex!.Value];

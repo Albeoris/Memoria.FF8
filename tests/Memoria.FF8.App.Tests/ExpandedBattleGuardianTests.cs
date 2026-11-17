@@ -71,6 +71,11 @@ public sealed class ExpandedBattleGuardianTests
         }
         Assert.False(originalAffinity.SequenceEqual(affinityAfterOne));
 
+        var recipientSlots = enemies.ToDictionary(enemy => enemy.Id, enemy => enemy.Slot);
+        List<BattleDiagnosticEffectDispatch> dispatches = [];
+        List<BattleDiagnosticResolution> resolutions = [];
+        battle.DiagnosticEffectDispatched += dispatches.Add;
+        battle.DiagnosticResolution += resolutions.Add;
         caster.Atb = BattleSession.AtbMaximum;
         int chargeStart = battle.Events.Count;
         world.ApplyBattleInput(new(BattleInputKind.Action, ActorId: CasterId, TargetId: enemies[0].Id, Ability: BattleAbility.GuardianForce, ActionId: GuardianId));
@@ -147,6 +152,23 @@ public sealed class ExpandedBattleGuardianTests
         Assert.NotNull(token);
         Assert.True(process.IsActionComplete(token.Value));
         Assert.Equal(occurrences, delivered.Select(packet => packet.Occurrence!.Value).OrderBy(occurrence => occurrence.Ordinal));
+        BattleDiagnosticEffectDispatch summon = Assert.Single(dispatches, dispatch => dispatch is { ActorId: CasterId, NativeCommand: 254 } && dispatch.RequestedEffect == native.MagicId);
+        BattleDiagnosticResolution[] committed = resolutions.Where(resolution => resolution.NativeContact is not null).ToArray();
+        Assert.Equal(occurrences, committed.Select(resolution => resolution.NativeContact!.Occurrence!.Value));
+        Assert.All(committed, resolution =>
+        {
+            BattleDiagnosticNativeContact proof = resolution.NativeContact!;
+            Assert.Equal(0x4850A0u, proof.ProducerAddress);
+            Assert.Equal(summon.Serial, proof.DispatchSerial);
+            Assert.Equal(summon.HeaderReference, proof.HeaderReference);
+            Assert.Equal(summon.NativeHeaderGeneration, proof.HeaderGeneration);
+            Assert.Equal(BattleRosterSlot.Ally(3), proof.ActorSlot);
+            Assert.Null(proof.ActorIndex);
+            Assert.Equal(enemies[0].Id, proof.SubmittedTargetId);
+            Assert.Equal(resolution.ActualTargetId, proof.RecipientId);
+            Assert.Equal(resolution.ActualTargetId, resolution.OriginalTargetId);
+            Assert.Equal(recipientSlots[proof.RecipientId], proof.RecipientSlot);
+        });
         Assert.Equal(enemies.Select(enemy => enemy.Id).Order(StringComparer.Ordinal), battle.Events.Skip(admittedAt!.Value).Where(entry => entry is { Kind: "EffectContact", ActorId: CasterId, Ability: BattleAbility.GuardianForce }).Select(entry => entry.TargetId).Order(StringComparer.Ordinal));
         Assert.Single(battle.Events.Skip(chargeStart), entry => entry is { Kind: "GuardianForceReady", ActorId: CasterId });
         Assert.Single(battle.Events.Skip(admittedAt!.Value), entry => entry is { Kind: "ActionComplete", ActorId: CasterId });

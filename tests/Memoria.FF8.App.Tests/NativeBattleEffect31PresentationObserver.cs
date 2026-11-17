@@ -115,7 +115,7 @@ internal sealed class NativeBattleEffect31PresentationObserver(BattleSnapshot so
         foreach (BattleCombatantSnapshot actor in current.Combatants)
         {
             BattleCombatantSnapshot initial = Assert.Single(source.Combatants, candidate => candidate.Id == actor.Id);
-            Assert.Equal((initial.NativeParticipant!.ActorIndex, initial.NativeParticipant.Active, initial.NativeParticipant.Hidden, initial.NativeParticipant.Suspended, initial.NativeParticipant.Untargetable), (actor.NativeParticipant!.ActorIndex, actor.NativeParticipant.Active, actor.NativeParticipant.Hidden, actor.NativeParticipant.Suspended, actor.NativeParticipant.Untargetable));
+            Assert.Equal((initial.NativeParticipant!.OriginalSlot!.Value.Offset, initial.NativeParticipant.Active, initial.NativeParticipant.Hidden, initial.NativeParticipant.Suspended, initial.NativeParticipant.Untargetable), (actor.NativeParticipant!.OriginalSlot!.Value.Offset, actor.NativeParticipant.Active, actor.NativeParticipant.Hidden, actor.NativeParticipant.Suspended, actor.NativeParticipant.Untargetable));
         }
         Assert.True(state.StaticSourcesBound);
         initialized = true;

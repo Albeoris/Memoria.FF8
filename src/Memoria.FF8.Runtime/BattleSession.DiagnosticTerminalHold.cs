@@ -132,7 +132,7 @@ public sealed partial class BattleSession
     {
         BattleDiagnosticTerminalHoldState hold = DiagnosticTerminalHold!;
         BattleDiagnosticCombatant[] party = hold.Declaration.PartyActorIds.Select(id => ObserveDiagnosticCombatant(GetActor(id))).ToArray();
-        BattleDiagnosticTerminalHoldReceipt receipt = new(hold.HoldId, DiagnosticLifecycleId, kind, hold.Sequence, Frame, NativeHostCallbacks ?? Frame, hold.Declaration.Candidate, ((NativeBattleGraphicsState?)null)?.NativeOutcome?.ResultByte6E7, drained, DiagnosticRestoreCount, DiagnosticResetCount, ObserveDiagnosticRepairRandom(), party);
+        BattleDiagnosticTerminalHoldReceipt receipt = new(hold.HoldId, DiagnosticLifecycleId, kind, hold.Sequence, Frame, NativeHostCallbacks ?? Frame, hold.Declaration.Candidate, Presentation?.Graphics.NativeOutcome?.ResultByte6E7, drained, DiagnosticRestoreCount, DiagnosticResetCount, ObserveDiagnosticRepairRandom(), party);
         DiagnosticTerminalHold = hold with { Receipts = hold.Receipts.Add(receipt) };
     }
 

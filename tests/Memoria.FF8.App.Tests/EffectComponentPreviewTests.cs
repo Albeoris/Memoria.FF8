@@ -60,10 +60,8 @@ public sealed class EffectComponentPreviewTests
         Assert.Null(world.LastBattleRewards);
     }
 
-    internal static BattleSession PrepareOriginalEnemyComponent(GameWorld world)
+    internal static BattleSession PrepareOriginalEnemyComponent(GameWorld world, ushort effect = 219, ushort formation = 462)
     {
-        const ushort effect = 219;
-        const ushort formation = 462;
         BattleSession battle = world.StartDiagnosticBattle(new(formation, 4, 0x80, 0, 0)
         {
             BattleMusic = 5,

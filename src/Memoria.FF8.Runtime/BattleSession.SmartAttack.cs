@@ -95,7 +95,7 @@ public sealed partial class BattleSession
     {
         BattleDamageForecast physical = ForecastPhysical(actor, target);
         string physicalName = PhysicalCommand(actor) == 12 ? actor.NativeCommands.FirstOrDefault(binding => binding.Command == 12)?.Name ?? "Mug" : actor.NativeAttack?.Name ?? "Attack";
-        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), SmartNativeIndex(target), physical.ExpectedDamage, physical.KillProbability) { TargetSlot = target.Slot };
+        BattleSmartAttackPreview result = new(actor.Id, target.Id, BattleAbility.Attack, 0, physicalName, 1, forcePhysical, SmartRevision(actor, target), target.NativeActorIndex, physical.ExpectedDamage, physical.KillProbability) { TargetSlot = target.Slot };
         if (forcePhysical || !CanSmartCast(actor, target) || PhysicalCommand(actor) == 12 && HasMugItem(target) || physical.KillProbability > 0.9)
         {
             return result;
@@ -124,8 +124,6 @@ public sealed partial class BattleSession
         BattleSmartAttackPreview selected = BattleSmartAttackSelector.Select(result, candidates);
         return selected.DrawSourceId is { } sourceId ? selected with { DrawSourceSlot = GetActor(sourceId).Slot } : selected;
     }
-
-    private int? SmartNativeIndex(BattleCombatant actor) => null;
 
     public static bool IsSmartSpell(BattleActionDefinition action)
     {

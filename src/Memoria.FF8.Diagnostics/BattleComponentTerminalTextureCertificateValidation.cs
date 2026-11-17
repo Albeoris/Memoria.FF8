@@ -15,7 +15,7 @@ public static class BattleComponentTerminalTextureCertificateValidation
         {
             throw new InvalidDataException("Component terminal texture dispatch differs from the selected live effect.");
         }
-        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || admission.Actor >= 7 || admission.HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
+        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || !HasAdmissionIdentity(admission) || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
         {
             throw new InvalidDataException("Component terminal texture admission differs from the selected native header owner.");
         }
@@ -25,6 +25,13 @@ public static class BattleComponentTerminalTextureCertificateValidation
         {
             throw new InvalidDataException("Resident native task, programme or model predicates changed across the terminal presentation tail.");
         }
+    }
+
+    internal static bool HasAdmissionIdentity(BattleComponentAdmissionIdentity admission)
+    {
+        return admission.Actor is not >= 7 && (admission.HeaderReference is { } header
+            ? header.Ordinal == admission.HeaderIndex && !string.IsNullOrWhiteSpace(admission.ActorId)
+            : admission.Actor.HasValue && admission.HeaderIndex is >= 0 and < NativeBattleRetainedActionPackets.HeaderCapacity);
     }
 
     private static void ValidateObservation(BattleComponentTextureQuiescenceObservation observation)
@@ -38,7 +45,7 @@ public static class BattleComponentTerminalTextureCertificateValidation
 
     private static bool SameTask(BattleDiagnosticTextureTask first, BattleDiagnosticTextureTask last)
     {
-        return first.Slot == last.Slot && first.Flags == last.Flags && first.State == last.State && first.Next == last.Next && first.Kind == last.Kind && first.UnknownByteMask == last.UnknownByteMask && first.PayloadLength == last.PayloadLength && first.ModelPointer == last.ModelPointer && first.CapturedSequence == last.CapturedSequence && first.ProgramOffset == last.ProgramOffset && first.ProgramLength == last.ProgramLength && first.Deadline == last.Deadline && first.ModelIndex == last.ModelIndex && (first.ModelFlags0 & 2) == (last.ModelFlags0 & 2) && (first.ResourceFlags44 & 0x40) == (last.ResourceFlags44 & 0x40) && first.ModelSequence == last.ModelSequence;
+        return first.Slot == last.Slot && first.Flags == last.Flags && first.State == last.State && first.Next == last.Next && first.Kind == last.Kind && first.UnknownByteMask == last.UnknownByteMask && first.PayloadLength == last.PayloadLength && first.ModelPointer == last.ModelPointer && first.CapturedSequence == last.CapturedSequence && first.ProgramOffset == last.ProgramOffset && first.ProgramLength == last.ProgramLength && first.Deadline == last.Deadline && first.ModelIndex == last.ModelIndex && first.ModelActorId == last.ModelActorId && (first.ModelFlags0 & 2) == (last.ModelFlags0 & 2) && (first.ResourceFlags44 & 0x40) == (last.ResourceFlags44 & 0x40) && first.ModelSequence == last.ModelSequence;
     }
 
     private static bool IsHash(string? value) => value is { Length: 64 } && value.All(char.IsAsciiHexDigit);

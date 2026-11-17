@@ -30,7 +30,7 @@ public sealed class NativeBattleEffect345SourceAdmissionTests
         NativeBattleEffectMemory memory = source.ReadFixturePresentation().NativeEffectMemory!;
         Assert.Equal(0, memory.Active);
         BattleCombatantSnapshot enemy = Assert.Single(source.Combatants, combatant => !session.GetCombatantDefinition(combatant.Id).IsPlayer && combatant.NativeParticipant is { Active: true });
-        Assert.Equal((byte)3, enemy.NativeParticipant!.ActorIndex);
+        Assert.Equal((byte)3, enemy.NativeParticipant!.OriginalSlot!.Value.Offset);
         Assert.False(enemy.NativeParticipant.Hidden);
         Assert.False(enemy.NativeParticipant.Suspended);
         Assert.False(enemy.NativeParticipant.Untargetable);

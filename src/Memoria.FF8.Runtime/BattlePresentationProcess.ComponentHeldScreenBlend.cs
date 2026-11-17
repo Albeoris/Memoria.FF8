@@ -1,15 +1,11 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
     /// <summary>Observe the original resident constant screen blend; neither release it nor stop its native rectangle publication.</summary>
-    internal BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect, BattleDiagnosticInvocationOwners owners, bool commandBanksEmpty, ImmutableArray<string> blockers)
+    internal BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect, BattleDiagnosticInvocationOwners owners, ImmutableArray<string> blockers)
     {
         if (NativeGraphics is not { OriginalEffect: { ReturnedDescriptor: 0 } selected } graphics || selected.RequestedEffect != expectedEffect || selected.Binding.Effect != expectedEffect || NativeEffectMemory is not { Active: 0 } memory)
         {
@@ -35,7 +31,7 @@ public sealed partial class BattlePresentationProcess
         {
             return null;
         }
-        BattleComponentHeldScreenBlendObservation observation = new(expectedEffect, graphics.Callback, 0, checked((uint)memory.ReadReturnedTask5044B0()), owners, commandBanksEmpty, active.Length, auxiliary.Head, auxiliary.Tail, held, held.Fingerprint, blockers);
+        BattleComponentHeldScreenBlendObservation observation = new(expectedEffect, graphics.Callback, 0, checked((uint)memory.ReadReturnedTask5044B0()), owners, active.Length, auxiliary.Head, auxiliary.Tail, held, held.Fingerprint, blockers);
         return observation.IsEligible ? observation : null;
     }
 }

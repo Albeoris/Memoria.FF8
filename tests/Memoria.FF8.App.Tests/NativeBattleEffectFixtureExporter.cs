@@ -332,7 +332,7 @@ internal static class NativeBattleEffectFixtureExporter
             {
                 boundary = "before-ordinary-input";
                 Save(boundary, before);
-                string targetId = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).Id;
+                string targetId = before.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).Id;
                 battle.QueueAction("party", targetId, BattleAbility.Magic, request.ActionId);
                 for (int count = 0; count < request.AdmissionProbeMaximumCallbacks; count++)
                 {
@@ -368,7 +368,7 @@ internal static class NativeBattleEffectFixtureExporter
                 return new(request.Id, request.Effect, "blocked", boundary, "The ordinary producer did not enqueue action104 within its explicit diagnostic callback budget.", artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary producer; no manually supplied contact" };
             }
             boundary = "controlled-post-formula";
-            BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex);
+            BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex);
             NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current contact target lacks its native status owner.");
             if (request.TargetActorIndex < 3)
             {
@@ -405,7 +405,7 @@ internal static class NativeBattleEffectFixtureExporter
             }
             before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray() };
             NativeBattleActionPacketsState packets = battle.Presentation!.NativeActionPackets;
-            BattleCombatantSnapshot selectedCaster = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
+            BattleCombatantSnapshot selectedCaster = before.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.CasterActorIndex);
             byte sequence;
             if (request.CasterActorIndex >= 3)
             {
@@ -431,7 +431,7 @@ internal static class NativeBattleEffectFixtureExporter
                 {
                     throw new InvalidDataException("The selected controlled Absorb pair requires the actual drain flag, percent and target resistance owner.");
                 }
-                BattleCombatantSnapshot casterSnapshot = before.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.CasterActorIndex);
+                BattleCombatantSnapshot casterSnapshot = before.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.CasterActorIndex);
                 NativeBattleStatusSnapshot casterStatus = casterSnapshot.NativeStatus ?? throw new InvalidDataException("The controlled drain caster lacks its current status owner.");
                 // The explicit post-formula fixture publishes47E2D0's current cached status before its secondary contact.
                 casterStatus = casterStatus with { Presentation = new(casterStatus.Saved, casterStatus.Battle) };

@@ -38,7 +38,7 @@ public sealed class NativeBattleBreath157PresentationTests
         NativeEffectFixtureExportResult exported = NativeBattleEffectFixtureExporter.Export(request, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? throw new InvalidDataException("Select installed original resources."), Path.Combine(output, "fixture"));
         Assert.True(exported.Status != "blocked", exported.FirstBlocker);
         BattleSnapshot source = NativeBattleFixtureInspection.ReadLogicalSnapshot(Path.Combine(output, "fixture", "queued-action104.battle.json"));
-        BattleCombatantSnapshot caster = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.ActorIndex == 3);
+        BattleCombatantSnapshot caster = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
         BattleCombatantDefinition casterSource = Assert.Single(source.Definition.Combatants, actor => actor.Id == caster.Id);
         Assert.Equal(0, casterSource.SceneSlot);
         Assert.Equal(24, casterSource.ModelId);
@@ -55,7 +55,7 @@ public sealed class NativeBattleBreath157PresentationTests
         NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Original command8/action37/sequence14 and formation413; declared seven-HP post-formula presentation with logical HP/status retained; no magic damage/status formula, accuracy, ordinary command or AI turn admission", Contact = contact }));

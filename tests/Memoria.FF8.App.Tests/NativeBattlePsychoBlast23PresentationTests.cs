@@ -50,7 +50,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         Assert.False(graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104));
         Assert.False(graphics.Descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind is NativeBattleDescriptorTaskKind.Action104 or NativeBattleDescriptorTaskKind.Callback502F30));
         Assert.Equal(new byte?[] { 0x54, 0x61, 0x60, 0x5D }, ReadOriginalModelCells(graphics).Skip(3).Take(4).Select(model => model.ModelId4).ToArray());
-        BattleCombatantSnapshot caster = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 6);
+        BattleCombatantSnapshot caster = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 6);
         NativeBattleParticipantSnapshot participant = caster.NativeParticipant!;
         Assert.True(participant.Active);
         Assert.False(participant.Hidden);
@@ -75,7 +75,7 @@ public sealed class NativeBattlePsychoBlast23PresentationTests
         ImmutableArray<NativeBattleEffectBinding> catalog = source.Definition.NativeEffectCatalog.SetItem(22, binding);
         NativeBattleActionPacketsState packets = (source.ReadFixturePresentation().NativeActionPackets! ?? throw new InvalidDataException("The standalone lacks its physical action arena.")).ResetCounts();
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(6), action.Command, sequence, -1, action.ActionId, action.MagicId, null));
-        BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
+        BattleCombatantSnapshot target = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0);
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("The current target lacks its actual status banks.");
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);

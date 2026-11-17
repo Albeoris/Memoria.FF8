@@ -30,7 +30,7 @@ public sealed class NativeBattleSpecializedSelfContactSourceTests
             Assert.Equal(effect, header.Effect);
             Assert.Equal((byte)1, header.ReadContactCount());
             NativeBattleContactPacket contact = packets.ReadContact(header.FirstContact);
-            BattleCombatantSnapshot self = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.ActorIndex == actorIndex);
+            BattleCombatantSnapshot self = Assert.Single(source.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == actorIndex);
             NativeBattleStatusSnapshot status = Assert.IsType<NativeBattleStatusSnapshot>(self.NativeStatus);
             Assert.True(self.NativeParticipant!.Active);
             Assert.False(self.NativeParticipant.Suspended);

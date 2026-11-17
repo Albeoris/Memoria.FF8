@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using static Memoria.FF8.Runtime.BattlePresentationProcess;
 
 namespace Memoria.FF8.Runtime;
 
@@ -83,15 +84,59 @@ public sealed partial class BattleSession
         return enemies.Where(HasAiRosterSlot).OrderBy(candidate => candidate.NativeActorIndex ?? int.MaxValue).ThenBy(candidate => candidate.Slot!.Value.Position);
     }
 
-    private void ValidateExpandedOriginalEnemySlots()
+    private void ValidateRestoredRoster(BattleSnapshot snapshot)
     {
-        BattleCombatant[] allocated = enemies.Where(actor => !IsAddedEnemy(actor) && actor.Slot is not null).ToArray();
-        if (allocated.Select(actor => actor.NativeActorIndex).Distinct().Count() != allocated.Length ||
-            allocated.Any(actor => actor.NativeActorIndex is null || actor.ResolvedNativeLevel is null || actor.NativeAllocationPendingStatistics || actor.NativeTemplate is null) ||
-            enemies.Any(actor => IsAddedEnemy(actor) && actor.NativeActorIndex.HasValue))
+        var occupied = new HashSet<BattleRosterSlot>();
+        var aliases = new HashSet<int>();
+        foreach (BattleCombatant actor in combatants)
         {
-            throw new InvalidDataException("Expanded original enemy slots require unique owners with resolved allocation statistics.");
+            if (actor.Slot is { } slot && !occupied.Add(slot) || actor.NativeActorIndex is int original && !aliases.Add(original))
+            {
+                throw new InvalidDataException("Saved battle participants require distinct occupied slots and original model aliases.");
+            }
+            if (actor.Slot is { } occupiedSlot && snapshot.PresentationContinuation?.ModelRegistry?.Loads.TryGetValue(CreatePresentationModelOwner(actor), out HostedModelLoadAdmission? model) == true &&
+                (model.Load.Slot != occupiedSlot || model.Load.OriginalSlot?.Offset != actor.NativeActorIndex))
+            {
+                throw new InvalidDataException("Saved participant placement disagrees with its admitted presentation model.");
+            }
         }
+
+        foreach (BattleCombatant enemy in enemies.Where(actor => actor.Slot is not null))
+        {
+            NativeBattleEnemyAllocation? allocation = nativeAllocations.Find(candidate => candidate.Id == enemy.Id);
+            if (allocation is null && UsesOriginalEnemySlots && !IsAddedEnemy(enemy) &&
+                (enemy.NativeActorIndex is null || enemy.SourceDefinition.InitialOriginalEnemyOrdinal is int ordinal && enemy.NativeActorIndex != ordinal + NativeBattleSlots.AllyCount))
+            {
+                throw new InvalidDataException("An original formation participant lost its entitled model alias.");
+            }
+            if (allocation is null && IsAddedEnemy(enemy) && enemy.NativeActorIndex.HasValue)
+            {
+                throw new InvalidDataException("An added formation participant cannot replace an original model alias.");
+            }
+            if ((allocation is not null || UsesOriginalEnemySlots) && (enemy.NativeTemplate is null ||
+                (enemy.NativeAllocationPendingStatistics ? !HasPendingAllocationStatistics(enemy, allocation, snapshot) : enemy.ResolvedNativeLevel is null)))
+            {
+                throw new InvalidDataException("A saved enemy placement lacks resolved statistics or its pending model admission.");
+            }
+        }
+    }
+
+    private bool HasPendingAllocationStatistics(BattleCombatant actor, NativeBattleEnemyAllocation? allocation, BattleSnapshot snapshot)
+    {
+        if (actor.IsActive || allocation is null)
+        {
+            return false;
+        }
+        if (allocation.EncounterBatchId is not null)
+        {
+            return snapshot.EncounterAllocation is { Phase: BattleEncounterAllocationPhase.Loading, LoadingIndex: >= 0 } batch &&
+                !batch.ActorIds.IsDefaultOrEmpty && batch.ActorIds.IndexOf(actor.Id) >= batch.LoadingIndex;
+        }
+        HostedDispatchControl.LoadEnemy expected = ReadHostedEncounterAllocationLoad(actor);
+        return snapshot.NativeLastAllocatedTarget == new BattlePreviousTarget.Actor(expected.Owner.Actor) &&
+            snapshot.NativeScriptState?.AllocationControl is { ActionGate: true, PauseGate: true, SceneSlot: byte scene } &&
+            scene == ReadNativeAllocationSourceScene(actor) &&
+            snapshot.PresentationContinuation?.ModelRegistry?.Loads.TryGetValue(expected.Owner, out HostedModelLoadAdmission? admission) == true && admission.Load == expected;
     }
 
     private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)

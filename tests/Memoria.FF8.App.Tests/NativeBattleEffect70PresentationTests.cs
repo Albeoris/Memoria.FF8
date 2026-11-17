@@ -151,7 +151,7 @@ public sealed class NativeBattleEffect70PresentationTests
         }
         BattleNativeAction action = Assert.Single(assets.NativeActions, row => row.Command == 8 && row.ActionId == 362 && row.MagicId == 70 && row.KernelSection == 3 && row.KernelIndex == 362);
         Assert.Equal((byte)14, NativeBattleEffectFixtureExporter.SelectEnemySequence(assets.ReadEnemyAi(122, 1), action));
-        BattleCombatantSnapshot party = original.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0);
+        BattleCombatantSnapshot party = original.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0);
         NativeBattleStatusSnapshot status = party.NativeStatus ?? throw new InvalidDataException("Effect70 requires its current recipient status owner.");
         Assert.True(party.NativeParticipant!.Active);
         Assert.False(party.NativeParticipant.Hidden);

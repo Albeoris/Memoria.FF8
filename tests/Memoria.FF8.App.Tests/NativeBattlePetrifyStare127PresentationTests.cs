@@ -43,7 +43,7 @@ public sealed class NativeBattlePetrifyStare127PresentationTests
         NativeBattleContactPacket contact = source.ReadFixturePresentation().NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         File.WriteAllText(Path.Combine(output, "controlled-contact.json"), JsonSerializer.Serialize(new { Scenario = "Explicit seven-HP post-formula presentation using original enemy command8/action29/sequence14 and formation666, with retained logical HP/status; no petrification formula, accuracy, ordinary AI turn or command admission", Contact = contact }));

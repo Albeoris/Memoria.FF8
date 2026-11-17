@@ -36,6 +36,50 @@ public sealed class NativeBattleSceneReplayMemoTests
     }
 
     [Fact]
+    public void Interpolated_model_draw_and_nested_replay_keep_the_same_actor_id_in_separate_banks()
+    {
+        Fixture fixture = Create();
+        NativeBattleSceneReplaySource original = fixture.Frame.SceneReplaySources![1];
+        const string actorId = "shared-actor";
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null);
+        NativeBattleEffectTextureState innerLeaf = NativeBattleEffectTextureState.FromColdProcess();
+        NativeBattleEffectTextureState outer = OuterTextures.WithPresentationTexture(actorId, new(NativeBattleEffectTextureState.FromColdProcess(), cache));
+        NativeBattleLogicalResolvedCommand innerCommand = original.Frame.LastCommands[0];
+        innerCommand = innerCommand with { Command = innerCommand.Command with { ModelTextureOwner = new(actorId) } };
+        NativeBattleSceneReplaySource modelSource = original with
+        {
+            Frame = original.Frame with { LastCommands = [innerCommand] },
+            Textures = original.Textures.WithPresentationTexture(actorId, new(innerLeaf, cache))
+        };
+        NativeBattleLogicalResolvedCommand consumer = fixture.Frame.LastCommands[0];
+        NativeBattleLogicalResolvedCommand outerCommand = innerCommand with
+        {
+            Command = innerCommand.Command with { Pilot = consumer.Command.Pilot },
+            DrawMode = innerCommand.DrawMode with { TexturePixelSnapshot = 1 }
+        };
+        NativeBattlePreparedPrimitiveFrame frame = fixture.Frame with
+        {
+            LastCommands = [outerCommand, consumer, outerCommand],
+            LastTextureSnapshots = [fixture.Frame.LastTextureSnapshots!.Value[0], original.Frame.LastTextureSnapshots!.Value[0]],
+            SceneReplaySources = fixture.Frame.SceneReplaySources!.SetItem(1, modelSource)
+        };
+        NativeBattlePreparedPresentation earlier = Presentation(frame, 1) with { Textures = outer };
+        NativeBattlePreparedPresentation later = Presentation(frame, 2) with { Textures = outer };
+        CountingSource source = new(innerLeaf) { Tint = new(0, 0, 255, 255) };
+        Capture capture = new();
+        BattleRenderer renderer = Renderer(capture);
+
+        renderer.RenderNativePilotPrimitiveFrame(earlier, later, 0.5f, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: source);
+
+        Assert.Equal(0, renderer.LastPilotFallbackCount);
+        Assert.Equal(1, source.Replays);
+        Assert.Equal(3, capture.Images.Count);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), capture.Images[0][100, 100]);
+        Assert.Equal(new Rgba32(0, 0, 255, 255), capture.Images[1][100, 100]);
+        Assert.Same(capture.Images[0], capture.Images[2]);
+    }
+
+    [Fact]
     public void Pool_identity_source_replacement_capabilities_and_texture_epochs_invalidate_words()
     {
         Fixture fixture = Create();

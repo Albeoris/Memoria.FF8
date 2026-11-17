@@ -32,7 +32,7 @@ public sealed class NativeBattleEffect312PrerequisiteTests
         Assert.Equal((byte)8, ability.Command);
         Assert.Equal((ushort)74, ability.Id);
         Assert.Equal((byte)12, ability.Sequence);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3).NativeStatus!;
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(3), 8, 12, unchecked((sbyte)action.RawRecord[4]), 74, 0, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), action.DamagePresentation, 0, 0, status.Saved, 0, status.Battle), null));

@@ -54,7 +54,7 @@ public static class ComponentCompletionValidation
             foreach (string point in new[] { "first", "last" })
             {
                 JsonElement observation = evidence.GetProperty(point);
-                Require(observation, "effect", "graphics_callback", "native_active", "canonical_returned_task", "owners", "physical_command_banks_empty", "resident_fingerprint", "raw_blockers");
+                Require(observation, "effect", "graphics_callback", "native_active", "canonical_returned_task", "owners", "resident_fingerprint", "raw_blockers");
                 JsonElement owners = observation.GetProperty("owners");
                 Require(owners, "descriptor_packets", "non_pump_descriptor_tasks", "pending_contacts", "effects", "effect_head", "auxiliary_head", "modules", "module_head", "files", "returned_task_pointer", "detached_returned_task", "camera_mask", "sound_busy", "replacement_resource", "action_or_command", "timed_or_reaction", "action_headers", "contact_rows", "retained_active_header", "retained_active_contact", "observed_original_effect", "selected_returned_descriptor", "header_graphics_busy", "original_pools");
                 foreach (JsonElement pool in owners.GetProperty("original_pools").EnumerateArray())
@@ -63,7 +63,7 @@ public static class ComponentCompletionValidation
                 }
                 if (held)
                 {
-                    Require(observation, "physical_resident_count", "head", "tail", "screen_blend");
+                    Require(observation, "auxiliary_resident_count", "head", "tail", "screen_blend");
                     Require(observation.GetProperty("screen_blend"), "slot", "flags", "state", "next", "kind", "unknown_byte_mask", "has_program", "payload");
                 }
                 else

@@ -234,11 +234,11 @@ public static partial class LiveEvidenceValidation
                 if (counterCycle is not null)
                 {
                     DiagnosticCounterCycleReceipt cycle = counterCycles[index - 1];
-                    if (cycle.Execution != index || cycle.StartedCallback < startCallback || cycle.CompletedCallback > endCallback || !typedDispatches.Any(dispatch => dispatch == cycle.Attempts[^1].Dispatch))
+                    if (cycle.Execution != index || cycle.StartedCallback < startCallback || cycle.CompletedCallback > endCallback || !typedDispatches.Any(dispatch => DiagnosticEffectDispatchEvidence.Matches(dispatch, cycle.Attempts[^1].Dispatch)))
                     {
                         throw new InvalidDataException("Counter cycle source receipts differ from the actual execution/dispatch boundary.");
                     }
-                    foreach (var contact in cycle.Attempts.SelectMany(attempt => attempt.Contacts))
+                    foreach (var contact in cycle.Attempts.SelectMany(attempt => attempt.Contacts).Where(contact => !contact.Primary.Preliminary))
                     {
                         var primary = contact.Primary;
                         bool resolved = execution.GetProperty("resolutions").EnumerateArray().Any(resolution => Number(resolution, "callback") == primary.Callback && Text(resolution, "actor_id") == primary.ActorId && Text(resolution, "actual_target_id") == primary.RecipientId && Number(resolution, "before_hp") == primary.BeforeHp && Number(resolution, "after_hp") == primary.AfterHp);
@@ -252,9 +252,9 @@ public static partial class LiveEvidenceValidation
                         JsonElement[] states = execution.GetProperty(boundary).EnumerateArray().ToArray();
                         JsonElement[] controlStates = states.Where(state => Text(state, "id") == actor).ToArray();
                         JsonElement[] focalStates = states.Where(state => Text(state, "id") == cycle.TargetId).ToArray();
-                        if (controlStates.Length != 1 || focalStates.Length != 1 || OptionalNumber(controlStates[0], "native_index") != cycle.ActorIndex || OptionalNumber(focalStates[0], "native_index") != cycle.TargetIndex || OptionalNumber(focalStates[0], "model_id") != 84)
+                        if (controlStates.Length != 1 || focalStates.Length != 1 || ReadObservedRosterSlot(controlStates[0])?.Side != BattleSide.Allies || ReadObservedRosterSlot(focalStates[0])?.Side != BattleSide.Enemies || OptionalNumber(controlStates[0], "native_index") != cycle.ActorIndex || OptionalNumber(focalStates[0], "native_index") != cycle.TargetIndex || OptionalNumber(focalStates[0], "model_id") != 84)
                         {
-                            throw new InvalidDataException("Counter physical control/focal identities differ from the actual battle execution ledger.");
+                            throw new InvalidDataException("Counter control and focal identities differ from the occupied execution roster.");
                         }
                     }
                 }
@@ -603,7 +603,7 @@ public static partial class LiveEvidenceValidation
             JsonElement execution = executions[executionIndices[index]];
             Dictionary<string, JsonElement> before = execution.GetProperty("before").EnumerateArray().ToDictionary(actor => Text(actor, "id"), StringComparer.Ordinal);
             Dictionary<string, JsonElement> after = execution.GetProperty("after").EnumerateArray().ToDictionary(actor => Text(actor, "id"), StringComparer.Ordinal);
-            if (item.Party.Any(actor => actor.NativeIndex is not int native || native is < 0 or >= 3 || !HasPhysicalIdentity(before, actor.Id, checked((byte)native)) || !HasPhysicalIdentity(after, actor.Id, checked((byte)native)) || (actor.Statuses1 & 0x80010000) != 0 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp) || item.Kind == "held" && item.Party.Any(actor => (actor.Statuses0 & 5) == 0) || item.Kind is "rearmed" or "released" && !item.Drained)
+            if (item.Party.Any(actor => !IsObservedPartyPlacement(actor) || !HasObservedBattleIdentity(before, actor.Id, actor.Slot, actor.NativeIndex) || !HasObservedBattleIdentity(after, actor.Id, actor.Slot, actor.NativeIndex) || (actor.Statuses1 & 0x80010000) != 0 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp) || item.Kind == "held" && item.Party.Any(actor => (actor.Statuses0 & 5) == 0) || item.Kind is "rearmed" or "released" && !item.Drained)
             {
                 errors.Add("TERMINAL_HOLD_PARTY_PROVENANCE_INVALID");
             }
@@ -1110,17 +1110,60 @@ public static partial class LiveEvidenceValidation
         BattleDiagnosticNativeStatusRemoval? proof = resolution.GetProperty("native_status_removal").Deserialize<BattleDiagnosticNativeStatusRemoval>(Json);
         string actor = Text(resolution, "actor_id");
         string recipient = Text(resolution, "actual_target_id");
-        if (proof is null || proof.ProducerAddress != 0x494410 || (proof.ActionStatuses1 & 0x10000) == 0 || (proof.AppliedBattleStatuses & 0x10000) == 0 || Text(resolution, "kind") != "damage" || recipient != Text(resolution, "original_target_id") || !HasPhysicalIdentity(before, actor, proof.ActorIndex) || !HasPhysicalIdentity(after, actor, proof.ActorIndex) || !HasPhysicalIdentity(before, recipient, proof.RecipientIndex) || !HasPhysicalIdentity(after, recipient, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy") || Number(resolution, "resolved_amount") < 0 || Number(resolution, "actual_amount") != Number(resolution, "before_hp") || Number(resolution, "before_hp") <= 0 || Number(resolution, "after_hp") != 0 || Number(after[recipient], "current_hp") != 0 || (Number(after[recipient], "statuses0") & 1) == 0)
+        if (proof is null || proof.ProducerAddress != 0x494410 || (proof.ActionStatuses1 & 0x10000) == 0 || (proof.AppliedBattleStatuses & 0x10000) == 0 || Text(resolution, "kind") != "damage" || recipient != Text(resolution, "original_target_id") || !HasObservedBattleIdentity(before, actor, proof.ActorSlot, proof.ActorIndex) || !HasObservedBattleIdentity(after, actor, proof.ActorSlot, proof.ActorIndex) || !HasObservedBattleIdentity(before, recipient, proof.RecipientSlot, proof.RecipientIndex) || !HasObservedBattleIdentity(after, recipient, proof.RecipientSlot, proof.RecipientIndex) || Text(resolution, "hp_owner") != HpOwner(proof.RecipientSlot, proof.RecipientIndex) || Number(resolution, "resolved_amount") < 0 || Number(resolution, "actual_amount") != Number(resolution, "before_hp") || Number(resolution, "before_hp") <= 0 || Number(resolution, "after_hp") != 0 || Number(after[recipient], "current_hp") != 0 || (Number(after[recipient], "statuses0") & 1) == 0)
         {
             return false;
         }
-        return execution.GetProperty("dispatches").EnumerateArray().Any(dispatch => Text(dispatch, "actor_id") == actor && OptionalNumber(dispatch, "native_actor_index") == proof.ActorIndex && OptionalNumber(dispatch, "native_command") == proof.NativeCommand && Number(dispatch, "action_id") == proof.NativeActionId && OptionalNumber(dispatch, "native_target_mask") is long mask && (mask & (1L << proof.RecipientIndex)) != 0 && Number(dispatch, "callback") >= Number(resolution, "callback"));
+        return execution.GetProperty("dispatches").EnumerateArray().Any(dispatch => Text(dispatch, "actor_id") == actor && OptionalNumber(dispatch, "native_actor_index") == proof.ActorIndex && OptionalNumber(dispatch, "native_command") == proof.NativeCommand && Number(dispatch, "action_id") == proof.NativeActionId && IncludesReachedRecipient(dispatch, recipient, proof.RecipientIndex) && Number(dispatch, "callback") >= Number(resolution, "callback"));
+    }
+
+    private static bool IncludesReachedRecipient(JsonElement dispatch, string recipient, byte? original)
+    {
+        if (OptionalNumber(dispatch, "native_target_mask") is long mask && original is byte alias)
+        {
+            return (mask & (1L << alias)) != 0;
+        }
+        return dispatch.TryGetProperty("contact_actor_ids", out JsonElement contacts) && contacts.ValueKind == JsonValueKind.Array &&
+            contacts.EnumerateArray().Any(actor => actor.ValueKind == JsonValueKind.String && actor.GetString() == recipient);
+    }
+
+    private static string HpOwner(BattleRosterSlot? slot, int? original) => slot?.Side == BattleSide.Allies || slot is null && original is >= 0 and < 3 ? "character" : "enemy";
+
+    internal static bool IsObservedPartyPlacement(BattleDiagnosticCombatant actor) => actor.Slot is { Side: BattleSide.Allies } || actor.Slot is null && actor.NativeIndex is >= 0 and < 3;
+
+    internal static BattleRosterSlot? ReadObservedRosterSlot(JsonElement actor)
+    {
+        if (actor.TryGetProperty("slot", out JsonElement placement))
+        {
+            return placement.ValueKind == JsonValueKind.Object ? placement.Deserialize<BattleRosterSlot>(Json) : null;
+        }
+        return OptionalNumber(actor, "native_index") is long operand ? operand switch
+        {
+            >= 0 and < 3 => BattleRosterSlot.Ally(checked((int)operand)),
+            >= 3 and < 7 => BattleRosterSlot.Enemy(checked((int)operand) - 3),
+            _ => null
+        } : null;
+    }
+
+    internal static bool HasObservedBattleIdentity(Dictionary<string, JsonElement> roster, string actor, BattleRosterSlot? slot, int? original)
+    {
+        if (!roster.TryGetValue(actor, out JsonElement observed) || OptionalNumber(observed, "native_index") != original ||
+            original is int alias && (alias is < 0 or >= 7 || roster.Values.Count(value => OptionalNumber(value, "native_index") == alias) != 1))
+        {
+            return false;
+        }
+        if (slot is null)
+        {
+            return original is >= 0 and < 7;
+        }
+        return observed.TryGetProperty("slot", out JsonElement placement) && placement.ValueKind == JsonValueKind.Object && placement.Deserialize<BattleRosterSlot>(Json) == slot &&
+            roster.Values.Count(value => value.TryGetProperty("slot", out JsonElement candidate) && JsonElement.DeepEquals(candidate, placement)) == 1;
     }
 
     private static bool HasNativeHpWordProvenance(JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
     {
         BattleDiagnosticNativeHpWord? proof = resolution.GetProperty("native_hp_word").Deserialize<BattleDiagnosticNativeHpWord>(Json);
-        if (proof is null || proof.ProducerAddress != 0x487DF0 || proof.Opcode != 60 || proof.ScriptIndex is < 0 or > 4 || proof.ScriptBytes.IsDefault || proof.ProgramCounter < 0 || proof.ProgramCounter > proof.ScriptBytes.Length - 3 || proof.Callback != Number(resolution, "callback") || Text(resolution, "kind") != "native_ai_hp_word" || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex) || Text(resolution, "hp_owner") != (proof.RecipientIndex < 3 ? "character" : "enemy"))
+        if (proof is null || proof.ProducerAddress != 0x487DF0 || proof.Opcode != 60 || proof.ScriptIndex is < 0 or > 4 || proof.ScriptBytes.IsDefault || proof.ProgramCounter < 0 || proof.ProgramCounter > proof.ScriptBytes.Length - 3 || proof.Callback != Number(resolution, "callback") || Text(resolution, "kind") != "native_ai_hp_word" || resolution.GetProperty("actor_id").ValueKind != JsonValueKind.Null || proof.RecipientId != Text(resolution, "original_target_id") || proof.RecipientId != Text(resolution, "actual_target_id") || !HasObservedBattleIdentity(before, proof.RecipientId, proof.RecipientSlot, proof.RecipientIndex) || !HasObservedBattleIdentity(after, proof.RecipientId, proof.RecipientSlot, proof.RecipientIndex) || Text(resolution, "hp_owner") != HpOwner(proof.RecipientSlot, proof.RecipientIndex))
         {
             return false;
         }
@@ -1187,22 +1230,55 @@ public static partial class LiveEvidenceValidation
             return false;
         }
         BattleDiagnosticNativeContact? proof = contact.Deserialize<BattleDiagnosticNativeContact>(Json);
-        if (proof is null || proof.ProducerAddress != 0x4850A0 || proof.ActorId != actor || proof.SubmittedTargetId != requestedTarget || proof.RecipientId != Text(resolution, "original_target_id") || proof.HeaderIndex != 0 || proof.HeaderPayload.IsDefault || proof.HeaderPayload.Length != 20 || proof.ContactPayload.IsDefault || proof.ContactPayload.Length != 24 || proof.FirstContactIndex is not int first || first < 0)
+        if (proof is null || proof.ProducerAddress != 0x4850A0 || proof.DispatchSerial <= 0 || proof.ActorId != actor || proof.SubmittedTargetId != requestedTarget ||
+            proof.RecipientId != Text(resolution, "original_target_id") || proof.ActorSlot is not { Side: BattleSide.Allies } || proof.RecipientSlot is null ||
+            proof.HeaderReference is not { } header || proof.HeaderGeneration <= 0 || proof.Occurrence is not { } occurrence || proof.FirstContactOrdinal < 0 ||
+            proof.ContactCount <= 0 || occurrence.Ordinal < proof.FirstContactOrdinal || occurrence.Ordinal - proof.FirstContactOrdinal >= proof.ContactCount ||
+            !HasObservedBattleIdentity(before, actor, proof.ActorSlot, proof.ActorIndex) || !HasObservedBattleIdentity(after, actor, proof.ActorSlot, proof.ActorIndex) ||
+            !HasObservedBattleIdentity(before, proof.RecipientId, proof.RecipientSlot, proof.RecipientIndex) || !HasObservedBattleIdentity(after, proof.RecipientId, proof.RecipientSlot, proof.RecipientIndex) ||
+            !MatchesGuardianOriginalPackets(proof, nativeAction))
         {
             return false;
         }
-        byte[] header = proof.HeaderPayload.ToArray();
-        const uint requiredHeaderBytes = (1u << 0) | (1u << 1) | (1u << 4) | (1u << 5) | (0xFu << 8) | (1u << 16);
-        if ((proof.HeaderUnknownByteMask & ~0xFFFFFu) != 0 || (proof.HeaderUnknownByteMask & requiredHeaderBytes) != 0 || header[0] != proof.ActorIndex || header[1] != 254 || (header[4] | header[5] << 8) != nativeAction || (long)first + header[16] > NativeBattleContactAddress.NativeRowCount || proof.RetainedContactIndex < first || (long)proof.RetainedContactIndex >= (long)first + header[16] || BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(8)) != NativeBattleContactAddress.EncodeOriginalCursor(new BattleContactCursor(first)))
+        return dispatches.EnumerateArray().Count(dispatch => Number(dispatch, "serial") == proof.DispatchSerial && Number(dispatch, "requested_effect") == effect && Number(dispatch, "executed_effect") == effect && Text(dispatch, "actor_id") == actor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && OptionalNumber(dispatch, "native_command") == 254 && Number(dispatch, "callback") <= Number(resolution, "callback") &&
+            OptionalNumber(dispatch, "native_actor_index") == proof.ActorIndex && OptionalNumber(dispatch, "native_header_index") == proof.HeaderIndex && OptionalNumber(dispatch, "native_header_generation") == proof.HeaderGeneration &&
+            dispatch.TryGetProperty("header_reference", out JsonElement reference) && reference.ValueKind == JsonValueKind.Object && reference.Deserialize<BattleActionHeaderReference>(Json) == header) == 1;
+    }
+
+    private static bool MatchesGuardianOriginalPackets(BattleDiagnosticNativeContact proof, long nativeAction)
+    {
+        if (proof.HeaderIndex is int index)
+        {
+            if (index != proof.HeaderReference!.Value.Ordinal || index is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || proof.HeaderPayload is not { Length: 20 } header ||
+                proof.HeaderUnknownByteMask is not uint unknown || (unknown & ~0xFFFFFu) != 0 || (unknown & 0x10032) != 0 ||
+                ((unknown & 1) == 0 ? header[0] != proof.ActorIndex : proof.ActorIndex is not null) || header[1] != 254 ||
+                (header[4] | header[5] << 8) != nativeAction || header[16] != proof.ContactCount)
+            {
+                return false;
+            }
+            if (proof.FirstContactIndex is int first)
+            {
+                if (first != proof.FirstContactOrdinal || (unknown & 0xF00) != 0 || (long)first + proof.ContactCount > NativeBattleContactAddress.NativeRowCount ||
+                    BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan().Slice(8)) != NativeBattleContactAddress.EncodeOriginalCursor(new BattleContactCursor(first)))
+                {
+                    return false;
+                }
+            }
+            else if ((unknown & 0xF00) != 0xF00)
+            {
+                return false;
+            }
+        }
+        else if (proof.HeaderPayload is not null || proof.HeaderUnknownByteMask is not null || proof.FirstContactIndex is not null)
         {
             return false;
         }
-        NativeBattleRawContactPacket packet = NativeBattleContactPacketCodec.Decode(proof.ContactPayload.ToArray());
-        if (packet.Primary.ActorIndex != proof.RecipientIndex || !HasPhysicalIdentity(before, actor, proof.ActorIndex) || !HasPhysicalIdentity(after, actor, proof.ActorIndex) || !HasPhysicalIdentity(before, proof.RecipientId, proof.RecipientIndex) || !HasPhysicalIdentity(after, proof.RecipientId, proof.RecipientIndex))
+        if (proof.RetainedContactIndex is int retained)
         {
-            return false;
+            return retained == proof.Occurrence!.Value.Ordinal && retained is >= 0 and < NativeBattleContactAddress.NativeRowCount && proof.ContactPayload is { Length: 24 } payload &&
+                NativeBattleContactPacketCodec.Decode(payload.ToArray()).Primary.ActorIndex == proof.RecipientIndex;
         }
-        return dispatches.EnumerateArray().Count(dispatch => Number(dispatch, "serial") == proof.DispatchSerial && Number(dispatch, "requested_effect") == effect && Number(dispatch, "executed_effect") == effect && Text(dispatch, "actor_id") == actor && Text(dispatch, "ability") == ability && Number(dispatch, "action_id") == nativeAction && OptionalNumber(dispatch, "native_command") == 254 && Number(dispatch, "callback") <= Number(resolution, "callback")) == 1;
+        return proof.ContactPayload is null && (proof.RecipientIndex is null || proof.Occurrence!.Value.Ordinal >= NativeBattleContactAddress.NativeRowCount);
     }
 
     private static bool HasPhysicalIdentity(Dictionary<string, JsonElement> states, string id, byte index)

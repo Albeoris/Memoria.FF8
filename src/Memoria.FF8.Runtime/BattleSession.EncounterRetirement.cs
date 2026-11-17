@@ -177,7 +177,7 @@ public sealed partial class BattleSession
             EncounterAllocationRetirement retirement = allocation.Retirement!;
             BattleCombatant actor = GetActor(allocation.Id);
             bool slotValid = retirement.Slot.Side == BattleSide.Enemies && retirement.Slot.Position < ExpandedBattleFormation.MaximumEnemies &&
-                retirement.OriginalIndex == NativeBattleSlots.TryEncode(retirement.Slot);
+                (retirement.OriginalIndex is not int original || original == NativeBattleSlots.TryEncode(retirement.Slot));
             if (actor.IsActive || !slotValid || !retirement.ResourcesReleased &&
                 (actor.Slot != retirement.Slot || actor.NativeActorIndex != retirement.OriginalIndex))
             {

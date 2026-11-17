@@ -321,8 +321,8 @@ public sealed class NativeBattleSoftwarePrimitiveExecution : INativeBattleLogica
         NativeBattlePcTextureWindowCache global = RequireGlobalCache();
         NativeBattlePcTextureWindowCache cache = bank?.Cache ?? global;
         NativeBattleEffectTextureState textureSource = bank?.Textures ?? Textures;
-        NativeBattlePcTextureWindowPixels? retainedPixels = cache.PixelWords(selection, out NativeBattlePrimitiveTextureWindow? validatedRectangle);
-        NativeBattlePcTextureWindowPixels pixels = retainedPixels ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, validatedRectangle ?? new(selection.X, selection.Y, selection.Width, selection.Height), textureSource);
+        NativeBattlePcTextureWindowPixels? retainedPixels = cache.PixelWords(selection, out NativeBattlePrimitiveTextureWindow validatedRectangle);
+        NativeBattlePcTextureWindowPixels pixels = retainedPixels ?? NativeBattlePcTextureWindowPixels.Capture(selection.Row, validatedRectangle, textureSource);
         if (!textureSnapshotIndices.TryGetValue(pixels, out int index))
         {
             var region = (pixels.X, pixels.Y, pixels.Width, pixels.Height);

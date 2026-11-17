@@ -61,19 +61,19 @@ internal sealed partial class RecreateGame
         BattleDiagnosticCombatant targetState = states.Single(state => state.Id == declaration.Focal.ActorId);
         BattleCombatant actor = active.Combatants.Single(combatant => combatant.Id == actorState.Id);
         BattleCombatant target = active.Combatants.Single(combatant => combatant.Id == targetState.Id);
-        if (!actor.IsPlayer || !actor.IsAlive || !target.IsAlive || target.IsPlayer || target.ModelId != 84 || actorState.NativeIndex is not int actorIndex || actorIndex is < 0 or >= 3 || targetState.NativeIndex is not int targetIndex || targetIndex is < 3 or >= 7 || actor.NativeCommandSlots.IsDefaultOrEmpty || actor.NativeCommandSlots[0] != 1 || targetState.NativeAiScriptSha256 is not { Length: > 2 } scripts || !string.Equals(scripts[2], declaration.Focal.ScriptSha256, StringComparison.OrdinalIgnoreCase))
+        if (!actor.IsPlayer || !actor.IsAlive || actor.Slot is null || !target.IsAlive || target.IsPlayer || target.Slot is null || target.ModelId != 84 || actor.NativeCommandSlots.IsDefaultOrEmpty || actor.NativeCommandSlots[0] != 1 || targetState.NativeAiScriptSha256 is not { Length: > 2 } scripts || !string.Equals(scripts[2], declaration.Focal.ScriptSha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException("Counter diagnostics require the actual ordinary Attack owner and living original model84 callback2 target.");
+            throw new NotSupportedException("Counter diagnostics require the actual ordinary Attack owner and living model84 callback2 target.");
         }
         foreach (BattleDiagnosticCombatRepair repair in diagnosticDriverRecipe.Repairs)
         {
             BattleDiagnosticCombatant owner = states.Single(state => state.Id == repair.ActorId);
-            if (owner.NativeIndex is not (>= 0 and < 3))
+            if (owner.Slot is not { Side: BattleSide.Allies })
             {
                 throw new NotSupportedException("Counter attempt repairs are restricted to declared actual party owners.");
             }
         }
-        driver.BeginCounterCycle(new(driver.Execution, declaration, actorState.Id, checked((byte)actorIndex), targetState.Id, checked((byte)targetIndex), active.NativeHostCallbacks ?? throw new NotSupportedException("Counter diagnostics require the native callback owner.")));
+        driver.BeginCounterCycle(new(driver.Execution, declaration, actorState.Id, checked((byte?)actorState.NativeIndex), targetState.Id, checked((byte?)targetState.NativeIndex), active.NativeHostCallbacks ?? throw new NotSupportedException("Counter diagnostics require the native callback owner.")));
         SubmitDiagnosticCounterAttempt(active, driver.CounterCycle!);
     }
 
@@ -145,8 +145,10 @@ internal sealed partial class RecreateGame
             {
                 throw new InvalidDataException("Counter dispatch lacks its actual header generation.");
             }
-            NativeBattleRetainedActionPackets packets = diagnosticDriverBattle!.Presentation!.ObserveDiagnosticActionPackets(dispatch);
-            driver.ObserveDispatch(dispatch, null, new(dispatch.Serial, dispatch.Callback, header, generation, packets));
+            BattlePresentationProcess process = diagnosticDriverBattle!.Presentation!;
+            NativeBattleRetainedActionPackets packets = process.ObserveDiagnosticActionPackets(dispatch);
+            BattlePartyActorReference target = process.ObserveDiagnosticCounterRecipient(dispatch);
+            driver.ObserveDispatch(dispatch, null, new(dispatch.Serial, dispatch.Callback, header, generation, packets) { Target = target });
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or InvalidOperationException or ArgumentException)
         {

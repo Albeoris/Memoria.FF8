@@ -18,7 +18,7 @@ public sealed class BattleMaximumHpObservationTests
         if (expanded)
         {
             Assert.Equal(new byte[] { 0 }, battle.ReadDefinition().MagicVitals!.GetBattlePartyRows(3));
-            Assert.Equal(NativeBattleSlots.Unassigned, battle.Capture().Combatants[count - 1].NativeParticipant!.ActorIndex);
+            Assert.Null(battle.Capture().Combatants[count - 1].NativeParticipant!.OriginalSlot);
         }
         BattleLiveMaximumHp maximum = Assert.Single(battle.ObserveLiveState().MaximumHitPoints, fact => fact.Eligible);
         Assert.Equal(new BattleLiveMaximumHp(selected.Id, selected.MagicRecordId, true, true), maximum);

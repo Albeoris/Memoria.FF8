@@ -55,7 +55,7 @@ public sealed class NativeBattleDegenerator306PresentationTests
         NativeBattleActionPacketsState packets = source.ReadFixturePresentation().NativeActionPackets!;
         NativeBattleContactPacket contact = packets.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((ushort)0, contact.Primary.Amount6);
-        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == request.TargetActorIndex).NativeStatus!;
+        NativeBattleStatusSnapshot status = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == request.TargetActorIndex).NativeStatus!;
         Assert.Equal(status.Saved, contact.Primary.SavedStatuses4);
         Assert.Equal(status.Battle, contact.Primary.BattleStatuses8);
         NativeBattleContactPacket declared = contact with { Primary = contact.Primary with { HitFlags = hitFlags } };

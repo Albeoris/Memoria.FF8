@@ -91,13 +91,13 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("A staged enemy model load requires its exact native allocation and original scene prototype.");
             }
             usesOriginalSceneResource = allocation.ResolvedDefinition is null && allocation.DonorSource is null;
-            if (allocation.DonorSource is { Group: { } group } donor)
-            {
-                source = new(group, donor.SceneSlot, donor.OriginalEnemyOrdinal);
-            }
-            else if (allocation.EncounterRole is not null)
+            if (allocation.EncounterRole is not null)
             {
                 source = allocation.TemplateSource ?? throw new InvalidDataException("A staged encounter copy requires its admitted source placement.");
+            }
+            else if (allocation.DonorSource is { Group: { } group } donor)
+            {
+                source = new(group, donor.SceneSlot, donor.OriginalEnemyOrdinal);
             }
         }
         NativeBattleGraphicsBinding binding = PrepareModelBinding(load.ModelOwner, load.Slot);

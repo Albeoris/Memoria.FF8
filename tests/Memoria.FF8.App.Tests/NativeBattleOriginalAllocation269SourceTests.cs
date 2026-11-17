@@ -111,7 +111,7 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
             {
                 return false;
             }
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, participant.ActorIndex);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, participant.OriginalSlot!.Value.Offset);
             return Assert.IsType<NativeBattleGraphicsState>(snapshot.ReadFixturePresentation().NativeGraphics).Descriptors.Queue.IsEmpty && model.CurrentBodyBoneMatrices is not null && model.GeometryWorldMatrix is not null;
         }
 

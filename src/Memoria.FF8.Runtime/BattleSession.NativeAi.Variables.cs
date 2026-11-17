@@ -46,11 +46,7 @@ public sealed partial class BattleSession
         {
             return (actor, 4 * (variable - 211));
         }
-        int? sourceIndex = actor.NativeActorIndex;
-        if (ReadDonorSource(actor)?.OriginalEnemyOrdinal is int ordinal)
-        {
-            sourceIndex = ordinal + NativeBattleSlots.AllyCount;
-        }
+        int? sourceIndex = ReadScopedEnemySource(actor) is { } source ? source.OriginalEnemyOrdinal + NativeBattleSlots.AllyCount : actor.NativeActorIndex;
         if (sourceIndex is not int alias)
         {
             throw new NotSupportedException($"Native AI variable {variable} requires an actor-bank alias in its source group.");

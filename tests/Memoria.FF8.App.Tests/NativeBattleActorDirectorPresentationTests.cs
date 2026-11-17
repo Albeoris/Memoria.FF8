@@ -774,12 +774,12 @@ public sealed class NativeBattleActorDirectorPresentationTests
                     Assert.NotEmpty(resource.Geometry!.Value);
                     loaded.Add(new { ActorIndex = index, definition.ModelId, definition.SceneSlot, pose.BoneCount, MaximumVertices = resource.Geometry.Value.Max(mesh => mesh.Vertices.Length), model.Flags0, model.Flags8, model.Transform, model.Sequence, model.SequenceState, model.ActiveResourceRow100, model.GeometryWorldMatrix, CurrentBones = bones });
                 }
-                NativeBattleParticipantSnapshot casterParticipant = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeParticipant!;
+                NativeBattleParticipantSnapshot casterParticipant = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3).NativeParticipant!;
                 Assert.True(casterParticipant.Active);
                 Assert.False(casterParticipant.Hidden);
                 Assert.False(casterParticipant.Suspended);
                 Assert.False(casterParticipant.Untargetable);
-                NativeBattleParticipantSnapshot recipient = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeParticipant!;
+                NativeBattleParticipantSnapshot recipient = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4).NativeParticipant!;
                 Assert.True(recipient.Active);
                 Assert.True(recipient.Hidden);
                 Assert.True(recipient.Suspended);
@@ -1488,7 +1488,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal((byte)12, header.Sequence);
                 Assert.Equal((byte)0x54, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, caster).ModelId4);
                 Assert.Equal((byte)0x5D, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 6).ModelId4);
-                NativeBattleParticipantSnapshot initial = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 6).NativeParticipant!;
+                NativeBattleParticipantSnapshot initial = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 6).NativeParticipant!;
                 Assert.True(initial.Hidden);
                 Assert.True(initial.Suspended);
                 Assert.True(initial.Untargetable);
@@ -1552,7 +1552,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal((byte)1, contact.Primary.HitFlags);
                 Assert.Null(contact.Primary.CoverSource);
                 Assert.Equal((ushort)7, contact.Primary.Amount6);
-                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 0).NativeStatus!;
+                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0).NativeStatus!;
                 Assert.Equal(retained.Saved, contact.Primary.SavedStatuses4);
                 Assert.Equal(retained.Battle, contact.Primary.BattleStatuses8);
             }
@@ -1561,7 +1561,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Contains(contact.Primary.HitFlags, new byte[] { 0, 4 });
                 Assert.Null(contact.Primary.CoverSource);
                 Assert.Equal((ushort)0, contact.Primary.Amount6);
-                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!;
+                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == contactActor).NativeStatus!;
                 Assert.Equal(retained.Saved, contact.Primary.SavedStatuses4);
                 Assert.Equal(retained.Battle, contact.Primary.BattleStatuses8);
             }
@@ -1570,7 +1570,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 Assert.Equal((byte)4, contact.Primary.HitFlags);
                 Assert.Null(contact.Primary.CoverSource);
                 Assert.Equal((ushort)0, contact.Primary.Amount6);
-                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!;
+                NativeBattleStatusSnapshot retained = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == contactActor).NativeStatus!;
                 Assert.Equal(retained.Saved, contact.Primary.SavedStatuses4);
                 Assert.Equal(retained.Battle, contact.Primary.BattleStatuses8);
             }
@@ -1583,7 +1583,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             if (request.ControlledDrainContact)
             {
                 Assert.Equal((byte)0, ReadOriginalModelOperand(source.ReadFixturePresentation().NativeActionPackets!.ModelAliases, Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Recipient));
-                byte[] resistances = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == contactActor).NativeStatus!.Resistances ?? throw new InvalidDataException("The controlled drain target requires its actual resistance owner.");
+                byte[] resistances = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == contactActor).NativeStatus!.Resistances ?? throw new InvalidDataException("The controlled drain target requires its actual resistance owner.");
                 Assert.Equal(40, resistances.Length);
                 int percent = Math.Max(0, action.StatusAttack - resistances[23]);
                 Assert.Equal(checked((ushort)Math.Min(9999, contact.Primary.Amount6 * percent / 100)), Assert.IsType<NativeBattleContactHalf>(contact.Secondary).Amount6);
@@ -1596,7 +1596,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
             }
             NativeBattleEffectTask? expectedText = ExpectedOriginalDamageText(contact.Primary, contact.Primary.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0);
             NativeBattleEffectTask? expectedSecondaryText = request.ControlledDrainContact ? ExpectedOriginalDamageText(contact.Secondary!, contact.Secondary!.Amount6).Slots.SingleOrDefault(task => (task.Flags0 & 1) != 0) : null;
-            int logicalCasterHp = source.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == caster).CurrentHp;
+            int logicalCasterHp = source.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == caster).CurrentHp;
             string target = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, contactActor)!;
             int logicalHp = source.Combatants.Single(actor => actor.Id == target).CurrentHp;
             string? originalTargetFootprint = effectId == 60 ? TargetFootprint(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, contactActor)) : null;
@@ -7020,7 +7020,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                             effect20VibrationHandle = unchecked((short)main.ReadWord(0x74));
                         }
                     }
-                    NativeBattleParticipantSnapshot activated = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 6).NativeParticipant!;
+                    NativeBattleParticipantSnapshot activated = current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 6).NativeParticipant!;
                     if (!actor6Activated && !activated.Hidden && !activated.Suspended && !activated.Untargetable)
                     {
                         string actor = ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 6)!;
@@ -7075,7 +7075,7 @@ public sealed class NativeBattleActorDirectorPresentationTests
                 if (request.ControlledDrainContact)
                 {
                     Assert.Equal(logicalHp, current.Combatants.Single(actor => actor.Id == target).CurrentHp);
-                    Assert.Equal(logicalCasterHp, current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == caster).CurrentHp);
+                    Assert.Equal(logicalCasterHp, current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == caster).CurrentHp);
                     for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                     {
                         NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];

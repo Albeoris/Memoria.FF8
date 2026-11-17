@@ -147,6 +147,7 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
     public void ValidateMapping(int row, NativeBattlePrimitiveTextureWindow rectangle)
     {
         Validate();
+        RequireMappingBounds(row, rectangle);
         int pixelsPerWord = 4 >> (row / 32);
         if (X != (row & 15) * 64 + rectangle.X / pixelsPerWord || Y != ((row & 31) >> 4) * 256 + rectangle.Y || Width != (rectangle.X % pixelsPerWord + rectangle.Width + pixelsPerWord - 1) / pixelsPerWord || Height != rectangle.Height)
         {
@@ -156,8 +157,8 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
 
     public static NativeBattlePcTextureWindowPixels Capture(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
     {
-        ArgumentNullException.ThrowIfNull(rectangle);
         ArgumentNullException.ThrowIfNull(textures);
+        RequireMappingBounds(row, rectangle);
         CaptureBucket captures = Captures.GetValue(textures.VramCaptureIdentity, static _ => new());
         return captures.Capture(row, rectangle, textures);
     }
@@ -212,12 +213,20 @@ public sealed record NativeBattlePcTextureWindowPixels([property: JsonRequired] 
         return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
     }
 
-    private static NativeBattlePcTextureWindowPixels CaptureUncached(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
+    private static void RequireMappingBounds(int row, NativeBattlePrimitiveTextureWindow rectangle)
     {
         if (row is < 0 or >= 96)
         {
             throw new InvalidDataException("Native cached texture capture requires its actual page-depth row.");
         }
+        if (rectangle.Width <= 0 || rectangle.Height <= 0)
+        {
+            throw new InvalidDataException("Native cached texture requires a rectangle with positive dimensions.");
+        }
+    }
+
+    private static NativeBattlePcTextureWindowPixels CaptureUncached(int row, NativeBattlePrimitiveTextureWindow rectangle, NativeBattleEffectTextureState textures)
+    {
         int pixelsPerWord = 4 >> (row / 32);
         int x = (row & 15) * 64 + rectangle.X / pixelsPerWord;
         int y = ((row & 31) >> 4) * 256 + rectangle.Y;

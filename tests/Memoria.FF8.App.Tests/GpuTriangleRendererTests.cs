@@ -91,17 +91,17 @@ public sealed class GpuTriangleRendererTests
         using GpuTestDevice device = new();
         using GpuTriangleRenderer renderer = new(device.Device) { ObserveTriangleBatches = true };
         PixelImage image = new(1, 1, [new Rgba32(255, 0, 0, 255)]);
-        TriangleMaterial dynamic = new(image) { DynamicTexture = true };
-        renderer.Begin(16, 16, Vector4.Zero);
-        Quad(renderer, dynamic, Vector4.One, 0.25f);
+        TriangleMaterial dynamicMaterial = new(image) { DynamicTexture = true };
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        Quad(renderer, dynamicMaterial, Vector4.One, 0.25f);
         Quad(renderer, new(null), Vector4.One, 0.75f);
         image.Pixels[0] = new Rgba32(0, 0, 255, 255);
         renderer.End();
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Red, pixel));
         Assert.Equal(2, renderer.TriangleBatchMetrics.VertexUploads);
 
-        renderer.Begin(16, 16, Vector4.Zero);
-        Quad(renderer, dynamic, Vector4.One);
+        renderer.Begin(16, 16, new Vector4(0, 0, 0, 1));
+        Quad(renderer, dynamicMaterial, Vector4.One);
         renderer.End();
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Blue, pixel));
     }

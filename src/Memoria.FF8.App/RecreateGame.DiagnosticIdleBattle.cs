@@ -11,12 +11,23 @@ internal sealed record DiagnosticIdleBattleDeclaration([property: JsonRequired] 
     internal void Validate(DiagnosticBattleRequest request)
     {
         if (PartyCount is not (3 or 11) || SettlePresents is < 30 or > 240 || SamplePresents is < 120 or > 1200 ||
-            request.Roster is not { DonorCount: 4, MountedReserveSceneSlot: null, AuthoredFormationHash: null } || request.Driver is not null || request.Prelude is not null ||
+            request.Driver is not null || request.Prelude is not null ||
             request.Target is not null || request.PrepareEntryBeforePresentation || request.AtbMode != BattleAtbMode.Normal ||
             request.Fixture is not { HoldEnemyCommands: true, Characters.Length: 0, GuardianForces.Length: 0, Limits: null, PocketStation: null, CombatParty.Length: 3 })
         {
-            throw new InvalidDataException("Idle pacing needs three or eleven allies, four held donor enemies and one original enemy, and no action preparation.");
+            throw new InvalidDataException("Idle pacing needs three or eleven allies, held enemy commands, and no action preparation.");
         }
+        _ = ReadEnemyCount(request.Roster);
+    }
+
+    internal int ReadEnemyCount(DiagnosticBattleRoster? roster)
+    {
+        return roster switch
+        {
+            { DonorCount: 4, MountedReserveSceneSlot: null, AuthoredFormationHash: null } => 5,
+            { DonorCount: ExpandedBattleFormation.MaximumAddedEnemies, MountedReserveSceneSlot: null, AuthoredFormationHash: not null } when PartyCount == ExpandedBattleFormation.MaximumAllies => ExpandedBattleFormation.MaximumEnemies,
+            _ => throw new InvalidDataException("Idle pacing needs one original enemy and four donors, or a hash-pinned original roster and ten donors with eleven allies.")
+        };
     }
 }
 
@@ -27,12 +38,13 @@ internal sealed partial class RecreateGame
     private void StartDiagnosticIdleBattle(DiagnosticIdleBattleDeclaration declaration)
     {
         if (battleGpu is null || !diagnosticHostPhaseTiming.Enabled || !OperatingSystem.IsWindows() ||
-            Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1" || world?.Battle is not { Presentation: not null } battle)
+            Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_VISUAL_CHANGES") == "1" || world?.Battle is not { Presentation: not null } battle ||
+            world?.DiagnosticReceipt is not { } receipt)
         {
             throw new NotSupportedException("Idle pacing requires the Windows attached GPU host and pacing without the image-difference observer.");
         }
 
-        diagnosticIdleBattle = new(declaration, battle);
+        diagnosticIdleBattle = new(declaration, battle, declaration.ReadEnemyCount(receipt.Preparation.Roster));
         battleGpu.ObserveTriangleBatches = true;
     }
 
@@ -86,12 +98,14 @@ internal sealed partial class RecreateGame
 
 internal sealed record DiagnosticIdlePoint(long Presented, long Timestamp, long HostCallback, long GraphicsCallback, long SimulationFrame, NativeBattleCameraPose? Camera, int? Stage, long ThreadCpuTicks, double ProcessCpuMs, long AllocatedBytes, int Gen0, int Gen1, int Gen2);
 internal sealed record DiagnosticIdleWindow(DiagnosticIdlePoint Start, DiagnosticIdlePoint End, DiagnosticPacingSummary Pacing);
-internal sealed record DiagnosticIdleBattleResult(DiagnosticIdleWindow Entry, DiagnosticIdlePoint FirstCamera, DiagnosticIdlePoint FirstShown, string[] ShownPartyActors, DiagnosticIdleWindow Settled, int CameraChangesDuringSettled, uint ThreadId, GpuTriangleBatchMetrics SettledTriangleBatches);
+internal sealed record DiagnosticIdleBattleResult(DiagnosticIdleWindow Entry, DiagnosticIdlePoint FirstCamera, DiagnosticIdlePoint FirstShown, string[] ShownPartyActors, string[] ShownEnemyActors, int DormantEnemies, DiagnosticIdleWindow Settled, int CameraChangesDuringSettled, uint ThreadId, GpuTriangleBatchMetrics SettledTriangleBatches);
 
 internal sealed class DiagnosticIdleBattleProbe
 {
     private readonly DiagnosticIdleBattleDeclaration declaration;
     private readonly string[] party;
+    private readonly string[] enemies;
+    private readonly int dormantEnemies;
     private readonly HashSet<string> geometryOwners = new(StringComparer.Ordinal);
     private readonly DiagnosticIdlePoint initial;
     private readonly uint thread = GetCurrentThreadId();
@@ -108,12 +122,14 @@ internal sealed class DiagnosticIdleBattleProbe
 
     internal BattleSession Battle { get; }
 
-    internal DiagnosticIdleBattleProbe(DiagnosticIdleBattleDeclaration declaration, BattleSession battle)
+    internal DiagnosticIdleBattleProbe(DiagnosticIdleBattleDeclaration declaration, BattleSession battle, int enemyCount)
     {
         this.declaration = declaration;
         Battle = battle;
         party = battle.Combatants.Where(actor => actor.IsPlayer && actor.IsActive).Select(actor => actor.Id).Order(StringComparer.Ordinal).ToArray();
-        if (party.Length != declaration.PartyCount || battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive) != 5)
+        enemies = battle.Combatants.Where(actor => !actor.IsPlayer && actor.IsActive && !actor.Hidden).Select(actor => actor.Id).Order(StringComparer.Ordinal).ToArray();
+        dormantEnemies = battle.Combatants.Count(actor => !actor.IsPlayer && !actor.IsActive);
+        if (party.Length != declaration.PartyCount || enemies.Length != enemyCount || battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive) != enemyCount)
         {
             throw new InvalidDataException("The idle host did not allocate the declared live roster.");
         }
@@ -153,7 +169,7 @@ internal sealed class DiagnosticIdleBattleProbe
                     geometryOwners.Add(actorId);
                 }
             }
-            if (party.All(geometryOwners.Contains))
+            if (party.All(geometryOwners.Contains) && enemies.All(geometryOwners.Contains))
             {
                 firstShown = Capture(presented, timestamp);
             }
@@ -192,7 +208,7 @@ internal sealed class DiagnosticIdleBattleProbe
         }
 
         DiagnosticIdlePoint finish = Capture(presented, timestamp);
-        return new(new(initial, ready.Point, ready.Pacing), firstCamera!, firstShown!, party, new(settledStart, finish, pacing.Complete()), cameraChanges, thread, batches.Since(settledBatchStart));
+        return new(new(initial, ready.Point, ready.Pacing), firstCamera!, firstShown!, party, enemies, dormantEnemies, new(settledStart, finish, pacing.Complete()), cameraChanges, thread, batches.Since(settledBatchStart));
     }
 
     private DiagnosticIdlePoint Capture(long frame, long timestamp)

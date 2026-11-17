@@ -444,15 +444,15 @@ public sealed class StoryBattleRosterTests
     {
         BattleSnapshot snapshot = battle.Capture();
         Assert.Equal(29, battle.EncounterId);
-        Assert.Equal(new[] { ("party-1", 0), ("party-0", 1), ("party-5", 2) }, snapshot.Combatants.Where(actor => actor.Id.StartsWith("party-", StringComparison.Ordinal)).Select(actor => (actor.Id, actor.NativeParticipant!.ActorIndex)));
-        Assert.Equal(3, snapshot.Combatants.Single(actor => actor.Id == "enemy-0").NativeParticipant!.ActorIndex);
+        Assert.Equal(new[] { ("party-1", 0), ("party-0", 1), ("party-5", 2) }, snapshot.Combatants.Where(actor => actor.Id.StartsWith("party-", StringComparison.Ordinal)).Select(actor => (actor.Id, (int)actor.NativeParticipant!.OriginalSlot!.Value.Offset)));
+        Assert.Equal(3, snapshot.Combatants.Single(actor => actor.Id == "enemy-0").NativeParticipant!.OriginalSlot!.Value.Offset);
         NativeBattleParticipantSnapshot wedge = snapshot.Combatants.Single(actor => actor.Id == "enemy-1").NativeParticipant!;
-        Assert.Equal(4, wedge.ActorIndex);
+        Assert.Equal(4, wedge.OriginalSlot!.Value.Offset);
         Assert.True(wedge.Active);
         Assert.True(wedge.Hidden);
         Assert.True(wedge.Suspended);
         NativeBattleParticipantSnapshot elvoret = snapshot.Combatants.Single(actor => actor.Id == "enemy-2").NativeParticipant!;
-        Assert.Equal(-1, elvoret.ActorIndex);
+        Assert.Null(elvoret.OriginalSlot);
         Assert.False(elvoret.Active);
     }
 }

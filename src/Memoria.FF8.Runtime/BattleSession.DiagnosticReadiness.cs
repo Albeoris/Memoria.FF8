@@ -8,9 +8,9 @@ public sealed partial class BattleSession
         RequireNativeEntryReady();
         BattleCombatant actor = GetActor(actorId);
         NativeBattleAtbState gauge = actor.NativeAtb ?? throw new NotSupportedException("Diagnostic readiness requires the actual native ATB owner.");
-        if (Outcome != BattleOutcome.Active || !actor.IsPlayer || actor.NativeActorIndex is not (>= 0 and < 3) || actor.IsBusy || !CanNativeBattleActorAct(actor) || ((NativeBattleGraphicsState?)null)?.UiServices is null || ObserveDiagnosticDrainBlockers().Count != 0)
+        if (Outcome != BattleOutcome.Active || !actor.IsPlayer || actor.Slot is not { Side: BattleSide.Allies } || actor.IsBusy || !CanNativeBattleActorAct(actor) || Presentation is not { Graphics.UiServices: not null } || ObserveDiagnosticDrainBlockers().Count != 0)
         {
-            throw new InvalidOperationException("Diagnostic readiness requires an idle, fully entered battle and an actionable physical player.");
+            throw new InvalidOperationException("Diagnostic readiness requires an idle, fully entered battle and an actionable occupied party member.");
         }
         gauge.Validate();
         NativeBattleAtbState full = gauge with { Current = gauge.Maximum };

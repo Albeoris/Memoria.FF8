@@ -22,7 +22,10 @@ public sealed record BattleDiagnosticEnemyAbility(int Model, int SceneSlot, int 
     }
 }
 
-public sealed record BattleDiagnosticEnemySubmission([property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long Frame, [property: JsonRequired] long? Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] int ActorIndex, [property: JsonRequired] BattleDiagnosticEnemyAbility Selection, [property: JsonRequired] ushort ExpectedEffect, [property: JsonRequired] ushort? TargetMask);
+public sealed record BattleDiagnosticEnemySubmission([property: JsonRequired] Guid LifecycleId, [property: JsonRequired] long Frame, [property: JsonRequired] long? Callback, [property: JsonRequired] string ActorId, [property: JsonRequired] int? ActorIndex, [property: JsonRequired] BattleDiagnosticEnemyAbility Selection, [property: JsonRequired] ushort ExpectedEffect, [property: JsonRequired] ushort? TargetMask)
+{
+    public BattleRosterSlot ActorSlot { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -56,7 +59,7 @@ public sealed partial class BattleSession
     public bool CanSubmitDiagnosticEnemyAbility(string actorId, BattleDiagnosticEnemyAbility selection)
     {
         BattleCombatant actor = RequireDiagnosticEnemy(actorId, selection);
-        return actor.NativeActorIndex.HasValue && Outcome == BattleOutcome.Active && NativeEntryReady && actor.IsReady && !actor.IsBusy && CanNativeBattleActorAct(actor) && (actor.NativeCombatantFlags & 0xC3) == 1;
+        return actor.Slot is { Side: BattleSide.Enemies } && Outcome == BattleOutcome.Active && NativeEntryReady && actor.IsReady && !actor.IsBusy && CanNativeBattleActorAct(actor) && (actor.NativeCombatantFlags & 0xC3) == 1;
     }
 
     /// <summary>Selects an existing legal row through the same preparation, targeting and packet producer as native AI.</summary>
@@ -72,13 +75,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Diagnostic enemy row does not resolve to the requested native effect.");
         }
+        BattleRosterSlot occupied = actor.Slot ?? throw new InvalidOperationException("Diagnostic enemy submission requires its current roster slot.");
         long frame = Frame;
         long? callback = NativeHostCallbacks;
         if (selection.UseTurnScript)
         {
             actor.Atb = 0;
             QueueExpandedAiCallback(actor, 1);
-            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, null);
+            LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeActorIndex, selection, expectedEffect, null) { ActorSlot = occupied };
             return;
         }
         byte command = 0;
@@ -92,6 +96,6 @@ public sealed partial class BattleSession
         }
         AiTargetSelection targets = ResolveAiTargets(actor, selection.TargetSelector!.Value);
         QueuePreparedNativeAiCommand(actor, command, action, sequence, targets);
-        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot));
+        LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.NativeActorIndex, selection, expectedEffect, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets.Request, ReadOriginalTargetSlot)) { ActorSlot = occupied };
     }
 }

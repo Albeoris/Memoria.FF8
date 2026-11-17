@@ -137,7 +137,7 @@ public sealed class NativeBattleAiConditionTests
         BattleCombatantSnapshot enemy = snapshot.Combatants[enemyIndex];
         enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { LastAction = new(1, 0, 254, 65, 2, 3) } };
         snapshot.Combatants[enemyIndex] = enemy;
-        snapshot = snapshot with { NativeActionMemory = snapshot.NativeActionMemory!.WithAction(enemy.NativeParticipant!.ActorIndex, enemy.NativeParticipant.LastAction) };
+        snapshot = snapshot with { NativeActionMemory = snapshot.NativeActionMemory!.WithAction(enemy.NativeParticipant!.OriginalSlot!.Value.Offset, enemy.NativeParticipant.LastAction) };
         BattleSession restored = BattleSession.Restore(snapshot);
 
         restored.Tick();

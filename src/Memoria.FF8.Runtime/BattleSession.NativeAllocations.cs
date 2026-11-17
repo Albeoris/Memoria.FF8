@@ -25,6 +25,17 @@ public sealed partial class BattleSession
         return nativeAllocations.Select(CloneNativeAllocation).ToArray();
     }
 
+    private byte ReadNativeAllocationSourceScene(BattleCombatant actor)
+    {
+        NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
+        int source = allocation.TemplateSource?.SceneSlot ?? allocation.DonorSource?.SceneSlot ?? allocation.SceneSlot;
+        if ((uint)source >= NativeBattleSlots.FormationSlotCount)
+        {
+            throw new InvalidDataException("Native allocation lost its original source scene operand.");
+        }
+        return checked((byte)source);
+    }
+
     private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
     {
         BattleEnemyRosterSource? callerSource = ReadDonorSource(caller);
@@ -95,15 +106,26 @@ public sealed partial class BattleSession
         return allocation is null ? source.Group.HasValue ? source : source with { Group = source.GroupForSlot(slot) } : allocation.DonorSource;
     }
 
-    private (BattleSourceGroupId? Namespace, int SceneSlot, int? OriginalEnemyOrdinal) ReadTemplateSourceFacts(BattleCombatant source)
+    private (BattleSourceGroupId Group, int SceneSlot, int? OriginalEnemyOrdinal)? ReadScopedEnemySource(BattleCombatant actor)
     {
-        if (nativeAllocations.FirstOrDefault(allocation => allocation.Id == source.Id)?.TemplateSource is { } copy)
+        if (actor.IsPlayer)
+        {
+            return null;
+        }
+        NativeBattleEnemyAllocation? allocation = nativeAllocations.Find(item => item.Id == actor.Id);
+        if (allocation?.TemplateSource is { } copy)
         {
             return (copy.Group, copy.SceneSlot, copy.OriginalEnemyOrdinal);
         }
-        if (ReadDonorSource(source) is { } donor)
+        BattleEnemyRosterSource? source = allocation is null ? ReadDonorSource(actor) : allocation.DonorSource;
+        return source is { Group: { } group } donor ? (group, donor.SceneSlot, donor.OriginalEnemyOrdinal) : null;
+    }
+
+    private (BattleSourceGroupId? Namespace, int SceneSlot, int? OriginalEnemyOrdinal) ReadTemplateSourceFacts(BattleCombatant source)
+    {
+        if (ReadScopedEnemySource(source) is { } binding)
         {
-            return (donor.Group, donor.SceneSlot, donor.OriginalEnemyOrdinal);
+            return (binding.Group, binding.SceneSlot, binding.OriginalEnemyOrdinal);
         }
         int sceneSlot = source.SceneSlot ?? throw new InvalidDataException("An encounter template requires its inherited scene placement.");
         return (null, sceneSlot, source.NativeActorIndex is int operand ? operand - NativeBattleSlots.AllyCount : null);
@@ -142,25 +164,25 @@ public sealed partial class BattleSession
 
     private BattleCombatant? FindSourceOriginalActor(BattleCombatant caller, int operand, bool activeOnly = false)
     {
-        if (operand < NativeBattleSlots.AllyCount || ReadDonorSource(caller)?.Group is not { } group)
+        if (operand < NativeBattleSlots.AllyCount || ReadScopedEnemySource(caller) is not { } source)
         {
             return activeOnly ? FindActiveNativeActor(operand) : FindAllocatedNativeActor(operand);
         }
         int ordinal = operand - NativeBattleSlots.AllyCount;
         return enemies.SingleOrDefault(actor => actor.Slot is not null && (!activeOnly || actor.IsActive) &&
-            ReadDonorSource(actor) is { Group: { } actorGroup, OriginalEnemyOrdinal: { } original } && actorGroup == group && original == ordinal);
+            ReadScopedEnemySource(actor) is { OriginalEnemyOrdinal: int original } binding && binding.Group == source.Group && original == ordinal);
     }
 
     private BattleCombatant? FindSourceEnemyModelActor(BattleCombatant caller, int nativeModel)
     {
-        if (nativeModel < 16 || ReadDonorSource(caller)?.Group is not { } group)
+        if (nativeModel < 16 || ReadScopedEnemySource(caller) is not { } source)
         {
             return ExpandedAiModelActor(nativeModel);
         }
         return enemies.Where(actor => actor.Slot is not null && NativeModelId(actor) == nativeModel)
-            .Select(actor => (Actor: actor, Source: ReadDonorSource(actor)))
-            .Where(candidate => candidate.Source?.Group == group && candidate.Source.OriginalEnemyOrdinal.HasValue)
-            .OrderBy(candidate => candidate.Source!.OriginalEnemyOrdinal)
+            .Select(actor => (Actor: actor, Source: ReadScopedEnemySource(actor)))
+            .Where(candidate => candidate.Source is { OriginalEnemyOrdinal: not null } binding && binding.Group == source.Group)
+            .OrderBy(candidate => candidate.Source?.OriginalEnemyOrdinal)
             .Select(candidate => candidate.Actor)
             .FirstOrDefault();
     }
@@ -237,17 +259,19 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Native allocation list contains an empty owner.");
             }
-            if (allocation.Retirement is { } retirement && (allocation.EncounterBatchId is null || retirement.Slot.Side != BattleSide.Enemies || retirement.Slot.Position >= ExpandedBattleFormation.MaximumEnemies || retirement.OriginalIndex != NativeBattleSlots.TryEncode(retirement.Slot)))
+            if (allocation.Retirement is { } retirement && (allocation.EncounterBatchId is null || retirement.Slot.Side != BattleSide.Enemies || retirement.Slot.Position >= ExpandedBattleFormation.MaximumEnemies || retirement.OriginalIndex is int original && original != NativeBattleSlots.TryEncode(retirement.Slot)))
             {
                 throw new InvalidDataException("Encounter retirement requires its allocation generation and an enemy roster position.");
             }
             NativeBattleEnemyAllocation owned = CloneNativeAllocation(allocation);
             if (owned is { ResolvedDefinition: not null, InheritedFromActorId: { } source })
             {
-                var inherited = ReadTemplateSourceFacts(GetActor(source));
+                BattleCombatant ancestor = GetActor(source);
+                var inherited = ReadTemplateSourceFacts(ancestor);
                 if (owned.TemplateSource is not { Group.Kind: BattleSourceGroupKind.EncounterCopy } binding ||
                     binding.Group.Slot < 1 || binding.Group.Slot > owned.Generation || binding.SceneSlot != inherited.SceneSlot ||
-                    binding.OriginalEnemyOrdinal is < 0 or >= NativeBattleSlots.EnemyCount || inherited.OriginalEnemyOrdinal.HasValue && binding.OriginalEnemyOrdinal != inherited.OriginalEnemyOrdinal)
+                    binding.OriginalEnemyOrdinal is < 0 or >= NativeBattleSlots.EnemyCount || inherited.OriginalEnemyOrdinal.HasValue && binding.OriginalEnemyOrdinal != inherited.OriginalEnemyOrdinal ||
+                    owned.DonorSource != ReadDonorSource(ancestor))
                 {
                     throw new InvalidDataException("An encounter copy lost its admitted source placement or inherited model operand.");
                 }

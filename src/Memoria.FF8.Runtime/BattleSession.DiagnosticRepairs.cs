@@ -80,9 +80,9 @@ public sealed partial class BattleSession
         }
         if (actor.IsPlayer)
         {
-            if (actor.NativeActorIndex is not (>= 0 and < 3))
+            if (actor.Slot is not { Side: BattleSide.Allies })
             {
-                throw new NotSupportedException("Diagnostic party repair requires its physical party HP owner.");
+                throw new NotSupportedException("Diagnostic party repair requires its occupied party HP owner.");
             }
         }
         else if (actor.NativeActorIndex is not (>= 3 and <= 6) || actor.NativeTemplate is null || actor.NativeAi is null || actor.NativeAllocationPendingStatistics || nativeAllocations.Any(allocation => allocation.Id == actor.Id) || !definition.Combatants.Any(original => !original.IsPlayer && original.Id == actor.Id) || (actor.NativeCombatantFlags & 0xC3) != 1 || !actor.IsAlive || repair.Revive || repair.HitPoints != actor.CurrentHp || (repair.RemoveStatuses0 & 1) != 0)
@@ -138,7 +138,7 @@ public sealed partial class BattleSession
         }
         int before = actor.CurrentHp;
         BattleDiagnosticRepairProjection? previousProjection = diagnosticRepairProjection;
-        diagnosticRepairProjection = DiagnosticResolution is null ? null : new(DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? Frame, repair, checked((byte)actor.RequireNativeActorIndex()));
+        diagnosticRepairProjection = DiagnosticResolution is null ? null : new(DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? Frame, repair, ReadDiagnosticOriginalOperand(actor)) { RecipientSlot = actor.Slot ?? throw new InvalidOperationException("Diagnostic HP repair requires an occupied recipient.") };
         try
         {
             if (repair.HitPoints >= before)

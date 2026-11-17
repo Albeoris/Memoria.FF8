@@ -2,7 +2,12 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticEffectInvocation(ushort RequestedEffect, ushort ExecutedEffect, byte ActorIndex, int HeaderIndex, byte? Parameter80, byte? Parameter81, byte? Parameter82);
+public sealed record BattleDiagnosticEffectInvocation(ushort RequestedEffect, ushort ExecutedEffect, byte? ActorIndex, int? HeaderIndex, byte? Parameter80, byte? Parameter81, byte? Parameter82)
+{
+    public string? ActorId { get; init; }
+    public BattleRosterSlot? ActorSlot { get; init; }
+    public BattleActionHeaderReference? HeaderReference { get; init; }
+}
 
 public sealed record BattleDiagnosticHostedShotPackets(long Token, bool ContextOnly, int FirstContact, ImmutableArray<string> Recipients);
 public sealed record BattleDiagnosticHostedDuelTargets(long Token, int FirstContact, ImmutableArray<string> Recipients);

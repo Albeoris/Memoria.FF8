@@ -27,7 +27,7 @@ internal static class NativeBattleEffect80FixturePreparation
         BattleCombatantDefinition casterDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 123);
         Assert.Equal(1, casterDefinition.SceneSlot);
         NativeBattleParticipantSnapshot originalCaster = Assert.Single(baseline.Combatants, actor => actor.Id == casterDefinition.Id).NativeParticipant!;
-        Assert.Equal(4, originalCaster.ActorIndex);
+        Assert.Equal(4, originalCaster.OriginalSlot!.Value.Offset);
         Assert.True(originalCaster.Active);
         Assert.True(originalCaster.Hidden);
         Assert.True(originalCaster.Suspended);
@@ -109,11 +109,11 @@ internal static class NativeBattleEffect80FixturePreparation
             Assert.Equal(originalPlacement.Hidden, participant.Hidden);
             Assert.Equal(originalPlacement.InitiallySuspended, participant.Suspended);
             Assert.Equal(originalPlacement.Untargetable, participant.Untargetable);
-            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, participant.ActorIndex).Transform!.Position28);
+            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, participant.OriginalSlot!.Value.Offset).Transform!.Position28);
             Assert.Null(originalActor.NativeAi);
         }
         NativeBattleParticipantSnapshot freshCaster = Assert.Single(source.Combatants, actor => actor.Id == casterDefinition.Id).NativeParticipant!;
-        Assert.Equal(4, freshCaster.ActorIndex);
+        Assert.Equal(4, freshCaster.OriginalSlot!.Value.Offset);
         NativeBattleParticipantSnapshot inert = Assert.Single(source.Combatants, actor => actor.Id == prototype.Id).NativeParticipant!;
         Assert.False(inert.Active);
         Assert.True(inert.Hidden);
@@ -123,7 +123,7 @@ internal static class NativeBattleEffect80FixturePreparation
         File.WriteAllText(Path.Combine(output, "fresh-source-origin.json"), JsonSerializer.Serialize(new { Scenario = "Independent fresh original formation511 fixture with native clock rules and battle speed present before construction; no mutable state copied from the reference snapshot", FormationId = 511, StageId = 142, SourceFrame = source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics!.Callback, EntryCallbacks = entryCallbacks, ClockRules = definition.NativeClockRules, BattleSpeed = definition.NativeBattleSpeed, ColdAiBank = cold.NativeAiVariables, Prototype = prototype, Binding = prototypeBinding, ExistingResourcesVerified = originalGraphics.Bindings.Select(binding => binding.ActorId).ToArray() }));
         BattleCombatantDefinition removedDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 121);
         BattleCombatantSnapshot removedBefore = Assert.Single(source.Combatants, actor => actor.Id == removedDefinition.Id);
-        int removedIndex = removedBefore.NativeParticipant!.ActorIndex;
+        int removedIndex = removedBefore.NativeParticipant!.OriginalSlot!.Value.Offset;
         int removedResource = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, removedIndex).TextureResourceIndex ?? throw new InvalidDataException("The original participant requires its loaded resource row before removal.");
         NativeBattleModelTextureCacheRow removedTexture = source.ReadFixturePresentation().NativeModelTextureCache!.Rows[removedResource];
         bool removalObserved = false;
@@ -136,7 +136,7 @@ internal static class NativeBattleEffect80FixturePreparation
         NativeBattleEnemyAllocation allocation = Assert.Single(pending.NativeAllocations);
         Assert.Equal(3, allocation.SceneSlot);
         Assert.Equal(allocated.Id, allocation.Id);
-        int actualTarget = Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!.ActorIndex;
+        int actualTarget = Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!.OriginalSlot!.Value.Offset;
         Assert.InRange(actualTarget, 3, 6);
         Assert.NotEqual(4, actualTarget);
         Assert.True(Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!.AllocationPendingStatistics);
@@ -177,13 +177,13 @@ internal static class NativeBattleEffect80FixturePreparation
         BattleCombatantSnapshot retained = Assert.Single(ready.Combatants, actor => actor.Id == retainedDefinition.Id);
         BattleCombatantSnapshot original = Assert.Single(source.Combatants, actor => actor.Id == retainedDefinition.Id);
         Assert.Equal(original.CurrentHp, retained.CurrentHp);
-        Assert.Equal(original.NativeParticipant!.ActorIndex, retained.NativeParticipant!.ActorIndex);
+        Assert.Equal(original.NativeParticipant!.OriginalSlot!.Value.Offset, retained.NativeParticipant!.OriginalSlot!.Value.Offset);
         Assert.False(retained.NativeParticipant.Active);
         Assert.Equal(original.NativeParticipant.Hidden, retained.NativeParticipant.Hidden);
         Assert.Equal(original.NativeParticipant.Suspended, retained.NativeParticipant.Suspended);
         Assert.True(retained.NativeParticipant.Untargetable);
         Assert.Equal((ushort)(original.NativeStatus!.Saved | 1), retained.NativeStatus!.Saved);
-        Assert.Equal(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant.ActorIndex).Transform!.Position28, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant!.ActorIndex).Transform!.Position28);
+        Assert.Equal(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant.OriginalSlot!.Value.Offset).Transform!.Position28, ReadOriginalModelCell(ready.ReadFixturePresentation().NativeGraphics!, original.NativeParticipant!.OriginalSlot!.Value.Offset).Transform!.Position28);
         Assert.Null(ready.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         SaveNext("allocation-ready");
         File.WriteAllText(Path.Combine(output, "allocation-receipt.json"), JsonSerializer.Serialize(new { Status = "passed", Scenario = "Controlled original participant105 removal and112 barrier, scene-slot3 allocation and direct actor4 activation; no preceding death AI, effect227, action74, formula or effect80 execution", FormationId = 511, StageId = 142, Allocation = allocation, CasterActorIndex = 4, TargetActorIndex = actualTarget, CasterModel = 123, TargetModel = 124, CasterBones = casterBones, TargetBones = targetBones, CasterSequence = 13, TargetSequence = 26, AllocationCallbacks = allocationCallbacks, ActivationCallbacks = activationCallbacks, Events = session.Events.Where(entry => entry.Kind is "NativeSpawn" or "Activated").ToArray() }, new JsonSerializerOptions { WriteIndented = true }));
@@ -254,7 +254,7 @@ internal static class NativeBattleEffect80FixturePreparation
     private static void AssertReadyActor(BattleSnapshot snapshot, string id, int index)
     {
         NativeBattleParticipantSnapshot participant = Assert.Single(snapshot.Combatants, actor => actor.Id == id).NativeParticipant!;
-        Assert.Equal(index, participant.ActorIndex);
+        Assert.Equal(index, participant.OriginalSlot!.Value.Offset);
         Assert.True(participant.Active);
         Assert.False(participant.Hidden);
         Assert.False(participant.Suspended);

@@ -7,19 +7,34 @@ namespace Memoria.FF8.BattleEffects;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record DiagnosticCounterDispatchPackets([property: JsonRequired] long Serial, [property: JsonRequired] long Callback, [property: JsonRequired] int HeaderIndex, [property: JsonRequired] long HeaderGeneration, [property: JsonRequired] NativeBattleRetainedActionPackets Packets)
 {
-    public ushort NormalizeTargetMask(BattleDiagnosticEffectDispatch dispatch, BattleDiagnosticCounterCommand queued)
+    public BattlePartyActorReference? Target { get; init; }
+
+    public ushort? NormalizeTargetMask(BattleDiagnosticEffectDispatch dispatch, BattleDiagnosticCounterCommand queued)
     {
         if (Serial <= 0 || Serial != dispatch.Serial || Callback != dispatch.Callback || HeaderIndex != dispatch.NativeHeaderIndex || HeaderGeneration <= 0 || HeaderGeneration != dispatch.NativeHeaderGeneration || HeaderIndex != queued.HeaderIndex || HeaderGeneration != queued.HeaderGeneration || Packets is null || Packets.ActiveHeaderIndex != HeaderIndex)
         {
             throw new InvalidDataException("Counter dispatch packet proof lost its actual synchronous header/generation owner.");
         }
         NativeBattleRetainedActionHeaderSlot header = DiagnosticCounterCycleValidation.Header(Packets, HeaderIndex);
-        if (header.ReadOriginalByte(0) != queued.ActorIndex || header.ReadOriginalByte(1) != queued.Command || DiagnosticCounterCycleValidation.Word(header, 4) != queued.ActionId || DiagnosticCounterCycleValidation.Word(header, 6) != queued.EffectId || header.ReadOriginalByte(2) != queued.Sequence)
+        if (DiagnosticCounterCycleValidation.ReadOriginalHeaderActor(header) != queued.ActorIndex || header.ReadOriginalByte(1) != queued.Command || DiagnosticCounterCycleValidation.Word(header, 4) != queued.ActionId || DiagnosticCounterCycleValidation.Word(header, 6) != queued.EffectId || header.ReadOriginalByte(2) != queued.Sequence)
         {
             throw new InvalidDataException("Counter dispatched header differs from its actually queued native command.");
         }
+        if (Target is not null && queued.SelectedParty != Target || queued.SelectedEnemy is not null)
+        {
+            throw new InvalidDataException("Counter dispatch recipient differs from the actual queued party actor.");
+        }
+        if (queued.SelectedTargetMask is null)
+        {
+            if (Target is null || dispatch.NativeTargetMask is not null || header.ReadOriginalByte(16) != 1 || header.ReadOriginalByte(17) != 0 ||
+                header.FirstContactIndex is not int first || DiagnosticCounterCycleValidation.HasOriginalContactActor(Packets, first))
+            {
+                throw new InvalidDataException("An unaliased Counter recipient requires its typed synchronous target and no original mask.");
+            }
+            return null;
+        }
         ushort mask = DiagnosticCounterCycleValidation.ReadTargetMask(Packets, HeaderIndex);
-        if (dispatch.NativeTargetMask != mask)
+        if (dispatch.NativeTargetMask != mask || queued.SelectedTargetMask != mask)
         {
             throw new InvalidDataException("Counter dispatch recipient mask differs from its canonical primary-contact union.");
         }
@@ -47,7 +62,7 @@ public sealed record DiagnosticCounterAttemptReceipt([property: JsonRequired] in
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record DiagnosticCounterCycleReceipt([property: JsonRequired] int Execution, [property: JsonRequired] DiagnosticCounterCycleDeclaration Declaration, [property: JsonRequired] string ActorId, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] string TargetId, [property: JsonRequired] byte TargetIndex, [property: JsonRequired] long StartedCallback)
+public sealed record DiagnosticCounterCycleReceipt([property: JsonRequired] int Execution, [property: JsonRequired] DiagnosticCounterCycleDeclaration Declaration, [property: JsonRequired] string ActorId, [property: JsonRequired] byte? ActorIndex, [property: JsonRequired] string TargetId, [property: JsonRequired] byte? TargetIndex, [property: JsonRequired] long StartedCallback)
 {
     [JsonRequired]
     public long? CompletedCallback { get; init; }
@@ -58,6 +73,7 @@ public sealed record DiagnosticCounterCycleReceipt([property: JsonRequired] int 
 public static class DiagnosticCounterCycleValidation
 {
     internal static ushort Word(NativeBattleRetainedActionHeaderSlot header, int offset) => (ushort)(header.ReadOriginalByte(offset) | header.ReadOriginalByte(offset + 1) << 8);
+    internal static byte? ReadOriginalHeaderActor(NativeBattleRetainedActionHeaderSlot header) => (header.UnknownByteMask & 1) == 0 ? header.ReadOriginalByte(0) : null;
 
     internal static NativeBattleRetainedActionHeaderSlot Header(NativeBattleRetainedActionPackets packets, int index)
     {
@@ -95,18 +111,28 @@ public static class DiagnosticCounterCycleValidation
         return mask;
     }
 
-    private static NativeBattleRawContactHalf ReadPrimary(NativeBattleRetainedActionPackets packets, int index, bool requireAmount = false)
+    private static NativeBattleRawContactHalf ReadPrimary(NativeBattleRetainedActionPackets packets, int index)
     {
-        if (index is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || (packets.UnknownCountMask & 2) != 0 || index >= packets.ContactCount || packets.Contacts[index] is not { } raw)
-        {
-            throw new InvalidDataException("Diagnostic contact does not have a retained original writer.");
-        }
-        if (!raw.UnknownBits.IsDefaultOrEmpty && (raw.UnknownBits[0] != 0 || requireAmount && (raw.UnknownBits[6] != 0 || raw.UnknownBits[7] != 0)))
+        NativeBattleRawContactPacket raw = ReadContact(packets, index);
+        if (ReadOriginalContactActor(raw) is null)
         {
             throw new InvalidDataException("Diagnostic contact has unknown reached original fields.");
         }
         return raw.Primary;
     }
+
+    private static NativeBattleRawContactPacket ReadContact(NativeBattleRetainedActionPackets packets, int index)
+    {
+        if (index is < 0 or >= NativeBattleRetainedActionPackets.ContactCapacity || (packets.UnknownCountMask & 2) != 0 || index >= packets.ContactCount || packets.Contacts[index] is not { } raw)
+        {
+            throw new InvalidDataException("Diagnostic contact does not have a retained original writer.");
+        }
+        return raw;
+    }
+
+    private static byte? ReadOriginalContactActor(NativeBattleRawContactPacket raw) => raw.UnknownBits.IsDefaultOrEmpty || raw.UnknownBits[0] == 0 ? raw.Primary.ActorIndex : null;
+    private static bool HasOriginalContactAmount(NativeBattleRawContactPacket raw) => raw.UnknownBits.IsDefaultOrEmpty || (raw.UnknownBits[6] | raw.UnknownBits[7]) == 0;
+    internal static bool HasOriginalContactActor(NativeBattleRetainedActionPackets packets, int index) => ReadOriginalContactActor(ReadContact(packets, index)) is not null;
 
     public static void Validate(DiagnosticCounterCycleReceipt receipt, BattleInput input, bool requireCompleted = true)
     {
@@ -177,7 +203,7 @@ public static class DiagnosticCounterCycleValidation
                         throw new InvalidDataException("Counter callback queue epoch regressed.");
                     }
                     previousEpoch = observation.Queue.Epoch;
-                    if (observation.Queue.ActorIndex == receipt.TargetIndex && observation.Queue.Stage == 2)
+                    if (observation.Queue.ActorId == receipt.TargetId && observation.Queue.ActorIndex == receipt.TargetIndex && observation.Queue.Stage == 2)
                     {
                         var sources = attempt.Contacts.Where(contact => contact.Primary.Serial == observation.Queue.PrimarySerial).ToArray();
                         if (sources.Length != 1 || sources[0].Primary.Preliminary || observation.Queue.PendingOrder != sources[0].Primary.Recipient.PendingReaction.Order || observation.Queue.Callback < sources[0].Primary.Callback)
@@ -234,21 +260,24 @@ public static class DiagnosticCounterCycleValidation
         BattleDiagnosticCounterPrimary primary = contact.Primary;
         BattleDiagnosticCounterActor recipient = primary.Recipient;
         NativeBattleRetainedActionHeaderSlot header = Header(contact.Packets, primary.HeaderIndex);
+        NativeBattleRawContactPacket raw = ReadContact(contact.Packets, contact.ContactIndex);
         int count = header.ReadOriginalByte(16) * (header.ReadOriginalByte(17) + 1);
-        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || (!primary.Preliminary && contact.TriggerRecomputed != (primary.InternalCommand == 253)) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || memory.AttackerIndex != cycle.ActorIndex || recipient.PendingReaction is not { Stage: 2, Order: not null } || header.ReadOriginalByte(0) != cycle.ActorIndex || header.ReadOriginalByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || ReadPrimary(contact.Packets, contact.ContactIndex).ActorIndex != cycle.TargetIndex)
+        if (primary.HeaderGeneration <= 0 || primary.ActorId != cycle.ActorId || primary.ActorIndex != cycle.ActorIndex || primary.RecipientId != cycle.TargetId || primary.RecipientIndex != cycle.TargetIndex || primary.QueuedCommand != 1 || primary.ActionId != 0 || primary.InternalCommand is not (1 or 253) || (!primary.Preliminary && contact.TriggerRecomputed != (primary.InternalCommand == 253)) || recipient.Id != cycle.TargetId || recipient.Index != cycle.TargetIndex || recipient.ModelId != 84 || !recipient.Active || recipient.Hp != primary.AfterHp || recipient.Hp <= 0 || recipient.Variables.IsDefault || recipient.Variables.Length != 8 || recipient.LastAction is not { Command: 1, ActionId: 0 } memory || recipient.LastAttackerId != cycle.ActorId || recipient.PendingReaction is not { Stage: 2, Order: not null } || ReadOriginalHeaderActor(header) != cycle.ActorIndex || header.ReadOriginalByte(1) != 1 || Word(header, 4) != 0 || Word(header, 6) != 0 || header.FirstContactIndex is not int first || contact.ContactIndex < first || contact.ContactIndex >= first + count || ReadOriginalContactActor(raw) != cycle.TargetIndex || !HasContactActor(primary.Attacker, cycle.ActorId, cycle.ActorIndex) || !HasContactActor(primary.Target, cycle.TargetId, cycle.TargetIndex))
         {
-            throw new InvalidDataException("Counter trigger is not the actually committed ordinary primary/header/B98/pending2 source chain.");
+            throw new InvalidDataException("Counter trigger does not match the committed attacker, header, contact and pending stage-2 source.");
         }
-        if (primary.Preliminary ? primary.InternalCommand != 253 || contact.TriggerRecomputed || primary.BeforeHp != primary.AfterHp || memory.AttackType != 3 || ReadPrimary(contact.Packets, contact.ContactIndex, requireAmount: true).Amount6 != 0 || ReadPrimary(contact.Packets, contact.ContactIndex, requireAmount: true).ExtendedDamageAmount is not null : memory.AttackType != 0)
+        if (primary.Preliminary ? primary.InternalCommand != 1 || contact.TriggerRecomputed || primary.BeforeHp != primary.AfterHp || memory.AttackType != 3 || !HasOriginalContactAmount(raw) || raw.Primary.Amount6 != 0 || raw.Primary.ExtendedDamageAmount is not null : memory.AttackType != 0)
         {
             throw new InvalidDataException("Counter preliminary projection and actual ordinary contact classification differ from the explicit resolver source.");
         }
     }
 
+    private static bool HasContactActor(BattleActorReference? actor, string id, byte? original) => actor is null ? original.HasValue : actor.ActorId == id;
+
     private static void ValidateCallbackOwner(BattleDiagnosticCounterCallback queue)
     {
-        if (queue.Epoch <= 0 || queue.Callback < 0 || string.IsNullOrWhiteSpace(queue.ActorId) || queue.ActorIndex is < 3 or >= 7 ||
-            queue.Slot != BattleRosterSlot.Enemy(queue.ActorIndex - 3) || queue.Stage is not (0 or 1 or 2 or 3))
+        if (queue.Epoch <= 0 || queue.Callback < 0 || string.IsNullOrWhiteSpace(queue.ActorId) || queue.ActorIndex is < 3 or >= 7 || queue.Slot.Side != BattleSide.Enemies ||
+            queue.Slot.Position >= ExpandedBattleFormation.MaximumEnemies || queue.ActorIndex is byte alias && queue.Slot != BattleRosterSlot.Enemy(alias - 3) || queue.Stage is not (0 or 1 or 2 or 3))
         {
             throw new InvalidDataException("Counter callback lacks its actual typed actor, roster position and callback epoch.");
         }
@@ -267,7 +296,7 @@ public static class DiagnosticCounterCycleValidation
         }
         var entry = entries[0];
         var queue = entry.Queue;
-        if (queue.ActorIndex != cycle.TargetIndex || queue.Stage != 2 || queue.PrimarySerial is not long primarySerial || entry.Actor.Id != cycle.TargetId || entry.Actor.Index != cycle.TargetIndex || entry.Actor.ModelId != 84 || !entry.Actor.Active || (entry.Actor.SavedStatuses & 0x25) != 0 || (entry.Actor.BattleStatuses & 9) != 0 || (entry.Actor.CombatantFlags & 0x4000) != 0 || entry.Actor.LastAction is not { Command: 1, ActionId: 0 } lastAction || lastAction.AttackerIndex != cycle.ActorIndex || !SameSha(entry.ScriptSha256, command.ScriptSha256) || entry.Callback > command.Callback)
+        if (queue.ActorIndex != cycle.TargetIndex || queue.Stage != 2 || queue.PrimarySerial is not long primarySerial || entry.Actor.Id != cycle.TargetId || entry.Actor.Index != cycle.TargetIndex || entry.Actor.ModelId != 84 || !entry.Actor.Active || (entry.Actor.SavedStatuses & 0x25) != 0 || (entry.Actor.BattleStatuses & 9) != 0 || (entry.Actor.CombatantFlags & 0x4000) != 0 || entry.Actor.LastAction is not { Command: 1, ActionId: 0 } || entry.Actor.LastAttackerId != cycle.ActorId || !SameSha(entry.ScriptSha256, command.ScriptSha256) || entry.Callback > command.Callback)
         {
             throw new InvalidDataException("Counter actual admitted AI gates/B98 owner differ from the declared primary reaction.");
         }
@@ -327,9 +356,14 @@ public static class DiagnosticCounterCycleValidation
                 throw new InvalidDataException("Counter source variables differ from the exact admitted increment/reset or alternate-self branch.");
             }
         }
-        ushort expectedSelected = checked((ushort)(1 << (command.ActionId == 230 ? cycle.ActorIndex : cycle.TargetIndex)));
-        ushort expectedQueued = (ushort)(expectedSelected | ((command.AttackFlags & 0x80) != 0 ? 0x4000 : 0));
-        if (command.SelectedTargetMask != expectedSelected || command.QueuedTargetMask != expectedQueued)
+        bool retaliates = command.ActionId == 230;
+        byte? alias = retaliates ? cycle.ActorIndex : cycle.TargetIndex;
+        string expectedId = retaliates ? cycle.ActorId : cycle.TargetId;
+        BattleActorReference? selected = retaliates ? command.SelectedParty : command.SelectedEnemy;
+        ushort? expectedSelected = alias is byte original ? checked((ushort)(1 << original)) : null;
+        ushort? expectedQueued = expectedSelected is ushort mask ? (ushort)(mask | ((command.AttackFlags & 0x80) != 0 ? 0x4000 : 0)) : null;
+        if (!HasContactActor(selected, expectedId, alias) || (retaliates ? command.SelectedEnemy is not null : command.SelectedParty is not null) ||
+            command.SelectedTargetMask != expectedSelected || command.QueuedTargetMask != expectedQueued)
         {
             throw new InvalidDataException("Counter native selected and queued recipient masks differ from the actual last-attacker/self branch.");
         }
@@ -354,11 +388,11 @@ public static class DiagnosticCounterCycleValidation
     public static BattleDiagnosticRepairChange ValidateRepairProjection(BattleDiagnosticResolution resolution, IReadOnlyList<BattleDiagnosticRepairReceipt> repairs)
     {
         BattleDiagnosticRepairProjection projection = resolution.DiagnosticRepair ?? throw new InvalidDataException("Counter repair projection lacks its actual synchronous writer provenance.");
-        if (projection.Request is null || projection.LifecycleId == Guid.Empty || projection.Frame != resolution.Frame || projection.Callback != resolution.Callback || projection.RecipientIndex >= 3 || resolution.ActorId is not null || resolution.OriginalTargetId != projection.Request.ActorId || resolution.ActualTargetId != projection.Request.ActorId || resolution.HpOwner != "character" || resolution.NativeContact is not null || resolution.PeriodicStatus is not null || resolution.NativeHpWord is not null || resolution.NativeStatusRemoval is not null)
+        if (projection.Request is null || projection.LifecycleId == Guid.Empty || projection.Frame != resolution.Frame || projection.Callback != resolution.Callback || !IsRepairPartyPlacement(projection.RecipientSlot, projection.RecipientIndex) || resolution.ActorId is not null || resolution.OriginalTargetId != projection.Request.ActorId || resolution.ActualTargetId != projection.Request.ActorId || resolution.HpOwner != "character" || resolution.NativeContact is not null || resolution.PeriodicStatus is not null || resolution.NativeHpWord is not null || resolution.NativeStatusRemoval is not null)
         {
             throw new InvalidDataException("Counter repair projection changed its actual diagnostic writer, target or native proof namespace.");
         }
-        var matches = repairs.SelectMany(receipt => receipt.Changes.Select(change => (Receipt: receipt, Change: change))).Where(match => match.Receipt.LifecycleId == projection.LifecycleId && match.Receipt.Frame == projection.Frame && match.Receipt.CallbackBefore == projection.Callback && match.Receipt.CallbackAfter == projection.Callback && match.Change.Request == projection.Request && match.Change.Before.NativeIndex == projection.RecipientIndex && match.Change.After.NativeIndex == projection.RecipientIndex).ToArray();
+        var matches = repairs.SelectMany(receipt => receipt.Changes.Select(change => (Receipt: receipt, Change: change))).Where(match => match.Receipt.LifecycleId == projection.LifecycleId && match.Receipt.Frame == projection.Frame && match.Receipt.CallbackBefore == projection.Callback && match.Receipt.CallbackAfter == projection.Callback && match.Change.Request == projection.Request && match.Change.Before.NativeIndex == projection.RecipientIndex && match.Change.After.NativeIndex == projection.RecipientIndex && match.Change.Before.Slot == projection.RecipientSlot && match.Change.After.Slot == projection.RecipientSlot).ToArray();
         if (matches.Length != 1)
         {
             throw new InvalidDataException("Counter repair projection must match exactly one completed typed preparation change.");
@@ -387,7 +421,7 @@ public static class DiagnosticCounterCycleValidation
             var before = change.Before;
             var after = change.After;
             var request = change.Request;
-            if (!changed.Add(request.ActorId) || before.Id != request.ActorId || after.Id != request.ActorId || before.NativeIndex is not (>= 0 and < 3) || after.NativeIndex != before.NativeIndex || after.ModelId != before.ModelId || !SameJson(before.NativeAiScriptSha256, after.NativeAiScriptSha256) || before.MaximumHp != after.MaximumHp || request.HitPoints > before.MaximumHp || after.CurrentHp != request.HitPoints || !SameJson(before.MagicStocks, after.MagicStocks) || (before.Statuses1 & 0x80010000) != 0)
+            if (!changed.Add(request.ActorId) || before.Id != request.ActorId || after.Id != request.ActorId || !IsRepairPartyPlacement(before.Slot, before.NativeIndex) || after.Slot != before.Slot || after.NativeIndex != before.NativeIndex || after.ModelId != before.ModelId || !SameJson(before.NativeAiScriptSha256, after.NativeAiScriptSha256) || before.MaximumHp != after.MaximumHp || request.HitPoints > before.MaximumHp || after.CurrentHp != request.HitPoints || !SameJson(before.MagicStocks, after.MagicStocks) || (before.Statuses1 & 0x80010000) != 0)
             {
                 throw new InvalidDataException("Counter preparation can only repair its actual declared player HP/status owner without changing resources or identity.");
             }
@@ -401,6 +435,13 @@ public static class DiagnosticCounterCycleValidation
                 throw new InvalidDataException("Counter preparation differs from the existing declared player revival/status/HP writer.");
             }
         }
+    }
+
+    private static bool IsRepairPartyPlacement(BattleRosterSlot? slot, int? original)
+    {
+        return slot is { Side: BattleSide.Allies } ally
+            ? ally.Position < ExpandedBattleFormation.MaximumAllies && (original is null || original is >= 0 and < 3 && original == ally.Position)
+            : slot is null && original is >= 0 and < 3;
     }
 
     private static bool SameJson<T>(T left, T right) => System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(left), System.Text.Json.JsonSerializer.SerializeToElement(right));

@@ -39,6 +39,7 @@ public sealed partial class BattleRenderer
     private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels, string? TextureSourceOwner, int SampleKey, int PrefixWidth = 0, int PrefixHeight = 0, string? ModelTextureActorId = null);
     private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
     private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
+    private readonly Dictionary<string, (NativeBattlePresentationTextureBank Current, NativeBattleEffectTextureState? Previous, bool SameOrigins)> nativeActorTextureViews = new(StringComparer.Ordinal);
     private const int MaximumRawTextureCandidates = 256;
     private const int MaximumRawTextureBytes = 64 * 1024 * 1024;
     // Provenance affects replacements, but the bounded native image cache retains only exact sampling inputs.
@@ -108,6 +109,7 @@ public sealed partial class BattleRenderer
 
     public byte[] RenderNativePrimitiveFrame(NativeBattlePreparedPrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null, IReadOnlyList<NativeBattleTextureReplacement>? replacements = null, NativeBattlePcUiFrame? uiFrame = null, Func<int, int, bool, PixelImage>? uiTexture = null, INativeBattleEffectTextureSource? effectTextureSource = null, bool overlay = false)
     {
+        nativeActorTextureViews.Clear();
         //The executed OT already owns projected XY/depth; a native WAIT can legitimately publish coincident eye and target.
         if (!overlay)
         {
@@ -394,6 +396,7 @@ public sealed partial class BattleRenderer
                 }
             }
         }
+        nativeActorTextureViews.Clear();
         if (TriangleRenderer is not null)
         {
             DrawNativePcRenderTail(frame.LastPcRenderTail, capabilities);
@@ -443,13 +446,19 @@ public sealed partial class BattleRenderer
         if (resolved.Command.ModelTextureOwner is { } owner)
         {
             modelTextureActorId = owner.RequireActorId();
-            NativeBattlePresentationTextureBank bank = (textures ?? throw new InvalidDataException("The actor has no bound presentation texture bank.")).RequirePresentationTexture(modelTextureActorId);
-            previousTextureOwner = previousTextureOwner is not null && previousTextureOwner.PresentationTextures?.ContainsKey(modelTextureActorId) == true
-                ? previousTextureOwner.RequirePresentationTexture(modelTextureActorId).Textures
-                : null;
-            textures = bank.Textures;
-            textureWindowCache = bank.Cache;
-            sameTextureOrigins = previousTextureOwner is not null && SameTextureOrigins(previousTextureOwner, textures);
+            if (!nativeActorTextureViews.TryGetValue(modelTextureActorId, out var view))
+            {
+                NativeBattlePresentationTextureBank bank = (textures ?? throw new InvalidDataException("The actor has no bound presentation texture bank.")).RequirePresentationTexture(modelTextureActorId);
+                NativeBattleEffectTextureState? previous = previousTextureOwner is not null && previousTextureOwner.PresentationTextures?.ContainsKey(modelTextureActorId) == true
+                    ? previousTextureOwner.RequirePresentationTexture(modelTextureActorId).Textures
+                    : null;
+                view = (bank, previous, previous is not null && SameTextureOrigins(previous, bank.Textures));
+                nativeActorTextureViews.Add(modelTextureActorId, view);
+            }
+            textures = view.Current.Textures;
+            textureWindowCache = view.Current.Cache;
+            previousTextureOwner = view.Previous;
+            sameTextureOrigins = view.SameOrigins;
         }
         PixelImage image = ResolveNativePrimitiveTextureCore(frame, resolved, textures, capabilities, textureWindowCache, replacements, colorState, previousTextureOwner, sameReplacements, sameTextureOrigins, modelTextureActorId, prefixCorners, affine, out prefixUvScale, firstSample);
         return ApplySceneCopyTexture(frame, resolved, textures, capabilities, colorState, image);

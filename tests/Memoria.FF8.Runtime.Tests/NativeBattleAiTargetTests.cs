@@ -163,7 +163,7 @@ public sealed class NativeBattleAiTargetTests
         BattleTargetRequest request = active ? snapshot.ActiveAction!.TargetRequest : Assert.Single(queued).TargetRequest;
         return NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, reference =>
         {
-            int? original = snapshot.Combatants.Single(actor => actor.Id == reference.ActorId).NativeParticipant?.ActorIndex;
+            int? original = snapshot.Combatants.Single(actor => actor.Id == reference.ActorId).NativeParticipant?.OriginalSlot?.Offset;
             return original is >= 0 and <= 6 ? NativeBattleSlots.Decode(original.Value) : null;
         }) ?? throw new InvalidDataException("The original AI command has no raw WORD projection.");
     }

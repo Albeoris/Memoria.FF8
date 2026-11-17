@@ -28,7 +28,7 @@ public sealed class CounterCycleValidationTests
             (packets, _) = packets.Publish(1);
             return packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0)).ExportRetained();
         }
-        BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 100 - execution * 10, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
+        BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 100 - execution * 10, true, 0, "party0", new(0, 0, 1, 0, 0, null), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
         BattleDiagnosticCounterPrimary primary = new(primarySerial, start + 1, "party0", 0, "enemy0", 3, 1, 0, 1, 110 - execution * 10, 100 - execution * 10, 0, generation, recipient, false);
         BattleDiagnosticCounterContact contact = new(primary, 0, false, Packets(0, 1, 0, 0, 4, 3));
         BattleDiagnosticCounterCallback queue = new(epoch, start + 1, "enemy0", BattleRosterSlot.Enemy(0), 3, 2, 0, primarySerial);
@@ -57,7 +57,50 @@ public sealed class CounterCycleValidationTests
     }
 
     [Theory]
-    [InlineData("b98")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Typed_counter_targets_are_required_for_unaliased_participants(bool unaliasedFocal)
+    {
+        DiagnosticCounterCycleReceipt original = Cycle();
+        DiagnosticCounterAttemptReceipt attempt = original.Attempts[0];
+        BattlePartyActorReference attacker = new(original.ActorId);
+        BattleEnemyActorReference focal = new(original.TargetId);
+        byte? focalAlias = unaliasedFocal ? null : (byte)3;
+        BattlePartyActorModel partyModel = new(attacker);
+        BattleEnemyActorModel enemyModel = new(focal);
+        BattleModelRoster roster = new([partyModel, enemyModel]);
+        var aliases = new NativeBattleModelAliases(roster, unaliasedFocal ? [] : [(NativeBattleModelSlot.Decode(3), enemyModel)]);
+        NativeBattleRetainedActionPackets Packets(BattleModelOwner actor, byte command, ushort action, ushort effect, byte sequence, BattleModelOwner target)
+        {
+            NativeBattleActionPacketsState packets = NativeBattleActionPacketsState.Create(roster, NativeBattleRetainedActionPackets.FromColdLoaderStorage(new byte[640], new byte[1176]), aliases);
+            (packets, BattleActionHeaderReference header) = packets.Prepare(new(actor, command, sequence, -1, action, effect, null));
+            (packets, _) = packets.AppendContact(new(new(target, sequence, 0, 0, 0, 10, 0), null));
+            (packets, _) = packets.Publish(1);
+            return packets.WritePlayerRepeatMode(header, 1).ActivateHeader(header).ExportRetained();
+        }
+        BattleDiagnosticCounterContact primary = attempt.Contacts[0] with
+        {
+            Primary = attempt.Contacts[0].Primary with { ActorIndex = null, RecipientIndex = focalAlias, Attacker = attacker, Target = focal, Recipient = attempt.Contacts[0].Primary.Recipient with { Index = focalAlias } },
+            Packets = Packets(partyModel, 1, 0, 0, 4, enemyModel)
+        };
+        attempt = attempt with
+        {
+            Contacts = [primary],
+            Callbacks = attempt.Callbacks.Select(phase => phase with { Actor = phase.Actor with { Index = focalAlias }, Queue = phase.Queue with { ActorIndex = focalAlias, Slot = BattleRosterSlot.Enemy(unaliasedFocal ? 4 : 0) } }).ToImmutableArray(),
+            Commands = [attempt.Commands[0] with { ActorIndex = focalAlias, QueuedTargetMask = null, SelectedTargetMask = null, SelectedParty = attacker }],
+            Dispatch = attempt.Dispatch! with { NativeActorIndex = focalAlias, NativeTargetMask = null },
+            DispatchPackets = attempt.DispatchPackets! with { Target = attacker, Packets = Packets(enemyModel, 8, 230, 178, 13, partyModel) }
+        };
+        DiagnosticCounterCycleReceipt typed = original with { ActorIndex = null, TargetIndex = focalAlias, Attempts = [attempt] };
+        DiagnosticCounterCycleValidation.Validate(JsonSerializer.Deserialize<DiagnosticCounterCycleReceipt>(JsonSerializer.Serialize(typed, Json), Json)!, Input);
+        var noAttacker = attempt with { Contacts = [primary with { Primary = primary.Primary with { Attacker = null } }] };
+        Assert.Throws<InvalidDataException>(() => DiagnosticCounterCycleValidation.Validate(typed with { Attempts = [noAttacker] }, Input));
+        var wrongRecipient = attempt with { DispatchPackets = attempt.DispatchPackets! with { Target = new("different-party") } };
+        Assert.Throws<InvalidDataException>(() => DiagnosticCounterCycleValidation.Validate(typed with { Attempts = [wrongRecipient] }, Input));
+    }
+
+    [Theory]
+    [InlineData("typed_attacker")]
     [InlineData("pending_order")]
     [InlineData("primary_actor")]
     [InlineData("header_command")]
@@ -92,8 +135,8 @@ public sealed class CounterCycleValidationTests
         var source = attempt.Commands[0];
         switch (change)
         {
-            case "b98":
-                contact = contact with { Primary = contact.Primary with { Recipient = contact.Primary.Recipient with { LastAction = contact.Primary.Recipient.LastAction! with { AttackerIndex = 1 } } } };
+            case "typed_attacker":
+                contact = contact with { Primary = contact.Primary with { Recipient = contact.Primary.Recipient with { LastAttackerId = "party1" } } };
                 break;
             case "pending_order":
                 contact = contact with { Primary = contact.Primary with { Recipient = contact.Primary.Recipient with { PendingReaction = new(2, 1) } } };
@@ -245,10 +288,10 @@ public sealed class CounterCycleValidationTests
         var cycle = Cycle();
         var basis = cycle.Attempts[0];
         int finalHp = miss ? 51000 : 50944;
-        BattleDiagnosticCounterActor InitialActor(byte attackClass, int hp, byte pendingOrder) => new("enemy0", 3, 84, hp, true, 98353, new(attackClass, 0, 1, 0, 0, 0), new(2, pendingOrder), [0, 0, 0, 0, 0, 0, 0, 0]);
+        BattleDiagnosticCounterActor InitialActor(byte attackClass, int hp, byte pendingOrder) => new("enemy0", 3, 84, hp, true, 98353, "party0", new(attackClass, 0, 1, 0, 0, null), new(2, pendingOrder), [0, 0, 0, 0, 0, 0, 0, 0]);
         var preliminary = basis.Contacts[0] with
         {
-            Primary = new(1, 95, "party0", 0, "enemy0", 3, 1, 0, 253, 51000, 51000, 0, 1, InitialActor(3, 51000, 0), true),
+            Primary = new(1, 95, "party0", 0, "enemy0", 3, 1, 0, 1, 51000, 51000, 0, 1, InitialActor(3, 51000, 0), true),
             Packets = basis.Contacts[0].Packets with { Contacts = basis.Contacts[0].Packets.Contacts.SetItem(0, new(new(3, 5, 0, 0, 0, 0, 0), new(255, 0, 0, 0, 0, 0, 0))) }
         };
         var actual = basis.Contacts[0] with
@@ -305,6 +348,7 @@ public sealed class CounterCycleValidationTests
     [InlineData("stale_generation")]
     [InlineData("future_prior")]
     [InlineData("prior_not_classified")]
+    [InlineData("wrong_preliminary_command")]
     [InlineData("recomputed_is_preliminary")]
     [InlineData("missing_actual")]
     [InlineData("false_zero_eligibility")]
@@ -332,6 +376,9 @@ public sealed class CounterCycleValidationTests
                 break;
             case "prior_not_classified":
                 prior = prior with { Primary = prior.Primary with { Preliminary = false } };
+                break;
+            case "wrong_preliminary_command":
+                prior = prior with { Primary = prior.Primary with { InternalCommand = 253 } };
                 break;
             case "recomputed_is_preliminary":
                 actual = actual with { Primary = actual.Primary with { Preliminary = true } };

@@ -121,7 +121,8 @@ public sealed partial class BattlePresentationProcess
 
     internal static BattlePresentationProcess Restore(BattlePresentationResources resources, BattlePresentationSnapshot snapshot, BattlePresentationServices? services, Func<ushort, NativeBattleEffectBinding>? resolveEffect, BattleExternalEffectHostBindings? externalHost = null)
     {
-        BattlePresentationSnapshot native = NativeBattleStorageSnapshots.Restore(snapshot);
+        // A future rollback must acquire its own storage from the captured pre-load state.
+        BattlePresentationSnapshot native = NativeBattleStorageSnapshots.Restore(snapshot with { LoadCheckpoint = null }) with { LoadCheckpoint = snapshot.LoadCheckpoint };
         return new(resources, native, services, resolveEffect, externalHost);
     }
 

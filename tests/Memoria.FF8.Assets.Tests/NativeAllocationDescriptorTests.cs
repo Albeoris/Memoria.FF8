@@ -12,7 +12,11 @@ public sealed class NativeAllocationDescriptorTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = Create(game, assets, [0]);
+        const int formation = 94;
+        int enemies = assets.LoadEncounter(formation).Enemies.Count(enemy => enemy.Enabled);
+        var (definition, resources) = ExpandedBattlePresentationProcessEntryTests.CreateDefinitions(game, assets, 3, enemies, enemies, expanded: false, encounterId: formation);
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.AttachPresentation(new(resources));
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics;
         string before = JsonSerializer.Serialize(battle.Capture());
         Assert.False(battle.NativeEntryReady);

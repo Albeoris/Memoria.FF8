@@ -15,11 +15,14 @@ public static class DiagnosticTextureQuiescenceValidation
         int? expected = observation.Head;
         foreach (BattleDiagnosticTextureTask row in observation.Tasks)
         {
-            if (row is null || row.Slot is < 0 or >= 16 || row.Slot != expected || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x20F) != 0)
+            if (row is null || row.Slot is < 0 or >= 16 || row.Slot != expected || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x200) != 0)
             {
                 throw new InvalidDataException("Every reachable auxiliary row must be a known active terminal texture task; no foreign or orphan owner is admitted.");
             }
-            if (row.ModelIndex is not (>= 0 and < 7) || row.ModelPointer != 0x1D972C0u + 156u * (uint)row.ModelIndex.Value || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
+            bool hasModel = row.ModelIndex is int original
+                ? original is >= 0 and < 7 && (row.UnknownByteMask & 0xF) == 0 && row.ModelPointer == 0x1D972C0u + 156u * (uint)original
+                : !string.IsNullOrWhiteSpace(row.ModelActorId) && row.ModelPointer is null && (row.UnknownByteMask & 0xF) == 0xF;
+            if (!hasModel || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
             {
                 throw new InvalidDataException("Texture quiescence requires the actual FF programme byte and its unchanged loaded model sequence predicate.");
             }

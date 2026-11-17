@@ -1,9 +1,11 @@
-using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticTextureTask(int Slot, ushort Flags, ushort State, int? Next, NativeBattleAuxiliaryKind Kind, uint UnknownByteMask, int PayloadLength, uint? ModelPointer, byte? CapturedSequence, int? ProgramOffset, int? ProgramLength, byte? Deadline, int? ModelIndex, ushort? ModelFlags0, ushort? ResourceFlags44, byte? ModelSequence);
+public sealed record BattleDiagnosticTextureTask(int Slot, ushort Flags, ushort State, int? Next, NativeBattleAuxiliaryKind Kind, uint UnknownByteMask, int PayloadLength, uint? ModelPointer, byte? CapturedSequence, int? ProgramOffset, int? ProgramLength, byte? Deadline, int? ModelIndex, ushort? ModelFlags0, ushort? ResourceFlags44, byte? ModelSequence)
+{
+    public string? ModelActorId { get; init; }
+}
 public sealed record BattleDiagnosticTerminalTextureAttempt(BattleDiagnosticInvocationRelease Completion, BattleDiagnosticTerminalHoldState Hold, int QueuedActions, bool ActiveAction, BattleDiagnosticTextureQuiescence Textures, ImmutableArray<string> FailedGuards, string Result)
 {
     public BattleDiagnosticNaturalVictory? NaturalVictory { get; init; }
@@ -23,7 +25,7 @@ public sealed record BattleDiagnosticTextureQuiescence(int Capacity, int Physica
             int? next = Head;
             foreach (BattleDiagnosticTextureTask row in Tasks)
             {
-                if (row is null || row.Slot != next || row.Slot is < 0 or >= 16 || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x20F) != 0 || row.ModelIndex is not (>= 0 and < 7) || row.ModelPointer != NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode((byte)row.ModelIndex.Value)) || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
+                if (row is null || row.Slot != next || row.Slot is < 0 or >= 16 || !visited.Add(row.Slot) || (row.Flags & 1) == 0 || row.Kind != NativeBattleAuxiliaryKind.TextureAnimation5057D0 || row.PayloadLength != 32 || (row.UnknownByteMask & 0x200) != 0 || !MatchesTextureModel(row) || row.CapturedSequence is null || row.ProgramOffset is not >= 0 || row.ProgramLength is not > 0 || row.ProgramOffset >= row.ProgramLength || row.Deadline != 255 || row.ModelFlags0 is not ushort flags || (flags & 2) == 0 || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != 0 || row.ModelSequence != row.CapturedSequence)
                 {
                     return false;
                 }
@@ -32,6 +34,16 @@ public sealed record BattleDiagnosticTextureQuiescence(int Capacity, int Physica
             return next is null && Tasks[^1].Slot == Tail;
         }
     }
+    private static bool MatchesTextureModel(BattleDiagnosticTextureTask row)
+    {
+        if (row.ModelIndex is int index)
+        {
+            return index is >= 0 and < 7 && (row.UnknownByteMask & 0xF) == 0 &&
+                row.ModelPointer == NativeBattleGraphicsModelAddress.EncodeOriginalCell(NativeBattleModelSlot.Decode((byte)index));
+        }
+        return string.IsNullOrWhiteSpace(row.ModelActorId) == false && (row.UnknownByteMask & 0xF) != 0 && row.ModelPointer is null;
+    }
+
 }
 
 public sealed partial class BattleSession
@@ -46,11 +58,11 @@ public sealed partial class BattleSession
 
     private BattleDiagnosticInvocationRelease? TrySealDiagnosticTerminalTextures(BattleDiagnosticInvocationRelease release, NativeBattleGraphicsState graphics)
     {
-        BattleDiagnosticNaturalVictory? naturalVictory = DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory, Phase: BattleDiagnosticTerminalHoldPhase.Armed, Sequence: 0, Rearms: 0, HeldCallback: null, HeldFrame: null, Receipts.IsEmpty: true } ? new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, DetermineOutcome(), NativeEntryReady, HasPendingExpandedTerminal, DebugOutcome is not null || nativeEscape.Completed || nativeScriptState.ScriptedExitRequested || encounterPolicies?.TerminalReached == true, combatants.Select(actor => new BattleDiagnosticVictoryCombatant(actor.Id, actor.NativeActorIndex ?? NativeBattleSlots.Unassigned, actor.IsPlayer, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.CurrentHp)).ToImmutableArray()) : null;
+        BattleDiagnosticNaturalVictory? naturalVictory = DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory, Phase: BattleDiagnosticTerminalHoldPhase.Armed, Sequence: 0, Rearms: 0, HeldCallback: null, HeldFrame: null, Receipts.IsEmpty: true } ? new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, DetermineOutcome(), NativeEntryReady, HasPendingExpandedTerminal, DebugOutcome is not null || nativeEscape.Completed || nativeScriptState.ScriptedExitRequested || encounterPolicies?.TerminalReached == true, combatants.Where(actor => actor.IsActive && actor.Slot.HasValue).Select(actor => new BattleDiagnosticVictoryCombatant(actor.Id, actor.NativeActorIndex, actor.IsPlayer, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor), actor.CurrentHp) { Slot = actor.Slot!.Value, BattleCapable = IsNativeBattleCapable(actor) }).ToImmutableArray()) : null;
         bool admittedOrProspectiveVictory = DiagnosticTerminalHold is { Phase: BattleDiagnosticTerminalHoldPhase.Held, Sequence: 1, Rearms: 0, Declaration.Candidate: BattleOutcome.Victory } || naturalVictory?.IsNaturalVictory == true;
         if (LastDiagnosticTerminalTextureAttempt is null && DiagnosticTerminalHold is { Declaration.Candidate: BattleOutcome.Victory } declared && diagnosticInvocationPolicy is { Command: 16, ActionId: 53 or 56 } && release.Boundary == BattleDiagnosticInvocationRelease.GraphicsFrameBoundary)
         {
-            BattleDiagnosticTextureQuiescence observedTextures = CaptureDiagnosticTextureQuiescence(graphics);
+            BattleDiagnosticTextureQuiescence observedTextures = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(graphics);
             ImmutableArray<string>.Builder failures = ImmutableArray.CreateBuilder<string>();
             void Require(bool condition, string reason)
             {
@@ -67,64 +79,19 @@ public sealed partial class BattleSession
             Require(release.Blockers.Length == 1 && release.Blockers[0] == "effect-or-auxiliary-task" && release.Owners.AuxiliaryHead, "sole-auxiliary-owner");
             Require(DiagnosticTextureOtherOwnersReleased(release.Owners) && !release.Owners.ActionOrCommand, "other-native-owners-released");
             Require(observedTextures.IsTerminalQuiescent, "terminal-texture-quiescence");
-            Require(observedTextures.Tasks.All(task => task.ModelIndex == release.Dispatch.NativeActorIndex), "focal-texture-model");
+            Require(observedTextures.Tasks.All(task => task.ModelActorId == release.Dispatch.ActorId), "focal-texture-model");
             LastDiagnosticTerminalTextureAttempt = NativeBattleStorageSnapshots.Capture(new BattleDiagnosticTerminalTextureAttempt(release, declared, actions.Count, ActiveAction is not null, observedTextures, failures.ToImmutable(), "pending") { NaturalVictory = naturalVictory });
         }
         if (!admittedOrProspectiveVictory || DiagnosticTerminalHold is not { Declaration.Candidate: BattleOutcome.Victory } hold || release.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !release.PacketRemoved || release.ExecutingCompletion is null || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Dispatch.NativeCommand != 16 || release.Dispatch.ActionId is not (53 or 56) || hold.Declaration.PartyActorIds.Length != 1 || hold.Declaration.PartyActorIds[0] != release.Dispatch.ActorId || ActiveAction is not null || actions.Count != 0 || release.Blockers.Length != 1 || release.Blockers[0] != "effect-or-auxiliary-task" || !release.Owners.AuxiliaryHead || !DiagnosticTextureOtherOwnersReleased(release.Owners) || release.Owners.ActionOrCommand)
         {
             return null;
         }
-        BattleDiagnosticTextureQuiescence textures = CaptureDiagnosticTextureQuiescence(graphics);
-        if (!textures.IsTerminalQuiescent || textures.Tasks.Any(task => task.ModelIndex != release.Dispatch.NativeActorIndex))
+        BattleDiagnosticTextureQuiescence textures = BattlePresentationProcess.CaptureDiagnosticTextureQuiescence(graphics);
+        if (!textures.IsTerminalQuiescent || textures.Tasks.Any(task => task.ModelActorId != release.Dispatch.ActorId))
         {
             return null;
         }
         return NativeBattleStorageSnapshots.Capture(release with { Boundary = BattleDiagnosticInvocationRelease.TerminalTextureBoundary, TerminalTextures = new(textures, hold) { NaturalVictory = naturalVictory } });
     }
 
-    private static BattleDiagnosticTextureQuiescence CaptureDiagnosticTextureQuiescence(NativeBattleGraphicsState graphics)
-    {
-        NativeBattleAuxiliaryState auxiliary = graphics.Auxiliary;
-        ImmutableArray<NativeBattleAuxiliaryTask> slots = auxiliary.Slots;
-        if (slots.IsDefault)
-        {
-            return new(0, 0, auxiliary.Head, auxiliary.Tail, false, []);
-        }
-        bool complete = slots.Length == 16;
-        int active = 0;
-        foreach (NativeBattleAuxiliaryTask task in slots)
-        {
-            if (task is null)
-            {
-                complete = false;
-            }
-            else if ((task.Flags & 1) != 0)
-            {
-                active++;
-            }
-        }
-        ImmutableArray<BattleDiagnosticTextureTask>.Builder rows = ImmutableArray.CreateBuilder<BattleDiagnosticTextureTask>();
-        HashSet<int> visited = [];
-        int? next = auxiliary.Head;
-        while (next is int slot)
-        {
-            if ((uint)slot >= (uint)slots.Length || rows.Count >= 16 || !visited.Add(slot) || slots[slot] is not { } task)
-            {
-                complete = false;
-                break;
-            }
-            bool known = task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 && !task.Payload.IsDefault && task.Payload.Length == 32 && (task.UnknownByteMask & 0x20F) == 0;
-            uint? pointer = known ? BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
-            byte? sequence = known ? task.Payload[9] : null;
-            (int? index, NativeBattleGraphicsModel? model) = ResolveDiagnosticTextureModel(task, graphics, pointer);
-            NativeBattleAuxiliaryProgram? program = task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0 ? task.Program : null;
-            int? length = program is not null && !program.Source.IsDefault ? program.Source.Length : null;
-            byte? deadline = program is not null && !program.Source.IsDefault && (uint)program.Offset < program.Source.Length ? program.Source[program.Offset] : null;
-            rows.Add(new(slot, task.Flags, task.State, task.Next, task.Kind, task.UnknownByteMask, task.Payload.IsDefault ? -1 : task.Payload.Length, pointer, sequence, program?.Offset, length, deadline, index, model?.Flags0, model?.ResourceFlags44, model?.Sequence));
-            complete &= (task.Flags & 1) != 0;
-            next = task.Next;
-        }
-        complete &= next is null && rows.Count == active && (rows.Count == 0 ? auxiliary.Head is null && auxiliary.Tail is null : rows[rows.Count - 1].Slot == auxiliary.Tail);
-        return new(slots.Length, active, auxiliary.Head, auxiliary.Tail, complete, rows.ToImmutable());
-    }
 }

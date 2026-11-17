@@ -411,7 +411,7 @@ internal sealed class DiagnosticBattleDriver
         }
         if (dispatch.Reflection is not null)
         {
-            if (Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null || !BattleDiagnosticReflectionLineage.Matches(dispatch, currentFocalDispatch) || reflectionDispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
+            if (Stage is not (DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) || currentFocalDispatch is null || !BattleDiagnosticReflectionLineage.Matches(dispatch, currentFocalDispatch) || reflectionDispatches.Any(previous => previous.HeaderReference == dispatch.HeaderReference && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
             {
                 Fail("REFLECTION_LINEAGE_MISMATCH");
                 return;

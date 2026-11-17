@@ -15,13 +15,13 @@ public static class BattleComponentHeldScreenBlendCertificateValidation
         {
             throw new InvalidDataException("Component held screen blend dispatch differs from the selected live effect.");
         }
-        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || admission.Actor >= 7 || admission.HeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
+        if (certificate.NativeAdmission is { } admission && (admission.Effect != expectedEffect || !BattleComponentTerminalTextureCertificateValidation.HasAdmissionIdentity(admission) || admission.Callback < 0 || certificate.First.GraphicsCallback < admission.Callback))
         {
             throw new InvalidDataException("Component held screen blend admission differs from the selected native header owner.");
         }
         ValidateObservation(certificate.First);
         ValidateObservation(certificate.Last);
-        if (!StringComparer.OrdinalIgnoreCase.Equals(certificate.First.ResidentFingerprint, certificate.Last.ResidentFingerprint) || certificate.First.Head != certificate.Last.Head || certificate.First.Tail != certificate.Last.Tail || certificate.First.PhysicalResidentCount != certificate.Last.PhysicalResidentCount || certificate.First.Owners.ActionHeaders != certificate.Last.Owners.ActionHeaders || certificate.First.Owners.ContactRows != certificate.Last.Owners.ContactRows || certificate.First.Owners.RetainedActiveHeader != certificate.Last.Owners.RetainedActiveHeader || certificate.First.Owners.RetainedActiveContact != certificate.Last.Owners.RetainedActiveContact || !SameTask(certificate.First.ScreenBlend, certificate.Last.ScreenBlend))
+        if (!StringComparer.OrdinalIgnoreCase.Equals(certificate.First.ResidentFingerprint, certificate.Last.ResidentFingerprint) || certificate.First.Head != certificate.Last.Head || certificate.First.Tail != certificate.Last.Tail || certificate.First.AuxiliaryResidentCount != certificate.Last.AuxiliaryResidentCount || certificate.First.Owners.ActionHeaders != certificate.Last.Owners.ActionHeaders || certificate.First.Owners.ContactRows != certificate.Last.Owners.ContactRows || certificate.First.Owners.RetainedActiveHeader != certificate.Last.Owners.RetainedActiveHeader || certificate.First.Owners.RetainedActiveContact != certificate.Last.Owners.RetainedActiveContact || !SameTask(certificate.First.ScreenBlend, certificate.Last.ScreenBlend))
         {
             throw new InvalidDataException("Resident native screen-blend payload or owner predicates changed across the terminal presentation tail.");
         }

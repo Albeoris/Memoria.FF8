@@ -68,7 +68,7 @@ public sealed class NativeBattleEffect308SourceAdmissionTests
             Assert.False(definition.InitialSuspended);
             Assert.False(definition.InitialUntargetable);
             Assert.True(actor.NativeParticipant!.Active);
-            Assert.Equal((byte)physical, actor.NativeParticipant.ActorIndex);
+            Assert.Equal((byte)physical, actor.NativeParticipant.OriginalSlot!.Value.Offset);
             Assert.False(actor.NativeParticipant.Hidden);
             Assert.False(actor.NativeParticipant.Suspended);
             Assert.False(actor.NativeParticipant.Untargetable);

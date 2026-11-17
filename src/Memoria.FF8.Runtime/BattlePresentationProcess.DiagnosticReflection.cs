@@ -7,11 +7,7 @@ public sealed partial class BattlePresentationProcess
 
     private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
     {
-        if (OriginalDiagnosticHeaderIndex(reference) is not int header)
-        {
-            return;
-        }
         diagnosticHeaderGenerations ??= [];
-        diagnosticHeaderGenerations[header] = checked(++diagnosticHeaderGeneration);
+        diagnosticHeaderGenerations[reference.Ordinal] = checked(++diagnosticHeaderGeneration);
     }
 }

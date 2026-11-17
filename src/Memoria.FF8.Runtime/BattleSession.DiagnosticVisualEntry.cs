@@ -1,10 +1,14 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleDiagnosticVisualEntryBoundary(byte ActorIndex, byte Command, ushort Action, ushort Effect, long Callback);
+public sealed record BattleDiagnosticVisualEntryBoundary(byte? ActorIndex, byte Command, ushort Action, ushort Effect, long Callback)
+{
+    public string? ActorId { get; init; }
+    public BattleRosterSlot ActorSlot { get; init; }
+}
 
 public sealed partial class BattleSession
 {
-    private sealed record DiagnosticVisualEntry(BattleModelOwner Actor, byte OriginalOperand, byte Command, ushort Action, ushort Effect);
+    private sealed record DiagnosticVisualEntry(BattleModelOwner Actor, string ActorId, BattleRosterSlot ActorSlot, byte? OriginalOperand, byte Command, ushort Action, ushort Effect);
     private DiagnosticVisualEntry? diagnosticVisualEntry;
     private Action<BattleDiagnosticVisualEntryBoundary>? diagnosticVisualEntryAdmission;
     public BattleDiagnosticVisualEntryBoundary? DiagnosticVisualEntryBoundary { get; private set; }
@@ -18,7 +22,7 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Visual entry must be armed once before its diagnostic action submission.");
         }
         BattleCombatant actor = GetActor(actorId);
-        diagnosticVisualEntry = new(CreatePresentationModelOwner(actor), checked((byte)actor.RequireNativeActorIndex()), command, action, effect);
+        diagnosticVisualEntry = new(CreatePresentationModelOwner(actor), actor.Id, actor.Slot ?? throw new InvalidOperationException("Visual admission requires an occupied actor."), ReadDiagnosticOriginalOperand(actor), command, action, effect);
         diagnosticVisualEntryAdmission = admission;
     }
 
@@ -29,7 +33,7 @@ public sealed partial class BattleSession
             return;
         }
         diagnosticVisualEntryAdmission = null;
-        DiagnosticVisualEntryBoundary = new(entry.OriginalOperand, header.Command, header.Action, header.Effect, NativeHostCallbacks ?? Frame);
+        DiagnosticVisualEntryBoundary = new(entry.OriginalOperand, header.Command, header.Action, header.Effect, NativeHostCallbacks ?? Frame) { ActorId = entry.ActorId, ActorSlot = entry.ActorSlot };
         admission(DiagnosticVisualEntryBoundary);
     }
 

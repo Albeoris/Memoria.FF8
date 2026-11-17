@@ -167,6 +167,7 @@ public sealed partial class BattleSession
             NativeDeathCount = saved.DeathCount,
             GuardianForceCompatibility = saved.GuardianForceCompatibility
         });
+        initial.BindRosterSlot(actor.Slot, bindNative: actor.NativeActorIndex.HasValue);
         BindBattleMagicOwner(initial);
         initial.ReprojectNativePlayerStatistics();
         RestoreNativeParticipant(actor, CaptureNativeParticipant(initial));
@@ -176,7 +177,7 @@ public sealed partial class BattleSession
         actor.RestoreMagicInventory(initial.NativeMagicInventory);
         actor.RestoreDrawnMagic(initial.DrawnMagicIds.ToArray());
         actor.RestoreDrawSlots(initial.NativeDrawSlots.ToArray());
-        actor.ReprojectNativePlayerStatistics();
+        ReprojectNativePlayerStatistics(actor);
         RestoreNativeStatus(actor, CaptureNativeStatus(initial));
         actor.IsBusy = false;
         actor.LimitTurnCrisis = null;

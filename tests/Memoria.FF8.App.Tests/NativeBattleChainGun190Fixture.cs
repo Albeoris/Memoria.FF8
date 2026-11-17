@@ -55,7 +55,7 @@ internal static class NativeBattleChainGun190Fixture
         BattleCombatantSnapshot[] actors = source.Combatants;
         for (int actor = 1; actor < contactCount; actor++)
         {
-            BattleCombatantSnapshot recipient = actors.Single(item => item.NativeParticipant!.ActorIndex == actor);
+            BattleCombatantSnapshot recipient = actors.Single(item => item.NativeParticipant!.OriginalSlot?.Offset == actor);
             NativeBattleStatusSnapshot status = recipient.NativeStatus!;
             actors = actors.Select(item => item.Id == recipient.Id ? item with { NativeStatus = status with { Presentation = new(status.Saved, status.Battle) } } : item).ToArray();
             NativeBattleContactPacket declared = first with { Primary = first.Primary with { Recipient = packets.ModelAliases.DecodeLiteral(checked((byte)actor)), SavedStatuses4 = status.Saved, BattleStatuses8 = status.Battle } };

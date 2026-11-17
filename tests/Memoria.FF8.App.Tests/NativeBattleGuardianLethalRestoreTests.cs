@@ -20,7 +20,7 @@ public sealed class NativeBattleGuardianLethalRestoreTests
         BattleSnapshot lethal = battle.CaptureForContinuation();
         Assert.Equal(254L, lethal.Frame);
         Assert.Equal(334L, lethal.ReadFixturePresentation().NativeGraphics!.Callback);
-        BattleCombatantSnapshot target = Assert.Single(lethal.Combatants, actor => actor.NativeParticipant!.ActorIndex == 3);
+        BattleCombatantSnapshot target = Assert.Single(lethal.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
         Assert.Equal(0, target.CurrentHp);
         Assert.NotEqual(0, target.Atb);
         Console.WriteLine($"Post-Boost snapshot frame{lethal.Frame}/callback{lethal.ReadFixturePresentation().NativeGraphics!.Callback}: Outcome={lethal.Outcome}, target3 HP{target.CurrentHp}/ATB{target.Atb}, ActionPause={lethal.NativeClock?.ActionPause}, ActiveHeader={lethal.ReadFixturePresentation().NativeActionPackets!.ActiveHeader}.");
@@ -32,7 +32,7 @@ public sealed class NativeBattleGuardianLethalRestoreTests
         Assert.Equal(255L, settled.Frame);
         Assert.Equal(335L, settled.ReadFixturePresentation().NativeGraphics!.Callback);
         Assert.Equal(BattleOutcome.Victory, settled.Outcome);
-        target = Assert.Single(settled.Combatants, actor => actor.NativeParticipant!.ActorIndex == 3);
+        target = Assert.Single(settled.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3);
         Assert.Equal(0, target.CurrentHp);
         Assert.NotEqual(0, target.Atb);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(settled))!);

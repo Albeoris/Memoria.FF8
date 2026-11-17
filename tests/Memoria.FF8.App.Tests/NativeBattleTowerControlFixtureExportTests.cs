@@ -79,8 +79,8 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         BattleCombatant retained = Assert.Single(session.Combatants, actor => actor.ModelId == 73 && actor.IsActive);
         Assert.True(retained.Hidden);
         Assert.True(retained.Suspended);
-        Assert.Equal(3, Assert.Single(entered.Combatants, actor => actor.Id == removed.Id).NativeParticipant!.ActorIndex);
-        Assert.Equal(4, Assert.Single(entered.Combatants, actor => actor.Id == retained.Id).NativeParticipant!.ActorIndex);
+        Assert.Equal(3, Assert.Single(entered.Combatants, actor => actor.Id == removed.Id).NativeParticipant!.OriginalSlot!.Value.Offset);
+        Assert.Equal(4, Assert.Single(entered.Combatants, actor => actor.Id == retained.Id).NativeParticipant!.OriginalSlot!.Value.Offset);
         int removedRow = ReadOriginalModelCell(entered.ReadFixturePresentation().NativeGraphics!, 3).ActiveResourceRow100!.Value;
         SaveColdNext("entry-ready", session.Capture());
         Invoke(session, "QueueNativeGraphicsRemoval", removed);
@@ -91,7 +91,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         NativeBattleEnemyAllocation allocation = Assert.Single(pending.NativeAllocations);
         Assert.Equal(allocated.Id, allocation.Id);
         Assert.Equal(2, allocation.SceneSlot);
-        Assert.Equal(5, Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!.ActorIndex);
+        Assert.Equal(5, Assert.Single(pending.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!.OriginalSlot!.Value.Offset);
         AssertDescriptor(pending, 105, null);
         AssertDescriptor(pending, 112, null);
         AssertDescriptor(pending, 102, null);
@@ -128,7 +128,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
             Assert.Equal(effect, binding.Effect);
             NativeBattleActionPacketsState packets = ready.ReadFixturePresentation().NativeActionPackets!.ResetCounts();
             (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(5), 252, 1, -1, 1, effect, null));
-            BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.ActorIndex == 0);
+            BattleCombatantSnapshot target = Assert.Single(ready.Combatants, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 0);
             NativeBattleStatusSnapshot status = target.NativeStatus!;
             (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), 0, 0, 0, status.Saved, 7, status.Battle), null));
             (packets, _) = packets.Publish(1);
@@ -150,7 +150,7 @@ public sealed class NativeBattleTowerControlFixtureExportTests
         void AssertReady(BattleSnapshot snapshot)
         {
             NativeBattleParticipantSnapshot participant = Assert.Single(snapshot.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
-            Assert.Equal(5, participant.ActorIndex);
+            Assert.Equal(5, participant.OriginalSlot!.Value.Offset);
             Assert.True(participant.Active);
             Assert.False(participant.Hidden);
             Assert.False(participant.Suspended);

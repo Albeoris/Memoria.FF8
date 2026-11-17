@@ -18,10 +18,10 @@ public sealed record BattleComponentHeldScreenBlendTask(int Slot, ushort Flags, 
     public string Fingerprint => Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(this)));
 }
 
-public sealed record BattleComponentHeldScreenBlendObservation(ushort Effect, long GraphicsCallback, int NativeActive, uint CanonicalReturnedTask, BattleDiagnosticInvocationOwners Owners, bool PhysicalCommandBanksEmpty, int PhysicalResidentCount, int? Head, int? Tail, BattleComponentHeldScreenBlendTask ScreenBlend, string ResidentFingerprint, ImmutableArray<string> RawBlockers)
+public sealed record BattleComponentHeldScreenBlendObservation(ushort Effect, long GraphicsCallback, int NativeActive, uint CanonicalReturnedTask, BattleDiagnosticInvocationOwners Owners, int AuxiliaryResidentCount, int? Head, int? Tail, BattleComponentHeldScreenBlendTask ScreenBlend, string ResidentFingerprint, ImmutableArray<string> RawBlockers)
 {
     [JsonIgnore]
-    public bool IsEligible => ScreenBlend is not null && Owners is not null && NativeActive == 0 && CanonicalReturnedTask == 0 && PhysicalCommandBanksEmpty && PhysicalResidentCount == 1 && Head == ScreenBlend.Slot && Tail == ScreenBlend.Slot && ScreenBlend.IsHeld && ResidentFingerprint == ScreenBlend.Fingerprint && !RawBlockers.IsDefault && RawBlockers.Length == 1 && RawBlockers[0] == "effect-or-auxiliary-task" && Owners.AuxiliaryHead && BattleComponentOwnerClosure.AreNonAuxiliaryOwnersReleased(Owners);
+    public bool IsEligible => ScreenBlend is not null && Owners is not null && NativeActive == 0 && CanonicalReturnedTask == 0 && AuxiliaryResidentCount == 1 && Head == ScreenBlend.Slot && Tail == ScreenBlend.Slot && ScreenBlend.IsHeld && ResidentFingerprint == ScreenBlend.Fingerprint && !RawBlockers.IsDefault && RawBlockers.Length == 1 && RawBlockers[0] == "effect-or-auxiliary-task" && Owners.AuxiliaryHead && BattleComponentOwnerClosure.AreNonAuxiliaryOwnersReleased(Owners);
 
 }
 
@@ -31,11 +31,10 @@ public sealed partial class BattleSession
 {
     public BattleComponentHeldScreenBlendObservation? ObserveComponentHeldScreenBlend(ushort expectedEffect)
     {
-        if (Presentation is not { } process || ObserveDiagnosticDrainBlockers() is not ["effect-or-auxiliary-task"])
+        if (Presentation is not { } process || expandedHostedEvent is not null || ObserveDiagnosticDrainBlockers() is not ["effect-or-auxiliary-task"])
         {
             return null;
         }
-        return process.ObserveComponentHeldScreenBlend(expectedEffect, CaptureDiagnosticInvocationOwnerState(process.Graphics),
-            ActiveAction is null && actions.Count == 0 && expandedHostedEvent is null, ["effect-or-auxiliary-task"]);
+        return process.ObserveComponentHeldScreenBlend(expectedEffect, CaptureDiagnosticInvocationOwnerState(process.Graphics), ["effect-or-auxiliary-task"]);
     }
 }

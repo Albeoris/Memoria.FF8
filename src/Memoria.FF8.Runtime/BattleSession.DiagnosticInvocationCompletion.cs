@@ -5,10 +5,22 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticInvocationPool(uint DescriptorAddress, uint BankAddress, ushort Stride, int ActiveRows, bool Head, bool Tail);
-public sealed record BattleDiagnosticVictoryCombatant(string Id, int NativeIndex, bool IsPlayer, uint NativeFlags, ushort SavedStatus, uint BattleStatus, int CurrentHp);
+public sealed record BattleDiagnosticVictoryCombatant(string Id, int? NativeIndex, bool IsPlayer, uint NativeFlags, ushort SavedStatus, uint BattleStatus, int CurrentHp)
+{
+    public BattleRosterSlot Slot { get; init; }
+    public bool BattleCapable { get; init; }
+}
 public sealed record BattleDiagnosticNaturalVictory(Guid LifecycleId, long Callback, long SimulationFrame, BattleOutcome Candidate, bool NativeReady, bool PendingOutcome, bool ExceptionalOutcome, ImmutableArray<BattleDiagnosticVictoryCombatant> Combatants)
 {
-    public bool IsNaturalVictory => LifecycleId != Guid.Empty && Callback >= 0 && SimulationFrame >= 0 && Candidate == BattleOutcome.Victory && NativeReady && !PendingOutcome && !ExceptionalOutcome && !Combatants.IsDefaultOrEmpty && Combatants.Length <= 11 && Combatants.All(actor => actor is not null && !string.IsNullOrWhiteSpace(actor.Id) && actor.NativeIndex is >= -1 and < 7 && (actor.IsPlayer ? actor.NativeIndex < 3 : actor.NativeIndex is -1 or >= 3)) && Combatants.Count(actor => actor.IsPlayer) <= 3 && Combatants.Count(actor => !actor.IsPlayer) <= 8 && Combatants.Select(actor => actor.Id).Distinct(StringComparer.Ordinal).Count() == Combatants.Length && Combatants.Where(actor => actor.NativeIndex >= 0).Select(actor => actor.NativeIndex).Distinct().Count() == Combatants.Count(actor => actor.NativeIndex >= 0) && Combatants.Any(actor => actor.IsPlayer && actor.NativeIndex is >= 0 and < 3 && (actor.NativeFlags & 1) != 0 && (actor.SavedStatus & 5) == 0 && actor.CurrentHp > 0) && Combatants.Any(actor => !actor.IsPlayer) && !Combatants.Any(actor => !actor.IsPlayer && actor.NativeIndex is >= 3 and < 7 && (actor.SavedStatus & 5) == 0);
+    public bool IsNaturalVictory => LifecycleId != Guid.Empty && Callback >= 0 && SimulationFrame >= 0 && Candidate == BattleOutcome.Victory &&
+        NativeReady && !PendingOutcome && !ExceptionalOutcome && !Combatants.IsDefaultOrEmpty &&
+        Combatants.All(actor => actor is not null && !string.IsNullOrWhiteSpace(actor.Id) && actor.Slot.Side == (actor.IsPlayer ? BattleSide.Allies : BattleSide.Enemies) &&
+            (actor.NativeIndex is null || actor.NativeIndex is >= 0 and < NativeBattleSlots.Count && NativeBattleSlots.Decode(actor.NativeIndex.Value).Side == actor.Slot.Side) &&
+            actor.BattleCapable == ((actor.SavedStatus & 5) == 0 && (actor.BattleStatus & 0x10000) == 0)) &&
+        Combatants.Select(actor => actor.Id).Distinct(StringComparer.Ordinal).Count() == Combatants.Length &&
+        Combatants.Select(actor => actor.Slot).Distinct().Count() == Combatants.Length &&
+        Combatants.Where(actor => actor.NativeIndex.HasValue).Select(actor => actor.NativeIndex).Distinct().Count() == Combatants.Count(actor => actor.NativeIndex.HasValue) &&
+        Combatants.Any(actor => actor.IsPlayer && actor.BattleCapable) && !Combatants.Any(actor => !actor.IsPlayer && actor.BattleCapable);
 }
 public sealed record BattleDiagnosticTerminalTextureRelease([property: JsonRequired] BattleDiagnosticTextureQuiescence Textures, [property: JsonRequired] BattleDiagnosticTerminalHoldState Hold)
 {
@@ -25,13 +37,16 @@ public sealed record BattleDiagnosticInvocationOwners(int DescriptorPackets, int
     public bool HeaderGraphicsBusy { get; init; }
     public ImmutableArray<BattleDiagnosticInvocationPool> OriginalPools { get; init; }
 }
-public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Callback, long SimulationFrame, long Timestamp, BattleDiagnosticEffectDispatch Dispatch, NativeBattleRetainedActionHeaderSlot Header, NativeBattleDescriptorPacket? CompletionPacket, uint CompletionCallback, byte EventActorIndex, int CompletionPacketSlot, byte CompletionPacketSerial, uint CompletionPacketArgument, bool NativeEventCompleted, bool PresentationAcknowledged, bool HeaderCapturedBeforeReset, bool CurrentCompletionPacketGuaranteedRemoval, BattleDiagnosticInvocationOwners Owners, ImmutableArray<string> Blockers)
+public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Callback, long SimulationFrame, long Timestamp, BattleDiagnosticEffectDispatch Dispatch, NativeBattleRetainedActionHeaderSlot? Header, NativeBattleDescriptorPacket? CompletionPacket, uint CompletionCallback, byte? EventActorIndex, int CompletionPacketSlot, byte CompletionPacketSerial, uint CompletionPacketArgument, bool NativeEventCompleted, bool PresentationAcknowledged, bool HeaderCapturedBeforeReset, bool CurrentCompletionPacketGuaranteedRemoval, BattleDiagnosticInvocationOwners Owners, ImmutableArray<string> Blockers)
 {
     public const string ExecutingBoundary = "executing-completion";
     public const string GraphicsFrameBoundary = "completed-graphics-frame";
     public const string TerminalTextureBoundary = "completed-graphics-frame-terminal-textures";
     public BattleDiagnosticTerminalTextureRelease? TerminalTextures { get; init; }
     public string Boundary { get; init; } = ExecutingBoundary;
+    public BattleActionHeaderReference? HeaderReference { get; init; }
+    public BattleRosterSlot? EventSlot { get; init; }
+    public long CompletionToken { get; init; }
     public bool PacketRemoved { get; init; }
     public long? GraphicsCallback { get; init; }
     public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
@@ -42,7 +57,7 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
 public sealed partial class BattleSession
 {
     private sealed record DiagnosticInvocationPolicy(ushort Effect, string ActorId, byte? Command, int ActionId);
-    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, NativeBattleRetainedActionHeaderSlot Header, NativeBattleDescriptorPacket? Packet, byte ActorIndex, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
+    private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, BattleActionHeaderReference HeaderReference, NativeBattleRetainedActionHeaderSlot? Header, NativeBattleDescriptorPacket? Packet, byte? ActorIndex, BattleRosterSlot EventSlot, long CompletionToken, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
     public event Action<BattleDiagnosticInvocationRelease>? DiagnosticInvocationReleased;
 
     private DiagnosticInvocationPolicy? diagnosticInvocationPolicy;
@@ -82,25 +97,20 @@ public sealed partial class BattleSession
         {
             return;
         }
-        if (diagnosticRetiredCompletion is not null)
-        {
-            throw new InvalidDataException("Diagnostic completion observed more than one matching descriptor retirement in the same frame.");
-        }
-        diagnosticRetiredCompletion = (slot, original, state.Packets[slot]);
-    }
-
-    private void ObserveDiagnosticHostedCompletionBeforeAck(BattlePresentationProcess process, NativeBattlePresentationCompletionRequested receipt)
-    {
-        if (diagnosticRetiredCompletion is not { } retired || diagnosticInvocationDispatch is not { NativeHeaderIndex: int header, NativeHeaderGeneration: > 0, NativeActorIndex: byte actor } dispatch ||
-            receipt.ActorId != dispatch.ActorId || retired.Original.Argument != receipt.Callback || process.ActionPackets.ActionCount <= header)
+        if (diagnosticRetiredCompletion is not { } retired ||
+            diagnosticInvocationDispatch is not { HeaderReference: { } reference, NativeHeaderGeneration: > 0, ActorSlot: { } slot } dispatch ||
+            receipt.ActorId != dispatch.ActorId || retired.Original.Argument != receipt.Callback || process.ActionPackets.ActionCount <= reference.Ordinal)
         {
             return;
         }
         NativeBattleActionPacketsState packets = process.ActionPackets;
-        NativeBattleActionHeaderSlot source = packets.ReadHeader(new BattleActionHeaderReference(header));
+        NativeBattleActionHeaderSlot source = packets.ReadHeader(reference);
+        byte? originalActor = packets.ModelAliases.TryEncodeExact(source.Source, out byte operand) ? operand : null;
         bool captured = source.Source == receipt.Owner && source.Command == dispatch.NativeCommand && source.Action == dispatch.ActionId &&
-            source.Effect == dispatch.RequestedEffect && packets.ModelAliases.TryEncodeExact(source.Source, out byte operand) && operand == actor;
-        DiagnosticInvocationCompletion attempt = new(dispatch, packets.ExportRetained().Headers[header], retired.Original, actor, receipt.Callback,
+            source.Effect == dispatch.RequestedEffect && process.ReadDiagnosticCounterHeaderGeneration(reference.Ordinal) == dispatch.NativeHeaderGeneration &&
+            originalActor == dispatch.NativeActorIndex;
+        NativeBattleRetainedActionHeaderSlot? raw = dispatch.NativeHeaderIndex is int header ? packets.ExportRetained().Headers[header] : null;
+        DiagnosticInvocationCompletion attempt = new(dispatch, reference, raw, retired.Original, originalActor, slot, receipt.Token, receipt.Callback,
             retired.Slot, retired.Original.Serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? process.Graphics.Callback, process.Graphics.Callback, diagnosticDispatchSerial);
         diagnosticAwaitingCompletionAck = (receipt, attempt, retired.Retired);
     }
@@ -177,6 +187,9 @@ public sealed partial class BattleSession
         }
         LastDiagnosticInvocationCompletion = new(DiagnosticLifecycleId, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), Frame, Stopwatch.GetTimestamp(), attempt.Dispatch, attempt.Header, attempt.Packet, attempt.Callback, attempt.ActorIndex, attempt.PacketSlot, attempt.PacketSerial, attempt.Callback, completed, acknowledged, attempt.HeaderCaptured, frameEnd ? executingCertificate!.CurrentCompletionPacketGuaranteedRemoval : exactPacket, owners, blockers.ToImmutable())
         {
+            HeaderReference = attempt.HeaderReference,
+            EventSlot = attempt.EventSlot,
+            CompletionToken = attempt.CompletionToken,
             Boundary = frameEnd ? BattleDiagnosticInvocationRelease.GraphicsFrameBoundary : BattleDiagnosticInvocationRelease.ExecutingBoundary,
             PacketRemoved = removed,
             GraphicsCallback = graphics.Callback,
@@ -270,7 +283,7 @@ public sealed partial class BattleSession
         bool known = !task.Payload.IsDefault && task.Payload.Length >= 12 && (task.UnknownByteMask & 0x20F) == 0;
         uint? pointer = known ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(task.Payload.AsSpan()) : null;
         byte? sequence = known ? task.Payload[9] : null;
-        (int? index, NativeBattleGraphicsModel? model) = ResolveDiagnosticTextureModel(task, graphics, pointer);
+        (int? index, NativeBattleGraphicsModel? model) = BattlePresentationProcess.ResolveDiagnosticTextureModel(task, graphics, pointer);
         NativeBattleAuxiliaryProgram? program = task.Program;
         int? sourceLength = program is not null && !program.Source.IsDefault ? program.Source.Length : null;
         byte? deadline = program is not null && !program.Source.IsDefault && (uint)program.Offset < program.Source.Length ? program.Source[program.Offset] : null;
@@ -288,16 +301,6 @@ public sealed partial class BattleSession
         };
     }
 
-    private static (int? Index, NativeBattleGraphicsModel? Model) ResolveDiagnosticTextureModel(NativeBattleAuxiliaryTask task, NativeBattleGraphicsState graphics, uint? pointer)
-    {
-        if (task.ModelOwner is not { } owner || !graphics.ActorModels.Contains(owner))
-        {
-            return (null, null);
-        }
-        int? index = pointer is uint original && NativeBattleGraphicsModelAddress.TryDecodeOriginalCell(original, out NativeBattleModelSlot slot) &&
-            graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) == owner ? slot.Offset : null;
-        return (index, graphics.ActorModels.Get(owner));
-    }
 
     private BattleDiagnosticInvocationOwners CaptureDiagnosticInvocationOwnerState(NativeBattleGraphicsState graphics)
     {

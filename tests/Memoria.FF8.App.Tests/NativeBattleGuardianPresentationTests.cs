@@ -84,8 +84,8 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.Equal((byte)0, packets.ContactCount);
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, before.Definition.NativeRetainedMemory!.ColdExecutableSha256);
         byte coldRemainingHits = NativeBattleGuardianFixtureInputs.ReadColdPhysicalThreeRemainingHits(game);
-        BattleCombatantSnapshot[] coldActors = before.Combatants.Select(actor => actor.NativeParticipant!.ActorIndex == 3 ? actor with { NativeParticipant = actor.NativeParticipant! with { RemainingHits = coldRemainingHits } } : actor).ToArray();
-        Assert.Equal((byte?)0, Assert.Single(coldActors, actor => actor.NativeParticipant!.ActorIndex == 3).NativeParticipant!.RemainingHits);
+        BattleCombatantSnapshot[] coldActors = before.Combatants.Select(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3 ? actor with { NativeParticipant = actor.NativeParticipant! with { RemainingHits = coldRemainingHits } } : actor).ToArray();
+        Assert.Equal((byte?)0, Assert.Single(coldActors, actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3).NativeParticipant!.RemainingHits);
         //Native FE/action64 selects sequence14 through495070;116 is the original kernel GF effect ID.
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), 0xFE, 14, -1, 64, 116, null));
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 5, 1, 0, 0, 7, 0), null));

@@ -76,7 +76,7 @@ internal static class NativeBattleFixtureObservations
             }
             foreach (BattleCombatantSnapshot actor in snapshot.Combatants)
             {
-                if (actor.NativeParticipant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount } participant && original.Rows[participant.ActorIndex] is { } row)
+                if (actor.NativeParticipant?.OriginalSlot is { Offset: < NativeBattleSlots.AllyCount } slot && original.Rows[slot.Offset] is { } row)
                 {
                     vitals = vitals.SetItem(actor.Id, row);
                 }
@@ -115,9 +115,9 @@ internal static class NativeBattleFixtureObservations
         var rows = new NativeBattlePartyPresentedVital?[NativeBattleSlots.AllyCount];
         foreach (BattleCombatantSnapshot actor in snapshot.Combatants)
         {
-            if (actor.NativeParticipant is { ActorIndex: >= 0 and < NativeBattleSlots.AllyCount } participant)
+            if (actor.NativeParticipant?.OriginalSlot is { Offset: < NativeBattleSlots.AllyCount } slot)
             {
-                rows[participant.ActorIndex] = vitals.GetValueOrDefault(actor.Id);
+                rows[slot.Offset] = vitals.GetValueOrDefault(actor.Id);
             }
         }
         return new(rows.ToImmutableArray());

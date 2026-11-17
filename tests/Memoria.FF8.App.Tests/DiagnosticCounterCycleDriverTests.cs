@@ -113,7 +113,7 @@ public sealed class DiagnosticCounterCycleDriverTests
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(3), 4, 0, 0, 0, 10, 0), null));
         (packets, _) = packets.Publish(1);
         packets = packets.WritePlayerRepeatMode(new BattleActionHeaderReference(0), 1).ActivateHeader(new BattleActionHeaderReference(0));
-        BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 90, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [1, 0, 0, 0, 0, 0, 0, 0]);
+        BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 90, true, 0, "party0", new(0, 0, 1, 0, 0, null), new(2, 0), [1, 0, 0, 0, 0, 0, 0, 0]);
         BattleDiagnosticCounterPrimary primary = new(1, 11, "party0", 0, "enemy0", 3, 1, 0, 1, 100, 90, 0, 1, recipient, false);
         return new(primary, 0, false, packets.ExportRetained());
     }

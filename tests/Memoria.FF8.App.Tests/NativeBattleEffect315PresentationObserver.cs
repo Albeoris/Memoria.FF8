@@ -101,7 +101,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
                         Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, half.Recipient));
                         NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3);
                         Assert.Null(beforeCaster.ReadLinkedModel());
-                        uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!.Battle;
+                        uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 3).NativeStatus!.Battle;
                         NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, prior.ReadFixturePresentation().NativeGraphics!.ActorModels, current.Definition.NativeGraphics!.Rules, battleStatuses);
                         Assert.True(plan.Loaded);
                         Assert.Equal(plan.ImmediateStatusFlags, caster.Flags8);
@@ -161,7 +161,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
             detached = true;
             Mark("effect315-root-detached", current, cold);
         }
-        NativeBattleParticipantSnapshot recipient = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 4).NativeParticipant!;
+        NativeBattleParticipantSnapshot recipient = current.Combatants.Single(actor => actor.NativeParticipant!.OriginalSlot?.Offset == 4).NativeParticipant!;
         if (!recipient.Hidden && !recipient.Suspended && !recipient.Untargetable)
         {
             activated = true;

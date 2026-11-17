@@ -42,7 +42,7 @@ public static class DiagnosticInvocationReleaseValidation
         ValidateIdentity(certificate, focal, lifecycle);
         NativeBattleDescriptorPacket originalPacket = certificate.CompletionPacket!;
         NativeBattleDescriptorPacket focalPacket = release.CompletionPacket!;
-        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.TerminalTextures is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || !certificate.Header.Payload.AsSpan().SequenceEqual(release.Header.Payload.AsSpan()) || certificate.Header.UnknownByteMask != release.Header.UnknownByteMask || certificate.Header.FirstContactIndex != release.Header.FirstContactIndex || certificate.Header.Data != release.Header.Data || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
+        if (certificate.Boundary != BattleDiagnosticInvocationRelease.ExecutingBoundary || certificate.PacketRemoved || certificate.RemovedCompletionPacket is not null || certificate.ExecutingCompletion is not null || certificate.TerminalTextures is not null || certificate.Owners.DescriptorPackets != 1 || certificate.Blockers.IsEmpty || !HasOutstandingOwners(certificate.Owners, 1) || certificate.Callback != release.Callback || certificate.SimulationFrame != release.SimulationFrame || certificate.Timestamp > release.Timestamp || certificate.GraphicsCallback is not >= 0 || release.GraphicsCallback != certificate.GraphicsCallback + 1 || certificate.CompletionPacketSlot != release.CompletionPacketSlot || certificate.CompletionPacketSerial != release.CompletionPacketSerial || certificate.CompletionCallback != release.CompletionCallback || certificate.CompletionPacketArgument != release.CompletionPacketArgument || certificate.CompletionToken != release.CompletionToken || certificate.HeaderReference != release.HeaderReference || !SameOriginalHeader(certificate.Header, release.Header) || !originalPacket.Bytes.AsSpan().SequenceEqual(focalPacket.Bytes.AsSpan()) || originalPacket.UnknownByteMask != focalPacket.UnknownByteMask || originalPacket.PriorityState == 0)
         {
             throw new InvalidDataException("Deferred release changed its same-callback native event/header/packet certificate or retried across graphics frames.");
         }
@@ -65,7 +65,7 @@ public static class DiagnosticInvocationReleaseValidation
         if (hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed)
         {
             BattleDiagnosticNaturalVictory victory = proof.NaturalVictory ?? throw new InvalidDataException("Prospective terminal textures lack their actual native natural-victory witness.");
-            if (hold.Sequence != 0 || !hold.Receipts.IsEmpty || hold.HeldCallback is not null || hold.HeldFrame is not null || !victory.IsNaturalVictory || victory.LifecycleId != lifecycle || victory.Callback != release.Callback || victory.SimulationFrame != release.SimulationFrame || !victory.Combatants.Any(actor => actor.Id == focal.ActorId && actor.IsPlayer && actor.NativeIndex == focal.NativeActorIndex && actor.CurrentHp > 0 && (actor.SavedStatus & 5) == 0 && (actor.BattleStatus & 0x80010000) == 0))
+            if (hold.Sequence != 0 || !hold.Receipts.IsEmpty || hold.HeldCallback is not null || hold.HeldFrame is not null || !victory.IsNaturalVictory || victory.LifecycleId != lifecycle || victory.Callback != release.Callback || victory.SimulationFrame != release.SimulationFrame || !victory.Combatants.Any(actor => actor.Id == focal.ActorId && actor.IsPlayer && actor.NativeIndex == focal.NativeActorIndex && (focal.ActorSlot is null || actor.Slot == focal.ActorSlot) && actor.CurrentHp > 0 && (actor.SavedStatus & 5) == 0 && (actor.BattleStatus & 0x80010000) == 0))
             {
                 throw new InvalidDataException("Prospective terminal textures changed the pristine declaration or same-frame ordinary native victory facts.");
             }
@@ -83,7 +83,7 @@ public static class DiagnosticInvocationReleaseValidation
             }
         }
         DiagnosticTextureQuiescenceValidation.Validate(proof.Textures);
-        if (proof.Textures.Tasks.Any(task => task.ModelIndex != focal.NativeActorIndex))
+        if (proof.Textures.Tasks.Any(task => task.ModelIndex != focal.NativeActorIndex || (task.ModelActorId is null ? focal.NativeActorIndex is null : task.ModelActorId != focal.ActorId)))
         {
             throw new InvalidDataException("Standalone terminal textures cannot include a foreign model owner.");
         }
@@ -94,7 +94,7 @@ public static class DiagnosticInvocationReleaseValidation
         BattleDiagnosticTerminalHoldState hold = release.TerminalTextures?.Hold ?? throw new InvalidDataException("Terminal texture admission has no sealed main proof.");
         BattleDiagnosticEffectDispatch focal = release.Dispatch;
         bool prospective = hold.Phase == BattleDiagnosticTerminalHoldPhase.Armed;
-        if (admission is null || admission.Kind != "held" || admission.Candidate != BattleOutcome.Victory || admission.HoldId != hold.HoldId || admission.LifecycleId != release.LifecycleId || admission.Sequence != 1 || admission.Callback < 0 || admission.Frame < 0 || (prospective ? admission.Callback <= release.Callback || admission.Frame < release.SimulationFrame || admission.Callback - release.Callback > hold.Declaration.MaximumCallbacks : admission.Callback > release.Callback || admission.Frame > release.SimulationFrame) || admission.NativeResult is > 0 || admission.RestoreCount != 0 || admission.ResetCount != 0 || admission.Random is null || admission.Party is not { Length: 1 } || admission.Party[0] is not { } caster || caster.Id != focal.ActorId || caster.NativeIndex != focal.NativeActorIndex || caster.CurrentHp <= 0 || caster.CurrentHp > caster.MaximumHp || (caster.Statuses0 & 5) != 0 || (caster.Statuses1 & 0x80010000) != 0)
+        if (admission is null || admission.Kind != "held" || admission.Candidate != BattleOutcome.Victory || admission.HoldId != hold.HoldId || admission.LifecycleId != release.LifecycleId || admission.Sequence != 1 || admission.Callback < 0 || admission.Frame < 0 || (prospective ? admission.Callback <= release.Callback || admission.Frame < release.SimulationFrame || admission.Callback - release.Callback > hold.Declaration.MaximumCallbacks : admission.Callback > release.Callback || admission.Frame > release.SimulationFrame) || admission.NativeResult is > 0 || admission.RestoreCount != 0 || admission.ResetCount != 0 || admission.Random is null || admission.Party is not { Length: 1 } || admission.Party[0] is not { } caster || caster.Id != focal.ActorId || caster.NativeIndex != focal.NativeActorIndex || focal.ActorSlot is not null && caster.Slot != focal.ActorSlot || caster.CurrentHp <= 0 || caster.CurrentHp > caster.MaximumHp || (caster.Statuses0 & 5) != 0 || (caster.Statuses1 & 0x80010000) != 0)
         {
             throw new InvalidDataException("Standalone texture victory admission changed its genuine normal-pass held receipt or living caster.");
         }
@@ -105,17 +105,53 @@ public static class DiagnosticInvocationReleaseValidation
         ArgumentNullException.ThrowIfNull(release);
         ArgumentNullException.ThrowIfNull(focal);
         BattleDiagnosticEffectDispatch observed = release.Dispatch ?? throw new InvalidDataException("Focal release has no dispatch owner.");
-        if (lifecycle == Guid.Empty || release.LifecycleId != lifecycle || release.Callback <= focal.Callback || release.SimulationFrame < 0 || release.Timestamp <= 0 || observed != focal || focal.Serial <= 0 || focal.NativeHeaderIndex is not (>= 0 and < NativeBattleRetainedActionPackets.HeaderCapacity) || focal.NativeHeaderGeneration is not > 0 || focal.NativeActorIndex is not byte actor || release.EventActorIndex != actor || release.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120) || release.CompletionPacketSlot is < 0 or >= 30 || release.CompletionPacketArgument != release.CompletionCallback || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Blockers.IsDefault)
+        if (lifecycle == Guid.Empty || release.LifecycleId != lifecycle || release.Callback <= focal.Callback || release.SimulationFrame < 0 || release.Timestamp <= 0 || !DiagnosticEffectDispatchEvidence.Matches(observed, focal) || focal.Serial <= 0 || focal.NativeHeaderGeneration is not > 0 || !HasReleaseIdentity(release, focal) || release.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120) || release.CompletionPacketSlot is < 0 or >= 30 || release.CompletionPacketArgument != release.CompletionCallback || !release.NativeEventCompleted || !release.PresentationAcknowledged || !release.HeaderCapturedBeforeReset || !release.CurrentCompletionPacketGuaranteedRemoval || release.Blockers.IsDefault)
         {
             throw new InvalidDataException("Focal release lacks its exact native completed event, acknowledged header generation, dispatch or executing completion packet.");
         }
-        NativeBattleRetainedActionHeaderSlot header = release.Header ?? throw new InvalidDataException("Focal release has no pre-reset native header.");
         NativeBattleDescriptorPacket packet = release.CompletionPacket ?? throw new InvalidDataException("Focal release has no exact executing packet.");
-        if (header.Payload.IsDefault || header.Payload.Length != 20 || (header.UnknownByteMask & 0xF3) != 0 || header.ReadOriginalByte(0) != actor || header.ReadOriginalByte(1) != focal.NativeCommand || (header.ReadOriginalByte(4) | header.ReadOriginalByte(5) << 8) != focal.ActionId || (header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8) != focal.RequestedEffect || packet.Bytes.IsDefault || packet.Bytes.Length != 12 || (packet.UnknownByteMask & 0xFF) != 0 || packet.Serial != release.CompletionPacketSerial || packet.Command != 10 || packet.Argument != release.CompletionCallback || (packet.PriorityState & 15) != 0 || packet.PriorityState == 0)
+        if (!MatchesOriginalHeader(release.Header, focal) || packet.Bytes.IsDefault || packet.Bytes.Length != 12 || (packet.UnknownByteMask & 0xFF) != 0 || packet.Serial != release.CompletionPacketSerial || packet.Command != 10 || packet.Argument != release.CompletionCallback || (packet.PriorityState & 15) != 0 || packet.PriorityState == 0)
         {
             throw new InvalidDataException("Focal release header/descriptor bytes differ from their exact dispatch/current packet identities.");
         }
         ArgumentNullException.ThrowIfNull(release.Owners);
+    }
+
+    private static bool HasReleaseIdentity(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal)
+    {
+        if (release.EventActorIndex != focal.NativeActorIndex)
+        {
+            return false;
+        }
+        if (release.HeaderReference is null && focal.HeaderReference is null && release.CompletionToken == 0)
+        {
+            return focal.NativeActorIndex.HasValue && focal.NativeHeaderIndex is >= 0 and < NativeBattleRetainedActionPackets.HeaderCapacity;
+        }
+        return release.HeaderReference is { } current && current == focal.HeaderReference && release.EventSlot is { } slot && slot == focal.ActorSlot && release.CompletionToken > 0;
+    }
+
+    private static bool MatchesOriginalHeader(NativeBattleRetainedActionHeaderSlot? header, BattleDiagnosticEffectDispatch focal)
+    {
+        if (focal.NativeHeaderIndex is null)
+        {
+            return header is null;
+        }
+        if (header is null || focal.NativeHeaderIndex is < 0 or >= NativeBattleRetainedActionPackets.HeaderCapacity ||
+            focal.HeaderReference is { } reference && reference.Ordinal != focal.NativeHeaderIndex ||
+            header.Payload.IsDefault || header.Payload.Length != 20 || (header.UnknownByteMask & 0xF2) != 0)
+        {
+            return false;
+        }
+        byte? originalActor = (header.UnknownByteMask & 1) == 0 ? header.ReadOriginalByte(0) : null;
+        return originalActor == focal.NativeActorIndex && header.ReadOriginalByte(1) == focal.NativeCommand &&
+            (header.ReadOriginalByte(4) | header.ReadOriginalByte(5) << 8) == focal.ActionId &&
+            (header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8) == focal.RequestedEffect;
+    }
+
+    private static bool SameOriginalHeader(NativeBattleRetainedActionHeaderSlot? first, NativeBattleRetainedActionHeaderSlot? last)
+    {
+        return first is null ? last is null : last is not null && first.Payload.AsSpan().SequenceEqual(last.Payload.AsSpan()) &&
+            first.UnknownByteMask == last.UnknownByteMask && first.FirstContactIndex == last.FirstContactIndex && first.Data == last.Data;
     }
 
     private static bool HasOutstandingOwners(BattleDiagnosticInvocationOwners owners, int descriptors)

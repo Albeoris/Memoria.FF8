@@ -15,7 +15,7 @@ public sealed partial class BattlePresentationProcess
         string? actorId = header?.ReflectedCaster is { } caster ? ReadGraphicsPresentationId(caster) :
             effect.Parameters is { } parameters ? ReadGraphicsPresentationId(parameters.Source) : graphics.ActionActorId;
         int? index = OriginalDiagnosticHeaderIndex(effect.Parameters?.Header);
-        long? generation = index is int slot && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(slot, out long current) ? current : null;
+        long? generation = effect.Parameters is { } parametersWithHeader ? ReadDiagnosticCounterHeaderGeneration(parametersWithHeader.Header.Ordinal) : null;
         observe(this, new(effect, header, actorId, FrameCallback, OriginalDiagnosticSource(effect.Parameters),
             OriginalDiagnosticTargets(effect.Parameters), index, generation));
     }
