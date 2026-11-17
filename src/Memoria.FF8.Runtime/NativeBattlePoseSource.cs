@@ -1,10 +1,11 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Memoria.FF8.Runtime;
 
 public readonly record struct NativeBattleVector(short X, short Y, short Z);
-public sealed record NativeBattleBonePose(NativeBattleVector Rotation, NativeBattleVector Scale);
+public readonly record struct NativeBattleBonePose(NativeBattleVector Rotation, NativeBattleVector Scale);
 public sealed record NativeBattleDecodedPose(NativeBattleVector Translation, ImmutableArray<NativeBattleBonePose> Bones, bool HasScale);
 public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, ushort ByteOffset, ushort BitOffset);
 
@@ -75,14 +76,19 @@ public static class NativeBattlePoseDecoder
             throw new InvalidDataException("Native508F90 has an invalid current pose cursor.");
         }
         reader.SetBitPosition(checked((byteOffset - 1) * 8 + bitOffset));
-        NativeBattleDecodedPose pose = Apply(current, reader.Read(), false);
+        NativeBattleBonePose[] result = new NativeBattleBonePose[bones];
+        (NativeBattleVector translation, bool scaled) = reader.Read(result);
+        Apply(current.Bones.AsSpan(), result, result, 1);
+        NativeBattleDecodedPose pose = new(Add(current.Translation, translation, 1), ImmutableCollectionsMarshal.AsImmutableArray(result), scaled);
         return new(pose, checked((ushort)(1 + (reader.BitPosition >> 3))), checked((ushort)(reader.BitPosition & 7)));
     }
 
     public static NativeBattlePoseFirstFrame DecodeFirst509440(ReadOnlySpan<byte> section, int bones, int animation)
     {
         FrameReader reader = Open(section, bones, animation, out _);
-        NativeBattleDecodedPose pose = Apply(Empty(bones), reader.Read(), false);
+        NativeBattleBonePose[] result = new NativeBattleBonePose[bones];
+        (NativeBattleVector translation, bool scaled) = reader.Read(result);
+        NativeBattleDecodedPose pose = new(translation, ImmutableCollectionsMarshal.AsImmutableArray(result), scaled);
         return new(pose, checked((ushort)(1 + (reader.BitPosition >> 3))), checked((ushort)(reader.BitPosition & 7)));
     }
 
@@ -105,10 +111,16 @@ public static class NativeBattlePoseDecoder
         {
             FrameReader reader = Open(section, bones, animation, out byte frames);
             ImmutableArray<NativeBattleDecodedPose>.Builder poses = ImmutableArray.CreateBuilder<NativeBattleDecodedPose>(frames);
-            NativeBattleDecodedPose current = Empty(bones);
-            for (int frame = 0; frame < frames; frame++)
+            NativeBattleBonePose[] first = new NativeBattleBonePose[bones];
+            (NativeBattleVector translation, bool scaled) = reader.Read(first);
+            NativeBattleDecodedPose current = new(translation, ImmutableCollectionsMarshal.AsImmutableArray(first), scaled);
+            poses.Add(current);
+            for (int frame = 1; frame < frames; frame++)
             {
-                current = Apply(current, reader.Read(), false);
+                NativeBattleBonePose[] next = new NativeBattleBonePose[bones];
+                (translation, scaled) = reader.Read(next);
+                Apply(current.Bones.AsSpan(), next, next, 1);
+                current = new(Add(current.Translation, translation, 1), ImmutableCollectionsMarshal.AsImmutableArray(next), scaled);
                 poses.Add(current);
             }
             animations.Add(poses.MoveToImmutable());
@@ -124,19 +136,29 @@ public static class NativeBattlePoseDecoder
         {
             throw new InvalidDataException("Native pose frame counter exceeds its original animation.");
         }
-        NativeBattleDecodedPose current = Apply(Empty(bones), reader.Read(), false);
-        for (int decoded = 1; decoded < counter;)
+        NativeBattleBonePose[] result = new NativeBattleBonePose[bones];
+        (NativeBattleVector translation, bool scaled) = reader.Read(result);
+        if (counter > 1)
         {
-            NativeBattleDecodedPose delta = reader.Read();
-            current = Apply(current, delta, slow);
-            decoded++;
-            if (slow && decoded < counter)
+            const int stackBoneLimit = 64;
+            Span<NativeBattleBonePose> delta = bones <= stackBoneLimit ? stackalloc NativeBattleBonePose[bones] : new NativeBattleBonePose[bones];
+            int divisor = slow ? 2 : 1;
+            for (int decoded = 1; decoded < counter;)
             {
-                current = Apply(current, delta, true);
+                (NativeBattleVector offset, bool hasScale) = reader.Read(delta);
+                scaled = hasScale;
+                translation = Add(translation, offset, divisor);
+                Apply(result, delta, result, divisor);
                 decoded++;
+                if (slow && decoded < counter)
+                {
+                    translation = Add(translation, offset, divisor);
+                    Apply(result, delta, result, divisor);
+                    decoded++;
+                }
             }
         }
-        return current;
+        return new(translation, ImmutableCollectionsMarshal.AsImmutableArray(result), scaled);
     }
 
     private static int ReadCount(ReadOnlySpan<byte> section)
@@ -162,7 +184,7 @@ public static class NativeBattlePoseDecoder
         }
         int pointer = FramePointer(section, animation);
         frames = section[pointer];
-        return new(section[(pointer + 1)..], bones);
+        return new(section[(pointer + 1)..]);
     }
 
     private static int FramePointer(ReadOnlySpan<byte> section, int animation)
@@ -175,28 +197,31 @@ public static class NativeBattlePoseDecoder
         return pointer;
     }
 
-    private static NativeBattleDecodedPose Empty(int bones) => new(default, Enumerable.Repeat(new NativeBattleBonePose(default, new(1024, 1024, 1024)), bones).ToImmutableArray(), false);
-
-    private static NativeBattleDecodedPose Apply(NativeBattleDecodedPose current, NativeBattleDecodedPose delta, bool half)
+    private static NativeBattleVector Add(NativeBattleVector first, NativeBattleVector second, int divisor)
     {
-        NativeBattleVector Add(NativeBattleVector first, NativeBattleVector second)
+        return new(unchecked((short)(first.X + second.X / divisor)), unchecked((short)(first.Y + second.Y / divisor)), unchecked((short)(first.Z + second.Z / divisor)));
+    }
+
+    // The destination may alias one input. Each iteration reads both bones before publishing that index.
+    private static void Apply(ReadOnlySpan<NativeBattleBonePose> current, ReadOnlySpan<NativeBattleBonePose> delta, Span<NativeBattleBonePose> result, int divisor)
+    {
+        for (int index = 0; index < result.Length; index++)
         {
-            int divisor = half ? 2 : 1;
-            return new(unchecked((short)(first.X + second.X / divisor)), unchecked((short)(first.Y + second.Y / divisor)), unchecked((short)(first.Z + second.Z / divisor)));
+            result[index] = new(Add(current[index].Rotation, delta[index].Rotation, divisor), delta[index].Scale);
         }
-        return new(Add(current.Translation, delta.Translation), current.Bones.Select((bone, index) => new NativeBattleBonePose(Add(bone.Rotation, delta.Bones[index].Rotation), delta.Bones[index].Scale)).ToImmutableArray(), delta.HasScale);
     }
 
     private ref struct FrameReader
     {
+        private static ReadOnlySpan<byte> PositionWidths => [3, 6, 9, 16];
+        private static ReadOnlySpan<byte> RotationWidths => [3, 6, 8, 12];
+
         private readonly ReadOnlySpan<byte> data;
-        private readonly int bones;
         private int position;
 
-        public FrameReader(ReadOnlySpan<byte> data, int bones)
+        public FrameReader(ReadOnlySpan<byte> data)
         {
             this.data = data;
-            this.bones = bones;
         }
 
         public int BitPosition => position;
@@ -225,21 +250,20 @@ public static class NativeBattlePoseDecoder
         }
 
         private short Signed(int count) => unchecked((short)(ReadBits(count) << (32 - count) >> (32 - count)));
-        private short Position() => Signed(new[] { 3, 6, 9, 16 }[ReadBits(2)]);
-        private short Rotation() => ReadBits(1) == 0 ? (short)0 : Signed(new[] { 3, 6, 8, 12 }[ReadBits(2)]);
+        private short Position() => Signed(PositionWidths[ReadBits(2)]);
+        private short Rotation() => ReadBits(1) == 0 ? (short)0 : Signed(RotationWidths[ReadBits(2)]);
         private short Scale() => ReadBits(1) == 0 ? (short)1024 : unchecked((short)(Signed(16) + 1024));
 
-        public NativeBattleDecodedPose Read()
+        public (NativeBattleVector Translation, bool Scaled) Read(scoped Span<NativeBattleBonePose> result)
         {
             NativeBattleVector translation = new(Position(), Position(), Position());
             bool scaled = ReadBits(1) != 0;
-            ImmutableArray<NativeBattleBonePose>.Builder result = ImmutableArray.CreateBuilder<NativeBattleBonePose>(bones);
-            for (int bone = 0; bone < bones; bone++)
+            for (int bone = 0; bone < result.Length; bone++)
             {
                 NativeBattleVector rotation = new(Rotation(), Rotation(), Rotation());
-                result.Add(new(rotation, scaled ? new(Scale(), Scale(), Scale()) : new(1024, 1024, 1024)));
+                result[bone] = new(rotation, scaled ? new(Scale(), Scale(), Scale()) : new(1024, 1024, 1024));
             }
-            return new(translation, result.MoveToImmutable(), scaled);
+            return (translation, scaled);
         }
     }
 }

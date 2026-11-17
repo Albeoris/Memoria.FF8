@@ -286,7 +286,7 @@ public sealed partial class BattleRenderer
             }
             if (textured && foreignSurface is null)
             {
-                bool affine = pilotProjection is null || !perspective;
+                bool affine = activePilotInterval is null || !perspective;
                 for (int corner = 0; corner < (quad ? 4 : 3); corner++)
                 {
                     affine &= projected[corner].ReciprocalW == 1;

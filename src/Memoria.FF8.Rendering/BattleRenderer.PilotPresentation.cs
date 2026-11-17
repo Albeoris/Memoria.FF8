@@ -148,7 +148,7 @@ public sealed partial class BattleRenderer
 
     private NativeBattlePilotInterval? pilotInterval;
     private NativeBattlePilotInterval? activePilotInterval;
-    private NativeBattleCameraProjection? pilotProjection;
+    private NativeBattlePilotProjector pilotProjector;
     private float pilotAlpha;
     public string? LastPilotFallbackReason { get; private set; }
     public int LastPilotFallbackCount { get; private set; }
@@ -246,7 +246,8 @@ public sealed partial class BattleRenderer
         }
         try
         {
-            pilotProjection = NativeBattlePilotVisualGeometry.SampleProjection(earlier.PilotProjection!, later.PilotProjection!, earlier.PilotCamera!, later.PilotCamera!, pilotAlpha);
+            NativeBattleCameraProjection projection = NativeBattlePilotVisualGeometry.SampleProjection(earlier.PilotProjection!, later.PilotProjection!, earlier.PilotCamera!, later.PilotCamera!, pilotAlpha);
+            pilotProjector = NativeBattlePilotVisualGeometry.PrepareProjector(projection);
             NativeBattlePilotInterval interval = pilotInterval!;
             interval.PrepareLaterGeometry();
             activePilotInterval = interval;
@@ -254,7 +255,7 @@ public sealed partial class BattleRenderer
         }
         finally
         {
-            pilotProjection = null;
+            pilotProjector = default;
             NativeBattlePilotInterval? retired = activePilotInterval;
             activePilotInterval = null;
             if (retired is not null && !ReferenceEquals(retired, pilotInterval))
@@ -264,37 +265,36 @@ public sealed partial class BattleRenderer
         }
     }
 
-    private readonly record struct NativeBattlePilotPrimitiveSample(NativeBattleCameraProjection? Projection, NativeBattlePilotGeometryReference Earlier, NativeBattlePilotCornerSampler Corners, NativeBattlePrimitiveDrawMode Mode, ushort Flags, float? BucketDepth, bool Perspective, float VertexWeight, float BucketMix, float CoordinateScale, bool ScreenSpace);
+    private readonly record struct NativeBattlePilotPrimitiveSample(bool IsActive, NativeBattlePilotGeometryReference Earlier, NativeBattlePilotCornerSampler Corners, NativeBattlePrimitiveDrawMode Mode, ushort Flags, float? BucketDepth, bool Perspective, float VertexWeight, float BucketMix, float CoordinateScale, bool ScreenSpace, ushort? FocalOverride);
 
     private NativeBattlePilotPrimitiveSample PreparePilotPrimitiveSample(in NativeBattleLogicalCommandView command, NativeBattlePrimitiveDrawMode mode, NativeBattlePrimitiveDepthState depthState, bool perspective)
     {
-        if (pilotProjection is null || command.Pilot is not { IsEmpty: false } earlier)
+        if (activePilotInterval is not { } interval || command.Pilot is not { IsEmpty: false } earlier)
         {
             return default;
         }
-        NativeBattlePilotCornerSampler corners = earlier.Continuous && activePilotInterval!.TryGetLaterGeometry(earlier.Identity, out NativeBattlePilotGeometryReference later) && later.Continuous && earlier.CornerCount == later.CornerCount
+        NativeBattlePilotCornerSampler corners = earlier.Continuous && interval.TryGetLaterGeometry(earlier.Identity, out NativeBattlePilotGeometryReference later) && later.Continuous && earlier.CornerCount == later.CornerCount
             ? NativeBattlePilotVisualGeometry.PrepareCornerSampling(earlier, later, pilotAlpha)
             : NativeBattlePilotVisualGeometry.PrepareCornerSampling(earlier, earlier, 0);
-        NativeBattleCameraProjection projection = earlier.FocalLengthOverride is ushort focal ? pilotProjection with { FocalLength = focal } : pilotProjection;
         float vertexWeight = perspective ? (float)((depthState.RemainingWeight < 0.99999999 ? depthState.RemainingWeight : (double)depthState.RemainingWeight - NativeBattlePrimitiveDepthState.DepthBias) / 65536) : 0;
         ushort flags = command.Flags20;
         float coordinateScale = (flags & 1) != 0 ? 0.125f : 1;
         float step = Math.Max((float)(0.9985 / (2 * NativeBattlePrimitiveOrdering.BattleTableLength)), 1f / 65536);
         float? bucketDepth = command.OrderingBucket is int bucket ? bucket * step : null;
-        return new(projection, earlier, corners, mode, flags, bucketDepth, perspective, vertexWeight, depthState.BucketMix, coordinateScale, earlier.ScreenSpace);
+        return new(true, earlier, corners, mode, flags, bucketDepth, perspective, vertexWeight, depthState.BucketMix, coordinateScale, earlier.ScreenSpace, earlier.FocalLengthOverride);
     }
 
     private bool TrySamplePilotCorner(in NativeBattlePilotPrimitiveSample sample, int corner, out Vector2 position, out NativeBattlePrimitiveDepthVertex depthVertex)
     {
         position = default;
         depthVertex = default;
-        if (sample.Projection is not { } projection)
+        if (!sample.IsActive)
         {
             return false;
         }
         NativeBattlePilotGeometryReference earlier = sample.Earlier;
         Vector3 world = sample.Corners.SampleCorner(corner);
-        Vector3 projected = sample.ScreenSpace ? world : NativeBattlePilotVisualGeometry.Project(world, projection);
+        Vector3 projected = sample.ScreenSpace ? world : pilotProjector.Project(world, sample.FocalOverride);
         if (earlier.ProjectionScreenBounds is { } bounds)
         {
             projected.X = Math.Clamp(projected.X, bounds.X, bounds.Z);

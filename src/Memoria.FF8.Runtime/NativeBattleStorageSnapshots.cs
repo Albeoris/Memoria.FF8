@@ -509,6 +509,7 @@ internal abstract class NativeBattleStorageContext
     }
 
     private static bool IsLeaf(Type type) => type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) || type == typeof(Guid) || typeof(Type).IsAssignableFrom(type) ||
+        type == typeof(NativeBattleBonePose) ||
         // Published packet slices contain only unmanaged values on permanently retained pages.
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(NativeBattleImmutableSlice<>);
 

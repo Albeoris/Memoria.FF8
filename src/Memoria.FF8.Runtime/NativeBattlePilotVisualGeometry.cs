@@ -178,10 +178,13 @@ public sealed record NativeBattlePilotVisualGeometry(NativeBattlePilotVisualIden
     /// <summary>Returns eighth-pixel XY and unclamped camera depth; material and native admission remain discrete.</summary>
     public static Vector3 Project(Vector3 world, NativeBattleCameraProjection projection)
     {
-        Vector3 camera = Vector3.Transform(world, ViewMatrix(projection.View ?? throw new InvalidOperationException("Pilot projection requires a native view.")));
-        float h = projection.FocalLength ?? throw new InvalidOperationException("Pilot projection requires native H.");
-        float factor = h / Math.Max(camera.Z, h / 2);
-        return new(camera.X * factor * 8 + (projection.OffsetX ?? 160) * 8, camera.Y * factor * 8 + (projection.OffsetY ?? 108) * 8, camera.Z);
+        return PrepareProjector(projection).Project(world);
+    }
+
+    public static NativeBattlePilotProjector PrepareProjector(NativeBattleCameraProjection projection)
+    {
+        Matrix4x4 view = ViewMatrix(projection.View ?? throw new InvalidOperationException("Pilot projection requires a native view."));
+        return new(view, projection.FocalLength, projection.OffsetX ?? 160, projection.OffsetY ?? 108);
     }
 
     public static NativeBattleCameraPose SampleCamera(NativeBattleCameraPose earlier, NativeBattleCameraPose later, float alpha)

@@ -112,6 +112,43 @@ public sealed class BattlePilotPresentationTests
     }
 
     [Theory]
+    [InlineData(false, (ushort)50, 165f)]
+    [InlineData(false, (ushort)0, null)]
+    [InlineData(true, (ushort)50, 170f)]
+    public void Renderer_projects_world_corners_with_their_focal_override_and_bypasses_screen_space(bool screenSpace, ushort focalOverride, float? expectedX)
+    {
+        Capture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattlePreparedPresentation first = Prepare(Frame(1, 0));
+        NativeBattlePreparedPresentation second = Prepare(Frame(2, 20));
+
+        renderer.RenderNativePilotPrimitiveFrame(first, second, 0.5f);
+
+        if (expectedX is float x)
+        {
+            Assert.Equal(x, capture.Vertices[0].Position.X, 3);
+            Assert.Equal(108, capture.Vertices[0].Position.Y, 3);
+        }
+        else
+        {
+            Assert.Empty(capture.Vertices);
+        }
+
+        NativeBattlePreparedPresentation Prepare(NativeBattlePreparedPresentation frame)
+        {
+            NativeBattleLogicalResolvedCommand resolved = frame.Primitives.LastCommands[0];
+            NativeBattlePilotVisualGeometry original = resolved.Command.PilotGeometry!;
+            NativeBattlePilotVisualGeometry geometry = original with { A = Corner(original.A), B = Corner(original.B), C = Corner(original.C), ScreenSpace = screenSpace, FocalLengthOverride = focalOverride };
+            return frame with { Primitives = frame.Primitives with { LastCommands = [resolved with { Command = resolved.Command.ToCommand() with { PilotGeometry = geometry } }] } };
+        }
+
+        Vector3 Corner(Vector3 world)
+        {
+            return screenSpace ? new((160 + world.X) * 8, (108 + world.Y) * 8, world.Z) : world;
+        }
+    }
+
+    [Theory]
     [InlineData((ushort)2)]
     [InlineData((ushort)3)]
     [InlineData((ushort)144)]

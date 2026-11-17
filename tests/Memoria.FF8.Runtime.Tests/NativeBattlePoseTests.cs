@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -144,6 +146,134 @@ public sealed class NativeBattlePoseTests
         Assert.Equal(small.Pose.Translation, first.Pose.Translation);
         Assert.Equal(small.Pose.Bones, first.Pose.Bones);
         Assert.Throws<InvalidDataException>(() => NativeBattlePoseDecoder.DecodeFirst509440(large, 2, 0));
+    }
+
+    [Theory]
+    [InlineData(64)]
+    [InlineData(128)]
+    public void Differential_pose_preserves_owned_rows_wrap_scale_and_cursor(int bones)
+    {
+        byte[] section = ScaledSection(bones);
+        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(section, bones, 0);
+        NativeBattlePoseFirstFrame next = NativeBattlePoseDecoder.AdvanceRegular508F90(section, bones, 0, first.Pose, first.ByteOffset, first.BitOffset);
+        NativeBattleDecodedPose half = NativeBattlePoseDecoder.Sample(section, bones, 0, 2, slow: true);
+        NativeBattleDecodedPose bothHalves = NativeBattlePoseDecoder.Sample(section, bones, 0, 3, slow: true);
+        ImmutableArray<NativeBattleDecodedPose> frames = NativeBattlePoseDecoder.DecodeFrames(section, bones)[0];
+
+        Assert.Equal(7 + 10 * bones, first.ByteOffset);
+        Assert.Equal(7, first.BitOffset);
+        int finalBits = 110 + 125 * bones;
+        Assert.Equal(1 + (finalBits >> 3), next.ByteOffset);
+        Assert.Equal(finalBits & 7, next.BitOffset);
+        Assert.Equal(new NativeBattleVector(32767, -32768, 5), first.Pose.Translation);
+        Assert.Equal(new NativeBattleVector(-32766, 32765, 6), next.Pose.Translation);
+        Assert.Equal(new NativeBattleVector(-32768, 32767, 5), half.Translation);
+        Assert.Equal(new NativeBattleVector(-32767, 32766, 5), bothHalves.Translation);
+        Assert.True(first.Pose.HasScale);
+        Assert.False(next.Pose.HasScale);
+        Assert.False(half.HasScale);
+        Assert.Equal(new NativeBattleBonePose(new(2047, -2048, 3), new(1300, -300, 1024)), first.Pose.Bones[^1]);
+        Assert.Equal(new NativeBattleBonePose(new(2050, -2051, 4), new(1024, 1024, 1024)), next.Pose.Bones[^1]);
+        Assert.Equal(new NativeBattleBonePose(new(2049, -2050, 3), new(1024, 1024, 1024)), bothHalves.Bones[^1]);
+        Assert.Equal(first.Pose.Bones, frames[0].Bones);
+        Assert.Equal(next.Pose.Bones, frames[1].Bones);
+        Assert.NotSame(ImmutableCollectionsMarshal.AsArray(frames[0].Bones), ImmutableCollectionsMarshal.AsArray(frames[1].Bones));
+
+        NativeBattleDecodedPose fork = NativeBattleStorageSnapshots.Fork(first.Pose);
+        Assert.Same(ImmutableCollectionsMarshal.AsArray(first.Pose.Bones), ImmutableCollectionsMarshal.AsArray(fork.Bones));
+        string json = JsonSerializer.Serialize(first.Pose);
+        NativeBattleDecodedPose restored = JsonSerializer.Deserialize<NativeBattleDecodedPose>(json)!;
+        Assert.Equal(first.Pose.Bones, restored.Bones);
+        using JsonDocument fields = JsonDocument.Parse(json);
+        Assert.Equal(1300, fields.RootElement.GetProperty("Bones")[0].GetProperty("Scale").GetProperty("X").GetInt32());
+        Assert.Throws<InvalidDataException>(() => NativeBattlePoseDecoder.AdvanceRegular508F90(section.AsSpan(0, section.Length - 1), bones, 0, first.Pose, first.ByteOffset, first.BitOffset));
+        Array.Clear(section);
+        Assert.Equal(new NativeBattleVector(1300, -300, 1024), fork.Bones[^1].Scale);
+    }
+
+    [Fact]
+    public void Regular_advance_allocates_only_the_retained_pose_bone_array_and_result_owners()
+    {
+        const int bones = 64;
+        const int repetitions = 128;
+        byte[] section = ScaledSection(bones);
+        NativeBattlePoseFirstFrame first = NativeBattlePoseDecoder.DecodeFirst509440(section, bones, 0);
+        _ = Advance();
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int step = 0; step < repetitions; step++)
+        {
+            GC.KeepAlive(Advance());
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        const int posePayload = bones * 12;
+        Assert.InRange(allocated, repetitions * posePayload, repetitions * (posePayload + 128));
+
+        NativeBattlePoseFirstFrame Advance()
+        {
+            return NativeBattlePoseDecoder.AdvanceRegular508F90(section, bones, 0, first.Pose, first.ByteOffset, first.BitOffset);
+        }
+    }
+
+    private static byte[] ScaledSection(int bones)
+    {
+        List<int> bits = [];
+        Frame(new(32767, -32768, 5), new(2047, -2048, 3), scaled: true);
+        Frame(new(3, -3, 1), new(3, -3, 1), scaled: false);
+
+        byte[] section = new byte[9 + (bits.Count + 7) / 8];
+        BinaryPrimitives.WriteInt32LittleEndian(section, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(section.AsSpan(4), 8);
+        section[8] = 2;
+        for (int index = 0; index < bits.Count; index++)
+        {
+            section[9 + index / 8] |= (byte)(bits[index] << (index & 7));
+        }
+        return section;
+
+        void Write(int value, int count)
+        {
+            for (int bit = 0; bit < count; bit++)
+            {
+                bits.Add((value >> bit) & 1);
+            }
+        }
+
+        void Frame(NativeBattleVector translation, NativeBattleVector rotation, bool scaled)
+        {
+            Position(translation.X);
+            Position(translation.Y);
+            Position(translation.Z);
+            Write(scaled ? 1 : 0, 1);
+            for (int bone = 0; bone < bones; bone++)
+            {
+                Rotation(rotation.X);
+                Rotation(rotation.Y);
+                Rotation(rotation.Z);
+                if (scaled)
+                {
+                    Write(1, 1);
+                    Write(276, 16);
+                    Write(1, 1);
+                    Write(-1324, 16);
+                    Write(0, 1);
+                }
+            }
+        }
+
+        void Position(short value)
+        {
+            Write(3, 2);
+            Write(value, 16);
+        }
+
+        void Rotation(short value)
+        {
+            Write(1, 1);
+            Write(3, 2);
+            Write(value, 12);
+        }
     }
 
     private static NativeBattlePoseSource Source()
