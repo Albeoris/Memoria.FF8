@@ -4,6 +4,49 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7Session
 {
+    internal string ReadSpatialAdviceFingerprint()
+    {
+        Ff7Actor player = Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        byte[] facts = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { Host.Process.Lines, Actors = Host.Process.Actors.Select(actor => new { actor.Entity, actor.EntityBound }), player.CollisionRadius, AdviceAvailable = IsSpatialAdviceHostAvailable(), CanScope = CanScopeNavigationControlEntries(Host.Process.Actors, Host.HasScriptedMotion) });
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(facts));
+    }
+
+    private bool IsSpatialAdviceHostAvailable()
+    {
+        return World is null && Battle is null && !HasPendingTick && Host.Process.GlobalCommand == Ff7GlobalCommand.None && Host.Process.Menu is not { Completed: false };
+    }
+
+    internal FieldSpatialAdviceContext? ReadSpatialAdviceContext(IReadOnlyList<FieldSpatialSample>? samples = null)
+    {
+        if (!IsSpatialAdviceHostAvailable())
+        {
+            return null;
+        }
+        HashSet<FieldNavigationEntryPoint> entries = [];
+        foreach (Ff7Actor actor in Host.Process.Actors.Where(actor => actor.EntityBound && actor.Entity >= 0))
+        {
+            entries.Add(new(actor.Entity, 2));
+        }
+        foreach (Ff7Line line in Host.Process.Lines)
+        {
+            for (int script = 2; script <= 6; script++)
+            {
+                entries.Add(new(line.Entity, script));
+            }
+            if (line.Talk)
+            {
+                entries.Add(new(line.Entity, 1));
+            }
+        }
+        if (samples is null || !CanScopeNavigationControlEntries(Host.Process.Actors, Host.HasScriptedMotion))
+        {
+            return new(navigationExternalWrites, entries.ToArray());
+        }
+        Ff7Actor player = Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Dictionary<int, FieldNavigationEntryPoint[]> sampledEntries = samples.ToDictionary(sample => sample.Id, sample => ReadNavigationControlEntries(player with { X4096 = sample.Position.X << 12, Y4096 = sample.Position.Y << 12, Z4096 = sample.Position.Z << 12, Triangle = sample.Position.Triangle }, Host.Process.Actors, Host.Process.Lines, entries));
+        return new(navigationExternalWrites, entries.ToArray()) { SampleEntries = sampledEntries, FixedPlayerEntity = player.Entity };
+    }
+
     // Ordinary field publications outside the VM: clocks, party/materia flags,
     // encounter counters and the player-help toggle. These are clobbers, not
     // assumptions about which banks contain stable progress.

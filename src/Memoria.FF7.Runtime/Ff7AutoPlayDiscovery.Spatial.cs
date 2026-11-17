@@ -17,7 +17,8 @@ public sealed partial class Ff7AutoPlayDiscovery
             return;
         }
         FieldSpatialRandomDomain randomDomain = session.ReadSpatialRandomDomain();
-        string Source(FieldVariableRead[] reads) => $"{session.FieldGeneration}:{player.Entity}:{session.Machine.ReadScriptAnalysisAllocationFingerprint()}:{session.Machine.ReadSpatialExecutionFingerprint()}:{session.Machine.ReadScriptAnalysisFingerprint(player.Entity, 0, reads)}:{randomDomain.Fingerprint}";
+        string adviceSource = session.ReadSpatialAdviceFingerprint();
+        string Source(FieldVariableRead[] reads) => $"{session.FieldGeneration}:{player.Entity}:{session.Machine.ReadScriptAnalysisAllocationFingerprint()}:{session.Machine.ReadSpatialExecutionFingerprint()}:{session.Machine.ReadScriptAnalysisFingerprint(player.Entity, 0, reads)}:{randomDomain.Fingerprint}:{adviceSource}";
         if (spatialObservation is null || spatialSource != Source(spatialObservation.Reads))
         {
             FieldSpatialSample[] samples = session.Field.Walkmesh.Select(triangle =>
@@ -25,7 +26,7 @@ public sealed partial class Ff7AutoPlayDiscovery
                 var point = (triangle.A + triangle.B + triangle.C) / 3;
                 return new FieldSpatialSample(triangle.Index, new(checked((short)point.X), checked((short)point.Y), checked((short)point.Z), checked((short)triangle.Index)));
             }).ToArray();
-            spatialObservation = session.Machine.ReadCurrentSpatialDemands(player.Entity, samples, randomDomain: randomDomain);
+            spatialObservation = session.Machine.ReadCurrentSpatialDemands(player.Entity, samples, randomDomain: randomDomain, adviceContext: session.ReadSpatialAdviceContext(samples));
             spatialSource = Source(spatialObservation.Reads);
         }
         persistentReads.UnionWith(spatialObservation.Reads.Where(read => read.Bank is not (FieldBank.Immediate or FieldBank.MapByte or FieldBank.MapWord)));
@@ -39,6 +40,7 @@ public sealed partial class Ff7AutoPlayDiscovery
             bool effectComplete = demand.DirectEffectOwner is not { ExitProgramCounters.Length: 0 };
             string inputContract = demand.InputGuards.Length == 0 ? string.Empty : $":input:{SpatialInputGuardSignature(demand.InputGuards)}";
             Ff7AutoPlayTarget target = new($"spatial:{demand.Entity}:{demand.ProgramCounter:X4}:{owner}triangle:{demand.SampleId}{inputContract}", demand.Entity, -1, Ff7AutoPlayTargetKind.AutonomousSpatial, CombineConditionFingerprints(demand.Fingerprint, external.Fingerprint), demand.ChangesStory, (triangle.A + triangle.B + triangle.C) / 3, Triangle: triangle.Index, DestinationField: destination, AnalysisComplete: external.Complete && effectComplete, SupportReason: effectComplete ? external.Reason : "The direct native spatial effect has no proved completion instruction.", MayChangeNavigation: demand.MayChangeNavigation, ChangesField: demand.DestinationFields.Length > 0) { SpatialOwner = demand.TargetScript < 0 ? null : new(demand.ProgramCounter, demand.TargetEntity, demand.TargetScript, demand.RequestPriority, demand.RequestMode, demand.SourcePriority), SpatialDestinations = demand.DestinationFields, TriangleOnly = demand.TriangleOnly, SpatialInputGuards = demand.InputGuards, SpatialSourceProgramCounter = demand.ProgramCounter, DirectEffectOwner = demand.DirectEffectOwner };
+            target = target with { PlanningDestinationFields = demand.PlanningDestinationFields };
             Ff7AutoPlayTarget? duplicate = targets.SingleOrDefault(existing => existing.Id == target.Id);
             if (duplicate is null)
             {

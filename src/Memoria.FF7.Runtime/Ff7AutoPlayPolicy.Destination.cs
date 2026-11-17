@@ -22,7 +22,7 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return null;
         }
-        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false).ToArray();
+        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && TargetDestinations(target).Contains(destination) && CanRequestFieldTravel(state, observation, target) && canSelect?.Invoke(target) != false).ToArray();
         Ff7AutoPlayTarget? selected = candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
             ?? candidates.FirstOrDefault(target => target.DestinationField == destination)
             ?? candidates.FirstOrDefault();
@@ -155,7 +155,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private static IEnumerable<int> TargetDestinations(Ff7AutoPlayTarget target)
     {
-        return (target.DestinationField is int field ? new[] { field } : []).Concat(target.PossibleDestinationFields).Concat(target.SpatialDestinations ?? []).Distinct();
+        return target.PlanningDestinationFields ?? (target.DestinationField is int field ? new[] { field } : []).Concat(target.PossibleDestinationFields).Concat(target.SpatialDestinations ?? []).Distinct();
     }
 
     private static bool CanRequestFieldTravel(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)

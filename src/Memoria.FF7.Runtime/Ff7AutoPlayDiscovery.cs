@@ -27,6 +27,7 @@ public sealed record Ff7AutoPlayTarget(string Id, int Entity, int Script, Ff7Aut
     public int[]? SpatialDestinations { get; init; }
     /// <summary>Analyzed possible field destinations for planning; does not establish transition ownership or completion.</summary>
     public int[] PossibleDestinationFields { get; init; } = [];
+    public int[]? PlanningDestinationFields { get; init; }
     /// <summary>Possible native triangle-unblock effects for planning; execution and availability remain authoritative.</summary>
     public int[] UnblockedTriangles { get; init; } = [];
     public bool TriangleOnly { get; init; }

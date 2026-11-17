@@ -60,6 +60,8 @@ public sealed partial class FieldMachine
 
     private sealed class NavigationInvariantInspection(NavigationByteDomains domains, IReadOnlySet<FieldNavigationEntryPoint> coveredEntries)
     {
+        public bool RestrictPartyRecipientsToCurrentAllocation { get; init; }
+        public bool MayChangePartyAllocation { get; set; }
         public NavigationByteDomains Domains { get; } = domains;
         public HashSet<FieldVariableRead> Writes { get; } = [];
         public HashSet<FieldVariableRead> AssumedReads { get; } = [];
@@ -240,7 +242,7 @@ public sealed partial class FieldMachine
                             throw new InvalidDataException("Party request targets an invalid script-party slot.");
                         }
                         reads.Add(new(FieldBank.Persistent1Byte, (ushort)(9 + target), false));
-                        if (navigationInvariant is not null)
+                        if (navigationInvariant is not null && (!navigationInvariant.RestrictPartyRecipientsToCurrentAllocation || navigationInvariant.MayChangePartyAllocation || !navigationInvariant.Domains.IsSingleton(new(FieldBank.Persistent1Byte, (ushort)(9 + target), false))))
                         {
                             // A producer can change either script-party storage or model registration.
                             // Include every recipient rather than assuming the captured allocation persists.
@@ -400,10 +402,14 @@ public sealed partial class FieldMachine
                 }
                 foreach (FieldCommand command in detached.inspection.Commands)
                 {
+                    if (navigationInvariant is not null && command is FieldActorBind or FieldPartyCharacter or FieldPartyJoin or FieldPartySplit or FieldActorProperty { Property: FieldActorPropertyKind.PlayerCharacter })
+                    {
+                        navigationInvariant.MayChangePartyAllocation = true;
+                    }
                     navigationInvariant?.Commands.Add((owner, command));
                     if (navigationInvariant is not null && !navigationInvariant.CoversAllocation(owner, command))
                     {
-                        throw new NotSupportedException("A producer can change the external script-trigger allocation.");
+                        throw new NotSupportedException($"A producer can change the external script-trigger allocation through {command.GetType().Name}.");
                     }
                     if (exitBoundaries is not null && command is FieldControlCommand control && control.Property is FieldControlKind.PlayerLocked or FieldControlKind.MenuDisabled)
                     {

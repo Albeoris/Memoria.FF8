@@ -22,6 +22,7 @@ internal static class NativeSpatialInputTests
         SpatialInputBounds();
         SharedPhysicalAliasesAndDirectEffects();
         AutonomousBodyExitProofs();
+        SampledChildDestinationAdvice();
         Console.WriteLine("PASS native read-only autonomous spatial demands");
     }
 
@@ -403,6 +404,87 @@ internal static class NativeSpatialInputTests
         Check(!missing.AnalyzeScriptAtProgramCounter(3, missingEntry + 12, exitBoundaries: new HashSet<int> { missingEntry }, acquiredControls: acquired).ExitProgramCounters.Contains(missingEntry + 39), "A physical poll completed an effect while its menu control domain remained owned.");
         (_, FieldMachine incoming, _, int incomingEntry) = SharedSource(producer, body: DirectBody(unsafeIncomingPath: true));
         Check(!incoming.AnalyzeScriptAtProgramCounter(3, incomingEntry + 12, exitBoundaries: new HashSet<int> { incomingEntry }, acquiredControls: acquired).ExitProgramCounters.Contains(incomingEntry + 39), "One returned-control path hid another incoming path retaining control at the same physical poll.");
+    }
+
+    private static void SampledChildDestinationAdvice()
+    {
+        byte[] parent = [0xB9, 6, 1, 7, 0x16, 0x60, 7, 0, 1, 0, 4, 4, 0x03, 1, 0x44, 0];
+        byte[] selector = [0x16, 0x60, 7, 0, 20, 0, 4, 12, .. Transition(99), .. Transition(100)];
+        FieldSpatialAdviceContext context = new([], []) { FixedPlayerEntity = 1 };
+        (FieldProgram program, FieldMachine machine, RejectHost host) = Create(parent, [0x33, 1, .. selector]);
+        string before = JsonSerializer.Serialize(machine.Capture());
+        FieldSpatialObservation observed = machine.ReadCurrentSpatialDemands(1, Samples, adviceContext: context);
+        Check(observed.Demands.All(demand => demand.DestinationFields.SequenceEqual([99, 100])), "Sample advice replaced the all-branch native support contract.");
+        Check(observed.Demands.Single(demand => demand.SampleId == 10).PlanningDestinationFields?.SequenceEqual([100]) == true && observed.Demands.Single(demand => demand.SampleId == 20).PlanningDestinationFields?.SequenceEqual([99]) == true, "The synchronous child lost its parent-produced sampled triangle selector.");
+        Check(before == JsonSerializer.Serialize(machine.Capture()) && host.Calls == 0 && JsonSerializer.Serialize(observed) == JsonSerializer.Serialize(FieldMachine.Restore(program, machine.Capture(), host).ReadCurrentSpatialDemands(1, Samples, adviceContext: context)), "Sample destination advice advanced a live source/host or changed after cold restore.");
+        (_, FieldMachine unknownMap, _) = Create(parent, [0x33, 1, 0x16, 0x60, 40, 0, 20, 0, 4, 12, .. Transition(99), .. Transition(100)]);
+        unknownMap.Variables.WriteWord(FieldBank.MapWord, 40, 26);
+        Check(unknownMap.ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands.All(demand => demand.PlanningDestinationFields?.SequenceEqual([99, 100]) == true), "An unrelated captured map local became a stable child-entry fact.");
+        (_, FieldMachine clobbered, _) = Create(parent, [0x33, 1, 0x80, 0x50, 7, 26, .. selector]);
+        Check(clobbered.ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands.All(demand => demand.PlanningDestinationFields is null || demand.PlanningDestinationFields.SequenceEqual([99, 100])), "A child write to a sampled WORD alias retained a stale exact selector.");
+        (_, FieldMachine asynchronous, _) = Create(parent.Select((value, index) => index == 12 ? (byte)2 : value).ToArray(), [0x33, 1, .. selector]);
+        Check(asynchronous.ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands.All(demand => demand.PlanningDestinationFields is null), "A started-only request suspended its producer for sample advice.");
+        (_, FieldMachine unlocking, _) = Create(parent, [0x33, 1, 0x33, 0, .. selector]);
+        Check(unlocking.ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands.All(demand => demand.PlanningDestinationFields is null), "A child unlock retained a scoped free-input LINE publication horizon.");
+
+        foreach (bool external in new[] { false, true })
+        {
+            byte[] child = [0x33, 1, 0x03, 2, 0x44, .. selector];
+            ushort childEntry = checked((ushort)(parent.Length + 2));
+            ushort writerEntry = checked((ushort)(childEntry + child.Length));
+            ushort[] targetEntries = new ushort[32];
+            targetEntries[4] = childEntry;
+            ushort[] writerEntries = new ushort[32];
+            writerEntries[4] = writerEntry;
+            FieldProgram transitive = new([0, .. parent, 0, .. child, 0x80, 0x50, 7, 26, 0], [new ushort[32], targetEntries, writerEntries]);
+            FieldMachine initialized = new(transitive);
+            initialized.Initialize();
+            FieldVmSnapshot source = initialized.Capture();
+            source.Entities[1] = source.Entities[1] with { ProgramCounter = 0, ModelBound = true };
+            source.Entities[2] = source.Entities[2] with { ProgramCounter = external ? 0 : writerEntry };
+            FieldMachine competitor = FieldMachine.Restore(transitive, source);
+            FieldSpatialAdviceContext competing = context with { PossibleEntries = external ? new FieldNavigationEntryPoint[] { new(2, 4) } : [] };
+            Check(competitor.ReadCurrentSpatialDemands(1, Samples, adviceContext: competing).Demands.All(demand => demand.PlanningDestinationFields is null || demand.PlanningDestinationFields.SequenceEqual([99, 100])), "A transitive/current/external child producer retained stale sampled input bytes.");
+        }
+
+        foreach (bool mutableProgress in new[] { false, true })
+        {
+            byte[] child = [0x33, 1, .. selector];
+            ushort childEntry = checked((ushort)(parent.Length + 2));
+            ushort conditionalWriter = checked((ushort)(childEntry + child.Length));
+            byte[] guarded = [0x14, 0x10, 70, 1, 0, 5, 0x80, 0x50, 7, 26, 0];
+            ushort progressWriter = checked((ushort)(conditionalWriter + guarded.Length));
+            ushort[] entries = new ushort[32];
+            entries[4] = childEntry;
+            FieldProgram closure = new([0, .. parent, 0, .. child, .. guarded, 0x80, 0x10, 70, 1, 0], [new ushort[32], entries, new ushort[32], new ushort[32]]);
+            FieldMachine initialized = new(closure);
+            initialized.Initialize();
+            FieldVmSnapshot source = initialized.Capture();
+            source.Entities[1] = source.Entities[1] with { ProgramCounter = 0, ModelBound = true };
+            source.Entities[2] = source.Entities[2] with { ProgramCounter = conditionalWriter };
+            source.Entities[3] = source.Entities[3] with { ProgramCounter = mutableProgress ? progressWriter : 0 };
+            FieldSpatialDemand[] advice = FieldMachine.Restore(closure, source).ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands;
+            Check(advice.All(demand => mutableProgress ? demand.PlanningDestinationFields is null || demand.PlanningDestinationFields.SequenceEqual([99, 100]) : demand.PlanningDestinationFields?.Length == 1), "Closed producer advice either lost a stable live-progress predicate or missed a writer revealed by the persistent fixpoint.");
+        }
+
+        {
+            byte[] child = [0x33, 1, .. selector];
+            ushort childEntry = checked((ushort)(parent.Length + 2));
+            ushort preemptor = checked((ushort)(childEntry + child.Length));
+            byte[] placement = [0xA5, 0, 0, 64, 0, 64, 0, 0, 0, 9, 0, 0x24, 2, 0, 0];
+            ushort request = checked((ushort)(preemptor + placement.Length));
+            ushort[] entries = new ushort[32];
+            entries[4] = childEntry;
+            entries[5] = preemptor;
+            FieldProgram race = new([0, .. parent, 0, .. child, .. placement, 0x01, 1, 5, 0], [new ushort[32], entries, new ushort[32]]);
+            FieldMachine initialized = new(race);
+            initialized.Initialize();
+            FieldVmSnapshot source = initialized.Capture();
+            source.Entities[1] = source.Entities[1] with { ProgramCounter = 0, ModelBound = true };
+            source.Entities[2] = source.Entities[2] with { ProgramCounter = request };
+            FieldSpatialDemand[] advice = FieldMachine.Restore(race, source).ReadCurrentSpatialDemands(1, Samples, adviceContext: context).Demands;
+            Check(advice.Length == 2 && advice.All(demand => demand.PlanningDestinationFields is null && demand.PlanningDestinationReason!.Contains("before the selected child", StringComparison.Ordinal)), "A higher-priority A5/WAIT preemptor reused a free-input contact horizon before the selected child could execute UC1.");
+        }
     }
 
     private static (FieldProgram Program, FieldMachine Machine, RejectHost Host) Create(byte[] main, byte[] child)

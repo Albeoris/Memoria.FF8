@@ -69,6 +69,7 @@ internal static class AutoPlayFieldDestinationGoalTests
         CheckPossibleDestinationGoals(observation, entrance, optional);
         CheckRemoteDestinationAdvice();
         CheckCausalUnblockPrerequisite();
+        CheckSampledDestinationAdvice();
         Console.WriteLine("PASS generic field destination resolution, priority, retention, restoration, native guards and unchanged consumption history");
     }
 
@@ -116,6 +117,22 @@ internal static class AutoPlayFieldDestinationGoalTests
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read, Available, Unblocks) is null && state.NavigationGoal?.EventId != producer.Id && blocked[0] == 2, "An unchanged consumed producer must not be replayed or treated as an executed unblock merely because its analysis has a possible effect.");
         Ff7AutoPlayState fresh = new() { DestinationField = 300 };
         Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(fresh, observation with { Events = [gateway, producer with { AnalysisComplete = false }] }, Read, Available, Unblocks) is not null && fresh.NavigationGoal is null, "An incomplete producer analysis must not establish a causal navigation prerequisite.");
+    }
+
+    private static void CheckSampledDestinationAdvice()
+    {
+        Ff7AutoPlayTarget broad = new("near", 7, -1, Ff7AutoPlayTargetKind.AutonomousSpatial, "sample", false, Vector3.Zero, ChangesField: true) { SpatialDestinations = [200, 300], PlanningDestinationFields = [200] };
+        Ff7AutoPlayTarget onward = broad with { Id = "onward", Triangle = 9, PlanningDestinationFields = [300] };
+        Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [broad, onward], true, true) { NavigationKey = "sample-component" };
+        Ff7AutoPlayState state = new() { DestinationField = 300 };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation) is null && state.NavigationGoal?.EventId == onward.Id, "A broad supported child branch must not override its proved sample-specific direct destination.");
+        state.DestinationField = 400;
+        int[] Read(ushort field) => field == 200 ? [100] : field == 300 ? [400] : [];
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read) is null && state.NavigationGoal?.EventId == onward.Id, "Remote field advice must begin with the sampled branch's destination rather than an unreachable arm of the child support union.");
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [broad with { PlanningDestinationFields = [] }] }, Read) is not null && state.NavigationGoal is null, "A proved empty sample outcome must not fall back to broad child support destinations.");
+        state.DestinationField = 300;
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [broad with { PlanningDestinationFields = null }] }) is null && state.NavigationGoal?.EventId == broad.Id, "Absent optional sample advice must retain conservative old-save discovery support.");
+        Check(broad.SpatialDestinations!.SequenceEqual([200, 300]) && broad.DestinationField is null, "Planning advice changed native support or completion ownership metadata.");
     }
 
     private static void CheckConsumedNoOpIntent()

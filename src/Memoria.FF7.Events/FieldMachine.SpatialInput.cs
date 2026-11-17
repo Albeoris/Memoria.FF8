@@ -6,9 +6,16 @@ namespace Memoria.FF7.Events;
 
 public sealed record FieldSpatialSample(int Id, FieldActorPosition Position);
 public sealed record FieldSpatialInputGuard(FieldScriptInputDemand Demand, bool Matched);
+public sealed record FieldSpatialAdviceContext(IReadOnlyList<FieldVariableRead> ExternalWrites, IReadOnlyList<FieldNavigationEntryPoint> PossibleEntries)
+{
+    public IReadOnlyDictionary<int, FieldNavigationEntryPoint[]>? SampleEntries { get; init; }
+    public int? FixedPlayerEntity { get; init; }
+}
 public sealed record FieldSpatialEffectOwner(int Entity, int Priority, int ProgramCounter, FieldCommand Command, int[] ExitProgramCounters);
 public sealed record FieldSpatialDemand(int Entity, int ProgramCounter, int TargetEntity, int TargetScript, int SampleId, int[] DestinationFields, bool ChangesStory, string Fingerprint, FieldVariableRead[] Reads, FieldHostRead[] HostReads)
 {
+    public int[]? PlanningDestinationFields { get; init; }
+    public string? PlanningDestinationReason { get; init; }
     public bool MayChangeNavigation { get; init; }
     public int RequestMode { get; init; }
     public int RequestPriority { get; init; }
@@ -56,7 +63,8 @@ public sealed partial class FieldMachine
         {
             program.Identity,
             CycleCursor,
-            Owners = entities.Select(entity => new { entity.Pc, entity.Priority, WaitState = entity.Wait == 0 ? 0 : entity.Wait == 1 ? 1 : 2 }).ToArray()
+            Owners = entities.Select(entity => new { entity.Pc, entity.Priority, entity.Saved, WaitState = entity.Wait == 0 ? 0 : entity.Wait == 1 ? 1 : 2 }).ToArray(),
+            PendingRoots = pendingRequests.Values.Select(request => new { request.Entity, request.ProgramCounter }).Distinct().OrderBy(request => request.Entity).ThenBy(request => request.ProgramCounter).ToArray()
         });
         return Convert.ToHexString(SHA256.HashData(facts));
     }
@@ -91,7 +99,7 @@ public sealed partial class FieldMachine
     }
 
     /// <summary>Projects current autonomous spatial predicates onto supplied physical samples without dispatching scripts or hosts.</summary>
-    public FieldSpatialObservation ReadCurrentSpatialDemands(int controlledEntity, IReadOnlyList<FieldSpatialSample> samples, int instructionBudget = 128, FieldSpatialRandomDomain? randomDomain = null)
+    public FieldSpatialObservation ReadCurrentSpatialDemands(int controlledEntity, IReadOnlyList<FieldSpatialSample> samples, int instructionBudget = 128, FieldSpatialRandomDomain? randomDomain = null, FieldSpatialAdviceContext? adviceContext = null)
     {
         ArgumentNullException.ThrowIfNull(samples);
         if ((uint)controlledEntity >= entities.Length || instructionBudget is < 1 or > 4096 || samples.Select(sample => sample.Id).Distinct().Count() != samples.Count)
@@ -598,10 +606,16 @@ public sealed partial class FieldMachine
                     }
                     dependencies.UnionWith(bytes.Where(value => !written.Contains(value)));
                 }
-                RecordDemand(pc, target, script, child.DestinationFields, child.ChangesStory, child.HostReads, child.MayChangeNavigation, opcode > 3 ? opcode - 3 : opcode, program.Read(pc + 2) >> 5);
+                int requestMode = opcode > 3 ? opcode - 3 : opcode;
+                int requestPriority = program.Read(pc + 2) >> 5;
+                HashSet<FieldVariableRead> sampledBytes = taints.Where(pair => written.Contains(pair.Key) && pair.Value.Taint is SpatialTaint.Triangle or SpatialTaint.Coordinates).Select(pair => pair.Key).ToHashSet();
+                string? adviceReason = null;
+                FieldSpatialAdviceContext? sampledContext = adviceContext?.SampleEntries is { } entries ? adviceContext with { PossibleEntries = entries[sample!.Id] } : adviceContext;
+                int[]? advice = sampledContext is null ? null : detached.ReadSpatialChildDestinationAdvice(entity, target, script, requestMode, requestPriority, sampledBytes, sampledContext, out adviceReason, dependencies);
+                RecordDemand(pc, target, script, child.DestinationFields, child.ChangesStory, child.HostReads, child.MayChangeNavigation, requestMode, requestPriority, planningDestinations: advice, planningReason: adviceReason);
             }
 
-            void RecordDemand(int pc, int target, int script, int[] destinations, bool changesStory, FieldHostRead[] hostReads, bool mayChangeNavigation = false, int requestMode = 0, int requestPriority = 0, FieldSpatialEffectOwner? directEffect = null)
+            void RecordDemand(int pc, int target, int script, int[] destinations, bool changesStory, FieldHostRead[] hostReads, bool mayChangeNavigation = false, int requestMode = 0, int requestPriority = 0, FieldSpatialEffectOwner? directEffect = null, int[]? planningDestinations = null, string? planningReason = null)
             {
                 dependencies.UnionWith(instructionReads.Where(read => !written.Contains(read)));
                 FieldVariableRead[] reads = dependencies.OrderBy(read => read.Bank).ThenBy(read => read.Operand).ToArray();
@@ -615,7 +629,7 @@ public sealed partial class FieldMachine
                     facts += $"|effect:{directEffect.Entity}:{directEffect.Priority}:{directEffect.ProgramCounter}:{JsonSerializer.Serialize(directEffect.Command)}:{string.Join(',', directEffect.ExitProgramCounters)}";
                 }
                 string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
-                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate, MayChangeNavigation = mayChangeNavigation, RequestMode = requestMode, RequestPriority = requestPriority, SourcePriority = source.Entities[entity].Priority, InputGuards = inputGuards.ToArray(), DirectEffectOwner = directEffect });
+                demands.Add(new(entity, pc, target, script, sample!.Id, destinations, changesStory, fingerprint, reads, hostReads) { PlanningDestinationFields = planningDestinations, PlanningDestinationReason = planningReason, TriangleOnly = predicateTaint == SpatialTaint.Triangle, Stochastic = stochasticPredicate, MayChangeNavigation = mayChangeNavigation, RequestMode = requestMode, RequestPriority = requestPriority, SourcePriority = source.Entities[entity].Priority, InputGuards = inputGuards.ToArray(), DirectEffectOwner = directEffect });
             }
         }
     }

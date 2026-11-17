@@ -14,7 +14,7 @@ public sealed partial class FieldMachine
         private readonly Dictionary<FieldVariableRead, (int Minimum, int Maximum)> bytes = [];
         public int Revision { get; private set; }
 
-        public NavigationByteDomains(FieldVariables variables, IReadOnlyList<FieldVariableRead> externalWrites, Func<int, int, int, bool> compare)
+        public NavigationByteDomains(FieldVariables variables, IReadOnlyList<FieldVariableRead> externalWrites, Func<int, int, int, bool> compare, IReadOnlySet<FieldVariableRead>? knownBytes = null)
         {
             this.variables = variables;
             this.compare = compare;
@@ -24,7 +24,8 @@ public sealed partial class FieldMachine
                 for (int address = 0; address < 256; address++)
                 {
                     byte value = variables.ReadByte(bank, (byte)address);
-                    bytes.Add(new(bank, (ushort)address, false), (value, value));
+                    FieldVariableRead source = new(bank, (ushort)address, false);
+                    bytes.Add(source, knownBytes is null || knownBytes.Contains(source) ? (value, value) : (0, 255));
                 }
             }
             foreach (FieldVariableRead write in externalWrites.SelectMany(variables.SpatialSourceBytes))
