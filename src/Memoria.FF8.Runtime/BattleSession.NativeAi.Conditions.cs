@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         else if (subject is >= 220 and <= 227)
         {
             BattleCombatant owner = FindNativeConditionActor(actor, selector);
-            if (owner.AiActorReferences.ContainsKey(subject - 220))
+            if (owner.AiActorReferences.TryGetValue(subject - 220, out NativeBattleAiActorValue reference) && reference.OriginalOperand is null)
             {
                 // A native reference occupies slot 0..6. Constants above that range are distinct markers.
                 if (!NativeBattleAiCondition.CanCompareActorReference(comparison, value))
@@ -147,8 +147,13 @@ public sealed partial class BattleSession
         }
         else if (selector == 203)
         {
-                string? expected = value == 200 ? actor.Id : FindSourceEnemyModelActor(actor, value)?.Id;
-                return CompareNativeConditionBit(actor.LastAttackerId == expected, comparison);
+            BattleCombatant? expected = value == 200 ? actor : FindSourceEnemyModelActor(actor, value);
+            if (comparison is 0 or 3 && actor.LastAttackerId is string attacker)
+            {
+                return CompareNativeConditionBit(attacker == expected?.Id, comparison);
+            }
+            left = actor.LastNativeAction?.AttackerIndex ?? throw new NotSupportedException("Native last-attacker comparison has no original numeric operand.");
+            right = expected is null ? byte.MaxValue : expected.NativeActorIndex ?? throw new NotSupportedException("Native last-attacker comparison cannot encode its expected actor.");
         }
         else
         {
@@ -187,7 +192,7 @@ public sealed partial class BattleSession
             {
                 200 => actor,
                 203 when actor.LastAttackerId is string attacker => GetActor(attacker),
-                >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? targetId) => GetActor(targetId),
+                >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out NativeBattleAiActorValue target) => GetActor(target.ActorId),
                 >= 220 and <= 227 => RequireSourceOriginalActor(actor, checked((int)actor.AiVariables[selector - 220])),
                 _ => FindSourceEnemyModelActor(actor, selector)
                     ?? throw new NotSupportedException($"Expanded battle AI model selector {selector} has no current participant.")

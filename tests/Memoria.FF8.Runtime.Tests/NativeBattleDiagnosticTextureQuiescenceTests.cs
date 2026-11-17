@@ -136,6 +136,43 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
     }
 
     [Fact]
+    public void Current_component_observer_preserves_the_proved_resident_program_and_fingerprint()
+    {
+        const ushort effect = 101;
+        BattleSession logical = new(new BattleDefinition
+        {
+            Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
+        }, BattleAtbMode.Normal);
+        NativeBattleGraphicsState graphics = Fixture() with { OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0) };
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics);
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
+        BattleDiagnosticInvocationOwners owners = new(0, 0, 0, 0, false, true, 0, false, 0, 0, false, 0, false, false, false, false)
+        {
+            ObservedOriginalEffect = true,
+            SelectedReturnedDescriptor = 0,
+            OriginalPools = []
+        };
+        BattleComponentTextureQuiescenceObservation before = Assert.IsType<BattleComponentTextureQuiescenceObservation>(process.ObserveComponentTerminalTextures(effect, owners, ["effect-or-auxiliary-task"]));
+        Assert.True(before.IsEligible);
+        Assert.Same(graphics, process.Graphics);
+        Assert.Same(memory, process.Memory);
+        Assert.Null(process.ObserveComponentTerminalTextures(effect, owners with { ActionOrCommand = true }, ["effect-or-auxiliary-task"]));
+
+        NativeBattleAuxiliaryStep next = graphics.Auxiliary.Advance(new()
+        {
+            ReadModel = graphics.ActorModels.Get,
+            ApplyTexture = (_, _, _) => throw new InvalidOperationException("Resident texture animation may not change texture bytes at its fixed point."),
+            RestoreTextureBlink = _ => throw new InvalidOperationException("Resident texture animation still owns its blink state.")
+        });
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), graphics with { Auxiliary = next.State, Callback = graphics.Callback + 1 });
+        BattleComponentTextureQuiescenceObservation after = Assert.IsType<BattleComponentTextureQuiescenceObservation>(process.ObserveComponentTerminalTextures(effect, owners, ["effect-or-auxiliary-task"]));
+        Assert.Equal(before.ResidentFingerprint, after.ResidentFingerprint);
+        Assert.Equal(before.GraphicsCallback + 1, after.GraphicsCallback);
+        Assert.Equal(before.Textures.Tasks[0].ModelActorId, after.Textures.Tasks[0].ModelActorId);
+    }
+
+    [Fact]
     public void Live_typed_model_owner_preserves_quiescence_with_an_unknown_original_pointer()
     {
         NativeBattleGraphicsState graphics = Fixture();

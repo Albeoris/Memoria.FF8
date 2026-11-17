@@ -197,7 +197,7 @@ public sealed partial class BattleSession
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
-            spawned.LastNativeAction = new(0, null, null, null, null, null);
+        spawned.LastNativeAction = new(0, null, null, null, null, 0);
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;

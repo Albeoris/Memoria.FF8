@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.BattleEffects;
 using Memoria.FF8.GameUi;
@@ -102,25 +101,25 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 }
                 BattleSnapshot snapshot = battle.Capture();
                 NativeBattleParticipantSnapshot? participant = snapshot.Combatants.Single(actor => actor.Id == owner.Id).NativeParticipant;
-                if (participant?.ActorReferences is not { } actorReferences || !actorReferences.TryGetValue(setup.VariableIndex, out string? attacker))
+                if (participant?.ActorReferences is not { } actorReferences || !actorReferences.TryGetValue(setup.VariableIndex, out NativeBattleAiActorValue observed))
                 {
                     return;
                 }
-                Assert.NotNull(attacker);
+                string attacker = observed.ActorId;
                 Assert.Equal(attacker, participant.LastAttackerId);
+                BattleCombatant source = Assert.Single(battle.Combatants, actor => actor.Id == attacker && actor.IsPlayer);
+                Assert.Equal(checked((byte?)source.NativeActorIndex), observed.OriginalOperand);
+                Assert.Equal(observed.OriginalOperand, participant.LastAction?.AttackerIndex);
                 Assert.Equal<byte?>(fire is null ? (byte)0 : (byte)1, participant.LastAction?.AttackType);
-                Assert.Contains(battle.Combatants, actor => actor.Id == attacker && actor.IsPlayer);
                 if (fire is not null)
                 {
                     Assert.Equal(CasterId, attacker);
                     Assert.Equal(1u, participant.Variables[0]);
                     Assert.Contains(battle.Events, entry => entry is { Kind: "EffectContact", Ability: BattleAbility.Magic, ActorId: CasterId } && entry.TargetId == owner.Id);
-                    BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == attacker);
-                    Assert.Equal(InitialStock - 1, Assert.Single(caster.MagicStocks, stock => stock.Id == fire.Id).Count);
+                    Assert.Equal(InitialStock - 1, Assert.Single(source.MagicStocks, stock => stock.Id == fire.Id).Count);
                 }
-                string json = JsonSerializer.Serialize(snapshot);
-                BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!);
-                Assert.Equal(attacker, restored.Capture().Combatants.Single(actor => actor.Id == owner.Id).NativeParticipant!.ActorReferences![setup.VariableIndex]);
+                BattleSession restored = battle.ForkForContinuation();
+                Assert.Equal(observed, restored.Capture().Combatants.Single(actor => actor.Id == owner.Id).NativeParticipant!.ActorReferences![setup.VariableIndex]);
                 storedAttacker = attacker;
                 eventCursor = battle.Events.Count;
             }

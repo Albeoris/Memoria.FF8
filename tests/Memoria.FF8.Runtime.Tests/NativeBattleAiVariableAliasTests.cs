@@ -74,25 +74,30 @@ public sealed class NativeBattleAiVariableAliasTests
         // An additional ally cannot normally enter the enemy AI interpreter. Exercise the alias boundary directly.
         MethodInfo write = typeof(BattleSession).GetMethod("WriteNativeActorVariable", BindingFlags.Instance | BindingFlags.NonPublic)!;
         TargetInvocationException failure = Assert.Throws<TargetInvocationException>(() => write.Invoke(battle, [additional, 96, 1u, false]));
-        Assert.Contains("requires a physical actor-bank alias", Assert.IsType<NotSupportedException>(failure.InnerException).Message);
+        Assert.Contains("requires an actor-bank alias", Assert.IsType<NotSupportedException>(failure.InnerException).Message);
     }
 
     [Theory]
     [InlineData(14)]
     [InlineData(18)]
-    public void ExpandedAliasAdmissionRequiresOriginalSlotsAndRejectsReferenceOperands(byte opcode)
+    public void PhysicalVariableWritesRequireAnOriginalBindingAndActualNumericOperand(byte opcode)
     {
         NativeBattleAiDefinition numeric = Program([opcode, 96, 1, 0]);
         Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(numeric, [], 0));
         Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(numeric, [], 0, originalEnemySlots: true));
 
         NativeBattleAiDefinition reference = Program([opcode, 96, 203, 0]);
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(reference, [], 0));
-        Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(reference, [], 0, originalEnemySlots: true));
-        Assert.Throws<NotSupportedException>(() => CreateExpanded([opcode, 96, 203, 0]));
+        Assert.Equal(ExpandedAiAdmission.RequiresOriginalSlots, NativeBattleExpandedAi.Evaluate(reference, [], 0));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(reference, [], 0, originalEnemySlots: true));
+
+        BattleSession battle = CreateExpanded([opcode, 96, 203, 0], interpret: false);
+        BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == "enemy");
+        actor.LastAttackerId = "party-3";
+        actor.LastNativeAction = new(null, null, null, null, null, null);
+        Assert.Throws<NotSupportedException>(() => DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0));
     }
 
-    private static BattleSession CreateExpanded(byte[] init, byte resistance = 100, bool known = true)
+    private static BattleSession CreateExpanded(byte[] init, byte resistance = 100, bool known = true, bool interpret = true)
     {
         NativeBattleEnemyLevel level = new(100, 10, 10, 10, 10, 10, new int[8], [], [], 0);
         NativeBattleEnemyTemplate template = new(5, Enumerable.Repeat(level, 101).ToArray());
@@ -109,7 +114,10 @@ public sealed class NativeBattleAiVariableAliasTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 71, SceneSlot = 0, Level = 5, NativeTemplate = template, NativeAi = Program(init) }
             ]
         }, BattleAtbMode.Normal);
-        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
+        if (interpret)
+        {
+            DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
+        }
         return battle;
     }
 

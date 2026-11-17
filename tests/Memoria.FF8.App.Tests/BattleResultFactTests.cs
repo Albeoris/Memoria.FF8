@@ -21,7 +21,7 @@ public sealed class BattleResultFactTests
         GameState before = session.State;
         using GameWorld world = new(session, TestResources.GameDirectory);
 
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
 
         Assert.Empty(session.State.PendingAchievementFacts);
         BattleKillTotalObservedEvent observed = Assert.Single(session.State.PendingAchievementObservations);
@@ -30,7 +30,7 @@ public sealed class BattleResultFactTests
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         Assert.Equal(observed, Assert.Single(restored.State.PendingAchievementObservations));
         session.Restore(before);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(observed, Assert.Single(session.State.PendingAchievementObservations));
         _ = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
     }
@@ -46,9 +46,9 @@ public sealed class BattleResultFactTests
         _ = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
         Assert.Empty(session.State.PendingAchievementFacts);
         BattleResult rejected = fact with { NativeCrtRandomBefore = new(123), NativeCrtRandomAfter = new(456) };
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, rejected));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, rejected));
         Assert.Empty(session.State.PendingAchievementFacts);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(fact.EnemyDefeats.Length, session.State.PendingAchievementFacts.Length);
         long total = session.State.CharacterVitals!.Records.Sum(record => (long)record.KillCount) + session.State.CharacterVitals.GuardianForces.Sum(gf => (long)gf.KillCount!.Value);
         Assert.All(session.State.PendingAchievementFacts, accepted => Assert.Equal(total, accepted.Facts.NativeKillTotal));
@@ -57,7 +57,7 @@ public sealed class BattleResultFactTests
         Assert.Equal(total, observation.NativeKillTotal);
         Assert.Equal(BattleOutcome.Victory, observation.Outcome);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
         Assert.Null(session.State.AchievementCursor);
     }
@@ -76,7 +76,7 @@ public sealed class BattleResultFactTests
             session.AcknowledgeAchievementFact(receipt);
         }
         using GameWorld world = new(session, TestResources.GameDirectory);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Empty(session.State.PendingAchievementFacts);
         Assert.Single(session.State.PendingAchievementObservations);
     }
@@ -93,12 +93,12 @@ public sealed class BattleResultFactTests
         using GameWorld world = new(session, TestResources.GameDirectory);
         string original = JsonSerializer.Serialize(session.State);
         NativeGlobalRandomState stale = new(1);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeGlobalRandomChange = new(stale, stale.Advance(3), 3) }));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, fact with { NativeGlobalRandomChange = new(stale, stale.Advance(3), 3) }));
         Assert.Equal(original, JsonSerializer.Serialize(session.State));
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(after, session.State.GlobalRandom);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
     }
 
@@ -114,10 +114,10 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
         string initial = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeDeathCountChanges = [new(row, after, unchecked((ushort)(after + 1)))] }));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, fact with { NativeDeathCountChanges = [new(row, after, unchecked((ushort)(after + 1)))] }));
         Assert.Equal(initial, JsonSerializer.Serialize(session.State));
 
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
 
         Assert.Equal(after, session.State.CharacterVitals!.Records[row].DeathCount);
     }
@@ -162,14 +162,14 @@ public sealed class BattleResultFactTests
         NativeBattleGilChange stale = dream
             ? new(before with { Gil = before.Gil + 1 }, after with { Gil = after.Gil + 1 })
             : new(before with { PastGil = before.PastGil + 1 }, after with { PastGil = after.PastGil + 1 });
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeGilChange = stale }));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, fact with { NativeGilChange = stale }));
         Assert.Equal(initial, JsonSerializer.Serialize(session.State));
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
 
         Assert.Equal(after.Gil, session.State.Economy!.Gil);
         Assert.Equal(after.PastGil, session.State.Economy.PastGil);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
     }
 
@@ -203,7 +203,7 @@ public sealed class BattleResultFactTests
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, CardInventory = cards, CrtRandom = crt });
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(afterGrowth.HitPointBonus, session.State.CharacterVitals!.Records[row].HitPointBonus);
         Assert.Equal(bonuses, session.State.CharacterVitals.Records[row].StatBonuses);
         Assert.Equal(1, session.State.CardInventory!.AvailableCount(4));
@@ -212,7 +212,7 @@ public sealed class BattleResultFactTests
         Assert.All(world.LastBattleRewards!.CharacterExperience.Values, amount => Assert.Equal(0, amount));
         Assert.NotEmpty(world.LastBattleRewards.GuardianForceAbilityPoints);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
     }
 
@@ -226,7 +226,7 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
         string original = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(original, JsonSerializer.Serialize(session.State));
     }
 
@@ -239,7 +239,7 @@ public sealed class BattleResultFactTests
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, CardInventory = cards });
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(1, session.State.CharacterVitals!.GuardianForces[2].Flags & 1);
         Assert.True((session.State.CardInventory!.Cards[4] & 0x7F) >= 2);
         Assert.Contains(127, world.Events.Scene.UnlockedTutorials);
@@ -252,7 +252,7 @@ public sealed class BattleResultFactTests
         GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         Assert.Equal("Ифрит界", Assert.Single(restored.State.PendingEntityNames!).Draft);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
     }
 
@@ -266,12 +266,12 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
         int before = economy.Items.FirstOrDefault(item => item.ItemId == 178)?.Count ?? 0;
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         Assert.Equal(before + 1, session.State.Economy!.Items.Single(item => item.ItemId == 178).Count);
         Assert.Contains(world.LastBattleRewards!.Items, item => item.Id == 178 && item.Count == 1);
         Assert.Equal(2u, session.State.BattleVariables!.Values[4]);
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
         Assert.Throws<InvalidDataException>(() => (fact with { RewardPolicy = BattleRewardPolicy.DebugNoRewards, DebugVictory = true, EnemyDefeats = [], RewardEligibleGuardianForceIds = [] }).Validate());
     }
@@ -285,7 +285,7 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
         string before = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
         Assert.Null(world.LastBattleRewards);
     }
@@ -306,12 +306,12 @@ public sealed class BattleResultFactTests
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
         AssertLearningProgress(session.State.CharacterVitals!, learningAbility, 2);
         Assert.Null(session.State.PendingBattleEncounter);
         Assert.Equal(fact.Encounter.OccurrenceId, Assert.Single(session.State.AppliedBattleResultIds));
         string committed = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidOperationException>(() => ApplyResult(world, vitals, fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));
         Assert.Null(world.Battle);
     }
@@ -325,12 +325,12 @@ public sealed class BattleResultFactTests
         BattleEncounterOccurrence changedResource = fact.Encounter with { FormationHash = new string('F', 64) };
         session.SetPendingBattleEncounter(changedResource);
         string before = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(changedResource, fact with { Encounter = changedResource }));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, changedResource, fact with { Encounter = changedResource }));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
         BattleEncounterOccurrence wrongOwner = fact.Encounter with { ScriptedOwner = new(74, 1, 2, 3, 0, new string('A', 64)) };
         session.SetPendingBattleEncounter(wrongOwner);
         before = JsonSerializer.Serialize(session.State);
-        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(wrongOwner, fact with { Encounter = wrongOwner }));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(world, vitals, wrongOwner, fact with { Encounter = wrongOwner }));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
         Assert.Empty(session.State.AppliedBattleResultIds);
     }
@@ -419,14 +419,14 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
 
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
 
         Assert.True(session.State.ScannedModels!.SameValue(after));
         GameSession stale = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, ScannedModels = before.Add(3) });
         stale.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld staleWorld = new(stale, TestResources.GameDirectory);
         string unchanged = JsonSerializer.Serialize(stale.State);
-        Assert.Throws<InvalidDataException>(() => staleWorld.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(staleWorld, vitals, fact.Encounter, fact));
         Assert.Equal(unchanged, JsonSerializer.Serialize(stale.State));
     }
 
@@ -453,14 +453,14 @@ public sealed class BattleResultFactTests
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, TestResources.GameDirectory);
 
-        world.ApplyBattleResult(fact.Encounter, fact);
+        ApplyResult(world, vitals, fact.Encounter, fact);
 
         Assert.True(session.State.KnownMagic!.SameValue(after));
         GameSession stale = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, KnownMagic = before.Add(3) });
         stale.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld staleWorld = new(stale, TestResources.GameDirectory);
         string unchanged = JsonSerializer.Serialize(stale.State);
-        Assert.Throws<InvalidDataException>(() => staleWorld.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Throws<InvalidDataException>(() => ApplyResult(staleWorld, vitals, fact.Encounter, fact));
         Assert.Equal(unchanged, JsonSerializer.Serialize(stale.State));
     }
 
@@ -492,8 +492,31 @@ public sealed class BattleResultFactTests
     {
         using GameAssets assets = new(TestResources.GameDirectory);
         using BattleAssets battles = new(assets.GameDirectory);
-        Dictionary<int, BattleEnemyRewardDefinition> definitions = battles.LoadEncounter(fact.Encounter.Formation).Enemies.ToDictionary(enemy => enemy.Slot, enemy => battles.ReadEnemyRewards(enemy.ModelId));
-        return BattleResultProjection.Apply(fact, vitals, economy, points, definitions, assets.ReadNativeBattleExperienceDefinition(), null, false);
+        BattleEncounter formation = battles.LoadEncounter(fact.Encounter.Formation);
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = formation.Enemies.ToDictionary(enemy => enemy.Slot, enemy => battles.ReadEnemyRewards(enemy.ModelId));
+        BattleDefinition authority = ReadRewardAuthority(formation, vitals);
+        return BattleResultProjection.Apply(fact, vitals, economy, points, definitions, assets.ReadNativeBattleExperienceDefinition(), null, false, admittedBattle: authority);
+    }
+
+    private static void ApplyResult(GameWorld world, NativeCharacterVitals vitals, BattleEncounterOccurrence expected, BattleResult result)
+    {
+        BattleDefinition authority = ReadRewardAuthority(world.BattleResources.LoadEncounter(expected.Formation), vitals);
+        world.ApplyBattleResult(expected, result, admittedDefinition: authority);
+    }
+
+    private static BattleDefinition ReadRewardAuthority(BattleEncounter formation, NativeCharacterVitals vitals)
+    {
+        return new()
+        {
+            EncounterId = formation.Id,
+            UsesOriginalEnemySlots = true,
+            MagicVitals = vitals,
+            Combatants =
+            [
+                .. vitals.GetBattlePartyRows(NativeBattleSlots.AllyCount).Select(row => new BattleCombatantDefinition { Id = $"party-{row}", Name = $"Party {row}", IsPlayer = true, ModelId = vitals.Records[row].CharacterId, MagicRecordId = row }),
+                .. formation.Enemies.Select(enemy => new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", Name = $"Enemy {enemy.Slot}", ModelId = enemy.ModelId, SceneSlot = enemy.Slot, RewardSlot = enemy.Slot })
+            ]
+        };
     }
 
     private static (NativeCharacterVitals, NativeEconomy, BattleResult, int) Fixture()

@@ -19,7 +19,7 @@ public static class NativeBattleExpandedAi
         return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, requireValidInstalledSource, reachedEffects, originalModelOperands, allocationSources, default);
     }
 
-    internal static ExpandedAiAdmission EvaluateRebound(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, string> references)
+    internal static ExpandedAiAdmission EvaluateRebound(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, NativeBattleAiActorValue> references)
     {
         return Evaluate(program, actions, formation, null, false, null, null, null, null, false, null, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
     }
@@ -45,14 +45,13 @@ public static class NativeBattleExpandedAi
             blockers?.Add($"command:{berserk.Command}/{berserk.Id}");
         }
         bool checksLocalValues = false;
-        int referenceWrites = 0;
         for (int callback = 0; callback < program.Scripts.Length; callback++)
         {
             CheckScript(program.Scripts[callback], callback);
         }
-        if (checksLocalValues && (!originalEnemySlots || referenceWrites != 0))
+        if (checksLocalValues && !originalEnemySlots)
         {
-            NativeBattleAiLocalFlow.Check(program, formation, originalEnemySlots, referenceWrites, retainedLocals, RequireOriginalSlots, MarkUnsupportedService);
+            NativeBattleAiLocalFlow.Check(program, formation, retainedLocals, RequireOriginalSlots);
         }
         return admission;
 
@@ -129,7 +128,7 @@ public static class NativeBattleExpandedAi
                         {
                             RecordModelReference(value, $"condition-model:{subject}/{value}");
                         }
-                        if (subject == 15 && !originalEnemySlots || subject == 10 && selector == 203 && comparison is not (0 or 3))
+                        if (subject == 15 && !originalEnemySlots)
                         {
                             RequireOriginalSlots($"physical-condition:{subject}/{selector}/{comparison}");
                         }
@@ -234,22 +233,10 @@ public static class NativeBattleExpandedAi
                     case 14 or 18:
                         if (instruction[0] is < 220 or > 227)
                         {
-                            if (instruction[1] == 203)
-                            {
-                                MarkUnsupportedService($"actor-reference-write:{opcode}/{instruction[0]}/{instruction[1]}");
-                            }
-                            else if (!originalEnemySlots)
+                            if (!originalEnemySlots)
                             {
                                 RequireOriginalSlots($"physical-variable:{opcode}/{instruction[0]}");
                             }
-                        }
-                        else if (instruction[1] == 203 && (opcode != 14 || callback != 2))
-                        {
-                            MarkUnsupportedService($"actor-reference-write:{opcode}/{instruction[0]}/{instruction[1]}");
-                        }
-                        else if (instruction[1] == 203)
-                        {
-                            referenceWrites |= 1 << (instruction[0] - 220);
                         }
                         else if (opcode == 18)
                         {

@@ -97,13 +97,15 @@ public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnem
     public NativeBattleStatusAllocation? NativeStatusAllocation { get; init; }
     public uint NativeCombatantFlags { get; init; }
 }
+public readonly record struct NativeBattleAiActorValue(string ActorId, byte? OriginalOperand);
+
 public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, [property: System.Text.Json.Serialization.JsonRequired] BattleRosterSlot? OccupiedSlot, [property: System.Text.Json.Serialization.JsonRequired] NativeBattleModelSlot? OriginalSlot, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool ReprojectedEncounterCopy { get; init; }
 
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<int, string>? ActorReferences { get; init; }
+    public Dictionary<int, NativeBattleAiActorValue>? ActorReferences { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? MaximumHitPoints { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

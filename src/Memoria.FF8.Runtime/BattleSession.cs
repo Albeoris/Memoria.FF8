@@ -117,7 +117,7 @@ public sealed partial class BattleSession
             }
             if (initializeNativeAi)
             {
-                actor.LastNativeAction = new(0, null, null, null, null, null);
+                actor.LastNativeAction = new(0, null, null, null, null, 0);
             }
         }
         if (initializeNativeAi)

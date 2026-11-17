@@ -16,15 +16,39 @@ public sealed class NativeBattleSlotsContinuationTests
         using BattleAssets assets = new(directory);
         BattleNativeAction fire = Assert.Single(assets.NativeActions, row => row is { KernelSection: 1, Command: 16, ActionId: 1 });
         GameState field = ExpandedBattleEffectMatrixTests.PrepareField(directory);
-        using GameWorld world = ExpandedBattleEffectMatrixTests.StartBattle(directory, field, 22, requireMaximumParty: addedCaster,
+        using GameAssets? game = addedCaster ? null : new(directory);
+        NativeBattleExperienceDefinition? experience = game?.ReadNativeBattleExperienceDefinition();
+        using GameWorld world = ExpandedBattleEffectMatrixTests.StartBattle(directory, field, addedCaster ? (ushort)22 : (ushort)513, requireMaximumParty: addedCaster,
             limit: fire with { CharacterId = 5 }, nativeSeed: 7,
-            prepareVitals: addedCaster ? null : vitals => vitals.WithBattleParty([5, 4, 6], 11), additionalEnemies: addedCaster ? 10 : 0);
+            prepareVitals: experience is { } levelRules ? vitals => GameWorld.PrepareDiagnosticCharacterLevel(vitals.WithBattleParty([5, 0, 1], 11), 5, 8, levelRules) : null,
+            additionalEnemies: addedCaster ? 10 : 0);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.IsPlayer && actor.ModelId == 5);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         Assert.Equal(addedCaster, caster.NativeActorIndex is null);
 
-        Assert.True(TrySelectRoll(world, battle, caster, roll => roll is { MagicId: 1, Repetitions: 3 }), "The installed seed must yield Fire x3.");
+        if (addedCaster)
+        {
+            Assert.True(TrySelectRoll(world, battle, caster, roll => roll is { MagicId: 1, Repetitions: 3 }), "The installed seed must yield Fire x3.");
+        }
+        else
+        {
+            // Keep the authored early action from defeating the one-HP caster before the native Limit can be selected.
+            battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: caster.Id);
+            for (int callback = 0; callback < 2000 && !battle.CanChoosePlayerCommand(caster.Id); callback++)
+            {
+                battle.Tick();
+            }
+            Assert.True(battle.CanChoosePlayerCommand(caster.Id));
+            Assert.Equal(8, caster.Level);
+            byte crisis = 0;
+            for (int selection = 0; selection < 256 && crisis == 0; selection++)
+            {
+                crisis = battle.RefreshNativeLimit(caster.Id);
+            }
+            Assert.InRange(crisis, (byte)1, (byte)4);
+            Assert.True(SelectRollAtAuthenticPhase(battle, caster, roll => roll is { MagicId: 1, Repetitions: 3 }), $"The original Level {caster.Level}, Crisis {crisis} Slots data must yield Fire x3.");
+        }
         Assert.True(Assert.Single(battle.GetNativePlayerActionChoices(caster.Id, limits: true)).Available);
 
         NativeBattleRandomState expectedRandom = Assert.IsType<NativeBattleRandomState>(battle.Capture().Random);
@@ -103,7 +127,7 @@ public sealed class NativeBattleSlotsContinuationTests
         Assert.Equal(battle.Capture().Random!.Indexes.ToArray(), publishedFork.Capture().Random!.Indexes.ToArray());
         foreach (BattleCombatant target in allocated.Where(actor => actor.LastAttackerId == caster.Id))
         {
-            Assert.Null(target.LastNativeAction?.AttackerIndex);
+            Assert.Equal(checked((byte?)caster.NativeActorIndex), target.LastNativeAction?.AttackerIndex);
             if (target.NativeActorIndex is int original)
             {
                 Assert.Equal(caster.NativeActorIndex, battle.NativeActionMemory.Action(original)?.AttackerIndex);

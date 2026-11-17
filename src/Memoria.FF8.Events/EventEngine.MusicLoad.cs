@@ -13,6 +13,11 @@ public sealed record NativeMusicPlayRequest(int Version, int FieldId, int Object
 
 public sealed partial class EventEngine
 {
+    private const string NewGameMusicBootstrapRule = "ff8-en-music-new-game-470560-52ca90-v1";
+    private const byte ColdBattleMusic = 5;
+    private const byte ColdMusicVolume = 127;
+    private static readonly NativeMusicChannelState coldMusicChannel = new(-1, 255);
+
     /// <summary>Executes the original New Game music reset before the first field program is allocated.</summary>
     public NativeMusicProcessState InitializeNewGameMusicOwners(NativeFieldRuntimeProfile profile)
     {
@@ -20,8 +25,18 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Native New Game music initialization requires an authenticated fresh New Game before its first field program.");
         }
+        if (Scene.NativeBattleMusicEntry is not null || Scene.NativeBattleFieldReturn is not null || Scene.MusicLoadRequest is not null || Scene.MusicPlayRequest is not null || Scene.MusicReplayRequest is not null)
+        {
+            throw new InvalidOperationException("Native New Game music initialization cannot follow an executed music request or battle entry.");
+        }
         if (Scene.MusicProcess is not null || Scene.MusicChannel108 is not null || Scene.MusicChannel112 is not null || Scene.NativeBattleMusic203 is not null || Scene.SoundMusicVolume197 is not null || Scene.SoundMusicVolume198 is not null)
         {
+            if (Scene.MusicProcess is { } buffers && buffers == BuildColdMusicProcess(profile, NewGameMusicBootstrapRule) &&
+                Scene.MusicChannel108 == coldMusicChannel && Scene.MusicChannel112 == coldMusicChannel && Scene.NativeBattleMusic203 == ColdBattleMusic &&
+                Scene.MusicVolume == ColdMusicVolume && Scene.SoundMusicVolume197 == ColdMusicVolume && Scene.SoundMusicVolume198 == ColdMusicVolume)
+            {
+                return buffers;
+            }
             throw new InvalidOperationException("Native New Game music initialization cannot replace existing music owners.");
         }
         InitializeNewGameMusic(profile, session.State.FieldId);
@@ -40,18 +55,20 @@ public sealed partial class EventEngine
         }
         // 470560 executes52CA90(1): B201=0, B199/200/202=FF, DWORD108/112=-1;
         // the preceding248-byte clear proves B207/213/214 and bit400 zero.
-        InitializeColdMusicProcess(profile, "ff8-en-music-new-game-470560-52ca90-v1");
+        InitializeColdMusicProcess(profile, NewGameMusicBootstrapRule);
     }
 
     private void InitializeColdMusicProcess(NativeFieldRuntimeProfile profile, string rule)
     {
-        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, rule, profile.ExecutableHash));
-        Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
-        Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
-        Scene.NativeBattleMusic203 = 5;
-        SetSoundVolumeByte(197, 127);
-        SetSoundVolumeByte(198, 127);
+        Scene.MusicProcess = BuildColdMusicProcess(profile, rule);
+        Scene.MusicChannel108 = coldMusicChannel;
+        Scene.MusicChannel112 = coldMusicChannel;
+        Scene.NativeBattleMusic203 = ColdBattleMusic;
+        SetSoundVolumeByte(197, ColdMusicVolume);
+        SetSoundVolumeByte(198, ColdMusicVolume);
     }
+
+    private static NativeMusicProcessState BuildColdMusicProcess(NativeFieldRuntimeProfile profile, string rule) => new(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, rule, profile.ExecutableHash));
 
     private void CopyNativeMusicLoad(SceneEventState previous, NativeFieldRuntimeProfile? profile, bool restoringCheckpoint = false)
     {

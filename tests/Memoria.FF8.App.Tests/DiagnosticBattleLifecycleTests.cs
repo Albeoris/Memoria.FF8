@@ -54,12 +54,33 @@ public sealed class DiagnosticBattleLifecycleTests
         Assert.False(session.HasActiveBattle);
         Assert.Null(world.Battle);
         Assert.Null(world.DiagnosticReceipt);
+        NativeMusicProcessState buffers = Assert.IsType<NativeMusicProcessState>(world.Events.Scene.MusicProcess);
+        NativeFieldRuntimeProfile profile = Assert.IsType<NativeFieldRuntimeProfile>(world.ValidationAssets.NativeRuntimeProfile);
+        Assert.Same(buffers, world.Events.InitializeNewGameMusicOwners(profile));
 
         BattleSession active = world.StartDiagnosticBattle(valid);
         Assert.Same(active, world.Battle);
         Assert.True(world.IsDiagnosticBattle);
         Assert.True(session.HasActiveBattle);
         Assert.NotNull(world.DiagnosticReceipt);
+    }
+
+    [Fact]
+    public void Installed_new_game_music_initialization_does_not_replace_changed_buffers()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for the diagnostic music admission check.");
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        NativeFieldRuntimeProfile profile = Assert.IsType<NativeFieldRuntimeProfile>(world.ValidationAssets.NativeRuntimeProfile);
+        NativeMusicProcessState initialized = world.Events.InitializeNewGameMusicOwners(profile);
+        NativeMusicProcessState changed = initialized with { Bank202 = 0 };
+        world.Events.SynchronizeNativeBattleMusicProcess(new(changed, null, null));
+
+        Assert.Throws<InvalidOperationException>(() => world.Events.InitializeNewGameMusicOwners(profile));
+        Assert.Same(changed, world.Events.Scene.MusicProcess);
+        Assert.False(session.HasActiveBattle);
     }
 
     [Fact]

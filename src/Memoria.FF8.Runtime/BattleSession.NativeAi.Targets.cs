@@ -28,7 +28,7 @@ public sealed partial class BattleSession
                 BattlePreviousTarget.Actor captured => SelectAiActors([GetActor(captured.Reference.ActorId)]),
                 _ => EmptyAiTargets
             },
-            >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out string? id) => SelectAiActors([GetActor(id)]),
+            >= 220 and <= 227 when actor.AiActorReferences.TryGetValue(selector - 220, out NativeBattleAiActorValue target) => SelectAiActors([GetActor(target.ActorId)]),
             >= 220 and <= 227 => SelectAiActorOperand(unchecked((int)actor.AiVariables[selector - 220]), actor),
             _ => ResolveExpandedModelTarget(actor, selector)
         };

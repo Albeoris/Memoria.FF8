@@ -75,39 +75,34 @@ public sealed class BattleNativeActorBindingTests
     }
 
     [Fact]
-    public void Unaliased_participant_uses_local_action_and_status_owners_until_a_native_row_is_bound()
+    public void Actor_binding_retains_its_own_action_and_status_when_original_alias_changes()
     {
-        NativeBattleActionMemoryOwner action = new() { State = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
-        NativeBattlePresentationStatusMemoryOwner presentation = new();
-        BattleCombatant actor = new(new BattleCombatantDefinition { Id = "ally", Name = "Ally", IsPlayer = true }, null)
-        {
-            NativeActionMemoryOwner = action,
-            NativePresentationStatusOwner = presentation
-        };
-        NativeBattleActionMemory retained = action.State;
-        NativeBattlePresentationStatusMemory retainedStatus = presentation.State;
+        BattleCombatant actor = new(new BattleCombatantDefinition { Id = "ally", Name = "Ally", IsPlayer = true }, null);
         NativeBattleLastAction observed = new(1, 7, 2, 3, 0, null);
         NativeBattleStatusMirror saved = new(2, 8);
-
         actor.LastNativeAction = observed;
         actor.LastNativeHealing = 1;
         actor.NativePresentationStatus = saved;
+
         actor.BindRosterSlot(BattleRosterSlot.Ally(0), bindNative: false);
         Assert.Null(actor.NativeActorIndex);
         Assert.Equal(observed, actor.LastNativeAction);
         Assert.Equal((byte)1, actor.LastNativeHealing);
         Assert.Equal(saved, actor.NativePresentationStatus);
-        Assert.Same(retained, action.State);
-        Assert.Same(retainedStatus, presentation.State);
 
         actor.BindRosterSlot(BattleRosterSlot.Ally(0));
         Assert.Equal(0, actor.RequireNativeActorIndex());
-        Assert.Equal(retained.Action(0), actor.LastNativeAction);
-        Assert.Equal(retained.Healing(0), actor.LastNativeHealing);
+        Assert.Equal(observed, actor.LastNativeAction);
+        Assert.Equal((byte)1, actor.LastNativeHealing);
+        Assert.Equal(saved, actor.NativePresentationStatus);
         actor.NativePresentationStatus = new(4, 16);
         actor.BindRosterSlot(null);
         Assert.Equal(new NativeBattleStatusMirror(4, 16), actor.NativePresentationStatus);
         Assert.Throws<NotSupportedException>(() => actor.RequireNativeActorIndex());
+        BattleCombatant replacement = new(new BattleCombatantDefinition { Id = "replacement", Name = "Replacement", IsPlayer = true }, null);
+        replacement.BindRosterSlot(BattleRosterSlot.Ally(0));
+        Assert.Null(replacement.LastNativeAction);
+        Assert.Null(replacement.LastNativeHealing);
     }
 
     [Fact]

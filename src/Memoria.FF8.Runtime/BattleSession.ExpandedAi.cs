@@ -139,18 +139,6 @@ public sealed partial class BattleSession
             snapshot.PresentationContinuation?.ModelRegistry?.Loads.TryGetValue(expected.Owner, out HostedModelLoadAdmission? admission) == true && admission.Load == expected;
     }
 
-    private static void StoreExpandedAiLastAttacker(BattleCombatant actor, int variable, bool add)
-    {
-        if (variable is < 220 or > 227 || add)
-        {
-            throw new NotSupportedException("Expanded battle AI can only assign an actor reference to a local variable.");
-        }
-        int index = variable - 220;
-        string attackerId = actor.LastAttackerId ?? throw new NotSupportedException("Expanded AI requires the last contact owner to store an attacker reference.");
-        actor.AiVariables[index] = 0;
-        actor.AiActorReferences[index] = attackerId;
-    }
-
     private static bool IsExpandedAiTarget(BattleCombatant candidate)
     {
         return candidate.IsActive && candidate.IsAlive && !candidate.Untargetable && (NativeSavedStatusBits(candidate) & 5) == 0;

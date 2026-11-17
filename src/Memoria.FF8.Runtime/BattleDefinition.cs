@@ -548,7 +548,7 @@ public sealed partial class BattleCombatant
     }
     internal NativeBattleAiDefinition? NativeAi => definition.NativeAi;
     internal uint[] AiVariables { get; } = new uint[8];
-    internal Dictionary<int, string> AiActorReferences { get; } = [];
+    internal Dictionary<int, NativeBattleAiActorValue> AiActorReferences { get; } = [];
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
     internal byte? LastNativeHealing { get; set; }

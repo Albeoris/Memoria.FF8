@@ -134,6 +134,7 @@ public sealed class NativeBattleAiConditionTests
         BattleSession original = new(definition, BattleAtbMode.Normal);
         BattleCombatant enemy = Assert.Single(original.Combatants, actor => actor.Id == "enemy");
         enemy.LastNativeAction = new(1, 0, 254, 65, 2, 3);
+        enemy.LastAttackerId = enemy.Id;
         BattleSession restored = BattleSession.Restore(original.Capture());
 
         DetachedExpandedAiFixture.InterpretScalarCallback(restored, "enemy", 1);

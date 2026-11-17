@@ -269,6 +269,7 @@ public sealed partial class BattleSession
 
     private void InitializeEncounterAllocatedStatistics(BattleCombatant actor)
     {
+        actor.LastNativeAction = new(0, null, null, null, null, 0);
         actor.ResolvedNativeLevel = actor.Level;
         actor.NativeCombatantFlags = (actor.SourceDefinition.NativeCombatantFlags & ~0xE3u) | 0xC2;
         if (actor.NativeActorIndex is int original)

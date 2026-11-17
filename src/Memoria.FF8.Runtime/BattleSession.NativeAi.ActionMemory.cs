@@ -74,13 +74,13 @@ public sealed partial class BattleSession
             //494410 never writes B99, including its a9=1 secondary death path.
             attackType = recipient.LastNativeAction?.AttackType;
         }
-        NativeBattleLastAction current = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), null);
+        byte? originalAttacker = actor.NativeActorIndex is int attackerIndex ? checked((byte)attackerIndex) : null;
+        NativeBattleLastAction current = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), originalAttacker);
         recipient.LastNativeAction = current;
         if (recipient.NativeActorIndex is int recipientIndex)
         {
-            byte? originalAttacker = actor.NativeActorIndex is int attackerIndex ? checked((byte)attackerIndex) : null;
             byte? originalClass = nativeContactWorking is null ? attackType : nativeActionMemory.Action(recipientIndex)?.AttackType;
-            nativeActionMemory = nativeActionMemory.WithAction(recipientIndex, current with { AttackerIndex = originalAttacker, AttackType = originalClass });
+            nativeActionMemory = nativeActionMemory.WithAction(recipientIndex, current with { AttackType = originalClass });
         }
         recipient.LastAttackerId = actor.Id;
         recipient.LastAttackerAbility = ability;

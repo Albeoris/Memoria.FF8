@@ -63,25 +63,25 @@ public sealed class NativeBattleAiAdmissionTests
     }
 
     [Theory]
-    [InlineData(0, 240, ExpandedAiAdmission.Supported)]
-    [InlineData(3, 240, ExpandedAiAdmission.Supported)]
-    [InlineData(1, 240, ExpandedAiAdmission.RequiresUnsupportedService)]
-    [InlineData(3, 6, ExpandedAiAdmission.RequiresUnsupportedService)]
-    public void OnlyEqualityComparisonsToNonSlotMarkersCanReadLogicalReferences(byte comparison, byte value, ExpandedAiAdmission expected)
+    [InlineData(0, 240)]
+    [InlineData(3, 240)]
+    [InlineData(1, 240)]
+    [InlineData(3, 6)]
+    public void LocalActorOperandComparisonsAreAdmittedForCurrentOriginalOperandChecks(byte comparison, byte value)
     {
         byte[] counter = [14, 220, 203, 2, 220, 200, comparison, value, 0, 0, 0, 0];
 
-        Assert.Equal(expected, NativeBattleExpandedAi.Evaluate(Program(counter: counter), [EnemyAction], 0));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Program(counter: counter), [EnemyAction], 0));
     }
 
     [Theory]
-    [InlineData(false, ExpandedAiAdmission.RequiresUnsupportedService)]
-    [InlineData(true, ExpandedAiAdmission.Supported)]
-    public void ArithmeticDependsOnTheValueThatReachesIt(bool overwrite, ExpandedAiAdmission expected)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LocalArithmeticIsAdmittedForCurrentNumericValueChecks(bool overwrite)
     {
         byte[] counter = [14, 220, 203, .. (overwrite ? new byte[] { 14, 220, 240 } : []), 18, 220, 1, 0];
 
-        Assert.Equal(expected, NativeBattleExpandedAi.Evaluate(Program(counter: counter), [EnemyAction], 0));
+        Assert.Equal(ExpandedAiAdmission.Supported, NativeBattleExpandedAi.Evaluate(Program(counter: counter), [EnemyAction], 0));
     }
 
     [Fact]

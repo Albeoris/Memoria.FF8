@@ -30,7 +30,8 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         Assert.Equal("Demi", demi.Name);
         Assert.True(demi is { MagicId: DemiEffect, AttackType: 8, HitCount: 1 });
 
-        BattleCombatantDefinition owner = Assert.Single(definition.Combatants, actor => !actor.IsPlayer && actor.InitialActive && actor.ModelId == 101 && actor.SceneSlot is >= 0 and < ExpandedBattleFormation.OriginalEnemyPrototypeCount);
+        BattleCombatantDefinition owner = Assert.Single(definition.Combatants, actor => !actor.IsPlayer && actor.InitialActive && actor.Id == "enemy-0");
+        Assert.Equal(10, owner.ModelId);
         // Target the fourth party member. The second cast is reached only after actual HP falls below 90%.
         byte[] turn = [4, 3, 3, Demi, 6, 2, 0, 3, 1, 9, 0, 3, 0, 3, Demi, 6, 0];
         BattleCombatantDefinition[] actors = definition.Combatants.Select(actor =>
@@ -100,14 +101,16 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         {
             enemy.CurrentHp = 1;
             enemy.NativeCombatantFlags |= 0x20;
+            enemy.NativeStatus1 |= 1;
             target.Atb = BattleSession.AtbMaximum;
             battle.QueueAttack(target.Id, enemy.Id);
-            for (int callback = 0; callback < 1200 && !Completed(battle, events, target.Id); callback++)
+            for (int callback = 0; callback < 1200 && (!enemy.AiDeathHandled || !Completed(battle, events, enemy.Id)); callback++)
             {
                 battle.Tick();
             }
             Assert.True(Completed(battle, events, target.Id));
-            Assert.True(enemy.AiDeathHandled);
+            Assert.True(enemy.AiDeathHandled, $"Enemy HP {enemy.CurrentHp}, saved status {enemy.NativeStatus0:X}, active {enemy.IsActive}, pending {enemy.NativePendingReaction}.");
+            Assert.True(Completed(battle, events, enemy.Id));
             Assert.Equal(0, enemy.CurrentHp);
             Assert.Equal(initialHp - firstDamage, target.CurrentHp);
             Assert.Equal(unchecked((ushort)(retainedKoWord + firstDamage)), enemy.NativeReturnDamage);
@@ -225,6 +228,13 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         }
 
         target.Atb = BattleSession.AtbMaximum;
+        // The stage2 player reaction is a separate observed event and owns input until it drains.
+        for (int callback = 0; callback < 1200 && !battle.CanChoosePlayerCommand(target.Id); callback++)
+        {
+            battle.Tick();
+            target.Atb = BattleSession.AtbMaximum;
+        }
+        Assert.True(battle.CanChoosePlayerCommand(target.Id), $"Player HP {target.CurrentHp}, saved status {target.NativeStatus0:X}, busy {target.IsBusy}, active action {battle.ActiveAction?.ActorId}.");
         int next = battle.Events.Count;
         battle.QueueAttack(target.Id, enemy.Id);
         for (int callback = 0; callback < 1200 && !Completed(battle, next, target.Id); callback++)
@@ -234,7 +244,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         }
         Assert.Equal(enemy.Id, Assert.Single(battle.Events.Skip(next), entry => entry.Kind == "EffectContact" && entry.ActorId == target.Id).TargetId);
         Assert.Single(battle.Events.Skip(next), entry => entry.Kind == "ActionComplete" && entry.ActorId == target.Id);
-        Assert.All(battle.Combatants.Where(actor => !actor.IsPlayer), actor => Assert.True(actor.IsAlive));
+        Assert.Equal(enemyHealth, battle.Combatants.Where(actor => !actor.IsPlayer && actor.Id != enemy.Id).Select(actor => actor.CurrentHp));
     }
 
     private static bool Completed(BattleSession battle, int start, string actorId)

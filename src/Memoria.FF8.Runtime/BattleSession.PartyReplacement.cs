@@ -168,6 +168,7 @@ public sealed partial class BattleSession
             GuardianForceCompatibility = saved.GuardianForceCompatibility
         });
         initial.BindRosterSlot(actor.Slot, bindNative: actor.NativeActorIndex.HasValue);
+        initial.LastNativeAction = new(0, null, null, null, null, 0);
         BindBattleMagicOwner(initial);
         initial.ReprojectNativePlayerStatistics();
         RestoreNativeParticipant(actor, CaptureNativeParticipant(initial));

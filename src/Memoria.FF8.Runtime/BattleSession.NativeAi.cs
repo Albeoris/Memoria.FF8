@@ -216,7 +216,7 @@ public sealed partial class BattleSession
                         {
                             if (operand == 203)
                             {
-                                StoreExpandedAiLastAttacker(actor, variable, opcode == 18);
+                                StoreNativeAiLastAttacker(actor, variable, opcode == 18);
                                 break;
                             }
                             WriteNativeActorVariable(actor, variable, operand, opcode == 18);
@@ -557,13 +557,14 @@ public sealed partial class BattleSession
         actor.AiActorReferences.Clear();
         if (saved.ActorReferences is { } references)
         {
-            foreach ((int index, string id) in references)
+            foreach ((int index, NativeBattleAiActorValue value) in references)
             {
-                if (actor.NativeAi is null || (uint)index >= actor.AiVariables.Length || id is null || !byId.ContainsKey(id) || saved.Variables[index] != 0)
+                if (actor.NativeAi is null || (uint)index >= actor.AiVariables.Length || value.ActorId is null || !byId.ContainsKey(value.ActorId) ||
+                    value.OriginalOperand is byte operand && !NativeBattleSlots.Contains(operand) || saved.Variables[index] != 0)
                 {
                     throw new InvalidDataException("Battle participant has an invalid logical AI actor reference.");
                 }
-                actor.AiActorReferences.Add(index, id);
+                actor.AiActorReferences.Add(index, value);
             }
         }
         actor.IsActive = saved.Active;
@@ -605,7 +606,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Allocated native participant lacks its resolved level.");
         }
         RestoreNativeStatMultipliers(actor, saved.StatMultipliers);
-        if (saved.LastAction is { } action && (action.AttackType is > 3 || action.AttackerIndex > 10))
+        if (saved.LastAction is { } action && (action.AttackType is > 3 || action.AttackerIndex >= NativeBattleSlots.Count))
         {
             throw new InvalidDataException("Native battle action memory has an invalid attack type or physical attacker index.");
         }

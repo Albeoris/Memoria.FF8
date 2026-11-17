@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleComponentTerminalTextureTests
 {
     [Fact]
-    public void Installed_effect_101_keeps_its_terminal_resident_texture_through_private_forks()
+    public void Installed_effect_101_component_fork_activates_its_authored_Droma()
     {
         const ushort effect = 101;
         string directory = TestResources.GameDirectory;
@@ -16,56 +16,38 @@ public sealed class NativeBattleComponentTerminalTextureTests
         using GameWorld producer = new(producerSession, directory);
         BattleSession source = PrepareTraumaComponent(producer, effect);
         BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, effect);
+        BattleCombatant dormant = Assert.Single(source.Combatants, actor => !actor.IsPlayer && actor.ModelId == 110 && actor.IsActive);
+        Assert.True(dormant.Hidden && dormant.Suspended && dormant.Untargetable);
         Assert.Equal((byte)8, admission.Command);
         Assert.Equal((ushort)290, admission.Action);
         string sha256 = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(admission)));
         using GameWorld world = new(GameWorld.CreateColdProcess(directory), directory);
         BattleSession active = world.StartEffectPreview(new(1, 0, effect), new(source, sha256));
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(active.Presentation);
+        BattleCombatant droma = Assert.Single(active.Combatants, actor => actor.Id == dormant.Id);
+        Assert.NotSame(source.Presentation, process);
+        Assert.NotSame(dormant, droma);
+        Assert.Equal(admission, GameWorld.ValidateEffectComponentSource(active, effect));
+
         List<BattleDiagnosticEffectDispatch> dispatches = [];
         active.DiagnosticEffectDispatched += dispatches.Add;
         using IDisposable visibleArea = BattleSceneVisibleArea.Begin(BattleSceneVisibleArea.Native);
-        for (int callback = 0; callback < 900; callback++)
+        int initialEvents = active.Events.Count;
+        for (int callback = 0; callback < 900 && droma.Suspended; callback++)
         {
-            NativeBattleGraphicsState graphicsBefore = process.Graphics;
-            NativeBattleEffectMemory memoryBefore = process.Memory;
-            BattleComponentTextureQuiescenceObservation? observation = active.ObserveComponentTerminalTextures(effect);
-            Assert.Same(graphicsBefore, process.Graphics);
-            Assert.Same(memoryBefore, process.Memory);
-            if (observation is not null)
-            {
-                Assert.Equal((ushort)290, Assert.Single(dispatches, dispatch => dispatch.RequestedEffect == effect).ActionId);
-                Assert.True(observation.IsEligible);
-                Assert.True(observation.Textures.IsTerminalQuiescent);
-                Assert.All(observation.Textures.Tasks, row => Assert.False(string.IsNullOrWhiteSpace(row.ModelActorId)));
-                Assert.Equal(new[] { "effect-or-auxiliary-task" }, active.ObserveDiagnosticDrainBlockers());
-                BattleSession first = active.ForkForContinuation();
-                BattleSession second = active.ForkForContinuation();
-                byte[] vram = process.Memory.Textures!.ReadVram();
-                for (int tail = 0; tail < 3; tail++)
-                {
-                    first.Tick();
-                    second.Tick();
-                    AssertTail(first);
-                    AssertTail(second);
-                    Assert.Equal(first.Presentation!.Graphics.Callback, second.Presentation!.Graphics.Callback);
-                }
-                Assert.Equal(observation.ResidentFingerprint, active.ObserveComponentTerminalTextures(effect)!.ResidentFingerprint);
-                return;
-
-                void AssertTail(BattleSession retained)
-                {
-                    BattleComponentTextureQuiescenceObservation next = Assert.IsType<BattleComponentTextureQuiescenceObservation>(retained.ObserveComponentTerminalTextures(effect));
-                    Assert.Equal(observation.ResidentFingerprint, next.ResidentFingerprint);
-                    Assert.True(next.GraphicsCallback > observation.GraphicsCallback);
-                    Assert.Equal(vram, retained.Presentation!.Memory.Textures!.ReadVram());
-                    Assert.Equal(new[] { "effect-or-auxiliary-task" }, retained.ObserveDiagnosticDrainBlockers());
-                }
-            }
             active.Tick();
-            Assert.Empty(process.LastStep.Contacts);
         }
-        Assert.Fail($"Installed effect101 did not reach the resident texture boundary after {process.Graphics.Callback} graphics callbacks. Current blockers: {string.Join(", ", active.ObserveDiagnosticDrainBlockers())}.");
+
+        BattleDiagnosticEffectDispatch dispatched = Assert.Single(dispatches, observation => observation.RequestedEffect == effect);
+        Assert.Equal(effect, dispatched.ExecutedEffect);
+        Assert.Equal(290, dispatched.ActionId);
+        Assert.Equal((byte)2, dispatched.NativeAiCallbackStage);
+        Assert.Contains(droma.Id, dispatched.ContactActorIds);
+        Assert.True(droma.IsAlive && !droma.Hidden && !droma.Suspended && !droma.Untargetable);
+        Assert.Equal(dormant.CurrentHp, droma.CurrentHp);
+        Assert.True(dormant.Hidden && dormant.Suspended && dormant.Untargetable);
+        Assert.Contains(active.Events.Skip(initialEvents), entry => entry.Kind == "Activated" && entry.ActorId == droma.Id);
+        Assert.DoesNotContain(active.Events.Skip(initialEvents), entry => entry.Kind == "EffectContact" && entry.ActorId == dispatched.ActorId && entry.TargetId == droma.Id);
     }
 
     private static BattleSession PrepareTraumaComponent(GameWorld world, ushort effect)

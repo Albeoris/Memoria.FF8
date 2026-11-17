@@ -4,19 +4,36 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private void StoreNativeAiLastAttacker(BattleCombatant actor, int variable, bool add)
+    {
+        byte? original = actor.LastNativeAction?.AttackerIndex;
+        if (!add && variable is >= 220 and <= 227 && actor.LastAttackerId is string attackerId)
+        {
+            int index = variable - 220;
+            actor.AiVariables[index] = 0;
+            actor.AiActorReferences[index] = new(attackerId, original);
+            return;
+        }
+        uint operand = original ?? throw new NotSupportedException("Native AI last attacker has no original numeric operand.");
+        WriteNativeActorVariable(actor, variable, operand, add);
+    }
+
     private uint ReadNativeActorVariable(BattleCombatant actor, int variable)
     {
         (BattleCombatant owner, int member) = ResolveNativeActorVariable(actor, variable);
         if (member is >= 36 and <= 64)
         {
             int index = (member - 36) / 4;
-            if (owner.AiActorReferences.ContainsKey(index))
-            {
-                throw new NotSupportedException("Expanded battle AI cannot read an actor reference as a number.");
-            }
-            return owner.AiVariables[index];
+            return ReadNativeAiLocalNumber(owner, index);
         }
         return BinaryPrimitives.ReadUInt32LittleEndian(owner.MutableNativeStatusResistances.AsSpan(member - 144, 4));
+    }
+
+    private static uint ReadNativeAiLocalNumber(BattleCombatant owner, int index)
+    {
+        return owner.AiActorReferences.TryGetValue(index, out NativeBattleAiActorValue reference)
+            ? reference.OriginalOperand ?? throw new NotSupportedException("Native AI actor reference has no original numeric operand.")
+            : owner.AiVariables[index];
     }
 
     private void WriteNativeActorVariable(BattleCombatant actor, int variable, uint operand, bool add)
@@ -25,12 +42,9 @@ public sealed partial class BattleSession
         if (member is >= 36 and <= 64)
         {
             int index = (member - 36) / 4;
-                if (add && owner.AiActorReferences.ContainsKey(index))
-                {
-                    throw new NotSupportedException("Expanded battle AI cannot perform arithmetic on an actor reference.");
-                }
-                owner.AiActorReferences.Remove(index);
-            owner.AiVariables[index] = add ? unchecked(owner.AiVariables[index] + operand) : operand;
+            uint local = add ? unchecked(ReadNativeAiLocalNumber(owner, index) + operand) : operand;
+            owner.AiActorReferences.Remove(index);
+            owner.AiVariables[index] = local;
             return;
         }
         Span<byte> destination = owner.MutableNativeStatusResistances.AsSpan(member - 144, 4);

@@ -30,15 +30,14 @@ internal static class NativeBattleAiLocalFlow
 
     private static readonly ImmutableArray<Value> ResetLocals = ImmutableArray.CreateRange(Enumerable.Repeat(Value.Numeric(0), 8));
 
-    internal static ImmutableArray<Value> RetainedLocals(IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, string> references)
+    internal static ImmutableArray<Value> RetainedLocals(IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, NativeBattleAiActorValue> references)
     {
         return numbers.Select((number, index) => references.ContainsKey(index) ? Value.Reference : Value.Numeric(number)).ToImmutableArray();
     }
 
-    internal static void Check(NativeBattleAiDefinition program, int formation, bool originalEnemySlots, int referenceWrites, ImmutableArray<Value> retainedLocals, Action<string> requireOriginalSlots, Action<string> markUnsupported)
+    internal static void Check(NativeBattleAiDefinition program, int formation, ImmutableArray<Value> retainedLocals, Action<string> requireOriginalSlots)
     {
         HashSet<string> physicalUses = [];
-        HashSet<string> unsupportedUses = [];
         // Init runs before other callbacks for a new allocation. A level-band change keeps the actual
         // locals and never replays init. Counter and turn can run in either order, or never run at all.
         ImmutableArray<Value> entry = retainedLocals.IsDefault ? Trace(0, ResetLocals) : retainedLocals;
@@ -62,10 +61,6 @@ internal static class NativeBattleAiLocalFlow
         foreach (string use in physicalUses)
         {
             requireOriginalSlots(use);
-        }
-        foreach (string use in unsupportedUses)
-        {
-            markUnsupported(use);
         }
 
         ImmutableArray<Value> Trace(int callback, ImmutableArray<Value> start)
@@ -94,20 +89,14 @@ internal static class NativeBattleAiLocalFlow
                         continue;
                     case 2:
                         NativeBattleAiCondition condition = instruction.Condition;
-                        var (subject, selector, comparison, value) = condition;
-                        if (!originalEnemySlots && condition.UsesActorSelector && selector is >= 220 and <= 227 && locals[selector - 220].MayBeNumber)
+                        var (subject, selector, _, _) = condition;
+                        if (condition.UsesActorSelector && selector is >= 220 and <= 227 && locals[selector - 220].MayBeNumber)
                         {
                             physicalUses.Add($"actor-reference-condition:{subject}/{selector}");
                         }
                         if (subject is >= 220 and <= 227)
                         {
                             int index = subject - 220;
-                            // A different actor's local is outside this callback's own state.
-                            bool mayReadReference = selector == 200 ? locals[index].MayBeReference : (referenceWrites & (1 << index)) != 0;
-                            if (mayReadReference && !NativeBattleAiCondition.CanCompareActorReference(comparison, value))
-                            {
-                                unsupportedUses.Add($"actor-reference-comparison:{subject}/{comparison}/{value}");
-                            }
                             if (selector == 200)
                             {
                                 AddComparisonEdge(next, true);
@@ -134,7 +123,7 @@ internal static class NativeBattleAiLocalFlow
                             continue;
                         }
                         break;
-                    case 4 when !originalEnemySlots && instruction[0] is >= 220 and <= 227:
+                    case 4 when instruction[0] is >= 220 and <= 227:
                         Value target = locals[instruction[0] - 220];
                         if (target.MayBeNumber && (target.Number is not uint number || NativeBattleTargetRequestAdapter.DecodeAiActorOperand(unchecked((int)number)).Projection.RequiresOriginalSlots))
                         {
@@ -142,16 +131,19 @@ internal static class NativeBattleAiLocalFlow
                         }
                         break;
                     case 14 when instruction[0] is >= 220 and <= 227:
-                        locals = locals.SetItem(instruction[0] - 220, instruction[1] == 203 ? Value.Reference : Value.Numeric(instruction[1]));
+                        Value assigned = Value.Numeric(instruction[1]);
+                        if (instruction[1] == 203)
+                        {
+                            assigned = callback == 2 ? Value.Reference : Value.Reference.Join(Value.Numeric(0));
+                        }
+                        locals = locals.SetItem(instruction[0] - 220, assigned);
                         break;
-                    case 18 when instruction[0] is >= 220 and <= 227 && instruction[1] != 203:
+                    case 18 when instruction[0] is >= 220 and <= 227:
                         int variable = instruction[0] - 220;
                         Value before = locals[variable];
-                        if (before.MayBeReference)
-                        {
-                            unsupportedUses.Add($"actor-reference-arithmetic:{instruction[0]}");
-                        }
-                        locals = locals.SetItem(variable, new(false, true, before.Number is uint current ? unchecked(current + instruction[1]) : null));
+                        // Numeric projection of an actor value depends on the actual captured original operand.
+                        uint? sum = !before.MayBeReference && before.Number is uint current && instruction[1] != 203 ? unchecked(current + instruction[1]) : null;
+                        locals = locals.SetItem(variable, new(false, true, sum));
                         break;
                     case 35:
                         next = instruction.BranchOffset;
