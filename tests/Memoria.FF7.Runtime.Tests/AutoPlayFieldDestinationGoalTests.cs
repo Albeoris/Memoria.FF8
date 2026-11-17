@@ -65,7 +65,58 @@ internal static class AutoPlayFieldDestinationGoalTests
         Check(state.NavigationGoal is null, "Ordinary exploration must retain its existing local-step goal clearing behavior.");
         CheckConsumedEntranceIntent(observation, entrance, optional);
         CheckPossibleDestinationGoals(observation, entrance, optional);
+        CheckRemoteDestinationAdvice();
         Console.WriteLine("PASS generic field destination resolution, priority, retention, restoration, native guards and unchanged consumption history");
+    }
+
+    private static void CheckRemoteDestinationAdvice()
+    {
+        Ff7AutoPlayTarget exit = new("exit", 2, 2, Ff7AutoPlayTargetKind.LinePush, "exit-condition", false, Vector3.Zero, DestinationField: 200, ChangesField: true);
+        Ff7AutoPlayTarget optional = exit with { Id = "optional", Entity = 3, DestinationField = 400 };
+        Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [optional, exit], true, true) { NavigationKey = "inn-component" };
+        Ff7AutoPlayState state = new() { DestinationField = 300 };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        AutoPlayEvent native = new(exit.Id, AutoPlayEventKind.Transition, ConditionSignature: exit.ConditionFingerprint);
+        AutoPlayEvent other = new(optional.Id, AutoPlayEventKind.Transition, ConditionSignature: optional.ConditionFingerprint);
+        planner.Observe(new(observation.VisitId, "native"), [other, native]);
+        planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [other, native]);
+        planner.Observe(new("ff7:200:native", "native"), []);
+        planner.ObserveNavigation("ff7:200:native", "outside-component", []);
+        planner.Completed(observation.VisitId, native.Id, "ff7:200:native", observedStoryChanged: false, entrySignature: native.ConditionSignature, entrySignatureAuthoritative: true);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == native.Id);
+        planner.RecordNavigationRoute(observation.NavigationKey, "outside-component", native.Id, coverage.Routes.Single());
+        string consumption = JsonSerializer.Serialize(coverage.Conditions);
+        string routes = JsonSerializer.Serialize(state.Coverage.NavigationRoutes);
+        string receipts = JsonSerializer.Serialize(state.Coverage.NavigationVisits);
+        Dictionary<ushort, int[]> graph = new() { [200] = [250], [250] = [300], [400] = [401], [401] = [] };
+        int[] Read(ushort field) => graph.TryGetValue(field, out int[]? destinations) ? destinations : [];
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, Read) is null, "Native multi-hop advice must connect the currently observed exit to a remote requested field.");
+        AutoPlayPlanStep next = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal)!;
+        Check(next.Event.Id == exit.Id && Ff7AutoPlayPolicy.IsDestinationPlan(state, next, observation.NavigationKey), "A consumed inn exit toward the remote destination must precede an unrelated optional room.");
+        Check(coverage.Completed && JsonSerializer.Serialize(coverage.Conditions) == consumption && JsonSerializer.Serialize(state.Coverage.NavigationRoutes) == routes && JsonSerializer.Serialize(state.Coverage.NavigationVisits) == receipts, "Native route advice must preserve completion, consumption, recorded routes and component receipts.");
+        AutoPlayPlanStep? blocked = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == exit.Id, [], "current-native-refusal"));
+        Check(!Ff7AutoPlayPolicy.IsDestinationPlan(state, blocked, observation.NavigationKey), "A currently refused required exit must not silently become optional exploration.");
+        Ff7AutoPlayState restored = state.Clone();
+        Ff7AutoPlayTarget onward = exit with { Id = "onward", DestinationField = 250, ConditionFingerprint = "outside-condition" };
+        Ff7AutoPlayObservation outside = observation with { VisitId = "ff7:200:native", NavigationKey = "outside-component", Generation = 2, Events = [onward] };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(restored, outside, Read) is null && restored.DestinationField == 300 && restored.NavigationGoal == new AutoPlayTravelGoal(outside.NavigationKey, onward.Id, onward.ConditionFingerprint), "Cold field handoff must preserve the final destination and resolve the next native entrance without replaying previous travel.");
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, _ => [])?.Contains("No currently admitted native field connectivity route", StringComparison.Ordinal) == true && state.NavigationGoal is null && !Ff7AutoPlayPolicy.IsDestinationPlan(state, next, observation.NavigationKey), "A disconnected requested destination must report its route boundary and suppress unrelated frontiers.");
+        Ff7AutoPlayTarget alternate = exit with { Id = "alternate", Entity = 4, DestinationField = 210, ConditionFingerprint = "alternate-condition" };
+        AutoPlayEvent alternateEvent = native with { Id = alternate.Id, ConditionSignature = alternate.ConditionFingerprint };
+        planner.Observe(new(observation.VisitId, "native"), [other, native, alternateEvent]);
+        planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [other, native, alternateEvent]);
+        graph[210] = [211];
+        graph[211] = [212];
+        graph[212] = [300];
+        Ff7AutoPlayObservation alternatives = observation with { Events = [optional, exit, alternate] };
+        Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, alternatives, Read, target => target.Id != exit.Id) is null && state.NavigationGoal?.EventId == alternate.Id, "An unavailable shortest corridor must leave a longer currently admitted corridor to the requested destination eligible.");
+        AutoPlayPlanStep? longer = planner.PlanNavigation(observation.NavigationKey, preferredGoal: state.NavigationGoal, readAvailability: (_, target) => new(target.Id == exit.Id, [], "short-corridor-blocked"));
+        Check(longer?.Event.Id == alternate.Id && Ff7AutoPlayPolicy.IsDestinationPlan(state, longer, observation.NavigationKey), "The shared planner must admit the longer goal-reaching exit while excluding an unrelated optional room.");
+        state.DestinationField = 1000;
+        string? limited = Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [exit] }, field => [(int)field + 1]);
+        Check(limited?.Contains("bounded search limit", StringComparison.Ordinal) == true && state.NavigationGoal is null, "An unfinished bounded native connectivity search must report its limit instead of exploring unrelated fields.");
+        state.DestinationField = null;
+        Check(Ff7AutoPlayPolicy.IsDestinationPlan(state, blocked, observation.NavigationKey), "Ordinary exploration must retain its existing admission and frontier policy when no destination is requested.");
     }
 
     private static void CheckPossibleDestinationGoals(Ff7AutoPlayObservation observation, Ff7AutoPlayTarget entrance, Ff7AutoPlayTarget optional)

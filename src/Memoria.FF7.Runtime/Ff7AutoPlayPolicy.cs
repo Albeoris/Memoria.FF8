@@ -196,9 +196,18 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            ResolveFieldDestinationGoal(State, observation);
+            bool CanSelectDestination(Ff7AutoPlayTarget target)
+            {
+                AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
+                return ReadNavigationAvailability(currentNavigation, native, observation, driver, componentGuards)?.Unavailable != true;
+            }
+            string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination);
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            if (!IsDestinationPlan(State, next, observation.NavigationKey))
+            {
+                next = null;
+            }
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
@@ -207,7 +216,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                     Publish();
                     return default;
                 }
-                string reason = observation.AnalysisComplete ? "No reachable unconsumed native event remains in the observed frontier." : observation.SupportReason ?? "Native event analysis remains incomplete.";
+                string reason = State.DestinationField is ushort destination ? destinationReason ?? $"The native route toward field {destination} has no currently admitted transition in this navigation component." : observation.AnalysisComplete ? "No reachable unconsumed native event remains in the observed frontier." : observation.SupportReason ?? "Native event analysis remains incomplete.";
                 throw new NotSupportedException(reason);
             }
             nativeReadiness.Reset();

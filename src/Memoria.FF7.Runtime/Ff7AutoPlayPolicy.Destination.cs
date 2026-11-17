@@ -15,16 +15,21 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static void ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null)
     {
         if (state.DestinationField is not ushort destination)
         {
-            return;
+            return null;
         }
-        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true)).ToArray();
+        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && (target.DestinationField == destination || target.PossibleDestinationFields.Contains(destination) || target.SpatialDestinations?.Contains(destination) == true) && canSelect?.Invoke(target) != false).ToArray();
         Ff7AutoPlayTarget? selected = candidates.FirstOrDefault(target => state.NavigationGoal is { } retained && retained.NavigationKey == observation.NavigationKey && retained.EventId == target.Id)
             ?? candidates.FirstOrDefault(target => target.DestinationField == destination)
             ?? candidates.FirstOrDefault();
+        bool limited = false;
+        if (selected is null && readConnections is not null)
+        {
+            (selected, limited) = FindFieldDestinationAdvice(state, observation, destination, readConnections, canSelect);
+        }
         if (selected is not null)
         {
             state.NavigationGoal = new(observation.NavigationKey, selected.Id, selected.ConditionFingerprint);
@@ -36,6 +41,61 @@ public sealed partial class Ff7AutoPlayPolicy
                 coverage.GlobalRouteRediscovery = true;
             }
         }
+        else if (readConnections is not null)
+        {
+            state.NavigationGoal = null;
+            return limited ? $"Native field connectivity advice to field {destination} reached its bounded search limit." : $"No currently admitted native field connectivity route to field {destination} is established from this navigation component.";
+        }
+        return null;
+    }
+
+    private static (Ff7AutoPlayTarget? Target, bool Limited) FindFieldDestinationAdvice(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, ushort destination, Func<ushort, int[]> readConnections, Func<Ff7AutoPlayTarget, bool>? canSelect)
+    {
+        const int maximumFields = 128;
+        Queue<(ushort Field, Ff7AutoPlayTarget First)> pending = new();
+        HashSet<ushort> visited = [];
+        int current = ReadVisitField(observation.VisitId);
+        foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && (target.Kind == Ff7AutoPlayTargetKind.Gateway || target.ChangesField) && canSelect?.Invoke(target) != false))
+        {
+            foreach (int field in TargetDestinations(target).Where(field => field > 64 && field < short.MaxValue && field != current))
+            {
+                pending.Enqueue(((ushort)field, target));
+            }
+        }
+        while (pending.Count != 0 && visited.Count < maximumFields)
+        {
+            var step = pending.Dequeue();
+            if (!visited.Add(step.Field))
+            {
+                continue;
+            }
+            if (step.Field == destination)
+            {
+                return (step.First, false);
+            }
+            IEnumerable<int> recorded = state.Coverage.Visits.Where(visit => ReadVisitField(visit.Visit.Key) == step.Field).SelectMany(visit => visit.Events).SelectMany(item => item.Routes).Select(route => ReadVisitField(route.DestinationVisitKey));
+            foreach (int field in readConnections(step.Field).Concat(recorded).Where(field => field > 64 && field < short.MaxValue).Distinct())
+            {
+                pending.Enqueue(((ushort)field, step.First));
+            }
+        }
+        return (null, pending.Count != 0);
+    }
+
+    internal static bool IsDestinationPlan(Ff7AutoPlayState state, AutoPlayPlanStep? next, string navigationKey)
+    {
+        return state.DestinationField is null || state.NavigationGoal is { } goal && next is not null && (next.Goal == goal || goal.NavigationKey == navigationKey && next.Event.Id == goal.EventId && next.Event.ConditionSignature == goal.Conditions);
+    }
+
+    private static IEnumerable<int> TargetDestinations(Ff7AutoPlayTarget target)
+    {
+        return (target.DestinationField is int field ? new[] { field } : []).Concat(target.PossibleDestinationFields).Concat(target.SpatialDestinations ?? []).Distinct();
+    }
+
+    private static int ReadVisitField(string visit)
+    {
+        string[] parts = visit.Split(':', 3);
+        return parts.Length == 3 && parts[0] == "ff7" && int.TryParse(parts[1], out int field) ? field : -1;
     }
 
     /// <summary>Sets a planning destination without changing native execution or selecting physical inputs.</summary>
