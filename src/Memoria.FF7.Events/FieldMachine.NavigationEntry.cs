@@ -278,6 +278,10 @@ public sealed partial class FieldMachine
                 }
                 foreach (var publication in controlInvariant.Commands)
                 {
+                    if (publication.Command is FieldMenuCommand or FieldBattleCommand or FieldMinigameCommand)
+                    {
+                        return Reject($"Native producer {publication.Entity}/{publication.Command.GetType().Name} has an opaque mode-return publication contract.");
+                    }
                     if (publication.Command is FieldControlCommand control && (control.Property == FieldControlKind.PlayerLocked && (control.Value != 0) != controls.PlayerLocked || control.Property == FieldControlKind.MenuDisabled && (control.Value != 0) != controls.MenuDisabled))
                     {
                         return Reject("A native producer can change an idempotent entry control.");

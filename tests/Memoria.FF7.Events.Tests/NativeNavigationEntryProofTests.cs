@@ -170,6 +170,16 @@ internal static class NativeNavigationEntryProofTests
         Check(!ProveControls(CreateControls([0x4A, 1, 0], pending: true)).HasNoEffect, "A pending native host-request owner escaped the control producer roots.");
         Check(!ProveControls(CreateControls([0x4A, 1, 0], saved: true)).HasNoEffect, "A saved native continuation escaped the control producer roots.");
         Check(!ProveControls(CreateControls([0xD1, 1, 0], active: true)).HasNoEffect, "A LINE enable producer could invalidate the external-entry set.");
+        foreach (var mode in new (byte[] Code, string Command)[] { (new byte[] { 0x49, 0, 7, 0, 0 }, nameof(FieldMenuCommand)), (new byte[] { 0x70, 0, 0, 0, 0 }, nameof(FieldBattleCommand)), (new byte[] { 0x20, 65, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 }, nameof(FieldMinigameCommand)) })
+        {
+            FieldMachine externalMode = CreateControls(mode.Code);
+            Check(ProveControls(externalMode).HasNoEffect, "An unreachable external host mode invalidated a closed control entry.");
+            FieldNavigationEntryProof reachable = ProveControls(externalMode, near: true);
+            Check(!reachable.HasNoEffect && reachable.Reason!.Contains(mode.Command, StringComparison.Ordinal), "A reachable opaque host mode was treated as a closed control producer.");
+            FieldNavigationEntryProof activeMode = ProveControls(CreateControls(mode.Code, active: true));
+            Check(!activeMode.HasNoEffect && activeMode.Reason!.Contains(mode.Command, StringComparison.Ordinal), "An active opaque host mode escaped the captured-owner closure.");
+        }
+        Check(ProveControls(CreateControls([0xB4, 0, 64, 2, 1, 2, 0], active: true)).HasNoEffect, "An NPC facing-only producer was unnecessarily treated as a geometry or control clobber.");
         FieldNavigationEntryProof relocation = ProveControls(CreateControls([0xA5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], active: true));
         Check(!relocation.HasNoEffect && relocation.Reason!.Contains("FieldActorPlacement", StringComparison.Ordinal), "A scheduled actor relocation could invalidate the scoped geometry.");
         Check(!ProveControls(CreateControls(busy: true)).HasNoEffect, "An unpreemptible entry owner was certified as a new native entry.");
