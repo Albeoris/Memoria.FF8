@@ -5,7 +5,7 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
-public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null);
+public sealed record Ff7AutoPlayChoiceState(string Key, Ff7AutoPlayActiveEvent? BeforeActive, Ff7AutoPlayChoiceState? Parent = null, Ff7AutoPlayActiveEvent? ContinuationActive = null, string? OwnerIdentity = null, int? BeforeStory = null);
 public sealed record Ff7AutoPlayRestoreRequest(string Path, string[]? RetiredPaths = null);
 
 /// <summary>Adapts shared choice coverage to exact native before-choice and primary-continuation saves.</summary>
@@ -16,18 +16,20 @@ public sealed class Ff7AutoPlayChoiceWorkflow
     private readonly Ff7AutoPlayState state;
     private readonly Func<string, Ff7SessionSave, string> writeCheckpoint;
     private readonly Func<string, bool> checkpointExists;
+    private readonly Func<string, int?> readCheckpointStory;
 
     public Ff7AutoPlayChoiceWorkflow(Ff7Session session, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint) : this(session.Capture, planner, state, writeCheckpoint, File.Exists)
     {
     }
 
-    internal Ff7AutoPlayChoiceWorkflow(Func<Ff7SessionSave> capture, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint, Func<string, bool>? checkpointExists = null)
+    internal Ff7AutoPlayChoiceWorkflow(Func<Ff7SessionSave> capture, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayState state, Func<string, Ff7SessionSave, string> writeCheckpoint, Func<string, bool>? checkpointExists = null, Func<string, int?>? readCheckpointStory = null)
     {
         this.capture = capture;
         this.planner = planner;
         this.state = state;
         this.writeCheckpoint = writeCheckpoint;
         this.checkpointExists = checkpointExists ?? (_ => true);
+        this.readCheckpointStory = readCheckpointStory ?? ReadCheckpointStory;
     }
 
     public IReadOnlyList<AutoPlayChoiceSelection> Selections
@@ -80,7 +82,7 @@ public sealed class Ff7AutoPlayChoiceWorkflow
             {
                 return first;
             }
-            current = new(key, state.Active, current, OwnerIdentity: owner);
+            current = new(key, state.Active, current, OwnerIdentity: owner, BeforeStory: ReadStory(before));
             state.Choice = current;
         }
         Ff7AutoPlayChoiceState selectedChoice = current ?? throw new InvalidDataException("The native choice has no exploration owner.");
@@ -144,14 +146,28 @@ public sealed class Ff7AutoPlayChoiceWorkflow
         {
             throw new InvalidOperationException("A choice continuation cannot complete before its selected native option executes.");
         }
+        Ff7SessionSave current = capture();
+        int? beforeStory = choice.BeforeStory ?? (coverage.BeforeCheckpoint is string path ? readCheckpointStory(path) : null);
+        bool storyAdvanced = beforeStory is int baseline && ReadStory(current) > baseline;
         string? continuation = coverage.ContinuationCheckpoint;
         if (continuation is null)
         {
-            continuation = Write(choice.Key + "-continuation", capture());
+            continuation = Write(choice.Key + "-continuation", current);
             choice = choice with { ContinuationActive = state.Active };
             state.Choice = choice;
         }
         planner.CompleteChoiceAtControlReturn(choice.Key, continuation);
+        if (storyAdvanced)
+        {
+            foreach (int option in Enumerable.Range(coverage.FirstOption, coverage.OptionCount).Where(option => !coverage.CompletedOptions.Contains(option)))
+            {
+                coverage.PolicyDeferredOptions.Add(option);
+            }
+            planner.FinishChoice(choice.Key);
+            state.Choice = choice.Parent;
+            state.Status = "Optional choice alternatives were deferred after native story progress; continuing from the current native state.";
+            return CompleteAtControlReturn();
+        }
         AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
         if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is string beforeCheckpoint && !checkpointExists(beforeCheckpoint))
         {
@@ -182,6 +198,24 @@ public sealed class Ff7AutoPlayChoiceWorkflow
     private AutoPlayChoiceCoverage Coverage(string key)
     {
         return planner.State.Choices.Single(choice => choice.Key == key);
+    }
+
+    private static int ReadStory(Ff7SessionSave snapshot)
+    {
+        return unchecked((short)(snapshot.Vm.PersistentVariables[0] | snapshot.Vm.PersistentVariables[1] << 8));
+    }
+
+    private static int? ReadCheckpointStory(string path)
+    {
+        try
+        {
+            using FileStream input = File.OpenRead(path);
+            return CombinedSessionCodec.Read(input).Ff7 is { } snapshot ? ReadStory(snapshot) : throw new InvalidDataException("The native choice checkpoint does not contain its FFVII session.");
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return null;
+        }
     }
 
     private string Write(string key, Ff7SessionSave snapshot)

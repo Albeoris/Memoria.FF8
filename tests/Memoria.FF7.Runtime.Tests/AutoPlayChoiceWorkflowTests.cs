@@ -46,6 +46,11 @@ internal static class AutoPlayChoiceWorkflowTests
         RunRecordedTravelChoices();
         RunChangedTravelChoice();
         RunCompletedGatewayAdvice();
+        RunStoryProgress(false, true);
+        RunStoryProgress(true, true);
+        RunStoryProgress(true, false);
+        RunStoryProgress(false, true, 591);
+        RunProgressingAlternative();
 
         Ff7AutoPlayChoiceWorkflow CreateWorkflow()
         {
@@ -281,6 +286,81 @@ internal static class AutoPlayChoiceWorkflowTests
         Check(snapshot.AutoPlay is null && state.Choice == parent, "Restoring the native continuation replaced its surviving exploration parent.");
     }
 
+    private static void RunStoryProgress(bool legacy, bool baselineKnown, short continuationStory = 598)
+    {
+        Dictionary<string, Ff7SessionSave> checkpoints = new(StringComparer.Ordinal);
+        Ff7SessionSave snapshot = WithStory(Fixture(1, 104, 2, 3), 592);
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => snapshot, planner, state, (key, save) =>
+        {
+            checkpoints[key] = save;
+            return key;
+        }, checkpoints.ContainsKey, path => baselineKnown ? checkpoints[path].Vm.PersistentVariables[0] | checkpoints[path].Vm.PersistentVariables[1] << 8 : null);
+        workflow.ChooseSelection(snapshot.Process.Dialogues.Single());
+        snapshot = WithStory(Fixture(2, 105, 4, 5), 592);
+        workflow.ChooseSelection(snapshot.Process.Dialogues.Single());
+        if (legacy)
+        {
+            state.Choice = state.Choice! with { BeforeStory = null, Parent = state.Choice!.Parent! with { BeforeStory = null } };
+        }
+        state = state.Clone();
+        Check(legacy || state.Choice!.BeforeStory == 592 && state.Choice.Parent!.BeforeStory == 592, "Cold choice serialization lost its exact native story baselines.");
+        planner = new(state.Coverage);
+        workflow = new(() => snapshot, planner, state, (key, save) =>
+        {
+            checkpoints[key] = save;
+            return key;
+        }, checkpoints.ContainsKey, path => baselineKnown ? checkpoints[path].Vm.PersistentVariables[0] | checkpoints[path].Vm.PersistentVariables[1] << 8 : null);
+        snapshot = WithStory(Continuation(snapshot, 73), continuationStory);
+        string native = NativeJson(snapshot);
+        bool restore = workflow.CompleteAtControlReturn();
+        Check(NativeJson(snapshot) == native, "Choice policy changed actual native PCs, inventory, rewards or RNG.");
+        if (baselineKnown && continuationStory > 592)
+        {
+            Check(!restore && state.PendingRestore is null && state.Choice is null, "Native story progress restored an earlier branch instead of retaining its current continuation.");
+            Check(state.Coverage.Choices.All(choice => choice.CompletedOptions.Count == 1 && choice.PolicyDeferredOptions.Count == 1 && choice.PolicyExhausted && !choice.Finished), "Story progress falsely completed unobserved nested alternatives.");
+        }
+        else
+        {
+            Check(restore && state.PendingRestore is not null && state.Choice?.Parent is not null, "An unknown or decreased story baseline invented progress or discarded fallback exploration.");
+            Check(state.Coverage.Choices.All(choice => choice.PolicyDeferredOptions.Count == 0), "A continuation without proved story advance deferred unobserved native alternatives.");
+        }
+    }
+
+    private static void RunProgressingAlternative()
+    {
+        Dictionary<string, Ff7SessionSave> checkpoints = new(StringComparer.Ordinal);
+        Ff7SessionSave snapshot = WithStory(Fixture(1, 104, 2, 4), 592);
+        Ff7AutoPlayState state = new();
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        Ff7AutoPlayChoiceWorkflow workflow = new(() => snapshot, planner, state, (key, save) =>
+        {
+            checkpoints[key] = save;
+            return key;
+        });
+        workflow.ChooseSelection(snapshot.Process.Dialogues.Single());
+        snapshot = Continuation(snapshot, 11);
+        Check(workflow.CompleteAtControlReturn(), "A choice without story progress stopped exploring its alternatives.");
+        snapshot = checkpoints[state.PendingRestore!.Path];
+        state.PendingRestore = null;
+        Check(workflow.ChooseSelection(snapshot.Process.Dialogues.Single()) == 3, "The fallback did not execute the next native option.");
+        snapshot = WithStory(Continuation(snapshot, 29), 598);
+        string successful = NativeJson(snapshot);
+        Check(!workflow.CompleteAtControlReturn() && state.PendingRestore is null && state.Choice is null, "A progressing alternative restored the older nonprogressing primary continuation.");
+        Check(NativeJson(snapshot) == successful, "The successful alternative's native continuation was replaced.");
+        AutoPlayChoiceCoverage coverage = state.Coverage.Choices.Single();
+        Check(coverage.CompletedOptions.SequenceEqual([2, 3]) && coverage.PolicyDeferredOptions.SetEquals([4]) && coverage.PolicyExhausted && !coverage.Finished, "A progressing alternative lost observed options or claimed an unexecuted alternative completed.");
+    }
+
+    private static Ff7SessionSave WithStory(Ff7SessionSave snapshot, short story)
+    {
+        byte[] persistent = snapshot.Vm.PersistentVariables.ToArray();
+        persistent[0] = unchecked((byte)story);
+        persistent[1] = unchecked((byte)(story >> 8));
+        return snapshot with { Vm = snapshot.Vm with { PersistentVariables = persistent } };
+    }
+
     private static Ff7SessionSave Fixture(long requestId, int pc, int first, int last)
     {
         var field = NativeDialogueTests.Field();
@@ -302,7 +382,7 @@ internal static class AutoPlayChoiceWorkflowTests
     private static Ff7SessionSave Continuation(Ff7SessionSave snapshot, byte outcome)
     {
         byte[] persistent = snapshot.Vm.PersistentVariables.ToArray();
-        persistent[0] = outcome;
+        persistent[2] = outcome;
         return snapshot with { Progress = snapshot.Progress with { FieldRandomIndex = outcome }, Vm = snapshot.Vm with { PersistentVariables = persistent, Tick = snapshot.Vm.Tick + 1 }, Process = snapshot.Process with { Tick = snapshot.Process.Tick + 1 } };
     }
 
