@@ -572,7 +572,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
         List<ModPackage> packages = [];
         List<ModFile> files = [];
         List<ModDiagnostic> notices = [];
-        Dictionary<string, NativeModDescriptor> committedDescriptors = catalog.Packages.Where(package => package.Descriptor is not null).ToDictionary(package => package.RootDirectory, package => package.Descriptor!, StringComparer.Ordinal);
+        Dictionary<string, ModPackage> describedPackages = catalog.Packages.Where(package => package.Descriptor is not null).ToDictionary(package => package.RootDirectory, StringComparer.Ordinal);
+        StringComparison pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         while (watcherErrors.TryDequeue(out string? error))
         {
             notices.Add(new("watcher-error", error));
@@ -633,7 +634,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     continue;
                 }
                 ModPackageInstallResult? native = format == ModFormat.Memoria
-                    ? managed.GetValueOrDefault(modRoot)?.Values.FirstOrDefault(entry => StringComparer.OrdinalIgnoreCase.Equals(entry.NativeDestinationName, name))
+                    ? managed.GetValueOrDefault(modRoot)?.Values.FirstOrDefault(entry => string.Equals(entry.NativeDestinationName, name, pathComparison))
                     : null;
                 if (native is not null && nativeRootUnavailable?.Invoke(modRoot) is { } leaseError)
                 {
@@ -653,7 +654,14 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 NativeModDescriptor? descriptor = null;
                 string? descriptorFailure = null;
-                NativeModDescriptor? committedDescriptor = committedDescriptors.GetValueOrDefault(root);
+                ModPackage? describedPackage = describedPackages.GetValueOrDefault(root);
+                NativeModDescriptor? committedDescriptor = describedPackage?.Descriptor;
+                if (native is { Installed: true, Official: { } restored } && describedPackage?.Official is { } replaced
+                    && OfficialModCatalog.HasLegacyGirlNextDoorIdentity(restored) && OfficialModCatalog.CanUpgradeIdentity(restored, replaced))
+                {
+                    // Startup rollback restored the verified legacy payload at this receipt-owned path.
+                    committedDescriptor = null;
+                }
                 if (format == ModFormat.Memoria)
                 {
                     try

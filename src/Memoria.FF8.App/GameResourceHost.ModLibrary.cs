@@ -13,7 +13,7 @@ internal sealed partial class GameResourceHost
     private string? modLibraryTarget;
     private bool modLibrarySupported;
     private bool officialModLibrarySupported;
-    private bool modLibraryRecovered;
+    private IReadOnlyList<ModPackageInstallResult>? modLibraryRecovery;
     private readonly Dictionary<string, ModDirectoryResourceLease> modLibraryLeases = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> unleasedModRoots = new(StringComparer.OrdinalIgnoreCase);
     private string? modLibraryUnavailableReason;
@@ -95,14 +95,14 @@ internal sealed partial class GameResourceHost
         }
         try
         {
-            foreach (ModPackageInstallResult result in modInstaller.RecoverAndApply())
+            modLibraryRecovery = modInstaller.RecoverAndApply();
+            foreach (ModPackageInstallResult result in modLibraryRecovery)
             {
                 if (result.Error is not null)
                 {
                     modLibraryStartupDiagnostics.Add(new("library-recovery", result.Error, result.PackageId));
                 }
             }
-            modLibraryRecovered = true;
             officialModLibrarySupported = true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
@@ -149,15 +149,17 @@ internal sealed partial class GameResourceHost
 
     private void ValidateModLibraryApplications()
     {
-        if (!modLibraryRecovered)
+        if (modLibraryRecovery is null)
         {
             return;
         }
         StringComparison pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         HashSet<string> accepted = Mods.View.Packages.Where(package => !package.Package.RequestedEnabled || package.CommittedStatus == ModEffectiveStatus.Active && !package.NeedsAttention).Where(package => !package.Package.Id.StartsWith("Junction/managed-", StringComparison.OrdinalIgnoreCase) || Path.GetFullPath(package.Package.RootDirectory).Equals(Path.GetFullPath(Path.Combine(Mods.PrimaryModsDirectory, package.Package.Id.Replace('/', Path.DirectorySeparatorChar))), pathComparison)).Select(package => package.Package.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (ModPackage package in Mods.InstalledPackages.Where(package => package.Official is not null && Path.GetFullPath(package.RootDirectory).Equals(Path.Combine(Mods.PrimaryModsDirectory, package.Id.Replace('/', Path.DirectorySeparatorChar)), pathComparison)))
+        foreach (ModPackageInstallResult application in modLibraryRecovery.Where(result => result.Installed && result.NativeDestinationName is not null))
         {
-            if (package.Status == ModEffectiveStatus.Disabled || Mods.Catalog.Packages.Any(active => active.Id == package.Id && active.Status == ModEffectiveStatus.Active) && !Mods.View.Diagnostics.Any(error => error.PackageId == package.Id && error.Code is "native-availability" or "resource-rejected"))
+            string destination = Path.Combine(Mods.PrimaryModsDirectory, "Memoria", application.NativeDestinationName!);
+            ModPackage? package = Mods.InstalledPackages.FirstOrDefault(package => package.Official is not null && package.Id == application.PackageId && Path.GetFullPath(package.RootDirectory).Equals(destination, pathComparison));
+            if (package is not null && (package.Status == ModEffectiveStatus.Disabled || Mods.Catalog.Packages.Any(active => active.Id == package.Id && active.Status == ModEffectiveStatus.Active) && !Mods.View.Diagnostics.Any(error => error.PackageId == package.Id && error.Code is "native-availability" or "resource-rejected")))
             {
                 accepted.Add(package.Id);
             }

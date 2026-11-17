@@ -41,6 +41,21 @@ public sealed class OfficialModNotificationsTests : IDisposable
         Assert.Null(Assert.Single(result.Notices, notice => notice.Component.Id == "unrelated").AcknowledgementKey);
     }
 
+    [Theory]
+    [InlineData("Memoria/Girl Next Door", "Girl Next Door", "1.0.1")]
+    [InlineData("Memoria/girl-next-door", "girl-next-door", "1.0.3")]
+    public void RenamedOfficialComponentShowsItsInstalledVersionAndUpdateInOneNotice(string oldRuntimeId, string oldSettingsKey, string oldVersion)
+    {
+        OfficialModComponent current = Component(OfficialModCatalog.GirlNextDoor.Id, "1.0.4");
+        OfficialModComponent previous = current with { Id = "girl-next-door", RuntimePackageId = oldRuntimeId, SettingsKey = oldSettingsKey };
+        OfficialModNotifications result = Build(root, Inventory(Installed(previous, oldVersion)), [current]);
+        Assert.Equal("1 mod update available", result.Summary);
+        OfficialModNotice notice = Assert.Single(result.Notices);
+        Assert.Same(current, notice.Component);
+        Assert.Contains($"Installed {oldVersion}", notice.Describe());
+        Assert.Contains("Latest 1.0.4", notice.Describe());
+    }
+
     private static OfficialModNotifications Build(string profile, IReadOnlyDictionary<string, ModPackageInstallResult> installed, IReadOnlyList<OfficialModComponent> components, long revision = 1, string? error = null)
     {
         return OfficialModNotifications.Create(new(revision, components, DateTimeOffset.UtcNow, error), profile, "1.0.0", "Classic", "en", installed);

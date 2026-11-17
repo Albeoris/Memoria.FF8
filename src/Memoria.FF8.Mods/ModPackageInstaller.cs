@@ -36,7 +36,7 @@ public sealed record ModPackageInstallResult(Guid InstallationId, string Package
     public OfficialModComponent? Official { get; init; }
     public string? EngineVersionRange { get; init; }
     public bool PendingEnable { get; init; }
-    internal string? NativeDestinationName { get; init; }
+    public string? NativeDestinationName { get; internal init; }
 }
 
 /// <summary>Prepares immutable payloads off-thread. Applies queued changes only before runtime discovery at startup.</summary>
