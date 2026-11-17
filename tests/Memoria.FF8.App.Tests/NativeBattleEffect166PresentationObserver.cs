@@ -135,7 +135,7 @@ internal sealed class NativeBattleEffect166PresentationObserver
             }
             Assert.True(changedPixels > 100, "The current software stage capture did not change its target VRAM rectangle.");
             Assert.True(nonzeroPixels > 100, "The captured current stage contains no visible geometry after its black clear.");
-            Assert.Equal(1u, current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
+            Assert.Equal(1u, current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
             capture = true;
             Mark("effect166-current-stage-capture-environment", current, cold);
         }

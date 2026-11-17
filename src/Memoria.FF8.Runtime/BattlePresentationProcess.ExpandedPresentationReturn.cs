@@ -11,7 +11,6 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleRetainedMemory retained = logical with
         {
-            ActionPackets = nativeActionPackets.ExportRetained(),
             EffectIoResult = NativeEffectIoResult,
             EffectMemory = NativeEffectMemory,
             Stage = NativeStage,

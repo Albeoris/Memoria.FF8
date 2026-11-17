@@ -210,7 +210,7 @@ public sealed class NativeBattleBlizzardPresentationTests
         Publish(evidence, id + "-peak", peak!, peakPixels);
         Publish(evidence, id + "-after", battle.Capture(), scene.Render(battle, 320, 224));
         PublishJson(evidence, id + "-details", new { Effect = 144, PeakRgbPixels = peakRgb, PeakFrame = peak!.Frame, PeakCallback = peak.ReadFixturePresentation().NativeGraphics!.Callback, FinishedFrame = battle.Frame, FinishedCallback = battle.Presentation!.Graphics.Callback, ContactCount = contacts, OriginalSound = sound.Sound, CompositePacketObserved = composite, CameraImpulses = cameraImpulses });
-        Console.WriteLine($"Blizzard144: peak{peakRgb}RGB at{peak.Frame}/{peak.ReadFixturePresentation().NativeGraphics.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, contact{contacts}, original sound{sound.Sound}, independent standalone continuation passed.");
+        Console.WriteLine($"Blizzard144: peak{peakRgb}RGB at{peak.Frame}/{peak.ReadFixturePresentation().NativeGraphics!.Callback}, finished{battle.Frame}/{battle.Presentation!.Graphics.Callback}, contact{contacts}, original sound{sound.Sound}, independent standalone continuation passed.");
     }
 
     [Fact]
@@ -225,11 +225,11 @@ public sealed class NativeBattleBlizzardPresentationTests
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(first));
         second.AdvanceNativeGraphicsPresentation(NextGraphicsCallback(second));
-        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Assert.Equal(new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, snapshot.Definition).Render(second, 320, 224).ToArray());
-        Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, independentwholeJSON/copiedpixels agree.");
+        Console.WriteLine($"Blizzard checkpoint saved{snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, independentwholeJSON/copiedpixels agree.");
     }
 
     private static TimeSpan NextGraphicsCallback(BattleSession battle)

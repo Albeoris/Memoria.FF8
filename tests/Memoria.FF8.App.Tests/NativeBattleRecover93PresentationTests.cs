@@ -134,7 +134,7 @@ public sealed class NativeBattleRecover93PresentationTests
                     contactTransitions++;
                 }
                 Assert.True(hp == initialHp || hp == expectedHp);
-                Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, targetIndex).ActiveStagedResourceRow100);
+                Assert.Equal(ReadOriginalModelCell(graphics, targetIndex).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, targetIndex).ActiveStagedResourceRow100);
                 if (revival)
                 {
                     Assert.Equal((ushort)100, current.NativePartyPresentation.Rows[0]!.HitPoints);
@@ -149,8 +149,8 @@ public sealed class NativeBattleRecover93PresentationTests
                 if (stageCleared)
                 {
                     Assert.Equal(stageHighBytes!, current.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags).ToArray());
-                    stagePeak = Math.Max(stagePeak, current.ReadFixturePresentation().NativeStage.Groups.Max(group => group.ColorDepth));
-                    short depth = current.ReadFixturePresentation().NativeStage.Groups[0].ColorDepth;
+                    stagePeak = Math.Max(stagePeak, current.ReadFixturePresentation().NativeStage!.Groups.Max(group => group.ColorDepth));
+                    short depth = current.ReadFixturePresentation().NativeStage!.Groups[0].ColorDepth;
                     if (stageDepths.Count == 0 || stageDepths[^1] != depth)
                     {
                         stageDepths.Add(depth);
@@ -162,15 +162,15 @@ public sealed class NativeBattleRecover93PresentationTests
                     Assert.Equal(JsonSerializer.Serialize(current), JsonSerializer.Serialize(cold.Capture()));
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
-                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                     int privatePackets = frame.LastCommands.Count(item => item.Command.Packet.Bank == "20DFAB8");
                     int commonFramePackets = frame.LastCommands.Count(item => item.Command.Packet.Bank != "20DFAB8");
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(item => item.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = without } }));
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
                     int changed = Enumerable.Range(0, pixels.Length / 4).Count(pixel => !pixels.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, privatePackets, commonFramePackets, changed, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, privatePackets, commonFramePackets, changed, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
                 }
             }

@@ -18,6 +18,13 @@ public static class BattlePresentationTiming
         return TimeSpan.FromTicks(remainder == 0 ? ticks : checked(ticks + 1));
     }
 
+    public static TimeSpan NativeUiElapsed(int polls)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(polls);
+        long numerator = (long)polls * TimeSpan.TicksPerSecond * RateDenominator;
+        return TimeSpan.FromTicks(numerator / (RateNumerator * NativeUiServicePollsPerCallback));
+    }
+
     public static BattlePresentationCallbackStep Advance(long subticks, bool halfSubtick, TimeSpan elapsed)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(elapsed.Ticks);

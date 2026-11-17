@@ -17,7 +17,7 @@ public sealed class DiagnosticEnemyAbilityTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, SceneSlot = 0, NativeCombatantFlags = 1, NativeAi = ai, InitialAtb = BattleSession.AtbMaximum }]
         }, BattleAtbMode.Normal);
         string before = JsonSerializer.Serialize(battle.Capture());
-        Assert.Contains(battle.Capture().NativeCommandBanks!.BoundCommands, command => command.NativeCallback?.Stage == 0);
+        Assert.Contains(battle.Capture().QueuedActions, command => command.ExpandedAiCallback?.Stage == 0);
         battle.ConfigureDiagnosticScheduling(hold);
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
         return battle;
@@ -47,10 +47,10 @@ public sealed class DiagnosticEnemyAbilityTests
         BattleSession battle = Create();
         battle.SubmitDiagnosticEnemyAbility("enemy", Selection with { UseTurnScript = true, AbilitySlot = -1 }, 3);
         BattleSnapshot saved = battle.Capture();
-        BattleAttackCommand callback = Assert.Single(saved.NativeCommandBanks!.BoundCommands, command => command.NativeCallback?.Stage == 1);
-        Assert.Equal(new BattleNativeCallback(3, 1), callback.NativeCallback);
+        BattleAttackCommand callback = Assert.Single(saved.QueuedActions, command => command.ExpandedAiCallback?.Stage == 1);
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(callback.ActorId), 1), callback.ExpandedAiCallback);
         Assert.Equal("enemy", callback.ActorId);
-        Assert.DoesNotContain(saved.QueuedActions, command => command.NativeCallback is null && command.ActionId == 7);
+        Assert.DoesNotContain(saved.QueuedActions, command => command.ExpandedAiCallback is null && command.ActionId == 7);
     }
 
     [Fact]

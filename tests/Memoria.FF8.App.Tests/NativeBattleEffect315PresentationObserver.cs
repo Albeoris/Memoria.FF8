@@ -39,9 +39,9 @@ internal sealed class NativeBattleEffect315PresentationObserver
             return;
         }
         NativeBattleEffect315State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect315!;
-        NativeBattleGraphicsModel caster = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3);
+        NativeBattleGraphicsModel caster = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal((byte)91, caster.ModelId4);
-        Assert.Equal((byte)50, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
+        Assert.Equal((byte)50, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 4).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         originalColor ??= ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3).Color40;
@@ -99,7 +99,7 @@ internal sealed class NativeBattleEffect315PresentationObserver
                         BattleContactCursor first = packets.ReadHeader(effect.Parameters!.Header).FirstContact;
                         NativeBattleContactHalf half = packets.ReadContact(first).Primary;
                         Assert.Equal((byte)3, ReadOriginalModelOperand(packets.ModelAliases, half.Recipient));
-                        NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics, 3);
+                        NativeBattleGraphicsModel beforeCaster = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3);
                         Assert.Null(beforeCaster.ReadLinkedModel());
                         uint battleStatuses = current.Combatants.Single(actor => actor.NativeParticipant!.ActorIndex == 3).NativeStatus!.Battle;
                         NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(half, prior.ReadFixturePresentation().NativeGraphics!.ActorModels, current.Definition.NativeGraphics!.Rules, battleStatuses);
@@ -165,14 +165,14 @@ internal sealed class NativeBattleEffect315PresentationObserver
         if (!recipient.Hidden && !recipient.Suspended && !recipient.Untargetable)
         {
             activated = true;
-            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics, 4));
+            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 4));
             Mark("effect315-native-recipient-activation", current, cold);
         }
         else
         {
             Assert.False(activated);
         }
-        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(CursorGlobal), Vibration = vibration, CasterDefault2 = caster.SequenceState?.Default2, caster.Flags8, caster.Color40, recipient.Hidden, recipient.Suspended, recipient.Untargetable, Random = current.NativeCrtRandom });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(CursorGlobal), Vibration = vibration, CasterDefault2 = caster.SequenceState?.Default2, caster.Flags8, caster.Color40, recipient.Hidden, recipient.Suspended, recipient.Untargetable, Random = current.NativeCrtRandom });
     }
 
     public bool ActivationCompleted(BattleSnapshot current)

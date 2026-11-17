@@ -79,8 +79,8 @@ public sealed class NativeBattleHeroPresentationTests
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
             Assert.True(exported.Selection!.OriginalKernelEffectReference);
             Assert.Equal(effectId, exported.Selection.ShellEffect);
-            int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
-            uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
+            int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
+            uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal(action.Command, header.Command);
@@ -91,7 +91,7 @@ public sealed class NativeBattleHeroPresentationTests
                 Assert.Equal((ushort)20, action.ActionId);
                 Assert.Equal((byte)4, action.Command);
                 Assert.NotNull(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3));
-                Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3).Flags0 & 6));
+                Assert.Equal((byte)2, (byte)(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).Flags0 & 6));
                 Assert.Null(source.ActiveAction);
                 Assert.Empty(source.QueuedActions);
                 Assert.Null(source.NativeActionPackets.ActiveHeader);
@@ -206,7 +206,7 @@ public sealed class NativeBattleHeroPresentationTests
                 }
                 for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
                     if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && contactPackets.Any(packet => packet.Primary.Recipient == text.ModelOwner) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) == 0)
                     {
                         Assert.True(expectedTexts.TryGetValue(text.ModelOwner!, out NativeBattleEffectTask? expectedText));
@@ -221,12 +221,12 @@ public sealed class NativeBattleHeroPresentationTests
                     NativeBattleHeroState state = State(current);
                     int start = checked(state.WorkingArenaOffset + profile.FirstDrawOffset + (after.Pools[0].Slots[0].ReadDword(16) != 0 ? 0x10000 : 0));
                     Assert.InRange(end, start, NativeBattleEffectArena.Length);
-                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = frame.LastCommands.Where(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Packet.Buffer == 0 && command.Command.Packet.ByteOffset >= start && command.Command.Packet.ByteOffset < end).Select(command => command.Command.Packet).ToImmutableHashSet();
                     if (!owned.IsEmpty)
                     {
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                         byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(Restore(without), 320, 224).ToArray();
                         measuredPacketFrames++;
                         int changed = CountRgbChanges(pixels, plain);
@@ -237,7 +237,7 @@ public sealed class NativeBattleHeroPresentationTests
                             peakWithout = without;
                             peakPixels = pixels;
                             peakPlain = plain;
-                            metadataPeak = new { ChangedRgb = changed, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, HarnessCallback = callbacks, Bank = "20DFAB8", Buffer = 0, Start = start, End = end, Packets = owned };
+                            metadataPeak = new { ChangedRgb = changed, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, HarnessCallback = callbacks, Bank = "20DFAB8", Buffer = 0, Start = start, End = end, Packets = owned };
                         }
                         if (!live && changed > 0)
                         {

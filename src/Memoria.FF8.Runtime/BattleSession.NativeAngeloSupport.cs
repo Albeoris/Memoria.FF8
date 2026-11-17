@@ -44,7 +44,7 @@ public sealed partial class BattleSession
         }
         else if ((progress.AngeloFlags & 1) != 0 && NextRandomByte() <= 16)
         {
-            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, SelectBattleTarget(attacker) with { Replacement = BattleTargetReplacement.UseCurrentBattlePolicy });
+            QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloRush, 240, 11, SelectBattleTarget(attacker, replacement: BattleTargetReplacement.UseCurrentBattlePolicy));
         }
     }
 

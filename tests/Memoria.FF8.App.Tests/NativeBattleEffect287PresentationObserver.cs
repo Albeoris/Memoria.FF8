@@ -42,7 +42,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect287State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect287!;
         NativeBattleEffect287Resources resources = effect.Binding.Effect287Resources!;
         Assert.Equal(3, ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), effect.Parameters!.Source));
@@ -67,10 +67,10 @@ internal sealed class NativeBattleEffect287PresentationObserver
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(32, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            track |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
-            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            track |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
+            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect287-current-camera8-32", current, cold);
         }
         if (processed is >= 0 and <= 74)
@@ -100,7 +100,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
             meshQueueDetached = true;
             Mark("effect287-old30-detached-mesh-head-tail-only", current, cold);
         }
-        processRandom |= prior.ReadFixturePresentation().NativeEffectMemory?.SharedEffectRandom?.State != current.ReadFixturePresentation().NativeEffectMemory.SharedEffectRandom?.State;
+        processRandom |= prior.ReadFixturePresentation().NativeEffectMemory?.SharedEffectRandom?.State != current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom?.State;
         if (state.ReadDword(IntensityGlobal) != 0)
         {
             stage = true;
@@ -118,7 +118,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
             int offset = checked((int)(arena - 0x20DFAB8));
             if (processed is >= 0 and <= 74)
             {
-                var scratch = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
+                var scratch = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
                 morph |= scratch.Known.Take(6).All(value => value) && scratch.Known.Skip(MorphLength - 8).Take(6).All(value => value);
             }
             uint start = cursor >= arena + SecondPacketOffset ? arena + SecondPacketOffset : arena + FirstPacketOffset;
@@ -134,12 +134,12 @@ internal sealed class NativeBattleEffect287PresentationObserver
             }
             if (processed >= 55 || mainRetired)
             {
-                byte[] header = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset + IoOffset, 5);
+                byte[] header = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + IoOffset, 5);
                 if (header[4] == 1 && header[0] == 0 && header[1] == 0)
                 {
                     byte[] file = resources.ReadFile(360).Data.ToArray();
-                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(offset + File360Offset, file.Length));
-                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram());
+                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + File360Offset, file.Length));
+                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram());
                     meshFileAlias = MeshDescriptor != 0 && CommonPools.Single(pool => pool.Descriptor == MeshDescriptor).Bank == File360Offset + 4;
                     uploaded = true;
                     Mark("effect287-real-type0-file360-mesh-alias-upload", current, cold);
@@ -171,7 +171,7 @@ internal sealed class NativeBattleEffect287PresentationObserver
             Assert.Equal(0, ReadOriginalModelCell(graphics, 3).Flags0 & 8);
             drained = true;
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, Commands = CurrentCommands.Length, MainVisits = mainVisits, TargetVisits = targetVisits, Intensity = state.ReadDword(IntensityGlobal), Random = current.ReadFixturePresentation().NativeEffectMemory.SharedEffectRandom?.State, MeshQueueRetained = state.MeshQueueStorage is not null, Contacts, ContactGlyphs });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, Commands = CurrentCommands.Length, MainVisits = mainVisits, TargetVisits = targetVisits, Intensity = state.ReadDword(IntensityGlobal), Random = current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom?.State, MeshQueueRetained = state.MeshQueueStorage is not null, Contacts, ContactGlyphs });
     }
 
     private static void VerifyTim(byte[] data, byte[] vram)

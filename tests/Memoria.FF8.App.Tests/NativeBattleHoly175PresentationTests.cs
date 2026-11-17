@@ -111,7 +111,7 @@ public sealed class NativeBattleHoly175PresentationTests
                     sprite31Peak = Math.Max(sprite31Peak, Active(state.Sprite31Rows, 100));
                     sprite4Peak = Math.Max(sprite4Peak, Active(state.Sprite4Rows, 80));
                 }
-                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame;
+                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame;
                 if (primitive is not null)
                 {
                     captureFrames += primitive.LastCommands.Any(command => command.Pass == 1 && command.Command.Packet.Bank == NativeBattleHoly175CaptureMemory.PacketBank && command.Command.Opcode == 0x28) ? 1 : 0;
@@ -119,13 +119,13 @@ public sealed class NativeBattleHoly175PresentationTests
                 }
                 if (Selected(prior)?.Pools.SelectMany(pool => pool.Slots).Any(task => (task.Flags & 1) != 0 && task.Callback == 0x5D1BD0 && task.ReadWord(0xC) == 5) == true)
                 {
-                    NativeBattlePrimitiveFrame captured = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame captured = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                     var windows = captured.LastCommands.Where(command => command.Pass > 0 && command.Command.Packet.Bank == NativeBattleHoly175WarpDrawing.PacketBank && command.DrawMode.TexturePixelSnapshot is not null).Select(command => command.DrawMode).DistinctBy(mode => mode.TexturePixelSnapshot);
                     foreach (NativeBattlePrimitiveDrawMode mode in windows)
                     {
                         NativeBattlePcTextureWindowSelection selection = mode.TextureSelection!;
                         NativeBattlePcTextureWindowPixels saved = captured.LastTextureSnapshots!.Value[mode.TexturePixelSnapshot!.Value];
-                        NativeBattlePcTextureWindowPixels actual = NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), current.ReadFixturePresentation().NativeEffectMemory.Textures!);
+                        NativeBattlePcTextureWindowPixels actual = NativeBattlePcTextureWindowPixels.Capture(selection.Row, new(selection.X, selection.Y, selection.Width, selection.Height), current.ReadFixturePresentation().NativeEffectMemory!.Textures!);
                         Assert.Equal(actual.Data.ToArray(), saved.Data.ToArray());
                         preparedCapturePages++;
                     }
@@ -138,7 +138,7 @@ public sealed class NativeBattleHoly175PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, current.ReadFixturePresentation().NativeGraphics!.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
                 }
             }

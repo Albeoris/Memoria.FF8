@@ -142,7 +142,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                 }
                 for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index];
                     if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) && (Assert.IsType<NativeBattleGraphicsState>(prior.ReadFixturePresentation().NativeGraphics).Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
@@ -158,7 +158,7 @@ public sealed class NativeBattleOrdinaryMagicFamilyTests
                     completions++;
                 }
                 observedPrivatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }

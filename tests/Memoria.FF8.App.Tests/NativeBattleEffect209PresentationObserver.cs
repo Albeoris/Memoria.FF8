@@ -61,7 +61,7 @@ internal sealed class NativeBattleEffect209PresentationObserver
             Assert.Equal(entry.Color40 & 0xFFFFFF, state.ReadDword(StageAfterColor40Global) & 0xFFFFFF);
             Assert.Equal(entry.Color44 & 0xFFFFFF, state.ReadDword(StageAfterColor44Global) & 0xFFFFFF);
             NativeBattleEffectFileAsset file = effect.Binding.Effect209Resources.ReadFile(entry.FileId);
-            uint destination = current.ReadFixturePresentation().NativeStage.SourceAddress1D9A820!.Value;
+            uint destination = current.ReadFixturePresentation().NativeStage!.SourceAddress1D9A820!.Value;
             Assert.Equal(file.Data.AsSpan(entry.HeaderOffset, 32).ToArray(), current.ReadFixturePresentation().NativeFileStaging!.Read(destination, 32));
             reloaded = true;
             Mark("effect209-current-stage-variant-prefix", current, cold);

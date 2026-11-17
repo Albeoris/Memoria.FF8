@@ -20,7 +20,7 @@ public sealed class NativeBattleSirenParticleMigrationTests
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
         Assert.Equal((ushort)95, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
+        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Siren95Resources!;
         Assert.Null(resources.ParticleResources);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleSiren95Resources authenticated = game.ReadNativeEffectCatalogForEffects([95])[94].Siren95Resources!;

@@ -12,12 +12,12 @@ public sealed class NativeBattleEffect257FileCompletionTests
         BattleSession session = Fixture(callback, 32768);
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleScriptedEffectMemory before = memory.ScriptedEffects!;
-        Set(session, nameof(BattleSession.NativeFileIo), NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileIoState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Presentation?.NativeFileIo)))!));
+        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileIoState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Presentation?.NativeFileIo)))!));
         Pump(session);
         Assert.Equal((short?)1, session.Presentation!.NativeFileIo!.ActiveCount);
         Assert.Equal((short?)0, session.Presentation!.NativeFileIo.Rows[0].Countdown);
         Assert.Equal((byte)0xFF, session.Presentation!.Memory.ScriptedEffects!.Read(0x2798219, 1)[0]);
-        Set(session, nameof(BattleSession.NativeFileIo), NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileIoState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Presentation?.NativeFileIo)))!));
+        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleStorageSnapshots.Restore(JsonSerializer.Deserialize<NativeBattleFileIoState>(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(session.Presentation?.NativeFileIo)))!));
         Pump(session);
         Assert.Equal((short?)0, session.Presentation!.NativeFileIo.ActiveCount);
         Assert.Equal((uint?)0, session.Presentation!.NativeFileIo.Rows[0].SchedulerCallback);
@@ -48,7 +48,7 @@ public sealed class NativeBattleEffect257FileCompletionTests
         NativeBattleEffectMemory memory = session.Presentation!.Memory;
         NativeBattleScriptedEffectMemory core = NativeBattleScriptedEffectMemory.FromColdProcess().Write(0x2798218, [0x31, 0xFF, 0x72]).MarkUnknown(0x279821A, 1);
         Set(session, nameof(BattleSession.NativeEffectMemory), memory with { ScriptedEffects = core });
-        Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(length, callback, null));
+        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess().Queue482610(length, callback, null));
         return session;
     }
 

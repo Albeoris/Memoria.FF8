@@ -12,24 +12,22 @@ public enum ExpandedAiAdmission
 /// <summary>Checks reachable original AI bytecode against the services available in expanded battles.</summary>
 public static class NativeBattleExpandedAi
 {
-    private readonly record struct ScriptPath(int Offset, bool MayTargetParty, bool PreparedEjection);
-
-    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions = null, ISet<ushort>? reachedEffects = null, ISet<byte>? originalModelOperands = null)
+    public static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers = null, bool originalEnemySlots = false, ICollection<string>? explicitModelReferences = null, ISet<int>? reserveSceneSlots = null, ISet<int>? explicitEnemyModelReferences = null, int? rosterModel = null, bool requireValidInstalledSource = false, ISet<ushort>? reachedEffects = null, ISet<byte>? originalModelOperands = null)
     {
-        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, rosterRestrictions, reachedEffects, originalModelOperands, default);
+        return Evaluate(program, actions, formation, blockers, originalEnemySlots, explicitModelReferences, reserveSceneSlots, explicitEnemyModelReferences, rosterModel, requireValidInstalledSource, reachedEffects, originalModelOperands, default);
     }
 
     internal static ExpandedAiAdmission EvaluateRebound(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, IReadOnlyList<uint> numbers, IReadOnlyDictionary<int, string> references)
     {
-        return Evaluate(program, actions, formation, null, false, null, null, null, null, null, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
+        return Evaluate(program, actions, formation, null, false, null, null, null, null, false, null, null, NativeBattleAiLocalFlow.RetainedLocals(numbers, references));
     }
 
-    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, ISet<BattleEncounterRosterRestrictionReason>? rosterRestrictions, ISet<ushort>? reachedEffects, ISet<byte>? originalModelOperands, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
+    private static ExpandedAiAdmission Evaluate(NativeBattleAiDefinition program, IReadOnlyList<BattleNativeAction> actions, int formation, ICollection<string>? blockers, bool originalEnemySlots, ICollection<string>? explicitModelReferences, ISet<int>? reserveSceneSlots, ISet<int>? explicitEnemyModelReferences, int? rosterModel, bool requireValidInstalledSource, ISet<ushort>? reachedEffects, ISet<byte>? originalModelOperands, ImmutableArray<NativeBattleAiLocalFlow.Value> retainedLocals)
     {
         if (program.Scripts is not { Length: 5 } || program.Scripts.Any(script => script is null) ||
             program.LevelBand is < 0 or > 2 || program.Abilities is not { Length: 48 } || program.Abilities.Any(ability => ability is null) || program.Texts is null)
         {
-            if (rosterRestrictions is not null)
+            if (requireValidInstalledSource)
             {
                 throw new InvalidDataException($"Formation {formation}, model {rosterModel} has an invalid AI program layout.");
             }
@@ -37,14 +35,8 @@ public static class NativeBattleExpandedAi
             return ExpandedAiAdmission.RequiresUnsupportedService;
         }
         HashSet<(byte Command, ushort Id)> supported = actions.Where(SupportsAction).Select(action => (action.Command, action.ActionId)).ToHashSet();
-        HashSet<(byte Command, ushort Id)>? ejections = rosterRestrictions is null
-            ? null : actions.Where(AppliesEject).Select(action => (action.Command, action.ActionId)).ToHashSet();
         NativeBattleAiAbility berserk = program.Abilities[16 * program.LevelBand];
-        RecordAbilityEffects(berserk);
-        if (PreparesEjection(berserk.Command, berserk.Id))
-        {
-            RecordPartyDeparture(1, null, null);
-        }
+        RecordActionEffects(berserk.Command, berserk.Id);
         ExpandedAiAdmission admission = SupportsCommand(berserk.Command, berserk.Id) ? ExpandedAiAdmission.Supported : ExpandedAiAdmission.RequiresUnsupportedService;
         if (admission != ExpandedAiAdmission.Supported)
         {
@@ -77,18 +69,18 @@ public static class NativeBattleExpandedAi
             {
                 return;
             }
-            HashSet<ScriptPath> visited = [];
-            Stack<ScriptPath> pending = new();
-            pending.Push(new(0, false, false));
-            while (pending.TryPop(out ScriptPath path))
+            HashSet<int> visited = [];
+            Stack<int> pending = new();
+            pending.Push(0);
+            while (pending.TryPop(out int offset))
             {
-                if (!visited.Add(path))
+                if (!visited.Add(offset))
                 {
                     continue;
                 }
-                if (!NativeBattleAiInstruction.TryDecode(script, path.Offset, out NativeBattleAiInstruction instruction, out string? decodeError))
+                if (!NativeBattleAiInstruction.TryDecode(script, offset, out NativeBattleAiInstruction instruction, out string? decodeError))
                 {
-                    MarkMalformed(decodeError, callback, path.Offset);
+                    MarkMalformed(decodeError, callback, offset);
                     continue;
                 }
                 int opcode = instruction.Opcode;
@@ -121,7 +113,7 @@ public static class NativeBattleExpandedAi
                 switch (opcode)
                 {
                     case 1 or 24 or 26 or 34 when originalEnemySlots && instruction[0] >= program.Texts.Length && program.AdmittedHeapTextDirectory is null:
-                        MarkMalformed($"text-operand:{opcode}/{instruction[0]}", callback, path.Offset);
+                        MarkMalformed($"text-operand:{opcode}/{instruction[0]}", callback, offset);
                         break;
                     case 2:
                         NativeBattleAiCondition condition = instruction.Condition;
@@ -146,7 +138,7 @@ public static class NativeBattleExpandedAi
                         }
                         else if (known is null)
                         {
-                            pending.Push(path with { Offset = instruction.BranchOffset });
+                            pending.Push(instruction.BranchOffset);
                         }
                         break;
                     case 8 when callback != 3 && !originalEnemySlots:
@@ -174,10 +166,6 @@ public static class NativeBattleExpandedAi
                                 MarkUnsupportedService("drawn-magic-contract");
                             }
                         }
-                        if (rosterRestrictions is not null && actions.Any(action => IsPotentialPartyDrawnEjection(action)))
-                        {
-                            RecordPartyDeparture(callback, path.Offset, opcode);
-                        }
                         break;
                     case 27 when instruction[0] >= NativeBattleSlots.EnemyCount:
                     case 29 when instruction[0] != 200 && instruction[0] >= NativeBattleSlots.EnemyCount:
@@ -185,31 +173,21 @@ public static class NativeBattleExpandedAi
                     case 43 or 58 when !NativeBattleSlots.Contains(instruction[0]):
                     case 53 when instruction[0] != 209 && !NativeBattleSlots.Contains(instruction[0]):
                     case 59 when instruction[0] >= NativeBattleSlots.FormationSlotCount || instruction[1] != 0 && (instruction[1] < NativeBattleSlots.AllyCount || !NativeBattleSlots.Contains(instruction[1])):
-                        MarkMalformed($"physical-operand:{opcode}/{instruction[0]}", callback, path.Offset);
+                        MarkMalformed($"physical-operand:{opcode}/{instruction[0]}", callback, offset);
                         break;
                     case 27 or 31 or 43 or 44 or 49 or 50 or 51 or 52 or 53 or 54 or 55 or 56 or 57 or 58 or 59 when !originalEnemySlots:
                     case 29 when instruction[0] != 200 && !originalEnemySlots:
                         RequireOriginalSlots($"physical-opcode:{opcode}");
                         break;
-                    case 6:
-                        if (path.MayTargetParty && path.PreparedEjection)
-                        {
-                            RecordPartyDeparture(callback, path.Offset, opcode);
-                        }
-                        break;
                     case 3 or 7:
                         byte command = opcode == 3 ? (byte)2 : (byte)8;
-                        path = path with { PreparedEjection = PreparesEjection(command, instruction[0]) };
+                        RecordActionEffects(command, instruction[0]);
                         if (!SupportsCommand(command, instruction[0]))
                         {
                             MarkUnsupportedService($"command:{command}/{instruction[0]}");
                         }
                         break;
                     case 4:
-                        if (rosterRestrictions is not null)
-                        {
-                            path = path with { MayTargetParty = SelectorMayTargetParty(instruction[0]) };
-                        }
                         if (instruction[0] == 209 && !originalEnemySlots)
                         {
                             RequireOriginalSlots($"actor-reference-target:{instruction[0]}");
@@ -228,14 +206,6 @@ public static class NativeBattleExpandedAi
                         {
                             RecordModelReference(instruction[1], $"target-filter-model:{instruction[1]}");
                         }
-                        if (rosterRestrictions is not null)
-                        {
-                            // The packed ALL form can resolve to the party group when the filter is empty.
-                            path = path with { MayTargetParty = instruction[0] != 0 || instruction[1] != 201 };
-                        }
-                        break;
-                    case 43 when rosterRestrictions is not null:
-                        path = path with { MayTargetParty = instruction[0] < NativeBattleSlots.AllyCount };
                         break;
                     case 11 or 12:
                         for (int i = 0; i < instruction.OperandCount; i++)
@@ -243,36 +213,19 @@ public static class NativeBattleExpandedAi
                             byte slot = instruction[i];
                             if (opcode == 11 && slot == 253)
                             {
-                                if (rosterRestrictions is not null)
-                                {
-                                    pending.Push(path with { Offset = next });
-                                }
                                 continue;
                             }
                             if (slot >= 16)
                             {
-                                MarkMalformed($"ability-slot:{slot}", callback, path.Offset);
+                                MarkMalformed($"ability-slot:{slot}", callback, offset);
                                 continue;
                             }
                             NativeBattleAiAbility ability = program.Abilities[16 * program.LevelBand + slot];
-                            RecordAbilityEffects(ability);
+                            RecordActionEffects(ability.Command, ability.Id);
                             if (!SupportsCommand(ability.Command, ability.Id))
                             {
                                 MarkUnsupportedService($"command:{ability.Command}/{ability.Id}");
                             }
-                            if (rosterRestrictions is not null)
-                            {
-                                bool ejects = PreparesEjection(ability.Command, ability.Id);
-                                if (path.MayTargetParty && ejects)
-                                {
-                                    RecordPartyDeparture(callback, path.Offset, opcode);
-                                }
-                                pending.Push(path with { Offset = next, PreparedEjection = ejects });
-                            }
-                        }
-                        if (rosterRestrictions is not null)
-                        {
-                            continue;
                         }
                         break;
                     case 14 or 18:
@@ -304,7 +257,7 @@ public static class NativeBattleExpandedAi
                         next = instruction.BranchOffset;
                         break;
                 }
-                pending.Push(path with { Offset = next });
+                pending.Push(next);
             }
         }
 
@@ -316,18 +269,11 @@ public static class NativeBattleExpandedAi
 
         void MarkMalformed(string reason, int callback, int offset)
         {
-            if (rosterRestrictions is not null)
+            if (requireValidInstalledSource)
             {
                 throw new InvalidDataException($"Formation {formation}, model {rosterModel}, AI callback {callback}, byte {offset}: {reason}.");
             }
             MarkUnsupportedService(reason);
-        }
-
-        bool PreparesEjection(byte command, ushort id) => id != 0 && ejections?.Contains((command, id)) == true;
-
-        void RecordPartyDeparture(int callback, int? offset, int? opcode)
-        {
-            rosterRestrictions?.Add(new(BattleEncounterRosterRestriction.ScriptedPartyMembership, rosterModel, program.LevelBand, callback, offset, opcode));
         }
 
         void RequireOriginalSlots(string reason)
@@ -344,40 +290,18 @@ public static class NativeBattleExpandedAi
             return id == 0 || supported.Contains((command, id));
         }
 
-        void RecordAbilityEffects(NativeBattleAiAbility ability)
+        void RecordActionEffects(byte command, ushort id)
         {
-            if (reachedEffects is null || ability.Id == 0)
+            if (reachedEffects is null || id == 0)
             {
                 return;
             }
-            foreach (BattleNativeAction action in actions.Where(action => action.Command == ability.Command && action.ActionId == ability.Id && action.MagicId != 0))
+            foreach (BattleNativeAction action in actions.Where(action => action.Command == command && action.ActionId == id && action.MagicId != 0))
             {
                 reachedEffects.Add(action.MagicId);
             }
         }
     }
-
-    private static bool AppliesEject(BattleNativeAction action)
-    {
-        return !action.PresentationOnly && action.CrisisLevel is null && action.HitCount > 0 &&
-            action.AttackType is not (0 or 3 or 4 or 5 or 6 or 21 or 25 or 32) && (action.Statuses1 & 0x10000) != 0;
-    }
-
-    private static bool IsPotentialPartyDrawnEjection(BattleNativeAction action)
-    {
-        if (action is not { Command: 2, ActionId: > 0 and < 64, TargetFlags: byte flags } || !AppliesEject(action))
-        {
-            return false;
-        }
-        return (flags & 0x30) switch
-        {
-            0x20 => (flags & 2) == 0,
-            0x30 => (action.ActionId & 7) != 0,
-            _ => (flags & 0x40) != 0
-        };
-    }
-
-    private static bool SelectorMayTargetParty(int selector) => selector is not (>= 16 and < 201 or 202 or 205 or 207 or 209);
 
     internal static bool SupportsAction(BattleNativeAction action)
     {

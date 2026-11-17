@@ -69,10 +69,23 @@ internal sealed partial class Ff7Scene
         {
             DrawBattleChoices(canvas, theme, layout, textScale, "SLOTS", [new($"{guest.ProcessSlotsName} ×{roll.Repetitions}"), new("Do over"), new("Cast", Unsupported: guest.SlotsCastUnsupportedReason is not null)], mixedSlotsChoice + 1);
         }
-        else if (guest.DuelProcess is { } duel)
+        else if (guest.DuelProcess is { Phase: not BattleNativeDuelPhase.Opening, WidgetClosed: false } duel)
         {
-            BattleChoiceRow[] choices = guest.DuelProcessChoices.Where(choice => choice.Learned).Select(choice => new BattleChoiceRow(choice.Name, string.Join(" ", choice.Buttons.Select(sharedInput.NativeButtonBindingHint)), guest.DuelProcessChoiceUnsupportedReason(choice) is not null)).ToArray();
-            DrawBattleChoices(canvas, theme, layout, textScale, $"DUEL {Math.Max(0, (int)duel.RemainingTimer) / 60f:0.00}", choices.Length == 0 ? [new("Duel")] : choices, 0);
+            BattleChoiceRow[] choices = duel.WidgetRevealQ12 == 0 ? [] : guest.DuelProcessChoices.Where(choice => choice.Learned).Select(choice => new BattleChoiceRow(choice.Name, string.Join(" ", choice.Buttons.Select(sharedInput.NativeButtonBindingHint)), guest.DuelProcessChoiceUnsupportedReason(choice) is not null)).ToArray();
+            int hundredths = NativeBattleDuelRules.DisplayHundredths(duel.RemainingTimer);
+            string time = $"{hundredths / 100}.{hundredths % 100:00}";
+            string caption = $"DUEL {time}";
+            if (choices.Length == 0)
+            {
+                float captionSize = UiTheme.DefaultCaptionFontSize * layout.Scale * textScale;
+                float captionHeight = theme.CaptionContentHeight(captionSize) / layout.Scale;
+                UiRect timerPanel = BattleHudLayout.CommandPanel(194, 0, captionHeight);
+                theme.Panel(canvas, layout.Rect(timerPanel.X, timerPanel.Y, timerPanel.Width, timerPanel.Height), caption, captionSize);
+            }
+            else
+            {
+                DrawBattleChoices(canvas, theme, layout, textScale, caption, choices, 0);
+            }
         }
         else if (guest.ShotProcess is { Widget.Visible: true } shot)
         {

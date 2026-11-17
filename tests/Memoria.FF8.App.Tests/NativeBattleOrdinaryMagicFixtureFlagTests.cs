@@ -56,7 +56,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         Assert.Equal(2, beforeInput.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
         Assert.Equal(1, queued.Combatants.Single(actor => actor.Id == party).NativeMagicInventory!.Single(stock => stock.SpellId == action.ActionId).Count);
         int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(queued.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(queued.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
-        uint offset = queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+        uint offset = queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
@@ -74,7 +74,7 @@ public sealed class NativeBattleOrdinaryMagicFixtureFlagTests
         Assert.Equal(frozen, JsonSerializer.Serialize(queued));
         BattleCombatant nextEnemy = direct.Combatants.Single(actor => actor.Id == initialEnemy.Id);
         Assert.Equal(originalFlags, nextEnemy.NativeCombatantFlags & originalFlags);
-        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.ReadFixturePresentation().NativeGraphics!.Callback, produced = queued.ReadFixturePresentation().NativeGraphics.Callback, next = direct.Presentation!.Graphics.Callback, action.Command, action.ActionId, contacts = header.ReadContactCount(), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
+        return new { enemyDefinition.ModelId, physicalSlot = 3, originalFlags, entryFlags, fullGaugeRegistration = registration.Kind.ToString(), beforeInput = beforeInput.ReadFixturePresentation().NativeGraphics!.Callback, produced = queued.ReadFixturePresentation().NativeGraphics!.Callback, next = direct.Presentation!.Graphics.Callback, action.Command, action.ActionId, contacts = header.ReadContactCount(), stockBefore = 2, stockAfter = 1, coldNextEqual = true };
     }
 
     internal static void DeleteFixtureSnapshots(string fixture, NativeEffectFixtureExportResult exported)

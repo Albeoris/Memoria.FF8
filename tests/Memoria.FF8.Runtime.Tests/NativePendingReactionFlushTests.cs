@@ -22,11 +22,11 @@ public sealed class NativePendingReactionFlushTests
         Assert.Equal(new NativeBattlePendingReaction(0, 0), ReadPending(session.Combatants[1]));
         Assert.Equal((byte)2, snapshot.NativeReactionOrder);
         Assert.False(Pending(session));
-        BattleAttackCommand[] commands = snapshot.NativeCommandBanks!.BoundCommands.ToArray();
+        BattleAttackCommand[] commands = snapshot.QueuedActions.ToArray();
         Assert.Equal(queuesCallback ? 1 : 0, commands.Length);
         if (queuesCallback)
         {
-            Assert.Equal(new BattleNativeCallback(3, (ushort)stage), commands[0].NativeCallback);
+            Assert.Equal(NativeBattleFixtureObservations.CreateCallback(session.Combatants[1].Id, 3, stage), commands[0].ExpandedAiCallback);
         }
         AssertStableAfterRestoreAndRepeatedFlush(snapshot);
     }
@@ -41,7 +41,7 @@ public sealed class NativePendingReactionFlushTests
         SetOrder(session, 3);
         Flush(session);
         BattleSnapshot snapshot = session.Capture();
-        Assert.Equal(new[] { new BattleNativeCallback(3, 3), new BattleNativeCallback(5, 2) }, snapshot.NativeCommandBanks!.BoundCommands.Select(command => command.NativeCallback).ToArray());
+        Assert.Equal(new[] { NativeBattleFixtureObservations.CreateCallback(session.Combatants[1].Id, 3, 3), NativeBattleFixtureObservations.CreateCallback(session.Combatants[3].Id, 5, 2) }, snapshot.QueuedActions.Select(command => command.ExpandedAiCallback).ToArray());
         Assert.All(session.Combatants.Skip(1), actor => Assert.Equal(new NativeBattlePendingReaction(0, 0), ReadPending(actor)));
         Assert.Equal((byte)3, snapshot.NativeReactionOrder);
         Assert.False(Pending(session));
@@ -72,7 +72,7 @@ public sealed class NativePendingReactionFlushTests
         BattleSnapshot snapshot = session.Capture();
         Assert.Equal((byte)1, snapshot.NativeReactionOrder);
         Assert.Equal((ushort)4, session.ObserveDiagnosticCombatants()[0].Statuses0);
-        BattleAttackCommand[] callbacks = snapshot.NativeCommandBanks!.BoundCommands.ToArray();
+        BattleAttackCommand[] callbacks = snapshot.QueuedActions.ToArray();
         if (held)
         {
             Assert.Empty(callbacks);
@@ -81,7 +81,7 @@ public sealed class NativePendingReactionFlushTests
         else
         {
             Assert.Single(callbacks);
-            Assert.Equal(new BattleNativeCallback(0, 2), callbacks[0].NativeCallback);
+            Assert.Equal(new BattleExpandedAiCallbackRequest(new BattlePartyActorReference(recipient.Id), 2), callbacks[0].ExpandedAiCallback);
             Assert.Empty(session.DiagnosticTerminalHoldReceipts);
             Assert.All(session.Combatants.Where(actor => actor.IsPlayer).Skip(1), actor => Assert.Equal((ushort)0, session.ObserveDiagnosticCombatants().Single(state => state.Id == actor.Id).Statuses0));
         }

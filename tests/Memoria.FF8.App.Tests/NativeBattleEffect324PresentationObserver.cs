@@ -40,7 +40,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect324State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect324!;
         NativeBattleEffect324Resources resources = effect.Binding.Effect324Resources!;
         int caster = checked((int)state.ReadDword(CasterGlobal));
@@ -57,10 +57,10 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            track |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
-            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            track |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect324-camera-current8-24-owners", current, cold);
         }
         if (!vibrationStarted && main is not null && age >= 1)
@@ -164,7 +164,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
             var result = ReproduceHistory(prior, current);
             Assert.Equal(17, result.Age);
             Assert.Empty(result.Draw.Packets.Attempts);
-            warmRejectionProof = new { PriorFrame = prior.Frame, current.Frame, PriorNativeCallback = prior.ReadFixturePresentation().NativeGraphics.Callback, CurrentNativeCallback = graphics.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, NativePacketCount = result.Draw.Packets.Attempts.Length, ActualHistoryCommands = body.Length, Scope = "Actual warm current-source geometry and captured bones/world with prior camera; native viewport/NCLIP rejection; no alpha, model, HP, status or camera reset" };
+            warmRejectionProof = new { PriorFrame = prior.Frame, current.Frame, PriorNativeCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback, CurrentNativeCallback = graphics.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, NativePacketCount = result.Draw.Packets.Attempts.Length, ActualHistoryCommands = body.Length, Scope = "Actual warm current-source geometry and captured bones/world with prior camera; native viewport/NCLIP rejection; no alpha, model, HP, status or camera reset" };
             warmNativeRejectedHistory = true;
             Mark("effect324-warm-native-history-rejected-current-source-age17", current, cold);
         }
@@ -191,7 +191,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         NativeBattleModelCpuReference geometry = source.Require(16);
         NativeBattleModelCpuReference skeleton = source.Require(12);
         Assert.Equal(prior.ReadFixturePresentation().NativeModelCpuResources!.Rows[row].Require(16), geometry);
-        Assert.Equal(prior.ReadFixturePresentation().NativeModelCpuResources.Rows[row].Require(12), skeleton);
+        Assert.Equal(prior.ReadFixturePresentation().NativeModelCpuResources!.Rows[row].Require(12), skeleton);
         Assert.Equal((byte)28, NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, skeleton, 1)[0]);
         Assert.Equal(entering.CurrentBodyBoneMatrices!.SkeletonSha256, model.CurrentBodyBoneMatrices!.SkeletonSha256);
         int available = source.Lengths[16];
@@ -210,7 +210,7 @@ internal sealed class NativeBattleEffect324PresentationObserver(bool allowReject
         int capacity = checked(cpu.ScratchMaximum!.Value * 8);
         uint scratchAddress = checked(0x196B018u - (uint)capacity);
         ImmutableArray<byte> retained = current.ReadFixturePresentation().NativeFileStaging!.Read(scratchAddress, capacity).ToImmutableArray();
-        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.ReadFixturePresentation().NativeCamera.Projection!, model.Color40!.Value, 2, retained, current.Definition.NativeGraphics!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
+        NativeBattleRawModelBodyDraw draw = NativeBattleRawModelBodyDrawing.Draw5099D0(meshes, bones, prior.ReadFixturePresentation().NativeCamera!.Projection!, model.Color40!.Value, 2, retained, current.Definition.NativeGraphics!.Rules.SummonColors!, 4, new(0, 0, 320, 216), 17);
         Assert.Equal(17 * 8, draw.ProjectedBytesWritten);
         return (draw, geometry.PhysicalAddress, skeleton.PhysicalAddress, age, world, view);
 

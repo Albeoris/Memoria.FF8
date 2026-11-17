@@ -29,6 +29,7 @@ public sealed partial class BattleSession
         }
         BattleSnapshot snapshot = CaptureForContinuation();
         BattleSession clone = Restore(snapshot);
+        clone.nativeEffectResourceResolver = nativeEffectResourceResolver;
         clone.AttachRestoredPresentation(snapshot.PresentationContinuation!.Resources, snapshot, preparePresentationModelBinding);
         return clone;
     }

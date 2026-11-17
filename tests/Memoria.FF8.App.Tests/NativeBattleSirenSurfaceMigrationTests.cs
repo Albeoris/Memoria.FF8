@@ -21,7 +21,7 @@ public sealed class NativeBattleSirenSurfaceMigrationTests
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
         Assert.Equal(69L, retained.Frame);
         Assert.Equal(149L, retained.ReadFixturePresentation().NativeGraphics!.Callback);
-        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
+        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Siren95Resources!;
         Assert.Null(resources.PhaseOneSource);
         Assert.Null(resources.PhaseOneSprites);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);

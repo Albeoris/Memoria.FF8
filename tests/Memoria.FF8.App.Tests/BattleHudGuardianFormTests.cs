@@ -28,7 +28,7 @@ public sealed class BattleHudGuardianFormTests
         }
         var arrow = Assert.Single(first.Images);
         Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 5), arrow.Source);
-        hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / BattleSession.FramesPerSecond));
+        hud.AdvancePresentation(TimeSpan.FromSeconds(2.125 / BattlePresentationTiming.CallbacksPerSecond));
         BattleUiTests.TestCanvas next = new();
         view.Draw(next, new UiTheme());
         Assert.Equal(new UiImageSource(UiImageKind.Icon, 6, 0), Assert.Single(next.Images).Source);

@@ -9,7 +9,7 @@ public sealed class DiagnosticSupportingInvocationTests
     [Theory]
     [InlineData(2)]
     [InlineData(3)]
-    public void Dispatch_observes_the_actor_matched_bound_callback_and_actual_script(int stage)
+    public void Dispatch_observes_the_actor_matched_active_callback_and_actual_script(int stage)
     {
         BattleSession session = Create();
         Bind(session, "enemy", 154, (byte)stage);
@@ -20,29 +20,6 @@ public sealed class DiagnosticSupportingInvocationTests
         Assert.Equal("enemy", observed.ActorId);
         Assert.Equal((byte)2, observed.NativeCommand);
         Assert.Equal(7, observed.ActionId);
-    }
-
-    [Fact]
-    public void Actor_matched_active_action_retains_its_actual_callback_provenance()
-    {
-        BattleSession session = Create();
-        BattleActionPresentation action = new("enemy", "party", BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 7, false) { NativeAiCallbackStage = 3, NativeAction = NativeAction(154) };
-        Field("resolvingNativeAction").SetValue(session, action);
-        BattleDiagnosticEffectDispatch observed = Observe(session);
-        Assert.Equal((byte)3, observed.NativeAiCallbackStage);
-        Assert.Equal(session.ObserveDiagnosticCombatants()[1].NativeAiScriptSha256![3], observed.NativeAiScriptSha256);
-    }
-
-    [Fact]
-    public void Action_without_callback_provenance_can_use_its_actor_and_effect_matched_bank_binding()
-    {
-        BattleSession session = Create();
-        Bind(session, "enemy", 154, 2);
-        BattleActionPresentation action = new("enemy", "party", BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 7, false) { NativeAction = NativeAction(154) };
-        Field("resolvingNativeAction").SetValue(session, action);
-        BattleDiagnosticEffectDispatch observed = Observe(session);
-        Assert.Equal((byte)2, observed.NativeAiCallbackStage);
-        Assert.Equal(session.ObserveDiagnosticCombatants()[1].NativeAiScriptSha256![2], observed.NativeAiScriptSha256);
     }
 
     [Theory]
@@ -130,26 +107,25 @@ public sealed class DiagnosticSupportingInvocationTests
 
     private static void Bind(BattleSession session, string actor, ushort effect, byte? stage)
     {
-        BattleAttackCommand command = new(actor, "party", new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 7) { NativeAiCallbackStage = stage, NativeAction = NativeAction(effect) };
-        NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
-        (NativeBattleCommandBanks allocated, NativeBattleCommandLocation location) = banks.Allocate(0);
-        banks = allocated.WriteCommand(location, 0, actor == "enemy" ? (byte)3 : (byte)0, 2, 0, 0, 7, [1]).BindCommand(location, 0, command);
-        Field("nativeCommandBanks").SetValue(session, banks);
+        BattleActionPresentation action = new(actor, "party", BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 7, false) { NativeAiCallbackStage = stage, NativeAction = NativeAction(effect) };
+        Field("resolvingNativeAction").SetValue(session, action);
     }
 
     private static BattleDiagnosticEffectDispatch Observe(BattleSession session)
     {
         BattleDiagnosticEffectDispatch? result = null;
         session.DiagnosticEffectDispatched += dispatch => result = dispatch;
-        NativeBattleActionPacketsState packets = session.NativeActionPackets;
-        BattleModelOwner actor = packets.ModelAliases.DecodeLiteral(3);
-        BattleModelOwner recipient = packets.ModelAliases.DecodeLiteral(0);
-        (packets, BattleActionHeaderReference header) = packets.Prepare(new(actor, 2, 0, -1, 7, 154, null));
-        Field("nativeActionPackets").SetValue(session, packets);
+        BattleModelOwner actor = OriginalOwner(3);
+        BattleModelOwner recipient = OriginalOwner(0);
         NativeBattleGraphicsState graphics = OriginalGraphics([(0, recipient, new(3)), (3, actor, new(3))], callback: 42);
+        BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(session, graphics);
+        NativeBattleActionPacketsState packets = process.ActionPackets;
+        (packets, BattleActionHeaderReference header) = packets.Prepare(new(actor, 2, 0, -1, 7, 154, null));
+        NativeBattleHostedTestFixture.SetField(process, "nativeActionPackets", packets);
         NativeBattleEffectParameters parameters = new(actor, 0, BattleModelTargets.From([recipient]), header, 0, 0);
         NativeBattleOriginalEffectState effect = new(154, 153, new(154, 0, 0), parameters.CaptureOriginalWindow(packets.ModelAliases), null);
-        typeof(BattleSession).GetMethod("ObserveDiagnosticEffectDispatch", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [graphics, effect]);
+        BattlePresentationEffectObservation entry = new(effect, packets.ReadHeader(header), "enemy", 42, 3, 1, 0, null);
+        typeof(BattleSession).GetMethod("ObservePresentationEffect", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [process, entry]);
         return Assert.IsType<BattleDiagnosticEffectDispatch>(result);
     }
 

@@ -1,6 +1,5 @@
 using static Memoria.FF8.Runtime.BattlePresentationProcess;
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -92,7 +91,6 @@ public sealed partial class BattleSession
         internal List<BattleDiagnosticReflectionTargetResolution>? Resolutions { get; set; }
         internal BattleDiagnosticReflectionTargetProvenance? PublishedTargets { get; set; }
     }
-    private ConditionalWeakTable<BattleAttackCommand, PendingDiagnosticReflection>? diagnosticReflectedCommands;
     private Dictionary<int, long>? diagnosticHeaderGenerations;
     private Dictionary<int, BattleDiagnosticEffectDispatch>? diagnosticHeaderDispatches;
     private Dictionary<int, PendingDiagnosticReflection>? diagnosticReflectedHeaders;
@@ -102,6 +100,11 @@ public sealed partial class BattleSession
     private static int? OriginalDiagnosticHeaderIndex(BattleActionHeaderReference? header)
     {
         return header is { } reference && reference.Ordinal < NativeBattleRetainedActionPackets.HeaderCapacity ? reference.Ordinal : null;
+    }
+
+    private NativeBattleActionPacketsState RequireDiagnosticPresentationPackets()
+    {
+        return (Presentation ?? throw new InvalidOperationException("Diagnostic packet observation requires the current presentation process.")).ActionPackets;
     }
 
     private void ObserveDiagnosticPreparedHeader(BattleActionHeaderReference reference)
@@ -114,7 +117,7 @@ public sealed partial class BattleSession
         diagnosticHeaderGenerations[header] = ++diagnosticHeaderGeneration;
         diagnosticHeaderDispatches?.Remove(header);
         diagnosticReflectedHeaders?.Remove(header);
-        if (diagnosticReflectionProduction is { } proof && nativeActionPackets.ReadHeader(reference).Command == 247)
+        if (diagnosticReflectionProduction is { } proof && RequireDiagnosticPresentationPackets().ReadHeader(reference).Command == 247)
         {
             diagnosticReflectedHeaders ??= [];
             diagnosticReflectedHeaders[header] = proof;
@@ -124,8 +127,6 @@ public sealed partial class BattleSession
     private void ResetDiagnosticReflectionHeaders(bool retainHostedPending = false)
     {
         diagnosticCounterContacts.Clear();
-        diagnosticCounterAppended.Clear();
-        diagnosticCounterProducingHeader = null;
         if (diagnosticHeaderGenerations is null)
         {
             return;
@@ -146,7 +147,6 @@ public sealed partial class BattleSession
         }
         diagnosticHeaderDispatches?.Clear();
         diagnosticReflectedHeaders?.Clear();
-        diagnosticReflectedCommands?.Clear();
         diagnosticReflectionProduction = null;
     }
 
@@ -169,7 +169,7 @@ public sealed partial class BattleSession
         {
             return null;
         }
-        NativeBattleActionHeaderSlot original = nativeActionPackets.ReadHeader(reference);
+        NativeBattleActionHeaderSlot original = RequireDiagnosticPresentationPackets().ReadHeader(reference);
         return new(header, generation, actor.Id, checked((byte)actor.RequireNativeActorIndex()), reflector.Id, checked((byte)reflector.RequireNativeActorIndex()), reflector.NativeStatus1, recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), original.Command, original.Action, source, reflected, NativeBattleTargetRequestAdapter.ProjectOriginalWord(targets, ReadOriginalTargetSlot) ?? throw new InvalidDataException("Native reflection evidence requires its original target word."));
     }
 
@@ -192,7 +192,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        NativeBattleActionHeaderSlot slot = nativeActionPackets.ReadHeader(reference);
+        NativeBattleActionHeaderSlot slot = RequireDiagnosticPresentationPackets().ReadHeader(reference);
         if (slot.FirstContact.Ordinal >= NativeBattleContactAddress.NativeRowCount)
         {
             return;
@@ -203,8 +203,8 @@ public sealed partial class BattleSession
         for (int index = 0; index < count; index++)
         {
             BattleContactCursor cursor = slot.FirstContact.Advance(index);
-            BattleModelOwner owner = nativeActionPackets.ReadContact(cursor).Primary.Recipient;
-            if (cursor.Ordinal >= NativeBattleContactAddress.NativeRowCount || !nativeActionPackets.ModelAliases.TryEncodeExact(owner, out byte originalOwner))
+            BattleModelOwner owner = RequireDiagnosticPresentationPackets().ReadContact(cursor).Primary.Recipient;
+            if (cursor.Ordinal >= NativeBattleContactAddress.NativeRowCount || !RequireDiagnosticPresentationPackets().ModelAliases.TryEncodeExact(owner, out byte originalOwner))
             {
                 return;
             }

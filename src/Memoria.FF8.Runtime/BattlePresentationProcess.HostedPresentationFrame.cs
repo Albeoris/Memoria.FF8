@@ -41,7 +41,7 @@ public sealed partial class BattlePresentationProcess
     }
 
     internal NativeBattleModelLifecycleServices AdvanceHostedBattlePresentationFrame(NativeExamTimerState? timerObservation, Action? beforeCore = null, Action<NativeBattleUiServices>? clockPoll = null, Action? clockReady = null, Action<NativeBattleModelLifecycleServices>? afterGraphics = null,
-        Action<ImmutableArray<NativeBattleRenzokukenWidgetStepped>, long>? renzokukenUi = null, Action<NativeBattleShotWidgetUpdated>? shotUi = null)
+        Action<ImmutableArray<NativeBattleRenzokukenWidgetStepped>, long>? renzokukenUi = null, Action<NativeBattleShotWidgetUpdated>? shotUi = null, Action<NativeBattleDuelWidgetUpdated>? duelUi = null)
     {
         RequireHostedCompletionAcknowledged();
         if (hostedFrameServices is not null || nativePreRootStack is not null)
@@ -78,7 +78,7 @@ public sealed partial class BattlePresentationProcess
             BeginHostedRenzokukenUi(frameServices.Renzokuken);
             for (int pre = 0; pre < BattlePresentationTiming.NativeUiServicePollsPerCallback - 1; pre++)
             {
-                AdvanceHostedUiPublication(host.PublishVitals, clockPoll, shotUi);
+                AdvanceHostedUiPublication(host.PublishVitals, clockPoll, shotUi, duelUi);
             }
             nativePreCoreUiStack = false;
             DrainHostedRenzokukenUi(renzokukenUi);
@@ -132,7 +132,7 @@ public sealed partial class BattlePresentationProcess
                 }
             }
             BeginHostedRenzokukenUi(host.ReadRenzokuken());
-            AdvanceHostedUiPublication(host.PublishVitals, clockPoll, shotUi);
+            AdvanceHostedUiPublication(host.PublishVitals, clockPoll, shotUi, duelUi);
             DrainHostedRenzokukenUi(renzokukenUi);
             AdvanceNativeScanText537A30();
             PublishNativeScanInputFrame();
@@ -150,7 +150,7 @@ public sealed partial class BattlePresentationProcess
         return frameServices;
     }
 
-    private void AdvanceHostedUiPublication(Action publishVitals, Action<NativeBattleUiServices>? clockPoll, Action<NativeBattleShotWidgetUpdated>? shotUi)
+    private void AdvanceHostedUiPublication(Action publishVitals, Action<NativeBattleUiServices>? clockPoll, Action<NativeBattleShotWidgetUpdated>? shotUi, Action<NativeBattleDuelWidgetUpdated>? duelUi)
     {
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
@@ -163,6 +163,10 @@ public sealed partial class BattlePresentationProcess
                 if (shotUi is not null)
                 {
                     AdvanceNativeShotWindow(shotUi);
+                }
+                if (duelUi is not null)
+                {
+                    AdvanceNativeDuelWindow(duelUi);
                 }
             }
             clockPoll?.Invoke(NativeGraphics!.UiServices!);

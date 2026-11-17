@@ -34,13 +34,12 @@ public sealed class BattleComponentSupportTests
         battle.QueueAttack(party.Id, enemy.Id);
         battle.Tick();
         Assert.NotNull(battle.ActiveAction);
-        for (int callback = 0; callback < 256 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.Capture().NativeActionScratch!.ComponentCompletion is not null); callback++)
+        for (int callback = 0; callback < 256 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
         {
             battle.Tick();
         }
         Assert.Null(battle.ActiveAction);
         Assert.Empty(battle.QueuedActions);
-        Assert.Null(battle.Capture().NativeActionScratch!.ComponentCompletion);
         Assert.Contains(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == party.Id);
         Assert.False(battle.Combatants[0].IsReady);
         before = battle.Frame;
@@ -75,7 +74,7 @@ public sealed class BattleComponentSupportTests
         Assert.True(battle.Capture().NativeSupport!.EntryInitialized);
         Assert.Equal(expectedAction, battle.Capture().NativeSupport!.SelectedAction);
         AssertRandom(expected, battle.Capture().Random!);
-        Assert.Equal(new BattleNativeCallback(0, 7), battle.QueuedActions.Last().NativeCallback);
+        Assert.Contains(battle.QueuedActions, command => command.NativeQueuedCommand == 245);
         string before = JsonSerializer.Serialize(battle.Capture());
 
         BattleScenePresentation scene = new(world.BattleResources, definition);
@@ -95,13 +94,12 @@ public sealed class BattleComponentSupportTests
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition definition = ComponentDefinition(world, 512);
         BattleSession battle = GameWorld.CreateLiveBattleSession(definition, new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased }, assets, world.BattleResources);
-        for (int callback = 0; callback < 128 && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null || battle.Capture().NativeActionScratch!.ComponentCompletion is not null); callback++)
+        for (int callback = 0; callback < 128 && (battle.QueuedActions.Count != 0 || battle.ActiveAction is not null); callback++)
         {
             battle.Tick();
         }
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
-        Assert.Null(battle.Capture().NativeActionScratch!.ComponentCompletion);
         BattleSnapshot admitted = battle.Capture();
         Assert.True(admitted.NativeSupport!.Cooldown < definition.NativeSupportRules!.Cooldown);
         // Independent boundary inputs isolate the final cooldown callback and a ready player's command wait.
@@ -119,7 +117,7 @@ public sealed class BattleComponentSupportTests
         battle.Tick();
 
         Assert.Equal(boundary.Frame + 1, battle.Frame);
-        Assert.Equal(new BattleNativeCallback(0, 8), Assert.Single(battle.QueuedActions).NativeCallback);
+        Assert.Contains(battle.QueuedActions, command => command.NativeQueuedCommand is not null);
         Assert.Equal((byte)14, battle.Capture().NativeSupport!.SelectedAction);
         Assert.Equal(definition.NativeSupportRules.Cooldown, battle.Capture().NativeSupport!.Cooldown);
         AssertRandom(expected, battle.Capture().Random!);

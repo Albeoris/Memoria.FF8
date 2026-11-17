@@ -136,12 +136,12 @@ public sealed class NativeBattleReadyMenuTests
         BattleSession battle = Create(game, assets);
         battle.Tick();
         battle.QueueAttack("party-0", "enemy");
-        Assert.Equal(1, battle.NativeCommandBanks.CountActor(0));
+        Assert.Equal(1, battle.QueuedActions.Count(command => command.ActorId == battle.Combatants[0].Id));
         BattleSnapshot snapshot = battle.CaptureForContinuation();
         NativeBattleUiServices ui = snapshot.ReadFixturePresentation().NativeGraphics!.UiServices!;
         (NativeBattleUiCommands commands, uint readyMask, _) = ui.Commands.Dispatch(ui.ReadyMask);
         (commands, readyMask, _) = commands.Enqueue(0, 17).Dispatch(readyMask);
-        snapshot = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { UiServices = ui with { Commands = commands, ReadyMask = readyMask } } });
+        snapshot = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { UiServices = ui with { Commands = commands, ReadyMask = readyMask } } });
         BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
         actors[0] = actors[0] with { CurrentHp = savedStatus == 1 ? 0 : actors[0].CurrentHp, NativeStatus = actors[0].NativeStatus! with { Saved = savedStatus, Presentation = new(0, 0) } };
         NativeBattleContactPacket packet = new(new(OriginalOwner(0), 0, 1, 4, savedStatus, 0, 0), null);
@@ -151,7 +151,7 @@ public sealed class NativeBattleReadyMenuTests
         battle.Tick();
         restored.Tick();
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Equal(retainsQueuedCommand ? 1 : 0, battle.NativeCommandBanks.CountActor(0));
+        Assert.Equal(retainsQueuedCommand ? 1 : 0, battle.QueuedActions.Count(command => command.ActorId == battle.Combatants[0].Id));
         Assert.Equal(retainsQueuedCommand, (battle.Presentation!.Graphics.UiServices!.ReadyMask & 1) != 0);
         Assert.Equal((ushort)0, battle.NativePartyStatusMirrors.Saved[0]);
         Assert.Equal(savedStatus, battle.Capture().Combatants[0].NativeStatus!.Presentation.Saved);

@@ -39,7 +39,7 @@ public sealed partial class NativeBattleDuel112CastTests
         File.WriteAllText(destination, JsonSerializer.Serialize(migrated));
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(destination))!);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(restored.Capture()));
-        File.WriteAllText(Path.Combine(output!, "migration-receipt.json"), JsonSerializer.Serialize(new { Status = "restore-validated", Input = input, Output = destination, OriginalSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(input!))), MigratedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(destination))), source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics.Callback, Changes = new[] { "NativeEffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeRetainedMemory.EffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeEffectCatalog[273]: original authenticated initializer asset and Duel274 resources" }, Continuation = "Installed_Duel112_completes_original_action_and_independent_standalones(true) with MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT set to the migrated output" }));
+        File.WriteAllText(Path.Combine(output!, "migration-receipt.json"), JsonSerializer.Serialize(new { Status = "restore-validated", Input = input, Output = destination, OriginalSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(input!))), MigratedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(destination))), source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics!.Callback, Changes = new[] { "NativeEffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeRetainedMemory.EffectMemory.Duel274: absent to explicit cold process owner", "Definition.NativeEffectCatalog[273]: original authenticated initializer asset and Duel274 resources" }, Continuation = "Installed_Duel112_completes_original_action_and_independent_standalones(true) with MEMORIA_FF8_LIMIT_EFFECT_SNAPSHOT set to the migrated output" }));
 
         static NativeBattleEffectMemory RequireCold(NativeBattleEffectMemory memory)
         {
@@ -92,7 +92,7 @@ public sealed partial class NativeBattleDuel112CastTests
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(clone, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output!, "selected-next", battle.Capture(), scene.Render(battle, 320, 224).ToArray());
-                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.ReadFixturePresentation().NativeGraphics.Callback }));
+                    File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "passed", Input = input, TargetPhase = phase, ActualPhase = selected.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots[0].ReadWord(12), selected.Frame, selected.ReadFixturePresentation().NativeGraphics!.Callback }));
                     return;
                 }
                 before = battle.Capture();
@@ -196,8 +196,10 @@ public sealed partial class NativeBattleDuel112CastTests
                     Publish("before-input-" + duelInputs);
                     foreach (ushort button in choice.Buttons)
                     {
-                        battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1), 0);
-                        battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1), button);
+                        battle.SubmitNativeDuelInput(0);
+                        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
+                        battle.SubmitNativeDuelInput(button);
+                        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 30 + 1));
                     }
                     Assert.Equal(choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect, battle.GetNativeDuel("party")!.Phase);
                     queuedChoice = choice.ActionId == action.ActionId;

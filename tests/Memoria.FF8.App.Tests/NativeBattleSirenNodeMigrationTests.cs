@@ -20,7 +20,7 @@ public sealed class NativeBattleSirenNodeMigrationTests
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
         Assert.Equal((ushort)95, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Siren95Resources!;
+        NativeBattleSiren95Resources resources = retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Siren95Resources!;
         Assert.Null(resources.NodeSchedule);
         Assert.Null(resources.StaticNodeSource);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
@@ -47,7 +47,7 @@ public sealed class NativeBattleSirenNodeMigrationTests
         JsonObject module = migrated["NativeEffectMemory"]!["Siren95"]!.AsObject();
         Assert.False(module.ContainsKey("StaticNodeData"));
         Assert.False(module.ContainsKey("StaticNodeDataKnownCold"));
-        Assert.DoesNotContain(retained.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745180);
+        Assert.DoesNotContain(retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => task.Callback == 0x745180);
         module["StaticNodeData"] = JsonSerializer.SerializeToNode(authenticated.StaticNodeSource.Data);
         JsonNode reverted = migrated.DeepClone();
         foreach (string property in new[] { "NodeSchedule", "StaticNodeSource" })

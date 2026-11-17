@@ -58,13 +58,13 @@ public sealed class NativeBattleDiablos325WellContinuationTests
                 Assert.Equal((ushort)(counter + 1), task.ReadWord(0xC));
                 Assert.Equal((uint)(counter - 8), task.ReadDword(0x268));
                 Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.PreviousFlash51EC);
                 Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group =>
                 {
                     Assert.Equal((short)4096, group.ColorDepth);
                     Assert.Equal(0, group.Flags & 2);
                 });
-                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.ByteCursor });
+                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ByteCursor });
             }
             BattleSnapshot boundary = first.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));

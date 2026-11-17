@@ -120,12 +120,12 @@ internal sealed partial class RecreateGame
         if (operation == DiagnosticShotOperation.Trigger)
         {
             ApplyBattleCommand(new(BattleInputKind.ShotTrigger, ActorId: diagnosticDriverRecipe.Input.ActorId));
-            cycle.Triggered(ObserveDiagnosticShot(active));
+            cycle.RequestTrigger(ObserveDiagnosticShot(active));
         }
         else if (operation == DiagnosticShotOperation.End)
         {
             active.EndNativeShot(diagnosticDriverRecipe.Input.ActorId!);
-            cycle.Ended(ObserveDiagnosticShot(active));
+            cycle.RequestClose(ObserveDiagnosticShot(active));
         }
     }
 }

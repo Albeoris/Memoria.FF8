@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime;
 
@@ -19,6 +20,13 @@ public sealed record NativeBattleWaterVectorRandom(int Value, NativeCrtRandomSta
 public static class NativeBattleWaterVectorCommands
 {
     private static readonly byte[] Types = [0x00, 0x01, 0x02, 0x10, 0x11, 0x12, 0x20, 0x03, 0x30, 0x31, 0x32, 0x33, 0x40, 0x50];
+
+    internal static int ReadInstructionWidth(ushort instruction)
+    {
+        int operation = Types[(instruction & 0x1FF) - 10] >> 4;
+        int lanes = BitOperations.PopCount((uint)instruction & 0xFC00);
+        return operation is 1 or 4 ? 4 : 2 + lanes * (operation == 5 ? 4 : 2);
+    }
 
     public static NativeBattleWaterVectorResult ExecuteAA1810(ImmutableArray<byte> slot, ImmutableArray<byte> program, int instructionOffset, NativeCrtRandomState random)
     {

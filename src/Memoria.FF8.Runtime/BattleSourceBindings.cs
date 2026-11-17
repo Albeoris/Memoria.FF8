@@ -78,6 +78,10 @@ internal sealed class BattleSourceBindings(ImmutableArray<BattleSourceMember> me
 
     public BattleModelOwner DecodeLiteral(byte operand) => aliases.DecodeLiteral(operand);
 
+    public bool HasOriginalOperand(NativeBattleModelSlot slot) => aliases.FindOriginalOwner(slot) is not null;
+
+    public bool TryGetOriginalOperand(BattleModelOwner owner, out byte operand) => aliases.TryEncodeExact(owner, out operand);
+
     public BattleModelOwner DecodeRelative(BattleModelOwner source, int offset)
     {
         if (!aliases.TryEncodeExact(source, out byte operand))

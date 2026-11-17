@@ -408,7 +408,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
         {
             for (int tick = 0; tick < 12000; tick++)
             {
-                if (provider.DuelProcess?.Phase == BattleNativeDuelPhase.Ready || provider.ShotProcess?.Phase == BattleNativeShotPhase.Ready || provider.SlotsChoosing)
+                if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready, WidgetPhase: 4 } || provider.ShotProcess?.Phase == BattleNativeShotPhase.Ready || provider.SlotsChoosing)
                 {
                     return;
                 }
@@ -459,7 +459,7 @@ public sealed class CrossoverCompositeActionTests(ITestOutputHelper output)
                 {
                     provider.SetProcessButtons(0);
                 }
-                if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready })
+                if (provider.DuelProcess is { Phase: BattleNativeDuelPhase.Ready, WidgetPhase: 4 })
                 {
                     inputSeen = true;
                     BattleNativeDuelChoice move = duelAction is byte desired ? DuelRoute(provider.DuelProcess!.MoveSetId, desired) : provider.DuelProcessChoices.First(choice => choice.Learned);

@@ -36,23 +36,13 @@ public sealed class NativeBattleSemanticTargetRequestTests
     }
 
     [Fact]
-    public void Original_command_transport_preserves_authored_group_and_requires_a_new_binding_after_raw_write()
+    public void Original_command_transport_preserves_authored_group_and_refuses_an_added_owner_word()
     {
         BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(0x80F8, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true);
         Assert.Equal(BattleTargetSide.Enemies, Assert.IsType<BattleTargetSelection.SideGroup>(request.Selection).Side);
         Assert.Equal((ushort)0x80F8, NativeBattleTargetRequestAdapter.ProjectOriginalWord(request, _ => null));
         BattleTargetRequest canonical = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("added-target")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
         Assert.Null(NativeBattleTargetRequestAdapter.ProjectOriginalWord(canonical, _ => null));
-        (NativeBattleCommandBanks banks, NativeBattleCommandLocation location) = NativeBattleCommandBanks.Initialize().Allocate(2);
-        BattleAttackCommand command = new("source", "added-target", canonical);
-
-        banks = banks.WriteProjectedCommand(location, 0, 0, 1, 0, 0, 0, [null]).BindCommand(location, 0, command);
-        NativeBattleCommandBank bank = banks.Banks[2];
-        Assert.Same(command, bank.LogicalCommands[2 * location.Slot]);
-        Assert.Throws<NotSupportedException>(() => bank.Packets[2 * location.Slot].ReadWord(6));
-        NativeBattleCommandBank overwritten = banks.WriteCommand(location, 0, 0, 1, 0, 0, 0, [8]).Banks[2];
-        Assert.Null(overwritten.LogicalCommands[2 * location.Slot]);
-        Assert.Equal(8, overwritten.Packets[2 * location.Slot].ReadWord(6));
     }
 
     [Fact]
@@ -81,7 +71,7 @@ public sealed class NativeBattleSemanticTargetRequestTests
         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == casterDefinition.Id);
         BattleCombatant target = battle.Combatants.Single(actor => actor.Id == enemyDefinitions[^1].Id);
         BattleTargetRequest request = new(new BattleTargetSelection.SideGroup(BattleTargetSide.Enemies), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        BattleActionPresentation command = new(caster.Id, target.Id, BattleActionPhase.Windup, 0, request, BattleAbility.EnemyAbility, 1)
+        BattleActionPresentation command = new(caster.Id, target.Id, BattleActionPhase.Windup, request, BattleAbility.EnemyAbility, 1)
         {
             NativeAction = native, NativeQueuedCommand = 8
         };

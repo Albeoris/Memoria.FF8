@@ -13,7 +13,7 @@ public sealed class NativeBattleQuezacotlContinuationTests
         BattleSession battle = BattleSession.Restore(saved);
         Assert.Equal((ushort)116, battle.Presentation!.Graphics.OriginalEffect!.Binding.Effect);
         Assert.True(battle.Presentation!.Graphics.OriginalEffect.ReturnedDescriptor > 0);
-        TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
+        TimeSpan elapsed = BattlePresentationTiming.ElapsedForCallbacks(1);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
         for (int frame = 0; frame < 512; frame++)
         {

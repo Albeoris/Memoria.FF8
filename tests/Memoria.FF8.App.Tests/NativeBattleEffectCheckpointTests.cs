@@ -26,6 +26,6 @@ public sealed class NativeBattleEffectCheckpointTests
         Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback + 1, battle.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(clone.Capture()));
         Assert.Equal(first.Render(battle, 320, 224).ToArray(), second.Render(clone, 320, 224));
-        Console.WriteLine($"Supported effect checkpoint continued frame{before.Frame}/callback{before.ReadFixturePresentation().NativeGraphics.Callback} to frame{battle.Frame}/callback{battle.Presentation!.Graphics.Callback}.");
+        Console.WriteLine($"Supported effect checkpoint continued frame{before.Frame}/callback{before.ReadFixturePresentation().NativeGraphics!.Callback} to frame{battle.Frame}/callback{battle.Presentation!.Graphics.Callback}.");
     }
 }

@@ -7,25 +7,6 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDuelProtocolTests
 {
-    [Fact]
-    public void PresentationConsumesOneSixtiethAndPreservesFractionalTimeAcrossPrivateContinuation()
-    {
-        BattleSession session = Fixture();
-        States(session).Add("party", new(0, Target(), 400, 1, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254 });
-        session.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(83333), 0);
-        Assert.Equal(1, States(session)["party"].RemainingTimer);
-        BattleSession cold = Fixture();
-        States(cold).Add("party", NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(States(session)["party"])));
-        foreach (BattleSession current in new[] { session, cold })
-        {
-            current.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(83334), 0);
-            Assert.Equal(0, States(current)["party"].RemainingTimer);
-            Assert.Equal(BattleNativeDuelPhase.Finisher, States(current)["party"].Phase);
-            Assert.Equal((byte)255, States(current)["party"].Selection1D28DEF);
-        }
-        Assert.Equal(JsonSerializer.Serialize(States(session)["party"]), JsonSerializer.Serialize(States(cold)["party"]));
-    }
-
     [Theory]
     [InlineData(3, 2, BattleNativeDuelPhase.AwaitingEffect)]
     [InlineData(17, 7, BattleNativeDuelPhase.Finisher)]
@@ -48,15 +29,12 @@ public sealed class NativeBattleDuelProtocolTests
     [Fact]
     public void TimeoutPublishesFFWithoutRemovingTheProcessOrInventingAClosingHeader()
     {
-        BattleSession session = Fixture();
-        States(session).Add("party", new(0, Target(), 400, 1, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254 });
-        session.AdvanceNativeDuelUi();
-        BattleNativeDuelState state = States(session)["party"];
+        BattleNativeDuelState active = new(0, Target(), 400, 1, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254, WidgetPhase = 4, WidgetRevealQ12 = 4096, PublicationLatch = 4 };
+        BattleNativeDuelState state = NativeBattleDuelRules.AdvanceWidget(active, false, 0, false, [], static () => throw new InvalidOperationException());
         Assert.Equal((byte)255, state.Selection1D28DEF);
         Assert.Equal(BattleNativeDuelPhase.Finisher, state.Phase);
-        Assert.Equal(0, state.RemainingTimer);
-        Assert.Empty(session.QueuedActions);
-        Assert.Equal((byte)0, session.NativeActionPackets.ActionCount);
+        Assert.Equal((short)0, state.RemainingTimer);
+        Assert.False(state.WidgetClosed);
     }
 
     [Fact]
@@ -80,7 +58,7 @@ public sealed class NativeBattleDuelProtocolTests
         NativeBattleActionScratch scratch = session.Capture().NativeActionScratch! with { Command = 241, Action = actionId, EventActorB0F = 0, EventLane = 1 };
         typeof(BattleSession).GetField("nativeActionScratch", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(session, scratch);
         BattleNativeAction native = new(241, actionId, -1, -1) { MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
-        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, Target(), BattleAbility.EnemyAbility, actionId) { NativeAction = native, NativeQueuedCommand = 241 };
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, Target(), BattleAbility.EnemyAbility, actionId) { NativeAction = native, NativeQueuedCommand = 241 };
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, actionId, "Duel", BattleActionEffect.Native, 0, false) { NativeAction = native };
         NativeBattleContactPacket packet = (NativeBattleContactPacket)Invoke(session, "ResolveInstalledNativeHitWithContact", actor, target, presentation, action, native, null!, false)!;
         Assert.Equal((byte)1, packet.Primary.Flags2);

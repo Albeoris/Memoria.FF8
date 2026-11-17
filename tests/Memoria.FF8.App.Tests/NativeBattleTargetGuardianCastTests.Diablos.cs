@@ -79,7 +79,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         byte[] continuedPixels = scene.Render(first, 320, 224).ToArray();
         Assert.Equal(continuedPixels, scene.Render(second, 320, 224).ToArray());
         NativeBattleRestorationPresentationTests.Publish(output, "attached-trails-next", continued, continuedPixels);
-        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-opening-and-attached-trail-continuation-validated", continued.Frame, NativeCallback = continued.ReadFixturePresentation().NativeGraphics.Callback, Counter = Counter(continued), Boundary = "6559D3-next-callback" }));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "entry-opening-and-attached-trail-continuation-validated", continued.Frame, NativeCallback = continued.ReadFixturePresentation().NativeGraphics!.Callback, Counter = Counter(continued), Boundary = "6559D3-next-callback" }));
 
         static ushort Counter(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleDiablos325Entry.MainDescriptor).Slots[0].ReadWord(0xC);
     }

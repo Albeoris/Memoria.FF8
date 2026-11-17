@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect251FollowingActionTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect251PresentationTests.Released(source));
         Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
-        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera!.Order);
         NativeBattleEffect251State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect251!;
         Assert.True(warm.ScriptSourcesBound);
         Assert.Single(warm.FixedBanks);

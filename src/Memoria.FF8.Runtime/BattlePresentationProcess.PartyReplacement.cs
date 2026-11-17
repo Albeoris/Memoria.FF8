@@ -29,7 +29,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleModelLifecycleServices frame = hostedFrameServices ?? throw new InvalidOperationException("Party replacement requires its current presentation callback.");
         if (descriptor.Stage == PartyReplacementStage.Reveal)
         {
-            graphics = SetPartyReplacementVitals(graphics, descriptor.Change.Slot, true);
+            graphics = SetPartyReplacementVitals(graphics, descriptor.OriginalSlot, true);
             NativeBattleUiServices ui = graphics.UiServices ?? throw new InvalidOperationException("Party replacement requires its active battle windows.");
             graphics = graphics with { UiServices = ui.SetFlags(0x400) };
         }
@@ -37,18 +37,18 @@ public sealed partial class BattlePresentationProcess
         return graphics;
     }
 
-    private static NativeBattleGraphicsState SetPartyReplacementVitals(NativeBattleGraphicsState graphics, BattleRosterSlot slot, bool visible)
+    private static NativeBattleGraphicsState SetPartyReplacementVitals(NativeBattleGraphicsState graphics, NativeBattleModelSlot? slot, bool visible)
     {
-        if (slot.Side != BattleSide.Allies)
-        {
-            throw new InvalidDataException("Party replacement requires an ally roster slot.");
-        }
-        if (NativeBattleSlots.TryEncode(slot) is not int original)
+        if (slot is null)
         {
             return graphics;
         }
+        if (slot.Value.Side != BattleSide.Allies)
+        {
+            throw new InvalidDataException("Party replacement requires an ally roster slot.");
+        }
         NativeBattleUiServices ui = graphics.UiServices ?? throw new InvalidOperationException("Party replacement requires its active battle windows.");
         NativeBattleUiWindows windows = ui.Windows ?? throw new InvalidOperationException("Party replacement requires the initialized vitals rows.");
-        return graphics with { UiServices = ui with { Windows = windows.RequestVitalsVisibility4B1830(original, visible) } };
+        return graphics with { UiServices = ui with { Windows = windows.RequestVitalsVisibility4B1830(slot.Value.Offset, visible) } };
     }
 }

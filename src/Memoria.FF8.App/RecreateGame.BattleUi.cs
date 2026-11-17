@@ -27,7 +27,7 @@ internal sealed partial class RecreateGame
     private bool previousBattleMouse;
     private bool slotsInputReleasePending;
     private bool SlotsModalBlocksGameplay => ActiveBattle is { } active && (active.PendingSlotsDeal is not null || ReferenceEquals(active, presentedBattle) && (battleHud?.CardSlotsOwnsInput == true || slotsInputReleasePending));
-    private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetDuelUi(actor.Id) is { OwnsInput: true });
+    private bool DuelOwnsInput => ActiveBattle is { } active && active.Combatants.Any(actor => active.GetNativeDuel(actor.Id) is { WidgetClosed: false });
     private bool BattleModalBlocksGameplay => SlotsModalBlocksGameplay || DuelOwnsInput;
     private BattleSession? presentedBattle;
     private BattleDebugPresets? battleDebugPresets;
@@ -166,7 +166,7 @@ internal sealed partial class RecreateGame
             return true;
         }
         battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
-        active.AdvanceNativeDuelPresentation(elapsed, ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
+        active.SubmitNativeDuelInput(ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
         ObserveDiagnosticDuelUi(active);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);

@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         if (selection.UseTurnScript)
         {
             actor.Atb = 0;
-            QueueNativeCallback(actor, 1, 2);
+            QueueExpandedAiCallback(actor, 1);
             LastDiagnosticEnemySubmission = new(DiagnosticLifecycleId, frame, callback, actor.Id, actor.RequireNativeActorIndex(), selection, expectedEffect, null);
             return;
         }

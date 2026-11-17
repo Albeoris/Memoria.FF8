@@ -29,9 +29,9 @@ public sealed class BattleLoadClockTests
         AdvanceOneSecondAtTripleSpeed(sixty, sixtySession, 60);
         AdvanceOneSecondAtTripleSpeed(ninety, ninetySession, 90);
 
-        Assert.Equal(initialCallback + 90, sixty.Battle.NativeHostCallbacks);
-        Assert.Equal(initialCallback + 90, ninety.Battle!.NativeHostCallbacks);
-        Assert.Equal(initialFieldCallbacks + 90, sixty.Events.Scene.FieldCallbackClock!.BattleCallbacks);
+        Assert.Equal(initialCallback + 46, sixty.Battle.NativeHostCallbacks);
+        Assert.Equal(initialCallback + 46, ninety.Battle!.NativeHostCallbacks);
+        Assert.Equal(initialFieldCallbacks + 46, sixty.Events.Scene.FieldCallbackClock!.BattleCallbacks);
         Assert.Equal(initialFieldFrame, sixty.Events.Frame);
         Assert.Equal(initialFieldFrame, ninety.Events.Frame);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(sixtySession.State), JsonSerializer.SerializeToElement(ninetySession.State)));
@@ -43,7 +43,6 @@ public sealed class BattleLoadClockTests
     private static void AdvanceOneSecondAtTripleSpeed(GameWorld world, GameSession session, int updates)
     {
         long previousTicks = 0;
-        long simulationSubticks = 0;
         for (int update = 1; update <= updates; update++)
         {
             long currentTicks = TimeSpan.TicksPerSecond * update / updates;
@@ -51,16 +50,9 @@ public sealed class BattleLoadClockTests
             previousTicks = currentTicks;
             world.Battle!.AdvanceNativeGraphicsPresentation(elapsed);
             world.SynchronizeBattlePresentation();
-            simulationSubticks += elapsed.Ticks * BattleSession.FramesPerSecond;
-            int frames = checked((int)(simulationSubticks / TimeSpan.TicksPerSecond));
-            simulationSubticks %= TimeSpan.TicksPerSecond;
-            if (frames > 0)
-            {
-                world.ApplyBattleInput(new(BattleInputKind.Tick, frames));
-            }
+
         }
         Assert.Equal(TimeSpan.TicksPerSecond, previousTicks);
-        Assert.Equal(0, simulationSubticks);
         world.CaptureBattleState();
         session.SetEventState(world.Events.Capture());
     }

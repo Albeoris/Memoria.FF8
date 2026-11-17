@@ -90,38 +90,6 @@ public sealed class NativeBattleSlotsDealTests
         Assert.Equal(roll, Assert.Single(battle.QueuedActions).NativeSlots);
     }
 
-    [Theory]
-    [InlineData(2)]
-    [InlineData(0x10)]
-    public void Failed_command_admission_releases_choice_without_publishing_a_partial_queue(byte targetFlags)
-    {
-        BattleSession battle = CreateBattle(BattleAtbMode.TurnBased, targetFlags);
-        NativeBattleCommandBanks banks = battle.NativeCommandBanks;
-        for (int index = 0; index < 11; index++)
-        {
-            (banks, _) = banks.Allocate(1);
-        }
-        battle = BattleSession.Restore(battle.Capture() with { NativeCommandBanks = banks });
-        BattleNativeSlotsDeal deal = battle.BeginNativeSlotsDeal("selphie");
-        Assert.True(battle.SelectNativeSlotsCard(deal.Id, 0));
-        BattleCombatant actor = battle.Combatants[0];
-        actor.NativeStatus1 |= 0x880000;
-        BattleSnapshot before = battle.CaptureForContinuation();
-        // The limit bank has eleven reserved physical entries and cannot admit another command.
-        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => battle.SubmitNativeSlotsCard(deal.Id));
-        Assert.Contains("exhausted", error.Message);
-        Assert.Null(battle.PendingSlotsDeal);
-        Assert.Empty(battle.QueuedActions);
-        Assert.Equal(JsonSerializer.Serialize(banks), JsonSerializer.Serialize(battle.NativeCommandBanks));
-        BattleSnapshot after = battle.CaptureForContinuation();
-        Assert.Equal(JsonSerializer.Serialize(before.Random), JsonSerializer.Serialize(after.Random));
-        Assert.Equal(JsonSerializer.Serialize(before.Combatants), JsonSerializer.Serialize(after.Combatants));
-        Assert.Equal(JsonSerializer.Serialize(before.ReadFixturePresentation().NativeGraphics), JsonSerializer.Serialize(after.ReadFixturePresentation().NativeGraphics));
-        Assert.Equal(before.Events, after.Events);
-        Assert.False(battle.SubmitNativeSlotsCard(deal.Id));
-        battle.CloseNativeActionMenu();
-    }
-
     private static BattleSession CreateBattle(BattleAtbMode mode, byte targetFlags = 2)
     {
         BattleNativeLimitDefinition rules = new(5, 16, 0, 0, Enumerable.Repeat((byte)0, 32).ToImmutableArray())

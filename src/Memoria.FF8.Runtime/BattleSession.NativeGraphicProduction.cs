@@ -7,34 +7,30 @@ public sealed partial class BattleSession
 {
     private void QueueNativeEnemyEntrance(BattleCombatant actor, BattleCombatant target, byte sequence)
     {
-        if (producingExpandedAiCallback)
+        if (!producingExpandedAiCallback)
         {
-            BattleModelOwner owner = ReadPresentationModelOwner(target.Id);
-            if (target.IsPlayer || (NativeSavedStatusBits(target) & 1) != 0)
-            {
-                throw new NotSupportedException("Native entrance requires the live enemy selected by the script.");
-            }
-            NativeBattleActionHeaderPreparation prepared = PrepareNativeEntranceHeader(actor);
-            NativeBattleContactPacket contact = PrepareNativeEntranceContact(target, owner, sequence);
-            BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Recovery, SelectBattleTarget(target), BattleAbility.EnemyAbility, 3)
-            {
-                NativeQueuedCommand = 0,
-                NativeSequence = 0,
-                NativeAiCallbackStage = nativeAiCallbackStage
-            };
-            RecordPublishedNativeTargetCount(1);
-            BeginNativeBattleActionPause();
-            StageExpandedHostedControl(new HostedDispatchControl.Barrier());
-            ReserveExpandedAiInvocation(command, prepared);
-            StageExpandedHostedInvocation(command, prepared, [new(target.Id, contact)], null);
-            StageExpandedHostedControl(new HostedDispatchControl.Model(113, owner));
-            StageExpandedHostedControl(new HostedDispatchControl.ResetCounts());
-            return;
+            throw new InvalidOperationException("Enemy entrance requires its current AI callback transaction.");
         }
-            // TODO(TD-009): Logical-only components retain the participant activation without driving the physical sequence VM.
-            Log("NativeSequence", actor.Id, target.Id, sequence, $"Native entrance sequence {sequence}.");
-            ActivateNativeParticipant(target);
-            return;
+        BattleModelOwner owner = ReadPresentationModelOwner(target.Id);
+        if (target.IsPlayer || (NativeSavedStatusBits(target) & 1) != 0)
+        {
+            throw new NotSupportedException("Native entrance requires the live enemy selected by the script.");
+        }
+        NativeBattleActionHeaderPreparation prepared = PrepareNativeEntranceHeader(actor);
+        NativeBattleContactPacket contact = PrepareNativeEntranceContact(target, owner, sequence);
+        BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Recovery, SelectBattleTarget(target), BattleAbility.EnemyAbility, 3)
+        {
+            NativeQueuedCommand = 0,
+            NativeSequence = 0,
+            NativeAiCallbackStage = nativeAiCallbackStage
+        };
+        RecordPublishedNativeTargetCount(1);
+        BeginNativeBattleActionPause();
+        StageExpandedHostedControl(new HostedDispatchControl.Barrier());
+        ReserveExpandedAiInvocation(command, prepared);
+        StageExpandedHostedInvocation(command, prepared, [new(target.Id, contact)], null);
+        StageExpandedHostedControl(new HostedDispatchControl.Model(113, owner));
+        StageExpandedHostedControl(new HostedDispatchControl.ResetCounts());
     }
 
     private static NativeBattleActionHeaderPreparation PrepareNativeEntranceHeader(BattleCombatant actor)

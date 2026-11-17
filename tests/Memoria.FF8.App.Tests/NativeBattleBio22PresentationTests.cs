@@ -140,7 +140,7 @@ public sealed class NativeBattleBio22PresentationTests
                     stageDepths.Add(stage.Groups[0].ColorDepth);
                 }
                 commonIo |= current.ReadFixturePresentation().NativeFileIo?.Rows.Any(row => row.SchedulerCallback != 0 && row.CompletionCallback == 0x508470) == true;
-                packetCallbacks += current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
+                packetCallbacks += current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
                 if (independent is not null)
                 {
                     independent.AdvanceNativeGraphicsPresentation(Callback);
@@ -148,7 +148,7 @@ public sealed class NativeBattleBio22PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     required.Remove(name!);
                 }
             }

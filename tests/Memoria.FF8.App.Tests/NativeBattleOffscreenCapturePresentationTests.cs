@@ -61,7 +61,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             BattleSnapshot snapshot = battle.CaptureForContinuation();
             NativeBattleSoftwarePrimitiveState? softwareBeforeTick = prior.ReadFixturePresentation().NativeEffectMemory?.PrimitiveProcess?.Software;
             prior = snapshot;
-            if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
+            if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive)
             {
                 continue;
             }
@@ -95,7 +95,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             NativeBattleSceneCapture? actualSourceEnvironment = sourceEnvironmentCommand?.Command.SceneCapture is { Kind: NativeBattleSceneCaptureKind.SourceEnvironment } actual ? actual : null;
             object source = DescribeSource(snapshot, original, capture);
             object environmentTrace = DescribeEnvironmentTrace(original, softwareBeforeTick!, black.Command.Packet.ByteOffset / 24, blackBank);
-            observations.Add(new { snapshot.Frame, callback = snapshot.ReadFixturePresentation().NativeGraphics.Callback, buffer = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Buffer80, retained, actualVram, source, environmentTrace, blackCapture = black.Command.SceneCapture, black.Command.ScreenCoverage, sourceEnvironmentMetadata = sourceEnvironmentCommand?.Command.SceneCapture, actualSourceEnvironment, nativeWordsSha256 = nativeWords, retainedWordsSha256 = retainedWords });
+            observations.Add(new { snapshot.Frame, callback = snapshot.ReadFixturePresentation().NativeGraphics!.Callback, buffer = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Buffer80, retained, actualVram, source, environmentTrace, blackCapture = black.Command.SceneCapture, black.Command.ScreenCoverage, sourceEnvironmentMetadata = sourceEnvironmentCommand?.Command.SceneCapture, actualSourceEnvironment, nativeWordsSha256 = nativeWords, retainedWordsSha256 = retainedWords });
             File.WriteAllText(Path.Combine(output, "capture.json"), JsonSerializer.Serialize(new { effect, width, height, captureArea, observations }, new JsonSerializerOptions { WriteIndented = true }));
             if (clearProof is null)
             {
@@ -278,7 +278,7 @@ public sealed class NativeBattleOffscreenCapturePresentationTests(ITestOutputHel
             commandGroups,
             environments,
             Target = new { capture.X, capture.Y, capture.Width, capture.Height, capture.Source },
-            FinalSoftwareEnvironment = snapshot.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.Software!.Environment,
+            FinalSoftwareEnvironment = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Software!.Environment,
             Stage = snapshot.ReadFixturePresentation().NativeStage!.Groups.Select((group, index) => new { index, group.Flags, group.ColorFlags, group.ColorDepth, group.Animation, group.Counter }).ToArray(),
             textures.Count,
             LiveTextureSources = textures.LiveTextureSources?.Length ?? 0,

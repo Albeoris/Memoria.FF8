@@ -22,14 +22,8 @@ public sealed record EncounterAllocationRetirement(BattleRosterSlot Slot, int? O
                 return true;
             }
         }
-        bool IsAcceptedHeader(BattleActionHeaderReference reference)
-        {
-            NativeBattleActionHeaderSlot header = packets.ReadHeader(reference);
-            return header.Source == owner || packets.ReadHeaderContacts(reference).Any(IsContactOwner);
-        }
         return activeAction?.ActorId == allocationId || activeAction?.TargetId == allocationId ||
             activeAction?.TargetRequest.Selection is BattleTargetSelection.Explicit selected && selected.Actors.Contains(new BattleEnemyActorReference(allocationId)) ||
-            activeAction?.NativeHeader is { } activeHeader && activeHeader.Ordinal < packets.ActionCount && IsAcceptedHeader(activeHeader) ||
             activeAction is not null && OriginalIndex is int original && NativeBattleTargetRequestAdapter.MaySelectOriginalSlot(activeAction.TargetRequest, NativeBattleSlots.Decode(original)) ||
             graphics.ActionActorId == allocationId || graphics.ActionActorId is not null && graphics.ActionContext is { } context &&
                 (context.ResolveSource(graphics.ActorModels, graphics.NativeBindings) == owner || context.TargetActors?.Resolve(graphics.ActorModels, graphics.NativeBindings).Contains(owner) == true || context.SourceTargets.Resolve(graphics.ActorModels, graphics.NativeBindings).Contains(owner)) ||
@@ -82,7 +76,6 @@ public sealed partial class BattleSession
     private void RemoveEncounterQueuedActions(IReadOnlyCollection<string> actorIds)
     {
         BattleAttackCommand[] retained = actions.Where(command => !actorIds.Contains(command.ActorId)).ToArray();
-        nativeCallbackTail?.RemoveAll(command => actorIds.Contains(command.ActorId));
         actions.Clear();
         foreach (BattleAttackCommand command in retained)
         {

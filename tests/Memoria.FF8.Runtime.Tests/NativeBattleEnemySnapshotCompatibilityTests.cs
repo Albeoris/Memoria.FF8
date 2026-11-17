@@ -113,7 +113,7 @@ public sealed class NativeBattleEnemySnapshotCompatibilityTests
             if (idleBattle)
             {
                 Assert.Null(loaded.Battle!.ReadFixturePresentation().NativeModelCpuResources!.EnemyResources);
-                Assert.Null(loaded.Battle.Definition.NativeRetainedMemory!.ModelCpuResources!.EnemyResources);
+                Assert.Null(loaded.Battle!.Definition.NativeRetainedMemory!.ModelCpuResources!.EnemyResources);
             }
             Assert.Equal(source, File.ReadAllBytes(path));
         }

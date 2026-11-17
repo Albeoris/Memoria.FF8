@@ -74,22 +74,22 @@ public sealed class NativeBattleWaterRepeatAbortTests
                 if (current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: not 0, Binding.Effect: 222 })
                 {
                     waterSeen = true;
-                    if (!restoredMidpoint && callback > 120 && current.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Any(pool => pool.Slots.Any(task => task.Callback == NativeBattleWater222Controller.Callback && (task.Flags & 1) != 0)))
+                    if (!restoredMidpoint && callback > 120 && current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Any(pool => pool.Slots.Any(task => task.Callback == NativeBattleWater222Controller.Callback && (task.Flags & 1) != 0)))
                     {
                         CompareNext("midpoint", current);
                         restoredMidpoint = true;
                     }
                 }
-                if (waterSeen && current.ActiveAction is null && current.QueuedActions.Length == 0 && current.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } && current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.IsEmpty)
+                if (waterSeen && current.ActiveAction is null && current.QueuedActions.Length == 0 && current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 } && current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty)
                 {
                     Assert.True(produced);
                     Assert.True(restoredMidpoint);
                     if (enemyModel is 4 or 5)
                     {
-                        Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).Flags0 & 2);
+                        Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Flags0 & 2);
                     }
                     CompareNext("completed", current);
-                    Console.WriteLine($"Water repeat abort: enemy {enemyModel}, casts {repetitions}, cards {cards}, frame {current.Frame}, native callback {current.ReadFixturePresentation().NativeGraphics.Callback}.");
+                    Console.WriteLine($"Water repeat abort: enemy {enemyModel}, casts {repetitions}, cards {cards}, frame {current.Frame}, native callback {current.ReadFixturePresentation().NativeGraphics!.Callback}.");
                     return;
                 }
             }

@@ -7,8 +7,7 @@ internal sealed record BattlePresentationEntry(
     NativeBattleModelAliases Aliases,
     ImmutableDictionary<BattleModelOwner, NativeBattleModelEntryFacts> Actors,
     byte? Advantage,
-    ushort Flags,
-    Func<ushort, NativeBattleEffectBinding>? ResolveEffect);
+    ushort Flags);
 
 internal readonly record struct BattlePresentationSharedState(
     NativeCrtRandomState? CrtRandom,
@@ -44,7 +43,9 @@ internal sealed record BattlePresentationServices(
     Func<NativeBattleActionHeaderSlot, bool> MatchesVisualEntry,
     Action<NativeBattleActionHeaderSlot> AdmitVisualEntry,
     Func<NativeBattleShotWidgetFacts?> ReadShotWidget,
-    Action<NativeBattleShotWidgetUpdated> PublishShotWidget);
+    Action<NativeBattleShotWidgetUpdated> PublishShotWidget,
+    Func<NativeBattleDuelWidgetFacts?> ReadDuelWidget,
+    Action<NativeBattleDuelWidgetUpdated> PublishDuelWidget);
 
 internal readonly record struct BattlePresentationEffectObservation(
     NativeBattleOriginalEffectState Effect,

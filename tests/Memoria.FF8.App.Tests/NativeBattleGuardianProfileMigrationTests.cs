@@ -37,6 +37,6 @@ public sealed class NativeBattleGuardianProfileMigrationTests
         }
         Assert.Equal(hash, SHA256.HashData(File.ReadAllBytes(source!)));
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(target!))!).Capture()));
-        Console.WriteLine($"Profile migration preserves frame{original.Frame}/callback{original.ReadFixturePresentation().NativeGraphics.Callback}; one-callback result={boundary}");
+        Console.WriteLine($"Profile migration preserves frame{original.Frame}/callback{original.ReadFixturePresentation().NativeGraphics!.Callback}; one-callback result={boundary}");
     }
 }

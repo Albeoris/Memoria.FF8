@@ -13,27 +13,7 @@ public sealed class EncounterRosterAdmissionTests
     };
 
     [Fact]
-    public void Party_and_enemy_restrictions_are_independent_even_for_the_native_exception()
-    {
-        var unsupported = new BattleEncounterRosterRestrictionReason(BattleEncounterRosterRestriction.UnsupportedEnemyLifecycle, ModelId: 24, LevelBand: 1, Callback: 1, InstructionOffset: 12);
-        BattleEncounterRosterAdmission ordinary = BattleEncounterRosterAdmission.ForFormation(87, []);
-        BattleEncounterRosterAdmission final = BattleEncounterRosterAdmission.ForFormation(511, []);
-        BattleEncounterRosterAdmission enemyOnly = BattleEncounterRosterAdmission.ForFormation(87, [unsupported]);
-        BattleEncounterRosterAdmission both = BattleEncounterRosterAdmission.ForFormation(511, [unsupported]);
-
-        Assert.False(ordinary.UsesPrimaryPartyOnly);
-        Assert.True(ordinary.AllowsAdditionalEnemies);
-        Assert.True(final.UsesPrimaryPartyOnly);
-        Assert.True(final.AllowsAdditionalEnemies);
-        Assert.False(enemyOnly.UsesPrimaryPartyOnly);
-        Assert.False(enemyOnly.AllowsAdditionalEnemies);
-        Assert.Equal(unsupported, Assert.Single(enemyOnly.Reasons));
-        Assert.True(both.UsesPrimaryPartyOnly);
-        Assert.False(both.AllowsAdditionalEnemies);
-    }
-
-    [Fact]
-    public void Reachable_reserves_and_every_ability_band_contribute_party_departure_facts()
+    public void Reachable_reserves_are_followed_across_referenced_enemy_programs()
     {
         BattleEncounter encounter = Encounter(87, Enemy(0, 10), Enemy(2, 11, false), Enemy(3, 12, false));
         Dictionary<int, NativeBattleAiDefinition> programs = new()
@@ -43,35 +23,9 @@ public sealed class EncounterRosterAdmissionTests
             [12] = Program(4, [4, 203, 12, 1, 0], (2, 1, Eject))
         };
 
-        (HashSet<int> slots, BattleEncounterRosterAdmission admission) = GameWorld.InspectEncounterRoster(encounter, model => programs[model], [Eject]);
+        HashSet<int> slots = GameWorld.InspectEncounterRoster(encounter, model => programs[model], [Eject]);
 
         Assert.Equal(new[] { 2, 3 }, slots.Order());
-        Assert.True(admission.UsesPrimaryPartyOnly);
-        Assert.True(admission.AllowsAdditionalEnemies);
-        Assert.Equal(new BattleEncounterRosterRestrictionReason(BattleEncounterRosterRestriction.ScriptedPartyMembership, 12, 2, 4, 2, 12), Assert.Single(admission.Reasons));
-    }
-
-    [Fact]
-    public void Only_dispatched_Eject_that_can_target_party_changes_admission()
-    {
-        BattleEncounter encounter = Encounter(87, Enemy(0, 10));
-        BattleNativeAction cure = Eject with { Command = 2, ActionId = 27, KernelSection = 1, KernelIndex = 27, AttackType = 3, Statuses1 = 0x100520D };
-        BattleNativeAction ordinaryDamage = Eject with { ActionId = 1, Statuses1 = 0, Statuses0 = 1 };
-        BattleNativeAction directlyPreparedEject = Eject with { ActionId = 7 };
-
-        Assert.True(Inspect(Program(1, [4, 2, 12, 1, 0], (0, 1, Eject))).UsesPrimaryPartyOnly);
-        Assert.True(Inspect(Program(1, [4, 206, 11, 253, 1, 253, 0], (0, 1, Eject))).UsesPrimaryPartyOnly);
-        Assert.True(Inspect(Program(1, [43, 2, 7, 7, 6, 0])).UsesPrimaryPartyOnly);
-        Assert.Empty(Inspect(Program(1, [43, 3, 7, 7, 6, 0])).Reasons);
-        Assert.Empty(Inspect(Program(1, [43, 2, 7, 7, 7, 1, 6, 0])).Reasons);
-        Assert.Empty(Inspect(Program(1, [4, 205, 12, 1, 0], (0, 1, Eject))).Reasons);
-        Assert.Empty(Inspect(Program(1, [4, 2, 12, 1, 0], (0, 1, cure))).Reasons);
-        Assert.Empty(Inspect(Program(1, [4, 2, 12, 1, 0], (0, 1, ordinaryDamage))).Reasons);
-        Assert.Empty(Inspect(Program(1, [0, 4, 2, 12, 1, 0], (0, 1, Eject))).Reasons);
-        Assert.Empty(Inspect(Program(1, [4, 2, 0], (0, 1, Eject))).Reasons);
-        Assert.Empty(Inspect(Program(1, [47, 48, 53, 1, 58, 2, 0])).Reasons);
-
-        BattleEncounterRosterAdmission Inspect(NativeBattleAiDefinition program) => GameWorld.InspectEncounterRoster(encounter, _ => program, [Eject, cure, ordinaryDamage, directlyPreparedEject]).Admission;
     }
 
     [Fact]
@@ -116,23 +70,25 @@ public sealed class EncounterRosterAdmissionTests
     [Theory]
     [InlineData(29)]
     [InlineData(164)]
-    public void Installed_supported_enemy_lifecycle_retains_additional_enemy_permission(int formation)
+    public void Installed_supported_enemy_lifecycle_reads_actual_reserve_slots(int formation)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(formation);
 
-        (HashSet<int> slots, BattleEncounterRosterAdmission admission) = GameWorld.InspectEncounterRoster(encounter, model => assets.ReadEnemyAi(model, 0), assets.NativeActions);
+        HashSet<int> slots = GameWorld.InspectEncounterRoster(encounter, model => assets.ReadEnemyAi(model, 0), assets.NativeActions);
 
-        Assert.True(admission.AllowsAdditionalEnemies);
-        Assert.False(admission.UsesPrimaryPartyOnly);
         if (formation == 164)
         {
             Assert.Contains(3, slots);
         }
+        else
+        {
+            Assert.All(slots, slot => Assert.Contains(encounter.Slots, enemy => enemy.Slot == slot));
+        }
     }
 
     [Fact]
-    public void Installed_final_battle_uses_saved_primary_rows_and_preserves_additional_selection()
+    public void Installed_final_battle_keeps_four_selected_rows_and_additional_enemy_preference()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -146,17 +102,13 @@ public sealed class EncounterRosterAdmissionTests
 
         BattleDefinition native = world.CreateEncounterBattle(511, 4);
 
-        Assert.True(native.EncounterRosterAdmission.UsesPrimaryPartyOnly);
-        Assert.Contains(native.EncounterRosterAdmission.Reasons, reason => reason.Restriction == BattleEncounterRosterRestriction.NativePartyReplacement);
-        Assert.True(native.EncounterRosterAdmission.AllowsAdditionalEnemies);
         Assert.True(native.UsesOriginalEnemySlots);
-        Assert.Equal(new[] { "party-2", "party-0", "party-1" }, native.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
+        Assert.Equal(new[] { "party-2", "party-0", "party-1", "party-3" }, native.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
 
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AdditionalEnemies = 1 });
         BattleDefinition withDonors = world.CreateEncounterBattle(511, 4);
 
-        Assert.Equal(new[] { "party-2", "party-0", "party-1" }, withDonors.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
-        Assert.Equal(native.EncounterRosterAdmission.Reasons.ToArray(), withDonors.EncounterRosterAdmission.Reasons.ToArray());
+        Assert.Equal(new[] { "party-2", "party-0", "party-1", "party-3" }, withDonors.Combatants.Where(actor => actor.IsPlayer).Select(actor => actor.Id));
         Assert.Equal(new byte[] { 2, 0, 1, 3 }, session.State.CharacterVitals!.GetBattlePartyRows(4));
         Assert.Equal(4, session.State.GameplayPreferences.BattleAllyCount);
         Assert.Equal(1, session.State.GameplayPreferences.AdditionalEnemies);

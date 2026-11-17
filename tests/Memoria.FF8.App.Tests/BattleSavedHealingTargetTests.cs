@@ -66,7 +66,7 @@ public sealed class BattleSavedHealingTargetTests
             battle.AdvanceNativeGraphicsPresentation(callback);
             damage |= battle.Combatants.Single(actor => actor.Id == target.Id).CurrentHp < hp;
             BattleSnapshot current = battle.CaptureForContinuation();
-            if (damage && current.ActiveAction is null && current.QueuedActions.Length == 0 && current.NativeCommandBanks?.BoundCommands.Any() != true && current.NativeTimedAction is null && current.NativeActionScratch?.ComponentCompletion is null && current.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 })
+            if (damage && current.ActiveAction is null && current.QueuedActions.Length == 0 && current.NativeTimedAction is null && current.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 })
             {
                 string saved = Save("completed");
                 BattleSession cold = Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(saved))!);
@@ -75,7 +75,7 @@ public sealed class BattleSavedHealingTargetTests
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 Assert.Equal(new BattleScenePresentation(assets, initial.Definition).Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, initial.Definition).Render(cold, 320, 224).ToArray());
                 Save("completed-next");
-                File.WriteAllText(Path.Combine(path, "result.json"), JsonSerializer.Serialize(new { source.FieldId, SourceFrame = initial.Frame, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, choice.ActorId, choice.Action.Name, choice.Action.Id, TargetId = target.Id, BeforeHp = hp, AfterHp = current.Combatants.Single(actor => actor.Id == target.Id).CurrentHp, Callbacks = count + 1, RestoredNextEqual = true }));
+                File.WriteAllText(Path.Combine(path, "result.json"), JsonSerializer.Serialize(new { source.FieldId, SourceFrame = initial.Frame, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, choice.ActorId, choice.Action.Name, choice.Action.Id, TargetId = target.Id, BeforeHp = hp, AfterHp = current.Combatants.Single(actor => actor.Id == target.Id).CurrentHp, Callbacks = count + 1, RestoredNextEqual = true }));
                 return;
             }
         }

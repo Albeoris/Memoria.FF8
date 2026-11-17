@@ -108,8 +108,10 @@ public sealed record DiagnosticShotCycleReceipt(int Execution, string ActorId, s
 {
     public DiagnosticShotObservation? Opening { get; init; }
     public DiagnosticShotObservation? ReadyToFire { get; init; }
+    public DiagnosticShotObservation? TriggerRequested { get; init; }
     public DiagnosticShotObservation? Triggered { get; init; }
     public DiagnosticShotObservation? ReadyToEnd { get; init; }
+    public DiagnosticShotObservation? CloseRequested { get; init; }
     public DiagnosticShotObservation? Ending { get; init; }
     public DiagnosticShotObservation? Completed { get; init; }
     public BattleDiagnosticEffectDispatch[] Dispatches { get; init; } = [];
@@ -125,6 +127,8 @@ public static class DiagnosticShotCycleValidation
     {
         receipt.Declaration.Validate(input, effect, receipt.Declaration.AmmoAction, 237);
         DiagnosticShotObservation[] points = [receipt.BeforeOpening, receipt.Opening ?? Missing(), receipt.ReadyToFire ?? Missing(), receipt.Triggered ?? Missing(), receipt.ReadyToEnd ?? Missing(), receipt.Ending ?? Missing(), receipt.Completed ?? Missing()];
+        DiagnosticShotObservation trigger = receipt.TriggerRequested ?? Missing();
+        DiagnosticShotObservation close = receipt.CloseRequested ?? Missing();
         byte ammo = receipt.Declaration.AmmoAction;
         BattleDiagnosticLimitSelectionReceipt selection = receipt.Selection;
         if (receipt.Execution is < 1 or > 2 || receipt.ActorId != input.ActorId || receipt.TargetId != input.TargetId || receipt.ActorIndex > 2 || receipt.TargetIndex is < 3 or > 6 || receipt.FiringEffect != effect || !selection.Accepted || selection.ActorId != receipt.ActorId || selection.CommandOwner != 2 || selection.Command != 14 || selection.CrisisSelections.IsDefaultOrEmpty || selection.CrisisSelections.Length > 256 || selection.CrisisSelections.Any(crisis => crisis > 4) || selection.RandomBefore is null || selection.RandomAfter is null || selection.CrisisSelections[^1] is < 1 or > 4 || receipt.BeforeOpening.Inventory < (receipt.Execution == 1 ? 3 : 2) || receipt.BeforeOpening.Inventory > 100)
@@ -148,12 +152,12 @@ public static class DiagnosticShotCycleValidation
         for (int index = 1; index <= 5; index++)
         {
             BattleDiagnosticShotState state = points[index].Shot!;
-            if (state.ActionId != ammo || state.TargetMask != opening.TargetMask || (state.TargetMask & (1 << receipt.TargetIndex)) == 0 || state.InitialTimer <= 0 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || state.InitialTimer != opening.InitialTimer || state.RemainingAmmo != points[index].Inventory || state.Phase != BattleNativeShotPhase.Ending && state.RemainingTimer <= 0 || index > 1 && state.RemainingTimer > points[index - 1].Shot!.RemainingTimer || state.Phase == BattleNativeShotPhase.Ending && state.RemainingTimer != -1)
+            if (state.ActionId != ammo || state.TargetMask != opening.TargetMask || (state.TargetMask & (1 << receipt.TargetIndex)) == 0 || state.InitialTimer <= 0 || state.InitialTimer != opening.InitialTimer || state.RemainingAmmo != points[index].Inventory || state.FireRequested || index > 1 && (state.Widget is null || state.Widget.RemainingTimer != state.RemainingTimer || state.Widget.PublicationLatch > 4) || state.Phase != BattleNativeShotPhase.Ending && state.RemainingTimer <= 0 || index > 1 && state.RemainingTimer > points[index - 1].Shot!.RemainingTimer || state.Phase == BattleNativeShotPhase.Ending && state.RemainingTimer != -1)
             {
                 throw new InvalidDataException("Shot cycle changed its real process, target, timer or ammunition owner.");
             }
         }
-        if (points[1].Callback != points[0].Callback || points[3].Callback != points[2].Callback || points[5].Callback != points[4].Callback || points[1].Shot!.UiSubframeTicks != 0 || points[3].Shot!.UiSubframeTicks != points[2].Shot!.UiSubframeTicks || points[3].Shot!.RemainingTimer != points[2].Shot!.RemainingTimer || points[5].Shot!.UiSubframeTicks != points[4].Shot!.UiSubframeTicks || points[1].Shot!.RemainingTimer != opening.InitialTimer || points[2].Callback >= points[4].Callback || points[6].Callback <= points[5].Callback || receipt.Dispatches.Length != 3 || receipt.DispatchPackets.Length != 3 || dispatches.Length != 3)
+        if (points[1].Callback != points[0].Callback || opening.RemainingTimer != opening.InitialTimer || trigger.Callback != points[2].Callback || trigger.Shot != (points[2].Shot! with { FireRequested = true }) || trigger.Inventory != points[2].Inventory || points[3].Callback <= trigger.Callback || points[2].Shot!.Widget?.Phase != 5 || points[3].Shot!.Widget?.Phase is not (6 or 7) || points[4].Shot!.Widget?.Phase != 5 || close.Callback != points[4].Callback || close.Shot is not { Phase: BattleNativeShotPhase.Ending, FireRequested: false } closing || closing.Widget != points[4].Shot!.Widget || close.Inventory != points[4].Inventory || points[5].Callback <= close.Callback || points[5].Shot!.Widget?.Closing != true || points[6].Callback <= points[5].Callback || receipt.Dispatches.Length != 3 || receipt.DispatchPackets.Length != 3 || dispatches.Length != 3)
         {
             throw new InvalidDataException("Shot cycle requires ordered control/firing dispatches and native completion.");
         }

@@ -29,9 +29,8 @@ public sealed class NativeSlotsInvocationTests
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(roll, queued.NativeSlots);
         Assert.Equal((byte)16, queued.NativeAction!.Command);
-        Assert.Equal(1, battle.NativeCommandBanks.CountActor(0));
-        NativeBattleCommandBank bank = battle.NativeCommandBanks.Banks[1];
-        Assert.Equal(roll.Repetitions, Enumerable.Range(0, 3).Count(index => bank.Packets[0].ReadWord(6 + 2 * index) != 0));
+        Assert.Equal(1, battle.QueuedActions.Count(command => command.ActorId == battle.Combatants[0].Id));
+        Assert.Equal(roll.Repetitions, queued.NativeSlots!.Repetitions);
         string accepted = JsonSerializer.Serialize(battle.Capture());
         Assert.Equal(accepted, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(accepted)!).Capture()));
     }

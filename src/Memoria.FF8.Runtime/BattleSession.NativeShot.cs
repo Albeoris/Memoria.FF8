@@ -10,7 +10,6 @@ public enum BattleNativeShotPhase
 
 public sealed record BattleNativeShotState(byte ActionId, BattleTargetRequest TargetRequest, short InitialTimer, short RemainingTimer, byte RemainingAmmo, BattleNativeShotPhase Phase)
 {
-    public long UiSubframeTicks { get; init; }
     public NativeBattleShotWidgetState? Widget { get; init; }
     internal bool FireRequested { get; init; }
     internal bool ClosingCommandCompleted { get; init; }
@@ -156,14 +155,20 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved expanded Shot ammunition differs from its inventory owner.");
         }
-        if (Outcome != BattleOutcome.Active || !actor.IsAlive || actor.NativeLimit is not { Command: 14 } rules || rules.ShotTimers.IsDefault || rules.ShotTimers.Length != 4 || crisis == 0 || state.ActionId >= 8 || state.InitialTimer != 4 * rules.ShotTimers[crisis - 1] || state.InitialTimer == 0 || state.Phase != BattleNativeShotPhase.Ending && state.RemainingTimer < 0 || state.RemainingTimer > state.InitialTimer || state.RemainingAmmo > 100 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || !Enum.IsDefined(state.Phase) || state.Phase == BattleNativeShotPhase.Ready && state.RemainingTimer <= 0)
+        if (Outcome != BattleOutcome.Active || !actor.IsAlive || actor.NativeLimit is not { Command: 14 } rules || rules.ShotTimers.IsDefault || rules.ShotTimers.Length != 4 || crisis is < 1 or > 4 || state.ActionId >= 8 || state.InitialTimer != 4 * rules.ShotTimers[crisis - 1] || state.InitialTimer == 0 || state.Phase != BattleNativeShotPhase.Ending && state.RemainingTimer < 0 || state.RemainingTimer > state.InitialTimer || state.RemainingAmmo > 100 || !Enum.IsDefined(state.Phase) || state.Phase == BattleNativeShotPhase.Ready && state.RemainingTimer <= 0 || state.Widget is { } widget && (widget.RemainingTimer != state.RemainingTimer || widget.Phase > 12 || widget.PublicationLatch > 4))
         {
             string timers = actor.NativeLimit is { } limit && !limit.ShotTimers.IsDefault ? string.Join("/", limit.ShotTimers) : "missing";
-            throw new InvalidDataException($"Saved Shot process contradicts its native character, timer or ammunition owner: outcome={Outcome}, active={actor.IsActive}, alive={actor.IsAlive}, savedStatus={NativeSavedStatusBits(actor):X4}, command={actor.NativeLimit?.Command}, timers={timers}, crisis={crisis}, action={state.ActionId}, initial={state.InitialTimer}, remaining={state.RemainingTimer}, ammo={state.RemainingAmmo}, phase={state.Phase}, definedPhase={Enum.IsDefined(state.Phase)}, uiTicks={state.UiSubframeTicks}.");
+            throw new InvalidDataException($"Saved Shot process contradicts its native character, timer or ammunition owner: outcome={Outcome}, active={actor.IsActive}, alive={actor.IsAlive}, savedStatus={NativeSavedStatusBits(actor):X4}, command={actor.NativeLimit?.Command}, timers={timers}, crisis={crisis}, action={state.ActionId}, initial={state.InitialTimer}, remaining={state.RemainingTimer}, ammo={state.RemainingAmmo}, phase={state.Phase}, widget={state.Widget}.");
         }
         nativeShotProcesses.Add(actorId, state);
         actor.IsBusy = true;
-        NativeLimitCallback? expected = state.Phase switch { BattleNativeShotPhase.Opening => NativeLimitCallback.ShotOpening, BattleNativeShotPhase.AwaitingEffect => NativeLimitCallback.ShotEffect, BattleNativeShotPhase.Ending => NativeLimitCallback.ShotEnding, _ => null };
+        NativeLimitCallback? expected = state.Phase switch
+        {
+            BattleNativeShotPhase.Opening when state.Widget is null => NativeLimitCallback.ShotOpening,
+            BattleNativeShotPhase.AwaitingEffect when state.Widget is { Rearmed: false } => NativeLimitCallback.ShotEffect,
+            BattleNativeShotPhase.Ending when state.Widget is { ClosingPolls: > 0 } && !state.ClosingCommandCompleted => NativeLimitCallback.ShotEnding,
+            _ => null
+        };
         RequireNativeLimitCallback(actorId, expected);
     }
 

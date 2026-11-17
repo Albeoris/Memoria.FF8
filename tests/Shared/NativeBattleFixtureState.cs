@@ -28,6 +28,14 @@ internal sealed record NativeBattleFixtureState
 
 internal static class NativeBattleFixtureObservations
 {
+    internal static BattleExpandedAiCallbackRequest CreateCallback(string actorId, int originalIndex, int stage)
+    {
+        BattleActorReference actor = NativeBattleSlots.Decode(originalIndex).Side == BattleSide.Allies
+            ? new BattlePartyActorReference(actorId)
+            : new BattleEnemyActorReference(actorId);
+        return new(actor, checked((byte)stage));
+    }
+
     internal static NativeBattleFixtureState ReadFixturePresentation(this BattleSnapshot snapshot)
     {
         BattlePresentationSnapshot? continuation = snapshot.PresentationContinuation;

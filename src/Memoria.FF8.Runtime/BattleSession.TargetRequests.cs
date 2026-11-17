@@ -2,8 +2,6 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private bool originalParticipantSlotsInitialized;
-
     private static BattleActorReference TargetActorReference(BattleCombatant actor)
     {
         return actor.Side == BattleSide.Allies ? new BattlePartyActorReference(actor.Id) : new BattleEnemyActorReference(actor.Id);
@@ -25,9 +23,9 @@ public sealed partial class BattleSession
         return byId.TryGetValue(reference.ActorId, out BattleCombatant? actor) && reference == TargetActorReference(actor) ? actor : null;
     }
 
-    private static BattleTargetRequest SelectBattleTarget(BattleCombatant actor, bool allowsKnockedOutAllies = false, BattleTargetEligibility eligibility = BattleTargetEligibility.SavedStatus)
+    private static BattleTargetRequest SelectBattleTarget(BattleCombatant actor, bool allowsKnockedOutAllies = false, BattleTargetEligibility eligibility = BattleTargetEligibility.SavedStatus, BattleTargetReplacement replacement = BattleTargetReplacement.None)
     {
-        return new(new BattleTargetSelection.Explicit([TargetActorReference(actor)]), eligibility, allowsKnockedOutAllies, BattleTargetReplacement.None);
+        return new(new BattleTargetSelection.Explicit([TargetActorReference(actor)]), eligibility, allowsKnockedOutAllies, replacement);
     }
 
     private bool IsBattleTargetEligible(BattleCombatant actor, BattleTargetRequest request)
@@ -146,14 +144,19 @@ public sealed partial class BattleSession
 
     private BattleTargetSelection ChooseOriginalRandomActionTarget(BattleSide side)
     {
-        BattleCombatant[] allocated = Roster(side).Where(HasAiRosterSlot).ToArray();
-        if (allocated.Any(actor => (side != BattleSide.Allies || actor.IsActive) && (NativeSavedStatusBits(actor) & 5) == 0))
+        if (ReadNativeRandomActionTarget(side) is { } selected)
         {
-            BattleCombatant selected = SampleNativeTarget(allocated.Where(actor => (NativeSavedStatusBits(actor) & 1) == 0).ToArray(), side);
             return selected.NativeActorIndex is int index
                 ? NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(index))
                 : new BattleTargetSelection.Explicit([TargetActorReference(selected)]);
         }
         return side == BattleSide.Allies ? NativeBattleTargetRequestAdapter.EmptyOriginalSelection : NativeBattleTargetRequestAdapter.SelectOriginalSlot(BattleRosterSlot.Enemy(0));
+    }
+
+    private BattleCombatant? ReadNativeRandomActionTarget(BattleSide side)
+    {
+        BattleCombatant[] allocated = Roster(side).Where(HasAiRosterSlot).ToArray();
+        return allocated.Any(actor => (side != BattleSide.Allies || actor.IsActive) && (NativeSavedStatusBits(actor) & 5) == 0) ?
+            SampleNativeTarget(allocated.Where(actor => (NativeSavedStatusBits(actor) & 1) == 0).ToArray(), side) : null;
     }
 }

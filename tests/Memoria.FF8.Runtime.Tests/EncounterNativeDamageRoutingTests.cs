@@ -243,7 +243,7 @@ public sealed class EncounterNativeDamageRoutingTests
         }
         Assert.Equal(enemyInit ? 0u : 1u, snapshot.Combatants.Single(actor => actor.Id == "fourth").NativeParticipant!.Variables[0]);
         BattleSession restored = BattleSession.Restore(snapshot);
-        for (int frame = 0; frame < 80 && (battle.NativeActionPackets.ActionCount != 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.NativeCommandBanks.BoundCommands.Any()); frame++)
+        for (int frame = 0; frame < 80 && (battle.NativeActionPackets.ActionCount != 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
             restored.Tick();
@@ -306,10 +306,8 @@ public sealed class EncounterNativeDamageRoutingTests
             EncounterPolicies = new("fixture-generation", ImmutableDictionary<string, EncounterActionCursor>.Empty),
             Combatants = snapshot.Combatants.Select(actor => actor with { Atb = 0 }).ToArray()
         };
-        NativeBattleCommandBanks banks = snapshot.NativeCommandBanks!;
-        (banks, NativeBattleCommandLocation old) = banks.EnqueueCallback(0, 5, 1);
-        banks = banks.BindCommand(old, 0, new(oldCopy, oldCopy, BattleTargetRequest.None, BattleAbility.EnemyAbility, 0) { NativeCallback = new(5, 1) });
-        BattleSession battle = BattleSession.Restore(snapshot with { NativeCommandBanks = banks });
+        BattleAttackCommand old = new(oldCopy, oldCopy, BattleTargetRequest.None, BattleAbility.EnemyAbility) { ExpandedAiCallback = new(new BattleEnemyActorReference(oldCopy), 1) };
+        BattleSession battle = BattleSession.Restore(snapshot with { QueuedActions = [.. snapshot.QueuedActions, old] });
         for (int frame = 0; frame < 12; frame++)
         {
             battle.Tick();
@@ -322,7 +320,7 @@ public sealed class EncounterNativeDamageRoutingTests
         Assert.True(battle.Combatants.Single(actor => actor.Id == "fourth").IsAlive);
         Assert.True(battle.EncounterPolicies!.CleanedUp);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.DoesNotContain(battle.NativeCommandBanks.BoundCommands, command => command.ActorId == oldCopy);
+        Assert.DoesNotContain(battle.QueuedActions, command => command.ActorId == oldCopy);
         _ = BattleSession.Restore(completed);
     }
 

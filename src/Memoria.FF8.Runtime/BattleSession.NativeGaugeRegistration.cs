@@ -4,13 +4,17 @@ public sealed partial class BattleSession
 {
     private void PublishNativeFullGaugeRegistration(BattleCombatant actor)
     {
-        if (actor.IsPlayer || actor.Slot is null || actor.NativeAi is null || actor.NativeAtb is not { } gauge || diagnosticHoldEnemyCommands)
+        if (actor.IsPlayer || actor.Slot is null || actor.NativeAtb is not { } gauge || diagnosticHoldEnemyCommands)
         {
             return;
         }
         NativeBattleGaugeRegistration registration = NativeBattleGaugeRegistrations.Evaluate4842B0(gauge, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
         if (registration.Kind == NativeBattleGaugeRegistrationKind.DeferredScript)
         {
+            if (actor.NativeAi is null)
+            {
+                throw new NotSupportedException($"Enemy '{actor.Id}' reached a script turn without an installed AI program.");
+            }
             actor.NativeCombatantFlags = registration.ActorFlags;
         }
     }

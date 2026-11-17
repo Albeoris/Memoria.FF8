@@ -75,7 +75,7 @@ public sealed class NativeBattleEffect308PrerequisiteTests
             Assert.Equal(0, completed.ReadFixturePresentation().NativeEffectMemory!.Active);
             Assert.Null(completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
             NativeBattleEffect308PresentationTests.VerifyColdNext("after-prerequisite", completed, game, assets, output!);
-            File.WriteAllText(Path.Combine(output!, "prerequisite-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 308, PrecedingAction = 74, Sequence = 12, Callbacks = callbacks + 1, completed.Frame, Callback = completed.ReadFixturePresentation().NativeGraphics.Callback, RingReleasedByNativeSequence = true, Scope = "Declared zero-amount presentation prerequisite; original death-AI eligibility, KO and damage formula excluded" }));
+            File.WriteAllText(Path.Combine(output!, "prerequisite-result.json"), JsonSerializer.Serialize(new { Status = "completed", Effect = 308, PrecedingAction = 74, Sequence = 12, Callbacks = callbacks + 1, completed.Frame, Callback = completed.ReadFixturePresentation().NativeGraphics!.Callback, RingReleasedByNativeSequence = true, Scope = "Declared zero-amount presentation prerequisite; original death-AI eligibility, KO and damage formula excluded" }));
             return completed;
         }
         catch (Exception error)

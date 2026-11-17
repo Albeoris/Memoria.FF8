@@ -31,7 +31,7 @@ public sealed class NativeBattleFlare124PresentationTests
         string caster = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 0)!;
         string target = ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!;
         int descriptor = Assert.Single(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Queue, index => Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).Descriptors.Packets[index].Command == 104);
-        uint offset = source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
+        uint offset = source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u;
         Assert.Equal(0u, offset % 20);
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(offset / 20))));
         Assert.Equal((byte)2, header.Command);
@@ -100,7 +100,7 @@ public sealed class NativeBattleFlare124PresentationTests
                 Assert.Equal(1, Stock(current));
                 for (int index = 0; index < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; index++)
                 {
-                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[index];
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index];
                     if ((text.Flags0 & 1) != 0 && text.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) && (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[index].Flags0 & 1) == 0)
                     {
                         Assert.Equal(expectedText.Glyphs.ToArray(), text.Glyphs.ToArray());
@@ -114,14 +114,14 @@ public sealed class NativeBattleFlare124PresentationTests
                 {
                     completions++;
                 }
-                privatePackets |= current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                if ((ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).Flags0 & 4) != 0)
+                privatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
+                if ((ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Flags0 & 4) != 0)
                 {
                     silhouette = true;
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     pixelChanges = Math.Max(pixelChanges, pixels.Where((value, index) => value != baseline[index]).Count());
                 }
-                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }

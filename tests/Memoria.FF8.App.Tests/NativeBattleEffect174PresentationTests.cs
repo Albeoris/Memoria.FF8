@@ -133,7 +133,7 @@ public sealed class NativeBattleEffect174PresentationTests
                 NativeBattleEffectTaskPool pool = effect.Pools.Single(item => item.DescriptorAddress == RootDescriptor);
                 int slot = Enumerable.Range(0, pool.Slots.Length).Single(index => pool.Slots[index].Callback == CleanupCallback && pool.Slots[index].ReadWord(12) == 1);
                 NativeBattleEffectTaskPool changed = pool with { Slots = pool.Slots.SetItem(slot, pool.Slots[slot].WriteWord(14, 0xCAFE)) };
-                BattleSnapshot variant = json.WithFixturePresentation(facts => facts with { NativeGraphics = json.ReadFixturePresentation().NativeGraphics with { OriginalEffect = effect with { Pools = effect.Pools.Replace(pool, changed) } } });
+                BattleSnapshot variant = json.WithFixturePresentation(facts => facts with { NativeGraphics = json.ReadFixturePresentation().NativeGraphics! with { OriginalEffect = effect with { Pools = effect.Pools.Replace(pool, changed) } } });
                 BattleSession warm = Restore(variant);
                 warm.Tick();
                 BattleSession expected = Restore(json);
@@ -165,7 +165,7 @@ public sealed class NativeBattleEffect174PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect174State.FromColdProcess()), JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory.Effect174));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleEffect174State.FromColdProcess()), JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Effect174));
         string casterId = ReadOriginalModelActorId(graphics, 3) ?? throw new InvalidDataException("Effect174 requires its actual original caster.");
         string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect174 requires its actual party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
@@ -223,7 +223,7 @@ public sealed class NativeBattleEffect174PresentationTests
         File.WriteAllText(Path.Combine(output, "declared-component.json"), JsonSerializer.Serialize(new { Scenario = "Declared original22 command8/action72/sequence13 Amount0 party component; ordinary AI and formula excluded", ActualCasterId = casterId, ActualTargetId = targetId, PhysicalCaster = 3, PhysicalTarget = 0, Action = action, header = packets.ReadHeader(header), PriorActionCount = priorActions, PriorContactCount = priorContacts, ContactCount = 1, Contact = contact, StatusBefore = status.Presentation, StatusAfter = preparedTarget.NativeStatus!.Presentation, StatusCache = "Declared47E2D0 projection copies actual current Saved/Battle on the prepared component copy; logical HP/status preserved", Source = "Fresh original formation226/stage71 resource component; no gameplay replay or substituted carrier" }));
         return source;
     }
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 174, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 174, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
     private static int CountRgb(byte[] first, byte[] second)
     {
         Assert.Equal(first.Length, second.Length);

@@ -36,7 +36,7 @@ public sealed class NativeScanFixtureMigrationTests
         Assert.Equal(94, original.Definition.EncounterId);
         Assert.Equal(31, original.Definition.StageId);
         Assert.Equal(0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.Null(original.ReadFixturePresentation().NativeEffectMemory.Scan);
+        Assert.Null(original.ReadFixturePresentation().NativeEffectMemory!.Scan);
 
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -51,17 +51,17 @@ public sealed class NativeScanFixtureMigrationTests
         Assert.All(coldColors, color => Assert.NotNull(color));
         Assert.Null(original.Definition.NativeRetainedMemory!.ModelColors40);
         int[] inactiveIndices = [1, 2, 4, 5, 6];
-        Assert.Equal(inactiveIndices, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(slot => ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics, slot).Color40 is null).ToArray());
-        NativeBattleModelBoundary boundary = original.ReadFixturePresentation().NativeGraphics.NativeBindings;
+        Assert.Equal(inactiveIndices, Enumerable.Range(0, NativeBattleGraphicsModelAddress.NativeRowCount).Where(slot => ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics!, slot).Color40 is null).ToArray());
+        NativeBattleModelBoundary boundary = original.ReadFixturePresentation().NativeGraphics!.NativeBindings;
         foreach (int index in inactiveIndices)
         {
-            NativeBattleGraphicsModel cell = ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics, index);
+            NativeBattleGraphicsModel cell = ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics!, index);
             Assert.Equal(0, cell.Flags0 & 2);
-            Assert.Null(ReadOriginalModelActorId(original.ReadFixturePresentation().NativeGraphics, index));
+            Assert.Null(ReadOriginalModelActorId(original.ReadFixturePresentation().NativeGraphics!, index));
             boundary = boundary.WriteUnboundCell(NativeBattleModelSlot.Decode(checked((byte)index)), cell with { Color40 = coldColors[index] });
         }
-        Assert.Equal(ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics, 0), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(0), original.ReadFixturePresentation().NativeGraphics.ActorModels));
-        Assert.Equal(ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics, 3), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(3), original.ReadFixturePresentation().NativeGraphics.ActorModels));
+        Assert.Equal(ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics!, 0), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(0), original.ReadFixturePresentation().NativeGraphics!.ActorModels));
+        Assert.Equal(ReadOriginalModelCell(original.ReadFixturePresentation().NativeGraphics!, 3), boundary.ReadOriginalCell(NativeBattleModelSlot.Decode(3), original.ReadFixturePresentation().NativeGraphics!.ActorModels));
         NativeInputConfiguration inputConfiguration = game.ReadNewGameInputConfiguration();
         Assert.Null(original.NativeScannedModels);
         Assert.Null(original.Definition.NativeScannedModels);
@@ -85,9 +85,9 @@ public sealed class NativeScanFixtureMigrationTests
         NativeBattleAtbState fullGauge = caster.NativeAtb! with { Current = caster.NativeAtb!.Maximum };
         NativeBattleGaugeRegistration registration = NativeBattleGaugeRegistrations.Evaluate4842B0(fullGauge, caster.NativeParticipant!.NativeCombatantFlags ?? throw new InvalidDataException("The fixture requires its actual saved participant flags."), caster.NativeStatus!.Saved, caster.NativeStatus.Battle);
         Assert.Equal(NativeBattleGaugeRegistrationKind.Menu, registration.Kind);
-        int casterIndex = FindOriginalModelSlot(original.ReadFixturePresentation().NativeGraphics, casterId);
+        int casterIndex = FindOriginalModelSlot(original.ReadFixturePresentation().NativeGraphics!, casterId);
         Assert.InRange(casterIndex, 0, 2);
-        NativeBattleUiServices ui = original.ReadFixturePresentation().NativeGraphics.UiServices!;
+        NativeBattleUiServices ui = original.ReadFixturePresentation().NativeGraphics!.UiServices!;
         Assert.Equal(0u, ui.ReadyMask);
         Assert.Empty(ui.Commands.Queue);
         var ready = ui.Commands.Enqueue(checked((byte)casterIndex), 0x11).Dispatch(ui.ReadyMask);
@@ -111,7 +111,7 @@ public sealed class NativeScanFixtureMigrationTests
         BattleSnapshot migrated = (original with
         {
             Definition = definition,            NativeScannedModels = scannedModels,            Combatants = original.Combatants.Select(actor => actor.Id == casterId ? actor with { Atb = fullGauge.Display, NativeAtb = fullGauge, NativeParticipant = actor.NativeParticipant! with { NativeCombatantFlags = registration.ActorFlags }, NativeMagicInventory = casterInventory.ToArray() } : actor.Id == enemy.Id ? actor with { NativeParticipant = actor.NativeParticipant! with { ElementDefenses = enemyDefenses.ToArray() } } : actor).ToArray()
-        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = original.ReadFixturePresentation().NativeEffectMemory with { Scan = cold }, NativeGraphics = original.ReadFixturePresentation().NativeGraphics with { NativeBindings = boundary, UiServices = readyUi } });
+        }).WithFixturePresentation(facts => facts with { NativeEffectMemory = original.ReadFixturePresentation().NativeEffectMemory! with { Scan = cold }, NativeGraphics = original.ReadFixturePresentation().NativeGraphics! with { NativeBindings = boundary, UiServices = readyUi } });
         List<Change> changes = [];
         Diff(rawOriginal, JsonSerializer.SerializeToNode(migrated), "", changes);
         Assert.NotEmpty(changes);

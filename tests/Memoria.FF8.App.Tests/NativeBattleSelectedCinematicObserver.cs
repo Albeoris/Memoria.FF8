@@ -23,7 +23,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             return;
         }
         NativeBattleScriptedEffectMemory core = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
-        NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         uint manager = Dword(core, 0x27973EC);
         uint bank = Dword(core, manager + 0x90);
         uint basis = Dword(core, 0x2798A68);
@@ -230,7 +230,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             }
         }
         NativeBattlePrimitiveProcess before = prior.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
-        NativeBattlePrimitiveProcess after = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess after = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         Assert.NotNull(before.ByteCursor);
         Assert.Equal(before.PacketBank, after.PacketBank);
         Assert.Equal(before.PacketBuffer, after.PacketBuffer);
@@ -244,13 +244,13 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
             Assert.All(prior.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Slots, task => Assert.Equal(0, task.Flags & 1));
         }
         Assert.All(prior.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleAuxiliaryKind.CameraBlend509930, NativeBattleAuxiliaryKind.StageFade501F90 }));
-        Assert.All(prior.ReadFixturePresentation().NativeGraphics.Descriptors.Queue, index => Assert.Equal((ushort)104, prior.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command));
-        Assert.All(prior.ReadFixturePresentation().NativeGraphics.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleDescriptorTaskKind.Pump500CC0, NativeBattleDescriptorTaskKind.Action104, NativeBattleDescriptorTaskKind.DeferredCompletion500BC0 }));
+        Assert.All(prior.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => Assert.Equal((ushort)104, prior.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command));
+        Assert.All(prior.ReadFixturePresentation().NativeGraphics!.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0), task => Assert.Contains(task.Kind, new[] { NativeBattleDescriptorTaskKind.Pump500CC0, NativeBattleDescriptorTaskKind.Action104, NativeBattleDescriptorTaskKind.DeferredCompletion500BC0 }));
         observations.Add(new
         {
             current.Frame,
-            CurrentGte = current.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters,
-            CurrentColors = current.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters,
+            CurrentGte = current.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters,
+            CurrentColors = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters,
             ArenaCursorStart = Dword(core, manager + 0xD4),
             ArenaCursorEnd = Dword(core, manager + 0xD8),
             ArenaPacketStart = Dword(core, manager + 0xD4),
@@ -312,7 +312,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
                 }
             }
         }
-        observations.Add(new { current.Frame, CurrentGte = current.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters, CurrentColors = current.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters, PrivatePacketEnd = state.ReadDword(0x274EFEC), Tasks = tasks, CommonScope = "Not attributed from the reset frame-end cursor" });
+        observations.Add(new { current.Frame, CurrentGte = current.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters, CurrentColors = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters, PrivatePacketEnd = state.ReadDword(0x274EFEC), Tasks = tasks, CommonScope = "Not attributed from the reset frame-end cursor" });
         foreach (string transition in transitions.Distinct())
         {
             if (markers.Add(transition))
@@ -331,7 +331,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
 
     internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot, int commonStart, bool includeCompleted = false)
     {
-        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || (!includeCompleted && selected.ReturnedDescriptor is not > 0) || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || (!includeCompleted && selected.ReturnedDescriptor is not > 0) || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive)
         {
             return [];
         }
@@ -342,7 +342,7 @@ internal sealed class NativeBattleSelectedCinematicObserver(BattleSnapshot sourc
         uint manager = Dword(core, 0x27973EC);
         uint arenaStart = Dword(core, manager + 0xD4);
         uint arenaEnd = Dword(core, manager + 0xD8);
-        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         uint commonEnd = Dword(core, manager + 0x7C);
         Assert.InRange(commonEnd, 0u, checked((uint)process.CommonPacketWriteCapacity));
         int commonBase = process.PacketBuffer * process.CommonPacketNominalCapacity;

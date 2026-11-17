@@ -66,7 +66,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             BattleSnapshot boot = battle.CaptureForContinuation();
             Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, definition).Render(clone, 320, 224).ToArray());
             Assert.Equal(0x762DA0u, boot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[4].Slots[0].Callback);
-            Assert.Equal(0x762850u, boot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools[6].Slots[0].Callback);
+            Assert.Equal(0x762850u, boot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[6].Slots[0].Callback);
             Assert.NotNull(boot.ReadFixturePresentation().NativeEffectMemory!.SharedEffectView2793E58);
             Publish("boot", boot);
             bool capturedGround = false;

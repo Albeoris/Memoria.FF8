@@ -124,28 +124,6 @@ public sealed partial class BattleSession
         diagnosticInvocationPolicy = new(effect, actorId, command, actionId);
     }
 
-    private DiagnosticInvocationCompletion? CaptureDiagnosticInvocationCompletion(NativeBattleGraphicsState graphics, uint callback)
-    {
-        if (diagnosticInvocationPolicy is null || diagnosticInvocationDispatch is not { NativeHeaderIndex: int header, NativeHeaderGeneration: long generation, NativeActorIndex: byte actor } dispatch || LastDiagnosticInvocationCompletion is { Released: true })
-        {
-            return null;
-        }
-        if (nativeActionScratch.EventActorB0F != actor)
-        {
-            return null;
-        }
-        BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("Focal completion requires the current presentation process.");
-        NativeBattleActionPacketsState packets = process.ActionPackets;
-        NativeBattleActionHeaderSlot physicalHeader = packets.ReadHeader(new BattleActionHeaderReference(header));
-        bool captured = packets.ModelAliases.TryEncodeExact(physicalHeader.Source, out byte sourceAlias) && sourceAlias == actor &&
-            physicalHeader.Command == dispatch.NativeCommand && physicalHeader.Action == dispatch.ActionId && physicalHeader.Effect == dispatch.RequestedEffect &&
-            dispatch.Serial <= diagnosticDispatchSerial && diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long actual) &&
-            actual == generation && generation > 0 && nativeActionScratch.EventActorB0F == actor && dispatch.Serial > 0;
-        int slot = graphics.Descriptors.Queue.IsEmpty ? -1 : graphics.Descriptors.Queue[0];
-        byte serial = slot < 0 ? (byte)0 : graphics.Descriptors.Packets[slot].Serial;
-        return new(dispatch, packets.ExportRetained().Headers[header], slot < 0 ? null : graphics.Descriptors.Packets[slot], actor, callback, slot, serial, captured, DiagnosticLifecycleId, Frame, NativeHostCallbacks ?? throw new NotSupportedException("Focal completion requires its actual native callback."), graphics.Callback, diagnosticDispatchSerial);
-    }
-
     private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged, BattleDiagnosticInvocationRelease? executingCertificate = null, NativeBattleDescriptorPacket? retiredWitness = null)
     {
         if (attempt is null || !attempt.HeaderCaptured && LastDiagnosticInvocationCompletion is { HeaderCapturedBeforeReset: true })
@@ -275,9 +253,9 @@ public sealed partial class BattleSession
             Callback = NativeHostCallbacks,
             SimulationFrame = Frame,
             GraphicsCallback = graphics.Callback,
-            ActiveAction = ActiveAction is { } active ? new { active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeHeader, active.NativeQueuedCommand } : null,
+            ActiveAction = ActiveAction is { } active ? new { active.ActorId, active.TargetId, active.Ability, active.ActionId, active.NativeQueuedCommand } : null,
             QueuedPresentationCount = actions.Count,
-            QueuedPresentations = actions.Take(64).Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeHeader, command.NativeQueuedCommand, command.NativeCallback }).ToArray(),
+            QueuedPresentations = actions.Take(64).Select(command => new { command.ActorId, command.TargetId, command.Ability, command.ActionId, command.NativeQueuedCommand, command.ExpandedAiCallback }).ToArray(),
             Auxiliary = auxiliary.ToArray(),
             AuxiliaryTruncated = next is not null
         };

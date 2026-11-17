@@ -30,7 +30,8 @@ public sealed partial class GameSession
     public void EnterNativeDefeatField75(NativeBattleAbandonment abandoned)
     {
         abandoned.Validate();
-        if (!State.AppliedBattleResultIds.Contains(abandoned.Encounter.OccurrenceId, StringComparer.Ordinal) || State.ExamTimer?.ClockCalls != abandoned.ExitClockCalls || (acceptedBattleObservation?.NativeResult ?? State.Battle?.NativeGraphics?.NativeOutcome?.ResultByte6E7) != 1)
+        byte? result = acceptedBattleObservation?.NativeResult ?? (State.Battle is { Definition.NativeEntry: not null } battle ? BattleSession.ReadNativeResult(battle.Outcome) : null);
+        if (!State.AppliedBattleResultIds.Contains(abandoned.Encounter.OccurrenceId, StringComparer.Ordinal) || State.ExamTimer?.ClockCalls != abandoned.ExitClockCalls || result != 1)
         {
             throw new InvalidDataException("Fresh defeat allocation requires its applied native result1 and actual process clock.");
         }

@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGaugeRegistrationTests
@@ -59,40 +57,5 @@ public sealed class NativeBattleGaugeRegistrationTests
         NativeBattleAtbState completed = below with { Current = 0 };
         Assert.Equal(NativeBattleGaugeRegistrationKind.None, NativeBattleGaugeRegistrations.Evaluate4842B0(completed, 0x11, 0, 0).Kind);
         Assert.Equal(0x219u, NativeBattleGaugeRegistrations.Evaluate4842B0(completed with { Current = 12000 }, 0x11, 0, 0).ActorFlags);
-    }
-
-    [Fact]
-    public void Ready_callback_uses_bank_two_zero_BYTE2_and_retains_unknown_BYTE3_and_zero_targets()
-    {
-        NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
-        (banks, NativeBattleCommandLocation location) = banks.EnqueueCallback(2, 3, 1);
-        Assert.Equal((byte)2, location.Bank);
-        Assert.Equal((byte)255, banks.Banks[0].Tail);
-        NativeBattleCommandPacket packet = banks.Banks[2].Packets[2 * location.Slot];
-        Assert.Equal((byte)3, packet.ReadByte(0));
-        Assert.Equal((byte)255, packet.ReadByte(1));
-        Assert.Equal((byte)0, packet.ReadByte(2));
-        Assert.Throws<NotSupportedException>(() => packet.ReadByte(3));
-        Assert.Equal((ushort)1, packet.ReadWord(4));
-        Assert.Equal((ushort)0, packet.ReadWord(6));
-        Assert.Equal((ushort)0, packet.ReadWord(8));
-        Assert.Equal((ushort)0, packet.ReadWord(10));
-        Assert.Equal(1, banks.CountActor(3));
-        NativeBattleCommandBanks restored = JsonSerializer.Deserialize<NativeBattleCommandBanks>(JsonSerializer.Serialize(banks))!;
-        Assert.Equal(JsonSerializer.Serialize(banks), JsonSerializer.Serialize(restored));
-    }
-
-    [Fact]
-    public void Reused_callback_packet_preserves_the_actual_retained_BYTE3_instead_of_clearing_it()
-    {
-        NativeBattleCommandBanks banks = NativeBattleCommandBanks.Initialize();
-        (banks, NativeBattleCommandLocation location) = banks.Allocate(1);
-        banks = banks.WriteCommand(location, 0, 3, 2, 0xA5, 0xB6, 7, [8]);
-        banks = banks.Release(location);
-        (banks, location) = banks.EnqueueCallback(1, 4, 1);
-        NativeBattleCommandPacket packet = banks.Banks[1].Packets[2 * location.Slot];
-        Assert.Equal((byte)0xB6, packet.ReadByte(3));
-        Assert.Equal((byte)0, packet.ReadByte(2));
-        Assert.Equal((byte)4, packet.ReadByte(0));
     }
 }

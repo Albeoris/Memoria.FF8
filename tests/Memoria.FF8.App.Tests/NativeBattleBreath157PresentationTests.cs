@@ -50,8 +50,8 @@ public sealed class NativeBattleBreath157PresentationTests
         Assert.Equal(266784, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeBreath157Resources(), binding.Breath157Resources);
         Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.Breath157!.RootBankStorage);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.Breath157.ChildBankStorage);
-        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory.Breath157.ReadDword(NativeBattleBreath157Profile.CursorGlobal));
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.Breath157!.ChildBankStorage);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.Breath157!.ReadDword(NativeBattleBreath157Profile.CursorGlobal));
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

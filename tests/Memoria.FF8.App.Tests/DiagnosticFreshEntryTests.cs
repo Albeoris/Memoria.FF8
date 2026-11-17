@@ -86,7 +86,7 @@ public sealed class DiagnosticFreshEntryTests
         Assert.True(driver.Advance(Observation(0.1, 1)));
         driver.ObserveDispatch(release.Dispatch);
         BattleDiagnosticTerminalTextureRelease proof = release.TerminalTextures!;
-        BattleDiagnosticTerminalTextureAttempt attempt = new(release with { TerminalTextures = null, Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary }, proof.Hold, 0, null, 0, 0, false, true, proof.CommandBanks, proof.Textures, ["terminal-texture-quiescence"], result);
+        BattleDiagnosticTerminalTextureAttempt attempt = new(release with { TerminalTextures = null, Boundary = BattleDiagnosticInvocationRelease.GraphicsFrameBoundary }, proof.Hold, 0, false, proof.Textures, ["terminal-texture-quiescence"], result);
         driver.ObserveTerminalTextureAttempt(attempt);
         Assert.Equal(blocked ? DiagnosticDriverStage.Blocked : DiagnosticDriverStage.Drain, driver.Stage);
         Assert.Null(driver.FocalRelease);

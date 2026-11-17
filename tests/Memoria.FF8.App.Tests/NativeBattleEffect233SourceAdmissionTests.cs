@@ -60,8 +60,8 @@ public sealed class NativeBattleEffect233SourceAdmissionTests
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Null(source.NativeAiVariables);
         Assert.Null(source.PersistentAiVariables);
-        source.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!.Validate();
-        source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters!.Validate();
+        source.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!.Validate();
+        source.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters!.Validate();
         source.ReadFixturePresentation().NativeModelCpuResources!.Validate();
         source.ReadFixturePresentation().NativeFileStaging!.Validate();
         foreach (int physical in new[] { 0, 3 })

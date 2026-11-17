@@ -76,7 +76,7 @@ public sealed class NativeBattleFullCure280Tests
         var arena = NativeBattleEffectArena.Clear().Write(320 + 12, [0x81]);
         SetProperty(nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { Arena = arena, FullCure280 = NativeBattleFullCure280State.FromColdProcess() });
         SetProperty(nameof(BattleSession.NativeFileStaging), NativeBattleTemporaryMemory.Reset5082F0(NativeBattleFileStaging.Unknown()));
-        SetProperty(nameof(BattleSession.NativeStage), NativeBattleStageState.FromColdProcess());
+        SetProperty(nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
         SetProperty(nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.FromColdProcess() with { Projection = new(identity, 100, 160, 108) });
         Field("nativeActionPackets").SetValue(session, packets);
         var births = new List<(int Age, BattleModelOwner Owner)>();

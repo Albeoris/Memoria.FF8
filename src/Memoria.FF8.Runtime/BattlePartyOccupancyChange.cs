@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattlePartyOccupancyChange(BattleRosterSlot Slot, byte OutgoingRow, byte? IncomingRow)
+public sealed record BattlePartyOccupancyChange([property: System.Text.Json.Serialization.JsonRequired] BattleRosterSlot Slot, [property: System.Text.Json.Serialization.JsonRequired] byte OutgoingRow, [property: System.Text.Json.Serialization.JsonRequired] byte? IncomingRow)
 {
     internal NativeCharacterVitals ApplySavedBinding(NativeCharacterVitals vitals)
     {
@@ -11,14 +11,11 @@ public sealed record BattlePartyOccupancyChange(BattleRosterSlot Slot, byte Outg
         byte[] nativeParty = vitals.CombatParty;
         byte[] additionalParty = vitals.AdditionalCombatParty ?? [];
         var minimum = vitals.AdditionalCombatPartyMinimumCapacities;
-        if (Slot.Position < NativeBattleSlots.AllyCount)
+        int originalBinding = Array.IndexOf(nativeParty, OutgoingRow);
+        if (originalBinding >= 0)
         {
-            if (Slot.Position >= nativeParty.Length || nativeParty[Slot.Position] != OutgoingRow)
-            {
-                throw new InvalidDataException("Party replacement lost the original saved combat slot.");
-            }
             nativeParty = nativeParty.ToArray();
-            nativeParty[Slot.Position] = incoming;
+            nativeParty[originalBinding] = incoming;
             additionalParty = additionalParty.Where(row => row != incoming).ToArray();
             minimum = minimum?.Remove(incoming);
         }
@@ -54,7 +51,7 @@ internal enum PartyReplacementStage
     Reveal
 }
 
-internal sealed record PartyReplacementDescriptor(BattlePartyOccupancyChange Change, string OutgoingActorId, string IncomingActorId, PartyReplacementStage Stage)
+internal sealed record PartyReplacementDescriptor(BattlePartyOccupancyChange Change, string OutgoingActorId, string IncomingActorId, NativeBattleModelSlot? OriginalSlot, PartyReplacementStage Stage)
 {
     internal uint Callback => Stage == PartyReplacementStage.Bind ? 0x4971F0u : 0x497270u;
 }

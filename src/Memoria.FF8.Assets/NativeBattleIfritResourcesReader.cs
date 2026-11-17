@@ -29,6 +29,28 @@ public sealed partial class GameAssets
 {
     private readonly Dictionary<int, NativeBattleScriptedInitializationDirectories> nativeCinematicInitializationDirectories = [];
     private readonly Dictionary<int, NativeBattleCinematicResources> nativeCinematicResources = [];
+    private readonly Dictionary<int, NativeBattleCinematicModelOperands> nativeCinematicModelOperands = [];
+
+    public NativeBattleCinematicModelOperands ReadNativeCinematicModelOperands(NativeBattleEffectBinding binding)
+    {
+        if (!NativeBattleCinematicProfile.IsSupported(binding.Effect))
+        {
+            return new([], true);
+        }
+        NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(binding.Effect);
+        ImmutableArray<NativeBattleEffectInitializerResource> files = NativeBattleEffectInitializerPolicy.Resources(binding);
+        if (binding.Entry != profile.Entry || binding.Initializer != profile.Initializer || files.Length != 2 || files[0].Name != profile.InitialFile || files[0].GlobalAddress != profile.File0Publication)
+        {
+            throw new InvalidDataException("Cinematic model operands require the selected native initializer resource.");
+        }
+        if (!nativeCinematicModelOperands.TryGetValue(profile.Effect, out NativeBattleCinematicModelOperands? operands))
+        {
+            using var magic = OpenArchive("magic");
+            operands = NativeBattleCinematicOperandReader.Read(Read(magic, files[0].Name).ToImmutableArray());
+            nativeCinematicModelOperands.Add(profile.Effect, operands);
+        }
+        return operands;
+    }
 
     public NativeBattleScriptedInitializationDirectories ReadNativeIfritInitializationDirectories()
     {

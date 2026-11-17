@@ -190,7 +190,7 @@ public sealed class NativeBattleEnemyTextureCacheTests(ITestOutputHelper output)
         foreach ((uint soundFlags, int loadCount, bool cleared) in new (uint, int, bool)[] { (0, 1, true), (1, 0, false), (0x80000000, 0, false), (uint.MaxValue, 1, false) })
         {
             NativeBattleGraphicsModel removing = NativeBattleGraphicsModels.StartRemoval(ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3), 5) with { Phase6 = 1 };
-            BattleSession removal = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { ActorModels = snapshot.ReadFixturePresentation().NativeGraphics.ActorModels.Set(battle.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(3), removing), ModelLoadCount = loadCount }, NativeEffectMemory = snapshot.ReadFixturePresentation().NativeEffectMemory! with { SoundPublishedFlags = soundFlags } }));
+            BattleSession removal = BattleSession.Restore(snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { ActorModels = snapshot.ReadFixturePresentation().NativeGraphics!.ActorModels.Set(battle.ReadBattlePresentationPacketBindings().Aliases.DecodeLiteral(3), removing), ModelLoadCount = loadCount }, NativeEffectMemory = snapshot.ReadFixturePresentation().NativeEffectMemory! with { SoundPublishedFlags = soundFlags } }));
             removal.AdvanceNativeGraphicsPresentation(callbackDuration);
             Assert.Equal(cleared, ReadOriginalModelCell(removal.Presentation!.Graphics, 3).Flags0 == 0);
             Assert.Equal(cleared ? (byte)0 : (byte)3, removal.Presentation!.ModelTextureCache.Rows[resourceIndex].Kind);

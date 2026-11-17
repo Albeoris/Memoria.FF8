@@ -116,7 +116,7 @@ public sealed class NativeBattleAiAdmissionTests
         Assert.Equal(ExpandedAiAdmission.RequiresUnsupportedService, NativeBattleExpandedAi.Evaluate(program, [EnemyAction], 0, blockers));
         Assert.Contains(reason, blockers);
         Assert.Contains($"AI callback 0, byte {offset}: {reason}",
-            Assert.Throws<InvalidDataException>(() => NativeBattleExpandedAi.Evaluate(program, [EnemyAction], 0, rosterRestrictions: new HashSet<BattleEncounterRosterRestrictionReason>())).Message);
+            Assert.Throws<InvalidDataException>(() => NativeBattleExpandedAi.Evaluate(program, [EnemyAction], 0, requireValidInstalledSource: true)).Message);
 
         BattleSession battle = new(Definition(program), BattleAtbMode.Normal);
         Assert.Contains("callback 0, byte 0", Assert.Throws<InvalidDataException>(() => battle.Tick()).Message);

@@ -41,7 +41,7 @@ internal sealed class NativeBattleEffect319PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect319State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect319!;
         NativeBattleEffect319Resources resources = effect.Binding.Effect319Resources!;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -56,10 +56,10 @@ internal sealed class NativeBattleEffect319PresentationObserver
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(40, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            track |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[40..]));
-            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            track |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[40..]));
+            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect319-camera-8-40-current-owners", current, cold);
         }
         if (main is not null)
@@ -146,7 +146,7 @@ internal sealed class NativeBattleEffect319PresentationObserver
         if (arena != 0)
         {
             int offset = checked((int)(arena - 0x20DFAB8));
-            var scratch = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset + MorphOffset, 560);
+            var scratch = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset + MorphOffset, 560);
             bool Known(int length) => Enumerable.Range(0, length / 8).All(index => scratch.Known.AsSpan(index * 8, 6).ToArray().All(value => value));
             morph512 |= oldAge is >= 2 and <= 8 && Known(512);
             morph560 |= oldAge is >= 7 and <= 38 && Known(560);
@@ -163,12 +163,12 @@ internal sealed class NativeBattleEffect319PresentationObserver
             }
             if (mainRetired)
             {
-                byte[] header = current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(offset + IoOffset, 5);
+                byte[] header = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + IoOffset, 5);
                 if (header[4] == 1 && header[0] == 0 && header[1] == 0)
                 {
                     byte[] file = resources.ReadFile(360).Data.ToArray();
-                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(offset + ThirdPacketOffset, file.Length));
-                    byte[] vram = current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram();
+                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + ThirdPacketOffset, file.Length));
+                    byte[] vram = current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
                     VerifyTim(file, vram);
                     uploaded = true;
                     Mark("effect319-file360-real-type0-completion-and-VRAM", current, cold);
@@ -200,7 +200,7 @@ internal sealed class NativeBattleEffect319PresentationObserver
             modified = NativeBattleEffect319BoneCache.ScaleCurrent56BEF0(modified, bone, unchecked((short)task.ReadWord(22)), unchecked((short)task.ReadWord(18)));
         }
         NativeBattleCameraProjection projection = prior.ReadFixturePresentation().NativeCamera!.Projection!;
-        NativeBattleCameraPose camera = prior.ReadFixturePresentation().NativeCamera.CurrentPose!;
+        NativeBattleCameraPose camera = prior.ReadFixturePresentation().NativeCamera!.CurrentPose!;
         NativeBattleVector eye = new(camera.Eye.X, camera.Eye.Y, camera.Eye.Z);
         NativeBattleGraphicsModel scaled = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(modified, pose, projection.View!, eye);
         NativeBattleGraphicsModel baseline = NativeBattlePoseMatrices.ComposeGeometryMatrices502D40(entering, pose, projection.View!, eye);

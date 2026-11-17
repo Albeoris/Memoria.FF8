@@ -20,8 +20,8 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(146L, original.Frame);
         Assert.Equal(226L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal((ushort)86, original.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)86, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Equal((ushort)0, original.ReadFixturePresentation().NativeCamera!.Mask);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleCameraState cold = game.ReadColdProcessNativeBattleMemory().Camera!;
@@ -35,7 +35,7 @@ public sealed class NativeBattleGuardianPaddingMigrationTests
         BattleSnapshot migrated = (original with
         {
             Definition = original.Definition with { NativeRetainedMemory = retained with { Camera = Fill(retained.Camera!) } }
-        }).WithFixturePresentation(facts => facts with { NativeCamera = Fill(original.ReadFixturePresentation().NativeCamera) });
+        }).WithFixturePresentation(facts => facts with { NativeCamera = Fill(original.ReadFixturePresentation().NativeCamera!) });
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize((migrated with { Definition = original.Definition }).WithFixturePresentation(facts => facts with { NativeCamera = original.ReadFixturePresentation().NativeCamera })));
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));

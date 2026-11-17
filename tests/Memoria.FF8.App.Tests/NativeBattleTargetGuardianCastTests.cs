@@ -117,7 +117,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
         second.AdvanceNativeGraphicsPresentation(callback, TimeSpan.Zero);
-        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(snapshot.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, snapshot.Definition).Render(first, 320, 224).ToArray();
@@ -127,7 +127,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "guardian-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         }
-        Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
+        Console.WriteLine($"Guardian checkpoint {snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics!.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
     }
 
     private static void Run(int guardian, ushort effectId, bool openingOnly = false, NativeBattleRetainedMemory? retainedMemory = null)
@@ -302,7 +302,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             {
                 Assert.True(pendingTimPreserved);
                 Assert.Equal(3, completed.ReadFixturePresentation().NativeEffectMemory!.Shiva!.Entry!.Counter22BD010);
-                Assert.False(completed.NativeVibrationProcess!.IsPlaying(completed.ReadFixturePresentation().NativeEffectMemory.Shiva.VibrationHandle));
+                Assert.False(completed.NativeVibrationProcess!.IsPlaying(completed.ReadFixturePresentation().NativeEffectMemory!.Shiva!.VibrationHandle));
                 foreach (uint sound in game.ReadNativeShivaResources().Sounds)
                 {
                     Assert.Contains(sounds, item => item.Sound == sound);
@@ -323,7 +323,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
                 Assert.True(battle.CanChoosePlayerCommand("party"), "The restored completed GF cast must release its ordinary command owner.");
                 Assert.True(Released(battle.Capture()));
                 battle.QueueAttack("party", "enemy");
-                Assert.Contains(battle.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>(), command => command.ActorId == "party" && command.NativeQueuedCommand == 1);
+                Assert.Contains(battle.QueuedActions, command => command.ActorId == "party" && command.NativeQueuedCommand == 1);
                 BattleSession queuedNext = SaveAndLoad("next-command-queued");
                 prior = battle.Capture();
                 bool nextDispatched = false;

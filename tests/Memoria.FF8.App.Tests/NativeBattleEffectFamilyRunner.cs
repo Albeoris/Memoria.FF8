@@ -98,7 +98,14 @@ internal static class NativeBattleEffectFamilyRunner
 
     internal static BattleSnapshot LoadSnapshot(string path)
     {
-        return JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path)) ?? throw new InvalidDataException("The standalone snapshot is null.");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(path));
+        JsonElement source = document.RootElement;
+        if (source.ValueKind == JsonValueKind.Object &&
+            (source.TryGetProperty("NativeGraphics", out _) || source.TryGetProperty("NativeCommandBanks", out _)))
+        {
+            throw new NotSupportedException("This historical battle fixture requires case-specific migration before execution. Use current battle admission and private in-process continuation.");
+        }
+        return source.Deserialize<BattleSnapshot>() ?? throw new InvalidDataException("The standalone snapshot is null.");
     }
 
     internal static NativeEffectFamilyResult Execute(NativeEffectFamilyCase item, string phase, string fixtureDirectory, string gameDirectory)

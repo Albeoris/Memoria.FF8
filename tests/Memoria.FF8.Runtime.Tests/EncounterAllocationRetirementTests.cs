@@ -32,7 +32,7 @@ public sealed class EncounterAllocationRetirementTests
         BattleRetainedModelSelection selection = BattleRetainedModelSelection.From([target]);
         NativeBattleGraphicsState graphics = Graphics() with { ActionActorId = "fourth", ActionContext = new(BattleRetainedModelReference.Capture(Fourth, Aliases), selection, false) { TargetActors = selection, Target = target } };
         BattleTargetRequest request = NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.None, samplesOriginalSlots: true);
-        BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, 10, request, BattleAbility.EnemyAbility, 1);
+        BattleActionPresentation active = new("fourth", "party", BattleActionPhase.Windup, request, BattleAbility.EnemyAbility, 1);
         Assert.False(retirement.HasAcceptedConsumers("copy", Header(Fourth, Party), graphics, active));
         Assert.True(retirement.HasAcceptedConsumers("copy", Header(Fourth, Copy), graphics, active));
         Assert.True(retirement.HasAcceptedConsumers("copy", OriginalPackets(), graphics with { PendingContacts = [Contact(Copy)] }, active));

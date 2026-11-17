@@ -32,12 +32,12 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
         Assert.Equal(7, ReadOriginalModelCells(graphics).Length);
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedGraphics);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.ScriptedColorRegisters);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.Textures);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.ScriptedGraphics);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.ScriptedColorRegisters);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.Textures);
         Assert.NotNull(source.ReadFixturePresentation().NativeModelCpuResources);
         Assert.NotNull(source.ReadFixturePresentation().NativeFileStaging);
         Assert.NotNull(source.ReadFixturePresentation().NativeFileIo);
@@ -85,7 +85,7 @@ public sealed class NativeBattleEffect238SourceAdmissionTests
             Assert.Null(ReadOriginalModelCell(graphics, physical).HasLinkedModelRing140);
         }
         Assert.Equal(4, source.ReadFixturePresentation().NativeStage!.Groups.Length);
-        Assert.All(source.ReadFixturePresentation().NativeStage.Groups, group =>
+        Assert.All(source.ReadFixturePresentation().NativeStage!.Groups, group =>
         {
             Assert.Equal(2, group.Source!.BoneCount);
             Assert.Equal(2, group.Matrices.Length);

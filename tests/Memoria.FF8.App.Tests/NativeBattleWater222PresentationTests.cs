@@ -29,8 +29,8 @@ public sealed class NativeBattleWater222PresentationTests
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleSnapshot original = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
-        int descriptor = Assert.Single(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => original.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
-        uint offset = unchecked(original.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
+        int descriptor = Assert.Single(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => original.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
+        uint offset = unchecked(original.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
         Assert.True(offset % 20 == 0 && offset / 20 < NativeBattleRetainedActionPackets.HeaderCapacity);
         int headerIndex = checked((int)(offset / 20));
         NativeBattleActionPacketsState actionPackets = Assert.IsType<NativeBattleActionPacketsState>(original.NativeActionPackets);
@@ -133,19 +133,19 @@ public sealed class NativeBattleWater222PresentationTests
                 Assert.True(hpAfter is 100 or 93);
                 if (current.ReadFixturePresentation().NativeEffectMemory?.Water222 is not null)
                 {
-                    NativeBattleScriptedEffectMemory core = current.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!;
+                    NativeBattleScriptedEffectMemory core = current.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
                     peakSlots = Math.Max(peakSlots, Word(core, 0x27970A0));
                     foreach ((byte kind, int slot) in DrawSlots(current))
                     {
                         drawKinds.Add(kind);
                     }
                     byte busy = core.Read(0x2798219, 1)[0];
-                    byte previousBusy = prior.ReadFixturePresentation().NativeEffectMemory?.Water222 is null ? (byte)0 : prior.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!.Read(0x2798219, 1)[0];
+                    byte previousBusy = prior.ReadFixturePresentation().NativeEffectMemory?.Water222 is null ? (byte)0 : prior.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!.Read(0x2798219, 1)[0];
                     if (busy != 0 && previousBusy == 0)
                     {
                         uint manager = Dword(core, 0x27973EC);
                         uint destination = Dword(core, manager + 0xB4);
-                        byte[] copied = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(ArenaOffset(destination), 0x8000);
+                        byte[] copied = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(ArenaOffset(destination), 0x8000);
                         NativeBattleArchiveFile file = Assert.Single(ioResources.Files, item => item.Bytes.AsSpan().SequenceEqual(copied));
                         files.Add(checked((short)file.FileId));
                         Assert.Contains(current.ReadFixturePresentation().NativeFileIo!.Rows, row => row.SchedulerCallback != 0 && row.CompletionCallback == 0xAA0ED0 && row.FileResult == 0x8000);
@@ -154,9 +154,9 @@ public sealed class NativeBattleWater222PresentationTests
                     {
                         ioCompletions++;
                     }
-                    changedArena |= current.ReadFixturePresentation().NativeEffectMemory.Cursor > resources.Files.Sum(file => file.Data.Length);
+                    changedArena |= current.ReadFixturePresentation().NativeEffectMemory!.Cursor > resources.Files.Sum(file => file.Data.Length);
                 }
-                packetCallbacks += current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
+                packetCallbacks += current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame?.LastCommands.Any(item => (item.Command.Opcode & 0xFC) is 0x24 or 0x2C or 0x34 or 0x3C) == true ? 1 : 0;
                 scene.Render(battle, 320, 224);
                 if (cold is not null)
                 {
@@ -165,7 +165,7 @@ public sealed class NativeBattleWater222PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     required.Remove(name!);
                 }
             }
@@ -238,9 +238,9 @@ public sealed class NativeBattleWater222PresentationTests
         {
             return null;
         }
-        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!;
+        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
         (byte Kind, int Slot)[] slots = DrawSlots(snapshot).ToArray();
-        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         (string Name, bool Ready)[] candidates =
         [
             ("initialized", true),
@@ -259,7 +259,7 @@ public sealed class NativeBattleWater222PresentationTests
     private static IEnumerable<(byte Kind, int Slot)> DrawSlots(BattleSnapshot snapshot)
     {
         NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
-        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         uint manager = Dword(core, 0x27973EC);
         int slotBase = ArenaOffset(Dword(core, manager + 0x90));
         for (int i = 0; i < 128; i++)

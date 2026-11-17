@@ -7,7 +7,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeRenzokukenRawOwnerTests
 {
     [Fact]
-    public void Raw_widget_mirrors_input_and_elapsed_projection_cannot_advance_it_again()
+    public void Raw_widget_publishes_input_from_native_pose_clock()
     {
         BattleSession battle = Fixture();
         Dictionary<string, BattleNativeRenzokukenState> processes = Field<Dictionary<string, BattleNativeRenzokukenState>>(battle, "nativeRenzokukenProcesses");
@@ -20,10 +20,6 @@ public sealed class NativeRenzokukenRawOwnerTests
         Assert.Equal(input, before.Input);
         Assert.Equal(4, before.PoseFrames);
 
-        battle.AdvanceNativeRenzokukenPresentation(TimeSpan.FromSeconds(1));
-        battle.AdvanceNativeRenzokukenUi(true, true);
-
-        Assert.Equal(before, processes["party"]);
         Assert.Equal(0, battle.Frame);
         Assert.Empty(battle.Events);
     }
@@ -56,7 +52,7 @@ public sealed class NativeRenzokukenRawOwnerTests
         Dictionary<string, BattleNativeRenzokukenState> processes = Field<Dictionary<string, BattleNativeRenzokukenState>>(battle, "nativeRenzokukenProcesses");
         processes.Add("party", new(160, TargetRequest(), null, new() { ContactIndex = 1, Phase = 4 }));
         Field<Dictionary<string, byte>>(battle, "nativeLimitLevels").Add("party", 1);
-        BattleActionPresentation command = new("party", "enemy", BattleActionPhase.Windup, 1, TargetRequest(), BattleAbility.LimitBreak, 65533) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
+        BattleActionPresentation command = new("party", "enemy", BattleActionPhase.Windup, TargetRequest(), BattleAbility.LimitBreak, 65533) { NativeQueuedCommand = 5, NativeRenzokuken = new(1) };
         typeof(BattleSession).GetField("nativeTimedAction", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(battle, new NativeBattleTimedAction(command, 0));
         NativeBattleGraphicsState graphics = battle.Presentation!.Graphics with { PendingTrigger = new(new BattlePartyActorModel(new("party")), 1, 2, 25, 32) };
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGraphics))!.SetValue(battle.Presentation!, graphics);

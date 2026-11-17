@@ -33,7 +33,7 @@ public sealed class NativeBattleZombieContinuationTests
         try
         {
             Publish("before", initial, true);
-            if (!zombieSeen && initial.QueuedActions.Length == 0 && initial.NativeCommandBanks?.BoundCommands.Any() != true)
+            if (!zombieSeen && initial.QueuedActions.Length == 0)
             {
                 for (int pending = 0; pending < 512 && !Released(battle.Capture()); pending++)
                 {
@@ -131,11 +131,11 @@ public sealed class NativeBattleZombieContinuationTests
 
     private static bool HasZombie(BattleSnapshot snapshot)
     {
-        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.ZombieResources is not null && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor != 0;
+        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.ZombieResources is not null && snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor != 0;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        return !HasZombie(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeCommandBanks?.BoundCommands.Any() != true && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
+        return !HasZombie(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }

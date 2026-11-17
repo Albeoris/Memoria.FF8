@@ -102,7 +102,7 @@ public sealed class NativeBattleRush91PresentationTests
                 {
                     completions++;
                 }
-                bool contactSequence = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).Sequence == contact.Primary.Sequence;
+                bool contactSequence = ReadOriginalModelCell(prior.ReadFixturePresentation().NativeGraphics!, 3).Sequence != contact.Primary.Sequence && ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).Sequence == contact.Primary.Sequence;
                 bool targetAdvanced = Tasks(beforeEffect, 0x759770).Any(task => task.ReadByte(0x29) == 1) && Tasks(afterEffect, 0x759770).Any(task => task.ReadByte(0x29) == 2);
                 Assert.Equal(targetAdvanced, contactSequence);
                 if (contactSequence)
@@ -112,10 +112,10 @@ public sealed class NativeBattleRush91PresentationTests
                     Assert.Equal(unchecked((ushort)(beforeTarget.ReadWord(0x24) + 1)), afterTarget.ReadWord(0x24));
                     contacts++;
                 }
-                Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics, task.ModelOwner, 3));
+                Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics!.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, task.ModelOwner, 3));
                 Assert.Equal(targetPostFormulaHp, current.Combatants.Single(actor => actor.Id == targetId).CurrentHp);
                 Assert.Equal(JsonSerializer.Serialize(source.NativePartyPresentation), JsonSerializer.Serialize(current.NativePartyPresentation));
-                Assert.Equal(ReadOriginalModelCell(graphics, 3).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).ActiveStagedResourceRow100);
+                Assert.Equal(ReadOriginalModelCell(graphics, 3).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).ActiveStagedResourceRow100);
                 int newbornSprites = Tasks(afterEffect, 0x7611B0).Count(task => task.ReadWord(0x24) == 1);
                 if (newbornSprites > 0)
                 {
@@ -131,7 +131,7 @@ public sealed class NativeBattleRush91PresentationTests
                     emissionSequences += emitted;
                 }
                 sawModelTim |= current.ReadFixturePresentation().NativeEffectMemory?.Textures?.Slots.Any(item => item?.Source?.Identity == resources.ModelTim.Identity) == true;
-                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 NativeBattleReachedCaptureAssertions.Moving(91, current, frame.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8"));
                 sawPrivate |= frame.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8");
                 sawCommon |= frame.LastCommands.Any(item => item.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
@@ -143,11 +143,11 @@ public sealed class NativeBattleRush91PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattlePrimitiveFrame removed = frame with { LastCommands = frame.LastCommands.Where(item => item.Command.Packet.Bank != "20DFAB8" && item.Command.Packet.Bank != NativeBattleFullscreenOverlay.PacketBank).ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = removed } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = removed } }));
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
                     int changed = Enumerable.Range(0, pixels.Length / 4).Count(pixel => !pixels.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                     NativeBattleRestorationPresentationTests.Publish(output, boundary! + "-after", current, pixels);
-                    boundaries.Add(new(boundary!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, changed, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(boundary!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, changed, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(boundary!);
                 }
             }

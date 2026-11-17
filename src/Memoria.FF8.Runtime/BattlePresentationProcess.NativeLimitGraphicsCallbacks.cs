@@ -11,6 +11,10 @@ public sealed partial class BattlePresentationProcess
         else if (callback is 0x48E5A0 or 0x48E5E0)
         {
             EmitExpandedHostedDuelReadiness(graphics, callback);
+            if (callback == 0x48E5A0)
+            {
+                graphics = SetNativeDuelWindow(graphics, true);
+            }
         }
         else
         {

@@ -60,8 +60,8 @@ public sealed class NativeBattleEffect231SourceAdmissionTests
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Null(source.NativeAiVariables);
         Assert.Null(source.PersistentAiVariables);
-        source.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects!.Validate();
-        source.ReadFixturePresentation().NativeEffectMemory.GeometryRegisters!.Validate();
+        source.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!.Validate();
+        source.ReadFixturePresentation().NativeEffectMemory!.GeometryRegisters!.Validate();
         NativeBattleModelCpuResources cpu = Assert.IsType<NativeBattleModelCpuResources>(source.ReadFixturePresentation().NativeModelCpuResources);
         NativeBattleFileStaging staging = Assert.IsType<NativeBattleFileStaging>(source.ReadFixturePresentation().NativeFileStaging);
         cpu.Validate();

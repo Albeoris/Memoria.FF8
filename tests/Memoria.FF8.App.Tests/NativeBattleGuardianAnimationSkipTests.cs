@@ -40,13 +40,13 @@ public sealed class NativeBattleGuardianAnimationSkipTests
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Select a standalone ordinary guardian continuation with MEMORIA_FF8_GUARDIAN_SKIP_CONTINUATION.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.GuardianAnimationSkip);
-        Assert.True(source.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: > 0 });
+        Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0 });
         Assert.True(source.ActiveAction is { NativeQueuedCommand: 254, GuardianFormInvocation: null });
-        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.ReadFixturePresentation().NativeGraphics.ActionGraphics!.Header.Ordinal));
+        NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(source.ReadFixturePresentation().NativeGraphics!.ActionGraphics!.Header.Ordinal));
         Assert.Equal((byte)254, header.Command);
         int guardian = header.Action - 64;
         Assert.InRange(guardian, 0, 15);
-        ushort effectId = checked((ushort)source.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        ushort effectId = checked((ushort)source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         Run(guardian, effectId, source);
     }
 

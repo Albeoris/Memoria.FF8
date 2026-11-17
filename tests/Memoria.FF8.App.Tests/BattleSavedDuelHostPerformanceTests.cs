@@ -109,8 +109,10 @@ public sealed class BattleSavedDuelHostPerformanceTests
                 TimeSpan pulse = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 59) / 60);
                 foreach (ushort button in choice.Buttons)
                 {
-                    battle.AdvanceNativeDuelPresentation(pulse, 0);
-                    battle.AdvanceNativeDuelPresentation(pulse, button);
+                    battle.SubmitNativeDuelInput(0);
+                    battle.AdvanceNativeGraphicsPresentation(pulse);
+                    battle.SubmitNativeDuelInput(button);
+                    battle.AdvanceNativeGraphicsPresentation(pulse);
                 }
                 Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, battle.GetNativeDuel(actor)!.Phase);
                 Moves++;

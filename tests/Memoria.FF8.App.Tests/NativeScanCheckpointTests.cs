@@ -32,7 +32,7 @@ public sealed class NativeScanCheckpointTests
         {
             NativeBattleRestorationPresentationTests.Publish(output, "scan-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
         }
-        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
+        Console.WriteLine($"Released Scan {snapshot.Frame}/{snapshot.ReadFixturePresentation().NativeGraphics!.Callback} continued at {first.Frame}/{first.Presentation!.Graphics.Callback}; whole JSON and RGBA agree.");
 
         BattleSnapshot Read() => JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
     }

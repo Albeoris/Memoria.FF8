@@ -65,7 +65,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Saved native timed command lacks its canonical actor, contact or reaction owners.");
         }
-        if ((saved.Command is not { NativeHeader: null, NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
+        if ((saved.Command is not { NativeAction: null, TargetRequest.Selection: BattleTargetSelection.Explicit { Actors.Length: 1 }, NativeRenzokuken.CrisisLevel: >= 1 and <= 4, Ability: BattleAbility.LimitBreak, ActionId: 5 << 16 } || actor.Atb != 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken lacks its logical command5 transaction.");
         }

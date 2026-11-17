@@ -119,11 +119,11 @@ public sealed class NativeBattleWaterDepthContinuationTests
 
     private static bool HasWater(BattleSnapshot snapshot)
     {
-        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Water222Resources is not null && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor != 0;
+        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Water222Resources is not null && snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor != 0;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        return !HasWater(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
+        return !HasWater(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }

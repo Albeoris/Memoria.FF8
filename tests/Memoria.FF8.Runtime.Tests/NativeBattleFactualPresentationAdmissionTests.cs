@@ -38,7 +38,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     public void PendingDescriptorsDoNotSearchPastUnproducedOrCallbackHead(bool callback)
     {
         var fixture = Fixture(3);
-        BattleAttackCommand first = callback ? new("enemy", "enemy", Target("enemy"), BattleAbility.EnemyAbility, 0) { NativeCallback = new(3, 1) } : Command("enemy", null);
+        BattleAttackCommand first = callback ? new("enemy", "enemy", Target("enemy"), BattleAbility.EnemyAbility, 0) { ExpandedAiCallback = NativeBattleFixtureObservations.CreateCallback("enemy", 3, 1) } : Command("enemy", null);
         Queue(fixture.Session).Enqueue(first);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
         string before = JsonSerializer.Serialize(fixture.Session.Capture());
@@ -144,7 +144,7 @@ public sealed class NativeBattleFactualPresentationAdmissionTests
     {
         var fixture = Fixture(3, 0);
         Queue(fixture.Session).Enqueue(Command("enemy", 0));
-        BattleActionPresentation unrelated = new("party", "enemy", BattleActionPhase.Windup, 1, Target("enemy"), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(1) };
+        BattleActionPresentation unrelated = new("party", "enemy", BattleActionPhase.Windup, Target("enemy"), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(1) };
         Property(nameof(BattleSession.ActiveAction)).SetValue(fixture.Session, unrelated);
         Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { ActionActorId = "party", ActionCallbackReady = true });
         Complete(fixture.Session);

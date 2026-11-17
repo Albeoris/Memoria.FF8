@@ -45,7 +45,7 @@ internal sealed class NativeBattleEffect316PresentationObserver
             return;
         }
         NativeBattleEffect316State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect316!;
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect316Resources resources = effect.Binding.Effect316Resources!;
         VerifyCurrentTextureCopy(prior, current);
         NativeBattleModulePoolTask? main = ReadMain(current);
@@ -159,10 +159,10 @@ internal sealed class NativeBattleEffect316PresentationObserver
             VerifyMarkers(current);
             markersCleared = true;
         }
-        if (!uploaded && main is not null && current.ReadFixturePresentation().NativeEffectMemory.Textures!.Count == 0)
+        if (!uploaded && main is not null && current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Count == 0)
         {
-            VerifyTim(resources.MainTim.Data, current.ReadFixturePresentation().NativeEffectMemory.Textures);
-            VerifyTim(resources.EmbeddedTim, current.ReadFixturePresentation().NativeEffectMemory.Textures);
+            VerifyTim(resources.MainTim.Data, current!.ReadFixturePresentation().NativeEffectMemory!.Textures!);
+            VerifyTim(resources.EmbeddedTim, current!.ReadFixturePresentation().NativeEffectMemory!.Textures!);
             uploaded = true;
         }
         if (vibrationHandle is int handle && current.NativeVibrationProcess is { } process)
@@ -179,17 +179,17 @@ internal sealed class NativeBattleEffect316PresentationObserver
             cameraRegistered = true;
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
-            bool track = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
+            bool track = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
             cameraTrack |= track;
-            cameraView |= track && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            cameraView |= track && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             if (effect.ReturnedDescriptor > 0 && graphics.ActionGraphics?.UseActionCamera is bool decision)
             {
                 cameraDecision = decision;
                 if (!decision)
                 {
                     Assert.False(track);
-                    declinedCamera |= current.ReadFixturePresentation().NativeCamera.ControlCursor is null && current.ReadFixturePresentation().NativeCamera.Order.IsEmpty;
+                    declinedCamera |= current.ReadFixturePresentation().NativeCamera!.ControlCursor is null && current.ReadFixturePresentation().NativeCamera!.Order.IsEmpty;
                 }
             }
         }

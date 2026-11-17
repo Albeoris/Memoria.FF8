@@ -139,7 +139,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         Assert.NotNull(magic.MagicReservationId);
         Assert.Single(session.MagicVitals!.MagicSystem.Reservations);
         BattleAttackCommand item = new(Fourth, Fourth, Target(Fourth), BattleAbility.Item, 1) { ReservedNativeItemSlot = itemSlot };
-        BattleAttackCommand callback = new("ally-0", "ally-0", Target("ally-0")) { NativeCallback = new(0, 7) };
+        BattleAttackCommand callback = new("ally-0", "ally-0", Target("ally-0")) { ExpandedAiCallback = NativeBattleFixtureObservations.CreateCallback("ally-0", 0, 7) };
         BattleAttackCommand reaction = new(Fourth, "enemy", Target("enemy")) { NativePlayerReaction = BattleNativePlayerReaction.Counter };
         BattleAttackCommand header = new(Fourth, "enemy", Target("enemy")) { NativeHeader = new BattleActionHeaderReference(0) };
         BattleAttackCommand other = new(Eleventh, "enemy", Target("enemy"));
@@ -149,7 +149,7 @@ public sealed class NativeBattleExpandedReadyInvalidationTests
         {
             queue.Enqueue(command);
         }
-        BattleActionPresentation active = new(Fourth, "enemy", BattleActionPhase.Recovery, 1, Target("enemy"));
+        BattleActionPresentation active = new(Fourth, "enemy", BattleActionPhase.Recovery, Target("enemy"));
         typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(session, active);
         typeof(BattleSession).GetField("expandedHostedActionToken", PrivateInstance)!.SetValue(session, 3L);
 

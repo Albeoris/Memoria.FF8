@@ -25,7 +25,7 @@ public sealed class NativeBattleInitialCallbackAdmissionTests
         {
             BattleAttackCommand command = Assert.Single(battle.QueuedActions);
             Assert.Equal("enemy", command.ActorId);
-            Assert.Equal(new BattleNativeCallback(3, 0), command.NativeCallback);
+            Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(command.ActorId), 0), command.ExpandedAiCallback);
         }
         else
         {
@@ -45,7 +45,7 @@ public sealed class NativeBattleInitialCallbackAdmissionTests
         QueueInitialCallbacks(battle);
 
         Assert.Equal(new[] { "first", "last" }, battle.QueuedActions.Select(command => command.ActorId));
-        Assert.Equal(new[] { new BattleNativeCallback(3, 0), new BattleNativeCallback(5, 0) }, battle.QueuedActions.Select(command => command.NativeCallback));
+        Assert.Equal(new[] { 3, 5 }, battle.QueuedActions.Select(command => battle.Combatants.Single(actor => actor.Id == command.ExpandedAiCallback!.Actor.ActorId).NativeActorIndex!.Value));
         BattleSnapshot snapshot = battle.Capture();
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(snapshot))!);
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(restored.Capture()));

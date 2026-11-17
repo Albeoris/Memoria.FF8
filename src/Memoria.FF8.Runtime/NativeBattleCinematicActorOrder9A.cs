@@ -7,7 +7,7 @@ public static class NativeBattleCinematicActorOrder9A
 {
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, NativeBattleWaterContextServices services)
     {
-        int count = frame.ReadTemporaryWord(0x14A) >> 12;
+        int count = new NativeBattleCinematicInstructionLayout(frame.ReadTemporaryWord(0x14A)).ActorOrderCount;
         NativeBattleCinematicActorContext context = NativeBattleCinematicActorAccess.ReadContext(frame);
         NativeBattleModelAliases aliases = services.CaptureAliases();
         bool original = services.StorageContract == BattleContactTaskStorageContract.OriginalArena;

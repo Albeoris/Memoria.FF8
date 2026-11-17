@@ -100,7 +100,6 @@ public sealed class NativeRenzokukenInvocationTests
         Until(battle, () => battle.GetNativeRenzokuken("squall") is null);
         Assert.Equal(frame, battle.Frame);
         Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
-        Assert.Equal(0x47E120u, battle.Capture().NativeActionScratch!.ComponentCompletion);
         for (int tick = 0; tick < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); tick++)
         {
             battle.Tick();
@@ -259,7 +258,7 @@ public sealed class NativeRenzokukenInvocationTests
     {
         for (int callback = 0; callback < 5000 && !complete(); callback++)
         {
-            battle.AdvanceNativeRenzokukenPresentation(TimeSpan.FromTicks(83334));
+            battle.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
         }
         Assert.True(complete());
     }

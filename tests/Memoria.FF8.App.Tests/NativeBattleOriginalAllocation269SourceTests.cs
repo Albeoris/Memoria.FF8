@@ -95,8 +95,8 @@ public sealed class NativeBattleOriginalAllocation269SourceTests
         NativeBattleStatusSnapshot status = targetStatusOwner.NativeStatus ?? throw new InvalidDataException("The original party target requires its actual status owner.");
         (packets, _) = packets.AppendContact(new(new(packets.ModelAliases.DecodeLiteral(0), action.DamagePresentation, 0, 0, status.Saved, 7, status.Battle), null));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics.Descriptors.EnqueueAction(128, header);
-        Save("queued-action104", (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } }));
+        (NativeBattleDescriptorState descriptors, _) = ready.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
+        Save("queued-action104", (ready with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } }));
         File.WriteAllText(Path.Combine(output!, "allocation-source-result.json"), JsonSerializer.Serialize(new { Effect = 269, Status = "passed", Scenario = "Controlled post-formula deaths of three original enemies; actual authored death callbacks/barrier allocate and activate original reserve row3; no natural formula or inventory admission", Encounter = 436, Stage = 125, ActualCaster = caster, NativeModel = 110, OriginalModel = 94, allocation.SceneSlot, BoneCount = bones.Length, Command = action.Command, Action = action.ActionId, Sequence = sequence, Frame = ready.Frame, EffectCallbacks = 0 }, new JsonSerializerOptions { WriteIndented = true }));
 
         bool AllocationReady()

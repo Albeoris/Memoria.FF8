@@ -72,20 +72,6 @@ public sealed class NativeBattleRetainedMemoryTests
     }
 
     [Fact]
-    public void RetainedPhysicalScratchExcludesComponentOnlyPendingCompletion()
-    {
-        BattleSnapshot snapshot = new BattleSession(Definition(), BattleAtbMode.Normal).Capture();
-        NativeBattleActionScratch scratch = snapshot.NativeActionScratch! with { FinisherPendingE03 = true, ComponentCompletion = 0x47DE70 };
-        NativeBattleRetainedMemory memory = NativeBattleRetainedMemory.Capture(snapshot with { NativeActionScratch = scratch }, null);
-        Assert.True(memory.ActionScratch.FinisherPendingE03);
-        Assert.Null(memory.ActionScratch.ComponentCompletion);
-        Assert.Equal((uint)0x47DE70, scratch.ComponentCompletion);
-        GameSession restored = new(new GameState { Scene = SceneKind.Field, Battle = snapshot with { NativeActionScratch = scratch }, NativeBattleMemory = memory });
-        Assert.Equal((uint)0x47DE70, restored.State.Battle!.NativeActionScratch!.ComponentCompletion);
-        Assert.Null(restored.State.NativeBattleMemory!.ActionScratch.ComponentCompletion);
-    }
-
-    [Fact]
     public void In_process_checkpoint_shares_physical_owners_and_record_equality_implies_identical_JSON()
     {
         GameSession process = PhysicalCheckpoint();

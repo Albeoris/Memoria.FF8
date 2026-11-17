@@ -23,7 +23,7 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(146L, original.Frame);
         Assert.Equal(226L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         Assert.Equal((ushort)116, effect.Binding.Effect);
         Assert.Equal((ushort)86, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
@@ -41,7 +41,7 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
         NativeBattleQuezacotlResources resources = retained with { Ribbon = authenticated.Ribbon };
         BattleSnapshot migrated = (original with
         {
-            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, catalog with { NativeQuezacotlResources = resources }) }        }).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = resources } } } });
+            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, catalog with { NativeQuezacotlResources = resources }) }        }).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics! with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = resources } } } });
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize((migrated with { Definition = original.Definition}).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics })));
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));
@@ -68,7 +68,7 @@ public sealed class NativeBattleGuardianPhase86MigrationTests
         BattleSnapshot boundary = first.CaptureForContinuation();
         Assert.Equal(148L, boundary.Frame);
         Assert.Equal(228L, boundary.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)88, boundary.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal((ushort)88, boundary.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         BattleScenePresentation scene = new(presentationAssets, migrated.Definition);
         Assert.Equal(scene.Render(first, 320, 224), scene.Render(second, 320, 224));
         BattleSession boundaryClone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(boundary))!);

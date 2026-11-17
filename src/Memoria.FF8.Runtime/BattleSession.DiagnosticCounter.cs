@@ -37,13 +37,13 @@ public sealed partial class BattleSession
     public event Action<BattleDiagnosticCounterContact>? DiagnosticCounterContactPublished;
     public event Action<BattleDiagnosticCounterCallbackObservation>? DiagnosticCounterCallbackObserved;
     public event Action<BattleDiagnosticCounterCommand>? DiagnosticCounterCommandQueued;
-    private bool ObservingDiagnosticCounter => diagnosticCounterCandidateObservations is not null || DiagnosticCounterContactPublished is not null || DiagnosticCounterCallbackObserved is not null || DiagnosticCounterCommandQueued is not null;
+    private bool ObservingDiagnosticCounter => diagnosticCounterTracksContacts || diagnosticCounterCandidateObservations is not null || DiagnosticCounterContactPublished is not null || DiagnosticCounterCallbackObserved is not null || DiagnosticCounterCommandQueued is not null;
     private long diagnosticCounterPrimarySerial;
     private long diagnosticCounterQueueEpoch;
     private long diagnosticCounterAiSerial;
-    private BattleActionHeaderReference? diagnosticCounterProducingHeader;
-    private readonly ConditionalWeakTable<NativeBattleContactPacket, BattleDiagnosticCounterPrimary> diagnosticCounterContacts = new();
-    private readonly Dictionary<(int Header, long Generation), List<(int Index, BattleDiagnosticCounterPrimary Primary)>> diagnosticCounterAppended = [];
+    private sealed record DiagnosticCounterContactFacts(string ActorId, byte ActorIndex, byte QueuedCommand, ushort ActionId, byte InternalCommand, int BeforeHp, int AfterHp, BattleDiagnosticCounterActor Recipient, bool Preliminary, byte Order);
+    private bool diagnosticCounterTracksContacts;
+    private readonly ConditionalWeakTable<NativeBattleContactPacket, DiagnosticCounterContactFacts> diagnosticCounterContacts = new();
     private readonly Dictionary<(string Actor, byte Order), long> diagnosticCounterPending = [];
     private readonly ConditionalWeakTable<BattleExpandedAiCallbackRequest, BattleDiagnosticCounterCallback> diagnosticCounterCallbacks = new();
     private List<BattleDiagnosticCounterCallbackObservation>? diagnosticCounterCandidateObservations;
@@ -55,15 +55,11 @@ public sealed partial class BattleSession
     private void ResetDiagnosticCounterOwners()
     {
         diagnosticCounterContacts.Clear();
-        diagnosticCounterAppended.Clear();
         diagnosticCounterPending.Clear();
         diagnosticCounterCallbacks.Clear();
         diagnosticCounterCurrentCallback = null;
         diagnosticCounterAiScope = null;
-        diagnosticCounterProducingHeader = null;
     }
-
-    private long? DiagnosticCounterHeaderGeneration(int header) => diagnosticHeaderGenerations is { } generations && generations.TryGetValue(header, out long generation) ? generation : null;
 
     private void ObserveDiagnosticCounterResolution(BattleCombatant? actor, BattleCombatant target, int before, int after)
     {
@@ -80,15 +76,12 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionPresentation? command = resolvingNativeAction ?? ActiveAction;
-        int? header = OriginalDiagnosticHeaderIndex(diagnosticCounterProducingHeader ?? command?.NativeHeader);
-        if (command?.NativeAction is not { } native || header is not int index || DiagnosticCounterHeaderGeneration(index) is not long generation)
+        if (command?.NativeAction is not { } native || contact.Actor.NativeActorIndex is not int actorIndex || recipient.NativeActorIndex is null)
         {
             return;
         }
         byte queued = command.NativeQueuedCommand ?? native.Command;
-        BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, contact.Actor.Id, checked((byte)contact.Actor.RequireNativeActorIndex()), recipient.Id, checked((byte)recipient.RequireNativeActorIndex()), queued, native.ActionId, native.Command, hp.Before, hp.After, index, generation, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary);
-        contact.DiagnosticPrimary = primary;
-        diagnosticCounterPending[(primary.RecipientId, order)] = primary.Serial;
+        contact.DiagnosticPrimary = new(contact.Actor.Id, checked((byte)actorIndex), queued, native.ActionId, native.Command, hp.Before, hp.After, CaptureDiagnosticCounterActor(recipient), contact.DiagnosticPreliminary, order);
     }
 
     private void ObserveDiagnosticCounterResolvedContact(NativeContactWorking working, NativeBattleContactPacket packet)
@@ -99,51 +92,44 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ObserveDiagnosticCounterAppend(NativeBattleContactPacket packet, BattleContactOccurrence occurrence, bool triggerRecomputed = false)
+    private void PublishDiagnosticCounterContacts(BattleSession candidate, BattlePresentationProcess process, ImmutableArray<BattleActionHeaderReference> admittedHeaders, bool triggerRecomputed = false)
     {
-        if (!diagnosticCounterContacts.TryGetValue(packet, out BattleDiagnosticCounterPrimary? primary))
+        if (!ObservingDiagnosticCounter)
         {
             return;
         }
-        diagnosticCounterContacts.Remove(packet);
-        if (occurrence.Ordinal >= NativeBattleContactAddress.NativeRowCount)
+        foreach (var contact in candidate.diagnosticCounterContacts)
         {
-            return;
+            diagnosticCounterContacts.AddOrUpdate(contact.Key, contact.Value);
         }
-        int index = occurrence.Ordinal;
-        if (DiagnosticCounterHeaderGeneration(primary.HeaderIndex) != primary.HeaderGeneration)
+        NativeBattleActionPacketsState packets = process.ActionPackets;
+        foreach (BattleActionHeaderReference reference in admittedHeaders)
         {
-            throw new InvalidDataException("Counter contact publication lost its actual prepared header generation.");
-        }
-        if (triggerRecomputed)
-        {
-            DiagnosticCounterContactPublished?.Invoke(new(primary, index, true, nativeActionPackets.ExportRetained().DetachDiagnosticCopy()));
-            return;
-        }
-        var key = (primary.HeaderIndex, primary.HeaderGeneration);
-        if (!diagnosticCounterAppended.TryGetValue(key, out var appended))
-        {
-            appended = [];
-            diagnosticCounterAppended.Add(key, appended);
-        }
-        appended.Add((index, primary));
-    }
-
-    private void ObserveDiagnosticCounterPublishedHeaders(BattleActionHeaderReference first)
-    {
-        if (!ObservingDiagnosticCounter || OriginalDiagnosticHeaderIndex(first) is not int original)
-        {
-            return;
-        }
-        for (int header = original; header < Math.Min(nativeActionPackets.ActionCount, NativeBattleRetainedActionPackets.HeaderCapacity); header++)
-        {
-            if (DiagnosticCounterHeaderGeneration(header) is not long generation || !diagnosticCounterAppended.Remove((header, generation), out var appended))
+            if (OriginalDiagnosticHeaderIndex(reference) is not int index || process.ReadDiagnosticCounterHeaderGeneration(index) is not long generation)
             {
                 continue;
             }
-            foreach (var contact in appended)
+            ExpandedHostedInvocation? invocation = expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().SingleOrDefault(operation => operation.HeaderReference == reference);
+            if (invocation is null)
             {
-                DiagnosticCounterContactPublished?.Invoke(new(contact.Primary, contact.Index, false, nativeActionPackets.ExportRetained().DetachDiagnosticCopy()));
+                continue;
+            }
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(reference);
+            for (int ordinal = 0; ordinal < invocation.Contacts.Length; ordinal++)
+            {
+                int occurrence = header.FirstContact.Ordinal + ordinal;
+                if (occurrence >= NativeBattleContactAddress.NativeRowCount || !diagnosticCounterContacts.TryGetValue(invocation.Contacts[ordinal].Packet, out DiagnosticCounterContactFacts? facts))
+                {
+                    continue;
+                }
+                diagnosticCounterContacts.Remove(invocation.Contacts[ordinal].Packet);
+                BattleDiagnosticCounterActor recipient = facts.Recipient;
+                BattleDiagnosticCounterPrimary primary = new(++diagnosticCounterPrimarySerial, NativeHostCallbacks ?? Frame, facts.ActorId, facts.ActorIndex, recipient.Id, recipient.Index, facts.QueuedCommand, facts.ActionId, facts.InternalCommand, facts.BeforeHp, facts.AfterHp, index, generation, recipient, facts.Preliminary);
+                if (!facts.Preliminary)
+                {
+                    diagnosticCounterPending[(recipient.Id, facts.Order)] = primary.Serial;
+                }
+                DiagnosticCounterContactPublished?.Invoke(new(primary, occurrence, triggerRecomputed, packets.ExportRetained().DetachDiagnosticCopy()));
             }
         }
     }

@@ -103,7 +103,7 @@ public sealed class NativeBattleCommandTitleTests
             SupplementalRecord = []
         };
         BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
-        BattleActionPresentation presentation = new("enemy", "party", BattleActionPhase.Windup, 0, target) { NativeSequence = 1 };
+        BattleActionPresentation presentation = new("enemy", "party", BattleActionPhase.Windup, target) { NativeSequence = 1 };
 
         NativeBattleActionHeaderPreparation header = (NativeBattleActionHeaderPreparation)typeof(BattleSession).GetMethod("BuildNativeActionHeaderPreparation", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [battle.Combatants[1], presentation, action, false, false])!;
 

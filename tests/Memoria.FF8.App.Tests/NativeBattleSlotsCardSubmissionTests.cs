@@ -54,9 +54,9 @@ public sealed class NativeBattleSlotsCardSubmissionTests
         };
         if (initial.ReadFixturePresentation().NativeGraphics?.UiServices is { } ui)
         {
-            byte index = checked((byte)FindOriginalModelSlot(initial.ReadFixturePresentation().NativeGraphics, owner.Id));
+            byte index = checked((byte)FindOriginalModelSlot(initial.ReadFixturePresentation().NativeGraphics!, owner.Id));
             (NativeBattleUiCommands commands, uint mask, _) = NativeBattleUiCommands.Clear().Enqueue(index, 0x11).Dispatch(0);
-            initial = initial.WithFixturePresentation(facts => facts with { NativeGraphics = initial.ReadFixturePresentation().NativeGraphics with { UiServices = ui with { Commands = commands, ReadyMask = mask } } });
+            initial = initial.WithFixturePresentation(facts => facts with { NativeGraphics = initial.ReadFixturePresentation().NativeGraphics! with { UiServices = ui with { Commands = commands, ReadyMask = mask } } });
         }
         BattleSession battle = Restore(initial);
         BattleCombatant actor = battle.Combatants.Single(combatant => combatant.IsPlayer && combatant.ModelId == 5);

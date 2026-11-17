@@ -83,7 +83,7 @@ public sealed class NativeBattleCarbuncle278ChildContinuationTests
                 Assert.All(rays.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.Equal((ushort)1, task.ReadWord(0xC)));
                 Assert.All(shards.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.Equal((ushort)1, task.ReadWord(0xC)));
             }
-            NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+            NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
             uint primary = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0].ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
             int cursor = checked((int)primary);
             foreach (int address in primitive.LastCommands.Select(command => command.Command.Packet).Where(packet => packet.Bank == "20DFAB8").Distinct().Select(packet => packet.ByteOffset).Order())
@@ -104,12 +104,12 @@ public sealed class NativeBattleCarbuncle278ChildContinuationTests
         }
         BattleSnapshot boundary = first.CaptureForContinuation();
         int controller = boundary.ReadFixturePresentation().NativeEffectMemory!.EffectIo!.BaseOffset!.Value;
-        byte[] header = boundary.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(controller, 5);
+        byte[] header = boundary.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(controller, 5);
         Assert.Equal((byte)0, header[0]);
         Assert.Equal((byte)2, header[3]);
         Assert.Equal((byte)2, header[4]);
         NativeBattleEffectFileAsset last = installed.Files.Single(file => file.FileId == 718);
-        Assert.Equal(last.Data.ToArray(), boundary.ReadFixturePresentation().NativeEffectMemory.Arena.Read(0x23ECC, last.Data.Length));
+        Assert.Equal(last.Data.ToArray(), boundary.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x23ECC, last.Data.Length));
         File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { Status = "recipient-ray-and-shard-window", boundary.Frame, NativeCallback = boundary.ReadFixturePresentation().NativeGraphics!.Callback, Creature = Creature(boundary).ReadWord(0xC), Callbacks = callbacks }));
         Assert.Equal(original, File.ReadAllText(input!));
 

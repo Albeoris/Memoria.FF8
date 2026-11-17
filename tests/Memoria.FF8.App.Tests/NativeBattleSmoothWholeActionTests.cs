@@ -395,10 +395,6 @@ public sealed class NativeBattleSmoothWholeActionTests
         private static void ValidateLinks(BattleSnapshot snapshot, MagicCastReservation reservation)
         {
             List<(string? Id, string Actor, int Spell)> links = snapshot.QueuedActions.Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId))).ToList();
-            if (snapshot.NativeCommandBanks is { } banks)
-            {
-                links.AddRange(banks.BoundCommands.Select(command => (command.MagicReservationId, command.ActorId, (int)(command.NativeAction?.ActionId ?? command.ActionId))));
-            }
             if (snapshot.ActiveAction is { } active)
             {
                 links.Add((active.MagicReservationId, active.ActorId, active.NativeAction?.ActionId ?? active.ActionId));
@@ -452,7 +448,6 @@ public sealed class NativeBattleSmoothWholeActionTests
                 QueuedActions = source.QueuedActions.Select(Command).ToArray(),
                 ActiveAction = source.ActiveAction is { } active ? Action(active) : null,
                 NativeTimedAction = source.NativeTimedAction is { } timed ? timed with { Command = Action(timed.Command) } : null,
-                NativeCommandBanks = source.NativeCommandBanks is { } banks ? banks with { Banks = banks.Banks.Select(bank => bank with { LogicalCommands = bank.LogicalCommands.Select(command => command is null ? null : Command(command)).ToImmutableArray() }).ToImmutableArray() } : null,
                 GuardianForceCasts = source.GuardianForceCasts.Select(cast => cast with { Command = Command(cast.Command) }).ToArray()
             };
         }

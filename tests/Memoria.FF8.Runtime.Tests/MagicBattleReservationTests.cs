@@ -34,13 +34,9 @@ public sealed class MagicBattleReservationTests
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1);
         BattleSnapshot saved = battle.Capture();
         Assert.Single(saved.MagicVitals!.MagicSystem.Reservations);
-        NativeBattleCommandBanks banks = saved.NativeCommandBanks! with
-        {
-            Banks = saved.NativeCommandBanks!.Banks.Select(bank => bank with { LogicalCommands = bank.LogicalCommands.Select(command => command is null ? null : command with { MagicReservationId = null }).ToImmutableArray() }).ToImmutableArray()
-        };
         NativeCharacterVitals owner = saved.MagicVitals!.DeepCopy();
         owner = owner with { MagicSystem = owner.MagicSystem with { Reservations = [] } };
-        BattleSnapshot changed = saved with { NativeCommandBanks = banks, QueuedActions = saved.QueuedActions.Select(command => command with { MagicReservationId = null }).ToArray(), MagicVitals = owner };
+        BattleSnapshot changed = saved with { QueuedActions = saved.QueuedActions.Select(command => command with { MagicReservationId = null }).ToArray(), MagicVitals = owner };
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(changed));
     }
 
@@ -50,13 +46,9 @@ public sealed class MagicBattleReservationTests
         BattleSession battle = Create();
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1);
         BattleSnapshot saved = battle.Capture();
-        NativeBattleCommandBanks banks = saved.NativeCommandBanks! with
-        {
-            Banks = saved.NativeCommandBanks!.Banks.Select(bank => bank with { LogicalCommands = bank.LogicalCommands.Select(command => command is null ? null : command with { FreeNativeMagic = true, MagicReservationId = null }).ToImmutableArray() }).ToImmutableArray()
-        };
         NativeCharacterVitals owner = saved.MagicVitals!.DeepCopy();
         owner = owner with { MagicSystem = owner.MagicSystem with { Reservations = [] } };
-        BattleSnapshot changed = saved with { NativeCommandBanks = banks, QueuedActions = saved.QueuedActions.Select(command => command with { FreeNativeMagic = true, MagicReservationId = null }).ToArray(), MagicVitals = owner };
+        BattleSnapshot changed = saved with { QueuedActions = saved.QueuedActions.Select(command => command with { FreeNativeMagic = true, MagicReservationId = null }).ToArray(), MagicVitals = owner };
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(changed));
     }
 

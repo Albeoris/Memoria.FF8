@@ -28,10 +28,6 @@ public sealed partial class BattleSession
     private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
     {
         BattleEnemyRosterSource? callerSource = ReadDonorSource(caller);
-        if (!UsesOriginalEnemySlots && callerSource is null)
-        {
-            throw new NotSupportedException("Expanded AI cannot allocate original enemy slots on this roster.");
-        }
         RequireNoPendingEncounterAllocation();
         if (!producingExpandedAiCallback)
         {

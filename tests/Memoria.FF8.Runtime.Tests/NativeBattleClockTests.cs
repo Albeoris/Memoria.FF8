@@ -84,7 +84,7 @@ public sealed class NativeBattleClockTests
         actor.Atb = 500;
         int raw = actor.NativeAtb!.Current;
         actor.NativeCombatantFlags = 0xCu | 1;
-        BattleActionPresentation action = new("ally", "enemy", BattleActionPhase.Recovery, 1, BattleTargetRequest.None)
+        BattleActionPresentation action = new("ally", "enemy", BattleActionPhase.Recovery, BattleTargetRequest.None)
         {
             NativeAiCallbackStage = stage,
             NativeQueuedCommand = command,

@@ -90,7 +90,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null || QueuedActions.Any(command => command.NativeHeader is not null)))
+        if (summoning && cast.Command.GuardianFormInvocation is { Mode: GuardianFormInvocationMode.EntryOnly } && (ActiveAction is not null || nativeTimedAction is not null))
         {
             return false;
         }

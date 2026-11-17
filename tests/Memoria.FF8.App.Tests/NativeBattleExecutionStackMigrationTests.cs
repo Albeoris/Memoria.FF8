@@ -20,7 +20,7 @@ public sealed class NativeBattleExecutionStackMigrationTests
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleAtbMode mode = battle.Mode;
-        TimeSpan elapsed = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond + 1);
+        TimeSpan elapsed = BattlePresentationTiming.ElapsedForCallbacks(1);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.Zero);
         bool activeSummon = battle.Presentation?.Graphics?.OriginalEffect is { Binding.Effect: 116, ReturnedDescriptor: > 0 };
         for (int frame = 0; !activeSummon && frame < 2000 && (!battle.NativeEntryReady || !battle.Combatants.Any(actor => actor.IsPlayer && actor.IsReady && actor.Abilities.Contains(BattleAbility.GuardianForce) && actor.EquipmentIds.Contains(0))); frame++)
@@ -191,9 +191,9 @@ public sealed class NativeBattleExecutionStackMigrationTests
         string migratedPath = Path.Combine(evidence!, id + ".json");
         GameState saved = GameSession.Load(migratedPath);
         Assert.Equal((byte)4, saved.Battle!.ReadFixturePresentation().NativeGraphics!.EntryLifecycle);
-        Assert.Equal((ushort)116, saved.Battle.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal(profile, saved.Battle.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
-        NativeBattleStackFrame callbackStack = NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(profile, saved.Battle.ReadFixturePresentation().NativeGraphics.EntryLifecycle);
+        Assert.Equal((ushort)116, saved.Battle!.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal(profile, saved.Battle!.ReadFixturePresentation().NativeEffectMemory!.ExecutionStack);
+        NativeBattleStackFrame callbackStack = NativeBattleQuezacotlRibbon.ResolveEntryStack6C8850(profile, saved.Battle!.ReadFixturePresentation().NativeGraphics!.EntryLifecycle);
         GameSession session = new(saved);
         using GameWorld world = NativeBattleProductionEffectAdmissionTests.RestoreWorld(session, directory);
         BattleSnapshot originalBattle = GameSession.Load(sourcePath!).Battle!;

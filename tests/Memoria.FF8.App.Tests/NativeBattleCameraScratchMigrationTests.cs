@@ -22,8 +22,8 @@ public sealed class NativeBattleCameraScratchMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(255L, original.Frame);
         Assert.Equal(545L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, original.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
+        Assert.Equal(0u, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Null(original.ReadFixturePresentation().NativeCamera!.ViewTranslationScratch);
         JsonNode originalNode = JsonNode.Parse(bytes)!;

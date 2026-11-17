@@ -89,6 +89,59 @@ public sealed class NativeBattleGraphicsPresentationClockTests
         Assert.Equal((byte)0, widget.PublicationLatch);
     }
 
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(120)]
+    public void Duel_counts_only_latched_original_service_polls_at_any_host_update_rate(int updatesPerSecond)
+    {
+        BattleNativeDuelState duel = new(0, BattleTargetRequest.None, 400, 400, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254, WidgetPhase = 4, PublicationLatch = 4 };
+        BattlePresentationCallbackStep clock = default;
+        const int polls = BattlePresentationTiming.NativeUiServicePollsPerCallback;
+        for (int update = 0; update < 2 * updatesPerSecond; update++)
+        {
+            long before = update * TimeSpan.TicksPerSecond / updatesPerSecond;
+            long after = (update + 1) * TimeSpan.TicksPerSecond / updatesPerSecond;
+            clock = BattlePresentationTiming.Advance(clock.Subticks, clock.HalfSubtick, TimeSpan.FromTicks(after - before));
+            for (long callback = 0; callback < clock.Callbacks; callback++)
+            {
+                for (int poll = 0; poll < polls; poll++)
+                {
+                    duel = NativeBattleDuelRules.AdvanceWidget(duel, poll == polls - 1, 0, false, [], static () => throw new InvalidOperationException());
+                }
+            }
+        }
+        Assert.Equal((short)276, duel.RemainingTimer);
+        Assert.Equal(0, BattlePresentationTiming.Advance(clock.Subticks, clock.HalfSubtick, TimeSpan.Zero).Callbacks);
+        for (int poll = 0; poll < 2 * polls; poll++)
+        {
+            duel = NativeBattleDuelRules.AdvanceWidget(duel, false, 0, false, [], static () => throw new InvalidOperationException());
+        }
+        Assert.Equal((short)273, duel.RemainingTimer);
+        Assert.Equal((byte)0, duel.PublicationLatch);
+    }
+
+    [Fact]
+    public void Duel_matches_ordered_pulses_once_and_rearms_on_actual_move_acknowledgment()
+    {
+        BattleNativeDuelChoice move = new(1, 2, "Move", true, false, [0x40, 0x10]);
+        BattleNativeDuelState duel = new(0, BattleTargetRequest.None, 400, 400, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254, WidgetPhase = 4, WidgetRevealQ12 = 4096, PublicationLatch = 4 };
+        duel = NativeBattleDuelRules.AdvanceWidget(duel, true, 0x40, false, [move], static () => throw new InvalidOperationException());
+        Assert.Equal((byte)254, duel.Selection1D28DEF);
+        duel = NativeBattleDuelRules.AdvanceWidget(duel, false, 0x10, false, [move], static () => throw new InvalidOperationException());
+        Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, duel.Phase);
+        Assert.Equal((byte)9, duel.WidgetPhase);
+        Assert.Equal((byte)1, duel.Selection1D28DEF);
+        BattleNativeDuelState waiting = NativeBattleDuelRules.AdvanceWidget(duel, true, 0x40, false, [move], static () => throw new InvalidOperationException());
+        Assert.Equal(duel.RemainingTimer, waiting.RemainingTimer);
+        Assert.Equal(duel.InputRing, waiting.InputRing);
+
+        BattleNativeDuelState rearmed = NativeBattleDuelRules.AcknowledgeWidgetReady(waiting);
+        Assert.Equal(waiting.RemainingTimer, rearmed.RemainingTimer);
+        Assert.Equal((byte)0, rearmed.WidgetPhase);
+        Assert.All(rearmed.InputRing, pulse => Assert.Equal((ushort)0, pulse));
+    }
+
     [Fact]
     public void Odd_tick_partition_and_private_capture_preserve_fractional_phase()
     {

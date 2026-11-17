@@ -45,7 +45,7 @@ public sealed class NativeBattleEffect301SelfContactSourceTests(ITestOutputHelpe
             Assert.Equal(self.NativeStatus.Presentation.Battle, contact.Primary.BattleStatuses8);
             Assert.True(NativeBattleActionGraphics.Normalize(packets, new BattleActionHeaderReference(headerIndex)).TargetActors.Resolve(packets.ModelAliases).IsSingle(packets.ModelAliases.DecodeLiteral(checked((byte)actualCaster))));
             Assert.True(source.ReadFixturePresentation().NativeEffectMemory!.Effect301!.ScriptSourcePending);
-            Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Effect301), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory.Effect301));
+            Assert.Equal(JsonSerializer.Serialize(original.ReadFixturePresentation().NativeEffectMemory!.Effect301), JsonSerializer.Serialize(source.ReadFixturePresentation().NativeEffectMemory!.Effect301));
             string frozen = JsonSerializer.Serialize(source);
             BattleSession direct = BattleSession.Restore(source);
             BattleSession cold = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(frozen)!);

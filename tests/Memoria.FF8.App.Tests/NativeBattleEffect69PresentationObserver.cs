@@ -54,7 +54,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
                 Assert.NotNull(state.FixedBanks[MainBank]);
             }
             uint p = state.ReadDword(ArenaGlobal);
-            if (age is > 0 and < 48 && Enumerable.Range(0, 128).Any(index => current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x8020 + index * 16 + 15, 1)[0] != 0) && !sparks)
+            if (age is > 0 and < 48 && Enumerable.Range(0, 128).Any(index => current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x8020 + index * 16 + 15, 1)[0] != 0) && !sparks)
             {
                 sparks = true;
                 Mark("effect69-current-sparks", current, cold);
@@ -67,14 +67,14 @@ internal sealed class NativeBattleEffect69PresentationObserver
             if (age >= 51 && !loaded)
             {
                 NativeBattleEffectFileAsset file = effect.Binding.Effect69Resources!.ReadFile(37);
-                Assert.Equal(file.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x8020, file.Data.Length));
+                Assert.Equal(file.Data.ToArray(), current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x8020, file.Data.Length));
                 loaded = true;
                 Mark("effect69-file37-current-COMMON", current, cold);
             }
             if (state.ReadDword(RandomGlobal) != prior.ReadFixturePresentation().NativeEffectMemory!.Effect69!.ReadDword(RandomGlobal) && !debris)
             {
-                Assert.Contains(Enumerable.Range(0, 364), index => Word(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(index * 0x3C + 6, 2)) is 1 or 2);
-                Assert.Contains(Enumerable.Range(0, 364), index => BinaryPrimitives.ReadInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x5A50 + index * 4, 4)) == -1);
+                Assert.Contains(Enumerable.Range(0, 364), index => Word(current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(index * 0x3C + 6, 2)) is 1 or 2);
+                Assert.Contains(Enumerable.Range(0, 364), index => BinaryPrimitives.ReadInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x5A50 + index * 4, 4)) == -1);
                 debris = true;
                 Mark("effect69-detached-face-current-private-LCG", current, cold);
             }
@@ -88,9 +88,9 @@ internal sealed class NativeBattleEffect69PresentationObserver
                 Assert.True(current.ReadFixturePresentation().NativeEffectIoResult >= 0);
                 Assert.Equal(prior.ReadFixturePresentation().NativeStage!.SourceAddress1D9A820, owner.SourceAddress1D9A820);
                 uint destination = owner.SourceAddress1D9A820!.Value;
-                byte[] directory = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x9A84, 32);
+                byte[] directory = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x9A84, 32);
                 int length = checked(BinaryPrimitives.ReadInt32LittleEndian(directory.AsSpan(24)) + 0x2020);
-                Assert.Equal(current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(0x9A84, length), current.ReadFixturePresentation().NativeFileStaging!.Read(destination, length));
+                Assert.Equal(current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x9A84, length), current.ReadFixturePresentation().NativeFileStaging!.Read(destination, length));
                 Assert.NotNull(owner.MutableGeometry);
                 Assert.Equal((short)8, owner.RotationSpeed);
                 Assert.Equal(0x00606868u, owner.ModelColors!.Color40);
@@ -130,7 +130,7 @@ internal sealed class NativeBattleEffect69PresentationObserver
             stage = true;
             Mark("effect69-current-stage-COMMON", current, cold);
         }
-        observations.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Age = age, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Random = current.NativeCrtRandom, FileResult = current.ReadFixturePresentation().NativeEffectIoResult, CommonCaster = caster, CommonStage = stage });
+        observations.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Age = age, Cursor = state.ReadDword(CursorGlobal), PrivateRandom = state.ReadDword(RandomGlobal), Random = current.NativeCrtRandom, FileResult = current.ReadFixturePresentation().NativeEffectIoResult, CommonCaster = caster, CommonStage = stage });
     }
 
     public void Accept(BattleSnapshot completed, string output)

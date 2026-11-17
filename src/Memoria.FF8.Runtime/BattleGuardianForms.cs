@@ -48,7 +48,7 @@ public sealed record BattleGuardianFormDefinition(string ProfileId, int Guardian
 
 public static class BattleGuardianFormProfiles
 {
-    private static readonly BattleGuardianFormDefinition Ifrit = new("ifrit-v1", 2, 61, 30 * BattleSession.FramesPerSecond, new())
+    private static readonly BattleGuardianFormDefinition Ifrit = new("ifrit-v1", 2, 61, 900, new())
     {
         Actions =
         [

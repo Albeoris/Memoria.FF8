@@ -135,7 +135,7 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
         NativeBattleFileIoState io = current.ReadFixturePresentation().NativeFileIo!;
         Assert.Equal((short?)0, io.ActiveCount);
         randomAdvanced |= current.NativeCrtRandom != source.NativeCrtRandom;
-        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory.Textures!;
+        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory!.Textures!;
         textureQueued |= textures.Count > (prior.ReadFixturePresentation().NativeEffectMemory!.Textures?.Count ?? 0);
         int file1Offset = Assert.Single(effect.ResourcePointers, pointer => pointer.GlobalAddress == 0x2796870).ArenaOffset;
         uint managerAddress = Dword(core, 0x27973EC);
@@ -152,7 +152,7 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
                 NativeBattleEffectTextureRectangle rectangle = Assert.IsType<NativeBattleEffectTextureRectangle>(upload.Rectangle);
                 int offset = Assert.IsType<int>(upload.ArenaOffset);
                 Assert.InRange(offset, file1Offset, file1Offset + 143960 - 2 * rectangle.Width * rectangle.Height);
-                byte[] expected = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset, 2 * rectangle.Width * rectangle.Height);
+                byte[] expected = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset, 2 * rectangle.Width * rectangle.Height);
                 for (int row = 0; row < rectangle.Height; row++)
                 {
                     Assert.True(currentVram.AsSpan(2 * ((rectangle.Y + row) * 1024 + rectangle.X), 2 * rectangle.Width).SequenceEqual(expected.AsSpan(2 * row * rectangle.Width, 2 * rectangle.Width)));
@@ -200,12 +200,12 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
             {
                 cameraRegistered = true;
                 Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(textures.Animation));
-                bool playing = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]));
+                bool playing = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]));
                 if (playing)
                 {
-                    foreach (int slot in current.ReadFixturePresentation().NativeCamera.Order)
+                    foreach (int slot in current.ReadFixturePresentation().NativeCamera!.Order)
                     {
-                        NativeBattleCameraTask task = current.ReadFixturePresentation().NativeCamera.Tasks[slot]!;
+                        NativeBattleCameraTask task = current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!;
                         if (task.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]))
                         {
                             Assert.Contains(task.Channel, new byte[] { 0, 4 });
@@ -214,7 +214,7 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
                     }
                 }
                 cameraPlaying |= playing;
-                cameraViewChanged |= playing && JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778()) != JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
+                cameraViewChanged |= playing && JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
                 Mark("camera-registration", current, cold);
             }
         }
@@ -250,7 +250,7 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
             Assert.Equal((byte)0, pause35);
             uint bank = Dword(core, manager + 0x90);
             int currentFile1 = Assert.Single(effect.ResourcePointers, pointer => pointer.GlobalAddress == 0x2796870).ArenaOffset;
-            int workspaceRelative = BinaryPrimitives.ReadInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(checked(currentFile1 + 0x1C), 4));
+            int workspaceRelative = BinaryPrimitives.ReadInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked(currentFile1 + 0x1C), 4));
             Assert.Equal(0x58, workspaceRelative);
             Assert.Equal(checked(0x20DFAB8u + (uint)currentFile1 + (uint)workspaceRelative), bank);
             uint header = Dword(core, 0x279744C);
@@ -272,7 +272,7 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
                     break;
                 }
                 uint address = checked(bank + (uint)(entry & 0x7F) * 0x100);
-                byte[] bytes = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(checked((int)(address - 0x20DFAB8)), 0x100);
+                byte[] bytes = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(address - 0x20DFAB8)), 0x100);
                 uint pc = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
                 ushort commandTickC8 = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(0xC8));
                 Assert.Equal((ushort)128, commandTickC8);
@@ -292,9 +292,9 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
             {
                 Mark("programme-children", current, cold);
             }
-            int? cameraVariable22 = current.ReadFixturePresentation().NativeGraphics!.ActionContext is not null ? NativeBattleCameraGraphics.ReadVariable(current.ReadFixturePresentation().NativeGraphics, 22).RequireScalar() : null;
-            NativeBattlePrimitiveProcess process = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!;
-            observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics.Callback, Returned = effect.ReturnedDescriptor, Manager = manager, Pause35 = pause35, ProgrammeBank = bank, ProgrammeCapacity = capacity, Resource01Offset = currentFile1, WorkspaceRelative = workspaceRelative, CurrentPixel0Start = checked(0x20DFAB8u + (uint)currentFile1 + 0x858), ProgrammeEnd = checked(bank + (uint)capacity * 0x100), Entry = commonEntry, CommonPrefixStart = entryCommonCursor, CommonPrefixEnd = Dword(core, manager + 0x7C), CommonBank = process.PacketBank, CommonBuffer = process.PacketBuffer, CallbackEntryCommonAvailable = entryCommonAvailable, FrameEndResetCursor = process.ByteCursor, ArenaCursorStart = Dword(core, manager + 0xD4), ArenaCursorEnd = Dword(core, manager + 0xD8), PacketBase = Dword(core, manager + 0x88), Header = Dword(core, manager + 0xCC), Slots = slots, Commands = commands.Length, ArenaCommands = commands.Count(command => command.Packet.Bank == "20DFAB8"), CommonCommands = commands.Count(command => command.Packet.Bank != "20DFAB8"), IoActive = io.ActiveCount, SubmittedTextures = submittedTextures, CameraVariable0 = current.ReadFixturePresentation().NativeCamera?.Variables[0], CameraVariable22 = cameraVariable22, CameraScratch127 = current.ReadFixturePresentation().NativeCamera?.Scratch[0], CameraControlCursor = current.ReadFixturePresentation().NativeCamera?.ControlCursor, CrtRandom = current.NativeCrtRandom, Hp = afterHp, RetainedTextureUploads = textures.Slots.Where(slot => slot is not null).Select(slot => new { slot!.Kind, slot.ArenaOffset, slot.Rectangle, slot.Copy }).ToArray() });
+            int? cameraVariable22 = current.ReadFixturePresentation().NativeGraphics!.ActionContext is not null ? NativeBattleCameraGraphics.ReadVariable(current.ReadFixturePresentation().NativeGraphics!, 22).RequireScalar() : null;
+            NativeBattlePrimitiveProcess process = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
+            observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics!.Callback, Returned = effect.ReturnedDescriptor, Manager = manager, Pause35 = pause35, ProgrammeBank = bank, ProgrammeCapacity = capacity, Resource01Offset = currentFile1, WorkspaceRelative = workspaceRelative, CurrentPixel0Start = checked(0x20DFAB8u + (uint)currentFile1 + 0x858), ProgrammeEnd = checked(bank + (uint)capacity * 0x100), Entry = commonEntry, CommonPrefixStart = entryCommonCursor, CommonPrefixEnd = Dword(core, manager + 0x7C), CommonBank = process.PacketBank, CommonBuffer = process.PacketBuffer, CallbackEntryCommonAvailable = entryCommonAvailable, FrameEndResetCursor = process.ByteCursor, ArenaCursorStart = Dword(core, manager + 0xD4), ArenaCursorEnd = Dword(core, manager + 0xD8), PacketBase = Dword(core, manager + 0x88), Header = Dword(core, manager + 0xCC), Slots = slots, Commands = commands.Length, ArenaCommands = commands.Count(command => command.Packet.Bank == "20DFAB8"), CommonCommands = commands.Count(command => command.Packet.Bank != "20DFAB8"), IoActive = io.ActiveCount, SubmittedTextures = submittedTextures, CameraVariable0 = current.ReadFixturePresentation().NativeCamera?.Variables[0], CameraVariable22 = cameraVariable22, CameraScratch127 = current.ReadFixturePresentation().NativeCamera?.Scratch[0], CameraControlCursor = current.ReadFixturePresentation().NativeCamera?.ControlCursor, CrtRandom = current.NativeCrtRandom, Hp = afterHp, RetainedTextureUploads = textures.Slots.Where(slot => slot is not null).Select(slot => new { slot!.Kind, slot.ArenaOffset, slot.Rectangle, slot.Copy }).ToArray() });
         }
         else
         {
@@ -340,14 +340,14 @@ internal sealed class NativeBattleEffect241PresentationObserver(BattleSnapshot s
 
     internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot)
     {
-        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 241, ReturnedDescriptor: > 0 } || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 241, ReturnedDescriptor: > 0 } || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive)
         {
             return [];
         }
         uint manager = Dword(core, 0x27973EC);
         uint arenaStart = Dword(core, manager + 0xD4);
         uint arenaEnd = Dword(core, manager + 0xD8);
-        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!;
+        NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
         uint commonEnd = Dword(core, manager + 0x7C);
         Assert.InRange(commonEnd, 0u, checked((uint)process.CommonPacketWriteCapacity));
         int commonBase = process.PacketBuffer * process.CommonPacketNominalCapacity;

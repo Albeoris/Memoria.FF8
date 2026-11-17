@@ -47,7 +47,7 @@ internal sealed class NativeBattleEffect301PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect301State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect301!;
         NativeBattleEffect301Resources resources = effect.Binding.Effect301Resources!;
         int caster = ReadOriginalModelOperand(graphics.NativeBindings.CaptureAliases(graphics.ActorModels), effect.Parameters!.Source);
@@ -66,10 +66,10 @@ internal sealed class NativeBattleEffect301PresentationObserver
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            track |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
-            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            track |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect301-current-camera8-24", current, cold);
         }
         if (main is not null)
@@ -145,7 +145,7 @@ internal sealed class NativeBattleEffect301PresentationObserver
             if (age is >= 1 and <= 121)
             {
                 int offset = checked((int)(arena - 0x20DFAB8)) + MorphOffset;
-                var snapshot = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset, MorphLength);
+                var snapshot = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset, MorphLength);
                 bodyScratch |= snapshot.Known.Take(4).All(value => value) && snapshot.Known.Skip(MorphLength - 16).Take(4).All(value => value);
             }
             uint start = cursor >= arena + SecondPacketOffset ? arena + SecondPacketOffset : arena + FirstPacketOffset;

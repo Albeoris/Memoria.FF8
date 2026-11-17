@@ -29,7 +29,7 @@ public sealed class NativeBattleEffect312SourceAdmissionTests
         Assert.Null(graphics.OriginalEffect);
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
-        NativeBattleEffect312State state = Assert.IsType<NativeBattleEffect312State>(source.ReadFixturePresentation().NativeEffectMemory.Effect312);
+        NativeBattleEffect312State state = Assert.IsType<NativeBattleEffect312State>(source.ReadFixturePresentation().NativeEffectMemory!.Effect312);
         state.Validate();
         Assert.True(state.ColdSourceOrigin);
         Assert.False(state.StaticPacketBound);

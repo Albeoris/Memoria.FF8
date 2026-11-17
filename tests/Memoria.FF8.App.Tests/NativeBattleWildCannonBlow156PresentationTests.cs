@@ -50,8 +50,8 @@ public sealed class NativeBattleWildCannonBlow156PresentationTests
         Assert.Equal(234016, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeWildCannonBlow156Resources(), binding.WildCannonBlow156Resources);
         Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.RootBankStorage);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.WildCannonBlow156.ChildBankStorage);
-        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory.WildCannonBlow156.ReadDword(NativeBattleWildCannonBlow156Profile.CursorGlobal));
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.ChildBankStorage);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.WildCannonBlow156!.ReadDword(NativeBattleWildCannonBlow156Profile.CursorGlobal));
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

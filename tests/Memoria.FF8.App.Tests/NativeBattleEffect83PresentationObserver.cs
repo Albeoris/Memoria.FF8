@@ -33,8 +33,8 @@ internal sealed class NativeBattleEffect83PresentationObserver
         }
         NativeBattleEffect83State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect83!;
         state.Validate();
-        Assert.Equal((byte)138, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
-        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).ModelId4);
+        Assert.Equal((byte)138, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 4).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         if (effect.ReturnedDescriptor is > 0)
@@ -86,7 +86,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
             {
                 Assert.Equal(ViewAddress, state.ReadDword(0x25CA080));
                 Assert.Equal(ViewAddress, state.ReadDword(0x25CFA40));
-                Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.SharedEffectView2793E58);
+                Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectView2793E58);
             }
             if (state.ReadDword(NodeSourceAddress) == 1 && !relocated)
             {
@@ -112,7 +112,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
                 NativeBattleLogicalCommand[] privateCommands = commands.Where(command => command.Packet.Bank == "20DFAB8").ToArray();
                 if (privateCommands.Length != 0)
                 {
-                    NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
+                    NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
                     int end = checked((int)(state.ReadDword(0x25C9F74) - 0x20DFAB8u));
                     int linkedEnd = privateCommands.Max(command => command.Packet.ByteOffset + checked((1 + (int)(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(command.Packet.ByteOffset, 4)) >> 24)) * 4));
                     Assert.Equal(end, linkedEnd);
@@ -145,7 +145,7 @@ internal sealed class NativeBattleEffect83PresentationObserver
             detached = true;
             Mark("effect83-physical-banks-detached", current, cold);
         }
-        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25CA850), GeometryCursor = state.ReadWord(0x25CFA38), EmitterPass = state.ReadWord(0x25CFA3A), GeometryPass = state.ReadWord(0x25CFA28), Random = current.NativeCrtRandom, Relocated = relocated, OwnedModel = decodedModel });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25CA850), GeometryCursor = state.ReadWord(0x25CFA38), EmitterPass = state.ReadWord(0x25CFA3A), GeometryPass = state.ReadWord(0x25CFA28), Random = current.NativeCrtRandom, Relocated = relocated, OwnedModel = decodedModel });
     }
 
     public void Accept(BattleSnapshot completed, string output)

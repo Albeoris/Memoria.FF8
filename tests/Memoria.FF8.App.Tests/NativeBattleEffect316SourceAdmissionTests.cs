@@ -117,7 +117,7 @@ public sealed class NativeBattleEffect316SourceAdmissionTests
         ushort allocation = model.TextureAllocationMask!.Value;
         Assert.True(System.Numerics.BitOperations.PopCount((uint)allocation) >= 3);
         Assert.NotNull(source.ReadFixturePresentation().NativeModelTextureCache);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.Textures);
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.Textures);
         List<NativeBattleTextureCopy> copies = [];
         for (int variant = 0; variant <= 10; variant++)
         {

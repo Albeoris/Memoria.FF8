@@ -45,22 +45,22 @@ public sealed class NativeBattleDiablos325SecondStreamContinuationTests
                 Assert.Equal((ushort)(counter + 1), task.ReadWord(0xC));
                 Assert.Equal((uint)(counter - 8), task.ReadDword(0x268));
                 Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.Equal(4096u, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.PreviousFlash51EC);
                 Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group =>
                 {
                     Assert.Equal((short)4096, group.ColorDepth);
                     Assert.Equal(0, group.Flags & 2);
                 });
                 Assert.Equal(source.NativeCrtRandom, current.NativeCrtRandom);
-                Assert.Equal(new NativeBattleSummonStreamState(690162, 0x20DFAB8u + 0x1685C), current.ReadFixturePresentation().NativeEffectMemory.SummonStream);
+                Assert.Equal(new NativeBattleSummonStreamState(690162, 0x20DFAB8u + 0x1685C), current.ReadFixturePresentation().NativeEffectMemory!.SummonStream);
                 Assert.Equal((byte)1, task.ReadByte(0xF));
                 Assert.DoesNotContain(current.Events.Skip(before.Events.Length), item => item.NativeModuleSound is not null);
-                Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(0x4C14, 5));
+                Assert.Equal(new byte[] { 0, 0, 1, 0, 0 }, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(0x4C14, 5));
                 if (counter == 89)
                 {
                     Assert.Equal(new NativeBattleCameraPose(new(1734, -10908, -829), new(-1314, -2156, -5327), 288, 0), current.ReadFixturePresentation().NativeCamera!.CurrentPose);
                 }
-                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.ByteCursor });
+                rows.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Timeline = counter + 1, JsonSha256 = Hash(JsonSerializer.Serialize(current)), PixelsSha256 = Convert.ToHexString(SHA256.HashData(pixels)), CommonCursor = current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.ByteCursor });
             }
             BattleSnapshot boundary = first.CaptureForContinuation();
             File.WriteAllText(Path.Combine(output, "callback-proofs.json"), JsonSerializer.Serialize(rows));

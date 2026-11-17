@@ -46,7 +46,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect285State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect285!;
         NativeBattleEffect285Resources resources = effect.Binding.Effect285Resources!;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -146,7 +146,7 @@ internal sealed class NativeBattleEffect285PresentationObserver
             int offset = checked((int)(arena - 0x20DFAB8));
             if (processed is >= 48 and <= 133)
             {
-                var scratch = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
+                var scratch = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
                 morph |= Enumerable.Range(0, MorphLength / 8).All(index => scratch.Known.AsSpan(index * 8, 6).ToArray().All(value => value));
             }
             if (cursor >= arena + FirstPacketOffset && cursor <= arena + ThirdPacketOffset)
@@ -174,21 +174,21 @@ internal sealed class NativeBattleEffect285PresentationObserver
                 Assert.Equal(saved.Eye, camera.CurrentPose!.Eye);
                 Assert.Equal(saved.Target, camera.CurrentPose.Target);
                 Assert.Equal(saved.FocalLength, camera.FocalLength);
-                Assert.Equal(prior.ReadFixturePresentation().NativeCamera.CapturedEyePadding806, camera.EyePaddingF6);
-                Assert.Equal(prior.ReadFixturePresentation().NativeCamera.CapturedTargetPadding80E, camera.TargetPaddingFE);
-                Assert.Equal(prior.ReadFixturePresentation().NativeCamera.Roll, camera.Roll);
+                Assert.Equal(prior.ReadFixturePresentation().NativeCamera!.CapturedEyePadding806, camera.EyePaddingF6);
+                Assert.Equal(prior.ReadFixturePresentation().NativeCamera!.CapturedTargetPadding80E, camera.TargetPaddingFE);
+                Assert.Equal(prior.ReadFixturePresentation().NativeCamera!.Roll, camera.Roll);
                 cameraRestored = true;
                 mainRetired = true;
                 Mark("effect285-main-only-retirement-selective-saved-camera", current, cold);
             }
             if (mainRetired)
             {
-                byte[] header = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset + IoOffset, 5);
+                byte[] header = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + IoOffset, 5);
                 if (header[4] == 1 && header[0] == 0 && header[1] == 0)
                 {
                     byte[] file = resources.ReadFile(360).Data.ToArray();
-                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(offset + ThirdPacketOffset, file.Length));
-                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram());
+                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + ThirdPacketOffset, file.Length));
+                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram());
                     uploaded = true;
                     Mark("effect285-file360-type0-current-bytes-VRAM-complete", current, cold);
                 }

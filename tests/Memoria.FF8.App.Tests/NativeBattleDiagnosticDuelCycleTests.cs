@@ -67,7 +67,8 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
                     BattleNativeDuelChoice choice = RecreateGame.FindDiagnosticDuelChoice(rules, state.MoveSetId, 0, battle.GetNativeDuelChoices("party"));
                     cycle.BeginInput(choice, Observation());
                 }
-                battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60 + 1), state is null ? (ushort)0 : cycle.Buttons(state));
+                battle.SubmitNativeDuelInput(state is null ? (ushort)0 : cycle.Buttons(state));
+                battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60 + 1));
                 cycle.Observe(Observation(), false);
                 if (!coldChecked && cycle.Receipt.Inputs.Length > 0)
                 {

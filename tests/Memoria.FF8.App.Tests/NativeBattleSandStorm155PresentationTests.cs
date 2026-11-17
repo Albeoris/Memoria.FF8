@@ -50,8 +50,8 @@ public sealed class NativeBattleSandStorm155PresentationTests
         Assert.Equal(108064, binding.InitializerAsset!.Data.Length);
         Assert.Same(game.ReadNativeSandStorm155Resources(), binding.SandStorm155Resources);
         Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.SandStorm155!.RootBankStorage);
-        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory.SandStorm155.ChildBankStorage);
-        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory.SandStorm155.ReadDword(NativeBattleSandStorm155Profile.CursorGlobal));
+        Assert.NotNull(source.ReadFixturePresentation().NativeEffectMemory!.SandStorm155!.ChildBankStorage);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeEffectMemory!.SandStorm155!.ReadDword(NativeBattleSandStorm155Profile.CursorGlobal));
         NativeBattleContactPacket contact = source.NativeActionPackets!.ReadContact(new BattleContactOccurrence(0));
         Assert.Equal((byte)0, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, contact.Primary.Recipient));
         Assert.Equal((ushort)7, contact.Primary.Amount6);

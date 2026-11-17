@@ -97,9 +97,9 @@ internal sealed class NativeBattleEffect303PresentationObserver
             {
                 Mark("effect303-packet-bank-" + bank, current, cold);
             }
-            if (current.ReadFixturePresentation().NativeEffectMemory.EffectIo?.BaseOffset == NativeBattleEffect303Profile.IoOffset)
+            if (current.ReadFixturePresentation().NativeEffectMemory!.EffectIo?.BaseOffset == NativeBattleEffect303Profile.IoOffset)
             {
-                byte[] io = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(NativeBattleEffect303Profile.IoOffset, 16);
+                byte[] io = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(NativeBattleEffect303Profile.IoOffset, 16);
                 if (io[3] != 0)
                 {
                     queued = true;
@@ -119,14 +119,14 @@ internal sealed class NativeBattleEffect303PresentationObserver
         if (!target.Hidden && !target.Suspended && !target.Untargetable)
         {
             activated = true;
-            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics, 4));
+            Assert.Single(current.Events, item => item.Kind == "Activated" && item.ActorId == ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 4));
             Mark("effect303-native-recipient-activation", current, cold);
         }
         else
         {
             Assert.False(activated);
         }
-        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(NativeBattleEffect303Profile.CursorGlobal), target.Hidden, target.Suspended, target.Untargetable, Activated = activated });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, effect.ReturnedDescriptor, Cursor = state.ReadDword(NativeBattleEffect303Profile.CursorGlobal), target.Hidden, target.Suspended, target.Untargetable, Activated = activated });
     }
 
     public bool ActivationCompleted(BattleSnapshot current)

@@ -66,7 +66,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         foreach (NativeBattleLogicalCommand command in commands)
         {
             NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
-            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.ReadFixturePresentation().NativeGraphics.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
+            Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}, packet{command.Packet}, opcode{command.Opcode:X2}, identity{visual.Identity}.");
             Assert.True(visual.Identity.Generation > 0);
             Assert.NotEqual(0L, visual.Identity.ResourceGeneration);
             Assert.InRange(visual.CornerCount, 3, 4);
@@ -120,7 +120,7 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         }
         for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
         {
-            NativeBattleEffectTask now = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+            NativeBattleEffectTask now = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
             NativeBattleEffectTask before = prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
             if ((now.Flags0 & 1) != 0 && now.Kind == NativeBattleEffectKind.DamageText5069B0 && now.Frame == 1 && !((before.Flags0 & 1) != 0 && before.Kind == now.Kind && before.Frame == 1))
             {
@@ -162,8 +162,8 @@ internal sealed class NativeBattleGilgameshCaptureAssertions
         for (int group = 0; group < 4; group++)
         {
             Assert.Equal((byte)(source.ReadFixturePresentation().NativeStage!.Groups[group].Flags | 2), completed.ReadFixturePresentation().NativeStage!.Groups[group].Flags);
-            Assert.Equal((short)0, completed.ReadFixturePresentation().NativeStage.Groups[group].ColorDepth);
-            Assert.Equal(0u, completed.ReadFixturePresentation().NativeStage.Groups[group].ColorFlags);
+            Assert.Equal((short)0, completed.ReadFixturePresentation().NativeStage!.Groups[group].ColorDepth);
+            Assert.Equal(0u, completed.ReadFixturePresentation().NativeStage!.Groups[group].ColorFlags);
         }
     }
 }

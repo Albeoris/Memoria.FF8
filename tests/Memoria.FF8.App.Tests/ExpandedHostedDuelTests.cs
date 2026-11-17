@@ -118,7 +118,7 @@ public sealed class ExpandedHostedDuelTests
         BattleModelOwner owner = battle.ReadPresentationModelOwner(ZellId);
         Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(owner, out _));
         Assert.Equal(4, battle.Combatants.Count(actor => actor.IsPlayer));
-        Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer));
+        Assert.Equal(5, battle.Combatants.Count(actor => !actor.IsPlayer && actor.IsActive));
         BattleCombatant target = battle.Combatants.Where(IsAvailableEnemy).MaxBy(actor => actor.CurrentHp)!;
         zell.Atb = BattleSession.AtbMaximum;
         Assert.NotEqual((byte)0, battle.RefreshNativeLimit(ZellId));
@@ -138,8 +138,7 @@ public sealed class ExpandedHostedDuelTests
 
         if (timeout)
         {
-            BattleNativeDuelState widget = battle.GetNativeDuel(ZellId)!;
-            battle.AdvanceNativeDuelUi(widget.RemainingTimer);
+            AdvanceUntil(() => battle.GetNativeDuel(ZellId)?.Phase == BattleNativeDuelPhase.Finisher);
         }
         else
         {
@@ -180,17 +179,20 @@ public sealed class ExpandedHostedDuelTests
         world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: ZellId, TargetId: survivor.Id));
         AdvanceUntil(() => battle.Events.Skip(attack).Any(entry => entry is { Kind: "ActionComplete", ActorId: ZellId }));
 
-        bool ReadyForChoice() => battle.GetNativeDuel(ZellId) is { Phase: BattleNativeDuelPhase.Ready, Selection1D28DEF: 254 };
+        bool ReadyForChoice() => battle.GetNativeDuel(ZellId) is { Phase: BattleNativeDuelPhase.Ready, Selection1D28DEF: 254, WidgetPhase: 4 };
 
         void PostChoice(BattleNativeDuelChoice choice)
         {
             Assert.Contains(battle.GetNativeDuelChoices(ZellId), current => current.MoveSetId == choice.MoveSetId);
+            int previous = receipts.Count;
             foreach (ushort button in choice.Buttons)
             {
-                battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(166667), button);
-                battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(166667), 0);
+                battle.SubmitNativeDuelInput(button);
+                AdvanceOne();
+                battle.SubmitNativeDuelInput(0);
             }
-            Assert.Equal(choice.MoveSetId, battle.GetNativeDuel(ZellId)!.Selection1D28DEF);
+            AdvanceUntil(() => receipts.Skip(previous).OfType<NativeBattleDuelSelectionReached>().Any());
+            Assert.Equal(choice.MoveSetId, Assert.Single(receipts.Skip(previous).OfType<NativeBattleDuelSelectionReached>()).Frame.Widget.Selection1D28DEF);
             Assert.DoesNotContain(battle.QueuedActions, command => command.ActorId == ZellId);
         }
 
@@ -200,22 +202,27 @@ public sealed class ExpandedHostedDuelTests
             Assert.DoesNotContain(battle.Events.Skip(start), entry => entry is { Kind: "ActionComplete", ActorId: ZellId });
         }
 
+        void AdvanceOne()
+        {
+            world.ApplyBattleInput(new(BattleInputKind.Tick));
+            Assert.Same(process, battle.Presentation);
+            if (process.LastStepActionToken is long token && headers.All(header => header.Token != token) &&
+                process.Graphics is { ActionGraphics: { Header: { } reference } action } graphics && action.ResolveActor(graphics) == owner)
+            {
+                NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(reference);
+                headers.Add((token, header.Command, header.Action));
+            }
+            if (process.LastFrameServices is { } frame)
+            {
+                receipts.AddRange(frame.ReadOrderedReceipts());
+            }
+        }
+
         void AdvanceUntil(Func<bool> expected)
         {
             for (int callback = 0; callback < CallbackBudget && !expected(); callback++)
             {
-                world.ApplyBattleInput(new(BattleInputKind.Tick));
-                Assert.Same(process, battle.Presentation);
-                if (process.LastStepActionToken is long token && headers.All(header => header.Token != token) &&
-                    process.Graphics is { ActionGraphics: { Header: { } reference } action } graphics && action.ResolveActor(graphics) == owner)
-                {
-                    NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(reference);
-                    headers.Add((token, header.Command, header.Action));
-                }
-                if (process.LastFrameServices is { } frame)
-                {
-                    receipts.AddRange(frame.ReadOrderedReceipts());
-                }
+                AdvanceOne();
             }
             if (!expected())
             {

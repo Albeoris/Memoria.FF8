@@ -186,7 +186,7 @@ public sealed class EncounterNativeModelAllocationTests
 
     private static bool Drained(BattleSession battle)
     {
-        return battle.NativeActionPackets.ActionCount == 0 && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && !battle.NativeCommandBanks.BoundCommands.Any() && battle.Presentation?.Graphics is { OriginalEffect: null, ActionActorId: null } && battle.Presentation!.Graphics.Descriptors.Queue.IsEmpty && battle.Presentation!.Graphics.Descriptors.Tasks.All(task => (task.Flags & 1) == 0 || task.Kind == NativeBattleDescriptorTaskKind.Pump500CC0);
+        return battle.NativeActionPackets.ActionCount == 0 && battle.ActiveAction is null && battle.QueuedActions.Count == 0 && battle.Presentation?.Graphics is { OriginalEffect: null, ActionActorId: null } && battle.Presentation!.Graphics.Descriptors.Queue.IsEmpty && battle.Presentation!.Graphics.Descriptors.Tasks.All(task => (task.Flags & 1) == 0 || task.Kind == NativeBattleDescriptorTaskKind.Pump500CC0);
     }
 
     private static void TickUntil(BattleSession battle, Func<bool> complete, string boundary)
@@ -197,7 +197,7 @@ public sealed class EncounterNativeModelAllocationTests
         }
         if (!complete())
         {
-            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).ActionActorId, Effect = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, Bound = battle.NativeCommandBanks.BoundCommands, DescriptorQueue = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Queue, Tasks = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
+            string details = JsonSerializer.Serialize(new { Actors = battle.Combatants.Select(actor => new { actor.Id, actor.IsActive, actor.IsBusy, actor.Atb }), Models = ReadOriginalModelCells(battle.Presentation!.Graphics).Select(model => new { model.Flags0, model.Kind5, model.Phase6, model.EffectCounter97 }), Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).ActionActorId, Effect = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).OriginalEffect is not null, Headers = battle.NativeActionPackets.ActionCount, battle.ActiveAction, Queued = battle.QueuedActions, DescriptorQueue = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Queue, Tasks = Assert.IsType<NativeBattleGraphicsState>(battle.Presentation?.Graphics).Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.Flags, task.State }) });
             Assert.Fail("Installed graphical integration did not complete: " + boundary + "; " + details);
         }
     }

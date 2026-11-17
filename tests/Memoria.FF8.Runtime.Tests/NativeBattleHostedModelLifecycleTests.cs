@@ -238,7 +238,7 @@ public sealed class NativeBattleHostedModelLifecycleTests
             BindPresentationResources(session, session.ReadBattlePresentationRoster());
         }
         Set(session, nameof(BattleSession.NativeEffectMemory), NativeBattleEffectMemory.FromColdProcess() with { ModelColorOverrides = NativeBattleModelColorOverrides.FromColdProcess() });
-        Set(session, nameof(BattleSession.NativeStage), NativeBattleStageState.FromColdProcess());
+        Set(session, nameof(BattlePresentationProcess.NativeStage), NativeBattleStageState.FromColdProcess());
         return session;
     }
 

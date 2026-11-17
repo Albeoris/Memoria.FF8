@@ -17,7 +17,7 @@ public sealed partial class BattleSession
         public bool PrimaryCommitted { get; set; }
         public bool DiagnosticPreliminary { get; init; }
         public (int Before, int After)? DiagnosticHp { get; set; }
-        public BattleDiagnosticCounterPrimary? DiagnosticPrimary { get; set; }
+        public DiagnosticCounterContactFacts? DiagnosticPrimary { get; set; }
         public (ushort Saved, uint Battle)? PrimaryStatusSnapshot { get; set; }
         public byte AttackClass { get; set; } = (byte)(action.AttackFlags & 3);
         public BattleModelOwner? CoverSource { get; } = coverSource;

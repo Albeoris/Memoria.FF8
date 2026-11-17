@@ -11,7 +11,7 @@ internal sealed class NativeBattleHeavyAllocatedCaptureAssertions(ushort selecte
 
     internal void Observe(BattleSnapshot prior, BattleSnapshot current)
     {
-        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } effect || effect.Binding.Effect != selectedEffect || current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive || !(effect.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
+        if (current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } effect || effect.Binding.Effect != selectedEffect || current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive || !(effect.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.ReturnedDescriptor is > 0))
         {
             return;
         }

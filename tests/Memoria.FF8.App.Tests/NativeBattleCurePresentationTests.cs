@@ -193,7 +193,7 @@ public sealed class NativeBattleCurePresentationTests
         audio.Update(BattleSession.Restore(battle.Capture()));
         Assert.Equal(heardBeforeRestore, heard.Count);
         PublishEvidence(evidence, evidenceId + "-peak", peak!, peakPixels);
-        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.ReadFixturePresentation().NativeGraphics!.Callback, peak.Frame });
+        PublishJson(evidence, evidenceId + "-peak-details", new { ChangedRgbPixels = peakChangedPixels, Callback = peak!.ReadFixturePresentation().NativeGraphics!.Callback, peak!.Frame });
         PublishEvidence(evidence, evidenceId + "-after", battle.Capture(), scene.Render(battle, 320, 224));
     }
 

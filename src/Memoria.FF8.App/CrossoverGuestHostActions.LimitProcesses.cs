@@ -37,6 +37,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     private byte sourceBattleFlags;
     private ushort processButtons;
     private ushort previousProcessButtons;
+    private readonly Queue<ushort> pendingDuelPulses = new();
+    private long lastDuelInputTick = -1;
     private long processClock;
     private long processRemainder;
 
@@ -78,7 +80,13 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     public void SetProcessButtons(ushort buttons)
     {
+        ushort pulse = (ushort)(buttons & ~processButtons);
         processButtons = buttons;
+        if (pulse != 0 && !processCancelling && mixedDuel is { Phase: BattleNativeDuelPhase.Ready, WidgetPhase: 4 } && lastDuelInputTick != host.Tick)
+        {
+            pendingDuelPulses.Enqueue(pulse);
+            lastDuelInputTick = host.Tick;
+        }
     }
 
     private IReadOnlyList<CrossoverGuestAbility> ProcessAbilities(IReadOnlyList<CrossoverGuestAbility> original)
@@ -296,13 +304,12 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
 
     public void AdvanceProcess(long hostTick)
     {
-        if (!mixedProcessActive || processCancelling && mixedShot?.Widget is null)
+        if (!mixedProcessActive || processCancelling && mixedShot?.Widget is null && mixedDuel is null)
         {
             return;
         }
         long before = processClock;
-        long elapsed = hostTick - before;
-        if (elapsed < 0)
+        if (hostTick < before)
         {
             throw new InvalidDataException("The native Limit input clock moved backwards.");
         }
@@ -310,82 +317,81 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         if (mixedShot is not null)
         {
             AdvanceProcessShot(before, hostTick);
-            return;
         }
-        processRemainder += elapsed * 60;
-        int frames = checked((int)(processRemainder / Ff7BattleSession.LogicUpdatesPerSecond));
-        processRemainder %= Ff7BattleSession.LogicUpdatesPerSecond;
-        ushort pulse = (ushort)(processButtons & ~previousProcessButtons);
-        if (frames != 0)
+        else if (mixedDuel is { Phase: not BattleNativeDuelPhase.Opening })
         {
-            previousProcessButtons = processButtons;
+            AdvanceProcessDuel(before, hostTick);
         }
-        for (int frame = 0; frame < frames; frame++)
+    }
+
+    private long AdvanceSourceWidgetClock(long before, long now)
+    {
+        TimeSpan elapsed = TimeSpan.FromTicks(HostTime(now) - HostTime(before));
+        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(processRemainder / 2, (processRemainder & 1) != 0, elapsed);
+        processRemainder = 2 * clock.Subticks + (clock.HalfSubtick ? 1 : 0);
+        return clock.Callbacks;
+    }
+
+    private void AdvanceProcessDuel(long before, long now)
+    {
+        long callbacks = AdvanceSourceWidgetClock(before, now);
+        const int polls = BattlePresentationTiming.NativeUiServicePollsPerCallback;
+        bool automatic = (limitOptions!.Value & 2) != 0;
+        for (long callback = 0; callback < callbacks; callback++)
         {
-            if (mixedDuel is { } duel)
+            for (int poll = 0; poll < polls && mixedDuel is { WidgetClosed: false } duel; poll++)
             {
-                mixedDuel = duel with { Ui = (duel.Ui ?? new(BattleTimedInputUiPhase.Active)).Advance(60) };
-                if (duel.Phase != BattleNativeDuelPhase.Ready)
-                {
-                    continue;
-                }
-                duel = mixedDuel with { RemainingTimer = (short)(duel.RemainingTimer - 1), AutomaticCountdown = (short)(duel.AutomaticCountdown - 1) };
-                mixedDuel = duel;
-                if (duel.RemainingTimer <= 0)
-                {
-                    mixedDuel = duel with { Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
-                    QueueProcessAction(NativeBattleDuelRules.Control(65532, 0), true);
-                    continue;
-                }
                 IReadOnlyList<BattleNativeDuelChoice> choices = DuelProcessChoices;
-                BattleNativeDuelChoice? selected = null;
-                if ((limitOptions!.Value & 2) != 0)
+                ushort rawPulse = pendingDuelPulses.TryDequeue(out ushort pending) ? pending : (ushort)0;
+                BattleNativeDuelState next = NativeBattleDuelRules.AdvanceWidget(duel, poll == polls - 1, rawPulse, automatic, choices, DrawDuelUiRandom);
+                if (!processCancelling && duel.Selection1D28DEF == 254 && next.Selection1D28DEF is byte selection && selection != 254)
                 {
-                    if (duel.AutomaticCountdown == 30)
+                    if (selection == 255)
                     {
-                        BattleNativeDuelChoice[] learned = choices.Where(choice => choice.Learned).ToArray();
-                        selected = choices[0];
-                        if (learned.Length != 0)
-                        {
-                            limitUiRandom = limitUiRandom!.Draw(out ushort roll);
-                            int index = roll / (0x8000 / learned.Length);
-                            if (index >= learned.Length)
-                            {
-                                throw new NotSupportedException("Native automatic Duel selected an uninitialized fourth stack entry.");
-                            }
-                            selected = learned[index];
-                        }
-                    }
-                }
-                else if (frame == 0 && pulse != 0)
-                {
-                    ushort[] ring = duel.InputRing.ToArray();
-                    byte cursor = (byte)((duel.InputCursor + 1) & 7);
-                    ring[cursor] = pulse;
-                    mixedDuel = duel with { InputRing = ring.ToImmutableArray(), InputCursor = cursor };
-                    selected = choices.FirstOrDefault(choice => NativeBattleDuelRules.Matches(choice, mixedDuel.InputRing, cursor));
-                }
-                if (selected is not null)
-                {
-                    BattleNativeAction selectedAction = assets.NativeActions.Single(action => action.Command == (selected.Finisher ? 239 : 241) && action.ActionId == selected.ActionId);
-                    if (ProcessActionUnsupportedReason(selectedAction) is { } unsupported)
-                    {
-                        ProcessFailure = unsupported;
-                        continue;
-                    }
-                    mixedDuel = mixedDuel! with { MoveSetId = selected.MoveSetId, Phase = selected.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect };
-                    if (selected.Finisher)
-                    {
-                        pendingDuelFinisher = selected.ActionId;
-                        QueueProcessAction(NativeBattleDuelRules.Control(65530, selected.ActionId), true);
+                        QueueProcessAction(NativeBattleDuelRules.Control(65532, 0), true);
                     }
                     else
                     {
-                        SelectProcessAction(241, selected.ActionId);
+                        BattleNativeDuelChoice choice = choices.First(candidate => candidate.MoveSetId == selection);
+                        if (!TryQueueProcessDuelChoice(choice))
+                        {
+                            next = next with { MoveSetId = duel.MoveSetId, Selection1D28DEF = 254, Phase = BattleNativeDuelPhase.Ready, WidgetPhase = 4, WidgetRevealQ12 = duel.WidgetRevealQ12, InputRing = duel.InputRing, InputCursor = duel.InputCursor, Ui = duel.Ui };
+                        }
                     }
+                }
+                mixedDuel = next;
+                if (next.WidgetClosed && processAction is null)
+                {
+                    CancelProcess();
                 }
             }
         }
+    }
+
+    private ushort DrawDuelUiRandom()
+    {
+        limitUiRandom = limitUiRandom!.Draw(out ushort roll);
+        return roll;
+    }
+
+    private bool TryQueueProcessDuelChoice(BattleNativeDuelChoice choice)
+    {
+        BattleNativeAction action = assets.NativeActions.Single(candidate => candidate.Command == (choice.Finisher ? 239 : 241) && candidate.ActionId == choice.ActionId);
+        if (ProcessActionUnsupportedReason(action) is { } unsupported)
+        {
+            ProcessFailure = unsupported;
+            return false;
+        }
+        if (choice.Finisher)
+        {
+            pendingDuelFinisher = choice.ActionId;
+            QueueProcessAction(NativeBattleDuelRules.Control(65530, choice.ActionId), true);
+        }
+        else
+        {
+            QueueProcessAction(action);
+        }
+        return true;
     }
 
     public void TriggerProcessShot()
@@ -402,10 +408,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         {
             return;
         }
-        TimeSpan elapsed = TimeSpan.FromTicks(HostTime(now) - HostTime(before));
-        BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(processRemainder / 2, (processRemainder & 1) != 0, elapsed);
-        processRemainder = 2 * clock.Subticks + (clock.HalfSubtick ? 1 : 0);
-        if (clock.Callbacks == 0)
+        long callbacks = AdvanceSourceWidgetClock(before, now);
+        if (callbacks == 0)
         {
             return;
         }
@@ -417,7 +421,7 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         shotFireRequested = false;
         shotCloseRequested = false;
         const int polls = BattlePresentationTiming.NativeUiServicePollsPerCallback;
-        for (long callback = 0; callback < clock.Callbacks; callback++)
+        for (long callback = 0; callback < callbacks; callback++)
         {
             for (int poll = 0; poll < polls && mixedShot is { Widget: { Closed: false } widget } shot; poll++)
             {
@@ -637,7 +641,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             processActionQueued = false;
             if (action.Command == 238 || action.ActionId == 65532)
             {
-                CancelProcess();
+                if (mixedDuel is null || mixedDuel.WidgetClosed)
+                {
+                    CancelProcess();
+                }
             }
             else
             {
@@ -662,7 +669,10 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
             }
             else if (action.ActionId == 65532 || action.Command == 239)
             {
-                CancelProcess();
+                if (duel.WidgetClosed)
+                {
+                    CancelProcess();
+                }
             }
             else if (processAction is null && duel.Phase != BattleNativeDuelPhase.Ready)
             {
@@ -728,7 +738,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         ProcessFailure = null;
         if (mixedDuel is { } duel)
         {
-            mixedDuel = duel with { Phase = BattleNativeDuelPhase.Finisher, Ui = new(BattleTimedInputUiPhase.Closing) };
+            mixedDuel = NativeBattleDuelRules.RequestWidgetClose(duel);
+            pendingDuelPulses.Clear();
         }
         if (mixedShot is { } shot)
         {
@@ -768,6 +779,8 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
         mixedProcessActive = false;
         processCancelling = false;
         mixedDuel = null;
+        pendingDuelPulses.Clear();
+        lastDuelInputTick = -1;
         mixedShot = null;
         acceptedShotDebits = 0;
         shotFireRequested = false;
@@ -795,7 +808,15 @@ internal sealed partial class CrossoverGuestHostActions : IFf7BattleGuestProcess
     {
         if (mixedDuel is { Phase: BattleNativeDuelPhase.Opening or BattleNativeDuelPhase.AwaitingEffect } duel && processAction?.Command == 241 && processAction.ActionId <= byte.MaxValue)
         {
-            mixedDuel = duel with { Phase = BattleNativeDuelPhase.Ready, InputRing = ImmutableArray.Create<ushort>(0, 0, 0, 0, 0, 0, 0, 0), InputCursor = 0, AutomaticCountdown = 120, PendingPulse = 0, Ui = new(BattleTimedInputUiPhase.Active) };
+            if (duel.Phase == BattleNativeDuelPhase.Opening)
+            {
+                BattlePresentationCallbackStep clock = BattlePresentationTiming.Advance(0, false, TimeSpan.FromTicks(HostTime(host.Tick)));
+                processClock = host.Tick;
+                processRemainder = 2 * clock.Subticks + (clock.HalfSubtick ? 1 : 0);
+            }
+            pendingDuelPulses.Clear();
+            lastDuelInputTick = -1;
+            mixedDuel = NativeBattleDuelRules.AcknowledgeWidgetReady(duel);
         }
     }
 

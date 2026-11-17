@@ -46,15 +46,13 @@ public sealed class NativeBattleGaugeRegistrationPresentationTests
         Assert.Equal(consumedFlags, retained.NativeParticipant!.NativeCombatantFlags);
         Assert.Equal(new NativeBattlePendingReaction(2, 0), retained.NativeParticipant.PendingReaction);
         Assert.Equal(gauge.Maximum, retained.NativeAtb!.Current);
-        Assert.Empty(after.NativeCommandBanks!.Banks[0].LogicalCommands.OfType<BattleAttackCommand>());
-        BattleAttackCommand command = Assert.Single(after.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>());
-        Assert.Equal(new BattleNativeCallback(3, 1), command.NativeCallback);
-        Assert.Equal(1, after.NativeCommandBanks.CountActor(3));
+        BattleAttackCommand command = Assert.Single(after.QueuedActions);
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference(enemy.Id), 1), command.ExpandedAiCallback);
         BattleSession restored = Restore(after);
         first.AdvanceNativeGraphicsPresentation(callbackStep);
         restored.AdvanceNativeGraphicsPresentation(callbackStep);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        Assert.Single(first.NativeCommandBanks.Banks[2].LogicalCommands.OfType<BattleAttackCommand>());
+        Assert.Single(first.QueuedActions);
         Assert.Equal(new NativeBattlePendingReaction(2, 0), first.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.PendingReaction);
     }
 

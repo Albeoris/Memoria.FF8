@@ -7,6 +7,11 @@ public sealed record BattleNativeDuelChoice(byte MoveSetId, byte ActionId, strin
 
 public static class NativeBattleDuelRules
 {
+    public static int DisplayHundredths(short remainingTimer)
+    {
+        return Math.Max(0, (int)remainingTimer) * 100 / 60;
+    }
+
     public static BattleNativeDuelState AcknowledgeWidgetReady(BattleNativeDuelState state)
     {
         return state with

@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect345FollowingActionTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect345PresentationTests.Released(source));
         Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
-        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera!.Order);
         NativeBattleEffect345State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect345!;
         Assert.True(warm.OwnedModelSourceBound);
         Assert.Equal(2, warm.NodeData!.Count);

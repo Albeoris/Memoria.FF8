@@ -75,7 +75,7 @@ public sealed class NativeLimitGraphicsCallbackTests
     {
         BattleSession session = Fixture();
         Dictionary<string, BattleNativeDuelState> duels = Field<Dictionary<string, BattleNativeDuelState>>(session, "nativeDuelProcesses");
-        BattleNativeDuelState before = new(2, Target, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8], InputCursor = 5, AutomaticCountdown = 30, PreviousButtons = 8, PendingPulse = 4, UiSubframeTicks = 91 };
+        BattleNativeDuelState before = new(2, Target, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8], InputCursor = 5, AutomaticCountdown = 30, PreviousButtons = 8, PendingPulse = 4 };
         duels.Add("party", before);
 
         Invoke(session, Graphics(), callback);
@@ -100,7 +100,7 @@ public sealed class NativeLimitGraphicsCallbackTests
         BattleNativeDuelState duel = new(2, Target, 400, 279, BattleNativeDuelPhase.AwaitingEffect) { InputRing = [1, 2, 3, 4, 5, 6, 7, 8] };
         shots.Add("party", shot);
         duels.Add("party", duel);
-        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, 0, Target, BattleAbility.LimitBreak, 0);
+        BattleActionPresentation presentation = new("party", "enemy", BattleActionPhase.Recovery, Target, BattleAbility.LimitBreak, 0);
 
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeShotAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.ShotEffect }])!);
         Assert.True((bool)typeof(BattleSession).GetMethod("CompleteNativeDuelAction", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session, [presentation with { NativeLimitCallback = NativeLimitCallback.DuelEffect }])!);

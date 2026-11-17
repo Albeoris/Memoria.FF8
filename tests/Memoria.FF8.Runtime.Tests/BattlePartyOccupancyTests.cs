@@ -32,6 +32,7 @@ public sealed class BattlePartyOccupancyTests
     public void Replaced_rows_keep_their_copyback_and_only_active_occupants_get_shared_experience()
     {
         NativeCharacterVitals vitals = MagicSystemFixture.Create() with { AdditionalCombatParty = [3] };
+        vitals = vitals with { Definitions = vitals.Definitions with { Characters = vitals.Definitions.Characters.Select(curve => curve with { HitPointLinear = 50, HitPointDivisor = 100 }).ToImmutableArray() } };
         BattleDefinition definition = Definition(vitals);
         string hash = new('0', 64);
         BattleEnemyDefeat defeat = new(0, 5, BattleDefeatCredit.Unattributed, null, null, false, -1);

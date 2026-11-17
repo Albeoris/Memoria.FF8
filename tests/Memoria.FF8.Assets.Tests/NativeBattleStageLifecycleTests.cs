@@ -62,7 +62,7 @@ public sealed class NativeBattleStageLifecycleTests
         if (source.NativeSource.Callback!.UpdateTexture0 == true)
         {
             Assert.Equal(NativeBattleStageTextureMotion.Advance50CB20(source.NativeSource.TextureAnimations, 0).Source.ToArray(), battle.Presentation!.Stage.TextureAnimations!.Value.ToArray());
-            BattleSession frozenTexture = BattleSession.Restore(boundary.WithFixturePresentation(facts => facts with { NativeStage = boundary.ReadFixturePresentation().NativeStage! with { Flags = boundary.ReadFixturePresentation().NativeStage.Flags | 2 } }));
+            BattleSession frozenTexture = BattleSession.Restore(boundary.WithFixturePresentation(facts => facts with { NativeStage = boundary.ReadFixturePresentation().NativeStage! with { Flags = boundary.ReadFixturePresentation().NativeStage!.Flags | 2 } }));
             frozenTexture.Tick();
             Assert.Equal(source.NativeSource.TextureAnimations.ToArray(), frozenTexture.Presentation!.Stage.TextureAnimations!.Value.ToArray());
             Assert.Equal(source.NativeSource.RotationSpeed, frozenTexture.Presentation!.Stage.Rotation);

@@ -32,9 +32,9 @@ internal sealed class NativeBattleEffect64PresentationObserver
         NativeBattleEffect64State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect64!;
         NativeBattleEffect64Resources resources = effect.Binding.Effect64Resources!;
         state.Validate();
-        Assert.Equal((byte)140, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).ModelId4);
+        Assert.Equal((byte)140, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 5).ModelId4);
         Assert.Equal((ushort)1448, current.ReadFixturePresentation().NativeModelCpuResources!.ScratchMaximum);
-        if (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).Sequence == 16)
+        if (ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 5).Sequence == 16)
         {
             sequence16 = true;
             Mark("effect64-sequence16-native-handshake", current, cold);
@@ -88,7 +88,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
             currentBody = true;
             Mark("effect64-current-COMMON-body", current, cold);
         }
-        CurrentCommands = PrivateCommands(current).Concat(current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => body.Contains(command.Packet))).Distinct().ToArray();
+        CurrentCommands = PrivateCommands(current).Concat(current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => body.Contains(command.Packet))).Distinct().ToArray();
         foreach (NativeBattleLogicalCommand command in CurrentCommands)
         {
             opcodes.Add(command.Opcode);
@@ -113,11 +113,11 @@ internal sealed class NativeBattleEffect64PresentationObserver
             Assert.Empty(effect.Pools);
             Assert.NotNull(state.RootBankStorage);
             Assert.Equal(ScriptCount, state.ScriptSources.Count);
-            Assert.Equal(3u, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).SequenceState!.MeshMask124);
+            Assert.Equal(3u, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 5).SequenceState!.MeshMask124);
             Assert.All(ReadMeshes(current).SelectMany(mesh => mesh.Polygons), face => Assert.Equal(0, face.Bytes[15] & 0x80));
             Mark("effect64-cleanup-retained-banks-and-scripts", current, cold);
         }
-        observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics.Callback, Age = age, Sequence = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).Sequence, Flags = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 5).Flags0, Cursor = state.ReadDword(CursorGlobal), Scripts = state.ScriptSources.Count, CommonBodyPackets = body.Count, OwnedPackets = CurrentCommands.Length });
+        observations.Add(new { current.Frame, Callback = current.ReadFixturePresentation().NativeGraphics!.Callback, Age = age, Sequence = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 5).Sequence, Flags = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 5).Flags0, Cursor = state.ReadDword(CursorGlobal), Scripts = state.ScriptSources.Count, CommonBodyPackets = body.Count, OwnedPackets = CurrentCommands.Length });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -230,7 +230,7 @@ internal sealed class NativeBattleEffect64PresentationObserver
         return NativeBattleRawGeometryReader.Read((offset, length) => NativeBattleModelEnemyHeap.Read(cpu, current.ReadFixturePresentation().NativeFileStaging!, source with { Offset = checked(source.Offset + offset) }, length), bones);
     }
 
-    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
+    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
 
     private static IEnumerable<NativeBattleModulePoolTask> Live(NativeBattleEffectTaskPool pool)
     {

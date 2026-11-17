@@ -147,7 +147,7 @@ public sealed class NativeBattleThundaga105PresentationTests
                         }
                     }
                 }
-                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame;
+                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame;
                 if (primitive is not null)
                 {
                     privatePackets += primitive.LastCommands.Count(command => command.Command.Packet.Bank == "20DFAB8");
@@ -166,7 +166,7 @@ public sealed class NativeBattleThundaga105PresentationTests
                     Assert.Equal(0xE50802C0u, Dword(memory.Read(0x4C, 4)));
                     captureStatics = true;
                     byte[] beforeVram = prior.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
-                    byte[] afterVram = current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram();
+                    byte[] afterVram = current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram();
                     for (int y = 256; y < 384; y++)
                     {
                         for (int x = 704; x < 832; x++)
@@ -187,7 +187,7 @@ public sealed class NativeBattleThundaga105PresentationTests
                     byte[] rgba = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(rgba, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name + "-after", current, rgba);
-                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, Convert.ToHexString(SHA256.HashData(rgba))));
                     requested.Remove(name!);
                 }
             }

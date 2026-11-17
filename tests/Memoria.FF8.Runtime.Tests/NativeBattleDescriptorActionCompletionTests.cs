@@ -80,7 +80,6 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         Property(nameof(BattlePresentationProcess.NativeGraphics)).SetValue(fixture.Session, fixture.Graphics with { ActionCallbackReady = true });
         Method("DispatchAction").Invoke(fixture.Session, null);
         Assert.Equal(BattleActionPhase.Windup, fixture.Session.ActiveAction!.Phase);
-        Assert.Equal(1, fixture.Session.ActiveAction.RemainingFrames);
         Assert.DoesNotContain(fixture.Session.Events, item => item.Kind == "ActionComplete");
     }
 
@@ -167,7 +166,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         NativeBattleGraphicsState Prepare(BattleSession session, NativeBattleGraphicsState graphics)
         {
             Property(nameof(BattlePresentationProcess.NativeCamera)).SetValue(session, NativeBattleCameraState.Initialize());
-            Property(nameof(BattleSession.NativeFileIo)).SetValue(session, NativeBattleFileIoState.FromColdProcess());
+            Property(nameof(BattlePresentationProcess.NativeFileIo)).SetValue(session, NativeBattleFileIoState.FromColdProcess());
             Property(nameof(BattleSession.NativeEffectMemory)).SetValue(session, NativeBattleEffectMemory.FromColdProcess() with { ReturnedTaskPointer1D96AAC = fault == "returned-task" ? 1u : 0u, SoundPublishedFlags = 0 });
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(session, 20L);
             if (fault == "no-ack")
@@ -333,7 +332,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
             Field("nativeActionPackets").SetValue(captured.Session, laterPackets);
             Method("ObserveDiagnosticPreparedHeader").Invoke(captured.Session, [new BattleActionHeaderReference(0)]);
             Property(nameof(BattleSession.NativeHostCallbacks)).SetValue(captured.Session, 40L);
-            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
+            SetAction(captured.Session, new("party", "enemy", BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 1, NativeGraphic = new(1) });
             NativeBattleDescriptorState laterDescriptors = capturedResult.Descriptors.RemoveFirst().Enqueue(10, 128, 0x47DDA0).State;
             NativeBattleGraphicsState laterResult = Complete(captured.Session, capturedResult with { Descriptors = laterDescriptors }, 0x47DDA0);
             Assert.Null(captured.Session.ActiveAction);
@@ -432,7 +431,7 @@ public sealed class NativeBattleDescriptorActionCompletionTests
         (packets, _) = packets.Publish(1);
         Field("nativeActionPackets").SetValue(session, packets);
         Field("nativeActionScratch").SetValue(session, session.Capture().NativeActionScratch! with { EventActorB0F = 0, EventLane = 2, Command = 2 });
-        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
+        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.EnemyAbility, 1) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = 252, NativeGraphic = new(1) };
         SetAction(session, action);
         typeof(BattleCombatant).GetProperty(nameof(BattleCombatant.IsBusy))!.SetValue(session.Combatants[0], true);
         return (session, new(new BattleActorModels([]), NativeBattleModelBoundary.FromRetainedMemory(null), 0, 0, OriginalEffects()) { ActionCallbackReady = false, ActionActorId = "party" }, action);

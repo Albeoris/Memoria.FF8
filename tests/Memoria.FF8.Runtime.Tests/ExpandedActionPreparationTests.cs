@@ -159,7 +159,7 @@ public sealed class ExpandedActionPreparationTests
         BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         BattleModelOwner source = owner.ReadPresentationModelOwner("enemy");
         BattleModelOwner target = owner.ReadPresentationModelOwner("caster");
-        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, BattleTargetRequest.None, BattleAbility.EnemyAbility, 1)
+        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, BattleTargetRequest.None, BattleAbility.EnemyAbility, 1)
         {
             NativeGraphic = new(110),
             NativeAiCallbackStage = 2,
@@ -213,7 +213,7 @@ public sealed class ExpandedActionPreparationTests
         BattleModelRoster roster = owner.ReadBattlePresentationRoster();
         BattleModelOwner casterModel = owner.ReadPresentationModelOwner("caster");
         BattleTargetRequest targeting = new(new BattleTargetSelection.Explicit([new BattlePartyActorReference("caster")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
-        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, 1, targeting, BattleAbility.Magic, 1);
+        BattleActionPresentation command = new("enemy", "caster", BattleActionPhase.Recovery, targeting, BattleAbility.Magic, 1);
         NativeBattleContactPacket packet = new(new(casterModel, 0, 0, 0, 0, 0, 0), null);
         BattlePendingEnemyDraw original = new("enemy", 1, 1);
         BattlePendingEnemyDraw newer = new("enemy", 1, 2);
@@ -378,45 +378,6 @@ public sealed class ExpandedActionPreparationTests
         return Assert.Single(((System.Collections.IEnumerable)ReadHostedOperations(candidate, BindingFlags.Instance | BindingFlags.NonPublic)).Cast<object>(), operation => operation.GetType().Name == "ExpandedHostedInvocation");
     }
 
-    [Theory]
-    [InlineData(BattleAbility.Attack, 0, "enemy")]
-    [InlineData(BattleAbility.NativeCommand, Card, "enemy")]
-    [InlineData(BattleAbility.NativeCommand, MiniMog, "caster")]
-    public void CommandsWithoutPresentersPublishTheSameStateInPlace(BattleAbility ability, int id, string target)
-    {
-        BattleSession live = Create(id == Card, id == MiniMog);
-        BattleCombatant[] actors = live.Combatants.ToArray();
-        live.QueueAction("caster", target, ability, id);
-        ReachCommit(live);
-        long resets = live.DiagnosticResetCount;
-        BattleSnapshot before = live.Capture();
-        BattleSession control = BattleSession.Restore(before);
-        Assert.Equal(Snapshot(control), Snapshot(live));
-
-        Commit(control);
-        Commit(live);
-
-        Assert.Equal(Snapshot(control), Snapshot(live));
-        AssertActorIdentity(actors, live);
-        Assert.Equal(resets, live.DiagnosticResetCount);
-        Assert.Null(live.ActiveAction);
-        Assert.Single(live.Events, entry => entry.Kind == "ActionComplete");
-        Assert.Equal(before.MagicVitals!.GetMagicCount(1, 1), live.MagicVitals!.GetMagicCount(1, 1));
-        if (id == Card)
-        {
-            Assert.Equal(Math.Max(0, before.NativeCards!.AvailableCount(CardReward)) + 1, live.Capture().NativeCards!.AvailableCount(CardReward));
-        }
-        else if (id == MiniMog)
-        {
-            Assert.Equal(before.NativeGil!.Gil - 1000, live.Capture().NativeGil!.Gil);
-            Assert.Equal(21, Assert.Single(live.GuardianForces).HitPoints);
-        }
-        else
-        {
-            Assert.True(actors[1].CurrentHp < before.Combatants[1].CurrentHp);
-        }
-    }
-
     private static void AssertActorIdentity(BattleCombatant[] actors, BattleSession live)
     {
         Assert.Equal(actors.Length, live.Combatants.Count);
@@ -429,15 +390,8 @@ public sealed class ExpandedActionPreparationTests
     private static void ReachCommit(BattleSession battle)
     {
         battle.Tick();
-        while (battle.ActiveAction is { RemainingFrames: > 1, Phase: BattleActionPhase.Windup })
-        {
-            battle.Tick();
-        }
         Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction?.Phase);
-        Assert.Equal(1, battle.ActiveAction?.RemainingFrames);
     }
-
-    private static void Commit(BattleSession battle) => AdvanceExpandedAction.Invoke(battle, [battle.ActiveAction!]);
 
     private static string Snapshot(BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
 

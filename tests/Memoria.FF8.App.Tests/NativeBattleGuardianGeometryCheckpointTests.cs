@@ -27,25 +27,25 @@ public sealed class NativeBattleGuardianGeometryCheckpointTests
         clone.AdvanceNativeGraphicsPresentation(callback);
         BattleSnapshot after = battle.CaptureForContinuation();
         Assert.Equal(JsonSerializer.Serialize(after), JsonSerializer.Serialize(clone.Capture()));
-        Assert.Equal(before.ReadFixturePresentation().NativeGraphics.Callback + 1, after.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)3, after.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        NativeBattleLogicalResolvedCommand[] commands = after.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Where(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8").ToArray();
+        Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback + 1, after.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal((ushort)3, after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        NativeBattleLogicalResolvedCommand[] commands = after.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8").ToArray();
         Assert.NotEmpty(commands);
         Assert.Equal(expectedStart, commands.Min(command => command.Command.Packet.ByteOffset));
-        Assert.True(after.ReadFixturePresentation().NativeGraphics.OriginalEffect.DrawArenaOffset > expectedStart);
+        Assert.True(after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.DrawArenaOffset > expectedStart);
         Assert.Throws<NotSupportedException>(() => after.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(expectedStart, 3));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, after.Definition).Render(battle, 320, 224).ToArray();
         Assert.Equal(320 * 224 * 4, pixels.Length);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(after))!);
         Assert.Equal(pixels, new BattleScenePresentation(assets, after.Definition).Render(restored, 320, 224));
-        NativeBattlePrimitiveFrame controlFrame = after.ReadFixturePresentation().NativeGraphics.PrimitiveFrame with { LastCommands = after.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-        BattleSession control = BattleSession.Restore(after.WithFixturePresentation(facts => facts with { NativeGraphics = after.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = controlFrame } }));
+        NativeBattlePrimitiveFrame controlFrame = after.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame! with { LastCommands = after.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
+        BattleSession control = BattleSession.Restore(after.WithFixturePresentation(facts => facts with { NativeGraphics = after.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = controlFrame } }));
         byte[] controlPixels = new BattleScenePresentation(assets, after.Definition).Render(control, 320, 224);
         int differentPixels = Enumerable.Range(0, 320 * 224).Count(index => pixels[4 * index] != controlPixels[4 * index] || pixels[4 * index + 1] != controlPixels[4 * index + 1] || pixels[4 * index + 2] != controlPixels[4 * index + 2]);
         Assert.True(differentPixels > 0, "Actual GF geometry must change RGB pixels relative to removing only its same-frame packets.");
         Console.WriteLine($"Actual GF geometry changes{differentPixels} RGB pixels relative to removing only its same-frame packets.");
-        Console.WriteLine($"First GF geometry: frame{after.Frame}, callback{after.ReadFixturePresentation().NativeGraphics.Callback}, commands{commands.Length}, effectcursor{after.ReadFixturePresentation().NativeGraphics.OriginalEffect.DrawArenaOffset:X}.");
+        Console.WriteLine($"First GF geometry: frame{after.Frame}, callback{after.ReadFixturePresentation().NativeGraphics!.Callback}, commands{commands.Length}, effectcursor{after.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.DrawArenaOffset:X}.");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GF_EVIDENCE");
         if (string.IsNullOrWhiteSpace(evidence))
         {

@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect324PresentationTests
         BattleSnapshot current = NativeBattleEffectFamilyRunner.LoadSnapshot(currentPath!);
         Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
         var result = NativeBattleEffect324PresentationObserver.ReproduceHistory(prior, current);
-        File.WriteAllText(Path.Combine(output!, "history-rejection.json"), JsonSerializer.Serialize(new { prior.Frame, PriorNativeCallback = prior.ReadFixturePresentation().NativeGraphics.Callback, CurrentNativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, Packets = result.Draw.Packets.Attempts.Length, Scope = "Current CPU geometry16 and skeleton12, current captured original28bone rows, exact current savedworld and prior camera; existing native rawbody kernel with actual viewport, mask2 and depth4; no Tick, visibility reset or geometry substitution" }));
+        File.WriteAllText(Path.Combine(output!, "history-rejection.json"), JsonSerializer.Serialize(new { prior.Frame, PriorNativeCallback = prior.ReadFixturePresentation().NativeGraphics!.Callback, CurrentNativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, result.GeometryAddress, result.SkeletonAddress, result.Age, result.World, result.View, result.Draw.ProjectedBytesWritten, Packets = result.Draw.Packets.Attempts.Length, Scope = "Current CPU geometry16 and skeleton12, current captured original28bone rows, exact current savedworld and prior camera; existing native rawbody kernel with actual viewport, mask2 and depth4; no Tick, visibility reset or geometry substitution" }));
         Assert.Empty(result.Draw.Packets.Attempts);
     }
 
@@ -54,7 +54,7 @@ public sealed class NativeBattleEffect324PresentationTests
                 continue;
             }
             BattleSnapshot prior = NativeBattleEffectFamilyRunner.LoadSnapshot(priorPath);
-            Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics.Callback);
+            Assert.Equal(prior.ReadFixturePresentation().NativeGraphics!.Callback + 1, current.ReadFixturePresentation().NativeGraphics!.Callback);
             observer.Observe(prior, current, NoCapture);
         }
         string completedPath = File.Exists(Path.Combine(directory!, "completed.battle.json")) ? Path.Combine(directory!, "completed.battle.json") : Path.Combine(directory!, "failed-live.battle.json");
@@ -100,7 +100,7 @@ public sealed class NativeBattleEffect324PresentationTests
         BattleSession battle = BattleSession.Restore(source);
         battle.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);
         battle.Tick();
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics.Callback + 1, battle.CaptureForContinuation().ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, battle.CaptureForContinuation().ReadFixturePresentation().NativeGraphics!.Callback);
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public sealed class NativeBattleEffect324PresentationTests
         Assert.Empty(graphics.Descriptors.Queue);
         Assert.DoesNotContain(graphics.Descriptors.Tasks, task => (task.Flags & 1) != 0 && task.Kind != NativeBattleDescriptorTaskKind.Pump500CC0);
         Assert.Equal(0, original.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect324State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.ReadFixturePresentation().NativeEffectMemory.Effect324)));
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(NativeBattleEffect324State.FromColdProcess())), JsonSerializer.Serialize(NativeBattleStorageSnapshots.Capture(original.ReadFixturePresentation().NativeEffectMemory!.Effect324)));
         string casterId = ReadOriginalModelActorId(graphics, physicalCaster) ?? throw new InvalidDataException("Effect324 requires its current caster.");
         string targetId = ReadOriginalModelActorId(graphics, 0) ?? throw new InvalidDataException("Effect324 requires its current party recipient.");
         BattleCombatantDefinition caster = restored.GetCombatantDefinition(casterId);
@@ -276,7 +276,7 @@ public sealed class NativeBattleEffect324PresentationTests
         Assert.NotNull(ReadOriginalModelCell(graphics, physicalCaster).GeometryWorldMatrix);
         Assert.NotNull(ReadOriginalModelCell(graphics, physicalCaster).ActiveResourceRow100);
         Assert.NotNull(original.ReadFixturePresentation().NativeModelCpuResources);
-        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.ReadFixturePresentation().NativeModelCpuResources!, original.ReadFixturePresentation().NativeFileStaging!, original.ReadFixturePresentation().NativeModelCpuResources.Rows[ReadOriginalModelCell(graphics, physicalCaster).ActiveResourceRow100!.Value].Require(12), 4));
+        Assert.Equal(pose.Skeleton.AsSpan(0, 4).ToArray(), NativeBattleModelEnemyHeap.Read(original.ReadFixturePresentation().NativeModelCpuResources!, original.ReadFixturePresentation().NativeFileStaging!, original.ReadFixturePresentation().NativeModelCpuResources!.Rows[ReadOriginalModelCell(graphics, physicalCaster).ActiveResourceRow100!.Value].Require(12), 4));
         Assert.Contains(original.Definition.Combatants, actor => actor.ModelId == 56 && actor.SceneSlot == 1 && actor.InitialActive);
         Assert.NotNull(original.ReadFixturePresentation().NativeFileStaging);
         Assert.True(ReadOriginalModelCell(graphics, 0).Transform!.Scale38 > 0);
@@ -352,7 +352,7 @@ public sealed class NativeBattleEffect324PresentationTests
         return transition;
     }
 
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 324, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 324, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
     private static int CountRgb(byte[] first, byte[] second)
     {
         Assert.Equal(first.Length, second.Length);

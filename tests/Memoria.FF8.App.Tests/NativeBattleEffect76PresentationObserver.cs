@@ -172,7 +172,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
             records = true;
             Mark("effect76-current-record-bank-" + (secondActive > 0 ? "200" : "100"), current, cold);
         }
-        NativeBattlePcRenderTailReceipt? tail = current.ReadFixturePresentation().NativeEffectMemory.PcRenderRequest?.PublishedTail;
+        NativeBattlePcRenderTailReceipt? tail = current.ReadFixturePresentation().NativeEffectMemory!.PcRenderRequest?.PublishedTail;
         if (tail is not null && previous.Values.Any(task => task.Callback is 0x6200F0 or 0x620140))
         {
             tail.Validate();
@@ -191,7 +191,7 @@ internal sealed class NativeBattleEffect76PresentationObserver
             Assert.Equal(final.CurrentPose.Target, final.CapturedPose.Target);
             Assert.Equal(final.FocalLength, final.CapturedPose.FocalLength);
             Assert.Equal(prior.ReadFixturePresentation().NativeCamera!.CapturedPose!.Roll, final.CapturedPose.Roll);
-            Assert.Equal(prior.ReadFixturePresentation().NativeCamera.PoseCaptureCount, final.PoseCaptureCount);
+            Assert.Equal(prior.ReadFixturePresentation().NativeCamera!.PoseCaptureCount, final.PoseCaptureCount);
             Assert.Equal(final.EyePaddingF6, final.CapturedEyePadding806);
             Assert.Equal(final.TargetPaddingFE, final.CapturedTargetPadding80E);
             retired = true;

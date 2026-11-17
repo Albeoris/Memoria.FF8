@@ -51,7 +51,7 @@ public sealed class DiagnosticEnemySubmissionTests
         BattleDiagnosticEnemySubmission receipt = Assert.IsType<BattleDiagnosticEnemySubmission>(session.LastDiagnosticEnemySubmission);
         Assert.Equal(selection, receipt.Selection);
         Assert.Null(receipt.TargetMask);
-        Assert.Contains(session.Capture().NativeCommandBanks!.BoundCommands, command => command.ActorId == receipt.ActorId && command.NativeCallback?.Stage == 1);
+        Assert.Contains(session.Capture().QueuedActions, command => command.ActorId == receipt.ActorId && command.ExpandedAiCallback?.Stage == 1);
     }
 
     [Fact]

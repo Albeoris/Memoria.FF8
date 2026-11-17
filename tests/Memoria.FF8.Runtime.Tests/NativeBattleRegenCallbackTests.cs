@@ -1,3 +1,4 @@
+using static Memoria.FF8.Tests.NativeBattleFixtureObservations;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Text.Json;
@@ -47,13 +48,12 @@ public sealed class NativeBattleRegenCallbackTests
 
         Assert.Equal(500, battle.Combatants[0].CurrentHp);
         Assert.Empty(resolutions);
-        BattleNativeCallback callback = Assert.IsType<BattleNativeCallback>(Assert.Single(battle.QueuedActions).NativeCallback);
-        Assert.Equal(new BattleNativeCallback(0, 6), callback);
+        BattleExpandedAiCallbackRequest callback = Assert.IsType<BattleExpandedAiCallbackRequest>(Assert.Single(battle.QueuedActions).ExpandedAiCallback);
+        Assert.Equal(CreateCallback("party", 0, 6), callback);
         Assert.Equal((short)58, battle.Capture().Combatants[0].NativeStatus!.Timers[4]);
-        callback.Validate();
         string saved = JsonSerializer.Serialize(battle.Capture());
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
-        Assert.Equal(callback, Assert.Single(restored.QueuedActions).NativeCallback);
+        Assert.Equal(callback, Assert.Single(restored.QueuedActions).ExpandedAiCallback);
         Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
     }
 
@@ -89,7 +89,7 @@ public sealed class NativeBattleRegenCallbackTests
         Method("PublishNativePresentedContact").Invoke(battle, [primary]);
         Assert.Equal(expected, battle.ReadPresentedVital("party").HitPoints);
         Assert.Equal(1u, battle.Capture().NativeClock!.ActionPause);
-        Assert.DoesNotContain(battle.QueuedActions, command => command.NativeCallback is not null);
+        Assert.DoesNotContain(battle.QueuedActions, command => command.ExpandedAiCallback is not null);
         Assert.Single(battle.QueuedActions, command => command.NativeAction is { Command: 0, ActionId: 4 });
 
         Method("RunNativeDescriptorActionCallback").Invoke(battle, [battle.Presentation!.Graphics, 0x47DDA0u]);
@@ -183,10 +183,10 @@ public sealed class NativeBattleRegenCallbackTests
         object?[] arguments = [null];
         Assert.True((bool)Method("TryTakeNativeBankCommand").Invoke(battle, arguments)!);
         BattleAttackCommand command = Assert.IsType<BattleAttackCommand>(arguments[0]);
-        Assert.Equal(new BattleNativeCallback(0, 6), command.NativeCallback);
+        Assert.Equal(CreateCallback("party", 0, 6), command.ExpandedAiCallback);
         try
         {
-            Method("DispatchNativeCallback").Invoke(battle, [command.NativeCallback!, null]);
+            Method("DispatchNativeCallback").Invoke(battle, [command.ExpandedAiCallback!, null]);
         }
         finally
         {

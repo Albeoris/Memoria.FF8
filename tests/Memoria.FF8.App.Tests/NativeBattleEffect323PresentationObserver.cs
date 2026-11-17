@@ -47,7 +47,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect323State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect323!;
         NativeBattleEffect323Resources resources = effect.Binding.Effect323Resources!;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -63,13 +63,13 @@ internal sealed class NativeBattleEffect323PresentationObserver
             int modelOffset = BinaryPrimitives.ReadUInt16LittleEndian(resources.Camera.Data.AsSpan().Slice(4));
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(modelOffset, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            bool currentTrack = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[modelOffset..]));
+            bool currentTrack = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[modelOffset..]));
             track |= currentTrack;
             if (currentTrack)
             {
-                view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+                view |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             }
             if (effect.ReturnedDescriptor > 0 && graphics.ActionGraphics?.UseActionCamera is bool decision)
             {
@@ -77,7 +77,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
                 if (!decision)
                 {
                     Assert.False(currentTrack);
-                    if (current.ReadFixturePresentation().NativeCamera.Variables[0] == -1 && current.ReadFixturePresentation().NativeCamera.Scratch[0] == -1 && current.ReadFixturePresentation().NativeCamera.ControlCursor is null && current.ReadFixturePresentation().NativeCamera.Order.IsEmpty)
+                    if (current.ReadFixturePresentation().NativeCamera!.Variables[0] == -1 && current.ReadFixturePresentation().NativeCamera!.Scratch[0] == -1 && current.ReadFixturePresentation().NativeCamera!.ControlCursor is null && current.ReadFixturePresentation().NativeCamera!.Order.IsEmpty)
                     {
                         disabledCamera = true;
                         Mark("effect323-native-camera-declined-selector-and-terminated-control", current, cold);
@@ -177,7 +177,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
                 }
                 if (frame is >= 7 and <= 10)
                 {
-                    var bytes = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
+                    var bytes = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
                     morph |= Enumerable.Range(0, MorphLength / 8).All(row => bytes.Known.AsSpan(row * 8, 6).ToArray().All(known => known)) && bytes.Data.Any(value => value != 0);
                     Mark("effect323-current-ACT-and-current-morph208", current, cold);
                 }
@@ -195,7 +195,7 @@ internal sealed class NativeBattleEffect323PresentationObserver
                 {
                     int slot = pool.Slots.IndexOf(task);
                     int offset = checked((int)(pool.BankAddress - 0x20DFAB8) + slot * pool.Stride);
-                    Assert.Equal(task.Callback, BinaryPrimitives.ReadUInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset + 8, 4)));
+                    Assert.Equal(task.Callback, BinaryPrimitives.ReadUInt32LittleEndian(current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + 8, 4)));
                 }
             }
             detachedBanks = true;

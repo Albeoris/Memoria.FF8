@@ -208,7 +208,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
         {
             return [];
         }
-        NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
+        NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
         bool linked = Enumerable.Range(0, 32).Any(index => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(0x3CD30 + index * 56, 4)) != 0 && BinaryPrimitives.ReadInt16LittleEndian(arena.Read(0x3CD30 + index * 56 + 0x34, 2)) >= 2);
         if (!linked)
         {
@@ -218,7 +218,7 @@ internal sealed class NativeBattleEffect65PresentationObserver
             (command.Packet.Bank is "off_B6D070" or "off_B6D094") && command.WordOffset == 1 && command.Opcode == 0x3E && command.Flags20 == 1 && command.Words.Length == 12 && command.VertexPayload4.Length == 4 && command.VertexPayload4.All(value => value == 0) && command.Words[2] == 0x3F54A048 && command.Words[5] == 0x00B6A078 && (ushort)command.Words[8] == 0xA048 && (ushort)command.Words[11] == 0xA078 && (command.Words[0] & 0xFFFFFF) == (command.Words[3] & 0xFFFFFF) && (command.Words[6] & 0xFFFFFF) == (command.Words[9] & 0xFFFFFF)).ToArray();
     }
 
-    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
+    private static NativeBattleModulePoolTask? ReadMain(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.Effect == Effect ? snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(Live).FirstOrDefault(task => task.Callback == MainCallback) : null;
 
     private static NativeBattleLogicalCommand[] CommonFadeCommands(BattleSnapshot current, NativeBattleModulePoolTask? before)
     {

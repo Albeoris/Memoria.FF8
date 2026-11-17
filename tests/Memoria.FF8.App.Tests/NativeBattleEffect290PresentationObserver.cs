@@ -48,7 +48,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect290State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect290!;
         NativeBattleEffect290Resources resources = effect.Binding.Effect290Resources!;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -73,10 +73,10 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            cameraTrack |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
-            cameraView |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            cameraTrack |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            cameraView |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect290-current-camera8-24", current, cold);
         }
         if (state.ScriptSourcePending == false)
@@ -101,7 +101,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         uint arena = state.ReadDword(ArenaGlobal);
         uint cursor = state.ReadDword(CursorGlobal);
         internalRandom |= prior.ReadFixturePresentation().NativeEffectMemory?.Effect290 is { } oldState && oldState.ReadDword(InternalRandomGlobal) != state.ReadDword(InternalRandomGlobal);
-        processRandom |= prior.ReadFixturePresentation().NativeEffectMemory?.SharedEffectRandom?.State != current.ReadFixturePresentation().NativeEffectMemory.SharedEffectRandom?.State;
+        processRandom |= prior.ReadFixturePresentation().NativeEffectMemory?.SharedEffectRandom?.State != current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom?.State;
         crtRandom |= prior.NativeCrtRandom?.Seed != current.NativeCrtRandom?.Seed;
         if (main is not null)
         {
@@ -142,7 +142,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
             int offset = checked((int)(arena - 0x20DFAB8));
             if (processed is >= 20 and <= 41)
             {
-                (byte[] _, bool[] known) = current.ReadFixturePresentation().NativeEffectMemory.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
+                (byte[] _, bool[] known) = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.ReadSnapshot(offset + MorphOffset, MorphLength);
                 if (Enumerable.Range(0, MorphLength / 8).All(index => known.AsSpan(index * 8, 6).ToArray().All(value => value)))
                 {
                     morph = true;
@@ -165,12 +165,12 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
             }
             if (mainRetired)
             {
-                byte[] header = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset + IoOffset, 5);
+                byte[] header = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + IoOffset, 5);
                 if (header[4] == 1 && header[0] == 0 && header[1] == 0)
                 {
                     byte[] file = resources.ReadFile(360).Data.ToArray();
-                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(offset + File360Offset, file.Length));
-                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram());
+                    Assert.Equal(file, current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset + File360Offset, file.Length));
+                    VerifyTim(file, current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram());
                     uploaded = true;
                     Mark("effect290-file360-type0-complete-current-VRAM", current, cold);
                 }
@@ -192,7 +192,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         {
             drained = true;
         }
-        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, MainVisits = mainAges.Count, Commands = CurrentCommands.Length, InternalRandom = state.ReadDword(InternalRandomGlobal), ProcessRandom = current.ReadFixturePresentation().NativeEffectMemory.SharedEffectRandom?.State, CrtRandom = current.NativeCrtRandom?.Seed, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, Fragments = fragments, Smoke = smoke, ModelFlags = ReadOriginalModelCell(graphics, 3).Flags0, CurrentSkeleton = ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.SkeletonSha256 });
+        observations.Add(new { current.Frame, graphics.Callback, Age = age, ProcessedAge = processed, Cursor = cursor, MainVisits = mainAges.Count, Commands = CurrentCommands.Length, InternalRandom = state.ReadDword(InternalRandomGlobal), ProcessRandom = current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectRandom?.State, CrtRandom = current.NativeCrtRandom?.Seed, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, Fragments = fragments, Smoke = smoke, ModelFlags = ReadOriginalModelCell(graphics, 3).Flags0, CurrentSkeleton = ReadOriginalModelCell(graphics, 3).CurrentBodyBoneMatrices!.SkeletonSha256 });
     }
 
     public void Publish(string output) => File.WriteAllText(Path.Combine(output, "effect290-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), PacketBanks = packetBanks.Order(), Callbacks = callbacks.Order(), Programmes = programmes.Order(), Warm = warm, Camera = camera, CameraTrack = cameraTrack, CameraView = cameraView, CameraDecision = cameraDecision, CurrentBones = currentBones, MainVisits = mainAges.Count, SourceBound = sourceBound, ExhaustedCounts = exhaustedCounts, InternalRandom = internalRandom, ProcessRandom = processRandom, CrtRandom = crtRandom, Morph640 = morph, Fragments = fragments, Smoke = smoke, CustomQuads = customQuads, Geometry = geometry, VibrationStarted = vibrationStarted, VibrationStopped = vibrationStopped, VibrationHandle = vibrationHandle, Uploaded = uploaded, MainRetired = mainRetired, Drained = drained, Contacts, ContactGlyphs, Observations = observations }));
@@ -216,7 +216,7 @@ internal sealed class NativeBattleEffect290PresentationObserver(bool warm = fals
         Assert.Equal(0, ContactGlyphs);
         Assert.Equal(4, ReadOriginalModelCell(completed.ReadFixturePresentation().NativeGraphics!, 3).Flags0 & 12);
         Assert.False(completed.ReadFixturePresentation().NativeEffectMemory!.Effect290!.ScriptSourcePending);
-        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory.Effect290.FixedBanks.Values, bank => Assert.NotNull(bank));
+        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect290!.FixedBanks.Values, bank => Assert.NotNull(bank));
     }
 
     private static bool MatchesSmoke(NativeBattleLogicalCommand command, NativeBattleEffect290Resources resources)

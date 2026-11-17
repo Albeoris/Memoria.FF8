@@ -92,7 +92,7 @@ public sealed class ExpandedBattleProcessResourcesTests
         Assert.Equal(Enumerable.Range(8, 4), entry.AddedEnemySources.Keys);
         Assert.All(entry.Combatants.Where(actor => !actor.IsPlayer), actor =>
         {
-            Assert.Equal(entry.AddedEnemySources.ContainsKey(actor.SceneSlot!.Value), actor.NativeTemplate is null);
+            Assert.NotNull(actor.NativeTemplate);
             Assert.Equal(world.BattleResources.ReadEnemyNativeInformation246(actor.ModelId), actor.Information246);
         });
 

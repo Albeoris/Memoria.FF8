@@ -68,7 +68,7 @@ public sealed partial class BattleSession
         }
         ImmutableArray<EncounterDamageRoute> routes = ResolveEncounterDamageRoutes();
         bool mayDamage = !deferred && (native.AttackType is not (0 or 12 or 13 or 14 or 16 or 17 or 23 or 30 or 31) || native.Command == 0 && native.ActionId is 2 or 4 or 6);
-        int required = nativeActionPackets.ContactCount;
+        int required = 0;
         foreach (var (targets, _) in plan)
         {
             required = checked(required + targets.Length);
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         }
         if (required > NativeBattleRetainedActionPackets.ContactCapacity)
         {
-            throw new InvalidDataException($"Encounter action requires up to {required} native contact slots including existing headers and routed recipients; capacity is {NativeBattleRetainedActionPackets.ContactCapacity}. No HP transaction was published.");
+            throw new InvalidDataException($"Encounter action requires up to {required} native contact slots including routed recipients; capacity is {NativeBattleRetainedActionPackets.ContactCapacity}. No HP transaction was published.");
         }
     }
 
@@ -195,7 +195,7 @@ public sealed partial class BattleSession
         {
             ImmutableArray<EncounterHpReceipt> receipts = EncounterDamageRouting.Plan(transaction.Mutations.Select((mutation, index) => new EncounterHpIntent(index, mutation.Actor?.Id, mutation.Target.Id, Math.Max(0, mutation.Amount), mutation.Cause)), transaction.Actors, transaction.Routes);
             int extraCount = receipts.Count(receipt => receipt.RouteId is not null && receipt.RecipientId != receipt.OriginalTargetId && receipt.AssignedDamage > 0);
-            if (nativeActionPackets.ContactCount + packets.Count + extraCount > NativeBattleRetainedActionPackets.ContactCapacity)
+            if (packets.Count + extraCount > NativeBattleRetainedActionPackets.ContactCapacity)
             {
                 throw new InvalidDataException("Encounter routed contacts exceed the native contact bank capacity before HP publication.");
             }

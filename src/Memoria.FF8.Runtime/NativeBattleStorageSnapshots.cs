@@ -74,6 +74,10 @@ internal static class NativeBattleStorageSnapshots
         {
             NativeBattleRetainedSourceAliases.Validate(capturedPresentation.Native);
         }
+        else if (value is BattlePresentationNativeState capturedNative)
+        {
+            NativeBattleRetainedSourceAliases.Validate(capturedNative);
+        }
         T result = context.Map(value);
         if (result is BattleSnapshot { PresentationContinuation: { } presentation } restored)
         {
@@ -82,6 +86,10 @@ internal static class NativeBattleStorageSnapshots
         if (result is BattlePresentationSnapshot restoredPresentation)
         {
             return (T)(object)(restoredPresentation with { Native = NativeBattleRetainedSourceAliases.Rebind(restoredPresentation.Native) });
+        }
+        if (result is BattlePresentationNativeState restoredNative)
+        {
+            return (T)(object)NativeBattleRetainedSourceAliases.Rebind(restoredNative);
         }
         return result is NativeBattleRetainedMemory restoredRetained ? (T)(object)NativeBattleRetainedSourceAliases.Rebind(restoredRetained) : result;
     }
@@ -226,8 +234,8 @@ internal abstract class NativeBattleStorageContext
             return null;
         }
         Type type = value.GetType();
-        // Installed presentation inputs are shared. Entry materializes its retained bytes through RestoreForNewBattle.
-        if (value is BattlePresentationResources || IsLeaf(type))
+        // Installed inputs and immutable arena geometry are shared. Mutable execution storage is captured below.
+        if (value is BattlePresentationResources or NativeBattleArenaGeometry || IsLeaf(type))
         {
             return value;
         }

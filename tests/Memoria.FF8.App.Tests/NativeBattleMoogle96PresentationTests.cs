@@ -177,7 +177,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                 Assert.True(hp is 100 or 107);
                 for (int actor = 0; actor < ReadOriginalModelCells(graphics).Length; actor++)
                 {
-                    Assert.Equal(ReadOriginalModelCell(graphics, actor).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).ActiveStagedResourceRow100);
+                    Assert.Equal(ReadOriginalModelCell(graphics, actor).ActiveStagedResourceRow100, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, actor).ActiveStagedResourceRow100);
                 }
                 NativeBattleMoogle96State? state = current.ReadFixturePresentation().NativeEffectMemory?.Moogle96;
                 NativeBattleMoogle96IoState? previousIo = prior.ReadFixturePresentation().NativeEffectMemory?.Moogle96?.Io;
@@ -232,17 +232,17 @@ public sealed class NativeBattleMoogle96PresentationTests
                         {
                             continue;
                         }
-                        Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).Flags0 & 4);
-                        Assert.Equal(0x800, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).Flags0 & 0x800);
+                        Assert.Equal(ReadOriginalModelCell(graphics, actor).Flags0 & 4, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, actor).Flags0 & 4);
+                        Assert.Equal(0x800, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, actor).Flags0 & 0x800);
                     }
                     sawEnemyRestoreWithOverride = true;
                 }
                 stageCleared |= Tasks(afterEffect, 0x733570).Any();
                 if (stageCleared)
                 {
-                    Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), current.ReadFixturePresentation().NativeStage.Groups.Select(group => group.ColorFlags).ToArray());
+                    Assert.Equal(source.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags & 0xFF000000u).ToArray(), current.ReadFixturePresentation().NativeStage!.Groups.Select(group => group.ColorFlags).ToArray());
                 }
-                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 sawPrivate |= frame.LastCommands.Any(item => item.Command.Packet.Bank == "20DFAB8");
                 if (state?.Nodes.Work.PassGeometryCount > 0)
                 {
@@ -252,7 +252,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                 if (directorPacket is null && Tasks(afterEffect, 0x7327B0).Any() && FindDirectorPhysicalPacket(current) is { } physical)
                 {
                     directorPacket = physical;
-                    directorPacketCallback = current.ReadFixturePresentation().NativeGraphics.Callback;
+                    directorPacketCallback = current.ReadFixturePresentation().NativeGraphics!.Callback;
                     Assert.DoesNotContain(frame.LastCommands, item => item.Command.Packet == physical && item.Command.Opcode == 0xE1);
                 }
                 if (cold is not null)
@@ -262,7 +262,7 @@ public sealed class NativeBattleMoogle96PresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(cold, 320, 224).ToArray());
                     NativeBattleRestorationPresentationTests.Publish(output, name! + "-after", current, pixels);
-                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics.Callback, current.ReadFixturePresentation().NativeGraphics.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(name!, prior.ReadFixturePresentation().NativeGraphics!.Callback, current.ReadFixturePresentation().NativeGraphics!.Callback, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(name!);
                 }
             }

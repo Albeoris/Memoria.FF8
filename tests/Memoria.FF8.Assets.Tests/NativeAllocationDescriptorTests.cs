@@ -270,7 +270,7 @@ public sealed class NativeAllocationDescriptorTests
         {
             descriptors = descriptors.RemoveFirst();
         }
-        battle = BattleSession.Restore(ready.WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } }));
+        battle = BattleSession.Restore(ready.WithFixturePresentation(facts => facts with { NativeGraphics = ready.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } }));
         BattleCombatant caller = battle.Combatants.Single(actor => actor.Id == "caller");
         typeof(BattleSession).GetMethod("AllocateNativeEnemy", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(battle, [caller, 6, 0, true]);
         NativeBattleDescriptorPacket statistics = battle.Presentation!.Graphics.Descriptors.Packets.Single(packet => packet.PriorityState != 0 && packet.Command == 113 && packet.Argument == 0x48AD10);

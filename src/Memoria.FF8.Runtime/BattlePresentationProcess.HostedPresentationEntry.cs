@@ -14,7 +14,7 @@ public sealed partial class BattlePresentationProcess
 
     internal sealed record HostedEntryDescriptor(ushort Command, uint Argument = 0, ushort? Index = null, ushort? Value = null, BattleEvent? Message = null, NativeBattleDescriptorModelSubject.PlannedLoad? ModelLoad = null);
 
-    internal BattlePresentationProcess(BattlePresentationResources presentationResources, BattlePresentationEntry entry, BattlePresentationServices services)
+    internal BattlePresentationProcess(BattlePresentationResources presentationResources, BattlePresentationEntry entry, BattlePresentationServices services, Func<ushort, NativeBattleEffectBinding>? resolveEffect)
     {
         resources = presentationResources;
         this.services = services;
@@ -50,7 +50,7 @@ public sealed partial class BattlePresentationProcess
         nativeCrtRandom = this.resources.InitialCrtRandom;
         nativeBattleUiRandom = this.resources.InitialUiRandom;
         nativeGlobalRandom = this.resources.InitialGlobalRandom;
-        nativeEffectResourceResolver = entry.ResolveEffect;
+        nativeEffectResourceResolver = resolveEffect;
         NativeEntryAdvantage = entry.Advantage;
         NativeCamera = NativeBattleCameraState.Initialize();
         NativeGlobalSoundProcess = this.resources.InitialSound;

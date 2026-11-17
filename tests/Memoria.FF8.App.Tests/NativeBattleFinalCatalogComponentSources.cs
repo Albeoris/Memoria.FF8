@@ -63,7 +63,7 @@ internal static class NativeBattleFinalCatalogComponentSources
             return target.NativeRenzokukenMagicIds[crisis + 1 + resource % 2] == effect && !NativeBattleRenzokukenRules.HasFinisher(crisis, finisher);
         });
         BattleSnapshot ready = battle.CaptureForContinuation();
-        battle = BattleSession.Restore((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage.ModelColors! with { Color40 = 0x00312617 } } }));
+        battle = BattleSession.Restore((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = 0x00312617 } } }));
         battle.AttachNativeEffectResourceResolver(selected => game.ReadNativeEffectCatalogForEffects([selected])[selected - 1]);
         battle.QueueNativePlayerCommand("party", "enemy", 5, 0);
         BattleSnapshot queued = NativeBattleLimitComponentSources.AwaitQueued(battle, effect);

@@ -86,7 +86,7 @@ public sealed class DiagnosticNativeStatusRemovalTests
             RawRecord = [],
             SupplementalRecord = []
         };
-        typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(battle, new BattleActionPresentation("enemy", "party", BattleActionPhase.Windup, 0, NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, 72) { NativeAction = native, NativeQueuedCommand = 8 });
+        typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(battle, new BattleActionPresentation("enemy", "party", BattleActionPhase.Windup, NativeBattleTargetRequestAdapter.Decode(1, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), BattleAbility.EnemyAbility, 72) { NativeAction = native, NativeQueuedCommand = 8 });
         return battle;
     }
 }

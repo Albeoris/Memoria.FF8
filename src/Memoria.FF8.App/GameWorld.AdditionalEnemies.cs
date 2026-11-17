@@ -29,9 +29,8 @@ internal sealed partial class GameWorld
         return IsEnemyPrototype(slot) && slot.Enabled && !slot.Hidden && !slot.Untargetable && !slot.InitiallySuspended;
     }
 
-    internal static (HashSet<int> Slots, BattleEncounterRosterAdmission Admission) InspectEncounterRoster(BattleEncounter encounter, Func<int, NativeBattleAiDefinition> readEnemyAi, IReadOnlyList<BattleNativeAction> actions)
+    internal static HashSet<int> InspectEncounterRoster(BattleEncounter encounter, Func<int, NativeBattleAiDefinition> readEnemyAi, IReadOnlyList<BattleNativeAction> actions)
     {
-        HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
         HashSet<int> slots = [];
         HashSet<int> visitedModels = [];
         Queue<BattleEnemyPlacement> pending = new(encounter.Enemies.Where(slot => slot.Enabled && IsEnemyPrototype(slot)));
@@ -46,7 +45,7 @@ internal sealed partial class GameWorld
             for (int band = 0; band < 3; band++)
             {
                 NativeBattleExpandedAi.Evaluate(program with { LevelBand = band }, actions, encounter.Id, originalEnemySlots: true, reserveSceneSlots: referenced,
-                    rosterModel: placement.ModelId, rosterRestrictions: restrictions);
+                    rosterModel: placement.ModelId, requireValidInstalledSource: true);
             }
             foreach (int slot in referenced.Where(slots.Add))
             {
@@ -64,7 +63,7 @@ internal sealed partial class GameWorld
                 pending.Enqueue(prototype);
             }
         }
-        return (slots, BattleEncounterRosterAdmission.ForFormation(encounter.Id, restrictions));
+        return slots;
     }
 
     private static BattleEnemyPlacement[] OriginalExpandedEnemyPlacements(BattleEncounter encounter, BattleDefinition? restoredDefinition, HashSet<int> referenced)
@@ -138,23 +137,17 @@ internal sealed partial class GameWorld
             HashSet<int> reserves = [];
             HashSet<byte> operands = [];
             HashSet<ushort> reachedEffects = [];
-            HashSet<BattleEncounterRosterRestrictionReason> restrictions = [];
             NativeBattleAiDefinition ai = BattleResources.ReadEnemyAi(actor.ModelId, 0);
             for (int band = 0; band < 3; band++)
             {
                 ExpandedAiAdmission admission = NativeBattleExpandedAi.Evaluate(ai with { LevelBand = band }, BattleResources.NativeActions, destination, originalEnemySlots: true,
-                    reserveSceneSlots: reserves, explicitEnemyModelReferences: references, rosterModel: actor.ModelId, rosterRestrictions: restrictions,
+                    reserveSceneSlots: reserves, explicitEnemyModelReferences: references, rosterModel: actor.ModelId, requireValidInstalledSource: true,
                     reachedEffects: reachedEffects, originalModelOperands: operands);
                 if (admission != ExpandedAiAdmission.Supported)
                 {
                     throw new NotSupportedException($"Source formation {source.Id}, model {actor.NativeModelId} requires {admission}.");
                 }
             }
-            if (restrictions.Count != 0)
-            {
-                throw new NotSupportedException($"Source formation {source.Id}, model {actor.NativeModelId} requires authored party membership.");
-            }
-
             foreach (int reserve in reserves)
             {
                 if (!placements.TryGetValue(reserve, out BattleEnemyPlacement? prototype) || !IsEnemyPrototype(prototype))
@@ -211,7 +204,7 @@ internal sealed partial class GameWorld
                 {
                     throw new NotSupportedException($"Source formation {source.Id} cannot bind native effect {effect}.");
                 }
-                foreach (byte operand in binding.AuthoredModelOperands)
+                foreach (byte operand in binding.AuthoredModelOperands.Concat(assets.ReadNativeCinematicModelOperands(binding).Operands))
                 {
                     AddOperand(operand);
                 }

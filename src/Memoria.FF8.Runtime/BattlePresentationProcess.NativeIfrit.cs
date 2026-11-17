@@ -204,7 +204,7 @@ public sealed partial class BattlePresentationProcess
             {
                 throw new InvalidDataException("Native cinematic instruction leaves its complete WORD operand owner.");
             }
-            return BinaryPrimitives.ReadUInt16LittleEndian(current.Arena.Read(program.ArenaOffset + offset, 2));
+            return NativeBattleCinematicInstructionLayout.Read(current.Arena.Read(program.ArenaOffset + offset, 2)).Word;
         }
 
         NativeBattleWaterExecutionFrame ExecuteInstruction(NativeBattleWaterExecutionFrame current, ushort opcode)

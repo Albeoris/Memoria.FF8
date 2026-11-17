@@ -98,9 +98,9 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             Assert.True(JsonNode.DeepEquals(correctedCamera, currentCamera));
             JsonObject master = document["NativeGraphics"]!["OriginalEffect"]!["Pools"]!.AsArray().Single(pool => pool!["DescriptorAddress"]!.GetValue<uint>() == 0x25562B8)!["Slots"]![0]!.AsObject();
             Assert.Equal((ushort)42, prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadWord(0xC));
-            Assert.Equal((ushort)40, prior.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
-            Assert.Equal(0u, prior.ReadFixturePresentation().NativeEffectMemory.Pandemona291.Pause2556258);
-            Assert.Equal(1u, prior.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadDword(0x10));
+            Assert.Equal((ushort)40, prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562A8).Slots[0].ReadWord(0xC));
+            Assert.Equal(0u, prior.ReadFixturePresentation().NativeEffectMemory!.Pandemona291!.Pause2556258);
+            Assert.Equal(1u, prior.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x25562B8).Slots[0].ReadDword(0x10));
             for (int index = 4; index < 8; index++)
             {
                 master["Payload"]![index] = 0;
@@ -108,7 +108,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
             NativeBattleEffectFileAsset file = resources.Files.Single(file => file.FileId == 722);
             Assert.Equal(76616, file.Data.Length);
             Assert.Equal("E403EB4C8DD3C491A75B7179CD662ACCEA3743C62C64117C6B4DA33130B31A21", Convert.ToHexString(SHA256.HashData(file.Data.AsSpan())));
-            NativeBattleEffectArena arena = prior.ReadFixturePresentation().NativeEffectMemory.Arena!;
+            NativeBattleEffectArena arena = prior.ReadFixturePresentation().NativeEffectMemory!.Arena!;
             Assert.Equal(new byte[] { 62, 94, 0, 0, 0 }, arena.Read(0x231D4, 5));
             NativeBattleEffectArena repaired = arena.Write(0x231D4, new byte[] { 0, 0, 1, 4, 4 }).Write(0x31220, file.Data.AsSpan());
             var beforeBytes = arena.ReadSnapshot(0, NativeBattleEffectArena.Length);

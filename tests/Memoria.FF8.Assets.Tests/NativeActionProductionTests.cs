@@ -25,7 +25,7 @@ public sealed class NativeActionProductionTests
         }, BattleAtbMode.TurnBased);
 
         Assert.Equal(10000, battle.Combatants[1].CurrentHp);
-        Assert.Equal(new BattleNativeCallback(3, 0), Assert.Single(battle.QueuedActions).NativeCallback);
+        Assert.Equal(new BattleExpandedAiCallbackRequest(new BattleEnemyActorReference("enemy"), 0), Assert.Single(battle.QueuedActions).ExpandedAiCallback);
         battle.Tick();
         BattleSnapshot prepared = battle.Capture();
         Assert.Equal(1, battle.Frame);
@@ -104,7 +104,6 @@ public sealed class NativeActionProductionTests
         Assert.NotNull(poison.NativeHeader);
         Assert.InRange(battle.Combatants[0].CurrentHp, 910, 950);
         BattleSnapshot prepared = battle.Capture();
-        Assert.Equal(0x47E120u, prepared.NativeActionScratch!.ComponentCompletion);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(prepared))!);
         for (int tick = 0; tick < 40; tick++)
         {
@@ -113,7 +112,6 @@ public sealed class NativeActionProductionTests
         }
 
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.Message.StartsWith("Poison:", StringComparison.Ordinal));
-        Assert.Null(battle.Capture().NativeActionScratch!.ComponentCompletion);
         Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }

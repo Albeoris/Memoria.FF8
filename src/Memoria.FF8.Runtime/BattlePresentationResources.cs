@@ -5,9 +5,10 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Installed graphics, audio and text resources required by the battle presentation process.</summary>
 public sealed class BattlePresentationResources
 {
-    public BattlePresentationResources(BattleDefinition source)
+    public BattlePresentationResources(BattleDefinition source, Func<NativeBattleEffectBinding, NativeBattleCinematicModelOperands>? readCinematicModelOperands = null)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ReadCinematicModelOperands = readCinematicModelOperands;
         SourceGrouping = new(source);
         GuardianFormResources = source.GuardianFormResources;
         NativeDefensiveResources = source.NativeDefensiveResources;
@@ -50,6 +51,7 @@ public sealed class BattlePresentationResources
     }
 
     internal BattleSourceGrouping SourceGrouping { get; }
+    internal Func<NativeBattleEffectBinding, NativeBattleCinematicModelOperands>? ReadCinematicModelOperands { get; }
     internal ImmutableArray<BattleGuardianFormResources> GuardianFormResources { get; }
     internal ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; }
     internal NativeBattleActionCameraRules? NativeActionCameraRules { get; }

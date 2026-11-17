@@ -72,8 +72,8 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
             File.WriteAllText(Path.Combine(output!, "fixture-result.json"), JsonSerializer.Serialize(exported));
             prior = source;
             Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(source.Definition.NativeEffectCatalog[effectId - 1]));
-            int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
-            uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
+            int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
+            uint headerOffset = checked(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument - 0x1D280C4u);
             Assert.Equal(0u, headerOffset % 20);
             NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(checked((int)(headerOffset / 20))));
             Assert.Equal(caster, ReadOriginalModelOperand(source.NativeActionPackets!.ModelAliases, header.Source));
@@ -134,7 +134,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 }
                 for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
                     if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, contactActor) || (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
@@ -175,10 +175,10 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = NativeBattleTargetGuardianCastTests.GuardianPacketReferences(prior, current, effectId, game);
                     if (!owned.IsEmpty)
                     {
-                        NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                        NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() };
-                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutFrame } });
+                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = withoutFrame } });
                         byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         int changedRgb = CountRgbChanges(pixels, plain);
                         if (capturePeak && changedRgb > peakChangedRgb)
@@ -299,7 +299,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(input!);
         ushort effect = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect;
         Assert.True(NativeBattleCinematicProfile.IsSupported(effect));
-        Assert.True(source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor > 0);
+        Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor > 0);
         BattleSession battle = Restore(source);
         Dictionary<string, int> hitPoints = source.Combatants.ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
         int completions = 0;
@@ -318,7 +318,7 @@ public sealed class NativeBattleRemainingCinematicPresentationTests
                 {
                     Assert.Equal(hitPoints[actor.Id], actor.CurrentHp);
                 }
-                if (active && current.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor == 0)
+                if (active && current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor == 0)
                 {
                     completions++;
                 }

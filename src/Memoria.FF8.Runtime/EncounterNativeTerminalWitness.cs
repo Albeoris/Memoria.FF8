@@ -16,15 +16,6 @@ public static class EncounterNativeTerminalWitness
 
 public sealed partial class BattleSession
 {
-    private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleGraphicsState graphics)
-    {
-        if (definition.EncounterMod is not { NativeEvents: not null } || graphics.ActionGraphics is not { } action || nativeActionPackets.ActiveHeader != action.Header)
-        {
-            return;
-        }
-        ObserveEncounterNativeTerminal(actor, sequence, nativeActionPackets.ReadHeader(action.Header), CreatePresentationModelOwner(actor));
-    }
-
     private void ObserveEncounterNativeTerminal(BattleCombatant actor, byte sequence, NativeBattleActionHeaderSlot? header, BattleModelOwner owner)
     {
         if (definition.EncounterMod is not { NativeEvents: { } binding } mod || !EncounterNativeTerminalWitness.Matches(binding, actor.Id, actor.ModelId, header, owner, sequence, (NativeSavedStatusBits(actor) & 1) != 0, (actor.NativeCombatantFlags & 0x40) != 0))

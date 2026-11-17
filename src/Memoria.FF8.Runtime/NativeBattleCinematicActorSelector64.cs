@@ -8,7 +8,8 @@ public static class NativeBattleCinematicActorSelector64
     public static NativeBattleWaterExecutionFrame Execute(NativeBattleWaterExecutionFrame frame, NativeBattleWaterScriptProgram program, BattleModelOwner source, NativeBattleModelAliases aliases)
     {
         ushort instruction = frame.ReadTemporaryWord(0x14A);
-        if ((instruction & 0x1FF) != 0x64)
+        NativeBattleCinematicInstructionLayout layout = new(instruction);
+        if (layout.Opcode != 0x64)
         {
             throw new NotSupportedException("Native actor selector requires its selected instruction.");
         }
@@ -17,7 +18,7 @@ public static class NativeBattleCinematicActorSelector64
         {
             actor = source;
         }
-        else if ((instruction & 0x1000) != 0)
+        else if (layout.ReadsLiteralActor)
         {
             NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(NativeBattleScriptedCommandReads.Program(frame, program, 2, 1)[0]);
             frame = aliases.ReadAuthoredOperandOrOriginalCell(slot) is { } bound

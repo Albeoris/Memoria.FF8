@@ -214,7 +214,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Duel readiness reached a different input phase.");
         }
-        nativeDuelProcesses[actor.Id] = ResetNativeDuelInput(widget);
+        nativeDuelProcesses[actor.Id] = NativeBattleDuelRules.AcknowledgeWidgetReady(widget);
     }
 
     private void ApplyExpandedHostedDuelSelection(NativeBattleModelLifecycleServices services, NativeBattleDuelSelectionReached receipt, long? frameToken)

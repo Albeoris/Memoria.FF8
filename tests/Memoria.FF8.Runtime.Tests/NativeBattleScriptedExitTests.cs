@@ -35,7 +35,7 @@ public sealed class NativeBattleScriptedExitTests
         considerOutcome.Invoke(battle, null);
         Assert.Null(battle.Presentation!.Graphics.NativeOutcome);
         scriptState.SetValue(battle, battle.NativeScriptState with { AllocationControl = new(0, false, false) });
-        activeAction.SetValue(battle, new BattleActionPresentation("party", "enemy", BattleActionPhase.Recovery, 1, BattleTargetRequest.None));
+        activeAction.SetValue(battle, new BattleActionPresentation("party", "enemy", BattleActionPhase.Recovery, BattleTargetRequest.None));
         considerOutcome.Invoke(battle, null);
         Assert.Null(battle.Presentation!.Graphics.NativeOutcome);
         Assert.Empty(battle.Presentation!.Graphics.Descriptors.Queue);

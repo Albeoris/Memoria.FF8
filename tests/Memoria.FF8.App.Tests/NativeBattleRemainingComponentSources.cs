@@ -181,11 +181,11 @@ internal static class NativeBattleRemainingComponentSources
         for (int callback = 0; callback < 1200; callback++)
         {
             BattleSnapshot current = battle.CaptureForContinuation();
-            if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) || current.ReadFixturePresentation().NativeGraphics.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: null, Pools.IsEmpty: true, Parameters: not null })
+            if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) || current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: null, Pools.IsEmpty: true, Parameters: not null })
             {
                 return current;
             }
-            Assert.False(current.ReadFixturePresentation().NativeGraphics.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 }, "Draw source preparation crossed the module's initialization boundary.");
+            Assert.False(current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 }, "Draw source preparation crossed the module's initialization boundary.");
             battle.Tick();
         }
         throw new InvalidDataException("The actual ordinary Draw command did not publish its pending stock component.");

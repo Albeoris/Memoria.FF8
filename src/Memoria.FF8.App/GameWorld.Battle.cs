@@ -144,16 +144,10 @@ internal sealed partial class GameWorld
         BattleEncounter encounter = effectPreviewRequest?.CreateArena() ?? BattleResources.LoadEncounter(encounterId);
         DiagnosticBattleRoster? diagnosticRoster = restoredDefinition is null ? diagnosticBattle?.Request.Roster : null;
         BattleStage stage = BattleResources.LoadStage(encounter.StageId);
-        BattleEncounterRosterAdmission rosterAdmission = restoredDefinition?.EncounterRosterAdmission ?? BattleEncounterRosterAdmission.Unrestricted;
         HashSet<int> reserveSlots = [];
         if (effectPreviewRequest is null && (restoredDefinition is null || restoredDefinition.UsesOriginalEnemySlots))
         {
-            (HashSet<int> referenced, BattleEncounterRosterAdmission inspected) = InspectEncounterRoster(encounter, model => BattleResources.ReadEnemyAi(model, 0), BattleResources.NativeActions);
-            reserveSlots = referenced;
-            if (restoredDefinition is null)
-            {
-                rosterAdmission = inspected;
-            }
+            reserveSlots = InspectEncounterRoster(encounter, model => BattleResources.ReadEnemyAi(model, 0), BattleResources.NativeActions);
         }
         byte[] nativeParty = entryVitals.GetBattlePartyRows(3);
         byte[]? selectedParty = null;
@@ -165,7 +159,7 @@ internal sealed partial class GameWorld
         else if (restoredDefinition is null && effectPreviewRequest is null)
         {
             selectedParty = diagnosticRoster is not null ? entryVitals.GetBattlePartyRows(diagnosticBattle!.Request.IdlePerformance?.PartyCount ?? NativeCharacterVitals.ExtendedRecordCount) :
-                rosterAdmission.UsesPrimaryPartyOnly ? nativeParty : entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
+                entryVitals.GetBattlePartyRows(EffectiveBattleAllyCount);
         }
         byte[]? expandedParty = selectedParty is not null && !selectedParty.SequenceEqual(nativeParty) ? selectedParty : null;
         int allyCount = expandedParty?.Length ?? nativeParty.Length;
@@ -174,7 +168,7 @@ internal sealed partial class GameWorld
         {
             addedEnemySources = SelectDiagnosticRosterDonors(encounter, diagnosticRoster, reserveSlots);
         }
-        else if (restoredDefinition is null && effectPreviewRequest is null && rosterAdmission.AllowsAdditionalEnemies)
+        else if (restoredDefinition is null && effectPreviewRequest is null)
         {
             int requested = Math.Max(defaultAdditionalEnemyCount, session.State.GameplayPreferences.GetEffectiveAdditionalEnemies(allyCount));
             if (requested > 0)
@@ -277,7 +271,6 @@ internal sealed partial class GameWorld
         BattleDefinition definition = new() { MagicVitals = entryVitals.DeepCopy(), Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeActions = BattleResources.NativeActions.ToArray(), NativeDevourEffects = BattleResources.ReadNativeDevourEffects(), NativeCards = session.State.CardInventory?.DeepCopy(), NativeCrtRandom = session.State.CrtRandom, NativeGlobalRandom = session.State.GlobalRandom, NativeElapsedCounter = ReadNativeElapsedCounter(), NativeCardNames = Enumerable.Range(0, 110).Select(id => battleCatalog!.CardName(id)).ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(id => battleCatalog!.ItemName(id)).ToArray(), NativeGlobalMessages = BattleResources.ReadNativeGlobalBattleMessages(), NativeScannedModels = session.State.ScannedModels, NativeKnownMagic = session.State.KnownMagic, NativeCommandNames = BattleResources.ReadNativeCommandNames(), NativeScanAlwaysShow = ((session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options & 0x100) != 0, GuardianForces = entryVitals.GuardianForces.Select((gf, id) => new BattleGuardianForceVital(id, gf.HitPoints, entryVitals.Definitions.GuardianForceMaximum(id, gf), (gf.Flags & 1) != 0) { KillCount = gf.KillCount, DeathCount = gf.DeathCount }).ToArray(), NativePocketStation = session.State.PocketStation, NativeChocoboName = Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject) ?? NativePocketStationText.ChocoboName(session.State.PocketStation), NativeBattleSpeed = session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte, LimitProgress = session.State.LimitProgress, NativeShotAvailability = session.State.ShotAvailability, NativeFieldBattleRules = fieldRules, NativeLimitsDisabled = (fieldRules & 0x20) != 0, NativeStatusRules = BattleResources.ReadNativeStatusRules(session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Native battle status timing requires the original saved speed BYTE.")), NativeSeed = nativeSeed, NativeFlags = activeFlags, NativeFieldBattleMode = ReadNativeFieldBattleMode(), NativeMessageSpeed = session.State.InputConfiguration?.BattleMessageSpeed ?? assets.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeExamTimerAtEntry = session.ExamTimer, NativeSavedBattleFlags = session.State.SavedBattleFlags?.Value ?? (byte)(session.State.CharacterVitals!.DreamEnabled ? 1 : 0), NativeSavedBattleFlagsKnownMask = session.State.SavedBattleFlags?.EffectiveKnownMask ?? (byte)1, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (encounterAbilities & 2) != 0, NativeItemInventory = entryEconomy.Items.ToArray() };
         definition = definition with
         {
-            EncounterRosterAdmission = rosterAdmission,
             UsesOriginalEnemySlots = useOriginalEnemySlots,
             AddedEnemySources = addedEnemySources,
             NativeGil = new(entryEconomy.Gil, entryEconomy.PastGil),

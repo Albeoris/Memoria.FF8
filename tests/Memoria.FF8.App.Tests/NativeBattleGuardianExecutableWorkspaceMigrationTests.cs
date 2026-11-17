@@ -21,8 +21,8 @@ public sealed class NativeBattleGuardianExecutableWorkspaceMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(originalBytes)!;
         Assert.Equal(255L, original.Frame);
         Assert.Equal(417L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)277, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        NativeBattleQuezacotlResources retained = original.ReadFixturePresentation().NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
+        Assert.Equal((ushort)277, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        NativeBattleQuezacotlResources retained = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Frame277Sound);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();

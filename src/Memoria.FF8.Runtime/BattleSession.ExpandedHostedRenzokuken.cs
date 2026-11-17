@@ -274,7 +274,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(invocation.Command.ActorId);
         BattleCombatant recipient = GetActor(previous.RecipientId);
-        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, invocation.Header.Command, receipt, hosted: true);
+        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, invocation.Header.Command, receipt);
         BattleActionPresentation command = invocation.Command with
         {
             NativeQueuedCommand = owner.Finisher.HasValue ? (byte)250 : (byte)5,

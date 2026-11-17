@@ -81,17 +81,23 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
-        NativeBattleActionPacketsState packets = snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner.");
-        NativeBattleRetainedMemory result = new(packets.ExportRetained(), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch, null, coldExecutableSha256)
+        NativeBattleRetainedMemory? previous = snapshot.Definition.NativeRetainedMemory;
+        NativeBattlePartyStatusMirrors mirrors = snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors.");
+        NativeBattleRetainedMemory retained = previous is null
+            ? new(NativeBattleRetainedActionPackets.Fresh(), snapshot.NativeScriptState.AllocationControl, mirrors, scratch, null, coldExecutableSha256)
+            : NativeBattleStorageSnapshots.RestoreForNewBattle(previous);
+        retained = retained with
         {
+            AllocationControl = snapshot.NativeScriptState.AllocationControl,
+            PartyStatusMirrors = mirrors,
+            ActionScratch = scratch,
             PresentationStatusMemory = snapshot.NativePresentationStatusMemory,
             ElementAttack = snapshot.NativeElementAttack,
             VibrationProcess = snapshot.NativeVibrationProcess,
             MusicProcess = snapshot.NativeMusicProcess,
             ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.")
         };
-        result = result.WithEntryState(snapshot.Definition.NativeRetainedMemory, null, snapshot.Outcome);
-        return result with { StorageGraph = NativeBattleStorageGraphProjection.Retained(result, snapshot) };
+        return NativeBattleStorageSnapshots.Capture(retained.WithEntryState(previous, null, snapshot.Outcome));
     }
 
     internal NativeBattleRetainedMemory WithEntryState(NativeBattleRetainedMemory? previous, NativeBattleGraphicsState? graphics, BattleOutcome outcome)

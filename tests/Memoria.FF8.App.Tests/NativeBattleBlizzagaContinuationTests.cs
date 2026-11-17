@@ -121,11 +121,11 @@ public sealed class NativeBattleBlizzagaContinuationTests
 
     private static bool HasBlizzaga(BattleSnapshot snapshot)
     {
-        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.BlizzagaResources is not null && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor != 0;
+        return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Binding.BlizzagaResources is not null && snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor != 0;
     }
 
     private static bool Released(BattleSnapshot snapshot)
     {
-        return !HasBlizzaga(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.NativeActionScratch?.ComponentCompletion is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
+        return !HasBlizzaga(snapshot) && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeTimedAction is null && snapshot.ReadFixturePresentation().NativeGraphics is { Requests.IsEmpty: true, Descriptors.Queue.IsEmpty: true, OriginalEffect.ReturnedDescriptor: 0 };
     }
 }

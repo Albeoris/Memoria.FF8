@@ -18,8 +18,8 @@ public sealed class NativeBattleRinoa89VictoryDependencyTests
         byte[] original = File.ReadAllBytes(source!);
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(original)!;
         Assert.Equal((ushort)89, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.Equal((byte)4, snapshot.ReadFixturePresentation().NativeGraphics.NativeOutcome!.ResultByte6E7);
+        Assert.Equal(0u, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+        Assert.Equal((byte)4, snapshot.ReadFixturePresentation().NativeGraphics!.NativeOutcome!.ResultByte6E7);
         Assert.Null(snapshot.NativeTimedAction);
         Assert.Empty(snapshot.NativeLimits);
         Assert.Null(snapshot.Definition.NativeVictoryFile);

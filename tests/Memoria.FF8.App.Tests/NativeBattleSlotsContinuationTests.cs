@@ -78,7 +78,7 @@ public sealed class NativeBattleSlotsContinuationTests
                 }
                 if (count % 8 == 0)
                 {
-                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command).ToArray() }));
+                    trace.WriteLine(JsonSerializer.Serialize(new { count, current.Frame, current.Outcome, ActiveHeader = current.ReadFixturePresentation().NativeGraphics?.ActionGraphics?.Header.Ordinal, Headers = current.NativeActionPackets?.ActionCount, DescriptorQueue = current.ReadFixturePresentation().NativeGraphics?.Descriptors.Queue.Select(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command).ToArray() }));
                 }
                 if (!restoredMidpoint && current.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: not 0, Parameters.Header.Ordinal: 0 })
                 {

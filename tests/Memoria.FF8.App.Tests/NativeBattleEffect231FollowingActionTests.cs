@@ -23,7 +23,7 @@ public sealed class NativeBattleEffect231FollowingActionTests
         Assert.True(NativeBattleEffect231PresentationTests.Restore(source, game).NativeEntryReady);
         NativeBattleEffect231SourceAdmissionTests.ValidateSource(source, assets, false);
         NativeBattleScriptedEffectMemory warm = source.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects!;
-        Assert.Equal(231, source.ReadFixturePresentation().NativeEffectMemory.Cinematic!.Effect);
+        Assert.Equal(231, source.ReadFixturePresentation().NativeEffectMemory!.Cinematic!.Effect);
         BattleSnapshot prepared = NativeBattleEffect231PresentationTests.QueueComponent(source, game, assets);
         Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects));
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));

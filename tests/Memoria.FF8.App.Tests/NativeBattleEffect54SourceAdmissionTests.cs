@@ -27,7 +27,7 @@ public sealed class NativeBattleEffect54SourceAdmissionTests
         Assert.Equal(76, source.Definition.StageId);
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
-        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics, 3)!);
+        BattleCombatantDefinition caster = session.GetCombatantDefinition(ReadOriginalModelActorId(source.ReadFixturePresentation().NativeGraphics!, 3)!);
         Assert.Equal(56, caster.ModelId);
         Assert.Equal(1, caster.SceneSlot);
         Assert.True(caster.InitialActive);
@@ -41,7 +41,7 @@ public sealed class NativeBattleEffect54SourceAdmissionTests
         Assert.True(dormant.InitiallySuspended);
         Assert.True(dormant.Untargetable);
         Assert.DoesNotContain(source.Definition.Combatants, actor => !actor.IsPlayer && actor.ModelId == 83);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal((byte)72, model.ModelId4);
         Assert.NotEqual(0, model.Flags0 & 2);
         Assert.NotNull(model.Transform);
@@ -72,6 +72,6 @@ public sealed class NativeBattleEffect54SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh source current model, anchors and bounds only; action header preparation and later poses are separate", source.Frame, source.ReadFixturePresentation().NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, Bones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, CurrentBounds = model.GeometryBounds52, LocalBounds = bounds, F0 = new { first.Distance, first.Matrix, Point = firstPoint }, F1 = new { second.Distance, second.Matrix, Point = secondPoint }, Dormant = new { dormant.ModelId, dormant.Slot, dormant.Enabled, dormant.Hidden, dormant.InitiallySuspended, dormant.Untargetable }, SnapshotUnchanged = true }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh source current model, anchors and bounds only; action header preparation and later poses are separate", source.Frame, source.ReadFixturePresentation().NativeGraphics!.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, Bones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, CurrentBounds = model.GeometryBounds52, LocalBounds = bounds, F0 = new { first.Distance, first.Matrix, Point = firstPoint }, F1 = new { second.Distance, second.Matrix, Point = secondPoint }, Dormant = new { dormant.ModelId, dormant.Slot, dormant.Enabled, dormant.Hidden, dormant.InitiallySuspended, dormant.Untargetable }, SnapshotUnchanged = true }));
     }
 }

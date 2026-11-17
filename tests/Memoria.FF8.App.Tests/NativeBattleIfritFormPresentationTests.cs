@@ -373,7 +373,7 @@ public sealed class NativeBattleIfritFormPresentationTests
         }
         Assert.True(restoredEmergence);
         BattleSnapshot landed = battle.CaptureForContinuation();
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(landed.WithFixturePresentation(facts => facts with { NativeGraphics = landed.ReadFixturePresentation().NativeGraphics! with { GuardianFormPresentation = landed.ReadFixturePresentation().NativeGraphics.GuardianFormPresentation! with { HumanFocalLength = 0 } } })));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(landed.WithFixturePresentation(facts => facts with { NativeGraphics = landed.ReadFixturePresentation().NativeGraphics! with { GuardianFormPresentation = landed.ReadFixturePresentation().NativeGraphics!.GuardianFormPresentation! with { HumanFocalLength = 0 } } })));
         Assert.Equal(BattleGuardianFormPhase.Active, battle.GetGuardianForm("party")?.Phase);
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.ActorId == "party");
         Assert.Equal(9999, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);

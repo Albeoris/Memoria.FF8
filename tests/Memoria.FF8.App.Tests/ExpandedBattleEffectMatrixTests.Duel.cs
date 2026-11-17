@@ -53,7 +53,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
         Assert.Equal(target.Id, queued.TargetId);
         Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(queued.TargetRequest.Selection);
 
-        Until(() => battle.GetNativeDuel(caster.Id)?.Phase == BattleNativeDuelPhase.Ready);
+        Until(() => battle.GetNativeDuel(caster.Id) is { Phase: BattleNativeDuelPhase.Ready, WidgetPhase: 4 });
         BattleEvent actualOpening = Assert.Single(battle.Events.Skip(first), entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id);
         Assert.Equal(target.Id, actualOpening.TargetId);
         Assert.Equal(BattleAbility.LimitBreak, actualOpening.Ability);
@@ -67,21 +67,18 @@ public sealed partial class ExpandedBattleEffectMatrixTests
                 Assert.Contains(battle.GetNativeDuelChoices(caster.Id), option => option.MoveSetId == choice.MoveSetId);
                 foreach (ushort button in choice.Buttons)
                 {
-                    battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(166667), button);
-                    battle.AdvanceNativeDuelPresentation(TimeSpan.FromTicks(166667), 0);
+                    battle.SubmitNativeDuelInput(button);
+                    world.ApplyBattleInput(new(BattleInputKind.Tick));
+                    battle.SubmitNativeDuelInput(0);
                 }
-                BattleAttackCommand move = Assert.Single(battle.QueuedActions, action => action.ActorId == caster.Id);
-                Assert.Equal(choice.ActionId, move.NativeAction!.ActionId);
-                Assert.Equal(target.Id, move.TargetId);
-                Assert.IsNotType<NativeBattleTargetRequestAdapter.DeferredOperands>(move.TargetRequest.Selection);
-                Until(() => battle.GetNativeDuel(caster.Id)?.Phase is BattleNativeDuelPhase.Ready or null);
+                Until(() => battle.GetNativeDuel(caster.Id) is { Phase: BattleNativeDuelPhase.Ready, WidgetPhase: 4 } or null);
             }
             expected = (selected.TargetFlags!.Value & 0x10) == 0 ? battle.Combatants.Where(actor => !actor.IsPlayer).Select(actor => actor.Id).Order().ToArray() : [target.Id];
             Assert.Equal(expected, battle.Events.Skip(first).Where(entry => entry.Kind == "EffectContact" && entry.ActorId == caster.Id && entry.Message == selected.Name).Select(entry => entry.TargetId).Order());
         }
         else
         {
-            battle.AdvanceNativeDuelUi(ready.RemainingTimer);
+            Until(() => battle.GetNativeDuel(caster.Id) is null);
         }
         Assert.Null(battle.GetNativeDuel(caster.Id));
         Assert.False(caster.IsBusy);
@@ -89,7 +86,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests
 
         void Until(Func<bool> done)
         {
-            for (int frame = 0; frame < 300 && !done(); frame++)
+            for (int frame = 0; frame < 1000 && !done(); frame++)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
             }

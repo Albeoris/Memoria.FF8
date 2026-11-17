@@ -157,7 +157,7 @@ public sealed class BattleUiTests
         UiTheme theme = new();
         UiView view = hud.BuildView();
         view.Resize(960, 672);
-        hud.AdvancePresentation(TimeSpan.FromSeconds((frame + 0.125) / BattleSession.FramesPerSecond));
+        hud.AdvancePresentation(TimeSpan.FromSeconds((frame + 0.125) / BattlePresentationTiming.CallbacksPerSecond));
         TestCanvas canvas = new();
         view.Draw(canvas, theme);
         UiColor expected = new((byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128), (byte)Math.Min(255, 238 * shade / 128));
@@ -204,7 +204,7 @@ public sealed class BattleUiTests
         definition = definition with { Combatants = [definition.Combatants[0] with { CurrentHp = 24 }, .. definition.Combatants.Skip(1)] };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
-        hud.AdvancePresentation(TimeSpan.FromSeconds(3.125 / BattleSession.FramesPerSecond));
+        hud.AdvancePresentation(TimeSpan.FromSeconds(3.125 / BattlePresentationTiming.CallbacksPerSecond));
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
         Assert.Equal(new UiColor(148, 148, 148), Assert.Single(canvas.TextDraws, draw => draw.Text == "Squall").Color);
@@ -520,7 +520,7 @@ public sealed class BattleUiTests
         Assert.Contains("Bite Bug Card", canvas.Texts);
         ConfirmSettledResult(hud);
         Assert.Equal(BattleResultPage.Items, hud.ResultPage);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(32d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(32d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         Assert.Equal(BattleResultPage.GuardianForce, hud.ResultPage);
         Assert.Equal(0, completions);
         canvas.Texts.Clear();
@@ -682,14 +682,14 @@ public sealed class BattleUiTests
         ConfirmSettledResult(hud);
         ConfirmSettledResult(hud);
         Assert.True(hud.ItemAcknowledged);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         Assert.Equal(1, hud.ResultItemIndex);
         Assert.False(hud.ItemAcknowledged);
         Assert.Equal(0, completions);
         ConfirmSettledResult(hud);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         Assert.Equal(0, completions);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         Assert.Equal(1, completions);
     }
 
@@ -733,10 +733,10 @@ public sealed class BattleUiTests
         Assert.True(hud.ItemAcknowledged);
         ConfirmSettledResult(hud);
         Assert.Equal(0, completions);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         ConfirmSettledResult(hud);
         Assert.Equal(0, completions);
-        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+        hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(16d * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         Assert.Equal(1, completions);
     }
 
@@ -745,7 +745,7 @@ public sealed class BattleUiTests
         double frames = (1 - hud.ResultOpacity) * 16;
         if (frames > 0)
         {
-            hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(frames * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+            hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(frames * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         }
     }
 

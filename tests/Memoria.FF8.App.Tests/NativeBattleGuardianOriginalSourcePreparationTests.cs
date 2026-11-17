@@ -104,7 +104,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         Pump(Queued, "normal-native-action104");
         BattleSnapshot queued = session.CaptureForContinuation();
         NativeBattleOriginalEffectState? admitted = queued.ReadFixturePresentation().NativeGraphics!.OriginalEffect;
-        int[] descriptors = queued.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Where(index => queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104).ToArray();
+        int[] descriptors = queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Where(index => queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104).ToArray();
         int headerIndex;
         if (admitted is not null)
         {
@@ -119,12 +119,12 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         else
         {
             int descriptor = Assert.Single(descriptors);
-            uint argument = queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument;
+            uint argument = queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument;
             headerIndex = checked((int)((argument - 0x1D280C4u) / 20));
         }
         foreach (int descriptor in descriptors)
         {
-            Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument);
+            Assert.Equal(checked(0x1D280C4u + (uint)headerIndex * 20), queued.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument);
         }
         NativeBattleActionHeaderSlot header = queued.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(headerIndex));
         Assert.Equal(effect, header.Effect);
@@ -132,7 +132,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
         Assert.Equal((byte)3, ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient));
         Save("queued-action104", queued);
         File.WriteAllText(Path.Combine(output, "original-formation.json"), JsonSerializer.Serialize(formation));
-        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.ReadFixturePresentation().NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output, "source-result.json"), JsonSerializer.Serialize(new { Effect = effect, Status = "admitted-before-entry", Boundary = admitted is null ? "queued-action104" : "admitted-before-entry", Scenario = "Diagnostic original ability-row invocation through normal native admission and formula; authored selector200 self; complete original formation and mandatory initialized AI; original encounter factory party/stat/RNG initialization; New Game initialization configuration; not a natural fifteenth turn or campaign continuation", Callback = 1, Offset = pc, AbilitySlot = slot, Command = 236, Action = actionId, Sequence = sequence, TargetSelector = 200, ActualContact = ReadOriginalModelOperand(queued.NativeActionPackets.ModelAliases, contact.Primary.Recipient), OriginalModel = 128, NativeModel = 144, queued.Frame, NativeCallback = queued.ReadFixturePresentation().NativeGraphics!.Callback }));
 
         return queued;
 
@@ -146,7 +146,7 @@ public sealed class NativeBattleGuardianOriginalSourcePreparationTests
                 Assert.Empty(admitted.Pools);
                 return admitted.Parameters is not null;
             }
-            return snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+            return snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
         }
 
         void Save(string name, BattleSnapshot snapshot)

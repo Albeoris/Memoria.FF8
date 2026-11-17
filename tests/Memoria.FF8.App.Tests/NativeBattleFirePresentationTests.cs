@@ -152,7 +152,7 @@ public sealed class NativeBattleFirePresentationTests
                     Directory.CreateDirectory(evidence);
                     string name = evidenceId + "-unsupported-callback" + snapshot.ReadFixturePresentation().NativeGraphics!.Callback;
                     File.WriteAllText(Path.Combine(evidence, name + ".battle.json"), JsonSerializer.Serialize(snapshot));
-                    File.WriteAllText(Path.Combine(evidence, name + "-details.json"), JsonSerializer.Serialize(new { exception.Message, snapshot.Frame, snapshot.ReadFixturePresentation().NativeGraphics.Callback, Meshes = snapshot.ReadFixturePresentation().NativeGraphics.ModuleDraws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh).Select(draw => new { draw.MeshId, draw.MeshFlags }) }));
+                    File.WriteAllText(Path.Combine(evidence, name + "-details.json"), JsonSerializer.Serialize(new { exception.Message, snapshot.Frame, snapshot.ReadFixturePresentation().NativeGraphics!.Callback, Meshes = snapshot.ReadFixturePresentation().NativeGraphics!.ModuleDraws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh).Select(draw => new { draw.MeshId, draw.MeshFlags }) }));
                 }
                 throw;
             }
@@ -190,7 +190,7 @@ public sealed class NativeBattleFirePresentationTests
         {
             PublishEvidence(evidence, evidenceId + "-peak", BattleSession.Restore(peakSnapshot!), peakVisible!);
             PublishPixels(evidence, evidenceId + "-peak-without-sprites", peakPlain!);
-            File.WriteAllText(Path.Combine(evidence, evidenceId + "-peak-details.json"), JsonSerializer.Serialize(new { ChangedPixels = peakDifferencePixels, Callback = peakSnapshot!.ReadFixturePresentation().NativeGraphics!.Callback, SpriteCount = peakSnapshot.ReadFixturePresentation().NativeGraphics.ModuleDraws.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite) }));
+            File.WriteAllText(Path.Combine(evidence, evidenceId + "-peak-details.json"), JsonSerializer.Serialize(new { ChangedPixels = peakDifferencePixels, Callback = peakSnapshot!.ReadFixturePresentation().NativeGraphics!.Callback, SpriteCount = peakSnapshot!.ReadFixturePresentation().NativeGraphics!.ModuleDraws!.Count(draw => draw.Kind == NativeBattleModuleDrawKind.Sprite) }));
         }
         Assert.True(checkedNextFrame, "No visible mid-effect snapshot made a subsequent continuation check.");
         Assert.True(cameraProgramCompleted, "Actual DED5FC camera control program did not register and finish.");

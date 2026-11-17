@@ -40,6 +40,11 @@ public sealed record NativeBattleArenaReplacement(NativeBattlePilotVisualIdentit
 
 public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
 {
+    internal sealed record Snapshot(NativeBattleArenaGeometry Geometry,
+        ImmutableDictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaReplacement> Replacements,
+        ImmutableDictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaCaptureMaterial> Captures,
+        ImmutableDictionary<(int X, int Y), NativeBattleArenaCaptureMaterial> CaptureRegions,
+        ImmutableDictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaGeometry> DeformationSurfaces);
     private readonly HashSet<NativeBattleArenaPrimitiveId> primitiveIds = geometry.Faces.Select(face => face.Id).ToHashSet();
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaReplacement> replacements = [];
     private readonly Dictionary<NativeBattlePilotVisualIdentity, NativeBattleArenaCaptureMaterial> captures = [];
@@ -65,27 +70,30 @@ public sealed class NativeBattleArenaHost(NativeBattleArenaGeometry geometry)
 
     public NativeBattleArenaHost Fork(bool preservePresentation = false)
     {
-        NativeBattleArenaHost fork = new(Geometry);
-        if (preservePresentation)
+        return preservePresentation ? Restore(CaptureState()) : new(Geometry);
+    }
+
+    internal Snapshot CaptureState()
+    {
+        return new(Geometry, replacements.ToImmutableDictionary(), captures.ToImmutableDictionary(), captureRegions.ToImmutableDictionary(), deformationSurfaces.ToImmutableDictionary());
+    }
+
+    internal static NativeBattleArenaHost Restore(Snapshot snapshot)
+    {
+        NativeBattleArenaHost fork = new(snapshot.Geometry);
+        Copy(fork.replacements, snapshot.Replacements);
+        Copy(fork.captures, snapshot.Captures);
+        Copy(fork.captureRegions, snapshot.CaptureRegions);
+        Copy(fork.deformationSurfaces, snapshot.DeformationSurfaces);
+        return fork;
+
+        static void Copy<TKey, TValue>(Dictionary<TKey, TValue> destination, ImmutableDictionary<TKey, TValue> source) where TKey : notnull
         {
-            foreach (var entry in replacements)
+            foreach ((TKey key, TValue value) in source)
             {
-                fork.replacements.Add(entry.Key, entry.Value);
-            }
-            foreach (var entry in captures)
-            {
-                fork.captures.Add(entry.Key, entry.Value);
-            }
-            foreach (var entry in captureRegions)
-            {
-                fork.captureRegions.Add(entry.Key, entry.Value);
-            }
-            foreach (var entry in deformationSurfaces)
-            {
-                fork.deformationSurfaces.Add(entry.Key, entry.Value);
+                destination.Add(key, value);
             }
         }
-        return fork;
     }
 
     public void ClearPresentation()

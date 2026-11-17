@@ -27,9 +27,9 @@ public sealed class NativeBattleEffect331PresentationTests
         Assert.NotNull(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).GeometryWorldMatrix);
         Assert.NotNull(ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3).ActiveResourceRow100);
         Assert.NotNull(Assert.IsType<NativeBattleGraphicsState>(source.ReadFixturePresentation().NativeGraphics).UiServices);
-        Assert.Null(source.ReadFixturePresentation().NativeGraphics.OriginalEffect);
-        int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
-        uint argument = source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument;
+        Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
+        int descriptor = Assert.Single(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
+        uint argument = source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument;
         Assert.Equal(0u, (argument - 0x1D280C4u) % 20);
         int slot = checked((int)((argument - 0x1D280C4u) / 20));
         NativeBattleActionHeaderSlot header = source.NativeActionPackets!.ReadHeader(new BattleActionHeaderReference(slot));

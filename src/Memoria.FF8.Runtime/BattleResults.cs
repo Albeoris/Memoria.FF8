@@ -180,7 +180,9 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
         EncounterTerminal?.Validate(this);
-        if (Outcome == BattleOutcome.Victory && EncounterTerminal is null && Party.All(member => (member.StatusAfter & 5) != 0) || Outcome == BattleOutcome.Defeat && Party.Any(member => (member.StatusAfter & 5) == 0))
+        HashSet<byte> departed = PartyOccupancyChanges.Select(change => change.OutgoingRow).ToHashSet();
+        bool partyCanAct = Party.Any(member => !departed.Contains(member.Row) && (member.StatusAfter & 5) == 0);
+        if (Outcome == BattleOutcome.Victory && EncounterTerminal is null && !partyCanAct || Outcome == BattleOutcome.Defeat && partyCanAct)
         {
             throw new InvalidDataException("Battle outcome contradicts its observed party HP or KO effects.");
         }

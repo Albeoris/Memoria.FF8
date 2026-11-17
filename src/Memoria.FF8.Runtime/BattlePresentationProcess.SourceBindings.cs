@@ -80,4 +80,68 @@ public sealed partial class BattlePresentationProcess
         NativeBattleModelAliases physical = graphics.NativeBindings.CaptureAliases(graphics.ActorModels);
         return caller is not null && ReadSourceBindings(graphics, caller) is { } bindings ? bindings.ApplyAuthoredOperands(physical) : physical;
     }
+
+    private void ValidateAuthoredEffectModelOperands(NativeBattleGraphicsState graphics, BattleModelOwner source, ushort effect, HostedModelRegistry? registry)
+    {
+        if (effect == 0 || source.Side != BattleSide.Enemies)
+        {
+            return;
+        }
+        BattleSourcePlacementBinding? admitted = registry?.Loads.GetValueOrDefault(source)?.Source;
+        BattleSourceGroupId? scope = admitted?.Group ?? resources.SourceGrouping.FindGroup(source);
+        if (scope is not { } group)
+        {
+            return;
+        }
+
+        NativeBattleEffectBinding selected = NativeBattleOriginalEffects.Select(effect, resources.NativeEffectCatalog).Binding;
+        ImmutableArray<byte> cinematics = resources.ReadCinematicModelOperands?.Invoke(selected).Operands ?? [];
+        if (selected.AuthoredModelOperands.IsEmpty && selected.CasterRelativeModels.IsEmpty && cinematics.IsEmpty)
+        {
+            return;
+        }
+        BattleSourceBindings? current = ReadSourceBindings(graphics, source);
+        foreach (byte operand in selected.AuthoredModelOperands)
+        {
+            RequireOperand(operand);
+        }
+        foreach (byte operand in cinematics)
+        {
+            RequireOperand(operand);
+        }
+        if (!selected.CasterRelativeModels.IsEmpty)
+        {
+            byte sourceOperand = 0;
+            if (current?.TryGetOriginalOperand(source, out sourceOperand) != true)
+            {
+                if (admitted?.OriginalEnemyOrdinal is not int ordinal)
+                {
+                    throw new NotSupportedException($"Native effect {effect} requires the source's authored model operand.");
+                }
+                sourceOperand = checked((byte)(NativeBattleSlots.AllyCount + ordinal));
+            }
+            foreach (byte offset in selected.CasterRelativeModels)
+            {
+                RequireOperand(checked((byte)(sourceOperand + offset)));
+            }
+        }
+
+        void RequireOperand(byte operand)
+        {
+            if (!NativeBattleSlots.Contains(operand))
+            {
+                throw new NotSupportedException($"Native effect {effect} requires authored model operand {operand} outside the original model bank.");
+            }
+            NativeBattleModelSlot slot = NativeBattleModelSlot.Decode(operand);
+            if (current?.HasOriginalOperand(slot) == true || slot.Side == BattleSide.Allies && graphics.NativeBindings.FindOriginalOwner(slot, graphics.ActorModels) is not null)
+            {
+                return;
+            }
+            if (registry is not null && registry.Loads.Values.Any(load => load.Source is { OriginalEnemyOrdinal: int ordinal } placement && placement.Group == group && NativeBattleSlots.AllyCount + ordinal == operand))
+            {
+                return;
+            }
+            throw new NotSupportedException($"Native effect {effect} requires authored model operand {operand} in its admitted source group.");
+        }
+    }
 }

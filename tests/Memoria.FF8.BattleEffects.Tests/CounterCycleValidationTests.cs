@@ -31,11 +31,7 @@ public sealed class CounterCycleValidationTests
         BattleDiagnosticCounterActor recipient = new("enemy0", 3, 84, 100 - execution * 10, true, 0, new(0, 0, 1, 0, 0, 0), new(2, 0), [4, 0, 0, 0, 0, 0, 0, 0]);
         BattleDiagnosticCounterPrimary primary = new(primarySerial, start + 1, "party0", 0, "enemy0", 3, 1, 0, 1, 110 - execution * 10, 100 - execution * 10, 0, generation, recipient, false);
         BattleDiagnosticCounterContact contact = new(primary, 0, false, Packets(0, 1, 0, 0, 4, 3));
-        byte[] bytes = new byte[12];
-        bytes[0] = 3;
-        bytes[1] = 255;
-        bytes[4] = 2;
-        BattleDiagnosticCounterCallback queue = new(epoch, start + 1, new(0, 0), 3, 2, 0, primarySerial, bytes.ToImmutableArray(), 0);
+        BattleDiagnosticCounterCallback queue = new(epoch, start + 1, "enemy0", BattleRosterSlot.Enemy(0), 3, 2, 0, primarySerial);
         BattleDiagnosticCounterCallbackObservation Phase(BattleDiagnosticCounterCallbackPhase phase) => new(phase, phase == BattleDiagnosticCounterCallbackPhase.Queued ? start + 1 : start + 2, queue, recipient with { PendingReaction = new(0, 0), Variables = phase == BattleDiagnosticCounterCallbackPhase.AiExited ? recipient.Variables.SetItem(0, 0) : recipient.Variables }, phase is BattleDiagnosticCounterCallbackPhase.AiEntered or BattleDiagnosticCounterCallbackPhase.AiExited ? 2 : null, phase is BattleDiagnosticCounterCallbackPhase.AiEntered or BattleDiagnosticCounterCallbackPhase.AiExited ? epoch : null, phase is BattleDiagnosticCounterCallbackPhase.AiEntered or BattleDiagnosticCounterCallbackPhase.AiExited ? declaration.Focal.ScriptSha256 : null);
         BattleDiagnosticCounterCommand command = new(start + 2, epoch, epoch, 2, declaration.Focal.ScriptSha256, "enemy0", 3, 8, 230, 178, 13, 1, 1, 0, 0, generation + 1);
         BattleDiagnosticEffectDispatch dispatch = new(execution, start + 3, "enemy0", BattleAbility.EnemyAbility, 230, 178, 178, 8) { NativeAiCallbackStage = 2, NativeAiScriptSha256 = declaration.Focal.ScriptSha256, NativeTargetMask = 1, NativeActorIndex = 3, NativeHeaderIndex = 0, NativeHeaderGeneration = generation + 1 };
@@ -43,7 +39,7 @@ public sealed class CounterCycleValidationTests
         {
             DrainedCallback = start + 5,
             Contacts = [contact],
-            Callbacks = [Phase(BattleDiagnosticCounterCallbackPhase.Queued), Phase(BattleDiagnosticCounterCallbackPhase.Taken), Phase(BattleDiagnosticCounterCallbackPhase.Started), Phase(BattleDiagnosticCounterCallbackPhase.AiEntered), Phase(BattleDiagnosticCounterCallbackPhase.AiExited), Phase(BattleDiagnosticCounterCallbackPhase.Completed)],
+            Callbacks = [Phase(BattleDiagnosticCounterCallbackPhase.Queued), Phase(BattleDiagnosticCounterCallbackPhase.Started), Phase(BattleDiagnosticCounterCallbackPhase.AiEntered), Phase(BattleDiagnosticCounterCallbackPhase.AiExited), Phase(BattleDiagnosticCounterCallbackPhase.Completed)],
             Commands = [command],
             Dispatch = dispatch,
             DispatchPackets = new(dispatch.Serial, dispatch.Callback, 0, generation + 1, Packets(3, 8, 230, 178, 13, 0))
@@ -68,9 +64,9 @@ public sealed class CounterCycleValidationTests
     [InlineData("header_unknown")]
     [InlineData("contact_index")]
     [InlineData("queue_epoch")]
-    [InlineData("queue_payload")]
-    [InlineData("queue_unknown")]
-    [InlineData("queue_high_unknown")]
+    [InlineData("queue_stage")]
+    [InlineData("queue_actor_id")]
+    [InlineData("queue_actor_slot")]
     [InlineData("counter_threshold")]
     [InlineData("counter_reset")]
     [InlineData("exit_stage")]
@@ -92,7 +88,7 @@ public sealed class CounterCycleValidationTests
         DiagnosticCounterCycleReceipt cycle = Cycle();
         DiagnosticCounterAttemptReceipt attempt = cycle.Attempts[0];
         BattleDiagnosticCounterContact contact = attempt.Contacts[0];
-        var entry = attempt.Callbacks[3];
+        var entry = attempt.Callbacks[2];
         var source = attempt.Commands[0];
         switch (change)
         {
@@ -117,27 +113,27 @@ public sealed class CounterCycleValidationTests
             case "queue_epoch":
                 entry = entry with { Queue = entry.Queue with { Epoch = 99 } };
                 break;
-            case "queue_payload":
-                entry = entry with { Queue = entry.Queue with { Packet = entry.Queue.Packet.SetItem(4, 3) } };
+            case "queue_stage":
+                entry = entry with { Queue = entry.Queue with { Stage = 3 } };
                 break;
-            case "queue_unknown":
-                entry = entry with { Queue = entry.Queue with { UnknownByteMask = 1 } };
+            case "queue_actor_id":
+                entry = entry with { Queue = entry.Queue with { ActorId = "enemy1" } };
                 break;
-            case "queue_high_unknown":
-                entry = entry with { Queue = entry.Queue with { UnknownByteMask = 0x1000 } };
+            case "queue_actor_slot":
+                entry = entry with { Queue = entry.Queue with { Slot = BattleRosterSlot.Enemy(1) } };
                 break;
             case "counter_threshold":
                 entry = entry with { Actor = entry.Actor with { Variables = entry.Actor.Variables.SetItem(0, 3) } };
                 break;
             case "counter_reset":
-                var reset = attempt.Callbacks[4];
-                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(4, reset with { Actor = reset.Actor with { Variables = reset.Actor.Variables.SetItem(0, 5) } }) };
+                var reset = attempt.Callbacks[3];
+                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(3, reset with { Actor = reset.Actor with { Variables = reset.Actor.Variables.SetItem(0, 5) } }) };
                 break;
             case "exit_stage":
-                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(4, attempt.Callbacks[4] with { AiStage = 4 }) };
+                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(3, attempt.Callbacks[3] with { AiStage = 4 }) };
                 break;
             case "exit_actor":
-                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(4, attempt.Callbacks[4] with { Actor = attempt.Callbacks[4].Actor with { Index = 0 } }) };
+                attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(3, attempt.Callbacks[3] with { Actor = attempt.Callbacks[3].Actor with { Index = 0 } }) };
                 break;
             case "queue_phase":
                 attempt = attempt with { Callbacks = attempt.Callbacks.RemoveAt(1) };
@@ -173,13 +169,13 @@ public sealed class CounterCycleValidationTests
                 attempt = attempt with { DispatchPackets = null };
                 break;
             case "missing_completion":
-                attempt = attempt with { Callbacks = attempt.Callbacks.RemoveAt(5) };
+                attempt = attempt with { Callbacks = attempt.Callbacks.RemoveAt(4) };
                 break;
         }
         attempt = attempt with { Contacts = [contact], Commands = [source] };
         if (change != "queue_phase" && change != "missing_completion")
         {
-            attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(3, entry) };
+            attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(2, entry) };
         }
         cycle = cycle with { Attempts = [attempt] };
         Exception? failure = Record.Exception(() => DiagnosticCounterCycleValidation.Validate(cycle, Input));
@@ -191,7 +187,7 @@ public sealed class CounterCycleValidationTests
     {
         var cycle = Cycle();
         var one = cycle.Attempts[0];
-        var noFocal = one with { Commands = [], Dispatch = null, DispatchPackets = null, Callbacks = one.Callbacks.SetItem(4, one.Callbacks[4] with { Actor = one.Callbacks[4].Actor with { Variables = one.Callbacks[4].Actor.Variables.SetItem(0, 5) } }) };
+        var noFocal = one with { Commands = [], Dispatch = null, DispatchPackets = null, Callbacks = one.Callbacks.SetItem(3, one.Callbacks[3] with { Actor = one.Callbacks[3].Actor with { Variables = one.Callbacks[3].Actor.Variables.SetItem(0, 5) } }) };
         var following = Cycle(2).Attempts[0] with { Number = 2 };
         var combined = cycle with { Attempts = [noFocal, following], CompletedCallback = 25 };
         DiagnosticCounterCycleValidation.Validate(combined, Input);
@@ -216,8 +212,8 @@ public sealed class CounterCycleValidationTests
     {
         var cycle = Cycle();
         var attempt = cycle.Attempts[0];
-        var entry = attempt.Callbacks[3];
-        attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(3, entry with { Actor = entry.Actor with { Variables = entry.Actor.Variables.SetItem(0, before) } }) };
+        var entry = attempt.Callbacks[2];
+        attempt = attempt with { Callbacks = attempt.Callbacks.SetItem(2, entry with { Actor = entry.Actor with { Variables = entry.Actor.Variables.SetItem(0, before) } }) };
         cycle = cycle with { Attempts = [attempt] };
         if (accepted)
         {
@@ -239,7 +235,7 @@ public sealed class CounterCycleValidationTests
         var callbacks = attempt.Callbacks.Select(observation => observation with { Actor = observation.Actor with { Variables = observation.Actor.Variables.SetItem(0, 4).SetItem(1, 1) } }).ToImmutableArray();
         attempt = attempt with { Contacts = [contact], Callbacks = callbacks, Commands = [attempt.Commands[0] with { ActionId = 232, EffectId = 0, Sequence = 15, SelectedTargetMask = 8, QueuedTargetMask = 8 }], Dispatch = null, DispatchPackets = null };
         DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [attempt], CompletedCallback = null }, Input, false);
-        var rejected = attempt with { Callbacks = callbacks.SetItem(3, callbacks[3] with { Actor = callbacks[3].Actor with { Variables = callbacks[3].Actor.Variables.SetItem(1, 0) } }) };
+        var rejected = attempt with { Callbacks = callbacks.SetItem(2, callbacks[2] with { Actor = callbacks[2].Actor with { Variables = callbacks[2].Actor.Variables.SetItem(1, 0) } }) };
         Assert.Throws<InvalidDataException>(() => DiagnosticCounterCycleValidation.Validate(cycle with { Attempts = [rejected], CompletedCallback = null }, Input, false));
     }
 
@@ -264,7 +260,7 @@ public sealed class CounterCycleValidationTests
         var callbacks = basis.Callbacks.Select(observation => observation with
         {
             Callback = observation.Phase == BattleDiagnosticCounterCallbackPhase.Queued ? 127 : 128,
-            Queue = observation.Queue with { Callback = 127, PendingOrder = 1, PrimarySerial = 2, UnknownByteMask = 8 },
+            Queue = observation.Queue with { Callback = 127, PendingOrder = 1, PrimarySerial = 2 },
             Actor = InitialActor(0, finalHp, 0) with { PendingReaction = new(0, 0), Variables = [observation.Phase is BattleDiagnosticCounterCallbackPhase.AiExited or BattleDiagnosticCounterCallbackPhase.Completed ? 1u : 0u, 0, 0, 0, 0, 0, 0, 0] }
         }).ToImmutableArray();
         return cycle with { StartedCallback = 94, CompletedCallback = null, Attempts = [basis with { SubmittedCallback = 94, DrainedCallback = 209, Contacts = [preliminary, actual], Callbacks = callbacks, Commands = [], Dispatch = null, DispatchPackets = null }] };

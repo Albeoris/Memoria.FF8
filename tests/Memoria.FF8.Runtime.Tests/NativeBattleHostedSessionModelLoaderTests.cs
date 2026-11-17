@@ -235,7 +235,7 @@ public sealed class NativeBattleHostedSessionModelLoaderTests
         Set(session, nameof(BattleSession.NativeModelCpuResources), cpu);
         Set(session, nameof(BattleSession.NativeModelTextureCache), cache);
         Set(session, nameof(BattleSession.NativeEffectMemory), memory);
-        Set(session, nameof(BattleSession.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        Set(session, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
         Set(session, nameof(BattleSession.NativeFileStaging), NativeBattleFileStaging.Unknown());
         Set(session, nameof(BattleSession.NativeEffectIoResult), 0);
         return session;

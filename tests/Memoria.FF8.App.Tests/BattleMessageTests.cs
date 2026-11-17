@@ -182,7 +182,7 @@ public sealed class BattleMessageTests
     private static TimeSpan FrameDuration(int frames)
     {
         // A native frame is a repeating fraction in TimeSpan ticks; advance to the first representable instant at its boundary.
-        return TimeSpan.FromTicks((long)Math.Ceiling(frames * (double)TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond));
+        return TimeSpan.FromTicks((long)Math.Ceiling(frames * (double)TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond));
     }
 
     private static BattleSession Create(byte[] script)

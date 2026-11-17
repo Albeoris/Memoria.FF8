@@ -21,7 +21,7 @@ public sealed class NativeBattleEffect312FollowingActionTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect312PresentationTests.Released(source));
         Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
-        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera!.Order);
         NativeBattleEffect312State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect312!;
         Assert.Equal(2, warm.FixedBanks.Count);
         Assert.All(warm.FixedBanks.Values, bank => Assert.NotNull(bank));

@@ -37,7 +37,7 @@ public sealed class NativeBattleEffect320SourceAdmissionTests
         BattleCombatantDefinition caster = session.GetCombatantDefinition(enemy.Id);
         Assert.Equal(132, caster.ModelId);
         Assert.Equal(0, caster.SceneSlot);
-        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, 3);
+        NativeBattleGraphicsModel model = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, 3);
         Assert.Equal((byte)148, model.ModelId4);
         Assert.NotNull(model.GeometryWorldMatrix);
         Assert.NotNull(model.Transform);
@@ -77,6 +77,6 @@ public sealed class NativeBattleEffect320SourceAdmissionTests
         Assert.Equal(unchanged, JsonSerializer.Serialize(source));
         Assert.Equal(unchanged, JsonSerializer.Serialize(session.Capture()));
         Directory.CreateDirectory(output!);
-        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh original-resource component input only; later geometry, contact, camera and completion require actual lifecycle", source.Frame, source.ReadFixturePresentation().NativeGraphics.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, caster.Level, ActorBones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, model.SequenceState, OriginalKernelAction = 305, OriginalKernelEffect = 320, Sequence12 = sequence, BoneSelector = 27, ColdAnchorSourceBound = state.MutableAnchorSourceBound, SnapshotUnchanged = true }));
+        File.WriteAllText(Path.Combine(output!, "current-input-admission.json"), JsonSerializer.Serialize(new { Status = "passed", Scope = "Fresh original-resource component input only; later geometry, contact, camera and completion require actual lifecycle", source.Frame, source.ReadFixturePresentation().NativeGraphics!.Callback, source.Definition.EncounterId, source.Definition.StageId, PhysicalCaster = 3, caster.ModelId, caster.SceneSlot, caster.Level, ActorBones = bones.Length, CurrentWorld = model.GeometryWorldMatrix, model.SequenceState, OriginalKernelAction = 305, OriginalKernelEffect = 320, Sequence12 = sequence, BoneSelector = 27, ColdAnchorSourceBound = state.MutableAnchorSourceBound, SnapshotUnchanged = true }));
     }
 }

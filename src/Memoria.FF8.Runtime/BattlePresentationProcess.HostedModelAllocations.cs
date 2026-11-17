@@ -6,7 +6,7 @@ public sealed partial class BattlePresentationProcess
 {
     internal sealed record HostedModelLoadAdmission(HostedDispatchControl.LoadModel Load, NativeBattleGraphicsBinding Binding, ImmutableHashSet<BattleModelOwner> LaterOwners, bool UsesOriginalSceneResource)
     {
-        internal BattleEnemyRosterSource? Source { get; init; }
+        internal BattleSourcePlacementBinding? Source { get; init; }
     }
     internal sealed record HostedModelRegistry(BattleModelRoster Roster, ImmutableDictionary<BattleModelOwner, HostedModelLoadAdmission> Loads);
     internal sealed record PreparedHostedModelRegistry(HostedModelRegistry Original, HostedModelRegistry Replacement, NativeBattleModelCpuResources Cpu, NativeBattleModelTextureCache Cache, NativeBattleEffectMemory Memory);

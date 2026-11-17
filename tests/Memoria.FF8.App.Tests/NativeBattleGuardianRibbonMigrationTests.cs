@@ -20,7 +20,7 @@ public sealed class NativeBattleGuardianRibbonMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(147L, original.Frame);
         Assert.Equal(227L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         Assert.Equal((ushort)116, effect.Binding.Effect);
         Assert.Equal((ushort)87, effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         NativeBattleQuezacotlResources retained = effect.Binding.NativeQuezacotlResources!;
@@ -36,7 +36,7 @@ public sealed class NativeBattleGuardianRibbonMigrationTests
         NativeBattleQuezacotlResources migratedResources = retained with { Ribbon = authenticated.Ribbon };
         BattleSnapshot migrated = (original with
         {
-            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, catalog with { NativeQuezacotlResources = migratedResources }) }        }).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = migratedResources } } } });
+            Definition = original.Definition with { NativeEffectCatalog = original.Definition.NativeEffectCatalog.SetItem(index, catalog with { NativeQuezacotlResources = migratedResources }) }        }).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics! with { OriginalEffect = effect with { Binding = effect.Binding with { NativeQuezacotlResources = migratedResources } } } });
         Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize((migrated with { Definition = original.Definition}).WithFixturePresentation(facts => facts with { NativeGraphics = original.ReadFixturePresentation().NativeGraphics })));
         BattleSession first = BattleSession.Restore(migrated);
         Assert.Equal(JsonSerializer.Serialize(migrated), JsonSerializer.Serialize(first.Capture()));

@@ -20,7 +20,7 @@ internal static class NativeBattleOrdinaryEnemyHeapMigration
         Assert.Null(graphics.NativeOutcome);
         Assert.Null(battle.ReadFixturePresentation().NativeModelLoader?.Task);
         Assert.Equal(0, battle.ReadFixturePresentation().NativeEffectMemory!.Active);
-        Assert.Null(battle.ReadFixturePresentation().NativeEffectMemory.Entry21DFEC0);
+        Assert.Null(battle.ReadFixturePresentation().NativeEffectMemory!.Entry21DFEC0);
         NativeBattleModelCpuResources cpu = battle.ReadFixturePresentation().NativeModelCpuResources ?? throw new InvalidDataException("Migration must retain the actual party CPU banks.");
         Assert.Null(cpu.EnemyCursor);
         NativeBattleFileStaging staging = battle.ReadFixturePresentation().NativeFileStaging ?? throw new InvalidDataException("Migration must retain its current shared party/file memory.");

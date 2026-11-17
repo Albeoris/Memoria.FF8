@@ -14,12 +14,12 @@ public sealed class NativeBattleGuardianRibbonVisualTests
         Assert.SkipUnless(path is not null, "A concrete completed native GF ribbon frame is required.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
         Assert.Equal((ushort)116, snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+        NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
         bool Ribbon(NativeBattleLogicalResolvedCommand command) => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094" && (command.Command.Opcode & 0xFC) == 0x3C;
         int ribbonCommands = frame.LastCommands.Count(command => command.Pass > 0 && Ribbon(command));
         Assert.True(ribbonCommands > 0);
         BattleSession original = BattleSession.Restore(snapshot);
-        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !Ribbon(command)).ToImmutableArray() } } });
+        BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !Ribbon(command)).ToImmutableArray() } } });
         BattleSession control = BattleSession.Restore(without);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         BattleScenePresentation scene = new(assets, snapshot.Definition);
@@ -29,6 +29,6 @@ public sealed class NativeBattleGuardianRibbonVisualTests
         Assert.True(changed > 0, "The reached native ribbon packets must make a measurable visible contribution in the named frame.");
         Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(original.Capture()));
         Assert.Equal(JsonSerializer.Serialize(without), JsonSerializer.Serialize(control.Capture()));
-        Console.WriteLine($"Native ribbon visual control at frame{snapshot.Frame}/callback{snapshot.ReadFixturePresentation().NativeGraphics.Callback}: removed{ribbonCommands} resolved common GT4 draws, changed{changed} RGB pixels; neither simulation advanced.");
+        Console.WriteLine($"Native ribbon visual control at frame{snapshot.Frame}/callback{snapshot.ReadFixturePresentation().NativeGraphics!.Callback}: removed{ribbonCommands} resolved common GT4 draws, changed{changed} RGB pixels; neither simulation advanced.");
     }
 }

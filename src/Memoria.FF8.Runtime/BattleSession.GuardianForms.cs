@@ -72,10 +72,6 @@ public sealed partial class BattleSession
         {
             process.ValidateGuardianFormEntryResources(GuardianFormVisualOwner(actor, invocation, guardianForceId));
         }
-        if (nativePartyPresentation is not null)
-        {
-            _ = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
-        }
             QueueGuardianForce(actor, command);
         OnNativePlayerCommandSubmitted(actor, 3);
         (guardianForms ??= new(StringComparer.Ordinal)).Add(actorId, new(actorId, guardianForceId, profile.ProfileId, BattleGuardianFormPhase.Charging, invocation, 0));
@@ -187,7 +183,7 @@ public sealed partial class BattleSession
         try
         {
             nativeAffinityAction = FindAction(BattleAbility.GuardianForce, form.GuardianForceId).NativeAction;
-            CompleteGuardianForceAffinity(actor, new(actorId, actorId, BattleActionPhase.Recovery, 0, SelectBattleTarget(actor), BattleAbility.GuardianForce, form.GuardianForceId));
+            CompleteGuardianForceAffinity(actor, new(actorId, actorId, BattleActionPhase.Recovery, SelectBattleTarget(actor), BattleAbility.GuardianForce, form.GuardianForceId));
         }
         finally
         {
@@ -365,21 +361,21 @@ public sealed partial class BattleSession
 
     private void RestoreGuardianFormHumanVital(BattleCombatant actor)
     {
-        if (nativePartyPresentation is { } presentation)
+        if (expandedPartyPresentation is { } presentation)
         {
-            NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.RequireNativeActorIndex());
-            nativePartyPresentation = presentation with { Rows = presentation.Rows.SetItem(actor.RequireNativeActorIndex(), row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 }) };
+            NativeBattlePartyPresentedVital row = RequireExpandedPartyPresentedRow(presentation, actor.Id);
+            expandedPartyPresentation = presentation.SetItem(actor.Id, row with { HitPoints = checked((ushort)actor.CurrentHp), MaximumHitPoints = checked((ushort)actor.MaximumHp), DisplayedHitPointsQ12 = actor.CurrentHp << 12 });
         }
     }
 
     private bool HasCommittedGuardianFormAction(string actorId)
     {
-        return ActiveAction is { NativeHeader: not null } action && action.ActorId == actorId || expandedHostedEvent is { LogicallyComplete: false } && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || actions.Any(command => command.ActorId == actorId && command.NativeHeader is not null) || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
+        return expandedHostedEvent is { LogicallyComplete: false } && ActiveAction is { GuardianFormAction: not null } expanded && expanded.ActorId == actorId || resolvingNativeAction is { } resolving && resolving.ActorId == actorId && nativeActionCommitDepth != 0;
     }
 
     private void CancelUncommittedGuardianFormCommands(BattleCombatant actor)
     {
-        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || command.NativeHeader is not null || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
+        BattleAttackCommand[] retained = actions.Where(command => command.ActorId != actor.Id || command.GuardianFormAction is null && command.GuardianFormInvocation is null).ToArray();
         actions.Clear();
         foreach (BattleAttackCommand command in retained)
         {
@@ -490,7 +486,7 @@ public sealed partial class BattleSession
             NativeAction = action.NativeAction,
             NativePlayerReaction = action.NativePlayerReaction,
             FreeNativeMagic = action.FreeNativeMagic
-        }, completingEntry: action is { Phase: BattleActionPhase.Recovery, NativeQueuedCommand: 254, GuardianFormInvocation.Mode: GuardianFormInvocationMode.EntryOnly, NativeHeader: null });
+        }, completingEntry: action is { Phase: BattleActionPhase.Recovery, NativeQueuedCommand: 254, GuardianFormInvocation.Mode: GuardianFormInvocationMode.EntryOnly });
     }
 
     private void ValidateGuardianFormOwners()

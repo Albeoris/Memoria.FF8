@@ -21,10 +21,10 @@ public sealed class NativeBattleGuardianPathMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(originalBytes)!;
         Assert.Equal(255L, original.Frame);
         Assert.Equal(397L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)257, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
+        Assert.Equal((ushort)257, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
         Assert.Equal(0, original.Definition.NativeRetainedMemory!.EffectMemory!.SelectedIndex);
         Assert.Null(original.ReadFixturePresentation().NativeEffectMemory!.QuezacotlTargetY1774);
-        NativeBattleQuezacotlResources retained = original.ReadFixturePresentation().NativeGraphics.OriginalEffect.Binding.NativeQuezacotlResources!;
+        NativeBattleQuezacotlResources retained = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.NativeQuezacotlResources!;
         Assert.Null(retained.Paths);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleQuezacotlResources authenticated = game.ReadNativeQuezacotlResources();
@@ -61,7 +61,7 @@ public sealed class NativeBattleGuardianPathMigrationTests
         Assert.Equal(255L, first.Frame);
         Assert.Equal(398L, first.Presentation!.Graphics.Callback);
         Assert.Equal((ushort)258, first.Presentation!.Graphics.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12));
-        Assert.NotEqual(original.ReadFixturePresentation().NativeGraphics.OriginalEffect.Quezacotl!.Random17A0, first.Presentation!.Graphics.OriginalEffect.Quezacotl!.Random17A0);
+        Assert.NotEqual(original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Quezacotl!.Random17A0, first.Presentation!.Graphics.OriginalEffect.Quezacotl!.Random17A0);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(BattleSession.Restore(first.Capture()).Capture()));
         using BattleAssets assets = new(game.GameDirectory);

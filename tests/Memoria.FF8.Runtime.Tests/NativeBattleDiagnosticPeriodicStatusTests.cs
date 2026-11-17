@@ -22,7 +22,7 @@ public sealed class NativeBattleDiagnosticPeriodicStatusTests
         BattleSession unobserved = BattleSession.Restore(snapshot);
         if (unrelatedAction)
         {
-            BattleActionPresentation action = new("party", "party", BattleActionPhase.Recovery, 1, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0);
+            BattleActionPresentation action = new("party", "party", BattleActionPhase.Recovery, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattlePartyActorReference("party")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0);
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(battle, action);
             typeof(BattleSession).GetProperty(nameof(BattleSession.ActiveAction))!.SetValue(unobserved, action);
         }

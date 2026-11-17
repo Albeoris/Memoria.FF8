@@ -26,10 +26,10 @@ public sealed class NativeBattleEffect285FollowingActionTests
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
         Assert.Empty(originalGraphics.OriginalEffect.Pools);
         Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
-        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera!.Order);
         Assert.Null(source.ActiveAction);
         Assert.Empty(source.QueuedActions);
-        Assert.All(source.ReadFixturePresentation().NativeEffectMemory.Effect285!.FixedBanks.Values, bank => Assert.NotNull(bank));
+        Assert.All(source.ReadFixturePresentation().NativeEffectMemory!.Effect285!.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
         string casterId = ReadOriginalModelActorId(originalGraphics, 3)!;
         string targetId = ReadOriginalModelActorId(originalGraphics, 0)!;
@@ -109,10 +109,10 @@ public sealed class NativeBattleEffect285FollowingActionTests
             }
             if (completions > 0 && graphics.OriginalEffect is { Binding.Effect: 285, ReturnedDescriptor: 0 } effect && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0 && !graphics.Descriptors.Queue.Any(index => graphics.Descriptors.Packets[index].Command == 104))
             {
-                Assert.Null(current.ReadFixturePresentation().NativeCamera.ControlCursor);
-                Assert.Empty(current.ReadFixturePresentation().NativeCamera.Order);
+                Assert.Null(current.ReadFixturePresentation().NativeCamera!.ControlCursor);
+                Assert.Empty(current.ReadFixturePresentation().NativeCamera!.Order);
                 Assert.Empty(effect.Pools);
-                Assert.All(current.ReadFixturePresentation().NativeEffectMemory.Effect285!.FixedBanks.Values, bank => Assert.NotNull(bank));
+                Assert.All(current.ReadFixturePresentation().NativeEffectMemory!.Effect285!.FixedBanks.Values, bank => Assert.NotNull(bank));
                 Assert.Equal(source.Combatants.Select(actor => actor.CurrentHp), current.Combatants.Select(actor => actor.CurrentHp));
                 Assert.Equal(source.Combatants.Select(actor => (actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), current.Combatants.Select(actor => (actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
                 ColdNext("following-action-completed-after-cleanup", current);
@@ -125,7 +125,7 @@ public sealed class NativeBattleEffect285FollowingActionTests
         }
         BattleSnapshot result = battle.CaptureForContinuation();
         NativeBattleRestorationPresentationTests.Publish(output!, "following-action-last", result, null);
-        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original133 Amount0 action after effect285 cleanup; genuine current bones retained on entry; manual camera reruns without camera-resource registration", Effect = 285, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Registered = registered, ManualCamera = manualCamera, CameraViewChanged = cameraViewChanged, WarmSourceRetained = warmRetained, ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.ReadFixturePresentation().NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.ReadFixturePresentation().NativeGraphics.Callback }));
+        File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Scenario = "Following declared original133 Amount0 action after effect285 cleanup; genuine current bones retained on entry; manual camera reruns without camera-resource registration", Effect = 285, CameraChoice = cameraChoice, CameraSelector = action.RawRecord[4] & 127, Registered = registered, ManualCamera = manualCamera, CameraViewChanged = cameraViewChanged, WarmSourceRetained = warmRetained, ReturnedDescriptorEdge = returnedEdge, CleanupCallbacks = cleanupCallbacks, Completed = completed, Completions = completions, DistinctViewMatrices = views.Count, BankSides = bankSides.Order(), Callbacks = result.ReadFixturePresentation().NativeGraphics!.Callback - originalGraphics.Callback, result.Frame, NativeCallback = result.ReadFixturePresentation().NativeGraphics!.Callback }));
         Assert.True(registered);
         Assert.True(manualCamera);
         Assert.True(warmRetained);

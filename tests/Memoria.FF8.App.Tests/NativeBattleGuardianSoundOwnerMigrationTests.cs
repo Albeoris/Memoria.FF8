@@ -21,7 +21,7 @@ public sealed class NativeBattleGuardianSoundOwnerMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(149L, original.Frame);
         Assert.Equal(229L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect);
+        Assert.Equal((ushort)116, original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal((ushort)89, Phase(original));
         Assert.Null(original.NativeGlobalSoundProcess);
         Assert.Null(original.Definition.NativeGlobalSoundProcess);

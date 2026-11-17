@@ -112,8 +112,8 @@ public sealed class NativeBattleBlueCinematicPresentationTests
             return null;
         }
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(selected.Effect);
-        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects ?? throw new NotSupportedException("The active cinematic requires its current scripted-effect owner.");
-        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory.Arena ?? throw new NotSupportedException("The active cinematic requires its current arena owner.");
+        NativeBattleScriptedEffectMemory core = snapshot.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects ?? throw new NotSupportedException("The active cinematic requires its current scripted-effect owner.");
+        NativeBattleEffectArena arena = snapshot.ReadFixturePresentation().NativeEffectMemory!.Arena ?? throw new NotSupportedException("The active cinematic requires its current arena owner.");
         NativeBattleEffectResourcePointer source = Assert.Single(effect.ResourcePointers, item => item.GlobalAddress == profile.File0Publication);
         uint file0 = checked(0x20DFAB8u + (uint)source.ArenaOffset);
         uint manager = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));

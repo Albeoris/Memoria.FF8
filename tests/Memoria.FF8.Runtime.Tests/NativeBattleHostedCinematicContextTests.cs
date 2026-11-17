@@ -84,7 +84,7 @@ public sealed class NativeBattleHostedCinematicContextTests
     {
         byte sequence = action.MagicId == 247 ? (byte)15 : (byte)14;
         NativeBattleActionHeaderPreparation header = new(Source, 8, sequence, -1, action.ActionId, action.MagicId, null);
-        BattleActionPresentation command = new("enemy", "enemy", BattleActionPhase.Recovery, 1, BattleTargetRequest.None, BattleAbility.EnemyAbility, action.ActionId)
+        BattleActionPresentation command = new("enemy", "enemy", BattleActionPhase.Recovery, BattleTargetRequest.None, BattleAbility.EnemyAbility, action.ActionId)
         {
             NativeQueuedCommand = 8,
             NativeAction = action,

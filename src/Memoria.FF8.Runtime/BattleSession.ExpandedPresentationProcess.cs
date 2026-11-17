@@ -38,9 +38,9 @@ public sealed partial class BattleSession
         }
 
         var (roster, aliases) = ReadBattlePresentationPacketBindings();
-        BattlePresentationEntry entry = new(roster, aliases, CaptureHostedEntryFacts(roster), NativeEntryAdvantage, ResolvedNativeFlags, nativeEffectResourceResolver);
+        BattlePresentationEntry entry = new(roster, aliases, CaptureHostedEntryFacts(roster), NativeEntryAdvantage, ResolvedNativeFlags);
         BattlePresentationServices services = CreateBattlePresentationServices();
-        BattlePresentationProcess process = new(resources, entry, services);
+        BattlePresentationProcess process = new(resources, entry, services, nativeEffectResourceResolver);
         NativeMusicProcess = process.ReadEntryMusic(NativeMusicProcess);
         this.preparePresentationModelBinding = prepareModelBinding;
         InitializeExpandedPartyPresentation();
@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             () => (Frame, GuardianAnimationSkipPending), () => NativeHostCallbacks ?? Frame, ReadPreparedActor, ReadPreparedScanActor, ReadPreparedScanExtra,
             () => DiagnosticEffectDispatched is not null, ObservePresentationEffect,
             ObservePresentationDescriptorRemoved, ObservePresentationFrameEnded, ReadPresentationStackVitals, MatchesDiagnosticVisualEntry, AdmitDiagnosticVisualEntry,
-            ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate);
+            ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate, ReadNativeDuelWidgetFacts, ApplyNativeDuelWidgetUpdate);
     }
 
     private void RequireExpandedPresentationDispatchIdle()

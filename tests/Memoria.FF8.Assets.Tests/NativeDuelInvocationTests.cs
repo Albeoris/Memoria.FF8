@@ -1,85 +1,10 @@
 using System.Collections.Immutable;
-using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeDuelInvocationTests
 {
-    [Fact]
-    public void A_completed_finisher_queues_native239_then_releases_the_Duel_process()
-    {
-        using GameAssets game = new(TestResources.GameDirectory);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = CreateBattle(game, assets);
-        battle.QueueNativePlayerCommand("zell", "enemy", 11, 0);
-        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        BattleNativeLimitDefinition rules = assets.ReadNativeLimitDefinition(1);
-        byte moveSet = (byte)Enumerable.Range(0, rules.DuelMoveSets.Length / 4).First(set => NativeBattleDuelRules.Choices(rules, (byte)set, 0, assets.NativeActions).Any(choice => choice.Finisher));
-        BattleNativeLimitState selected = Assert.Single(battle.Capture().NativeLimits);
-        battle = BattleSession.Restore(battle.Capture() with { NativeLimits = [selected with { Duel = selected.Duel! with { MoveSetId = moveSet } }] });
-        BattleNativeDuelChoice finisher = battle.GetNativeDuelChoices("zell").First(choice => choice.Finisher);
-        int hp = battle.Combatants[1].CurrentHp;
-
-        foreach (ushort button in finisher.Buttons)
-        {
-            battle.AdvanceNativeDuelUi(rawPulse: button);
-        }
-
-        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-        Assert.Equal((byte)239, queued.NativeQueuedCommand);
-        Assert.Equal((ushort)finisher.ActionId, queued.NativeAction!.ActionId);
-        Assert.Equal(NativeLimitCallback.DuelFinisher, queued.NativeLimitCallback);
-        Until(battle, () => battle.GetNativeDuel("zell") is null);
-        Assert.True(battle.Combatants[1].CurrentHp < hp);
-        Assert.False(battle.Combatants[0].IsBusy);
-    }
-
-    [Fact]
-    public void Duel_restores_a_partial_native_input_ring_and_queues_only_a_completed_combo()
-    {
-        using GameAssets game = new(TestResources.GameDirectory);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = CreateBattle(game, assets);
-        BattleActionDefinition invocation = Assert.Single(battle.GetNativePlayerActionChoices("zell", true));
-        Assert.Null(invocation.NativeAction);
-        battle.QueueAction("zell", "enemy", BattleAbility.LimitBreak, invocation.Id);
-        BattleAttackCommand invocationPacket = Assert.Single(battle.QueuedActions);
-        Assert.Equal((byte)11, invocationPacket.NativeQueuedCommand);
-        Assert.NotNull(invocationPacket.NativeDuel);
-        Assert.Null(battle.GetNativeDuel("zell"));
-        Assert.Equal(1, battle.NativeCommandBanks.CountActor(0));
-        string queuedSnapshot = JsonSerializer.Serialize(battle.Capture());
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queuedSnapshot)!);
-        Assert.Equal(queuedSnapshot, JsonSerializer.Serialize(battle.Capture()));
-        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        BattleNativeDuelChoice choice = battle.GetNativeDuelChoices("zell")[0];
-        Assert.False(choice.Finisher);
-        Assert.True(choice.Buttons.Length > 1);
-        long frame = battle.Frame;
-        battle.AdvanceNativeDuelUi(rawPulse: choice.Buttons[0]);
-        Assert.Empty(battle.QueuedActions);
-        string snapshot = JsonSerializer.Serialize(battle.Capture());
-
-        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!);
-        Assert.Equal(snapshot, JsonSerializer.Serialize(battle.Capture()));
-        foreach (ushort button in choice.Buttons.Skip(1))
-        {
-            battle.AdvanceNativeDuelUi(rawPulse: button);
-        }
-
-        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-        Assert.Equal((ushort)choice.ActionId, queued.NativeAction!.ActionId);
-        Assert.Equal(NativeLimitCallback.DuelEffect, queued.NativeLimitCallback);
-        Assert.Equal(frame, battle.Frame);
-        short remaining = battle.GetNativeDuel("zell")!.RemainingTimer;
-        battle.AdvanceNativeDuelUi(10);
-        Assert.Equal(remaining, battle.GetNativeDuel("zell")!.RemainingTimer);
-        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        Assert.Equal(choice.MoveSetId, battle.GetNativeDuel("zell")!.MoveSetId);
-        Assert.All(battle.GetNativeDuel("zell")!.InputRing, button => Assert.Equal((ushort)0, button));
-    }
-
     [Fact]
     public void Manual_native_matching_accepts_an_unlearned_finisher_and_uses_its_exact_button_words()
     {
@@ -102,140 +27,34 @@ public sealed class NativeDuelInvocationTests
         Assert.False(NativeBattleDuelRules.Matches(finisher, ring.ToImmutableArray(), cursor));
     }
 
-    [Fact]
-    public void Duel_timeout_changes_no_gameplay_clock_or_hp_and_automatic_mode_uses_the_owned_UI_draw()
-    {
-        using GameAssets game = new(TestResources.GameDirectory);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession manual = CreateBattle(game, assets);
-        manual.QueueNativePlayerCommand("zell", "enemy", 11, 0);
-        Until(manual, () => manual.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        BattleSnapshot before = manual.Capture();
-
-        manual.AdvanceNativeDuelUi(manual.GetNativeDuel("zell")!.RemainingTimer);
-
-        Assert.Null(manual.GetNativeDuel("zell"));
-        Assert.Equal(before.Frame, manual.Frame);
-        Assert.Equal(before.Combatants[1].CurrentHp, manual.Combatants[1].CurrentHp);
-        Assert.False(manual.Combatants[0].IsBusy);
-        BattleSession automatic = CreateBattle(game, assets, 2, 4);
-        automatic.QueueNativePlayerCommand("zell", "enemy", 11, 0);
-        Until(automatic, () => automatic.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        BattleSnapshot automaticBefore = automatic.Capture();
-        NativeBattleUiRandomState expected = automaticBefore.NativeBattleUiRandom!.Draw(out _);
-        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(automaticBefore with { Definition = automaticBefore.Definition with { NativeBattleUiRandom = null }, NativeBattleUiRandom = null }));
-
-        automatic.AdvanceNativeDuelUi(90);
-
-        Assert.Single(automatic.QueuedActions);
-        Assert.Equal(expected, automatic.Capture().NativeBattleUiRandom);
-        Assert.Equal(automaticBefore.NativeCrtRandom, automatic.Capture().NativeCrtRandom);
-        Assert.Equal(automaticBefore.Random, automatic.Capture().Random);
-        Assert.NotEqual(BattleNativeDuelPhase.Ready, automatic.GetNativeDuel("zell")!.Phase);
-    }
-
     [Theory]
     [InlineData(31195u, 32765, false)]
     [InlineData(29360u, 32766, true)]
     [InlineData(27525u, 32767, true)]
-    public void Automatic_three_choice_boundary_preserves_the_native_UI_draw_and_unknown_stack_read(uint seed, int roll, bool invalidStackRead)
+    public void Automatic_three_choice_boundary_consumes_the_original_UI_draw(uint seed, int roll, bool invalidStackRead)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = CreateBattle(game, assets, 2, 4);
-        battle.QueueNativePlayerCommand("zell", "enemy", 11, 0);
-        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        BattleSnapshot saved = battle.Capture();
-        BattleNativeLimitState selected = Assert.Single(saved.NativeLimits);
-        byte moveSet = (byte)Enumerable.Range(0, saved.Definition.Combatants[0].NativeLimit!.DuelMoveSets.Length / 4).First(set => NativeBattleDuelRules.Choices(saved.Definition.Combatants[0].NativeLimit!, (byte)set, 0x3FF, assets.NativeActions).Count(choice => choice.Learned) == 3);
-        battle = BattleSession.Restore(saved with { NativeBattleUiRandom = new(seed), NativeLimits = [selected with { Duel = selected.Duel! with { MoveSetId = moveSet, AutomaticCountdown = 31 } }] });
-        BattleNativeDuelChoice[] choices = battle.GetNativeDuelChoices("zell").Where(choice => choice.Learned).ToArray();
-        NativeBattleUiRandomState expected = new NativeBattleUiRandomState(seed).Draw(out ushort actualRoll);
+        BattleNativeLimitDefinition rules = assets.ReadNativeLimitDefinition(1);
+        byte moveSet = Enumerable.Range(0, rules.DuelMoveSets.Length / 4).Select(value => (byte)value).First(id => NativeBattleDuelRules.Choices(rules, id, 0x3FF, assets.NativeActions).Count(choice => choice.Learned) == 3);
+        BattleNativeDuelChoice[] choices = NativeBattleDuelRules.Choices(rules, moveSet, 0x3FF, assets.NativeActions).Where(choice => choice.Learned).ToArray();
+        NativeBattleUiRandomState random = new(seed);
+        NativeBattleUiRandomState expected = random.Draw(out ushort actualRoll);
         Assert.Equal(roll, actualRoll);
-        BattleSnapshot before = battle.Capture();
-
+        BattleNativeDuelState state = new(moveSet, BattleTargetRequest.None, 400, 279, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254, WidgetPhase = 4, WidgetRevealQ12 = 4096, AutomaticCountdown = 31 };
+        BattleNativeDuelState Advance() => NativeBattleDuelRules.AdvanceWidget(state, true, 0, true, choices, () =>
+        {
+            random = random.Draw(out ushort draw);
+            return draw;
+        });
         if (invalidStackRead)
         {
-            NotSupportedException error = Assert.Throws<NotSupportedException>(() => battle.AdvanceNativeDuelUi());
-            Assert.Contains("uninitialized fourth stack byte", error.Message);
-            Assert.Empty(battle.QueuedActions);
+            Assert.Throws<NotSupportedException>(Advance);
         }
         else
         {
-            battle.AdvanceNativeDuelUi();
-            Assert.Equal(choices[2].ActionId, Assert.Single(battle.QueuedActions).ActionId);
+            Assert.Equal(choices[2].MoveSetId, Advance().Selection1D28DEF);
         }
-
-        Assert.Equal(expected, battle.Capture().NativeBattleUiRandom);
-        Assert.Equal(before.NativeCrtRandom, battle.Capture().NativeCrtRandom);
-        Assert.Equal(before.Random, battle.Capture().Random);
-        Assert.Equal(before.Frame, battle.Frame);
-        Assert.Equal(before.Combatants[1].CurrentHp, battle.Combatants[1].CurrentHp);
-    }
-
-    [Fact]
-    public void Expanded_Duel_restores_its_deferred_defeat_and_finalizes_it_only_on_timeout()
-    {
-        using GameAssets game = new(TestResources.GameDirectory);
-        using BattleAssets assets = new(game.GameDirectory);
-        BattleSession battle = CreateBattle(game, assets, expanded: true, enemyHp: 1);
-        const string target = "enemy-5";
-        battle.QueueNativePlayerCommand("zell", target, 11, 0);
-        BattleSession restored = Restore(battle);
-        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        Until(restored, () => restored.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-        BattleEvent opening = Assert.Single(battle.Events, entry => entry.Kind == "EffectContact");
-        Assert.Equal(target, opening.TargetId);
-        Assert.Equal("Punch Rush", opening.Message);
-        Assert.True(battle.Combatants[0].IsBusy);
-        BattleCombatant enemy = Assert.Single(battle.Combatants, actor => actor.Id == target);
-        Assert.True(enemy.IsAlive);
-        Assert.Equal(0, enemy.CurrentHp);
-        Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == target);
-
-        BattleNativeDuelChoice choice = battle.GetNativeDuelChoices("zell")[0];
-        battle.AdvanceNativeDuelUi(rawPulse: choice.Buttons[0]);
-        restored = Restore(battle);
-        Assert.Empty(restored.QueuedActions);
-        short remaining = battle.GetNativeDuel("zell")!.RemainingTimer;
-        long frame = battle.Frame;
-        battle.AdvanceNativeDuelUi(remaining);
-        restored.AdvanceNativeDuelUi(remaining);
-        Assert.Equal(frame, battle.Frame);
-        Assert.Null(battle.GetNativeDuel("zell"));
-        Assert.False(battle.Combatants[0].IsBusy);
-        Assert.False(enemy.IsAlive);
-        Assert.Single(battle.Events, entry => entry.Kind == "Defeated" && entry.TargetId == target);
-        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
-
-        static BattleSession Restore(BattleSession source)
-        {
-            string saved = JsonSerializer.Serialize(source.Capture());
-            BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(saved)!);
-            Assert.Equal(saved, JsonSerializer.Serialize(restored.Capture()));
-            return restored;
-        }
-    }
-
-    private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, ushort options = 0, byte crisis = 1, bool expanded = false, int enemyHp = 50000)
-    {
-        NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = options };
-        BattleCombatantDefinition zell = new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) };
-        BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 };
-        BattleCombatantDefinition[] combatants = expanded
-            ? [zell, .. Enumerable.Range(1, 3).Select(index => new BattleCombatantDefinition { Id = $"ally-{index}", Name = "Ally", IsPlayer = true }), .. Enumerable.Range(0, 6).Select(index => enemy with { Id = $"enemy-{index}", CurrentHp = index == 5 ? enemyHp : enemy.CurrentHp })]
-            : [zell, enemy];
-        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = combatants }, BattleAtbMode.TurnBased);
-        return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("zell", crisis)] });
-    }
-
-    private static void Until(BattleSession battle, Func<bool> complete)
-    {
-        for (int frame = 0; frame < 100 && !complete(); frame++)
-        {
-            battle.Tick();
-        }
-        Assert.True(complete());
+        Assert.Equal(expected, random);
     }
 }

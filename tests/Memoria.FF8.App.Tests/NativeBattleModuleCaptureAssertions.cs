@@ -6,7 +6,7 @@ internal static class NativeBattleModuleCaptureAssertions
 {
     internal static int AssertPrivateGeometry(BattleSnapshot snapshot, ushort effect)
     {
-        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive)
         {
             return 0;
         }

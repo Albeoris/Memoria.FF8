@@ -39,7 +39,7 @@ internal sealed class NativeBattleEffect54PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect54State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect54!;
         NativeBattleEffect54Resources resources = effect.Binding.Effect54Resources!;
         Dictionary<uint, NativeBattleModulePoolTask> tasks = Tasks(current);
@@ -50,7 +50,7 @@ internal sealed class NativeBattleEffect54PresentationObserver
         if (before.Values.Any(task => task.Callback == RootCallback) && tasks.Values.Any(task => task.Callback == RootCallback))
         {
             Assert.Equal(0x2793E58u, state.ReadDword(ViewPointerGlobal));
-            Assert.Equal(JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.SharedEffectView2793E58));
+            Assert.Equal(JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.SharedEffectView2793E58));
             copiedView = true;
         }
         if (state.ResourceSourcePending == false)
@@ -73,16 +73,16 @@ internal sealed class NativeBattleEffect54PresentationObserver
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(40, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            bool track = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[40..]));
+            bool track = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[40..]));
             cameraTrack |= track;
-            cameraView |= track && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            cameraView |= track && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect54-current-camera8-40", current, cold);
         }
         if (!uploaded && effect.ReturnedDescriptor > 0)
         {
-            VerifyTim(resources.MainTim.Data.AsSpan(), current.ReadFixturePresentation().NativeEffectMemory.Textures!.ReadVram());
+            VerifyTim(resources.MainTim.Data.AsSpan(), current.ReadFixturePresentation().NativeEffectMemory!.Textures!.ReadVram());
             uploaded = true;
             Mark("effect54-original-tim-upload", current, cold);
         }
@@ -117,7 +117,7 @@ internal sealed class NativeBattleEffect54PresentationObserver
         }
         if (currentRecordsInitialized && emitterBase != 0 && drawBase != 0)
         {
-            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena ?? throw new InvalidDataException("Effect54 lost its current COMMON records.");
+            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena ?? throw new InvalidDataException("Effect54 lost its current COMMON records.");
             for (int index = 0; index < ReachableEmitterCount; index++)
             {
                 uint address = emitterBase + (uint)(index * EmitterStride);

@@ -19,7 +19,8 @@ public sealed partial class BattleSession
         byte outgoing = checked((byte)record);
         byte? incoming = SelectPartyReplacement(vitals, outgoing);
         BattlePartyOccupancyChange change = new(slot, outgoing, incoming);
-        PartyReplacementDescriptor? bind = incoming is byte next ? new(change, actor.Id, definition.PartyReplacementCandidates[next].Id, PartyReplacementStage.Bind) : null;
+        NativeBattleModelSlot? original = actor.NativeActorIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null;
+        PartyReplacementDescriptor? bind = incoming is byte next ? new(change, actor.Id, definition.PartyReplacementCandidates[next].Id, original, PartyReplacementStage.Bind) : null;
         PreparedHostedDispatch? dispatch = bind is null ? null : PreparePartyReplacement(process, [new HostedDispatchControl.PartyReplacement(bind)], []);
 
         actor.NativeStatus1 &= ~0x10000u;
@@ -34,7 +35,6 @@ public sealed partial class BattleSession
         records[outgoing] = records[outgoing] with { HitPoints = new(hp, hp), Status = NativeSavedStatusBits(actor) };
         magicVitals = vitals with { Records = records };
         PartyOccupancyChanges = PartyOccupancyChanges.Add(change);
-        RefreshNativePacketBindings();
         StopTurnAdvance();
         if (bind is not null && dispatch is not null)
         {
@@ -57,7 +57,7 @@ public sealed partial class BattleSession
         for (byte row = 0; row < NativeCharacterVitals.NativeRecordCount; row++)
         {
             NativeCharacterVital saved = vitals.Records[row];
-            if (row == outgoing || (saved.MemberFlags & 1) == 0 || (saved.Status & 1) != 0 || !definition.PartyReplacementCandidates.ContainsKey(row) ||
+            if (row == outgoing || vitals.CombatParty.Contains(row) || (saved.MemberFlags & 1) == 0 || (saved.Status & 1) != 0 || !definition.PartyReplacementCandidates.ContainsKey(row) ||
                 allies.Any(actor => actor.Slot is not null && actor.MagicRecordId == row) || pendingPartyReplacements.Any(pending => pending.Change.IncomingRow == row))
             {
                 continue;
@@ -98,8 +98,7 @@ public sealed partial class BattleSession
         BattlePresentationProcess process = Presentation ?? throw new InvalidOperationException("Party replacement requires its current presentation process.");
         BattleSnapshot before = CaptureState();
         BattleSession candidate = CreatePreparedHostedActionCandidate(before);
-        BattleCombatant incoming = candidate.AddPartyReplacementActor(source, descriptor.Change.Slot);
-        candidate.RefreshNativePacketBindings();
+        BattleCombatant incoming = candidate.AddPartyReplacementActor(source, descriptor.Change.Slot, descriptor.OriginalSlot is not null);
         candidate.magicVitals = descriptor.Change.ApplySavedBinding(candidate.magicVitals!);
         candidate.InitializePartyReplacementGauge(incoming);
         candidate.RefreshNativeKnownMagicStocks();
@@ -108,8 +107,7 @@ public sealed partial class BattleSession
         PartyReplacementDescriptor reveal = descriptor with { Stage = PartyReplacementStage.Reveal };
         candidate.pendingPartyReplacements = candidate.pendingPartyReplacements.SetItem(pendingIndex, reveal);
 
-        NativeBattleModelSlot? original = incoming.NativeActorIndex is int alias ? NativeBattleModelSlot.Decode(checked((byte)alias)) : null;
-        HostedDispatchControl.LoadParty load = new(new(new(incoming.Id)), new(new(descriptor.OutgoingActorId)), descriptor.Change.Slot, original, (byte)((NativeSavedStatusBits(incoming) >> 8) & 1));
+        HostedDispatchControl.LoadParty load = new(new(new(incoming.Id)), new(new(descriptor.OutgoingActorId)), descriptor.Change.Slot, descriptor.OriginalSlot, (byte)((NativeSavedStatusBits(incoming) >> 8) & 1));
         HostedModelLoadAdmission admission = candidate.PrepareHostedModelLoadAdmission(process, load, []);
         PreparedHostedDispatch dispatch = PreparePartyReplacement(process, [load, new HostedDispatchControl.PartyReplacement(reveal)], [admission]);
         PreparedActionPublication publication = new(this, candidate, Restore(before));
@@ -118,14 +116,14 @@ public sealed partial class BattleSession
         Log("PartyReplacement", incoming.Id, descriptor.OutgoingActorId, 0, $"{incoming.Name} enters battle.");
     }
 
-    private BattleCombatant AddPartyReplacementActor(BattleCombatantDefinition source, BattleRosterSlot slot)
+    private BattleCombatant AddPartyReplacementActor(BattleCombatantDefinition source, BattleRosterSlot slot, bool bindNative)
     {
         if (slot.Side != BattleSide.Allies || !source.IsPlayer || source.MagicRecordId is null || allies.Any(actor => actor.Slot == slot) || byId.ContainsKey(source.Id))
         {
             throw new InvalidDataException("Party replacement requires an unallocated actor and a vacated ally slot.");
         }
         BattleCombatant actor = CreateCombatant(source);
-        actor.BindRosterSlot(slot);
+        actor.BindRosterSlot(slot, bindNative);
         combatants.Add(actor);
         allies.Add(actor);
         byId.Add(actor.Id, actor);
@@ -155,15 +153,12 @@ public sealed partial class BattleSession
         {
             BattleCombatant outgoing = allies.SingleOrDefault(actor => actor.Slot == change.Slot && actor.MagicRecordId == change.OutgoingRow)
                 ?? throw new InvalidDataException("Saved party occupancy does not match the outgoing row and slot.");
+            bool hadOriginalSlot = outgoing.NativeActorIndex is not null;
             outgoing.BindRosterSlot(null);
             if (change.IncomingRow is byte row && !pendingPartyReplacements.Any(pending => pending.Stage == PartyReplacementStage.Bind && pending.Change == change))
             {
-                _ = AddPartyReplacementActor(definition.PartyReplacementCandidates[row], change.Slot);
+                _ = AddPartyReplacementActor(definition.PartyReplacementCandidates[row], change.Slot, hadOriginalSlot);
             }
-        }
-        if (!PartyOccupancyChanges.IsEmpty)
-        {
-            RefreshNativePacketBindings();
         }
     }
 }

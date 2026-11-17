@@ -54,7 +54,7 @@ public sealed class NativeBattleActionAtbRestoreTests
         BattleSnapshot snapshot = new BattleSession(definition, BattleAtbMode.Normal).Capture();
         BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
         actors[0] = actors[0] with { Atb = 127 };
-        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, 1, Request());
+        BattleActionPresentation action = new("party", "enemy", BattleActionPhase.Windup, Request());
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { Combatants = actors, ActiveAction = action }));
     }
 
@@ -137,7 +137,7 @@ public sealed class NativeBattleActionAtbRestoreTests
         actors[0] = actors[0] with { NativeAtb = nativeGauge ? gauge : null, Atb = gauge.Display };
         BattleNativeGraphicCommand? graphic = ordinary is null ? new(1) : null;
         BattleAttackCommand queued = new("party", "enemy", Request(), ordinary ?? BattleAbility.EnemyAbility, actionId) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = graphic };
-        BattleActionPresentation running = new("party", "enemy", BattleActionPhase.Windup, 1, Request(), ordinary ?? BattleAbility.EnemyAbility, actionId) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = graphic };
+        BattleActionPresentation running = new("party", "enemy", BattleActionPhase.Windup, Request(), ordinary ?? BattleAbility.EnemyAbility, actionId) { NativeHeader = new BattleActionHeaderReference(0), NativeQueuedCommand = command, NativeGraphic = graphic };
         return snapshot with { Combatants = actors, NativeActionPackets = packets, QueuedActions = active ? [] : [queued], ActiveAction = active ? running : null };
     }
     private static BattleTargetRequest Request()

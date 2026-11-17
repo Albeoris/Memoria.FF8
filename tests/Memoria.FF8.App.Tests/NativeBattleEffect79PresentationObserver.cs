@@ -34,8 +34,8 @@ internal sealed class NativeBattleEffect79PresentationObserver
         }
         NativeBattleEffect79State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect79!;
         state.Validate();
-        Assert.Equal((byte)138, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4).ModelId4);
-        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 3).ModelId4);
+        Assert.Equal((byte)138, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 4).ModelId4);
+        Assert.Equal((byte)139, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 3).ModelId4);
         initialRandom ??= prior.NativeCrtRandom;
         lastRandom = current.NativeCrtRandom;
         if (effect.ReturnedDescriptor is > 0)
@@ -128,7 +128,7 @@ internal sealed class NativeBattleEffect79PresentationObserver
             detached = true;
             Mark("effect79-physical-banks-detached", current, cold);
         }
-        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25E8950), GeometryCursor = state.ReadWord(0x25EAF40), IoCursor = state.ReadDword(0x25EA348), Completion = state.Read(0x25DF340, 1)[0], Random = current.NativeCrtRandom, Relocated = relocated.Order().ToArray() });
+        observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, effect.ReturnedDescriptor, RootPhases = rootPhases.Order().ToArray(), TargetPhase = state.ReadWord(TargetAddress + 0x40), TargetAge = state.ReadWord(TargetAddress + 0x46), ContactFlag = state.ReadWord(TargetAddress + 0x48), BodyFlag = state.ReadWord(TargetAddress + 0x4C), EmitterCursor = state.ReadWord(0x25E8950), GeometryCursor = state.ReadWord(0x25EAF40), IoCursor = state.ReadDword(0x25EA348), Completion = state.Read(0x25DF340, 1)[0], Random = current.NativeCrtRandom, Relocated = relocated.Order().ToArray() });
     }
 
     public void Accept(BattleSnapshot completed, string output)
@@ -172,7 +172,7 @@ internal sealed class NativeBattleEffect79PresentationObserver
         Assert.Equal(checked(arenaBase + (uint)NativeBattleDatDirectory.Section(file.AsSpan(), 1)), source.MusicAddress);
         Assert.Equal(expected.Music.Length, source.MusicLength);
         int offset = checked((int)(source.MusicAddress - 0x20DFAB8u));
-        Assert.Equal(expected.Music.ToArray(), current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(offset, source.MusicLength));
+        Assert.Equal(expected.Music.ToArray(), current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(offset, source.MusicLength));
         if (completed)
         {
             byte buffer = process.Commands?.TargetBufferAddress switch
@@ -182,7 +182,7 @@ internal sealed class NativeBattleEffect79PresentationObserver
                 _ => throw new InvalidDataException("The music proof requires its actual selected destination buffer.")
             };
             Assert.Equal(expected.ReadIdentity(), process.Buffers.ReadBuffer(buffer));
-            Assert.NotEqual((byte)0, current.ReadFixturePresentation().NativeEffectMemory.Effect79.Read(0x25DF340, 1)[0]);
+            Assert.NotEqual((byte)0, current.ReadFixturePresentation().NativeEffectMemory!.Effect79!.Read(0x25DF340, 1)[0]);
             musicLoaded = true;
         }
     }
@@ -199,7 +199,7 @@ internal sealed class NativeBattleEffect79PresentationObserver
         }
         NativeBattleEffect79State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect79!;
         BattleModelOwner actorOwner = body.ReadExecutionReference<BattleExecutionReference.Model>(0x2C, 1).Owner;
-        NativeBattleGraphicsModel actor = current.ReadFixturePresentation().NativeGraphics.ActorModels.Get(actorOwner);
+        NativeBattleGraphicsModel actor = current.ReadFixturePresentation().NativeGraphics!.ActorModels.Get(actorOwner);
         NativeBattleModelCpuResources cpu = current.ReadFixturePresentation().NativeModelCpuResources ?? throw new InvalidDataException("The deformed body proof requires its current CPU resource owner.");
         NativeBattleModelCpuResourceRow resource = cpu.Rows[actor.ActiveResourceRow100 ?? throw new InvalidDataException("The deformed body proof requires its current resource row.")];
         NativeBattleModelCpuReference source = resource.Require(16);
@@ -231,7 +231,7 @@ internal sealed class NativeBattleEffect79PresentationObserver
                 faces.Add(new(opcode, color, bucket, screens[0], screens[1], screens[2], screens[3], depths[0], depths[1], depths[2], depths[3], BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(12, 4)), BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(polygon.Quad ? 16 : 6, 2)), polygon.Quad ? BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(18, 2)) : (ushort)0));
             }
         }
-        return current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(Matches).Select(command => command.Packet).ToImmutableHashSet();
 
         bool Matches(NativeBattleLogicalCommand command)
         {

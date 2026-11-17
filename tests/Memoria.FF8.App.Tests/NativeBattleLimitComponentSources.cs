@@ -174,7 +174,7 @@ internal static class NativeBattleLimitComponentSources
             }
             foreach (int descriptor in descriptors)
             {
-                uint argument = snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[descriptor].Argument;
+                uint argument = snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[descriptor].Argument;
                 uint offset = checked(argument - 0x1D280C4u);
                 if (offset % 20 != 0 || offset / 20 >= snapshot.NativeActionPackets!.ActionCount || offset / 20 >= NativeBattleRetainedActionPackets.HeaderCapacity)
                 {

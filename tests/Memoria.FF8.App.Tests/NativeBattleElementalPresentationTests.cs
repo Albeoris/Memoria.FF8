@@ -94,7 +94,7 @@ public sealed class NativeBattleElementalPresentationTests
                     Assert.Equal(scene.Render(battle, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                 }
                 ushort? rootCounter = RootCounter(beforeEffect, spec);
-                long nativeBefore = prior.ReadFixturePresentation().NativeGraphics.Callback;
+                long nativeBefore = prior.ReadFixturePresentation().NativeGraphics!.Callback;
                 battle.AdvanceNativeGraphicsPresentation(Callback);
                 callbacks++;
                 BattleSnapshot current = battle.CaptureForContinuation();
@@ -149,14 +149,14 @@ public sealed class NativeBattleElementalPresentationTests
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(independent, 320, 224).ToArray());
                     Assert.NotEqual(phase, Controller(afterEffect, spec) is { } afterController ? unchecked((short)afterController.ReadWord(12)) : null);
-                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                     int packetCount = frame.LastCommands.Count(command => command.Command.Packet.Bank == "20DFAB8");
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = without } }));
                     byte[] background = scene.Render(plain, 320, 224).ToArray();
                     int changedRgb = Enumerable.Range(0, pixels.Length / 4).Count(pixel => !pixels.AsSpan(pixel * 4, 3).SequenceEqual(background.AsSpan(pixel * 4, 3)));
                     NativeBattleRestorationPresentationTests.Publish(output, "phase-" + phase!.Value + "-after", current, pixels);
-                    boundaries.Add(new(phase.Value, prior.Frame, current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, packetCount, changedRgb, Convert.ToHexString(SHA256.HashData(pixels))));
+                    boundaries.Add(new(phase.Value, prior.Frame, current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, packetCount, changedRgb, Convert.ToHexString(SHA256.HashData(pixels))));
                     requested.Remove(phase.Value);
                 }
             }

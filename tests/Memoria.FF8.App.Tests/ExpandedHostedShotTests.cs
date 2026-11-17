@@ -41,22 +41,30 @@ public sealed class ExpandedHostedShotTests
                 shotDispatches.Add(dispatch);
             }
         };
-        TickUntil(() => RecreateGame.DiagnosticCommandReady(battle, request.Driver!), "ready Irvine");
-        Assert.True(battle.SelectDiagnosticLimit(IrvineId, request.Driver!.LimitSelection!).Accepted);
-        world.ApplyBattleInput(command);
-        TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Shot opening");
-        Assert.True(battle.TriggerNativeShot(IrvineId));
-        TickUntil(() => battle.GetNativeShot(IrvineId) is { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: 2 }, "Fire Ammo readiness");
-        Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
-        battle.EndNativeShot(IrvineId);
-        TickUntil(() => battle.GetNativeShot(IrvineId) is null && !process.HasActiveAction && process.PendingCompletion is null, "Shot close");
-        Assert.Equal(new byte?[] { 14, 237, 238 }, shotDispatches.Select(dispatch => dispatch.NativeCommand).ToArray());
-        Assert.True(battle.Combatants.Single(actor => actor.Id == IrvineId).IsAlive);
-        Assert.Null(battle.GetNativeShot(IrvineId));
-        Assert.DoesNotContain(battle.QueuedActions, pending => pending.ActorId == IrvineId && pending.NativeLimitCallback is not null);
-        Assert.Equal(2, battle.Items.Single(stock => stock.Id == 102).Count);
-        Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
-        TickUntil(() => battle.QueuedActions.Count == 0 && !process.HasActiveAction && process.PendingCompletion is null, "queued enemy reactions");
+        try
+        {
+            TickUntil(() => RecreateGame.DiagnosticCommandReady(battle, request.Driver!), "ready Irvine");
+            Assert.True(battle.SelectDiagnosticLimit(IrvineId, request.Driver!.LimitSelection!).Accepted);
+            world.ApplyBattleInput(command);
+            TickUntil(() => battle.GetNativeShot(IrvineId)?.Phase == BattleNativeShotPhase.Ready, "Shot opening");
+            Assert.True(battle.TriggerNativeShot(IrvineId));
+            TickUntil(() => battle.GetNativeShot(IrvineId) is { Phase: BattleNativeShotPhase.Ready, RemainingAmmo: 2 }, "Fire Ammo readiness");
+            Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
+            battle.EndNativeShot(IrvineId);
+            TickUntil(() => battle.GetNativeShot(IrvineId) is null && !process.HasActiveAction && process.PendingCompletion is null, "Shot close");
+            Assert.Equal(new byte?[] { 14, 237, 238 }, shotDispatches.Select(dispatch => dispatch.NativeCommand).ToArray());
+            Assert.True(battle.Combatants.Single(actor => actor.Id == IrvineId).IsAlive);
+            Assert.Null(battle.GetNativeShot(IrvineId));
+            Assert.DoesNotContain(battle.QueuedActions, pending => pending.ActorId == IrvineId && pending.NativeLimitCallback is not null);
+            Assert.Equal(2, battle.Items.Single(stock => stock.Id == 102).Count);
+            Assert.Contains(battle.QueuedActions, pending => pending.ExpandedAiCallback is { Stage: 2 or 3 });
+            TickUntil(() => battle.QueuedActions.Count == 0 && !process.HasActiveAction && process.PendingCompletion is null, "queued enemy reactions");
+        }
+        catch
+        {
+            world.AbandonFaultedDiagnosticBattle();
+            throw;
+        }
 
         void TickUntil(Func<bool> condition, string boundary)
         {

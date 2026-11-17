@@ -20,7 +20,7 @@ public sealed class NativeBattleDoomtrainRigMigrationTests
         JsonNode original = JsonNode.Parse(bytes)!;
         BattleSnapshot retained = original.Deserialize<BattleSnapshot>()!;
         Assert.Equal((ushort)191, retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
-        NativeBattleDoomtrain191Resources resources = retained.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Doomtrain191Resources!;
+        NativeBattleDoomtrain191Resources resources = retained.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Doomtrain191Resources!;
         Assert.Null(resources.OpeningRigs);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleDoomtrain191Resources authenticated = game.ReadNativeEffectCatalogForEffects([191])[190].Doomtrain191Resources!;

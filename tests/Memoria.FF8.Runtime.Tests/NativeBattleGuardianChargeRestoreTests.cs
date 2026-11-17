@@ -100,7 +100,7 @@ public sealed partial class NativeBattleGuardianChargeRestoreTests
         }, BattleAtbMode.Normal);
         Assert.False(battle.Combatants[1].IsAlive);
         BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("defeated")]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None);
-        BattleActionPresentation recovery = new("party", "defeated", BattleActionPhase.Recovery, 1, request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
+        BattleActionPresentation recovery = new("party", "defeated", BattleActionPhase.Recovery, request, BattleAbility.GuardianForce) { NativeQueuedCommand = 254 };
         BattleSnapshot baseline = battle.Capture();
 
         BattleSession restored = BattleSession.Restore(baseline with { ActiveAction = recovery });

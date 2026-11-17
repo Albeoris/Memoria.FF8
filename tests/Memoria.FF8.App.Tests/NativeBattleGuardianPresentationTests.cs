@@ -76,7 +76,7 @@ public sealed class NativeBattleGuardianPresentationTests
         {
             Assert.NotEmpty(shadowModes);
         }
-        NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.ReadFixturePresentation().NativeGraphics).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
+        NativeBattleGraphicsModel[] visibleModels = ReadOriginalModelCells(before.ReadFixturePresentation().NativeGraphics!).Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
         Assert.All(visibleModels, model => Assert.NotNull(model.GeometryBounds52));
         Console.WriteLine($"Native entry: visiblemodels{visibleModels.Length}, shadowdrawmodes{shadowModes.Length}; zero modes is permitted when the actual camera culls every shadow.");
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
@@ -105,7 +105,7 @@ public sealed class NativeBattleGuardianPresentationTests
         Console.WriteLine($"Fresh GF pending104 source: {Path.GetFullPath(sourceOutput)}; frame{sourceFromFile.Frame}/callback{sourceFromFile.ReadFixturePresentation().NativeGraphics!.Callback}.");
         NativeBattleAtbState[] animationGauges = sourceFromFile.Combatants.Select(actor => actor.NativeAtb!).ToArray();
         uint initialUiCounter = sourceFromFile.ReadFixturePresentation().NativeGraphics!.UiServices!.Counter;
-        long initialGraphicsCallback = sourceFromFile.ReadFixturePresentation().NativeGraphics.Callback;
+        long initialGraphicsCallback = sourceFromFile.ReadFixturePresentation().NativeGraphics!.Callback;
         TimeSpan frame = TimeSpan.FromTicks((long)Math.Ceiling(TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond));
         bool selected = false;
         bool restoredBeforeEntry = false;

@@ -87,7 +87,7 @@ public sealed class NativeBattleRenzokukenCastTests
         });
         BattleSnapshot ready = battle.CaptureForContinuation();
         const uint transitionColor = 0x00312617;
-        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage.ModelColors! with { Color40 = transitionColor } } })));
+        battle = BattleSession.Restore(NativeBattleStorageSnapshots.Capture((ready with { NativeLimits = [new("party", crisis)],Random = random}).WithFixturePresentation(facts => facts with { NativeStage = ready.ReadFixturePresentation().NativeStage! with { ModelColors = ready.ReadFixturePresentation().NativeStage!.ModelColors! with { Color40 = transitionColor } } })));
         const int actorIndex = 0;
         uint? shadowColor = ReadOriginalModelCell(battle.Presentation!.Graphics, actorIndex).Color44;
         Assert.NotNull(shadowColor);

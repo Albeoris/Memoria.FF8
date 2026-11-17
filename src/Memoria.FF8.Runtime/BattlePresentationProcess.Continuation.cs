@@ -18,8 +18,9 @@ internal sealed record BattlePresentationNativeState
     internal NativeBattleActionPacketsState? NativeActionPackets { get; init; }
 }
 
-internal sealed record BattlePresentationSnapshot(BattlePresentationResources Resources, BattlePresentationEntry Entry, BattlePresentationNativeState Native, BattlePresentationSharedState Shared, ImmutableArray<HostedEntryDescriptor> EntryQueue, NativeBattleHostedModelPackets.Snapshot ModelPackets)
+internal sealed record BattlePresentationSnapshot(BattlePresentationResources Resources, BattlePresentationEntry? Entry, BattlePresentationNativeState Native, BattlePresentationSharedState Shared, ImmutableArray<HostedEntryDescriptor> EntryQueue, NativeBattleHostedModelPackets.Snapshot? ModelPackets)
 {
+    internal BattleExternalEffectContinuation? ExternalEffect { get; init; }
     internal HostedPresentationInvocation? Invocation { get; init; }
     internal HostedCompletionInvocation? Completion { get; init; }
     internal ImmutableArray<HostedControlPacket> ControlPackets { get; init; }
@@ -66,13 +67,15 @@ public sealed partial class BattlePresentationProcess
     internal BattlePresentationSnapshot CaptureSnapshot()
     {
         RequireIdle();
-        if (!HasBattleEntry || hostedEntryRoster is null || hostedEntryAliases is null || hostedEntryDescriptors is null || hostedModelPackets is null || hostedFrameServices is not null || nativePreRootStack is not null)
+        if (hostedFrameServices is not null || nativePreRootStack is not null ||
+            HasBattleEntry && (hostedEntryRoster is null || hostedEntryAliases is null || hostedEntryDescriptors is null || hostedModelPackets is null))
         {
             throw new InvalidOperationException("Battle presentation continuation requires its entered callback boundary.");
         }
-        BattlePresentationEntry entry = new(hostedEntryRoster, hostedEntryAliases, hostedEntryFacts, NativeEntryAdvantage, ResolvedNativeFlags, nativeEffectResourceResolver);
-        BattlePresentationSnapshot snapshot = new(resources, entry, ReadNativeState(), ObserveSharedState(), hostedEntryDescriptors.ToImmutableArray(), hostedModelPackets.Capture())
+        BattlePresentationEntry? entry = HasBattleEntry ? new(hostedEntryRoster!, hostedEntryAliases!, hostedEntryFacts, NativeEntryAdvantage, ResolvedNativeFlags) : null;
+        BattlePresentationSnapshot snapshot = new(resources, entry, ReadNativeState(), ObserveSharedState(), hostedEntryDescriptors?.ToImmutableArray() ?? [], hostedModelPackets?.Capture())
         {
+            ExternalEffect = entry is null ? CaptureExternalEffectContinuation() : null,
             Invocation = hostedPresentationInvocation,
             Completion = hostedCompletionInvocation,
             ControlPackets = hostedControlPackets,
@@ -116,24 +119,31 @@ public sealed partial class BattlePresentationProcess
         return NativeBattleStorageSnapshots.CapturePrivate(snapshot);
     }
 
-    internal static BattlePresentationProcess Restore(BattlePresentationResources resources, BattlePresentationSnapshot snapshot, BattlePresentationServices services, Func<ushort, NativeBattleEffectBinding>? resolveEffect)
+    internal static BattlePresentationProcess Restore(BattlePresentationResources resources, BattlePresentationSnapshot snapshot, BattlePresentationServices? services, Func<ushort, NativeBattleEffectBinding>? resolveEffect, BattleExternalEffectHostBindings? externalHost = null)
     {
         BattlePresentationSnapshot native = NativeBattleStorageSnapshots.Restore(snapshot);
-        return new(resources, native, services, resolveEffect);
+        return new(resources, native, services, resolveEffect, externalHost);
     }
 
-    private BattlePresentationProcess(BattlePresentationResources resources, BattlePresentationSnapshot snapshot, BattlePresentationServices services, Func<ushort, NativeBattleEffectBinding>? resolveEffect)
+    private BattlePresentationProcess(BattlePresentationResources resources, BattlePresentationSnapshot snapshot, BattlePresentationServices? services, Func<ushort, NativeBattleEffectBinding>? resolveEffect, BattleExternalEffectHostBindings? externalHost)
     {
         this.resources = resources;
         this.services = services;
-        hostedEntryFacts = snapshot.Entry.Actors;
-        hostedEntryRoster = snapshot.Entry.Roster;
-        hostedEntryAliases = snapshot.Entry.Aliases;
-        hostedEntryDescriptors = new(snapshot.EntryQueue);
-        hostedModelPackets = NativeBattleHostedModelPackets.Restore(snapshot.ModelPackets);
-        nativeEffectResourceResolver = resolveEffect ?? snapshot.Entry.ResolveEffect;
-        NativeEntryAdvantage = snapshot.Entry.Advantage;
-        ResolvedNativeFlags = snapshot.Entry.Flags;
+        if (snapshot.Entry is { } entry && snapshot.ModelPackets is { } models && services is not null && snapshot.ExternalEffect is null && externalHost is null)
+        {
+            hostedEntryFacts = entry.Actors;
+            hostedEntryRoster = entry.Roster;
+            hostedEntryAliases = entry.Aliases;
+            hostedEntryDescriptors = new(snapshot.EntryQueue);
+            hostedModelPackets = NativeBattleHostedModelPackets.Restore(models);
+            NativeEntryAdvantage = entry.Advantage;
+            ResolvedNativeFlags = entry.Flags;
+        }
+        else if (snapshot.Entry is not null || snapshot.ModelPackets is not null || services is not null || snapshot.ExternalEffect is null || externalHost is null)
+        {
+            throw new InvalidDataException("Presentation continuation has mismatched scene and host bindings.");
+        }
+        nativeEffectResourceResolver = resolveEffect;
         presentationCameraMode = NativeBattleEffectCameraMode.NativeCinematic;
         presentationRibbonProjectionPolicy = NativeBattleRibbonProjectionPolicy.IndependentGeometricRuns;
         presentationForeignActors = [];
@@ -185,7 +195,14 @@ public sealed partial class BattlePresentationProcess
         diagnosticHeaderGenerations = snapshot.DiagnosticGenerations?.ToDictionary();
         Graphics.Validate();
         Memory.ValidateReturnedTaskOwner(Graphics.OriginalEffect);
-        GunbladeMode = services.ReadGunbladeMode();
+        if (snapshot.ExternalEffect is { } externalEffect)
+        {
+            RestoreExternalEffectContinuation(externalEffect, externalHost!);
+        }
+        else
+        {
+            GunbladeMode = services!.ReadGunbladeMode();
+        }
     }
 
     internal void RefreshPreparedPresentationAtBoundary()

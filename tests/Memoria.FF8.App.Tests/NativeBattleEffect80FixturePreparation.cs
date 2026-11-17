@@ -109,7 +109,7 @@ internal static class NativeBattleEffect80FixturePreparation
             Assert.Equal(originalPlacement.Hidden, participant.Hidden);
             Assert.Equal(originalPlacement.InitiallySuspended, participant.Suspended);
             Assert.Equal(originalPlacement.Untargetable, participant.Untargetable);
-            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics, participant.ActorIndex).Transform!.Position28);
+            Assert.Equal(originalPlacement.NativePosition, ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, participant.ActorIndex).Transform!.Position28);
             Assert.Null(originalActor.NativeAi);
         }
         NativeBattleParticipantSnapshot freshCaster = Assert.Single(source.Combatants, actor => actor.Id == casterDefinition.Id).NativeParticipant!;
@@ -120,7 +120,7 @@ internal static class NativeBattleEffect80FixturePreparation
         Assert.Equal(placement.InitiallySuspended, inert.Suspended);
         Assert.Equal(placement.Untargetable, inert.Untargetable);
         Save("source-after-entry", source);
-        File.WriteAllText(Path.Combine(output, "fresh-source-origin.json"), JsonSerializer.Serialize(new { Scenario = "Independent fresh original formation511 fixture with native clock rules and battle speed present before construction; no mutable state copied from the reference snapshot", FormationId = 511, StageId = 142, SourceFrame = source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics.Callback, EntryCallbacks = entryCallbacks, ClockRules = definition.NativeClockRules, BattleSpeed = definition.NativeBattleSpeed, ColdAiBank = cold.NativeAiVariables, Prototype = prototype, Binding = prototypeBinding, ExistingResourcesVerified = originalGraphics.Bindings.Select(binding => binding.ActorId).ToArray() }));
+        File.WriteAllText(Path.Combine(output, "fresh-source-origin.json"), JsonSerializer.Serialize(new { Scenario = "Independent fresh original formation511 fixture with native clock rules and battle speed present before construction; no mutable state copied from the reference snapshot", FormationId = 511, StageId = 142, SourceFrame = source.Frame, NativeCallback = source.ReadFixturePresentation().NativeGraphics!.Callback, EntryCallbacks = entryCallbacks, ClockRules = definition.NativeClockRules, BattleSpeed = definition.NativeBattleSpeed, ColdAiBank = cold.NativeAiVariables, Prototype = prototype, Binding = prototypeBinding, ExistingResourcesVerified = originalGraphics.Bindings.Select(binding => binding.ActorId).ToArray() }));
         BattleCombatantDefinition removedDefinition = Assert.Single(originalEnemies, actor => actor.ModelId == 121);
         BattleCombatantSnapshot removedBefore = Assert.Single(source.Combatants, actor => actor.Id == removedDefinition.Id);
         int removedIndex = removedBefore.NativeParticipant!.ActorIndex;

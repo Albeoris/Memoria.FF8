@@ -51,10 +51,12 @@ public sealed partial class BattleSession
         candidate.preparingExpandedHostedAction = true;
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.preparePresentationModelBinding = preparePresentationModelBinding;
+        candidate.nativeEffectResourceResolver = nativeEffectResourceResolver;
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.expandedPartyReadyStatusMirrors = expandedPartyReadyStatusMirrors;
         candidate.nativeAffinityAction = nativeAffinityAction;
         candidate.participantCallbackObservations = ObservingDiagnosticCounter ? [] : null;
+        candidate.diagnosticCounterTracksContacts = ObservingDiagnosticCounter;
         if (expandedPresentationProcess is { } process)
         {
             candidate.readHostedAiHeapMessage = process.ReadAiHeapMessage;
@@ -108,6 +110,7 @@ public sealed partial class BattleSession
             expandedHostedEvent = hostedEvent;
             expandedHostedActionToken = admission.Action?.Invocation.Token;
             process.CommitDispatch(admission);
+            PublishDiagnosticCounterContacts(candidate, process, admission.AppendedHeaders);
         }
         else if (form is not null)
         {

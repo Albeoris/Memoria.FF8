@@ -11,7 +11,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
     private static ImmutableHashSet<NativeBattlePrimitiveReference> DoomtrainCommonPacketReferences(BattleSnapshot prior, BattleSnapshot current)
     {
         NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
-        if (prior.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0) || prior.ReadFixturePresentation().NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || current.ReadFixturePresentation().NativeStage is not { } stage || stage.Groups.Any(group => (group.Flags & 3) == 3))
+        if (prior.ReadFixturePresentation().NativeGraphics!.Auxiliary.Slots.Any(task => (task.Flags & 1) != 0) || prior.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || graphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0) || current.ReadFixturePresentation().NativeStage is not { } stage || stage.Groups.Any(group => (group.Flags & 3) == 3))
         {
             return ImmutableHashSet<NativeBattlePrimitiveReference>.Empty;
         }
@@ -127,7 +127,7 @@ public sealed partial class NativeBattleTargetGuardianCastTests
         {
             references.UnionWith(DoomtrainCommonPacketReferences(prior, current));
         }
-        else if (current.ReadFixturePresentation().NativeEffectMemory?.Cinematic?.Effect == effect && current.ReadFixturePresentation().NativeEffectMemory.ScriptedEffects is { } core)
+        else if (current.ReadFixturePresentation().NativeEffectMemory?.Cinematic?.Effect == effect && current.ReadFixturePresentation().NativeEffectMemory!.ScriptedEffects is { } core)
         {
             uint manager = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(0x27973EC, 4));
             uint end = BinaryPrimitives.ReadUInt32LittleEndian(core.Read(manager + 0x7C, 4));

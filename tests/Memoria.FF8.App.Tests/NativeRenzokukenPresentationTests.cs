@@ -42,7 +42,7 @@ public sealed class NativeRenzokukenPresentationTests
         byte[] before = scene.Render(battle, 640, 448).ToArray();
         battle.QueueNativePlayerCommand("squall", "ifrit", 5, 0);
         battle.Tick();
-        battle.AdvanceNativeRenzokukenPresentation(TimeSpan.FromMilliseconds(500));
+        battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromMilliseconds(500));
         long frame = battle.Frame;
         string checkpoint = JsonSerializer.Serialize(battle.Capture());
 
@@ -57,7 +57,7 @@ public sealed class NativeRenzokukenPresentationTests
         Assert.Equal(freshOriginal.Render(battle, 640, 448), restoredScene.Render(restored, 640, 448));
         for (int callback = 0; callback < 5000 && restored.GetNativeRenzokuken("squall") is not null; callback++)
         {
-            restored.AdvanceNativeRenzokukenPresentation(TimeSpan.FromTicks(83334));
+            restored.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(83334));
         }
         Assert.Null(restored.GetNativeRenzokuken("squall"));
         Assert.NotEmpty(restoredScene.Render(restored, 640, 448));

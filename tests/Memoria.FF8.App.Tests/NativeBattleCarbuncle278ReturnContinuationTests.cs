@@ -82,13 +82,13 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         }
         BattleSnapshot finished = first.CaptureForContinuation();
         Assert.Equal((byte)255, finished.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Done81D8);
-        Assert.Equal(0u, finished.ReadFixturePresentation().NativeEffectMemory.Carbuncle278.Flash81D4);
+        Assert.Equal(0u, finished.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Flash81D4);
         Assert.All(finished.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany(pool => pool.Slots), task => Assert.Equal(0, task.Flags & 1));
-        Assert.All(ReadOriginalModelCells(finished.ReadFixturePresentation().NativeGraphics).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
+        Assert.All(ReadOriginalModelCells(finished.ReadFixturePresentation().NativeGraphics!).Take(3), model => Assert.Equal(0, model.Flags0 & 4));
         foreach (int slot in Enumerable.Range(3, NativeBattleGraphicsModelAddress.NativeRowCount - 3).Where(slot => (ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, slot).Flags0 & 2) != 0))
         {
             NativeBattleGraphicsModel prior = ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, slot);
-            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.ReadFixturePresentation().NativeGraphics, slot).Transform!.Position28.Z);
+            Assert.Equal(unchecked((short)(prior.Transform!.Position28.Z - source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Lift81D0)), ReadOriginalModelCell(finished.ReadFixturePresentation().NativeGraphics!, slot).Transform!.Position28.Z);
         }
         NativeBattleRestorationPresentationTests.Publish(output, "root-released", finished, scene.Render(first, 320, 224).ToArray());
         for (int tick = 0; tick < 128 && !Released(first.Capture()); tick++)
@@ -161,7 +161,7 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
         string original = File.ReadAllText(input!);
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(original)!;
         Assert.Equal((ushort)278, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.RequestedEffect);
-        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal((byte)255, source.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!.Done81D8);
         string output = Path.Combine(evidence!, "carbuncle-release-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
@@ -206,6 +206,6 @@ public sealed class NativeBattleCarbuncle278ReturnContinuationTests
     }
 
     private static NativeBattleModulePoolTask Creature(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0];
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 };
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.GuardianForceCasts.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 };
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }

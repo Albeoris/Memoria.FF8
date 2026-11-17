@@ -28,7 +28,7 @@ public sealed class NativeBattleEffect251SourceAdmissionTests
         NativeBattleGraphicsState graphics = source.ReadFixturePresentation().NativeGraphics!;
         Assert.Null(graphics.OriginalEffect);
         Assert.Equal(0, source.ReadFixturePresentation().NativeEffectMemory!.Active);
-        NativeBattleEffect251State state = source.ReadFixturePresentation().NativeEffectMemory.Effect251!;
+        NativeBattleEffect251State state = source.ReadFixturePresentation().NativeEffectMemory!.Effect251!;
         Assert.NotNull(state);
         Assert.False(state.ScriptSourcesBound);
         Assert.Empty(state.ScriptStorage);

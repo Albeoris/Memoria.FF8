@@ -182,14 +182,14 @@ public sealed class NativeBattleZombiePresentationTests
                     completions++;
                 }
                 observedPrivatePackets |= current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8");
-                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 bool additive = frame.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0xE1);
                 observedAdditivePackets |= additive;
                 if (after?.ReturnedDescriptor is > 0 && additive)
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame withoutEffect = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "20DFAB8").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutEffect } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = withoutEffect } }));
                     int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                     if (changed > peakChangedPixels)
                     {
@@ -206,7 +206,7 @@ public sealed class NativeBattleZombiePresentationTests
                     {
                         byte[] visible = scene.Render(battle, 320, 224).ToArray();
                         NativeBattlePrimitiveFrame withoutOverlay = frame with { LastCommands = frame.LastCommands.Where(command => !IsOverlay(command)).ToImmutableArray() };
-                        BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = withoutOverlay } }));
+                        BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = withoutOverlay } }));
                         int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                         if (changed > peakOverlayPixels)
                         {
@@ -215,7 +215,7 @@ public sealed class NativeBattleZombiePresentationTests
                         }
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }

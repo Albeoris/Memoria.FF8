@@ -20,9 +20,9 @@ public sealed class NativeBattleGilgamesh330ContinuationTests
         Assert.Null(source.ActiveAction);
         Assert.Equal(0u, source.NativeClock!.ActionPause);
         Assert.Equal((ushort)330, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect);
-        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor);
-        Assert.All(source.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools, pool => Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0));
-        Assert.DoesNotContain(source.ReadFixturePresentation().NativeGraphics.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+        Assert.Equal(0u, source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor);
+        Assert.All(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools, pool => Assert.DoesNotContain(pool.Slots, task => (task.Flags & 1) != 0));
+        Assert.DoesNotContain(source.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue, index => source.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(NativeBattleEffectFamilyRunner.LoadSnapshot(path!));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
@@ -32,7 +32,7 @@ public sealed class NativeBattleGilgamesh330ContinuationTests
         TimeSpan callback = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30);
         first.AdvanceNativeGraphicsPresentation(callback);
         second.AdvanceNativeGraphicsPresentation(callback);
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         Assert.Equal(firstScene.Render(first, 320, 224), secondScene.Render(second, 320, 224));
         NativeBattleRestorationPresentationTests.Publish(output, "continued", first.Capture(), firstScene.Render(first, 320, 224));

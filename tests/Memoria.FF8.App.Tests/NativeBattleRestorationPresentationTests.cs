@@ -69,13 +69,13 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
         first.AdvanceNativeGraphicsPresentation(Callback);
         second.AdvanceNativeGraphicsPresentation(Callback);
-        Assert.Equal(source.ReadFixturePresentation().NativeGraphics.Callback + 1, first.Presentation!.Graphics.Callback);
+        Assert.Equal(source.ReadFixturePresentation().NativeGraphics!.Callback + 1, first.Presentation!.Graphics.Callback);
         Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         byte[] pixels = new BattleScenePresentation(assets, source.Definition).Render(first, 320, 224).ToArray();
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
         Publish(Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE"), "restoration-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff"), first.Capture(), pixels);
-        Console.WriteLine($"Restoration checkpoint effect{source.ReadFixturePresentation().NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, wholeJSON/copiedpixels agree.");
+        Console.WriteLine($"Restoration checkpoint effect{source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect}, saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics!.Callback}; actual nextcallback{first.Presentation!.Graphics.Callback}, wholeJSON/copiedpixels agree.");
     }
 
     internal static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect, bool applyKernelStatuses = false, ushort? descriptorEffect = null)

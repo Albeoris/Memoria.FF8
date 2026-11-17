@@ -81,7 +81,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("A staged model load requires its current typed slot and actual original alias.");
         }
         bool usesOriginalSceneResource = false;
-        BattleEnemyRosterSource? source = null;
+        BattleSourcePlacementBinding? source = null;
         if (load is HostedDispatchControl.LoadEnemy enemy)
         {
             NativeBattleEnemyAllocation allocation = nativeAllocations.Single(candidate => candidate.Id == actor.Id);
@@ -91,7 +91,14 @@ public sealed partial class BattleSession
                 throw new InvalidDataException("A staged enemy model load requires its exact native allocation and original scene prototype.");
             }
             usesOriginalSceneResource = allocation.ResolvedDefinition is null && allocation.DonorSource is null;
-            source = allocation.DonorSource;
+            if (allocation.DonorSource is { Group: { } group } donor)
+            {
+                source = new(group, donor.SceneSlot, donor.OriginalEnemyOrdinal);
+            }
+            else if (allocation.EncounterRole is not null)
+            {
+                source = new(BattleSourceGroupId.ForEncounterCopy(allocation.Generation), allocation.SceneSlot, allocation.TemplateSourceOrdinal);
+            }
         }
         NativeBattleGraphicsBinding binding = PrepareModelBinding(load.ModelOwner, load.Slot);
         if (binding.ActorId != actor.Id || binding.InitialPosition is null || binding.ModelId != checked((byte)(actor.ModelId + (actor.IsPlayer ? 0 : 16))) ||

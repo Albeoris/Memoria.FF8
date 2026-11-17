@@ -17,7 +17,7 @@ public sealed class NativeBattleCarbuncle278ProgrammeContinuationTests
         ushort initialCounter = Counter(source);
         Assert.True(initialCounter is 112 or 124);
         Assert.NotNull(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Carbuncle278Resources!.CreatureProgramme);
-        Assert.Equal((byte)31, source.ReadFixturePresentation().NativeGraphics.StageResourceIndex98990);
+        Assert.Equal((byte)31, source.ReadFixturePresentation().NativeGraphics!.StageResourceIndex98990);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         using BattleAssets assets = new(directory!);
@@ -36,18 +36,18 @@ public sealed class NativeBattleCarbuncle278ProgrammeContinuationTests
             NativeBattleModulePoolTask root = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == NativeBattleCarbuncle278Entry.MainDescriptor).Slots[0];
             uint primary = root.ReadDword(0x10) == 0 ? 0x3ECCu : 0x13ECCu;
             NativeBattleCarbuncle278State state = current.ReadFixturePresentation().NativeEffectMemory!.Carbuncle278!;
-            NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+            NativeBattlePrimitiveFrame primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
             int[] privatePackets = primitive.LastCommands.Select(command => command.Command.Packet).Where(packet => packet.Bank == "20DFAB8").Distinct().Select(packet => packet.ByteOffset).Order().ToArray();
             int cursor = checked((int)primary);
             foreach (int address in privatePackets)
             {
                 Assert.Equal(cursor, address);
-                byte[] tag = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(address, 4);
+                byte[] tag = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(address, 4);
                 Assert.True(tag[3] > 0);
                 cursor += 4 + 4 * tag[3];
             }
             Assert.Equal(state.ModelBuffer81F8 + (uint)cursor, state.PacketCursor81BC);
-            NativeBattleModulePoolTask creature = current.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0];
+            NativeBattleModulePoolTask creature = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508188).Slots[0];
             Assert.Equal(0x10C2608u, creature.ReadDword(0xCC));
             Assert.Equal((uint)(Counter(current) - 112), creature.ReadDword(0xD0));
             if (Counter(current) == 113)
@@ -60,10 +60,10 @@ public sealed class NativeBattleCarbuncle278ProgrammeContinuationTests
                 NativeBattleRestorationPresentationTests.Publish(output, "pose-selector-" + Counter(current), current, null);
                 Assert.Equal(Counter(current) == 138 ? (byte)1 : (byte)2, creature.ReadByte(0x8C));
             }
-            NativeBattleEffectTaskPool sparkles = current.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2508178);
+            NativeBattleEffectTaskPool sparkles = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.Single(pool => pool.DescriptorAddress == 0x2508178);
             Assert.InRange(sparkles.Slots.Count(task => (task.Flags & 1) != 0), 0, 40);
             Assert.All(sparkles.Slots.Where(task => (task.Flags & 1) != 0), task => Assert.InRange(task.ReadWord(0x12), (ushort)1, (ushort)10));
-            Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.CommonPacketMemory);
+            Assert.NotNull(current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.CommonPacketMemory);
             byte[] pixels = scene.Render(first, 320, 224).ToArray();
             Assert.Equal(pixels, scene.Render(second, 320, 224).ToArray());
             ushort counter = Counter(current);

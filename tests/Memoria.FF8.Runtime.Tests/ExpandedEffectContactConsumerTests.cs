@@ -94,7 +94,7 @@ public sealed class ExpandedEffectContactConsumerTests
     private static BattleActionPresentation Command()
     {
         BattleTargetRequest request = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy-0")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
-        return new("caster", "enemy-0", BattleActionPhase.Recovery, 1, request);
+        return new("caster", "enemy-0", BattleActionPhase.Recovery, request);
     }
 
     private static BattleEnemyActorModel Enemy(int index)

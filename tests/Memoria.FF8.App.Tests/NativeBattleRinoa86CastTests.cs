@@ -60,12 +60,12 @@ public sealed class NativeBattleRinoa86CastTests
             BattleSnapshot snapshot = battle.CaptureForContinuation();
             bool active = snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: > 0, Binding.Effect: 86 };
             bool killed = snapshot.Combatants.Where(actor => actor.Id != "party").All(actor => actor.CurrentHp == 0);
-            bool released = killed && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, 3).Flags0 == 0;
+            bool released = killed && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3).Flags0 == 0;
             if (active && ((!contact && killed) || (!releasedDuringEffect && released)))
             {
                 if (released)
                 {
-                    int row = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, 3).ActiveResourceRow100!.Value;
+                    int row = ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, 3).ActiveResourceRow100!.Value;
                     NativeBattleGraphicsResource original = definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == actors[1].Id).Resource;
                     NativeBattleGraphicsResource retained = NativeBattleEnemyResourceView.Resolve(snapshot.ReadFixturePresentation().NativeModelCpuResources!, snapshot.ReadFixturePresentation().NativeFileStaging!, row, original);
                     Assert.NotNull(retained.PoseSource);

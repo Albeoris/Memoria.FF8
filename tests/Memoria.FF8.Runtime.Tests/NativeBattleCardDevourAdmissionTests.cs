@@ -64,7 +64,7 @@ public sealed class NativeBattleCardDevourAdmissionTests
         BattleAttackCommand input = new(actor.Id, target.Id, request, ActionId: 9) { NativeQueuedCommand = 7, NativeAction = native };
         MethodInfo prepare = typeof(BattleSession).GetMethod("PrepareNativeSpecialCommand", BindingFlags.NonPublic | BindingFlags.Instance)!;
         BattleAttackCommand prepared = (BattleAttackCommand)prepare.Invoke(battle, [actor, input])!;
-        BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, request, ActionId: 9) { NativeQueuedCommand = 7, NativeAction = native, NativeSpecial = prepared.NativeSpecial };
+        BattleActionPresentation command = new(actor.Id, target.Id, BattleActionPhase.Windup, request, ActionId: 9) { NativeQueuedCommand = 7, NativeAction = native, NativeSpecial = prepared.NativeSpecial };
         BattleActionDefinition action = new(BattleAbility.Attack, 9, "Explicit Devour formula", BattleActionEffect.Native, 0, false) { NativeAction = native };
         MethodInfo resolve = typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.NonPublic | BindingFlags.Instance)!;
         target.NativeRemainingHits = 1;
@@ -249,8 +249,8 @@ public sealed class NativeBattleCardDevourAdmissionTests
         {
             Assert.All(battle.QueuedActions, queued =>
             {
-                Assert.NotNull(queued.NativeCallback);
-                Assert.Equal(0, queued.NativeCallback.Stage);
+                Assert.NotNull(queued.ExpandedAiCallback);
+                Assert.Equal(0, queued.ExpandedAiCallback.Stage);
             });
             battle.Tick();
             Assert.Equal(BattleOutcome.Active, battle.Outcome);

@@ -58,8 +58,10 @@ public sealed class BattleSavedDuelTests
                     }
                     bitmap.SavePng(Path.Combine(directory, "ready.png"));
                     BattleSession cold = Restore(GameSession.Load(Path.Combine(directory, "ready.json")).Battle!);
-                    battle.AdvanceNativeDuelPresentation(elapsed, 0);
-                    cold.AdvanceNativeDuelPresentation(elapsed, 0);
+                    battle.SubmitNativeDuelInput(0);
+                    battle.AdvanceNativeGraphicsPresentation(elapsed);
+                    cold.SubmitNativeDuelInput(0);
+                    cold.AdvanceNativeGraphicsPresentation(elapsed);
                     Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(cold.Capture()));
                 }
                 if (enterCommands && moves < 2)
@@ -67,15 +69,18 @@ public sealed class BattleSavedDuelTests
                     BattleNativeDuelChoice choice = battle.GetNativeDuelChoices(actor.Id).First(candidate => candidate.Learned && !candidate.Finisher);
                     foreach (ushort button in choice.Buttons)
                     {
-                        battle.AdvanceNativeDuelPresentation(elapsed, 0);
-                        battle.AdvanceNativeDuelPresentation(elapsed, button);
+                        battle.SubmitNativeDuelInput(0);
+                        battle.AdvanceNativeGraphicsPresentation(elapsed);
+                        battle.SubmitNativeDuelInput(button);
+                        battle.AdvanceNativeGraphicsPresentation(elapsed);
                     }
                     Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, battle.GetNativeDuel(actor.Id)!.Phase);
                     moves++;
                     Save("input-" + moves);
                 }
             }
-            battle.AdvanceNativeDuelPresentation(elapsed, 0);
+            battle.SubmitNativeDuelInput(0);
+            battle.AdvanceNativeGraphicsPresentation(elapsed);
             if (ready && battle.GetNativeDuel(actor.Id) is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
             {
                 Assert.Equal(enterCommands ? 2 : 0, moves);

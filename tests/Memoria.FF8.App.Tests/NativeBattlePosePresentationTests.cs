@@ -30,7 +30,7 @@ public sealed class NativeBattlePosePresentationTests
         Assert.True(session.Combatants[0].IsReady);
         AssertEntrySoundAllocation(session);
         BattleSnapshot saved = session.CaptureForContinuation();
-        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved.WithFixturePresentation(facts => facts with { NativeGraphics = saved.ReadFixturePresentation().NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.ReadFixturePresentation().NativeGraphics.ModuleEffects).AppendModelResource(session.ReadPresentationModelOwner("party"), definition.NativeModuleResources[39], 0x100027, session.ReadBattlePresentationPacketBindings().Aliases) } })));
+        session = BattleSession.Restore(NativeBattleStorageSnapshots.Capture(saved.WithFixturePresentation(facts => facts with { NativeGraphics = saved.ReadFixturePresentation().NativeGraphics! with { ModuleEffects = NativeBattleStorageSnapshots.Restore(saved.ReadFixturePresentation().NativeGraphics!.ModuleEffects).AppendModelResource(session.ReadPresentationModelOwner("party"), definition.NativeModuleResources[39], 0x100027, session.ReadBattlePresentationPacketBindings().Aliases) } })));
         List<NativeBattleModuleSound> heard = [];
         BattleAudioPresentation audio = BattleAudioTestOutput.Create(playModule: heard.Add);
         audio.Update(session);

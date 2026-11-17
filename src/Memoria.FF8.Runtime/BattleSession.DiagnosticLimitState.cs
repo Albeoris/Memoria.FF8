@@ -5,7 +5,9 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticShotState(byte ActionId, ushort TargetMask, short InitialTimer, short RemainingTimer, byte RemainingAmmo, BattleNativeShotPhase Phase)
 {
-    public long UiSubframeTicks { get; init; }
+    public bool FireRequested { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleShotWidgetState? Widget { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleTimedInputUi? Ui { get; init; }
 }
@@ -19,7 +21,9 @@ public sealed record BattleDiagnosticDuelState(byte MoveSetId, ushort TargetMask
     public short AutomaticCountdown { get; init; }
     public ushort PreviousButtons { get; init; }
     public ushort PendingPulse { get; init; }
-    public long UiSubframeTicks { get; init; }
+    public byte WidgetPhase { get; init; }
+    public byte PublicationLatch { get; init; }
+    public ushort WidgetRevealQ12 { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleTimedInputUi? Ui { get; init; }
 }
@@ -34,7 +38,8 @@ public sealed partial class BattleSession
         }
         return new(state.ActionId, ReadDiagnosticOriginalTargetWord(state.TargetRequest), state.InitialTimer, state.RemainingTimer, state.RemainingAmmo, state.Phase)
         {
-            UiSubframeTicks = state.UiSubframeTicks,
+            FireRequested = state.FireRequested,
+            Widget = state.Widget,
             Ui = state.Ui
         };
     }
@@ -53,7 +58,9 @@ public sealed partial class BattleSession
             AutomaticCountdown = state.AutomaticCountdown,
             PreviousButtons = state.PreviousButtons,
             PendingPulse = state.PendingPulse,
-            UiSubframeTicks = state.UiSubframeTicks,
+            WidgetPhase = state.WidgetPhase,
+            PublicationLatch = state.PublicationLatch,
+            WidgetRevealQ12 = state.WidgetRevealQ12,
             Ui = state.Ui
         };
     }

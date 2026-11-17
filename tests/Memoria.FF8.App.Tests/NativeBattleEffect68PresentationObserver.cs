@@ -34,7 +34,7 @@ internal sealed class NativeBattleEffect68PresentationObserver
             return;
         }
         NativeBattleEffect68State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect68!;
-        NativeBattleScanProcess scan = current.ReadFixturePresentation().NativeEffectMemory.Scan!;
+        NativeBattleScanProcess scan = current.ReadFixturePresentation().NativeEffectMemory!.Scan!;
         state.Validate();
         scan.Validate();
         Dictionary<uint, NativeBattleModulePoolTask> before = Tasks(prior);

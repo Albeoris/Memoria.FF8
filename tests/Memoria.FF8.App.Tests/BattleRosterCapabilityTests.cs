@@ -79,7 +79,7 @@ public sealed class BattleRosterCapabilityTests
     }
 
     [Fact]
-    public void FourthMembersAlertAndRareItemFollowEncounterAdmission()
+    public void FourthMembersAlertAndRareItemFollowSelectedPartyRows()
     {
         string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
@@ -97,11 +97,10 @@ public sealed class BattleRosterCapabilityTests
         Assert.Equal(3, Assert.IsType<NativeBattleEntryInput>(admitted.NativeEntry).EncounterAbilityFlags & 3);
         Assert.True(admitted.RareItem);
 
-        BattleDefinition restricted = world.CreateEncounterBattle(511, 4);
-        Assert.True(restricted.EncounterRosterAdmission.UsesPrimaryPartyOnly);
-        Assert.DoesNotContain(restricted.Combatants, actor => actor.IsPlayer && actor.MagicRecordId == 3);
-        Assert.Equal(0, Assert.IsType<NativeBattleEntryInput>(restricted.NativeEntry).EncounterAbilityFlags & 3);
-        Assert.False(restricted.RareItem);
+        BattleDefinition final = world.CreateEncounterBattle(511, 4);
+        Assert.Contains(final.Combatants, actor => actor.IsPlayer && actor.MagicRecordId == 3);
+        Assert.Equal(3, Assert.IsType<NativeBattleEntryInput>(final.NativeEntry).EncounterAbilityFlags & 3);
+        Assert.True(final.RareItem);
 
         session.SetCharacterVitals(vitals.WithBattleParty([0, 1, 2], 4));
         BattleDefinition removed = world.CreateEncounterBattle(87, 4);

@@ -36,7 +36,7 @@ internal sealed class DiagnosticShotCycleDriver
         int index = Receipt.Dispatches.Length;
         byte[] commands = [14, 237, 238];
         ushort[] effects = [Receipt.Declaration.OpeningEffect, Receipt.FiringEffect, Receipt.Declaration.EndingEffect];
-        if (index > 2 || Receipt.Opening is null || index == 1 && Receipt.Triggered is null || index == 2 && Receipt.Ending is null || dispatch.Reflection is not null || dispatch.ActorId != Receipt.ActorId || dispatch.Ability != Receipt.Declaration.ExpectedDispatchAbility(commands[index]) || dispatch.ActionId != Receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != Receipt.ActorIndex || dispatch.NativeHeaderIndex is null || dispatch.NativeHeaderGeneration is not > 0 || index > 0 && (dispatch.Serial <= Receipt.Dispatches[^1].Serial || dispatch.Callback < Receipt.Dispatches[^1].Callback) || Receipt.Dispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
+        if (index > 2 || Receipt.Opening is null || index == 1 && Receipt.TriggerRequested is null || index == 2 && Receipt.CloseRequested is null || dispatch.Reflection is not null || dispatch.ActorId != Receipt.ActorId || dispatch.Ability != Receipt.Declaration.ExpectedDispatchAbility(commands[index]) || dispatch.ActionId != Receipt.Declaration.ExpectedHeaderAction(commands[index]) || dispatch.NativeCommand != commands[index] || dispatch.RequestedEffect != effects[index] || dispatch.ExecutedEffect != effects[index] || dispatch.NativeActorIndex != Receipt.ActorIndex || dispatch.NativeHeaderIndex is null || dispatch.NativeHeaderGeneration is not > 0 || index > 0 && (dispatch.Serial <= Receipt.Dispatches[^1].Serial || dispatch.Callback < Receipt.Dispatches[^1].Callback) || Receipt.Dispatches.Any(previous => previous.NativeHeaderIndex == dispatch.NativeHeaderIndex && previous.NativeHeaderGeneration == dispatch.NativeHeaderGeneration))
         {
             throw new InvalidDataException("Shot dispatched an unrequested stage or changed its native invocation lineage.");
         }
@@ -77,11 +77,15 @@ internal sealed class DiagnosticShotCycleDriver
         {
             throw new InvalidOperationException("Shot cycle has no observed native opening.");
         }
-        if (Receipt.Ending is not null)
+        if (Receipt.CloseRequested is not null)
         {
             if (observation.Shot is { Phase: not BattleNativeShotPhase.Ending })
             {
                 throw new InvalidDataException("Shot cancellation lost its ending process.");
+            }
+            if (Receipt.Ending is null && observation.Shot is { RemainingTimer: -1, Widget.Closing: true })
+            {
+                Receipt = Receipt with { Ending = observation };
             }
             if (observation.Shot is null && drained)
             {
@@ -95,7 +99,7 @@ internal sealed class DiagnosticShotCycleDriver
         {
             throw new InvalidDataException("Shot expired, exhausted ammunition or lost its actual process before requested cancellation.");
         }
-        if (Receipt.Triggered is null)
+        if (Receipt.TriggerRequested is null)
         {
             if (shot.Phase == BattleNativeShotPhase.Opening)
             {
@@ -110,9 +114,21 @@ internal sealed class DiagnosticShotCycleDriver
         }
         if (shot.Phase == BattleNativeShotPhase.AwaitingEffect)
         {
+            if (Receipt.Triggered is null)
+            {
+                if (shot.FireRequested || observation.Inventory != Receipt.TriggerRequested.Inventory - 1 || shot.RemainingAmmo != observation.Inventory)
+                {
+                    throw new InvalidDataException("The native Shot callback did not consume exactly one finite round.");
+                }
+                Receipt = Receipt with { Triggered = observation };
+            }
             return DiagnosticShotOperation.None;
         }
-        if (shot.Phase != BattleNativeShotPhase.Ready || Receipt.Dispatches.Length != 2 || Receipt.ReadyToEnd is not null)
+        if (shot.FireRequested)
+        {
+            return DiagnosticShotOperation.None;
+        }
+        if (shot.Phase != BattleNativeShotPhase.Ready || Receipt.Triggered is null || Receipt.Dispatches.Length != 2 || Receipt.ReadyToEnd is not null)
         {
             throw new InvalidDataException("Shot cancellation requires completion of the sole accepted trigger.");
         }
@@ -120,21 +136,21 @@ internal sealed class DiagnosticShotCycleDriver
         return DiagnosticShotOperation.End;
     }
 
-    internal void Triggered(DiagnosticShotObservation observation)
+    internal void RequestTrigger(DiagnosticShotObservation observation)
     {
-        if (Receipt.ReadyToFire is null || Receipt.Triggered is not null || observation.Shot?.Phase != BattleNativeShotPhase.AwaitingEffect || observation.Inventory != Receipt.ReadyToFire.Inventory - 1 || observation.Shot.RemainingAmmo != observation.Inventory)
+        if (Receipt.ReadyToFire is null || Receipt.TriggerRequested is not null || observation.Shot is not { Phase: BattleNativeShotPhase.Ready, FireRequested: true } || observation.Inventory != Receipt.ReadyToFire.Inventory)
         {
-            throw new InvalidDataException("The ordinary Shot trigger was rejected or did not consume exactly one finite round.");
+            throw new InvalidDataException("The ordinary Shot trigger did not reach the native input latch.");
         }
-        Receipt = Receipt with { Triggered = observation };
+        Receipt = Receipt with { TriggerRequested = observation };
     }
 
-    internal void Ended(DiagnosticShotObservation observation)
+    internal void RequestClose(DiagnosticShotObservation observation)
     {
-        if (Receipt.ReadyToEnd is null || Receipt.Ending is not null || observation.Shot is not { Phase: BattleNativeShotPhase.Ending, RemainingTimer: -1 } || observation.Inventory != Receipt.ReadyToEnd.Inventory)
+        if (Receipt.ReadyToEnd is null || Receipt.CloseRequested is not null || observation.Shot is not { Phase: BattleNativeShotPhase.Ending, FireRequested: false } || observation.Inventory != Receipt.ReadyToEnd.Inventory)
         {
             throw new InvalidDataException("Ordinary Shot cancellation did not retain its finite ammunition and ending process.");
         }
-        Receipt = Receipt with { Ending = observation };
+        Receipt = Receipt with { CloseRequested = observation };
     }
 }

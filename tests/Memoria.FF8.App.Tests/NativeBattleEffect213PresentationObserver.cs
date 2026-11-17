@@ -37,7 +37,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect213State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect213!;
         NativeBattleEffect213Resources resources = effect.Binding.Effect213Resources!;
         state.Validate();
@@ -65,15 +65,15 @@ internal sealed class NativeBattleEffect213PresentationObserver
                 Assert.Equal(shape.Capacity, pool.Slots.Length);
             }
         }
-        NativeBattleEffectAnimationRegisters? animation = current.ReadFixturePresentation().NativeEffectMemory.Textures?.Animation;
+        NativeBattleEffectAnimationRegisters? animation = current.ReadFixturePresentation().NativeEffectMemory!.Textures?.Animation;
         if (animation?.Source.Identity == resources.Camera.Identity && current.ReadFixturePresentation().NativeCamera?.ControlResource?.Source.Identity == resources.Camera.Identity)
         {
             Assert.Equal(8, animation.StreamOffset);
             Assert.Equal(32, animation.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.ControlResource));
+            Assert.Equal(JsonSerializer.Serialize(animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.ControlResource));
             registered = true;
-            cameraTrack |= current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
-            cameraViewChanged |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            cameraTrack |= current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[32..]));
+            cameraViewChanged |= JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
             Mark("effect213-camera-control-and-current-tracks", current, cold);
         }
         if (age is 1 or 8 or 20 or 24 or 25 or 29 or 30 or 33 or 35 or 42 or 64 or 69 or 74 or 75)
@@ -111,7 +111,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
         }
         if (arena != 0 && effect.Pools.Any(pool => pool.DescriptorAddress == MainDescriptor))
         {
-            NativeBattleEffectArena common = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
+            NativeBattleEffectArena common = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
             byte[] copied = common.Read(checked((int)(arena - 0x20DFAB8 + StreamCopyOffset)), MutableStreamLength);
             sourceCopy = true;
             byte[] currentVertices = current.ReadFixturePresentation().NativeFileStaging!.Read(MutableStreamAddress, MutableStreamLength);
@@ -209,7 +209,7 @@ internal sealed class NativeBattleEffect213PresentationObserver
         Assert.Equal(1, Contacts);
         Assert.Equal(1, ContactGlyphs);
         Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect213!.FixedBanks.Values, bank => Assert.NotNull(bank));
-        Assert.False(completed.ReadFixturePresentation().NativeEffectMemory.Effect213.MutableStreamPending);
+        Assert.False(completed.ReadFixturePresentation().NativeEffectMemory!.Effect213!.MutableStreamPending);
         File.WriteAllText(Path.Combine(output, "effect213-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Callbacks = callbacks.Order(), PacketBanks = packetBanks.Order(), Programmes = programmes.Order(), Registered = registered, CameraTrack = cameraTrack, CameraViewChanged = cameraViewChanged, SourceCopy = sourceCopy, SortedContacts = sortedContacts, StreamChanged = streamChanged, Morph = morph, StreamGeometry = streamGeometry, MainRetired = mainRetired, Contacts, ContactGlyphs, Observations = observations }));
     }
 

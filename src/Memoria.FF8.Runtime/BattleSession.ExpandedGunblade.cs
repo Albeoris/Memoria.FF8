@@ -76,7 +76,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(invocation.Command.ActorId);
         BattleCombatant recipient = GetActor(previous.RecipientId);
-        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, invocation.Header.Command, receipt, hosted: true);
+        (BattleNativeAction native, short timing) = PrepareNativeTriggerHit(actor, recipient, invocation.Header.Command, receipt);
         BattleActionPresentation contact = invocation.Command with { NativeAction = native, GunbladeTriggerTiming = timing };
         BattleActionDefinition action = new(contact.Ability, contact.ActionId, native.Name ?? "Gunblade", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         resolvingNativeAction = contact;

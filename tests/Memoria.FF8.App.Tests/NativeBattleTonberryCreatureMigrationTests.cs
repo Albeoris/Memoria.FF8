@@ -20,13 +20,13 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
         BattleSnapshot original = JsonSerializer.Deserialize<BattleSnapshot>(bytes)!;
         Assert.Equal(65L, original.Frame);
         Assert.Equal(145L, original.ReadFixturePresentation().NativeGraphics!.Callback);
-        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics.OriginalEffect!;
+        NativeBattleOriginalEffectState effect = original.ReadFixturePresentation().NativeGraphics!.OriginalEffect!;
         Assert.Equal((ushort)90, effect.Binding.Effect);
         NativeBattleTonberry90Resources retained = effect.Binding.Tonberry90Resources!;
         Assert.Null(retained.CreatureModel);
         Assert.Null(retained.CreatureEntrySound);
         Assert.Null(original.ReadFixturePresentation().NativeEffectMemory!.Tonberry90!.CreatureModelState);
-        Assert.Empty(original.ReadFixturePresentation().NativeEffectMemory.GroundCapture!.Statics.Regions);
+        Assert.Empty(original.ReadFixturePresentation().NativeEffectMemory!.GroundCapture!.Statics.Regions);
         using GameAssets game = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeBattleTonberry90Resources authenticated = game.ReadNativeEffectCatalogForEffects([90])[89].Tonberry90Resources!;
         Assert.NotNull(authenticated.CreatureModel);
@@ -81,10 +81,10 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
             if (groundProducer is null && before.ReadFixturePresentation().NativeEffectMemory!.GroundCapture!.Statics.Regions.IsEmpty && !actual.ReadFixturePresentation().NativeEffectMemory!.GroundCapture!.Statics.Regions.IsEmpty)
             {
                 Assert.Contains(actual.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Packet.Bank == NativeBattleGroundCaptureMemory.PacketBank);
-                Assert.DoesNotContain(actual.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands, command => command.Command.Packet.Bank == "20DFAB8");
+                Assert.DoesNotContain(actual.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Packet.Bank == "20DFAB8");
                 groundProducer = actual;
             }
-            if (actorProducer is null && actual.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[3].Slots.Any(task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0) && actual.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094"))
+            if (actorProducer is null && actual.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[3].Slots.Any(task => task.Callback == 0x763EB0 && task.ReadDword(0x98) > 0) && actual.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Any(command => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094"))
             {
                 RequireCommonPackets(actual);
                 actorProducer = actual;
@@ -124,11 +124,11 @@ public sealed class NativeBattleTonberryCreatureMigrationTests
             NativeBattlePrimitiveProcess process = snapshot.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!;
             Assert.Equal(0, process.ByteCursor);
             Assert.Contains(snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
-            NativeBattleLogicalResolvedCommand emitted = snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands.First(command => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
+            NativeBattleLogicalResolvedCommand emitted = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.First(command => command.Command.Packet.Bank is "off_B6D070" or "off_B6D094");
             NativeBattlePrimitiveReference reference = emitted.Command.Packet;
             Assert.Equal(4, (process with { PacketBank = reference.Bank, PacketBuffer = reference.Buffer }).ReadCommonPacket(reference.ByteOffset, 4).Length);
-            Assert.DoesNotContain(snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame.LastCommands, command => command.Command.Packet.Bank == "20DFAB8");
-            Assert.Equal(unchecked(0x20DFAB8u + (uint)snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect!.DrawArenaOffset!.Value), snapshot.ReadFixturePresentation().NativeEffectMemory.Tonberry90!.ReadDword(0x259EEA8));
+            Assert.DoesNotContain(snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands, command => command.Command.Packet.Bank == "20DFAB8");
+            Assert.Equal(unchecked(0x20DFAB8u + (uint)snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.DrawArenaOffset!.Value), snapshot.ReadFixturePresentation().NativeEffectMemory!.Tonberry90!.ReadDword(0x259EEA8));
         }
     }
 }

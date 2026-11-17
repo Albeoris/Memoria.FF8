@@ -347,7 +347,7 @@ internal static class NativeBattleEffectFixtureExporter
                         return new(request.Id, request.Effect, "blocked", boundary, error.GetType().Name + ": " + error.Message, artifacts.ToArray(), selection) { Scenario = "Fresh declared-stock original-resource Magic command; ordinary logical formula/header producer; no manually supplied contacts or descriptor104" };
                     }
                     BattleSnapshot current = battle.CaptureForContinuation();
-                    if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(slot => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[slot].Command == 104))
+                    if (current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(slot => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[slot].Command == 104))
                     {
                         BattleCombatant caster = battle.Combatants.Single(actor => actor.Id == "party");
                         if (caster.MagicStocks.Single(stock => stock.Id == request.ActionId).Count != 1)

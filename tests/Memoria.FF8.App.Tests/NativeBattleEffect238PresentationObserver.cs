@@ -101,7 +101,7 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
                 Assert.Equal(32768, row.FileResult);
                 uint manager = Dword(core, 0x27973EC);
                 uint destination = Dword(core, manager + 0xB4);
-                byte[] delivered = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(checked((int)(destination - 0x20DFAB8)), 32768);
+                byte[] delivered = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(destination - 0x20DFAB8)), 32768);
                 NativeBattleArchiveFile file = Assert.Single(effect.Binding.CinematicResources!.Files, candidate => delivered.AsSpan().SequenceEqual(candidate.Bytes.AsSpan()));
                 rawFiles.Add(file.FileId);
                 ioStarts++;
@@ -116,7 +116,7 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
             }
         }
         randomAdvanced |= current.NativeCrtRandom != source.NativeCrtRandom;
-        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory.Textures!;
+        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory!.Textures!;
         textureQueued |= textures.Count > (prior.ReadFixturePresentation().NativeEffectMemory!.Textures?.Count ?? 0);
         int file1Offset = Assert.Single(effect.ResourcePointers, pointer => pointer.GlobalAddress == 0x2796908).ArenaOffset;
         bool retainedArenaUpload = textures.Slots.Any(slot => slot is { Kind: 0, Rectangle: not null, ArenaOffset: int offset } && offset >= file1Offset && offset < file1Offset + 204392);
@@ -145,15 +145,15 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
             {
                 cameraRegistered = true;
                 Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(textures.Animation));
-                bool playing = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]));
+                bool playing = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(control.Source.Data.AsSpan()[control.ModelTableOffset..]));
                 if (playing)
                 {
-                    short choice = current.ReadFixturePresentation().NativeCamera.Variables[1];
+                    short choice = current.ReadFixturePresentation().NativeCamera!.Variables[1];
                     Assert.InRange(choice, (short)0, (short)1);
                     cameraChoices.Add(choice);
                 }
                 cameraPlaying |= playing;
-                cameraViewChanged |= playing && JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778()) != JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
+                cameraViewChanged |= playing && JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
                 Mark("camera-registration", current, cold);
             }
         }
@@ -201,7 +201,7 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
                     break;
                 }
                 uint address = checked(bank + (uint)(entry & 0x7F) * 0x100);
-                byte[] bytes = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(checked((int)(address - 0x20DFAB8)), 0x100);
+                byte[] bytes = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(address - 0x20DFAB8)), 0x100);
                 uint pc = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
                 renderKinds.Add(bytes[0x1C]);
                 uint? particleBank = null;
@@ -209,13 +209,13 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
                 if (bytes[0x1C] == 6)
                 {
                     particleBank = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(0xB8));
-                    byte[] headerBytes = current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(checked((int)(particleBank.Value - 0x20DFAB8)), 4);
+                    byte[] headerBytes = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(particleBank.Value - 0x20DFAB8)), 4);
                     int particleCapacity = BinaryPrimitives.ReadUInt16LittleEndian(headerBytes);
                     Assert.Equal(16, particleCapacity);
                     int count = 0;
                     for (int particle = 0; particle < particleCapacity; particle++)
                     {
-                        byte[] flags = current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(checked((int)(particleBank.Value - 0x20DFAB8) + 0x10 + particle * 0x50), 2);
+                        byte[] flags = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(checked((int)(particleBank.Value - 0x20DFAB8) + 0x10 + particle * 0x50), 2);
                         count += (BinaryPrimitives.ReadUInt16LittleEndian(flags) & 1) != 0 ? 1 : 0;
                     }
                     liveParticles = count;
@@ -282,7 +282,7 @@ internal sealed class NativeBattleEffect238PresentationObserver(BattleSnapshot s
 
     internal static NativeBattleLogicalCommand[] CurrentCommands(BattleSnapshot snapshot)
     {
-        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 238, ReturnedDescriptor: > 0 } || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } primitive)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { Binding.Effect: 238, ReturnedDescriptor: > 0 } || snapshot.ReadFixturePresentation().NativeEffectMemory?.ScriptedEffects is not { } core || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } primitive)
         {
             return [];
         }

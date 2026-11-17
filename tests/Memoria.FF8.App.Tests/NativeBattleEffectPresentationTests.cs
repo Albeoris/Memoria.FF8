@@ -63,7 +63,7 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(pixels, new BattleScenePresentation(assets, source.Definition).Render(second, 320, 224).ToArray());
         string id = "effect-next-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
         NativeBattleRestorationPresentationTests.Publish(EvidenceDirectory(), id, first.Capture(), pixels);
-        Console.WriteLine($"Effect{source.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
+        Console.WriteLine($"Effect{source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect} saved{source.Frame}/{source.ReadFixturePresentation().NativeGraphics!.Callback}, next{first.Frame}/{first.Presentation!.Graphics.Callback}; independent JSON/pixels agree.");
     }
 
     private static void RunCurrentCast(BattleSnapshot initial, BattleAssets assets, ushort effect, uint entry, uint expectedSound, bool requireCasting, bool requireMorphAndFlash)
@@ -78,7 +78,7 @@ public sealed class NativeBattleEffectPresentationTests
         string id = $"effect{effect}-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
         NativeBattleRestorationPresentationTests.Publish(evidence, id + "-before", initial, scene.Render(battle, 320, 224));
         bool casting = initial.ReadFixturePresentation().NativeGraphics!.ActionGraphics?.Callback == 0x50A9A0;
-        bool selected = initial.ReadFixturePresentation().NativeGraphics.OriginalEffect?.Binding.Entry == entry;
+        bool selected = initial.ReadFixturePresentation().NativeGraphics!.OriginalEffect?.Binding.Entry == entry;
         bool restoredMidpoint = false;
         int statusTransitions = 0;
         int hpTransitions = 0;
@@ -99,7 +99,7 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleTextureCopy? expectedContactCopy = null;
         if (targetStatus.Presentation.Saved is ushort priorSaved && (priorSaved & 1) != 0 && (targetStatus.Saved & 1) == 0)
         {
-            NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics, 1);
+            NativeBattleGraphicsModel model = ReadOriginalModelCell(initial.ReadFixturePresentation().NativeGraphics!, 1);
             NativeBattleGraphicsResource resource = initial.Definition.NativeGraphics!.Bindings.Single(binding => binding.ActorId == "target").Resource;
             expectedContactCopy = NativeBattleTextureMotion.Plan50C780(resource.TextureAnimations, model.TextureAllocationMask, 0, 0);
             Assert.NotNull(expectedContactCopy);

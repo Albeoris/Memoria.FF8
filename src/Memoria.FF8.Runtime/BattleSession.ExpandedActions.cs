@@ -407,24 +407,23 @@ public sealed partial class BattleSession
         {
             return (null, [], null);
         }
-        BattleCombatant[] opposite = ExpandedRandomTargets(reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies);
-        if (opposite.Length == 0)
+        BattleSide side = reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies;
+        if (ReadNativeRandomActionTarget(side) is not { } redirected)
         {
             return (null, [], null);
         }
-        BattleCombatant redirected = opposite[NextRandomByte() % opposite.Length];
         bool randomReflection = (reflected.TargetFlags.GetValueOrDefault() & 2) != 0;
         BattleActionPresentation command = source with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, TargetId = redirected.Id, TargetRequest = SelectBattleTarget(redirected, source.TargetRequest.AllowsKnockedOutAllies), DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeSequence = 0, NativeQueuedCommand = 247, NativeAction = reflected, FreeNativeMagic = true, MagicReservationId = null };
-        var reflectionPlan = PlanNativeHits(actor, command, reflected, () => randomReflection ? [opposite[NextRandomByte() % opposite.Length]] : [redirected]);
+        var reflectionPlan = PlanNativeHits(actor, command, reflected, () => randomReflection && ReadNativeRandomActionTarget(side) is { } randomTarget ? [randomTarget] : [redirected]);
         BattleActionDefinition reflectionAction = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? action.Name, BattleActionEffect.Native, reflected.Power, actor.IsPlayer == redirected.IsPlayer) { NativeAction = reflected };
         NativeBattleActionScratch sourceScratch = nativeActionScratch;
         resolvingNativeAction = command;
         nativeActionScratch = nativeActionScratch with { Command = 247, Action = reflected.ActionId };
-        NativeBattleActionHeaderPreparation? hostedHeader = OwnsExpandedHostedInvocation ? BuildExpandedActionHeaderPreparation(command, reflected) : null;
+        NativeBattleActionHeaderPreparation hostedHeader = BuildExpandedActionHeaderPreparation(command, reflected);
         ReserveExpandedAiInvocation(command, hostedHeader);
         try
         {
-            deferringExpandedImpacts = hostedHeader is not null;
+            deferringExpandedImpacts = true;
             NativeContactPlanResult produced = ExecuteHostedContactPlan(actor, command, reflectionAction, reflected, reflectionPlan);
             return (command, ToHostedContacts(produced), hostedHeader);
         }
@@ -510,11 +509,6 @@ public sealed partial class BattleSession
             return targets.Where(target => CanTargetExpandedSpecial(native, target)).ToArray();
         }
         return targets;
-    }
-
-    private BattleCombatant[] ExpandedRandomTargets(BattleSide side)
-    {
-        return Roster(side).Where(candidate => candidate.IsAlive && !candidate.Untargetable).ToArray();
     }
 
     private void PublishExpandedEffectContact(ExpandedInvocationProgress progress, int ordinal, string recipient, NativeBattleContactHalf contact)

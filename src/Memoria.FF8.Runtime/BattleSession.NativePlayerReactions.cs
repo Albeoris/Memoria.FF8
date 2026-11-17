@@ -37,7 +37,7 @@ public sealed partial class BattleSession
             byte attackClass = actor.LastNativeAction?.AttackType ?? throw new NotSupportedException("Native Counter requires the received attack's original class byte.");
             if (attackClass == 0)
             {
-                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, SelectBattleTarget(attacker) with { Replacement = BattleTargetReplacement.UseCurrentBattlePolicy });
+                QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, SelectBattleTarget(attacker, replacement: BattleTargetReplacement.UseCurrentBattlePolicy));
             }
         }
         RunNativePlayerDamageSupport(actor);

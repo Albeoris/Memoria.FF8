@@ -11,7 +11,31 @@ public sealed class DiagnosticShotCycleDriverTests
     private static BattleInput Input => new(BattleInputKind.Action, ActorId: "party-2", TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 14 << 16);
     private static DiagnosticShotCycleDeclaration Declaration => new(0, 188, 188);
     private static DiagnosticBattleDriverRecipe Recipe => new(Input, 188) { ExpectedNativeAction = 0, ExpectedNativeCommand = 237, LimitSelection = new(1, 4, 256), ShotCycle = Declaration, BaselineSeconds = 0 };
-    private static DiagnosticShotObservation Point(long callback, int inventory, BattleNativeShotPhase? phase, byte learned = 0) => new(callback, inventory, learned, phase is { } value ? new(0, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, checked((byte)inventory), value) : null);
+    private static DiagnosticShotObservation Point(long callback, int inventory, BattleNativeShotPhase? phase, byte learned = 0)
+    {
+        BattleDiagnosticShotState? state = phase switch
+        {
+            BattleNativeShotPhase.Opening => new(0, 8, 120, 120, checked((byte)inventory), phase.Value),
+            BattleNativeShotPhase.Ready => new(0, 8, 120, 100, checked((byte)inventory), phase.Value) { Widget = new(100, 5, 4, 0, false) },
+            BattleNativeShotPhase.AwaitingEffect => new(0, 8, 120, 100, checked((byte)inventory), phase.Value) { Widget = new(100, 6, 4, 0, false) },
+            BattleNativeShotPhase.Ending => new(0, 8, 120, -1, checked((byte)inventory), phase.Value) { Widget = new(-1, 8, 4, 0, false) },
+            _ => null
+        };
+        return new(callback, inventory, learned, state);
+    }
+
+    private static void RequestTrigger(DiagnosticShotCycleDriver cycle, long callback, int inventory, byte learned = 0)
+    {
+        DiagnosticShotObservation ready = Point(callback, inventory, BattleNativeShotPhase.Ready, learned);
+        cycle.RequestTrigger(ready with { Shot = ready.Shot! with { FireRequested = true } });
+    }
+
+    private static void RequestClose(DiagnosticShotCycleDriver cycle, long callback, int inventory)
+    {
+        DiagnosticShotObservation ready = Point(callback, inventory, BattleNativeShotPhase.Ready, 1);
+        cycle.RequestClose(ready with { Shot = ready.Shot! with { Phase = BattleNativeShotPhase.Ending } });
+    }
+
     private static DiagnosticShotCycleReceipt Receipt(int execution, long callback, int inventory) => new(execution, "party-2", "enemy-0", 0, 3, Declaration, 188, new("party-2", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, execution == 1 ? (byte)0 : (byte)1));
     private static BattleDiagnosticEffectDispatch Dispatch(int serial, long callback, byte command) => new(serial, callback, "party-2", command == 14 ? BattleAbility.LimitBreak : BattleAbility.NativeCommand, command == 14 ? 101 : 0, 188, 188, command) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = serial };
 
@@ -54,15 +78,17 @@ public sealed class DiagnosticShotCycleDriverTests
         cycle.Opened(Point(callback, inventory, BattleNativeShotPhase.Opening, cycle.Receipt.BeforeOpening.LearnedFlags));
         Emit(Dispatch(serial, callback + 1, 14));
         Assert.Equal(DiagnosticShotOperation.Trigger, cycle.Observe(Point(callback + 1, inventory, BattleNativeShotPhase.Ready, cycle.Receipt.BeforeOpening.LearnedFlags), false));
-        cycle.Triggered(Point(callback + 1, inventory - 1, BattleNativeShotPhase.AwaitingEffect, cycle.Receipt.BeforeOpening.LearnedFlags));
+        RequestTrigger(cycle, callback + 1, inventory, cycle.Receipt.BeforeOpening.LearnedFlags);
+        Assert.Equal(DiagnosticShotOperation.None, cycle.Observe(Point(callback + 2, inventory - 1, BattleNativeShotPhase.AwaitingEffect, cycle.Receipt.BeforeOpening.LearnedFlags), false));
         Emit(Dispatch(serial + 1, callback + 2, 237));
         Assert.Equal(DiagnosticShotOperation.None, cycle.Observe(Point(callback + 2, inventory - 1, BattleNativeShotPhase.AwaitingEffect, 1), false));
         Assert.Equal(DiagnosticShotOperation.End, cycle.Observe(Point(callback + 3, inventory - 1, BattleNativeShotPhase.Ready, 1), false));
-        cycle.Ended(Point(callback + 3, inventory - 1, BattleNativeShotPhase.Ending, 1));
+        RequestClose(cycle, callback + 3, inventory - 1);
+        cycle.Observe(Point(callback + 4, inventory - 1, BattleNativeShotPhase.Ending, 1), false);
         Emit(Dispatch(serial + 2, callback + 4, 238));
-        Assert.Equal(DiagnosticShotOperation.None, cycle.Observe(Point(callback + 4, inventory - 1, null, 1), false));
+        Assert.Equal(DiagnosticShotOperation.None, cycle.Observe(Point(callback + 5, inventory - 1, null, 1), false));
         Assert.False(cycle.Completed);
-        cycle.Observe(Point(callback + 4, inventory - 1, null, 1), true);
+        cycle.Observe(Point(callback + 5, inventory - 1, null, 1), true);
         Assert.True(cycle.Completed);
     }
 
@@ -76,24 +102,24 @@ public sealed class DiagnosticShotCycleDriverTests
         driver.BeginShotCycle(Receipt(1, 10, 3));
         Complete(driver.ShotCycle!, 10, 3, 1, driver.ObserveDispatch);
         Assert.Single(driver.Dispatches);
-        driver.Advance(Observe(14));
-        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
         driver.Advance(Observe(15));
+        Assert.Equal(DiagnosticDriverStage.Tail, driver.Stage);
         driver.Advance(Observe(16));
+        driver.Advance(Observe(17));
         Assert.Equal(DiagnosticDriverStage.Readiness, driver.Stage);
         Assert.True(driver.Advance(Observe(20)));
         driver.BeginShotCycle(Receipt(2, 20, 2));
         Complete(driver.ShotCycle!, 20, 2, 4, driver.ObserveDispatch);
-        driver.Advance(Observe(24));
         driver.Advance(Observe(25));
         driver.Advance(Observe(26));
+        driver.Advance(Observe(27));
         Assert.Equal(DiagnosticDriverStage.Completed, driver.Stage);
         Assert.Equal(2, driver.Dispatches.Count);
         DiagnosticShotCycleReceipt second = driver.ShotReceipts[1];
         Assert.Equal(1, second.Completed!.Inventory);
         string json = JsonSerializer.Serialize(second);
         DiagnosticShotCycleReceipt restored = JsonSerializer.Deserialize<DiagnosticShotCycleReceipt>(json)!;
-        DiagnosticShotCycleValidation.ValidateReceipt(restored, Input, 188, restored.Dispatches, 20, 24);
+        DiagnosticShotCycleValidation.ValidateReceipt(restored, Input, 188, restored.Dispatches, 20, 25);
     }
 
     [Theory]
@@ -135,14 +161,16 @@ public sealed class DiagnosticShotCycleDriverTests
         cycle.Opened(Point(10, 3, BattleNativeShotPhase.Opening));
         Observe(cycle, Dispatch(1, 11, 14));
         Assert.Equal(DiagnosticShotOperation.Trigger, cycle.Observe(Point(11, 3, BattleNativeShotPhase.Ready), false));
-        cycle.Triggered(Point(11, 2, BattleNativeShotPhase.AwaitingEffect));
+        RequestTrigger(cycle, 11, 3);
+        cycle.Observe(Point(12, 2, BattleNativeShotPhase.AwaitingEffect), false);
         Assert.Throws<InvalidDataException>(() => Observe(cycle, Dispatch(2, 12, 237) with { ActionId = 101 }));
         Observe(cycle, Dispatch(2, 12, 237));
         Assert.Equal(DiagnosticShotOperation.End, cycle.Observe(Point(13, 2, BattleNativeShotPhase.Ready, 1), false));
-        cycle.Ended(Point(13, 2, BattleNativeShotPhase.Ending, 1));
+        RequestClose(cycle, 13, 2);
+        cycle.Observe(Point(14, 2, BattleNativeShotPhase.Ending, 1), false);
         Assert.Throws<InvalidDataException>(() => Observe(cycle, Dispatch(3, 14, 238) with { ActionId = 101 }));
         Observe(cycle, Dispatch(3, 14, 238));
-        cycle.Observe(Point(14, 2, null, 1), true);
+        cycle.Observe(Point(15, 2, null, 1), true);
         Assert.True(cycle.Completed);
     }
 
@@ -154,14 +182,16 @@ public sealed class DiagnosticShotCycleDriverTests
         Assert.Throws<InvalidDataException>(() => Observe(cycle, Dispatch(1, 11, 14) with { Ability = BattleAbility.NativeCommand }));
         Observe(cycle, Dispatch(1, 11, 14));
         cycle.Observe(Point(11, 3, BattleNativeShotPhase.Ready), false);
-        cycle.Triggered(Point(11, 2, BattleNativeShotPhase.AwaitingEffect));
+        RequestTrigger(cycle, 11, 3);
+        cycle.Observe(Point(12, 2, BattleNativeShotPhase.AwaitingEffect), false);
         Assert.Throws<InvalidDataException>(() => Observe(cycle, Dispatch(2, 12, 237) with { Ability = BattleAbility.LimitBreak }));
         Observe(cycle, Dispatch(2, 12, 237));
         cycle.Observe(Point(13, 2, BattleNativeShotPhase.Ready, 1), false);
-        cycle.Ended(Point(13, 2, BattleNativeShotPhase.Ending, 1));
+        RequestClose(cycle, 13, 2);
+        cycle.Observe(Point(14, 2, BattleNativeShotPhase.Ending, 1), false);
         Assert.Throws<InvalidDataException>(() => Observe(cycle, Dispatch(3, 14, 238) with { Ability = BattleAbility.LimitBreak }));
         Observe(cycle, Dispatch(3, 14, 238));
-        cycle.Observe(Point(14, 2, null, 1), true);
+        cycle.Observe(Point(15, 2, null, 1), true);
         Assert.True(cycle.Completed);
     }
 
@@ -229,12 +259,13 @@ public sealed class DiagnosticShotCycleDriverTests
     public void Early_or_duplicate_trigger_and_expired_or_exhausted_processes_cannot_advance()
     {
         DiagnosticShotCycleDriver cycle = new(Receipt(1, 10, 3), Input);
-        Assert.Throws<InvalidDataException>(() => cycle.Triggered(Point(10, 2, BattleNativeShotPhase.AwaitingEffect)));
+        Assert.Throws<InvalidDataException>(() => RequestTrigger(cycle, 10, 3));
         cycle.Opened(Point(10, 3, BattleNativeShotPhase.Opening));
         Observe(cycle, Dispatch(1, 11, 14));
         Assert.Equal(DiagnosticShotOperation.Trigger, cycle.Observe(Point(11, 3, BattleNativeShotPhase.Ready), false));
-        cycle.Triggered(Point(11, 2, BattleNativeShotPhase.AwaitingEffect));
-        Assert.Throws<InvalidDataException>(() => cycle.Triggered(Point(11, 1, BattleNativeShotPhase.AwaitingEffect)));
+        RequestTrigger(cycle, 11, 3);
+        cycle.Observe(Point(12, 2, BattleNativeShotPhase.AwaitingEffect), false);
+        Assert.Throws<InvalidDataException>(() => RequestTrigger(cycle, 12, 2));
         Assert.Throws<InvalidDataException>(() => cycle.Observe(Point(12, 2, BattleNativeShotPhase.Ending), false));
         Assert.Throws<InvalidDataException>(() => cycle.Observe(Point(12, 0, BattleNativeShotPhase.Ready), false));
     }
@@ -245,7 +276,7 @@ public sealed class DiagnosticShotCycleDriverTests
     [InlineData("header")]
     [InlineData("selection")]
     [InlineData("missing_cancel")]
-    [InlineData("ui_clock")]
+    [InlineData("widget_latch")]
     [InlineData("operation_callback")]
     public void Completed_receipt_forgery_is_rejected(string fault)
     {
@@ -258,11 +289,11 @@ public sealed class DiagnosticShotCycleDriverTests
             "learning" => receipt with { Completed = receipt.Completed! with { LearnedFlags = 2 } },
             "header" => receipt with { Dispatches = [receipt.Dispatches[0], receipt.Dispatches[1] with { NativeHeaderGeneration = 1 }, receipt.Dispatches[2]] },
             "selection" => receipt with { Selection = receipt.Selection with { Accepted = false } },
-            "ui_clock" => receipt with { Triggered = receipt.Triggered! with { Shot = receipt.Triggered!.Shot! with { UiSubframeTicks = TimeSpan.TicksPerSecond } } },
-            "operation_callback" => receipt with { Triggered = receipt.Triggered! with { Callback = receipt.Triggered!.Callback + 1 } },
+            "widget_latch" => receipt with { Triggered = receipt.Triggered! with { Shot = receipt.Triggered!.Shot! with { Widget = receipt.Triggered!.Shot!.Widget! with { PublicationLatch = 5 } } } },
+            "operation_callback" => receipt with { TriggerRequested = receipt.TriggerRequested! with { Callback = receipt.TriggerRequested!.Callback + 1 } },
             _ => receipt with { Ending = null }
         };
-        Assert.Throws<InvalidDataException>(() => DiagnosticShotCycleValidation.ValidateReceipt(receipt, Input, 188, receipt.Dispatches, 10, 14));
+        Assert.Throws<InvalidDataException>(() => DiagnosticShotCycleValidation.ValidateReceipt(receipt, Input, 188, receipt.Dispatches, 10, 15));
     }
 
     [Fact]

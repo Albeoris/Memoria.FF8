@@ -156,7 +156,7 @@ public sealed class NativeAutomaticGuardianTests
         else
         {
             BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-            Assert.Equal(new BattleNativeCallback(0, 7), queued.NativeCallback);
+            Assert.Equal((byte)245, queued.NativeQueuedCommand);
             Assert.Null(queued.NativeAction);
             Assert.Equal((byte)expectedId, state.SelectedAction);
         }
@@ -171,13 +171,13 @@ public sealed class NativeAutomaticGuardianTests
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateFatalBattle(game, assets, 4, 0, 1);
-        for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.NativeCallback?.Stage == 7); frame++)
+        for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.ExpandedAiCallback?.Stage == 7); frame++)
         {
             battle.Tick();
         }
         Assert.False(battle.Combatants[0].IsAlive);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.Equal(new BattleNativeCallback(0, 7), Assert.Single(battle.QueuedActions).NativeCallback);
+        Assert.Contains(battle.QueuedActions, command => command.NativeQueuedCommand == 245);
         Assert.Equal((byte)1, battle.Capture().NativeSupport!.SelectedAction);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int frame = 0; frame < 80 && !battle.Combatants[0].IsAlive; frame++)
@@ -230,7 +230,7 @@ public sealed class NativeAutomaticGuardianTests
             return sample == roll;
         });
         BattleSession battle = CreateFatalBattle(game, assets, 4, 0, index);
-        for (int frame = 0; frame < 128 && battle.Outcome == BattleOutcome.Active && !battle.QueuedActions.Any(command => command.NativeCallback?.Stage == 7); frame++)
+        for (int frame = 0; frame < 128 && battle.Outcome == BattleOutcome.Active && !battle.QueuedActions.Any(command => command.ExpandedAiCallback?.Stage == 7); frame++)
         {
             battle.Tick();
         }

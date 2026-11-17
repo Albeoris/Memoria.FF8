@@ -40,7 +40,7 @@ public sealed class NativeMagicGroupTests
         BattleSession battle = Create(0x40000, 0, 2);
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
         BattleSnapshot historical = battle.Capture();
-        Assert.Equal(0, Assert.Single(historical.NativeCommandBanks!.BoundCommands).NativeMagicCastMode);
+        Assert.Equal(0, Assert.Single(historical.QueuedActions).NativeMagicCastMode);
         BattleSession restored = BattleSession.Restore(historical);
         Complete(battle);
         Complete(restored);

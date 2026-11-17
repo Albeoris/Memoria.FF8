@@ -293,7 +293,7 @@ public sealed partial class BattlePresentationProcess
             SetGunbladeMode(host.ReadGunbladeMode());
             long? actionToken = ActiveActionToken;
             BattleModelRoster? rosterAtReceipts = null;
-            NativeBattleModelLifecycleServices frame = AdvanceHostedBattlePresentationFrame(host.ReadTimer(), DispatchBeforeCore, DispatchClockPoll, DispatchClockReady, DispatchAfterGraphics, DispatchRenzokukenUi, DispatchShotWidget);
+            NativeBattleModelLifecycleServices frame = AdvanceHostedBattlePresentationFrame(host.ReadTimer(), DispatchBeforeCore, DispatchClockPoll, DispatchClockReady, DispatchAfterGraphics, DispatchRenzokukenUi, DispatchShotWidget, DispatchDuelWidget);
             PublishPreparedPresentation(frame, rosterAtReceipts);
             LastStep = ReadAndClearHostedPresentationFrameOutputs();
             LastStepActionToken = actionToken;
@@ -324,6 +324,11 @@ public sealed partial class BattlePresentationProcess
             void DispatchShotWidget(NativeBattleShotWidgetUpdated update)
             {
                 DispatchCanonical(() => host.PublishShotWidget(update));
+            }
+
+            void DispatchDuelWidget(NativeBattleDuelWidgetUpdated update)
+            {
+                DispatchCanonical(() => host.PublishDuelWidget(update));
             }
 
             void DispatchRenzokukenUi(ImmutableArray<NativeBattleRenzokukenWidgetStepped> steps, long epoch)

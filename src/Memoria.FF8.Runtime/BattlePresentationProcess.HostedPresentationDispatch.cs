@@ -126,6 +126,15 @@ public sealed partial class BattlePresentationProcess
         {
             headerReference = appended[0];
         }
+        foreach (HostedDispatchHeader plan in append)
+        {
+            native.ValidateAuthoredEffectModelOperands(graphics, plan.Header.Source, plan.Header.Effect, registry);
+        }
+        if (!dispatchAppended && headerReference is { } existingHeader)
+        {
+            NativeBattleActionHeaderSlot header = packets.ReadHeader(existingHeader);
+            native.ValidateAuthoredEffectModelOperands(graphics, header.Source, header.Effect, registry);
+        }
 
         NativeBattleDescriptorState descriptors = graphics.Descriptors;
         HostedCompletionInvocation? nextCompletion = null;
@@ -183,7 +192,7 @@ public sealed partial class BattlePresentationProcess
                         partyReplacement = replacement.Descriptor;
                         if (partyReplacement.Stage == PartyReplacementStage.Bind)
                         {
-                            graphics = SetPartyReplacementVitals(graphics, partyReplacement.Change.Slot, false);
+                            graphics = SetPartyReplacementVitals(graphics, partyReplacement.OriginalSlot, false);
                         }
                         (descriptors, slot) = descriptors.Enqueue(10, 128, partyReplacement.Callback);
                         break;

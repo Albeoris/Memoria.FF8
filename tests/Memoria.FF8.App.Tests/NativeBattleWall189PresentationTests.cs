@@ -119,12 +119,12 @@ public sealed class NativeBattleWall189PresentationTests
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => command.Command.Packet.Bank != "2296A30").ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = without } }));
                     int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                     if (changed > peak)
                     {
                         peak = changed;
-                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
+                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                     }
                 }
                 HashSet<NativeBattlePrimitiveReference> shieldPackets = frame.LastCommands.Where(command => command.Command.Packet.Bank == "2296A30" && command.Command.Opcode == 0xE1 && command.Command.Words[0] == 0xE1000020u).Select(command => command.Command.Packet).ToHashSet();
@@ -134,12 +134,12 @@ public sealed class NativeBattleWall189PresentationTests
                 {
                     byte[] visible = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame without = frame with { LastCommands = frame.LastCommands.Where(command => !IsShield(command)).ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = without } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = without } }));
                     int changed = DifferentRgbPixels(visible, scene.Render(plain, 320, 224));
                     if (changed > peakShield)
                     {
                         peakShield = changed;
-                        NativeBattleRestorationPresentationTests.Publish(output, $"captured-shield-visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
+                        NativeBattleRestorationPresentationTests.Publish(output, $"captured-shield-visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                     }
                 }
                 if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && current.ActiveAction is null && current.QueuedActions.Length == 0)

@@ -75,7 +75,9 @@ public sealed partial class BattleSession
         }
         string? actorId = observation.ActorId;
         BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
-        if (action?.ActorId != actorId)
+        if (action?.ActorId != actorId || observation.Header is not { } observedHeader || action?.NativeAction is not { } sourceAction ||
+            sourceAction.Command != observedHeader.Command || sourceAction.ActionId != observedHeader.Action ||
+            sourceAction.MagicId != observedHeader.Effect || observedHeader.Effect != observation.Effect.RequestedEffect)
         {
             action = null;
         }
@@ -166,7 +168,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        if (!CanAdvanceTurnBasedTime || turnAdvance is not null || nativeCallbackTail is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
+        if (!CanAdvanceTurnBasedTime || turnAdvance is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions || pendingSlotsDeal is not null || nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
             return false;
         }

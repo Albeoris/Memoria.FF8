@@ -119,7 +119,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                 int newTexts = 0;
                 for (int slot = 0; slot < current.ReadFixturePresentation().NativeGraphics!.Effects.Slots.Length; slot++)
                 {
-                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics.Effects.Slots[slot];
+                    NativeBattleEffectTask text = current.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot];
                     if ((text.Flags0 & 1) == 0 || text.Kind != NativeBattleEffectKind.DamageText5069B0 || !MatchesOriginalModelSlot(current.ReadFixturePresentation().NativeGraphics!, text.ModelOwner, 3) || (prior.ReadFixturePresentation().NativeGraphics!.Effects.Slots[slot].Flags0 & 1) != 0)
                     {
                         continue;
@@ -129,7 +129,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                     Assert.Equal(expected.Glyphs.ToArray(), text.Glyphs.ToArray());
                     Assert.Equal(expected.Color, text.Color);
                     Assert.Equal(expected.HalfWidth, text.HalfWidth);
-                    textCallbacks.Add(current.ReadFixturePresentation().NativeGraphics.Callback);
+                    textCallbacks.Add(current.ReadFixturePresentation().NativeGraphics!.Callback);
                     newTexts++;
                 }
                 Assert.InRange(newTexts, 0, 1);
@@ -147,7 +147,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                 {
                     completions++;
                 }
-                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                 HashSet<NativeBattlePrimitiveReference> gridPackets = frame.LastCommands.GroupBy(command => command.Command.Packet).Where(group => group.Any(command => command.Command.WordOffset == 3 && (command.Command.Opcode & 0xFC) == 0x3C) && group.Any(command => command.Command.WordOffset == 1 && command.Command.Opcode == 0xE2) && group.Any(command => command.Command.WordOffset == 15 && command.Command.Opcode == 0xE2)).Select(group => group.Key).ToHashSet();
                 bool packets = gridPackets.Count > 0;
                 gridPacketsSeen |= packets;
@@ -156,7 +156,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                 {
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     NativeBattlePrimitiveFrame removed = frame with { LastCommands = frame.LastCommands.Where(command => !gridPackets.Contains(command.Command.Packet)).ToImmutableArray() };
-                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = removed } }));
+                    BattleSession plain = BattleSession.Restore(current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = removed } }));
                     peakChanged = DifferentRgb(pixels, scene.Render(plain, 320, 224));
                     if (peakChanged > 0)
                     {
@@ -164,7 +164,7 @@ public sealed class NativeBattleMeteor223PresentationTests
                         peakPixels = pixels;
                     }
                 }
-                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
+                if (after?.ReturnedDescriptor == 0 && current.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && !current.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => current.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && current.ActiveAction is null && current.QueuedActions.Length == 0)
                 {
                     break;
                 }

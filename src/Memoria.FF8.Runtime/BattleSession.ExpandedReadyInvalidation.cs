@@ -68,7 +68,7 @@ public sealed partial class BattleSession
 
     private bool IsExpandedQueuedReadyInput(BattleAttackCommand command, string actorId)
     {
-        if (command.ActorId != actorId || command.NativeHeader is not null || command.RosterOperation is not null || command.NativePlayerReaction is not null)
+        if (command.ActorId != actorId || command.RosterOperation is not null || command.NativePlayerReaction is not null)
         {
             return false;
         }
@@ -100,7 +100,7 @@ public sealed partial class BattleSession
             !nativeShotProcesses.TryGetValue(actorId, out BattleNativeShotState? shot) || shot.Phase != BattleNativeShotPhase.Opening || shot.ActionId != command.NativeAction?.ActionId ||
             ActiveAction is { } active && active.ActorId == actorId && IsShotCallback(active.NativeLimitCallback) ||
             expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>().Any(invocation => invocation.Command.ActorId == actorId && IsShotCallback(invocation.Command.NativeLimitCallback)) ||
-            actions.Any(other => other.ActorId == actorId && (other.NativeHeader is not null || other.RosterOperation is not null) && IsShotCallback(other.NativeLimitCallback)))
+            actions.Any(other => other.ActorId == actorId && (other.RosterOperation is not null) && IsShotCallback(other.NativeLimitCallback)))
         {
             return;
         }

@@ -369,7 +369,7 @@ public sealed class BattleResultsSequenceTests
         double frames = (1 - hud.ResultOpacity) * 16;
         if (frames > 0)
         {
-            hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(frames * TimeSpan.TicksPerSecond / BattleSession.FramesPerSecond)));
+            hud.AdvancePresentation(TimeSpan.FromTicks((long)Math.Ceiling(frames * TimeSpan.TicksPerSecond / BattlePresentationTiming.CallbacksPerSecond)));
         }
     }
 

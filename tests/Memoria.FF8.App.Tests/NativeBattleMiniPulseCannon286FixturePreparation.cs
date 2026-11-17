@@ -89,7 +89,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
         int allocationCallbacks = Pump(session, snapshot =>
         {
             NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex) == allocated.Id && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).ActiveResourceRow100 is not null;
+            return !actor.AllocationPendingStatistics && snapshot.NativeScriptState.AllocationControl is { ActionGate: false, PauseGate: false } && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelActorId(snapshot.ReadFixturePresentation().NativeGraphics!, actualIndex) == allocated.Id && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, actualIndex).ActiveResourceRow100 is not null;
         });
         BattleSnapshot loaded = session.CaptureForContinuation();
         NativeBattleParticipantSnapshot unactivated = Assert.Single(loaded.Combatants, actor => actor.Id == allocated.Id).NativeParticipant!;
@@ -156,7 +156,7 @@ internal static class NativeBattleMiniPulseCannon286FixturePreparation
             callbacks = Pump(owner, snapshot =>
             {
                 NativeBattleParticipantSnapshot actor = Assert.Single(snapshot.Combatants, row => row.Id == allocated.Id).NativeParticipant!;
-                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).GeometryWorldMatrix is not null && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics, actualIndex).CurrentBodyBoneMatrices is not null;
+                return actor.Active && !actor.Hidden && !actor.Untargetable && !actor.Suspended && !actor.AllocationPendingStatistics && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, actualIndex).GeometryWorldMatrix is not null && ReadOriginalModelCell(snapshot.ReadFixturePresentation().NativeGraphics!, actualIndex).CurrentBodyBoneMatrices is not null;
             });
             BattleSnapshot result = owner.Capture();
             Save(name + "-ready-53", result);

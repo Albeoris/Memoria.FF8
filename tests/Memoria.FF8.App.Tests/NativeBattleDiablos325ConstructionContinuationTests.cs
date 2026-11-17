@@ -70,7 +70,7 @@ public sealed class NativeBattleDiablos325ConstructionContinuationTests
                 Assert.Equal((ushort)(counter + 1), flashed.ReadWord(0xC));
                 uint flash = checked(256u + (uint)(counter - 1) * 512);
                 Assert.Equal(flash, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.Flash51E8);
-                Assert.Equal(flash, current.ReadFixturePresentation().NativeEffectMemory.Diablos325.PreviousFlash51EC);
+                Assert.Equal(flash, current.ReadFixturePresentation().NativeEffectMemory!.Diablos325!.PreviousFlash51EC);
                 Assert.All(current.ReadFixturePresentation().NativeStage!.Groups, group => Assert.Equal(unchecked((short)flash), group.ColorDepth));
                 NativeBattleRestorationPresentationTests.Publish(output, counter == 8 ? "before-opening-programme" : "flash-" + counter, current, pixels);
             }

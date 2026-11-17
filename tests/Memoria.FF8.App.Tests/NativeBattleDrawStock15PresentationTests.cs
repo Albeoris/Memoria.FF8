@@ -174,17 +174,17 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     Assert.Equal((byte)3, ReadOriginalModelOperand(current.NativeActionPackets.ModelAliases, half.Recipient));
                     Assert.Equal((ushort)0, half.Amount6);
                     Assert.NotEqual(0, half.ContactFlags & 1);
-                    Assert.Equal(JsonSerializer.Serialize(game.ReadNativeDrawStock15Resources().Animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation!.Source));
+                    Assert.Equal(JsonSerializer.Serialize(game.ReadNativeDrawStock15Resources().Animation), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation!.Source));
                     initialized = true;
                     CheckNext("initialized", current);
                 }
                 if (CrossedContactGate(prior, current))
                 {
                     contactTransitions++;
-                    NativeBattleModulePoolTask target = current.ReadFixturePresentation().NativeGraphics.OriginalEffect!.Pools[1].Slots.First(task => task.Callback == 0x8B0C70 && task.ReadByte(0x29) == 3);
-                    BattleContactCursor contactIndex = current.NativeActionPackets!.ReadHeader(current.ReadFixturePresentation().NativeGraphics.OriginalEffect.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
+                    NativeBattleModulePoolTask target = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools[1].Slots.First(task => task.Callback == 0x8B0C70 && task.ReadByte(0x29) == 3);
+                    BattleContactCursor contactIndex = current.NativeActionPackets!.ReadHeader(current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Parameters!.Header.Advance(unchecked((sbyte)target.ReadByte(0x2A)))).FirstContact.Advance(target.ReadTraversalPosition(0x2B));
                     NativeBattleContactHalf half = current.NativeActionPackets.ReadContact(contactIndex).Primary;
-                    Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == half.Recipient);
+                    Assert.DoesNotContain(current.ReadFixturePresentation().NativeGraphics!.Effects.Slots, task => (task.Flags0 & 1) != 0 && task.Kind == NativeBattleEffectKind.DamageText5069B0 && task.ModelOwner == half.Recipient);
                     CheckNext("contact", current);
                 }
                 if (after?.ReturnedDescriptor is > 0 || prior.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 15, ReturnedDescriptor: > 0 })
@@ -202,9 +202,9 @@ public sealed class NativeBattleDrawStock15PresentationTests
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = DrawStockPacketReferences(current);
                     if (!owned.IsEmpty)
                     {
-                        NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
+                        NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
                         byte[] pixels = scene.Render(battle, 320, 224).ToArray();
-                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                        BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                         byte[] plain = new BattleScenePresentation(assets, definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                         peakChangedRgb = CountRgbChanges(pixels, plain);
                         if (peakChangedRgb > 0)
@@ -312,7 +312,7 @@ public sealed class NativeBattleDrawStock15PresentationTests
         int secondaryStart = nodes.SourceArenaOffset + (odd ? 0x9000 : 0x12000);
         int primaryEnd = nodes.PrimaryDrawCursor ?? throw new InvalidDataException("Module15 lost its current primary packet cursor.");
         int secondaryEnd = nodes.SecondaryDrawCursor ?? throw new InvalidDataException("Module15 lost its current secondary packet cursor.");
-        return snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet).Where(packet => packet.Bank == "20DFAB8" && (packet.ByteOffset >= primaryStart && packet.ByteOffset < primaryEnd || packet.ByteOffset >= secondaryStart && packet.ByteOffset < secondaryEnd)).ToImmutableHashSet();
+        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(command => command.Command.Packet).Where(packet => packet.Bank == "20DFAB8" && (packet.ByteOffset >= primaryStart && packet.ByteOffset < primaryEnd || packet.ByteOffset >= secondaryStart && packet.ByteOffset < secondaryEnd)).ToImmutableHashSet();
     }
 
     private static bool Released(BattleSnapshot snapshot)

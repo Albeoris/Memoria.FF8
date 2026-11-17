@@ -55,7 +55,7 @@ public sealed class BattleResultsRenderTests
             controller.ConfirmResult();
             controller.ConfirmResult();
             Assert.Equal(BattleResultPage.Items, controller.ResultPage);
-            controller.AdvancePresentation(TimeSpan.FromSeconds(32.0 / BattleSession.FramesPerSecond + 0.000001));
+            controller.AdvancePresentation(TimeSpan.FromSeconds(32.0 / BattlePresentationTiming.CallbacksPerSecond + 0.000001));
             Assert.Equal(BattleResultPage.GuardianForce, controller.ResultPage);
             Assert.DoesNotContain("{Dialog", controller.ResultText(109, "", 3));
             Assert.Contains("3", controller.ResultText(109, "", 3));
@@ -72,10 +72,10 @@ public sealed class BattleResultsRenderTests
             BattleRewardSummary overflow = rewards with { CharacterExperience = new Dictionary<byte, ushort>(), LootOffers = [new(false, 1, 5, false)] };
             controller = new BattleHudController(session, session.QueueAttack, () => { }, () => { }, previewRewards: () => overflow, itemName: id => catalog.ItemName(id)!);
             controller.ConfigureResults(battles.ReadNativeGlobalBattleMessages(), id => catalog.ItemDescription(id) ?? "");
-            controller.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattleSession.FramesPerSecond + 0.000001));
+            controller.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattlePresentationTiming.CallbacksPerSecond + 0.000001));
             controller.ConfirmResult();
             controller.ConfirmResult();
-            controller.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattleSession.FramesPerSecond + 0.000001));
+            controller.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattlePresentationTiming.CallbacksPerSecond + 0.000001));
             controller.ConfirmResult();
             Assert.Contains("Potion", controller.ResultText(24, "", subject: "Potion"));
             Draw("overflow");
@@ -84,7 +84,7 @@ public sealed class BattleResultsRenderTests
             {
                 if (controller.ResultOpacity < 1)
                 {
-                    controller.AdvancePresentation(TimeSpan.FromSeconds((1 - controller.ResultOpacity) * 16 / BattleSession.FramesPerSecond + 0.000001));
+                    controller.AdvancePresentation(TimeSpan.FromSeconds((1 - controller.ResultOpacity) * 16 / BattlePresentationTiming.CallbacksPerSecond + 0.000001));
                 }
                 foreach (UiTheme theme in new UiTheme[] { new UiTheme(), new VectorUiTheme() })
                 {

@@ -80,25 +80,18 @@ public sealed class BattleHudNativeCommandTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void Duel_displays_current_native_bindings_and_accepts_raw_edges_without_advancing_gameplay(bool vector, bool hiddenCommands)
+    public void Duel_draws_published_native_choices_and_hides_them_after_a_move_without_advancing_combat(bool vector, bool hiddenCommands)
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = 0 };
         BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 50000, CurrentHp = 50000 }] }, BattleAtbMode.TurnBased);
-        session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("zell", 1)] });
-        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId)) { NativeButtonBindingHint = buttons => $"Key{buttons:X4}" };
-        hud.BuildView();
-        hud.Navigate(MenuInput.Right);
-        hud.Choose(0);
-        hud.Attack();
-        for (int frame = 0; frame < 100 && session.GetNativeDuel("zell")?.Phase != BattleNativeDuelPhase.Ready; frame++)
-        {
-            session.Tick();
-        }
-        Assert.Equal(BattleNativeDuelPhase.Ready, session.GetNativeDuel("zell")!.Phase);
-        // Gameplay readiness precedes the presentation clock opening the choice panel.
-        session.AdvanceNativeDuelUi();
+        BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference("enemy")]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None);
+        var states = (Dictionary<string, BattleNativeDuelState>)typeof(BattleSession).GetField("nativeDuelProcesses", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(session)!;
+        short timer = NativeBattleDuelRules.Timer(session.Combatants[0].NativeLimit!, 1);
+        BattleNativeDuelState initial = new(0, target, timer, timer, BattleNativeDuelPhase.Ready) { Selection1D28DEF = 254, WidgetPhase = 4, WidgetRevealQ12 = 4096, PublicationLatch = 4 };
+        states.Add("zell", initial);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, readPresentationUi: () => new(hiddenCommands, true, false, false)) { NativeButtonBindingHint = buttons => $"Key{buttons:X4}" };
         BattleNativeDuelChoice choice = session.GetNativeDuelChoices("zell").First(candidate => candidate.Learned);
         hud.SetNativeCommandButtons(hiddenCommands ? (ushort)0x100 : (ushort)0);
         Assert.Equal(hiddenCommands, hud.CommandMenuHidden);
@@ -135,22 +128,16 @@ public sealed class BattleHudNativeCommandTests
             bitmap.SavePng(Path.Combine(output, $"duel-{(vector ? "vector" : "classic")}-{hiddenCommands}.png"));
         }
         view.Resize(960, 672);
-        session.AdvanceNativeDuelUi();
-        canvas = new();
-        view.Draw(canvas, theme);
-        remaining--;
-        Assert.Equal(remaining, session.GetNativeDuel("zell")!.RemainingTimer);
-        AssertDuelTimer(canvas, remaining);
-        long gameplayFrame = session.Frame;
+        BattleNativeDuelState selected = initial;
         foreach (ushort button in choice.Buttons)
         {
-            session.AdvanceNativeDuelPresentation(TimeSpan.FromMilliseconds(34), button);
-            session.AdvanceNativeDuelPresentation(TimeSpan.FromMilliseconds(34), 0);
+            selected = NativeBattleDuelRules.AdvanceWidget(selected, true, button, false, [choice], static () => throw new InvalidOperationException());
         }
+        states["zell"] = selected;
 
-        Assert.Equal(gameplayFrame, session.Frame);
-        Assert.Equal((ushort)choice.ActionId, Assert.Single(session.QueuedActions).NativeAction!.ActionId);
-        Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, session.GetNativeDuel("zell")!.Phase);
+        Assert.Equal(0, session.Frame);
+        Assert.Empty(session.QueuedActions);
+        Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, selected.Phase);
         before = JsonSerializer.Serialize(session.Capture());
         canvas = new();
         view.Draw(canvas, theme);

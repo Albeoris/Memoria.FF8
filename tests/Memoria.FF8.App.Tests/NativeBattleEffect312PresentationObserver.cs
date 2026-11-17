@@ -41,7 +41,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect312State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect312!;
         NativeBattleEffect312Resources resources = effect.Binding.Effect312Resources!;
         NativeBattleModulePoolTask[] tasks = Tasks(current);
@@ -95,13 +95,13 @@ internal sealed class NativeBattleEffect312PresentationObserver
         {
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(24, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            bool playing = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
+            bool playing = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[24..]));
             cameraTrack |= playing;
-            cameraView |= playing && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            cameraView |= playing && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
         }
-        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory.Textures!;
+        NativeBattleEffectTextureState textures = current.ReadFixturePresentation().NativeEffectMemory!.Textures!;
         timQueued |= textures.Slots.Any(slot => slot?.Source is { } source && source.Data.AsSpan().SequenceEqual(resources.MainTim.Data.AsSpan()));
         paletteUploaded |= PaletteMatches(resources.MainTim.Data.AsSpan(), textures.ReadVram());
         NativeBattleLogicalCommand[] allCommands = graphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).ToArray();
@@ -132,7 +132,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
                 }
                 Assert.True(changed > 100, "The current two-group stage capture did not change its VRAM rectangle.");
                 Assert.True(nonzero > 100, "The stage capture contains no current geometry after the black clear.");
-                Assert.Equal(1u, current.ReadFixturePresentation().NativeEffectMemory.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
+                Assert.Equal(1u, current.ReadFixturePresentation().NativeEffectMemory!.PrimitiveProcess!.Software!.Environment.Derived!.Mode);
                 stageCapture = true;
             }
             environmentPackets |= allCommands.Any(command => command.Packet.Bank == "223CCA0");
@@ -261,7 +261,7 @@ internal sealed class NativeBattleEffect312PresentationObserver
             return [];
         }
         uint start = cursor >= common + 0xC000 ? 0xC000u : 0u;
-        return current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < cursor - common).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+        return current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start && command.Packet.ByteOffset < cursor - common).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
     }
 
     private static NativeBattleModulePoolTask[] Tasks(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: Effect } effect ? effect.Pools.SelectMany(pool => pool.Slots.Where(task => (task.Flags & 1) != 0)).ToArray() : [];

@@ -7,12 +7,11 @@ internal sealed partial class BattleHudElement
 {
     private void DrawNativeDuel(IUiCanvas canvas, UiTheme theme, BattleNativeDuelState state)
     {
-        BattleTimedInputUi ui = controller.DuelUi ?? new(BattleTimedInputUiPhase.Active);
-        if (!ui.OwnsInput)
+        if (state.WidgetClosed)
         {
             return;
         }
-        float reveal = ui.Reveal(BattleSession.NativeDuelTicksPerSecond);
+        float reveal = state.WidgetRevealQ12 / 4096f;
         if (state.Phase == BattleNativeDuelPhase.Ready && reveal > 0)
         {
             canvas.PushClip(Rect(36, 492, 726 * reveal, 156 * reveal));
@@ -43,9 +42,9 @@ internal sealed partial class BattleHudElement
                 canvas.PopClip();
             }
         }
-        int timer = Math.Max(0, (int)state.RemainingTimer);
-        int seconds = timer / 60;
-        int hundredths = 100 * (timer % 60) / 60;
+        int timerHundredths = NativeBattleDuelRules.DisplayHundredths(state.RemainingTimer);
+        int seconds = timerHundredths / 100;
+        int hundredths = timerHundredths % 100;
         byte modulation = seconds < 3 && ((int)(controller.BattlePresentationSeconds * 4) & 1) != 0 ? (byte)64 : (byte)128;
         // Icon111 has a +4 X sprite offset. Digit cells retain their size with 25% narrower gaps.
         canvas.Image(new UiImageSource(UiImageKind.Icon, 111), Rect(777, 525, 72, 24));

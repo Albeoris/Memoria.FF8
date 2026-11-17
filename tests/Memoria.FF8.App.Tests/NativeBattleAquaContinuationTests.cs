@@ -24,7 +24,7 @@ public sealed class NativeBattleAquaContinuationTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(sourcePath!);
         ushort effect = source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect;
         Assert.Contains(effect, new ushort[] { 55, 72 });
-        Assert.True(source.ReadFixturePresentation().NativeGraphics.OriginalEffect.ReturnedDescriptor > 0);
+        Assert.True(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.ReturnedDescriptor > 0);
         int maximum = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF8_AQUA_CALLBACKS") ?? "15", System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(maximum, 1, 128);
         BattleSession battle = Restore(source);
@@ -55,8 +55,8 @@ public sealed class NativeBattleAquaContinuationTests
                 int changed = 0;
                 if (!owned.IsEmpty)
                 {
-                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!;
-                    BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                    NativeBattlePrimitiveFrame frame = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
+                    BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                     byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(Restore(without), 320, 224).ToArray();
                     for (int offset = 0; offset < pixels.Length; offset += 4)
                     {
@@ -74,13 +74,13 @@ public sealed class NativeBattleAquaContinuationTests
                         peakPlain = plain;
                     }
                 }
-                progression.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics.Callback, SharedPhase = state.Word(0x40), RequestedPhase = state.Word(0x42), NextPhase = state.Word(0x44), Age = state.Word(0x46), Contact = state.Word(0x48), Released = state.Word(0x4C), changed, OwnedPackets = owned.Count, Tasks = current.ReadFixturePresentation().NativeGraphics.OriginalEffect.Pools.SelectMany((pool, index) => pool.Slots.Where(task => (task.Flags & 1) != 0).Select(task => new { Pool = index, task.Callback, Phase = task.ReadByte(0x29), Age = task.ReadWord(0x24), Children = task.ReadByte(0x28) })).ToArray() });
+                progression.Add(new { current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, SharedPhase = state.Word(0x40), RequestedPhase = state.Word(0x42), NextPhase = state.Word(0x44), Age = state.Word(0x46), Contact = state.Word(0x48), Released = state.Word(0x4C), changed, OwnedPackets = owned.Count, Tasks = current.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Pools.SelectMany((pool, index) => pool.Slots.Where(task => (task.Flags & 1) != 0).Select(task => new { Pool = index, task.Callback, Phase = task.ReadByte(0x29), Age = task.ReadWord(0x24), Children = task.ReadByte(0x28) })).ToArray() });
             }
             Assert.True(peakChangedRgb > 0, "The standalone continuation produced no isolated Aqua packet contribution.");
             NativeBattleRestorationPresentationTests.Publish(output!, "peak", peak!, peakPixels);
             NativeBattleRestorationPresentationTests.Publish(output!, "without-effect", peakWithout!, peakPlain);
             CompareNext("after", current);
-            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Concrete Aqua standalone visual continuation; no prefix replay or new whole-action acceptance", Effect = effect, SourceFrame = source.Frame, SourceNativeCallback = source.ReadFixturePresentation().NativeGraphics.Callback, callbacks, peakChangedRgb, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Progression = progression }));
+            File.WriteAllText(Path.Combine(output!, "result.json"), JsonSerializer.Serialize(new { Status = "completed", Scenario = "Concrete Aqua standalone visual continuation; no prefix replay or new whole-action acceptance", Effect = effect, SourceFrame = source.Frame, SourceNativeCallback = source.ReadFixturePresentation().NativeGraphics!.Callback, callbacks, peakChangedRgb, current.Frame, NativeCallback = current.ReadFixturePresentation().NativeGraphics!.Callback, Progression = progression }));
         }
         catch (Exception error)
         {

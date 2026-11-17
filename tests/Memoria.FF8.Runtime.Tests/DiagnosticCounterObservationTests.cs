@@ -27,63 +27,35 @@ public sealed class DiagnosticCounterObservationTests
     private static string State(BattleSession battle) => JsonSerializer.Serialize(battle.Capture());
 
     [Fact]
-    public void Callback_observations_are_owned_by_physical_bank_slot_epoch_not_decoded_callback_identity()
+    public void Typed_callback_observations_keep_actor_slot_and_distinct_repeated_epochs()
     {
         BattleSession battle = Fixture();
         List<BattleDiagnosticCounterCallbackObservation> observations = [];
         battle.DiagnosticCounterCallbackObserved += observations.Add;
-        BattleCombatant actor = battle.Combatants[1];
-        HashSet<NativeBattleCommandLocation> locations = [];
-        bool reused = false;
-        for (int index = 0; index < 12; index++)
+        BattleExpandedAiCallbackRequest request = new(new BattleEnemyActorReference("enemy"), 2);
+        string before = State(battle);
+        for (int index = 1; index <= 12; index++)
         {
-            Invoke(battle, "QueueNativeCallback", actor, (ushort)2, (byte)0);
-            var queued = observations[^1];
-            Assert.Equal(BattleDiagnosticCounterCallbackPhase.Queued, queued.Phase);
-            reused |= !locations.Add(queued.Queue.Location);
-            NativeBattleCommandPacket source = battle.NativeCommandBanks.Banks[queued.Queue.Location.Bank].Packets[2 * queued.Queue.Location.Slot];
-            string before = State(battle);
-            Invoke(battle, "ObserveDiagnosticCounterCallbackTaken", queued.Queue.Location, source);
-            Assert.Equal(before, State(battle));
-            Assert.Equal(BattleDiagnosticCounterCallbackPhase.Taken, observations[^1].Phase);
-            Assert.Equal(queued.Queue.Epoch, observations[^1].Queue.Epoch);
-            // The native dispatcher constructs a fresh callback from this packet; no logical object identity is needed.
-            BattleNativeCallback decoded = new(source.ReadByte(0), source.ReadWord(4));
-            Assert.Equal(queued.Queue.ActorIndex, decoded.ActorIndex);
-            Assert.Equal(queued.Queue.Stage, decoded.Stage);
-            Set(battle, "nativeDispatchCommandLocation", queued.Queue.Location);
-            Invoke(battle, "ReleaseNativeDispatchedCommand");
+            Observe(BattleParticipantCallbackPhase.Queued);
+            Observe(BattleParticipantCallbackPhase.Started);
+            Observe(BattleParticipantCallbackPhase.Completed);
+            BattleDiagnosticCounterCallbackObservation[] current = observations.TakeLast(3).ToArray();
+            Assert.Equal(new[] { BattleDiagnosticCounterCallbackPhase.Queued, BattleDiagnosticCounterCallbackPhase.Started, BattleDiagnosticCounterCallbackPhase.Completed }, current.Select(item => item.Phase));
+            Assert.All(current, item =>
+            {
+                Assert.Equal(index, item.Queue.Epoch);
+                Assert.Equal("enemy", item.Queue.ActorId);
+                Assert.Equal(BattleRosterSlot.Enemy(0), item.Queue.Slot);
+                Assert.Equal((byte)3, item.Queue.ActorIndex);
+                Assert.Equal((ushort)2, item.Queue.Stage);
+            });
         }
-        Assert.True(reused);
-        Assert.Equal(Enumerable.Range(1, 12).Select(value => (long)value), observations.Where(value => value.Phase == BattleDiagnosticCounterCallbackPhase.Queued).Select(value => value.Queue.Epoch));
-    }
+        Assert.Equal(before, State(battle));
 
-    [Fact]
-    public void Callback_epoch_rejects_changed_physical_payload_and_is_not_erased_by_action_header_reset()
-    {
-        BattleSession battle = Fixture();
-        List<BattleDiagnosticCounterCallbackObservation> observations = [];
-        battle.DiagnosticCounterCallbackObserved += observations.Add;
-        Invoke(battle, "QueueNativeCallback", battle.Combatants[1], (ushort)2, (byte)0);
-        BattleDiagnosticCounterCallback queue = observations.Single().Queue;
-        NativeBattleCommandPacket packet = battle.NativeCommandBanks.Banks[queue.Location.Bank].Packets[2 * queue.Location.Slot];
-        Invoke(battle, "ResetDiagnosticReflectionHeaders");
-        Assert.Throws<InvalidDataException>(() => Invoke(battle, "ObserveDiagnosticCounterCallbackTaken", queue.Location, packet with { Bytes = packet.Bytes.SetItem(4, 3) }));
-    }
-
-    [Fact]
-    public void Normal_header_reset_preserves_the_actual_queued_callback_epoch()
-    {
-        BattleSession battle = Fixture();
-        List<BattleDiagnosticCounterCallbackObservation> observations = [];
-        battle.DiagnosticCounterCallbackObserved += observations.Add;
-        Invoke(battle, "QueueNativeCallback", battle.Combatants[1], (ushort)2, (byte)0);
-        BattleDiagnosticCounterCallback queue = observations.Single().Queue;
-        NativeBattleCommandPacket packet = battle.NativeCommandBanks.Banks[queue.Location.Bank].Packets[2 * queue.Location.Slot];
-        Invoke(battle, "ResetDiagnosticReflectionHeaders");
-        Invoke(battle, "ObserveDiagnosticCounterCallbackTaken", queue.Location, packet);
-        Assert.Equal(queue.Epoch, observations[^1].Queue.Epoch);
-        Assert.Equal(BattleDiagnosticCounterCallbackPhase.Taken, observations[^1].Phase);
+        void Observe(BattleParticipantCallbackPhase phase)
+        {
+            Invoke(battle, "ObserveDiagnosticParticipantCallback", new BattleParticipantCallbackReceipt(request, phase, []));
+        }
     }
 
     [Fact]
@@ -156,7 +128,7 @@ public sealed class DiagnosticCounterObservationTests
             // The single-contact component declares the same BD9 count that its native hit plan initializes.
             target.NativeRemainingHits = 1;
             BattleNativeAction native = new(253, 0, -1, -1) { MagicId = 0, AttackType = 10, Power = 20, HitCount = 1, AttackFlags = 0, TargetFlags = 0, PowerModifier = 0, LevelModifier = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 0, RawRecord = [], SupplementalRecord = [] };
-            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeader = new BattleActionHeaderReference(0), GunbladeTriggerTiming = 1 };
+            BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new BattleTargetRequest(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.SavedStatus, false, BattleTargetReplacement.None), BattleAbility.Attack, 0) { NativeAction = native, NativeQueuedCommand = 1, NativeHeader = new BattleActionHeaderReference(0), GunbladeTriggerTiming = 1 };
             BattleActionDefinition action = new(BattleAbility.Attack, 0, "Component contact", BattleActionEffect.Native, 20, false) { NativeAction = native };
             (NativeBattleActionPacketsState prepared, _) = battle.NativeActionPackets.Prepare(new(battle.NativeActionPackets.ModelAliases.DecodeLiteral(0), 1, 13, -1, 0, 0, null));
             Set(battle, "nativeActionPackets", prepared);
@@ -187,14 +159,4 @@ public sealed class DiagnosticCounterObservationTests
         Assert.Equal(State(control), State(observed));
     }
 
-    [Fact]
-    public void Observer_subscription_does_not_change_queued_native_packets_or_rng()
-    {
-        BattleSession control = Fixture();
-        BattleSession observed = Fixture();
-        observed.DiagnosticCounterCallbackObserved += _ => { };
-        Invoke(control, "QueueNativeCallback", control.Combatants[1], (ushort)2, (byte)0);
-        Invoke(observed, "QueueNativeCallback", observed.Combatants[1], (ushort)2, (byte)0);
-        Assert.Equal(State(control), State(observed));
-    }
 }

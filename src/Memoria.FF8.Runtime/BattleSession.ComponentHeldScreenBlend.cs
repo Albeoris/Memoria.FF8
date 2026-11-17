@@ -36,6 +36,6 @@ public sealed partial class BattleSession
             return null;
         }
         return process.ObserveComponentHeldScreenBlend(expectedEffect, CaptureDiagnosticInvocationOwnerState(process.Graphics),
-            DiagnosticPhysicalCommandBanksMatch(null), ["effect-or-auxiliary-task"]);
+            ActiveAction is null && actions.Count == 0 && expandedHostedEvent is null, ["effect-or-auxiliary-task"]);
     }
 }

@@ -77,7 +77,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(BattleAbility.GuardianForce, command.ActionId);
         if (!actor.IsPlayer || !actor.Abilities.Contains(BattleAbility.GuardianForce) || actor.GuardianForceCompatibility is not { Count: 16 } ||
             definition.NativeBattleSpeed is null || !SupportsExpandedAction(action) || !byId.ContainsKey(command.TargetId) ||
-            command.NativeQueuedCommand != 254 || command.NativeHeader is not null ||
+            command.NativeQueuedCommand != 254 ||
             guardianForceCasts.Values.Count(other => other.Command.ActionId == command.ActionId) != 1)
         {
             throw new InvalidDataException("Saved expanded GF charge lacks its logical caster, target or original GF action.");

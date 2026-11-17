@@ -129,7 +129,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     casting18Frames += NativeBattleControl18CastingAssertions.AssertFrame(current) > 0 ? 1 : 0;
                     bool casting = NativeBattleControl18CastingAssertions.HasCasting(current);
                     casting18Seen |= casting;
-                    if (casting && current.ReadFixturePresentation().NativeGraphics.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CastingSeed574C80 && System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan(0, 2)) >= 29))
+                    if (casting && current.ReadFixturePresentation().NativeGraphics!.ModuleEffects.Slots.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleModuleKind.CastingSeed574C80 && System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(task.Payload.AsSpan(0, 2)) >= 29))
                     {
                         casting18Tail = true;
                         Cold("casting18-tail", current);
@@ -198,12 +198,12 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     {
                         if ((ReadOriginalModelCell(source.ReadFixturePresentation().NativeGraphics!, actor).Flags0 & 8) != 0)
                         {
-                            Assert.NotEqual(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, actor).Flags0 & 8);
+                            Assert.NotEqual(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, actor).Flags0 & 8);
                         }
                     }
                 }
                 Assert.Equal(source.Combatants.Select(actor => (actor.Id, actor.CurrentHp)), current.Combatants.Select(actor => (actor.Id, actor.CurrentHp)));
-                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics.PrimitiveFrame;
+                NativeBattlePrimitiveFrame? primitive = current.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame;
                 NativeBattleLogicalCommand[] ownedCommands = [];
                 if (effect == 7 && currentEffect?.Recovery?.PrimaryDrawCursor is int recoveryCursor && primitive is not null)
                 {
@@ -270,7 +270,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     foreach (NativeBattleLogicalCommand command in geometry)
                     {
                         NativeBattlePilotVisualGeometry visual = Assert.IsType<NativeBattlePilotVisualGeometry>(command.PilotGeometry);
-                        Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{current.ReadFixturePresentation().NativeGraphics.Callback}: packet {command.Packet.Bank}/{command.Packet.Buffer}/{command.Packet.ByteOffset}, opcode{command.Opcode:X2}, captured owner {visual.Identity}.");
+                        Assert.True(visual.Identity.Effect == effect, $"Effect{effect} callback{current.ReadFixturePresentation().NativeGraphics!.Callback}: packet {command.Packet.Bank}/{command.Packet.Buffer}/{command.Packet.ByteOffset}, opcode{command.Opcode:X2}, captured owner {visual.Identity}.");
                         Assert.True(visual.Identity.Generation > 0);
                         capturedOwnedBanks.Add(visual.Identity.Bank);
                     }
@@ -285,7 +285,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
                     renderedSamples++;
                     byte[] pixels = scene.Render(battle, 320, 224).ToArray();
                     ImmutableHashSet<NativeBattlePrimitiveReference> owned = ownedCommands.Select(command => command.Packet).ToImmutableHashSet();
-                    BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
+                    BattleSnapshot without = current.WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = primitive with { LastCommands = primitive.LastCommands.Where(command => !owned.Contains(command.Command.Packet)).ToImmutableArray() } } });
                     byte[] plain = new BattleScenePresentation(assets, source.Definition).Render(BattleSession.Restore(without), 320, 224).ToArray();
                     int changed = 0;
                     for (int pixel = 0; pixel < pixels.Length; pixel += 4)
@@ -501,15 +501,15 @@ public sealed class NativeBattleSelectedEffectPresentationTests
 
         bool Released(BattleSnapshot snapshot)
         {
-            return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } original && original.Binding.Effect == effect && (effect == 276 ? NativeBattleXatmDeath276CompletionAssertions.PoolsReleased(original.Pools, original.Binding.XatmDeath276Resources!.Events) : original.Pools.All(pool => pool.Head is null && pool.Tail is null && pool.Slots.All(slot => slot.Flags == 0))) && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+            return snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { ReturnedDescriptor: 0 } original && original.Binding.Effect == effect && (effect == 276 ? NativeBattleXatmDeath276CompletionAssertions.PoolsReleased(original.Pools, original.Binding.XatmDeath276Resources!.Events) : original.Pools.All(pool => pool.Head is null && pool.Tail is null && pool.Slots.All(slot => slot.Flags == 0))) && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
         }
     }
 
     private static BattleSnapshot QueueLivePartyFollowing(BattleSnapshot current, ushort effect)
     {
         Assert.True(current.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 });
-        Assert.NotNull(ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics, 0));
-        Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 0).Flags0 & 8);
+        Assert.NotNull(ReadOriginalModelActorId(current.ReadFixturePresentation().NativeGraphics!, 0));
+        Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 0).Flags0 & 8);
         BattleNativeAction action = Assert.Single(current.Definition.NativeActions, action => action.Command == 2 && action.ActionId == 1);
         Assert.Equal(effect, checked((ushort)action.MagicId));
         NativeBattleActionPacketsState packets = current.NativeActionPackets!;
@@ -520,8 +520,8 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         (packets, BattleActionHeaderReference header) = packets.Prepare(new(packets.ModelAliases.DecodeLiteral(0), action.Command, sequence, -1, action.ActionId, effect, null));
         (packets, _) = packets.AppendContact(contact);
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = current.ReadFixturePresentation().NativeGraphics.Descriptors.EnqueueAction(128, header);
-        return (current with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } });
+        (NativeBattleDescriptorState descriptors, _) = current.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, header);
+        return (current with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
     }
 
     private static BattleSnapshot QueueFollowing(BattleSnapshot current, BattleSnapshot invocation, ushort effect)
@@ -552,7 +552,7 @@ public sealed class NativeBattleSelectedEffectPresentationTests
         (packets, BattleActionHeaderReference nextHeader) = packets.Prepare(new(header.Source, header.Command, header.Sequence, header.CameraChoice, header.Action, effect, header.Data));
         (packets, _) = packets.AppendContact(original.ReadContact(header.FirstContact));
         (packets, _) = packets.Publish(1);
-        (NativeBattleDescriptorState descriptors, _) = current.ReadFixturePresentation().NativeGraphics.Descriptors.EnqueueAction(128, nextHeader);
-        return (current with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics with { Descriptors = descriptors } });
+        (NativeBattleDescriptorState descriptors, _) = current.ReadFixturePresentation().NativeGraphics!.Descriptors.EnqueueAction(128, nextHeader);
+        return (current with { NativeActionPackets = packets}).WithFixturePresentation(facts => facts with { NativeGraphics = current.ReadFixturePresentation().NativeGraphics! with { Descriptors = descriptors } });
     }
 }

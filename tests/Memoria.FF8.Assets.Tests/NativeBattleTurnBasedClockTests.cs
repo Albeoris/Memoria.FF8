@@ -64,7 +64,7 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.Frame + advanced, after.Frame);
         Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback, after.ReadFixturePresentation().NativeGraphics!.Callback);
         // Full-gauge registration may enqueue UI readiness; all presentation owners stay at their saved boundary.
-        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ReadFixturePresentation().NativeGraphics), NativeBattleSnapshotJson.Serialize(after.ReadFixturePresentation().NativeGraphics with { UiServices = before.ReadFixturePresentation().NativeGraphics.UiServices }));
+        Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ReadFixturePresentation().NativeGraphics), NativeBattleSnapshotJson.Serialize(after.ReadFixturePresentation().NativeGraphics! with { UiServices = before.ReadFixturePresentation().NativeGraphics!.UiServices }));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(before.NativeActionPackets), NativeBattleSnapshotJson.Serialize(after.NativeActionPackets));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(before.ActiveAction), NativeBattleSnapshotJson.Serialize(after.ActiveAction));
         Assert.Equal(before.NativeHostCallbacks!.Value + advanced, after.NativeHostCallbacks!.Value);
@@ -97,7 +97,7 @@ public sealed class NativeBattleTurnBasedClockTests
         {
             NativeStatus = player.NativeStatus with { Battle = player.NativeStatus.Battle | 0x20u, Timers = timers }
         };
-        battle = BattleSession.Restore((active with { Combatants = actors}).WithFixturePresentation(facts => facts with { NativeGraphics = active.ReadFixturePresentation().NativeGraphics! with { UiServices = active.ReadFixturePresentation().NativeGraphics.UiServices! with { Menu957 = -1 } } }));
+        battle = BattleSession.Restore((active with { Combatants = actors}).WithFixturePresentation(facts => facts with { NativeGraphics = active.ReadFixturePresentation().NativeGraphics! with { UiServices = active.ReadFixturePresentation().NativeGraphics!.UiServices! with { Menu957 = -1 } } }));
         BattleSession restored = Resume(battle);
         BattleSnapshot before = battle.CaptureForContinuation();
         Assert.True(before.ReadFixturePresentation().NativeGraphics!.UiServices!.AllowsAtb(seed.NativeSavedOptions is uint options ? unchecked((ushort)options) : null));
@@ -109,14 +109,14 @@ public sealed class NativeBattleTurnBasedClockTests
         Assert.Equal(before.Frame + 1, after.Frame);
         Assert.Equal(before.Combatants.Select(actor => actor.NativeAtb!.Current), after.Combatants.Select(actor => actor.NativeAtb!.Current));
         Assert.Equal(before.Combatants[0].NativeStatus!.Timers, after.Combatants[0].NativeStatus!.Timers);
-        Assert.Equal(before.ReadFixturePresentation().NativeGraphics.Callback + 1, after.ReadFixturePresentation().NativeGraphics!.Callback);
+        Assert.Equal(before.ReadFixturePresentation().NativeGraphics!.Callback + 1, after.ReadFixturePresentation().NativeGraphics!.Callback);
         Assert.NotEqual(NativeBattleSnapshotJson.Serialize(before.ReadFixturePresentation().NativeGraphics), NativeBattleSnapshotJson.Serialize(after.ReadFixturePresentation().NativeGraphics));
         Assert.Equal(NativeBattleSnapshotJson.Serialize(after), NativeBattleSnapshotJson.Serialize(restored.Capture()));
 
         BattleCombatantSnapshot ally = after.Combatants[1];
         BattleCombatantSnapshot[] unready = after.Combatants.ToArray();
         unready[1] = ally with { Atb = 0, NativeAtb = ally.NativeAtb! with { Current = 0 }, NativeParticipant = ally.NativeParticipant! with { NativeCombatantFlags = ally.NativeParticipant.NativeCombatantFlags!.Value & ~0xCu } };
-        battle = BattleSession.Restore((after with { Combatants = unready}).WithFixturePresentation(facts => facts with { NativeGraphics = after.ReadFixturePresentation().NativeGraphics with { UiServices = after.ReadFixturePresentation().NativeGraphics.UiServices! with { Commands = after.ReadFixturePresentation().NativeGraphics.UiServices.Commands.Enqueue(1, 0x12) } } }));
+        battle = BattleSession.Restore((after with { Combatants = unready}).WithFixturePresentation(facts => facts with { NativeGraphics = after.ReadFixturePresentation().NativeGraphics! with { UiServices = after.ReadFixturePresentation().NativeGraphics!.UiServices! with { Commands = after.ReadFixturePresentation().NativeGraphics!.UiServices!.Commands.Enqueue(1, 0x12) } } }));
         restored = Resume(battle);
         BattleSnapshot beforePass = battle.CaptureForContinuation();
         Assert.Equal(1u, beforePass.NativeClock!.ActionPause);

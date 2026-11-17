@@ -28,7 +28,7 @@ public sealed class NativeBattleActionCatalogTests
         }, BattleAtbMode.Normal);
         BattleCombatant actor = battle.Combatants[0];
         BattleCombatant target = battle.Combatants[1];
-        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, 0, new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None), BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
+        BattleActionPresentation presentation = new(actor.Id, target.Id, BattleActionPhase.Windup, new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(target.Id)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.None), BattleAbility.LimitBreak, actionId) { NativeAction = native, NativeQueuedCommand = native.Command };
         BattleActionDefinition action = new(BattleAbility.LimitBreak, actionId, native.Name!, BattleActionEffect.Native, native.Power, false) { NativeAction = native };
 
         NativeBattleContactPacket packet = (NativeBattleContactPacket)typeof(BattleSession).GetMethod("ResolveInstalledNativeHitWithContact", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, [actor, target, presentation, action, native, null, false])!;

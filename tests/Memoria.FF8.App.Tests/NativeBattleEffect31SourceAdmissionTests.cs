@@ -37,7 +37,7 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
         {
             Assert.Null(graphics.OriginalEffect);
         }
-        NativeBattleEffect31State state = Assert.IsType<NativeBattleEffect31State>(source.ReadFixturePresentation().NativeEffectMemory.Effect31);
+        NativeBattleEffect31State state = Assert.IsType<NativeBattleEffect31State>(source.ReadFixturePresentation().NativeEffectMemory!.Effect31);
         state.Validate();
         Assert.Equal(7, state.FixedBanks.Count);
         Assert.Equal(7, state.FixedQueues.Count);
@@ -93,7 +93,7 @@ public sealed class NativeBattleEffect31SourceAdmissionTests
             Assert.Equal(0, ReadOriginalModelCell(graphics, physical).Flags0 & 2);
         }
         Assert.Equal(4, source.ReadFixturePresentation().NativeStage!.Groups.Length);
-        Assert.All(source.ReadFixturePresentation().NativeStage.Groups, group =>
+        Assert.All(source.ReadFixturePresentation().NativeStage!.Groups, group =>
         {
             Assert.Equal(2, group.Source!.BoneCount);
             Assert.Equal(2, group.Matrices.Length);

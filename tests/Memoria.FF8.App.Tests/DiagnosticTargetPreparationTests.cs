@@ -147,7 +147,7 @@ public sealed class DiagnosticTargetPreparationTests
             Target = active.ObserveDiagnosticTarget("enemy-6"),
             DrainBlockers = active.ObserveDiagnosticDrainBlockers(),
             ActiveAction = active.ActiveAction is { } action ? new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.Phase, action.NativeSequence } : null,
-            QueuedActions = active.QueuedActions.Select(action => new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.NativeSequence, action.NativeCallback }).ToArray(),
+            QueuedActions = active.QueuedActions.Select(action => new { action.ActorId, action.TargetId, action.Ability, action.ActionId, action.NativeSequence, action.ExpandedAiCallback }).ToArray(),
             EventTail = active.Events.TakeLast(12).ToArray(),
             Camera = active.Presentation?.Camera is { } camera ? new { camera.Mask, camera.Mode, camera.ForceCamera, camera.CurrentPose } : null,
             Graphics = new

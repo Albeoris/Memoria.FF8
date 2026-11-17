@@ -365,9 +365,6 @@ public sealed class ExpandedHostedRenzokukenTests
                         Assert.Equal(expectedMagic, widgetMagic);
                         Assert.Equal(widget.Input, current.Input);
                         Assert.Equal(widget.PendingTrigger, current.PendingTrigger);
-                        battle.AdvanceNativeRenzokukenPresentation(TimeSpan.FromSeconds(1));
-                        Assert.Same(current, battle.GetNativeRenzokuken(Squall));
-                        Assert.Same(widget, process.TriggerWidget);
                         if (verifyApproachAndPoison && widget.ClosingPhase is 10 or 12 && process.ActiveActionToken is long token &&
                             ordered.OfType<NativeBattlePresentationContactReceived>().LastOrDefault(receipt => receipt.Renzokuken is not null)?.Renzokuken is { } hit)
                         {
@@ -739,9 +736,7 @@ public sealed class ExpandedHostedRenzokukenTests
         GameWorld world = new(session, directory, sharedAssets: game);
         try
         {
-            BattleEncounter encounter = world.BattleResources.LoadEncounter(formation);
-            (_, BattleEncounterRosterAdmission admission) = GameWorld.InspectEncounterRoster(encounter, model => world.BattleResources.ReadEnemyAi(model, 0), world.BattleResources.NativeActions);
-            byte[] selectedRows = admission.UsesPrimaryPartyOnly ? [1, 2, 0, 3] : [1, 2, 3, 0];
+            byte[] selectedRows = [1, 2, 3, 0];
             ExpandedBattleInstalledEntry.Prepare(world, session, current =>
             {
                 NativeCharacterVitals vitals = (current.State.CharacterVitals! with { CombatParty = selectedRows[..3] }).WithGuestBattleRecords().Rest();
@@ -784,7 +779,7 @@ public sealed class ExpandedHostedRenzokukenTests
                 Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
             }
             BattleCombatant caster = Assert.Single(battle.Combatants, actor => actor.Id == Squall);
-            Assert.Equal(admission.UsesPrimaryPartyOnly, process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
+            Assert.False(process.ActionPackets.ModelAliases.TryEncodeExact(battle.ReadPresentationModelOwner(caster.Id), out _));
             BattleCombatant target;
             if (targetModel is int model)
             {

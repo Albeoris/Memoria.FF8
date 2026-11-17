@@ -31,7 +31,7 @@ public sealed class NativeBattleExpandedRemainingHitsTests
         Assert.False(knockedOut.IsAlive);
         BattleNativeAction native = new(254, 64, 2, 0) { MagicId = 116, AttackType = 11, Power = 44, HitCount = 2, TargetFlags = 72, AttackFlags = 33, DamagePresentation = 5, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = 0, LevelModifier = 60, RawRecord = new byte[132].ToImmutableArray(), SupplementalRecord = [] };
         BattleActionDefinition action = new(BattleAbility.GuardianForce, 0, "Summon fixture", BattleActionEffect.Native, 44, true) { NativeAction = native };
-        BattleActionPresentation command = new(caster.Id, knockedOut.Id, BattleActionPhase.Recovery, 1, BattleTargetRequest.None, BattleAbility.GuardianForce);
+        BattleActionPresentation command = new(caster.Id, knockedOut.Id, BattleActionPhase.Recovery, BattleTargetRequest.None, BattleAbility.GuardianForce);
         BattleCombatant[][] plan = [[knockedOut, unreached], [unreached]];
         MethodInfo resolve = typeof(BattleSession).GetMethod("ResolveExpandedHitPlan", BindingFlags.Instance | BindingFlags.NonPublic)!;
 

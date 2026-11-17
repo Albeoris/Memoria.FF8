@@ -38,7 +38,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         {
             return;
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         NativeBattleEffect251State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect251!;
         NativeBattleEffect251Resources resources = effect.Binding.Effect251Resources!;
         NativeBattleModulePoolTask[] tasks = Tasks(current);
@@ -81,11 +81,11 @@ internal sealed class NativeBattleEffect251PresentationObserver
             int modelOffset = BinaryPrimitives.ReadUInt16LittleEndian(resources.Camera.Data.AsSpan().Slice(4));
             Assert.Equal(8, control.StreamOffset);
             Assert.Equal(modelOffset, control.ModelTableOffset);
-            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory.Textures!.Animation));
+            Assert.Equal(JsonSerializer.Serialize(control), JsonSerializer.Serialize(current.ReadFixturePresentation().NativeEffectMemory!.Textures!.Animation));
             camera = true;
-            bool playing = current.ReadFixturePresentation().NativeCamera.Order.Any(slot => current.ReadFixturePresentation().NativeCamera.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[modelOffset..]));
+            bool playing = current.ReadFixturePresentation().NativeCamera!.Order.Any(slot => current.ReadFixturePresentation().NativeCamera!.Tasks[slot]!.Bank.Data.AsSpan().SequenceEqual(resources.Camera.Data.AsSpan()[modelOffset..]));
             track |= playing;
-            view |= playing && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera.CapturePackedView1D97778());
+            view |= playing && JsonSerializer.Serialize(prior.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778()) != JsonSerializer.Serialize(current.ReadFixturePresentation().NativeCamera!.CapturePackedView1D97778());
         }
         if (main is not null)
         {
@@ -134,10 +134,10 @@ internal sealed class NativeBattleEffect251PresentationObserver
                 mutable |= !resources.Act(0x1434430).Data.AsSpan().Slice(at + 6, 2).SequenceEqual(script.Read(at + 6, 2));
             }
         }
-        if (current.ReadFixturePresentation().NativeEffectMemory.EffectIo?.BaseOffset is int ioOffset)
+        if (current.ReadFixturePresentation().NativeEffectMemory!.EffectIo?.BaseOffset is int ioOffset)
         {
             Assert.Equal(checked((int)(arena + IoOffset - 0x20DFAB8u)), ioOffset);
-            byte[] io = current.ReadFixturePresentation().NativeEffectMemory.Arena!.Read(ioOffset, 16);
+            byte[] io = current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(ioOffset, 16);
             if (io[3] == 1)
             {
                 Assert.Equal((short)0, BinaryPrimitives.ReadInt16LittleEndian(io.AsSpan(8)));
@@ -148,7 +148,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
                 {
                     NativeBattleEffectFileAsset file = resources.Files[713];
                     int retainedOffset = checked((int)(arena + FirstPacketOffset + 0x20000 - 0x20DFAB8u));
-                    Assert.Equal(file.Data.AsSpan()[0x20000..].ToArray(), current.ReadFixturePresentation().NativeEffectMemory.Arena.Read(retainedOffset, file.Data.Length - 0x20000));
+                    Assert.Equal(file.Data.AsSpan()[0x20000..].ToArray(), current.ReadFixturePresentation().NativeEffectMemory!.Arena!.Read(retainedOffset, file.Data.Length - 0x20000));
                     loaded = true;
                 }
             }
@@ -216,7 +216,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         NativeBattleEffect251Resources resources = completed.ReadFixturePresentation().NativeGraphics!.OriginalEffect!.Binding.Effect251Resources!;
         Assert.All(SoundAddresses, address => Assert.Contains(BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(address, 4)), sounds));
         Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect251!.FixedBanks.Values, bank => Assert.NotNull(bank));
-        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory.Effect251.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
+        Assert.All(completed.ReadFixturePresentation().NativeEffectMemory!.Effect251!.CommonQueueStorage.Values, queue => Assert.NotNull(queue));
         File.WriteAllText(Path.Combine(output, "effect251-native-observations.json"), JsonSerializer.Serialize(new { Markers = markers.Order(), Callbacks = callbacks.Order(), Programmes = programmes.Order(), PacketBanks = banks.Order(), Sounds = sounds.Order(), Camera = camera, CameraDecision = cameraDecision, CameraTrack = track, CameraViewChanged = view, Queued = queued, Loaded = loaded, MutatedW = mutable, CasterMotion = casterMotion, TargetMotion = targetMotion, WorldMotion = worldMotion, BoneMotion = boneMotion, Contacts = contacts, MainRetired = retired, Drained = drained, Observations = observations }));
     }
 
@@ -235,7 +235,7 @@ internal sealed class NativeBattleEffect251PresentationObserver
         uint buffer = state.ReadDword(ArenaGlobal);
         uint cursor = state.ReadDword(CursorGlobal);
         uint start = buffer + (uint)(root.ReadByte(15) == 0 ? FirstPacketOffset : SecondPacketOffset);
-        return snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8u && command.Packet.ByteOffset < cursor - 0x20DFAB8u).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
+        return snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!.LastCommands.Select(item => item.Command).Where(command => command.Packet.Bank == "20DFAB8" && command.Packet.Buffer == 0 && command.Packet.ByteOffset >= start - 0x20DFAB8u && command.Packet.ByteOffset < cursor - 0x20DFAB8u).DistinctBy(command => (command.Packet, command.WordOffset)).ToArray();
     }
 
     private static NativeBattleModulePoolTask[] Tasks(BattleSnapshot snapshot)

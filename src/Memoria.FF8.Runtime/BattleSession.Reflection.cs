@@ -19,32 +19,16 @@ public sealed partial class BattleSession
         foreach (NativeMagicReflectionReceipt receipt in receipts)
         {
             BattleSide side = receipt.Reflector.IsPlayer ? BattleSide.Enemies : BattleSide.Allies;
-            BattleCombatant redirected;
-            BattleTargetRequest request;
-            if (originalParticipantSlotsInitialized && Roster(side).All(actor => !actor.IsActive || HasNativeRosterSlot(actor)))
+            if (ReadNativeRandomActionTarget(side) is not { } redirected)
             {
-                if (ChooseOriginalRandomActionTarget(side) is not NativeBattleTargetRequestAdapter.DeferredOperands selected ||
-                    NativeBattleTargetRequestAdapter.ReadAuthoredTargets(selected, ReadOriginalTargetOccupant).SingleOrDefault() is not { } reference)
-                {
-                    canPublish = false;
-                    continue;
-                }
-                redirected = FindTargetActor(reference)!;
-                request = NativeBattleTargetRequestAdapter.CreateOriginalRequest(new(selected, Random: (flags & 2) != 0), BattleTargetEligibility.SavedStatus, (flags & 1) != 0);
+                canPublish = false;
+                continue;
             }
-            else
-            {
-                BattleCombatant[] available = ExpandedRandomTargets(side);
-                if (available.Length == 0)
-                {
-                    canPublish = false;
-                    continue;
-                }
-                redirected = available[NextRandomByte() % available.Length];
-                request = (flags & 2) != 0
-                    ? new(new BattleTargetSelection.RandomOnSide(side), BattleTargetEligibility.Living, (flags & 1) != 0, BattleTargetReplacement.None)
-                    : SelectBattleTarget(redirected, (flags & 1) != 0);
-            }
+            bool random = (flags & 2) != 0;
+            bool allowsKnockedOut = (flags & 1) != 0;
+            BattleTargetRequest request = redirected.NativeActorIndex is int alias
+                ? NativeBattleTargetRequestAdapter.CreateOriginalRequest(new(NativeBattleTargetRequestAdapter.SelectOriginalSlot(NativeBattleSlots.Decode(alias)), Random: random), BattleTargetEligibility.SavedStatus, allowsKnockedOut)
+                : random ? new(new BattleTargetSelection.RandomOnSide(side, samplesOriginalSlots: true), BattleTargetEligibility.SavedStatus, allowsKnockedOut, BattleTargetReplacement.None) : SelectBattleTarget(redirected, allowsKnockedOut);
             if (!canPublish)
             {
                 //485610 fills the remaining WORDs even though the secondary cast loop stops at the first zero.

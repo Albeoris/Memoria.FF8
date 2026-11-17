@@ -56,8 +56,10 @@ public sealed class BattleSavedDuelPerformanceTests
                 BattleNativeDuelChoice choice = battle.GetNativeDuelChoices(actor.Id).First(candidate => candidate.Learned && !candidate.Finisher);
                 foreach (ushort button in choice.Buttons)
                 {
-                    battle.AdvanceNativeDuelPresentation(elapsed, 0);
-                    battle.AdvanceNativeDuelPresentation(elapsed, button);
+                    battle.SubmitNativeDuelInput(0);
+                    battle.AdvanceNativeGraphicsPresentation(elapsed);
+                    battle.SubmitNativeDuelInput(button);
+                    battle.AdvanceNativeGraphicsPresentation(elapsed);
                 }
                 moves++;
             }
@@ -77,7 +79,8 @@ public sealed class BattleSavedDuelPerformanceTests
             long synchronizeBytes = GC.GetAllocatedBytesForCurrentThread() - allocation;
             NativeBattlePrimitiveFrame? primitiveFrame = battle.Presentation?.Graphics?.PrimitiveFrame;
             samples.Add(new { Callback = callback, battle.Frame, Phase = battle.GetNativeDuel(actor.Id)?.Phase.ToString(), Moves = moves, Update = update, UpdateBytes = updateBytes, Synchronize = synchronize, SynchronizeBytes = synchronizeBytes, Commands = primitiveFrame?.LastCommands.Length ?? 0, ModuleDraws = primitiveFrame?.LastCommands.Where(command => command.Command.ModuleDraw.HasValue).Select(command => command.Command.ModuleDraw).Distinct().Count() ?? 0, PendingPackets = primitiveFrame?.Pending.Packets.Length ?? 0 });
-            battle.AdvanceNativeDuelPresentation(elapsed, 0);
+            battle.SubmitNativeDuelInput(0);
+            battle.AdvanceNativeGraphicsPresentation(elapsed);
             if (moves == 1 && ++firstMoveCallbacks == 16)
             {
                 Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, battle.GetNativeDuel(actor.Id)!.Phase);
@@ -92,8 +95,10 @@ public sealed class BattleSavedDuelPerformanceTests
                 restored.AdvanceNativeGraphicsPresentation(elapsed);
                 world.SynchronizeBattlePresentation();
                 independent.SynchronizeBattlePresentation();
-                battle.AdvanceNativeDuelPresentation(elapsed, 0);
-                restored.AdvanceNativeDuelPresentation(elapsed, 0);
+                battle.SubmitNativeDuelInput(0);
+                battle.AdvanceNativeGraphicsPresentation(elapsed);
+                restored.SubmitNativeDuelInput(0);
+                restored.AdvanceNativeGraphicsPresentation(elapsed);
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
                 restoredMidAttack = true;
             }

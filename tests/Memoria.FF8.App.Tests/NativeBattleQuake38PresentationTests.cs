@@ -135,7 +135,7 @@ public sealed class NativeBattleQuake38PresentationTests
                     if (changed > peak)
                     {
                         peak = changed;
-                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
+                        NativeBattleRestorationPresentationTests.Publish(output, $"visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                     }
                     bool Crack(NativeBattleLogicalResolvedCommand command) => command.Command.Packet.Bank == "20DFAB8" && (command.Command.Opcode & 0xFC) == 0x2C && command.Command.Words.Length >= 3 && (command.Command.Words[2] >> 16) == 0x3C54;
                     if (frame.LastCommands.Any(Crack))
@@ -144,7 +144,7 @@ public sealed class NativeBattleQuake38PresentationTests
                         if (cracks > peakCracks)
                         {
                             peakCracks = cracks;
-                            NativeBattleRestorationPresentationTests.Publish(output, $"ground-crack-visible-peak-{current.ReadFixturePresentation().NativeGraphics.Callback}", current, visible);
+                            NativeBattleRestorationPresentationTests.Publish(output, $"ground-crack-visible-peak-{current.ReadFixturePresentation().NativeGraphics!.Callback}", current, visible);
                         }
                     }
                 }
@@ -196,7 +196,7 @@ public sealed class NativeBattleQuake38PresentationTests
         int Isolate(BattleSnapshot snapshot, byte[] visible, Func<NativeBattleLogicalResolvedCommand, bool> selected)
         {
             NativeBattlePrimitiveFrame frame = snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame!;
-            BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !selected(command)).ToImmutableArray() } } });
+            BattleSnapshot without = snapshot.WithFixturePresentation(facts => facts with { NativeGraphics = snapshot.ReadFixturePresentation().NativeGraphics! with { PrimitiveFrame = frame with { LastCommands = frame.LastCommands.Where(command => !selected(command)).ToImmutableArray() } } });
             return DifferentRgbPixels(visible, scene.Render(BattleSession.Restore(without), 320, 224));
         }
         NativeBattleOriginalEffectState? Selected(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { } effect && effect.Binding.Effect == item.Effect ? effect : null;

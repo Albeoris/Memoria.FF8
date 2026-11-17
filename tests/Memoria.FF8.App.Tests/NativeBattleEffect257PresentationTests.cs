@@ -216,7 +216,7 @@ public sealed class NativeBattleEffect257PresentationTests
         return effect.Pools.Length == 1 && effect.Pools[0] is { DescriptorAddress: 0x2796510, BankAddress: 0x2796520, Stride: 0x10, Head: null, Tail: null } pool && pool.Slots.Length == 1 && pool.Slots.All(task => task.Flags == 0);
     }
 
-    internal static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: Effect, ReturnedDescriptor: 0 } effect && TaskPoolDrained(effect) && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104);
+    internal static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: Effect, ReturnedDescriptor: 0 } effect && TaskPoolDrained(effect) && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104);
 
     private static int CountRgb(byte[] first, byte[] second)
     {

@@ -48,10 +48,10 @@ internal sealed class NativeBattleSelectedEffect314Observer
             terminal = true;
             uint caster = current.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(CasterGlobal);
             int physical = checked((int)((caster - 0x1D972C0) / 156));
-            Assert.Equal(before.ReadDword(0x14), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical).Color44);
-            Assert.Equal(before.ReadDword(0x18), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical + 1).Color44);
-            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical).Flags0 & 8);
-            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, physical + 1).Flags0 & 8);
+            Assert.Equal(before.ReadDword(0x14), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, physical).Color44);
+            Assert.Equal(before.ReadDword(0x18), ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, physical + 1).Color44);
+            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, physical).Flags0 & 8);
+            Assert.Equal(0, ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, physical + 1).Flags0 & 8);
         }
         observations.Add(new { current.Frame, ProcessedAge = age, Fragments = fragments, Sparks = sparks, LocalRandomBefore = prior.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), LocalRandomAfter = current.ReadFixturePresentation().NativeEffectMemory!.Effect314!.ReadDword(RandomGlobal), CrtBefore = prior.NativeCrtRandom!.Seed, CrtAfter = current.NativeCrtRandom!.Seed, RootAge = effect.Pools.IsEmpty ? (int?)null : effect.Pools[0].Slots[0].ReadWord(12) });
         if (age is 16 or 66 or 100 or 140 or 210 or 226)

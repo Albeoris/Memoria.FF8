@@ -222,7 +222,7 @@ public sealed class ExpandedAiCallbackEventTests
         BattleModelOwner owner = logical.ReadPresentationModelOwner(actor.Id);
         BattleModelOwner recipient = logical.ReadPresentationModelOwner(Enemy);
         BattleTargetRequest target = new(new BattleTargetSelection.Explicit([new BattleEnemyActorReference(Enemy)]), BattleTargetEligibility.Living, false, BattleTargetReplacement.UseCurrentBattlePolicy);
-        BattleActionPresentation command = new(actor.Id, Enemy, BattleActionPhase.Recovery, 1, target, BattleAbility.LimitBreak)
+        BattleActionPresentation command = new(actor.Id, Enemy, BattleActionPhase.Recovery, target, BattleAbility.LimitBreak)
         {
             NativeQueuedCommand = 237,
             NativeAction = FixedHit(100) with { Command = 237, ActionId = 0 },

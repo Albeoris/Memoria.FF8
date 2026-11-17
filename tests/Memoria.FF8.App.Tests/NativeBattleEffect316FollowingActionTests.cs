@@ -22,14 +22,14 @@ public sealed class NativeBattleEffect316FollowingActionTests
         BattleSnapshot source = NativeBattleEffectFamilyRunner.LoadSnapshot(path!);
         Assert.True(NativeBattleEffect316PresentationTests.Released(source));
         Assert.Null(source.ReadFixturePresentation().NativeCamera!.ControlCursor);
-        Assert.Empty(source.ReadFixturePresentation().NativeCamera.Order);
+        Assert.Empty(source.ReadFixturePresentation().NativeCamera!.Order);
         NativeBattleEffect316State warm = source.ReadFixturePresentation().NativeEffectMemory!.Effect316!;
         uint random = warm.ReadDword(RandomGlobal);
         Assert.All(warm.FixedBanks.Values, bank => Assert.NotNull(bank));
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(BattleSession.Restore(source).Capture()));
         BattleSnapshot prepared = NativeBattleEffect316PresentationTests.QueueComponent(source, game, assets);
         Assert.Equal(random, prepared.ReadFixturePresentation().NativeEffectMemory!.Effect316!.ReadDword(RandomGlobal));
-        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory.Effect316));
+        Assert.Equal(JsonSerializer.Serialize(warm), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeEffectMemory!.Effect316));
         Assert.Equal(JsonSerializer.Serialize(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!)), JsonSerializer.Serialize(ReadOriginalModelCells(prepared.ReadFixturePresentation().NativeGraphics!)));
         Assert.Equal(JsonSerializer.Serialize(source.ReadFixturePresentation().NativeFileStaging), JsonSerializer.Serialize(prepared.ReadFixturePresentation().NativeFileStaging));
         File.WriteAllText(Path.Combine(output!, "following-warm-source.json"), JsonSerializer.Serialize(new { Status = "prepared", Effect, WarmRandom = random, WarmColor = warm.ReadDword(ColorGlobal), ModelsAndSourceMarkersPreserved = true, RootBankExclusive = true }));
@@ -43,7 +43,7 @@ public sealed class NativeBattleEffect316FollowingActionTests
             BattleSnapshot current = cleanup.CaptureForContinuation();
             Assert.True(NativeBattleEffect316PresentationTests.Released(current));
             Assert.Equal(completedRandom, current.ReadFixturePresentation().NativeEffectMemory!.Effect316!.ReadDword(RandomGlobal));
-            Assert.All(current.ReadFixturePresentation().NativeEffectMemory.Effect316.FixedBanks.Values, bank => Assert.NotNull(bank));
+            Assert.All(current.ReadFixturePresentation().NativeEffectMemory!.Effect316!.FixedBanks.Values, bank => Assert.NotNull(bank));
             Assert.Equal(source.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)), current.Combatants.Select(actor => (actor.CurrentHp, actor.NativeStatus!.Saved, actor.NativeStatus.Battle)));
             NativeBattleEffect316PresentationTests.VerifyColdNext("separate-cleanup-" + callback, current, game, assets, output!);
         }

@@ -70,7 +70,7 @@ internal sealed class NativeBattleEffect174PresentationObserver
             retired = true;
             Mark("effect174-main-retired", current, cold);
         }
-        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics;
+        NativeBattleGraphicsState graphics = current.ReadFixturePresentation().NativeGraphics!;
         for (int index = 0; index < graphics.Effects.Slots.Length; index++)
         {
             NativeBattleEffectTask task = graphics.Effects.Slots[index];

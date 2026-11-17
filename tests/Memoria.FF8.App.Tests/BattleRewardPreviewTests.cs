@@ -71,7 +71,7 @@ public sealed class BattleRewardPreviewTests
                 canvas.DrawRgba(scene.Render(active, 1280, 896), 1280, 896, new UiRect(0, 0, 1280, 896));
                 BattleHudController hud = new(active, active.QueueAttack, () => { }, () => active.AdvanceTurn(), previewRewards: world.PreviewBattleRewards, guardianForceName: id => id == 1 ? "Shiva" : "Ifrit", itemName: id => display.NativeItemNames[id]!, cardName: id => display.NativeCardNames[id]!);
                 hud.ConfigureResults(battles.ReadNativeGlobalBattleMessages());
-                hud.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattleSession.FramesPerSecond + 0.000001));
+                hud.AdvancePresentation(TimeSpan.FromSeconds(16.0 / BattlePresentationTiming.CallbacksPerSecond + 0.000001));
                 UiView view = hud.BuildView();
                 view.Resize(1280, 896);
                 view.Draw(canvas, new UiTheme());

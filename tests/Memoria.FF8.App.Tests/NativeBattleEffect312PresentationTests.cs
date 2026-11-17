@@ -24,7 +24,7 @@ public sealed class NativeBattleEffect312PresentationTests
         Assert.Equal(794, source.Definition.EncounterId);
         Assert.Equal(65, source.Definition.StageId);
         Assert.Null(source.ReadFixturePresentation().NativeGraphics!.OriginalEffect);
-        Assert.All(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics).Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModel()));
+        Assert.All(ReadOriginalModelCells(source.ReadFixturePresentation().NativeGraphics!).Skip(3).Take(3), model => Assert.Null(model.ReadLinkedModel()));
         RunPrepared(QueueComponent(source, game, assets), game, assets, output!);
     }
 
@@ -184,7 +184,7 @@ public sealed class NativeBattleEffect312PresentationTests
         NativeBattleRestorationPresentationTests.Publish(output, name + "-next", cold.Capture(), pixels);
     }
 
-    internal static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 312, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
+    internal static bool Released(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is { Binding.Effect: 312, ReturnedDescriptor: 0 } effect && snapshot.ReadFixturePresentation().NativeEffectMemory!.Active == 0 && snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && !snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.Any(index => snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Packets[index].Command == 104) && effect.Pools.IsEmpty;
 
     private static int CountRgb(byte[] first, byte[] second)
     {

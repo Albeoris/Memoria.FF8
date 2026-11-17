@@ -35,7 +35,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
             return;
         }
         NativeBattleEffect283State state = current.ReadFixturePresentation().NativeEffectMemory!.Effect283!;
-        NativeBattleGraphicsModel target = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics, 4);
+        NativeBattleGraphicsModel target = ReadOriginalModelCell(current.ReadFixturePresentation().NativeGraphics!, 4);
         if (effect.ReturnedDescriptor is > 0)
         {
             Assert.Null(state.RootBankStorage);
@@ -84,7 +84,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
                     {
                         Mark("effect283-main-" + age, current, cold);
                     }
-                    observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics.Callback, Age = age, MainFrame = main.Frame, SecondaryFrame = secondary.Frame, Selector = unchecked((short)task.ReadWord(0xE)), TaskCallback = task.Callback, target.Flags0, target.Color44 });
+                    observations.Add(new { current.Frame, current.ReadFixturePresentation().NativeGraphics!.Callback, Age = age, MainFrame = main.Frame, SecondaryFrame = secondary.Frame, Selector = unchecked((short)task.ReadWord(0xE)), TaskCallback = task.Callback, target.Flags0, target.Color44 });
                 }
             }
             int cursor = checked((int)(state.ReadDword(CursorGlobal) - ArenaAddress));
@@ -103,7 +103,7 @@ internal sealed class NativeBattleEffect283PresentationObserver
             Assert.NotNull(state.RootBankStorage);
             Assert.Empty(effect.Pools);
             Assert.Equal((ushort)60, BinaryPrimitives.ReadUInt16LittleEndian(state.RootBankStorage.Read(0xC, 2)));
-            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory.Arena!;
+            NativeBattleEffectArena arena = current.ReadFixturePresentation().NativeEffectMemory!.Arena!;
             Assert.Equal((ushort)60, BinaryPrimitives.ReadUInt16LittleEndian(arena.Read(0xC, 2)));
             Assert.Equal(60, BinaryPrimitives.ReadInt32LittleEndian(arena.Read(MainProgrammeWorkspaceOffset + 4, 4)));
             Assert.Equal(36, BinaryPrimitives.ReadInt32LittleEndian(arena.Read(SecondaryProgrammeWorkspaceOffset + 4, 4)));

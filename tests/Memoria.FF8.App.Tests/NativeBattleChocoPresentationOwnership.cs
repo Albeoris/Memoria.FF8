@@ -11,7 +11,7 @@ internal sealed class NativeBattleChocoPresentationOwnership(ushort effect)
 
     internal void Accept(BattleSnapshot snapshot)
     {
-        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics.PrimitiveFrame is not { } frame)
+        if (snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect is not { } selected || selected.Binding.Effect != effect || snapshot.ReadFixturePresentation().NativeGraphics!.PrimitiveFrame is not { } frame)
         {
             return;
         }

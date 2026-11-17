@@ -68,14 +68,17 @@ public sealed class BattleSavedRepeatedDuelTests
                 BattleNativeDuelChoice choice = battle.GetNativeDuelChoices(actor.Id).First(candidate => candidate.Learned && !candidate.Finisher);
                 foreach (ushort button in choice.Buttons)
                 {
-                    battle.AdvanceNativeDuelPresentation(elapsed, 0);
-                    battle.AdvanceNativeDuelPresentation(elapsed, button);
+                    battle.SubmitNativeDuelInput(0);
+                    battle.AdvanceNativeGraphicsPresentation(elapsed);
+                    battle.SubmitNativeDuelInput(button);
+                    battle.AdvanceNativeGraphicsPresentation(elapsed);
                 }
                 acceptedMove = true;
             }
             battle.AdvanceNativeGraphicsPresentation(elapsed);
             world.SynchronizeBattlePresentation();
-            battle.AdvanceNativeDuelPresentation(elapsed, 0);
+            battle.SubmitNativeDuelInput(0);
+            battle.AdvanceNativeGraphicsPresentation(elapsed);
             if (invocations > completed && acceptedMove && battle.GetNativeDuel(actor.Id) is null && battle.ActiveAction is null && battle.QueuedActions.Count == 0)
             {
                 completed++;

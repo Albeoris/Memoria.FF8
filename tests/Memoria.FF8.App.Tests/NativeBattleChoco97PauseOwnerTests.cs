@@ -33,8 +33,8 @@ public sealed class NativeBattleChoco97PauseOwnerTests
         Assert.Equal(frame + 1, Program(running)!.ReadDword(0x98));
         Assert.Equal(7u, frozen.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezePrimary);
         Assert.Equal(7u, running.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezePrimary);
-        Assert.Equal(1u, frozen.ReadFixturePresentation().NativeEffectMemory.Choco97.FreezeSecondary);
-        Assert.Equal(0u, running.ReadFixturePresentation().NativeEffectMemory.Choco97.FreezeSecondary);
+        Assert.Equal(1u, frozen.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezeSecondary);
+        Assert.Equal(0u, running.ReadFixturePresentation().NativeEffectMemory!.Choco97!.FreezeSecondary);
 
         BattleSnapshot Continue(uint secondary)
         {

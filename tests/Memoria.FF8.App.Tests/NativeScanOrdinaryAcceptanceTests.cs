@@ -220,7 +220,7 @@ public sealed class NativeScanOrdinaryAcceptanceTests
 
     private static NativeBattleModulePoolTask? Result(BattleSnapshot snapshot) => snapshot.ReadFixturePresentation().NativeGraphics?.OriginalEffect?.Pools.SelectMany(pool => pool.Slots).FirstOrDefault(task => (task.Flags & 1) != 0 && task.Callback is 0x84FAF0 or 0x850FD0);
 
-    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
+    private static bool Released(BattleSnapshot snapshot) => snapshot.ActiveAction is null && snapshot.QueuedActions.Length == 0 && snapshot.NativeClock!.ActionPause == 0 && snapshot.ReadFixturePresentation().NativeGraphics!.Descriptors.Queue.IsEmpty && snapshot.ReadFixturePresentation().NativeGraphics!.OriginalEffect is { ReturnedDescriptor: 0 } effect && effect.Pools.All(pool => pool.Slots.All(task => (task.Flags & 1) == 0));
 
     private static int RgbChanges(byte[] first, byte[] second)
     {
