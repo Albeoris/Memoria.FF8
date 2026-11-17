@@ -120,6 +120,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())
         {
             Ff7AutoPlayNavigationGuard guard = entry.Value;
+            if (guard.NavigationKey is not null && guard.NavigationKey != observation.NavigationKey)
+            {
+                continue;
+            }
             if (guard.EventId is not string eventId)
             {
                 physicalGuards[entry.Key] = driver.ReadPhysicalAvailabilityFingerprint(guard.Entity, guard.BlockingEntities);

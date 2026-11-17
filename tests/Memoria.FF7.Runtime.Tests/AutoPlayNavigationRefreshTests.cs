@@ -9,6 +9,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckComponentAvailabilityProjection();
         CheckAvailabilitySourcePredicate();
         CheckRemoteMovementRegionProjection();
+        CheckOriginalScopedFailureContinuation();
         CheckOriginalControlledLadderContinuation();
         CheckOriginalForeignFrontierInvalidation();
         CheckSourceBoundaryCompatibility();
@@ -323,9 +324,68 @@ internal static class AutoPlayNavigationRefreshTests
         Ff7AutoPlayMovementFailure region = new(0, 20, 0, 40, 20, 40);
         string blocked = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [player, blocker], [blocker.Entity]);
         Ff7Actor elsewhere = player with { X4096 = 1000, Y4096 = -1000, Z4096 = 2000, Triangle = 2 };
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity]) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity]) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity]) != blocked, "A remote source-region projection hid changed native target eligibility.");
+        foreach (Ff7Actor inside in new[] { player with { X4096 = 0, Y4096 = 0, Z4096 = 20 }, player with { X4096 = 20, Y4096 = 40, Z4096 = 40 }, player with { X4096 = 11, Direction = 128 } })
+        {
+            Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [inside, blocker], [blocker.Entity]) == blocked, "Movement within inclusive fixed-point failure bounds changed its local scope.");
+        }
+        foreach (Ff7Actor outside in new[] { player with { X4096 = -1 }, player with { X4096 = 21 }, player with { Y4096 = -1 }, player with { Y4096 = 41 }, player with { Z4096 = 19 }, player with { Z4096 = 41 } })
+        {
+            Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [outside, blocker], [blocker.Entity]) != blocked, "Crossing a recorded failure bound did not reopen its local approach.");
+        }
+        Ff7AutoPlayMovementFailure xy = region with { MinZ = null, MaxZ = null };
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", xy, [player, blocker]) == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", xy, [player with { Z4096 = int.MaxValue }, blocker]), "An older XY-only failure acquired an unrecorded height boundary.");
+        string legacyWitness = $"native-source|movement-entry-admission:2|occupancy:{blocker.Entity}:{blocker.Model}:{blocker.X4096}:{blocker.Y4096}:{blocker.Z4096}:{blocker.Triangle}:{blocker.CollisionRadius}";
+        string legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(legacyWitness)));
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]) == legacy, "A legacy retained failure was revalidated before observing its actual native source.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [player, blocker], [blocker.Entity], retainedFingerprints: [legacy]) != legacy, "An actual source observation did not revalidate the obsolete optional scope contract.");
+        string moved = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]);
+        Check(moved != legacy, "A changed retained legacy collider did not reopen its original source proof.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]) == legacy, "A returned retained collider failed to restore the original legacy refusal after an intervening observation.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [blocked]) == blocked, "A newly recorded current-source refusal reopened when projected into its retained component.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy, moved]) == legacy, "A later recorded collider failure hid an earlier valid legacy refusal when its collider returned.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity]) != blocked, "The actual current source inherited unrelated retained membership.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false) != blocked, "A remote source-region projection hid changed native target eligibility.");
+    }
+
+    private static void CheckOriginalScopedFailureContinuation()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_SCOPED_FAILURE_SAVE");
+        string? game = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(game))
+        {
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream input = new(bytes, writable: false);
+        Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
+        using Ff7Session session = Ff7Session.Restore(Memoria.FF7.Resources.Ff7Installation.Discover(game), source);
+        Check(session.MapId == 553, "The scoped failure fixture requires its recorded source field.");
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The scoped failure continuation reached a new choice boundary."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        bool selected = false;
+        bool accepted = false;
+        session.InteractionScriptRequested += (entity, script, admitted) => accepted |= entity == 7 && script == 4 && admitted;
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection);
+        controller.Start();
+        HashSet<string> originalGuards = policy.State.NavigationGuards.Keys.ToHashSet(StringComparer.Ordinal);
+        for (int callback = 0; callback < 4096 && controller.Running && session.MapId == 553; callback++)
+        {
+            controller.Advance(1);
+            selected |= policy.State.Active?.EventId == "line:1:entity:7:script:4";
+
+        }
+        foreach (var entry in policy.State.NavigationGuards.Where(entry => !originalGuards.Contains(entry.Key)))
+        {
+            Console.WriteLine($"scoped continuation new guard event={entry.Value.EventId}, entity={entry.Value.Entity}, triangle={entry.Value.SourceTriangle}, blockers={string.Join(',', entry.Value.BlockingEntities ?? [])}, region={entry.Value.MovementFailure}");
+        }
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The scoped failure continuation changed its standalone source.");
+        Check(selected, $"The normal policy did not reopen its scoped LINE approach: {policy.Status}");
+        Check(session.MapId == 557 && controller.Error is null && accepted, $"The normal scoped continuation did not reach its selected native destination: map={session.MapId}, callbacks={controller.Steps}, accepted={accepted}, error={controller.Error}, status={policy.Status}");
+        Check(policy.State.PendingRestore is null && bytes.SequenceEqual(File.ReadAllBytes(path)), "The scoped failure continuation queued a replay or changed its standalone source.");
+        Console.WriteLine($"PASS original scoped failure reopens LINE and reaches its native destination after {controller.Steps} callbacks; source unchanged.");
     }
 
     private static void RejectUnknown(Func<AutoPlayEventAvailability> read)

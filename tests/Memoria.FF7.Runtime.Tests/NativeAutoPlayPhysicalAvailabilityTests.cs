@@ -258,7 +258,7 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Ff7Actor controlledSource = source with { PlayerControlled = true };
         string inside = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource]);
         Check(inside == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource with { Triangle = 1, X4096 = 5 * 4096, Y4096 = 5 * 4096, Z4096 = 105 * 4096 }]), "Ordinary movement within the native portal region or a triangle-only relabel prematurely reopened its local deferral.");
-        Check(inside == Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource with { Z4096 = 99 * 4096 }]), "Unchanged native portal eligibility was released by player height alone.");
+        Check(inside != Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("physical", region, [controlledSource with { Z4096 = 99 * 4096 }]), "Leaving the native portal height region did not release its local deferral.");
         Ff7AutoPlayTarget line = new("authored-line", 8, 2, Ff7AutoPlayTargetKind.LinePush, "conditions", false, waypoint);
         Ff7Actor blocker = source with { Entity = 3, Slot = 1, Model = 1, CollisionEnabled = true, CollisionRadius = 30 };
         Ff7Actor ambient = blocker with { Entity = 4, Slot = 2 };
