@@ -57,7 +57,15 @@ internal sealed partial class LauncherWindow
             UpdateOfficialModOverview();
             return;
         }
-        string language = SelectedResourceLanguage ?? "en";
+        if (SelectedResourceLanguage is not string language)
+        {
+            officialModNotifications = null;
+            officialModDetails.IsEnabled = false;
+            refreshOfficialMods.IsEnabled = false;
+            officialModStatus.Text = "No supported text resources found in the selected installation.";
+            UpdateOfficialModOverview();
+            return;
+        }
         string packageDirectory = AppContext.BaseDirectory;
         officialModNotifications = null;
         officialModDetails.IsEnabled = false;

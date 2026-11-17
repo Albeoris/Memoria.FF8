@@ -45,6 +45,101 @@ public sealed class ModPackageInstallerTests : IDisposable
         Assert.Empty(Installer().RecoverAndApply());
     }
 
+    [Fact]
+    public async Task UninstallWaitsForStartupAndAllowsReinstall()
+    {
+        ModPackageInstaller installer = Installer();
+        string zip = Zip(("mod.xml", Manifest()), ("a.bin", "owned"));
+        ModPackageInstallPlan plan = await installer.InspectAsync(zip, Entry(), TestContext.Current.CancellationToken);
+        await installer.RequestInstallAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([plan.PackageId]);
+        Assert.True(installer.GetStatus(Entry())!.CanUninstall);
+        installer.RequestUninstall(Entry());
+        Assert.True(Directory.Exists(plan.Destination));
+        Assert.True(installer.GetStatus(Entry())!.PendingRemoval);
+        ModPackageInstallPlan blocked = await installer.InspectAsync(zip, Entry(), TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => installer.RequestInstallAsync(blocked, cancellationToken: TestContext.Current.CancellationToken));
+        await installer.DiscardAsync(blocked, TestContext.Current.CancellationToken);
+        ModPackageInstallResult removed = Assert.Single(Installer().RecoverAndApply());
+        Assert.Null(removed.Error);
+        Assert.False(removed.Installed);
+        Assert.False(Directory.Exists(plan.Destination));
+        Assert.Null(Installer().GetStatus(Entry()));
+        Assert.Empty(Installer().RecoverAndApply());
+        ModPackageInstallPlan again = await installer.InspectAsync(zip, Entry(), TestContext.Current.CancellationToken);
+        await installer.RequestInstallAsync(again, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.True(Assert.Single(installer.RecoverAndApply()).Installed);
+        installer.CompleteStartupApplications([again.PackageId]);
+        Assert.True(installer.GetStatus(Entry())!.Installed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UninstallPreservesLocallyChangedFiles(bool afterRequest)
+    {
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest()), ("a.bin", "owned")), Entry(), TestContext.Current.CancellationToken);
+        await installer.RequestInstallAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([plan.PackageId]);
+        if (afterRequest)
+        {
+            installer.RequestUninstall(Entry());
+        }
+        File.WriteAllText(Path.Combine(plan.Destination, "personal.txt"), "preserve");
+        if (afterRequest)
+        {
+            Assert.Contains("Removal needs attention", Assert.Single(installer.RecoverAndApply()).Error!);
+            Assert.True(installer.GetStatus(Entry())!.PendingRemoval);
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => installer.RequestUninstall(Entry()));
+        }
+        Assert.Equal("preserve", File.ReadAllText(Path.Combine(plan.Destination, "personal.txt")));
+        Assert.Equal("owned", File.ReadAllText(Path.Combine(plan.Destination, "a.bin")));
+    }
+
+    [Fact]
+    public void UninstallDoesNotDeleteManualInstallations()
+    {
+        string manual = Path.Combine(Mods, "Junction", "manual");
+        Directory.CreateDirectory(manual);
+        File.WriteAllText(Path.Combine(manual, "mod.xml"), Manifest());
+        Assert.Throws<InvalidOperationException>(() => Installer().RequestUninstall(Entry()));
+        Assert.True(File.Exists(Path.Combine(manual, "mod.xml")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UninstallRecoversInterruptedMoveAndPartialCleanup(bool partialCleanup)
+    {
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan plan = await installer.InspectAsync(Zip(("mod.xml", Manifest()), ("a.bin", "owned")), Entry(), TestContext.Current.CancellationToken);
+        await installer.RequestInstallAsync(plan, cancellationToken: TestContext.Current.CancellationToken);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([plan.PackageId]);
+        installer.RequestUninstall(Entry());
+        string journalPath = Directory.GetFiles(Path.Combine(State, "removals")).Single();
+        JsonObject journal = JsonNode.Parse(File.ReadAllText(journalPath))!.AsObject();
+        string discarded = Path.Combine(State, "removed", Guid.Parse(journal["TransactionId"]!.GetValue<string>()).ToString("N"));
+        Directory.CreateDirectory(Path.GetDirectoryName(discarded)!);
+        Directory.Move(plan.Destination, discarded);
+        if (partialCleanup)
+        {
+            journal["Phase"] = "Removed";
+            File.WriteAllText(journalPath, journal.ToJsonString());
+            File.Delete(Path.Combine(discarded, "a.bin"));
+        }
+        Assert.Null(Assert.Single(Installer().RecoverAndApply()).Error);
+        Assert.False(Directory.Exists(discarded));
+        Assert.Null(Installer().GetStatus(Entry()));
+        Assert.Empty(Installer().RecoverAndApply());
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("/escape")]

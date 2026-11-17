@@ -16,7 +16,7 @@ Consumers use [logical resource/texture contracts](rendering.md), RGBA images an
 | Named tables | `tables/field-random`, `tables/world-random`, `tables/encounter-weights`, `tables/cosine`, `tables/vibration` |
 | Localized text | `text/draw-points`, `text/card-names`, `text/card-names-alternate`, `text/card-descriptions`, `text/enemy-scan` |
 
-Named guest tables require the authenticated English serialized image. The constructor accepts `en`, `fr`, `de`, `es`, `it` and `ja` resource languages, defaulting to `en`; the factory uses that default. Archive-language selection does not establish localized gameplay or text-decoder support. Localized field scripts resolve behind the same logical keys.
+Named guest tables require the authenticated English serialized image. The constructor accepts `en`, `fr`, `de`, `es`, `it` and `ja` resource languages, defaulting to `en`; the single-argument factory uses that default. The launcher probes actual text banks and passes its selected supported language into the primary source. This text-bank selection still requires the same authenticated English serialized image and runtime DLL; it does not admit other executable profiles. Archive-language selection does not establish localized gameplay or text-decoder support. Localized field scripts resolve behind the same logical keys.
 
 ## Runtime and consumer boundary
 

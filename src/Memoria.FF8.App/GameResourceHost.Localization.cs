@@ -157,7 +157,7 @@ internal sealed partial class GameResourceHost
                     }
                     if (!preparation.RequiresSelection && (preparation.Catalog.Values.Count != 0 || preparation.Catalog.Artwork.Count != 0))
                     {
-                        using var verification = GameDataSourceFactory.Open(gameDirectory);
+                        using var verification = GameDataSourceFactory.Open(gameDirectory, null, resourceLanguage);
                         if (preparation.Layers.Any(layer => layer.Project.Entries.Any(row => !string.IsNullOrEmpty(row.Target) && row.Category is not ("Fields" or "System"))))
                         {
                             knownLocalizationEntries ??= LocalizationSourceExporter.ReadNonFields(gameDirectory, source.Descriptor.Language, localizationCancellation.Token).Entries.ToDictionary(row => row.Key, StringComparer.Ordinal);

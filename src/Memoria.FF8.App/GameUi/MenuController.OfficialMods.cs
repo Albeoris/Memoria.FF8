@@ -119,6 +119,12 @@ public sealed partial class MenuController
             }
             rows.Add(new(new("official-" + component.Id, label + " · " + state, description + "\n" + (entry.CompatibilityError ?? CatalogStatus(entry)), Action: new("official-setting", CatalogIdentity(entry), Value: action), Enabled: action.Length > 0)));
         }
+        foreach (RemoteModEntry entry in OfficialEntries.Where(entry => ManagedMod(entry) is { CanUninstall: true, Pending: false } or { PendingRemoval: true }))
+        {
+            bool pending = ManagedMod(entry)!.PendingRemoval;
+            string state = pending ? "Uninstall pending | Restart required" : "Uninstall on restart";
+            rows.Add(new(new("official-uninstall-" + entry.Official!.Id, entry.Name + " ? " + state, "Removes this managed download on the next launch. Current game resources remain available until you exit.", Action: new("official-setting", CatalogIdentity(entry), Value: "uninstall"), Enabled: !pending)));
+        }
         AddBatchRow(rows, false);
         AddBatchRow(rows, true);
     }
@@ -202,6 +208,10 @@ public sealed partial class MenuController
         {
             selectedDownloadId = job.Id;
             Push("mods-downloads");
+        }
+        else if (action.Value == "uninstall" && ManagedMod(selected) is { CanUninstall: true, Pending: false })
+        {
+            modLibrary.Uninstall(selected);
         }
         else if (action.Value == "cancel-enable")
         {

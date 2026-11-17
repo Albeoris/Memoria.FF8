@@ -162,11 +162,21 @@ public sealed class ModLibraryServiceTests
         using ModLibraryService installed = new(installedCache, installer, mods, "test", true, client);
         await Until(() => installed.View.Jobs.FirstOrDefault()?.Phase == "Installed");
         Assert.True(installed.View.Jobs.Single().CanCancel);
-        installed.Cancel(jobId);
+        Assert.True(installed.View.Jobs.Single().CanDeleteDownload);
+        installed.DeleteDownload(jobId);
         await Until(() => !File.Exists(cachedPath));
         Assert.True(Directory.Exists(plan.Destination));
         Assert.True(installer.GetStatus(entry)!.Installed);
         Assert.Equal(0, requests);
+        await Until(() => installed.View.Installations.Any(item => item.CanUninstall));
+        installed.Uninstall(entry);
+        await Until(() => installed.View.Installations.Any(item => item.PendingRemoval));
+        Assert.True(Directory.Exists(plan.Destination));
+        Assert.True(installer.GetStatus(entry)!.PendingRemoval);
+        Assert.Null(Assert.Single(installer.RecoverAndApply()).Error);
+        Assert.False(Directory.Exists(plan.Destination));
+        await installed.StopAsync();
+        Directory.Delete(root, true);
     }
 
     private static async Task Until(Func<bool> condition)

@@ -68,6 +68,44 @@ public sealed class OfficialModDistributionTests : IDisposable
     }
 
     [Fact]
+    public async Task NativeUninstallRemovesOnlyManagedPayloadAndPreservesPreferences()
+    {
+        var (zip, entry) = Package("1.0.0");
+        ModPackageInstaller installer = Installer();
+        ModPackageInstallPlan plan = await installer.InspectAsync(zip, entry, Token);
+        await installer.RequestInstallAsync(plan, cancellationToken: Token);
+        installer.RecoverAndApply();
+        installer.CompleteStartupApplications([plan.PackageId]);
+        string preferences = Path.Combine(Mods, "Memoria", "memoria-settings.json");
+        const string settings = "{\"components\":{\"fixture\":false,\"Other\":true}}";
+        File.WriteAllText(preferences, settings);
+        Assert.True(installer.GetStatus(entry)!.CanUninstall);
+        installer.RequestUninstall(entry);
+        Assert.True(Directory.Exists(plan.Destination));
+        Assert.Null(Assert.Single(Installer("Classic/en/other-profile").RecoverAndApply()).Error);
+        Assert.False(Directory.Exists(plan.Destination));
+        Assert.Equal(settings, File.ReadAllText(preferences));
+        Assert.Empty(ModPackageInstaller.ReadOfficialInventory(Mods));
+        Assert.Null(installer.GetStatus(entry));
+    }
+
+    [Fact]
+    public void NativeUninstallProtectsMigratedOriginals()
+    {
+        string directory = Path.GetFullPath(OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId, Mods);
+        Directory.CreateDirectory(directory);
+        string artwork = Path.Combine(directory, "GirlNextDoor.png");
+        File.WriteAllText(artwork, "retained original");
+        Assert.True(ModPackageInstaller.RecordMigratedGirlNextDoor(Mods));
+        OfficialModComponent component = OfficialModCatalog.GirlNextDoor;
+        RemoteModEntry entry = new(OfficialModCatalog.SourceId, component.CatalogId, component.Name, "") { Official = component };
+        ModPackageInstaller installer = Installer();
+        Assert.False(installer.GetStatus(entry)!.CanUninstall);
+        Assert.Throws<InvalidDataException>(() => installer.RequestUninstall(entry));
+        Assert.Equal("retained original", File.ReadAllText(artwork));
+    }
+
+    [Fact]
     public async Task LegacyManagedFolderUpgradesWithoutDroppingItsSettings()
     {
         string directory = Path.GetFullPath(OfficialModCatalog.LegacyGirlNextDoorRuntimePackageId, Mods);

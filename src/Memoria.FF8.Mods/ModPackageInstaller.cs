@@ -36,6 +36,8 @@ public sealed record ModPackageInstallResult(Guid InstallationId, string Package
     public OfficialModComponent? Official { get; init; }
     public string? EngineVersionRange { get; init; }
     public bool PendingEnable { get; init; }
+    public bool PendingRemoval { get; init; }
+    public bool CanUninstall { get; init; }
     public string? NativeDestinationName { get; internal init; }
 }
 

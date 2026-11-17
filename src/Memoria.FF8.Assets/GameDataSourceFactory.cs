@@ -10,9 +10,10 @@ public static class GameDataSourceFactory
         return File.Exists(Path.Combine(gameDirectory, "main.zzz")) ? new Remastered.RemasteredGameDataSource(gameDirectory) : new ClassicGameDataSource(gameDirectory);
     }
 
-    public static IResourceSource Open(string gameDirectory, string? modelSourceDirectory)
+    public static IResourceSource Open(string gameDirectory, string? modelSourceDirectory, string? resourceLanguage = null)
     {
-        IResourceSource primary = Open(gameDirectory);
+        string? language = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
+        IResourceSource primary = File.Exists(Path.Combine(gameDirectory, "main.zzz")) ? new Remastered.RemasteredGameDataSource(gameDirectory, language ?? "en") : new ClassicGameDataSource(gameDirectory);
         if (string.IsNullOrWhiteSpace(modelSourceDirectory))
         {
             return primary;

@@ -26,6 +26,7 @@ public sealed partial class MenuController
         private int Count => downloads ? jobs.Length : entries.Length;
         private bool IsMemoriaPackage => !downloads && entries.ElementAtOrDefault(selected)?.Id == CatalogMemoriaId;
         private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected)?.Entry ?? menus.SelectedCatalog;
+        private bool CanUninstall => Entry is { } entry && menus.ManagedMod(entry) is { CanUninstall: true, Pending: false };
         private ModLibraryJob? Job => downloads ? jobs.ElementAtOrDefault(selected) : Entry is { } entry && menus.EntryJob(entry) is { } job && !(job.Phase == "Installed" && menus.ManagedRepairNeeded(entry)) ? job : null;
 
         public ModCatalogElement(MenuController menus)
@@ -74,10 +75,14 @@ public sealed partial class MenuController
             });
             Button("library-primary", PrimaryLabel(), Primary);
             controls["library-primary"].Enabled = CanPrimary();
-            Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : "More details", Secondary);
-            Button("library-cancel", Job?.CanInstall == true || Job?.Phase == "Installed" ? "Remove cached download" : "Cancel job", () =>
+            Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : CanUninstall ? "Uninstall on restart" : "More details", Secondary);
+            Button("library-cancel", Job?.CanDeleteDownload == true ? "Delete download" : "Cancel job", () =>
             {
-                if (Job is { CanCancel: true } job)
+                if (Job is { CanDeleteDownload: true } download)
+                {
+                    menus.modLibrary!.DeleteDownload(download.Id);
+                }
+                else if (Job is { CanCancel: true } job)
                 {
                     menus.modLibrary!.Cancel(job.Id);
                 }
@@ -194,6 +199,10 @@ public sealed partial class MenuController
             else if (Job is { CanResume: true } resume)
             {
                 menus.modLibrary!.Resume(resume.Id);
+            }
+            else if (CanUninstall && Entry is { } entry)
+            {
+                menus.modLibrary!.Uninstall(entry);
             }
             else
             {
@@ -341,7 +350,7 @@ public sealed partial class MenuController
             {
                 controls[id].Visible = showInspector;
             }
-            controls["library-cancel"].Visible = showInspector && Job?.CanCancel == true;
+            controls["library-cancel"].Visible = showInspector && (Job?.CanCancel == true || Job?.CanDeleteDownload == true);
             float actionWidth = (inspector.Width - gap) / 2;
             Place("library-primary", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
             Place("library-secondary", inspector.X + actionWidth + gap, inspector.Bottom - control * 2 - gap, actionWidth, control);

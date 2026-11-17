@@ -25,11 +25,12 @@ internal sealed partial class LauncherWindow
         TabStripPlacement = Dock.Left,
         ItemsPanel = new FuncTemplate<Panel?>(() => new StackPanel { Orientation = Orientation.Vertical })
     };
-    private readonly TextBlock launchContext = new() { Foreground = LauncherMuted, FontSize = 12 };
     private readonly List<Bitmap> launcherArtwork = [];
     private readonly List<(Border Frame, Grid Layout, TextBlock Heading, Image? Crest)> gameHeroes = [];
     private Control? ff8Home;
     private Control? ff7Home;
+    private Border? resourceLanguageCard;
+    private readonly TextBlock installationProblem = new() { Foreground = LauncherProblem, TextWrapping = TextWrapping.Wrap, IsVisible = false };
 
     internal static Border IncidentCard(Control content)
     {
@@ -103,7 +104,7 @@ internal sealed partial class LauncherWindow
         selectedGame.SelectedIndex = 0;
         ToolTip.SetTip(selectedGame, "Choose the game to launch. Both resource installations are kept.");
 
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 15) };
+        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), Margin = new Thickness(24, 14), ColumnSpacing = 12 };
         StackPanel brand = new() { Orientation = Orientation.Horizontal, Spacing = 9, VerticalAlignment = VerticalAlignment.Center };
         using (Stream? crestStream = typeof(LauncherWindow).Assembly.GetManifestResourceStream("Memoria.Launcher.Crest.png"))
         {
@@ -119,6 +120,9 @@ internal sealed partial class LauncherWindow
         header.Children.Add(brand);
         Grid.SetColumn(selectedGame, 1);
         header.Children.Add(selectedGame);
+        Control launchActions = CreateHeaderLaunchActions();
+        Grid.SetColumn(launchActions, 2);
+        header.Children.Add(launchActions);
 
         ff8Home = CreateFf8Home();
         ff7Home = CreateFf7Selection();
@@ -128,16 +132,15 @@ internal sealed partial class LauncherWindow
         launcherPages.ItemsSource = new[]
         {
             CreateLauncherTab("Play", home),
-            CreateLauncherTab("Mods", CreateModsPage()),
+            CreateLauncherTab("Mods", CreateModsPage(), scroll: false),
             CreateLauncherTab("Settings", CreateSettingsPage()),
             CreateLauncherTab("Updates", CreateUpdatesPage())
         };
         launcherPages.Margin = new Thickness(12, 8, 0, 0);
 
-        Grid shell = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid shell = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         Add(shell, new Border { Background = LauncherBackground, BorderBrush = LauncherBorder, BorderThickness = new Thickness(0, 0, 0, 1), Child = header }, 0);
         Add(shell, launcherPages, 1);
-        Add(shell, CreateLaunchFooter(), 2);
         Content = shell;
 
         selectedGame.SelectionChanged += (_, _) => UpdateSelectedGamePresentation();
@@ -154,18 +157,22 @@ internal sealed partial class LauncherWindow
         UpdateNavigationWidth();
     }
 
-    private static TabItem CreateLauncherTab(string name, Control content)
+    private static TabItem CreateLauncherTab(string name, Control content, bool scroll = true)
     {
         TabItem tab = new()
         {
             Header = name,
             Width = 142,
-            Content = new ScrollViewer
-            {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Content = new Border { Padding = new Thickness(24, 16, 28, 24), Child = content }
-            }
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
+            Content = scroll
+                ? new ScrollViewer
+                {
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = new Border { Padding = new Thickness(20, 12, 24, 16), Child = content }
+                }
+                : new Border { Padding = new Thickness(20, 12, 24, 16), Child = content }
         };
         tab.Classes.Add("launcher-nav");
         return tab;
@@ -183,7 +190,11 @@ internal sealed partial class LauncherWindow
         selection.Children.Add(installations);
         Grid.SetColumn(browse, 1);
         selection.Children.Add(browse);
-        content.Children.Add(LauncherCard("Game installation", "English Steam (2013) or Remastered. Remastered support is partial.", selection));
+        StackPanel installationContent = new() { Spacing = 8 };
+        installationContent.Children.Add(selection);
+        installationContent.Children.Add(installationProblem);
+        installationContent.Children.Add(cancel);
+        content.Children.Add(LauncherCard("Game installation", "English Steam (2013) or Remastered. Remastered support is partial.", installationContent));
 
         StackPanel shortcuts = new() { Spacing = 12 };
         TextBlock modSummary = LauncherDescription(string.Empty);
@@ -256,10 +267,13 @@ internal sealed partial class LauncherWindow
         graphicsBackend.HorizontalAlignment = HorizontalAlignment.Stretch;
         graphics.Children.Add(graphicsBackend);
         graphics.Children.Add(graphicsStatus);
+        graphics.Children.Add(tryAuto);
         page.Children.Add(LauncherCard("Graphics backend", "Choose the renderer for the shared engine.", graphics));
 
         resourceLanguage.HorizontalAlignment = HorizontalAlignment.Stretch;
-        page.Children.Add(LauncherCard("Resource language", "Auto follows the installed resources. Select matching game text and mod resources.", resourceLanguage));
+        resourceLanguageCard = LauncherCard("Resource language", "Choose among the languages available in the selected Remastered installation.", resourceLanguage);
+        resourceLanguageCard.IsVisible = false;
+        page.Children.Add(resourceLanguageCard);
 
 
         achievementsLocalOnly.Margin = new Thickness(0);
@@ -281,6 +295,12 @@ internal sealed partial class LauncherWindow
         media.Children.Add(mediaStatus);
         mediaSetup.HorizontalAlignment = HorizontalAlignment.Left;
         media.Children.Add(mediaSetup);
+        mediaProgressPanel.Margin = new Thickness(0);
+        mediaProgressPanel.Children.Add(mediaProgress);
+        mediaProgressText.TextWrapping = TextWrapping.Wrap;
+        mediaProgressPanel.Children.Add(mediaProgressText);
+        mediaProgressPanel.Children.Add(cancelMediaSetup);
+        media.Children.Add(mediaProgressPanel);
         advanced.Children.Add(LauncherCard("Video and audio", "FFmpeg is used for movie and replacement audio playback.", media));
 
         Button encodingEditor = new() { Content = "Open Encoding Editor…", HorizontalAlignment = HorizontalAlignment.Left };
@@ -298,77 +318,21 @@ internal sealed partial class LauncherWindow
         return page;
     }
 
-    private Control CreateLaunchFooter()
+    private Control CreateHeaderLaunchActions()
     {
-        // Activity belongs to the shell: page navigation must never hide progress,
-        // cancellation or graphics recovery while an asynchronous operation is active.
-        StackPanel footer = new() { Spacing = 8 };
-        mediaProgressPanel.Margin = new Thickness(0);
-        mediaProgressPanel.Children.Add(mediaProgress);
-        mediaProgressPanel.Children.Add(mediaProgressText);
-        mediaProgressText.TextWrapping = TextWrapping.Wrap;
-        mediaProgressText.MaxLines = 2;
-        mediaProgressText.TextTrimming = TextTrimming.WordEllipsis;
-        footer.Children.Add(mediaProgressPanel);
-
-        TextBlock updateActivity = LauncherDescription(string.Empty);
-        updateActivity.MaxLines = 2;
-        updateActivity.TextTrimming = TextTrimming.WordEllipsis;
-        updateActivity.Bind(TextBlock.TextProperty, updateStatus.GetObservable(TextBlock.TextProperty));
-        updateActivity.Bind(IsVisibleProperty, updateProgress.GetObservable(IsVisibleProperty));
-        updateProgress.Margin = new Thickness(0);
-        footer.Children.Add(updateActivity);
-        footer.Children.Add(updateProgress);
-
-        TextBlock recovery = LauncherDescription(string.Empty);
-        recovery.MaxLines = 3;
-        recovery.TextTrimming = TextTrimming.WordEllipsis;
-        recovery.Bind(TextBlock.TextProperty, graphicsStatus.GetObservable(TextBlock.TextProperty));
-        recovery.Bind(IsVisibleProperty, tryAuto.GetObservable(IsVisibleProperty));
-        footer.Children.Add(recovery);
-
-        Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        StackPanel information = new() { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 18, 0) };
-        information.Children.Add(launchContext);
-        status.FontSize = 12;
-        status.Foreground = LauncherMuted;
-        status.Padding = new Thickness(0, 3);
-        status.MinHeight = 0;
-        status.MaxHeight = 54;
-        status.AcceptsReturn = true;
-        ScrollViewer.SetHorizontalScrollBarVisibility(status, ScrollBarVisibility.Disabled);
-        ScrollViewer.SetVerticalScrollBarVisibility(status, ScrollBarVisibility.Auto);
-        information.Children.Add(status);
-        row.Children.Add(information);
-
-        StackPanel launchButtons = new() { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        Grid actions = new() { VerticalAlignment = VerticalAlignment.Center };
         foreach (Button button in new[] { play, startFf7 })
         {
-            // Enter remains local to focused controls, especially catalog search and selectors.
             button.IsDefault = false;
-            button.MinWidth = 158;
-            button.MinHeight = 44;
-            button.Padding = new Thickness(22, 10);
+            button.Content = "Play";
+            button.MinWidth = 112;
+            button.MinHeight = 40;
+            button.Padding = new Thickness(20, 8);
             button.HorizontalContentAlignment = HorizontalAlignment.Center;
-            button.Background = LauncherAccent;
-            button.Foreground = Brushes.White;
             button.FontWeight = FontWeight.SemiBold;
-            launchButtons.Children.Add(button);
-        }
-        play.Content = "Play FFVIII";
-        startFf7.Content = "Play FFVII · Debug";
-        Grid.SetColumn(launchButtons, 1);
-        row.Children.Add(launchButtons);
-        footer.Children.Add(row);
-
-        WrapPanel actions = new();
-        foreach (Button button in new[] { cancel, cancelMediaSetup, cancelUpdate, tryAuto })
-        {
-            button.Margin = new Thickness(0, 0, 8, 0);
             actions.Children.Add(button);
         }
-        footer.Children.Add(actions);
-        return new Border { Background = LauncherSurface, BorderBrush = LauncherBorder, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(24, 12), Child = footer };
+        return actions;
     }
 
     private void UpdateSelectedGamePresentation()
@@ -381,7 +345,6 @@ internal sealed partial class LauncherWindow
         }
         play.IsVisible = !ff7;
         startFf7.IsVisible = ff7;
-        launchContext.Text = ff7 ? "FINAL FANTASY VII · Experimental debug host" : "FINAL FANTASY VIII";
         Title = ff7 ? "Memoria — FINAL FANTASY VII (experimental)" : "Memoria — FINAL FANTASY VIII";
     }
 
@@ -391,8 +354,7 @@ internal sealed partial class LauncherWindow
         foreach (TabItem tab in launcherPages.Items.OfType<TabItem>())
         {
             tab.Width = Bounds.Width > 0 && Bounds.Width < 840 ? 108 : 142;
-            // The default wrap panel grows another navigation column when a global
-            // recovery message reduces available height. Keep one compact column.
+            // Keep navigation in one column even on a short working area.
             bool shortWindow = Bounds.Height > 0 && Bounds.Height < 500;
             tab.MinHeight = 0;
             tab.Height = shortWindow ? 32 : double.NaN;

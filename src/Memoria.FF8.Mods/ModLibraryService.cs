@@ -103,6 +103,10 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             throw new InvalidOperationException("This release has changed. Review the new download in the catalog.");
         }
         ModPackageInstallResult? status = installer.GetStatus(entry);
+        if (status?.PendingRemoval == true)
+        {
+            throw new InvalidOperationException("This mod is waiting to be uninstalled. Restart before downloading it again.");
+        }
         if (mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id))
         {
             if (status is null || mods.InstalledPackages.Any(package => package.JunctionMetadata?.Id == entry.Id && package.Id != status.PackageId))
@@ -171,7 +175,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     });
     public void Cancel(Guid id) => Post(() =>
     {
-        if (inspections.TryGetValue(id, out Inspection? state) && state.Result?.RestartRequired == true)
+        if (inspections.TryGetValue(id, out Inspection? state) && state.Result is { RestartRequired: true, PendingRemoval: false })
         {
             throw new InvalidOperationException("The installation is already staged for startup. Its transaction must finish or recover before removal.");
         }
@@ -205,6 +209,19 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             inspections.Remove(id);
         }
         QueueForJob(id).Cancel(id);
+    });
+
+    public void DeleteDownload(Guid id) => Cancel(id);
+
+    public void Uninstall(RemoteModEntry entry) => Post(() =>
+    {
+        if (Jobs.Where(job => job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id).Any(job => inspections.TryGetValue(job.JobId, out Inspection? inspection) && inspection.Installation is not null))
+        {
+            throw new InvalidOperationException("Installation is finishing. Wait before uninstalling this mod.");
+        }
+        installer.RequestUninstall(entry);
+        reconciledCatalog = null;
+        error = null;
     });
 
     public void Retry(Guid id) => Post(() =>
@@ -409,7 +426,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
                         {
                             if (installer.GetStatus(entry) is { } status)
                             {
-                                known.Add(new(entry.SourceId, entry.Id, status.Version, status.PackageId, status.RestartRequired) { Available = status.Installed || status.RestartRequired, Error = status.Error, PendingEnable = status.PendingEnable });
+                                known.Add(new(entry.SourceId, entry.Id, status.Version, status.PackageId, status.RestartRequired) { Available = status.Installed || status.RestartRequired, Error = status.Error, PendingEnable = status.PendingEnable, PendingRemoval = status.PendingRemoval, CanUninstall = status.CanUninstall });
                             }
                         }
                         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -541,7 +558,8 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
     private ModLibraryJob Project(DownloadJobSnapshot job)
     {
         inspections.TryGetValue(job.JobId, out Inspection? state);
-        bool pendingInstall = installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Pending && job.Entry.CompareVersion(item.Version) == 0);
+        bool pendingInstall = installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Pending && !item.PendingRemoval && job.Entry.CompareVersion(item.Version) == 0);
+        bool pendingRemoval = installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.PendingRemoval);
         bool installedCache = state?.Error is null && (job.Phase is ModDownloadPhase.Paused or ModDownloadPhase.ReadyToInstall) && installations.Any(item => item.SourceId == job.Entry.SourceId && item.Id == job.Entry.Id && item.Available && !item.Pending && job.Entry.CompareVersion(item.Version) == 0);
         string phase = job.Phase switch
         {
@@ -568,15 +586,21 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         {
             details = "The checked installation is already staged. Close all game instances and start the game again to apply it before resource loading. No network action is required.";
         }
+        if (pendingRemoval)
+        {
+            phase = "Uninstall pending";
+            details = "This managed mod will be removed before resources are loaded on the next launch. The current game keeps its existing resources until then.";
+        }
         bool transferring = job.Phase is ModDownloadPhase.Queued or ModDownloadPhase.Resolving or ModDownloadPhase.Downloading or ModDownloadPhase.WaitingToRetry;
         string? failure = state?.Error ?? (job.Phase is ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction ? job.Message : null);
         return new(job.JobId, job.Entry, phase, job.CompletedBytes, job.TotalBytes, job.BytesPerSecond, failure, details,
             transferring,
             job.Phase == ModDownloadPhase.Paused && !installedCache && !pendingInstall,
             !pendingInstall && (installedCache || transferring || job.Phase is ModDownloadPhase.Verifying or ModDownloadPhase.Paused or ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction || job.Phase == ModDownloadPhase.ReadyToInstall && state?.Result is null && state?.Installation is null),
-            !pendingInstall && !installedCache && state?.Plan is not null && state.Error is null && state.Result is null && state.Installation is null,
+            !pendingRemoval && !pendingInstall && !installedCache && state?.Plan is not null && state.Error is null && state.Result is null && state.Installation is null,
             state?.Error is not null || job.Phase is ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction)
         {
+            CanDeleteDownload = !pendingInstall && state?.Installation is null && (job.Phase is ModDownloadPhase.ReadyToInstall or ModDownloadPhase.Paused) && job.ArchivePath is not null,
             CanOpenDownloadPage = job.Phase == ModDownloadPhase.NeedsUserAction && openDownloadPage is not null
         };
     }

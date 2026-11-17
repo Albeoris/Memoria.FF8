@@ -78,6 +78,10 @@ public sealed partial class MenuController
 
     private string CatalogStatus(RemoteModEntry entry)
     {
+        if (ManagedMod(entry)?.PendingRemoval == true)
+        {
+            return "Uninstall pending | Restart required";
+        }
         if (entry.Official is null)
         {
             return LegacyCatalogStatus(entry);

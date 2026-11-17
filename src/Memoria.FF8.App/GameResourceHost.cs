@@ -21,7 +21,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     {
         this.gameDirectory = gameDirectory;
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
-        source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory);
+        source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory, this.resourceLanguage);
         Resources = new ResourceService(source, this.resourceLanguage);
         Mods = new ModRuntime(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory, format => ModCompatibility.IsCompatible(source.Descriptor.Edition, format), Prepare, watch, additionalBaseDirectories: [gameDirectory], modsDirectory: modsDirectory, junctionPackageAllowed: CanReadJunctionPackage, nativeRootUnavailable: NativeRootUnavailable, edition: source.Descriptor.Edition.ToString(), language: this.resourceLanguage ?? source.Descriptor.Language, obsoleteBundledPackage: path => Path.GetFileName(path) == OfficialModCatalog.LegacyGirlNextDoorSettingsKey && GirlNextDoorMigration.IsComplete(Mods!.PrimaryModsDirectory));
         Resources.ReplacementFailed += (key, exception) =>

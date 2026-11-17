@@ -16,7 +16,7 @@ internal sealed partial class LauncherWindow : Window
 {
     private readonly ComboBox installations = new() { MinHeight = 32, IsEditable = false };
     private readonly ComboBox resourceLanguage = new() { MinHeight = 32, MinWidth = 180 };
-    private string? SelectedResourceLanguage => (resourceLanguage.SelectedItem as ResourceLanguageChoice)?.Code;
+    private string? SelectedResourceLanguage => EffectiveResourceLanguage;
     private sealed record ResourceLanguageChoice(string? Code, string Label)
     {
         public override string ToString() => Label;
@@ -49,6 +49,7 @@ internal sealed partial class LauncherWindow : Window
     private readonly Button cancel = new() { Content = "Cancel scan", IsVisible = false };
     private readonly CancellationTokenSource discoveryLifetime = new();
     private bool busy;
+    private bool updatingInstallationSelection;
     private Process? runningGame;
     private GameUpdateSession? gameUpdateSession;
     private string? runningGameDirectory;
@@ -71,20 +72,23 @@ internal sealed partial class LauncherWindow : Window
         InitializeLauncherAppearance();
         browse.Click += async (_, _) => await BrowseAsync();
         cancel.Click += (_, _) => discoveryLifetime.Cancel();
-        installations.SelectionChanged += async (_, _) => await Task.WhenAll(ValidateSelectionAsync(), RecheckOfficialModSelectionAsync());
-        achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
-        resourceLanguage.ItemsSource = new ResourceLanguageChoice[]
+        installations.SelectionChanged += async (_, _) =>
         {
-            new(null, "Auto (installed resources)"),
-            new("en", "English"),
-            new("fr", "French"),
-            new("de", "German"),
-            new("es", "Spanish"),
-            new("it", "Italian")
+            if (updatingInstallationSelection)
+            {
+                return;
+            }
+            await RefreshResourceLanguagesAsync();
+            await Task.WhenAll(ValidateSelectionAsync(), RecheckOfficialModSelectionAsync());
         };
-        resourceLanguage.SelectedIndex = 0;
+        achievementsLocalOnly.IsCheckedChanged += (_, _) => SaveSelection();
         resourceLanguage.SelectionChanged += async (_, _) =>
         {
+            if (loadingResourceLanguages)
+            {
+                return;
+            }
+            configuredResourceLanguage = SelectedResourceLanguageOverride;
             SaveSelection();
             await RecheckOfficialModSelectionAsync();
         };
@@ -126,14 +130,23 @@ internal sealed partial class LauncherWindow : Window
             PopulateFf7Installations(settings.Ff7GameDirectory, []);
             SetModelSourceDirectory(settings.ModelSourceDirectory);
             achievementsLocalOnly.IsChecked = settings.AchievementsLocalOnly;
-            string? language = GameResourceLanguages.Normalize(settings.ResourceLanguage);
-            resourceLanguage.SelectedItem = resourceLanguage.Items.Cast<ResourceLanguageChoice>().Single(choice => choice.Code == language);
+            configuredResourceLanguage = settings.ResourceLanguage;
             IReadOnlyList<GameInstallation> found = await Task.Run(() => GameInstallationDiscovery.Find(warnings.Add, discoveryLifetime.Token), discoveryLifetime.Token);
-            installations.ItemsSource = GameInstallationSelection.Order(previous, found);
-            if (installations.Items.Count > 0)
+            updatingInstallationSelection = true;
+            try
             {
-                installations.SelectedIndex = 0;
+                installations.ItemsSource = GameInstallationSelection.Order(previous, found);
+                if (installations.Items.Count > 0)
+                {
+                    installations.SelectedIndex = 0;
+                }
             }
+            finally
+            {
+                updatingInstallationSelection = false;
+            }
+            await RefreshResourceLanguagesAsync();
+            await ValidateSelectionAsync();
             List<string> ff7Warnings = [];
             IReadOnlyList<GameInstallation> ff7Found = await Task.Run(() => GameInstallationDiscovery.Find(ff7Warnings.Add, discoveryLifetime.Token, ff7: true), discoveryLifetime.Token);
             PopulateFf7Installations(settings.Ff7GameDirectory, ff7Found);
@@ -302,6 +315,9 @@ internal sealed partial class LauncherWindow : Window
         {
             return;
         }
+        error ??= SelectedResourceLanguage is null ? "No supported text resources were found in the selected installation." : null;
+        installationProblem.Text = error;
+        installationProblem.IsVisible = error is not null;
         status.Foreground = error is null ? LauncherSuccess : LauncherProblem;
         status.Text = error ?? (OperatingSystem.IsWindows() ? "Game files found. Ready to play. Offline play is available without checking for updates." : "Game files found. " + LauncherCapabilities.GameStatus);
         SaveSelection();
@@ -318,7 +334,7 @@ internal sealed partial class LauncherWindow : Window
         {
             LauncherSettings settings = selected is null
                 ? LauncherSettings.Load(LauncherSettings.DefaultPath) with { CloseAfterLaunch = closeAfterLaunch.IsChecked == true, Ff7GameDirectory = selectedFf7GameDirectory, Appearance = SelectedLauncherAppearance }
-                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance);
+                : new LauncherSettings(selected.Directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguageOverride, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance);
             settings.Save(LauncherSettings.DefaultPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -520,6 +536,11 @@ internal sealed partial class LauncherWindow : Window
             status.Text = LauncherCapabilities.GameStatus;
             return;
         }
+        if (ResourceLanguageDiscoveryPending || SelectedResourceLanguage is null)
+        {
+            await LauncherDialogs.ShowAsync(this, "Game resources unavailable", "Wait for resource detection, or choose an installation containing supported text resources.");
+            return;
+        }
         GameInstallation? selected = resume is null ? installations.SelectedItem as GameInstallation : new GameInstallation(resume.GameDirectory, "Update resume");
         if (selected is null)
         {
@@ -697,7 +718,7 @@ internal sealed partial class LauncherWindow : Window
     {
         try
         {
-            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguage, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance).Save(LauncherSettings.DefaultPath);
+            new LauncherSettings(directory, achievementsLocalOnly.IsChecked == true, SelectedResourceLanguageOverride, selectedModelSourceDirectory, closeAfterLaunch.IsChecked == true, selectedFf7GameDirectory, SelectedLauncherAppearance).Save(LauncherSettings.DefaultPath);
             installations.ItemsSource = GameInstallationSelection.Order(directory, installations.Items.Cast<GameInstallation>());
             installations.SelectedIndex = 0;
         }
@@ -755,14 +776,13 @@ internal sealed partial class LauncherWindow : Window
         browse.IsEnabled = !busy;
         achievementsLocalOnly.IsEnabled = !busy;
         closeAfterLaunch.IsEnabled = !busy;
-        resourceLanguage.IsEnabled = !busy;
+        resourceLanguage.IsEnabled = !busy && CanSelectResourceLanguage;
         browseModelSource.IsEnabled = !busy;
         resetModelSource.IsEnabled = !busy;
         graphicsBackend.IsEnabled = !savingGraphicsBackend && !updating && !loadingGraphicsBackend && (!busy || runningGame is not null) && HostPlatforms.Current == HostPlatform.Windows;
         tryAuto.IsEnabled = !busy;
         mediaSetup.IsEnabled = !busy;
-        play.IsEnabled = !busy && LauncherCapabilities.CanLaunchGame;
-        launchContext.Foreground = play.IsEnabled ? LauncherSuccess : LauncherMuted;
+        play.IsEnabled = !busy && !ResourceLanguageDiscoveryPending && SelectedResourceLanguage is not null && LauncherCapabilities.CanLaunchGame;
         UpdateFf7Controls();
         releaseUpdate.IsEnabled = (!busy || runningGame is not null) && !updating && !checkingUpdates && LauncherCapabilities.CanUpdate;
         selectOtherRelease.IsEnabled = !busy && !checkingUpdates && LauncherCapabilities.CanUpdate;

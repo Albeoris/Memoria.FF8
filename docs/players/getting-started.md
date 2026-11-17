@@ -28,11 +28,11 @@ The launcher remembers the selected folder after a successful start and offers i
 
 ## Launcher pages
 
-**Play** selects the installed game; the header also offers experimental FINAL FANTASY VII. The launch button and active-operation progress stay available below every page.
+**Play** selects the installed game; the header also offers experimental FINAL FANTASY VII. The Play button stays in the upper-right corner, beside the game selector. Progress and cancellation appear on the relevant Settings or Updates page.
 
 **Mods** provides Installed and Catalog views with search, category filters, component enablement, details and download controls. Missing official components can be queued together. Use the in-game manager for advanced options and load order; see [Downloading mods](mod-library.md).
 
-**Settings** saves renderer, resource language, achievement connection and close-after-launch preferences. Appearance follows the system or uses Dark/Light immediately. Model resource overrides, FFmpeg setup and the Encoding Editor are under Advanced resources & tools.
+**Settings** saves renderer, achievement connection and close-after-launch preferences. Classic uses its installed text resources. Remastered offers a language selector only when multiple supported text banks are actually present. Appearance follows the system or uses Dark/Light immediately. Model resource overrides, FFmpeg setup and the Encoding Editor are under Advanced resources & tools.
 
 **Updates** has one download action. It uses GitHub's Latest release by default. Enable **Choose another release** to select another published tag, including prereleases and nightly. Tags appear newest first by update time, with their timestamp and time-zone offset. Packages are verified before installation; installing an older tag can downgrade the engine.
 

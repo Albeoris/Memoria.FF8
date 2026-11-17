@@ -8,7 +8,7 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
     private RemasteredGuestImage? guestImage;
     private bool runtimeCodeVerified;
 
-    public string? NativeExecutableHash => language == "en" && File.Exists(Path.Combine(gameDirectory, "FFVIII_EN.exe.dat")) ? SourceHash : null;
+    public string? NativeExecutableHash => File.Exists(Path.Combine(gameDirectory, "FFVIII_EN.exe.dat")) ? SourceHash : null;
     public string SourceHash
     {
         get
@@ -110,10 +110,6 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGame
     private RemasteredGuestImage RequireGuestImage()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (language != "en")
-        {
-            throw new NotImplementedException("Native guest data has no authenticated layout for the selected language.");
-        }
         if (guestImage is null)
         {
             string path = Path.Combine(gameDirectory, "FFVIII_EN.exe.dat");

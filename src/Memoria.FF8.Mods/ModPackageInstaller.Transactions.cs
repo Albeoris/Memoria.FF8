@@ -40,6 +40,10 @@ public sealed partial class ModPackageInstaller
                 }
                 string name = Path.GetFileName(plan.Destination);
                 string receiptPath = ReceiptPath(ManagedName(plan.Entry));
+                if (File.Exists(RemovalPath(ManagedName(plan.Entry))))
+                {
+                    throw new InvalidOperationException("This mod is waiting to be uninstalled. Restart before installing it again.");
+                }
                 Receipt? previous = Read<Receipt>(receiptPath);
                 string destination = Destination(plan.Entry.SourceId, name);
                 if (File.Exists(JournalPath(ManagedName(plan.Entry))))
@@ -97,15 +101,16 @@ public sealed partial class ModPackageInstaller
     /// <summary>Call before constructing the runtime or allowing any discovery/resource generation.</summary>
     public IReadOnlyList<ModPackageInstallResult> RecoverAndApply()
     {
+        IReadOnlyList<ModPackageInstallResult> removals = RecoverRemovals();
         if (!Directory.Exists(StatePath("journals", "")))
         {
-            return Array.Empty<ModPackageInstallResult>();
+            return removals;
         }
         gate.Wait();
         try
         {
             using FileStream installLock = AcquireLock();
-            List<ModPackageInstallResult> results = [];
+            List<ModPackageInstallResult> results = new(removals);
             string journals = StatePath("journals", "");
             if (!Directory.Exists(journals))
             {
@@ -165,6 +170,11 @@ public sealed partial class ModPackageInstaller
     public ModPackageInstallResult? GetStatus(RemoteModEntry entry)
     {
         string key = ManagedName(entry);
+        if (Read<Removal>(RemovalPath(key)) is { } removal)
+        {
+            ValidateRemoval(removal, RemovalPath(key));
+            return Result(removal.Receipt, true, false) with { PendingRemoval = true };
+        }
         Journal? journal = Read<Journal>(JournalPath(key));
         if (journal is not null)
         {
@@ -178,8 +188,12 @@ public sealed partial class ModPackageInstaller
         }
         if (entry.SourceId == OfficialModCatalog.SourceId)
         {
-            return entry.Official is { } component && CanUseInstalledDestination(component, receipt)
-                ? NativeResult(receipt) : Result(receipt, false, false, "The native installation receipt does not match this component.");
+            if (entry.Official is not { } component || !CanUseInstalledDestination(component, receipt))
+            {
+                return Result(receipt, false, false, "The native installation receipt does not match this component.");
+            }
+            ModPackageInstallResult status = NativeResult(receipt);
+            return status with { CanUninstall = status.Installed && !receipt.Migrated && receipt.Version.Length > 0 };
         }
         if (receipt.Schema != 1 || receipt.SourceId != entry.SourceId || receipt.ModId != entry.Id || receipt.Target != targetProfile || receipt.DestinationName != key + (receipt.Folder ? "" : ".iroj"))
         {
@@ -191,7 +205,7 @@ public sealed partial class ModPackageInstaller
         {
             return Result(receipt, false, false, "The managed installation was removed outside the mod manager.");
         }
-        return Result(receipt, false, true);
+        return Result(receipt, false, true) with { CanUninstall = true };
     }
 
     private void Apply(Journal journal, string journalPath)

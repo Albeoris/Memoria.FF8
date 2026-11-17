@@ -24,11 +24,13 @@ internal sealed partial class LauncherWindow
         StackPanel panel = new() { Margin = new Thickness(0, 0, 0, 14) };
         WrapPanel buttons = new();
         buttons.Children.Add(releaseUpdate);
+        buttons.Children.Add(cancelUpdate);
         cancelUpdate.Click += (_, _) => updateDownload?.Cancel();
         panel.Children.Add(buttons);
         panel.Children.Add(selectOtherRelease);
         panel.Children.Add(releaseChoices);
         panel.Children.Add(updateStatus);
+        panel.Children.Add(updateProgress);
         releaseUpdate.Click += async (_, _) => await InstallUpdateAsync();
         selectOtherRelease.IsCheckedChanged += async (_, _) =>
         {

@@ -1,6 +1,6 @@
 # Downloading mods
 
-The launcher also provides **Mods > Installed / Catalog** with search, category filters, component toggles, details, downloads and transfer controls. **Download missing components** queues compatible missing official components. The launcher releases its download queue before starting the game; saved transfers remain resumable. Advanced configuration and load order use the in-game manager.
+The launcher also provides **Mods > Installed / Catalog** with search, category counts, component toggles, details, downloads and transfer controls. Select a mod in the left list to read its scrollable description on the right; drag the divider to resize the columns. **Download missing components** queues compatible missing official components. Unavailable downloads show their reason; engine-delivered components are excluded from this action. The launcher releases its download queue before starting the game; saved transfers remain resumable. Advanced configuration and load order use the in-game manager.
 
 Open **Mods** from the game menu. **Installed**, **Catalog**, **Downloads** and **Create** keep local configuration, online discovery, transfer progress and authoring separate.
 
@@ -28,6 +28,12 @@ An exact local Junction manifest GUID associates a manual mod with a catalog ent
 Supported downloads are a full standalone IROJ, or a ZIP/7z containing one IROJ or one unpacked Junction package. The inner IROJ and conditional folders remain intact. GUID and release version must match the selected catalog release. Existing reviewed executable-behavior rules still apply; unknown code is never executed.
 
 Packages needing multiple component choices, coordinated dependency/option relationships, delta patching, unsupported extraction directives or a change between archive and directory installation shapes are blocked with an explanation. This release does not provide automatic adoption or uninstall of manual mods. Unsupported or ambiguous packages remain available for investigation without touching installed files.
+
+## Removing downloaded mods
+
+Both the launcher and the in-game manager provide separate actions for downloaded archives and installed mods. **Delete downloaded archive** / **Delete download** reclaims cached download space while keeping the installed mod. **Uninstall** / **Uninstall on restart** schedules removal of a manager-owned installation before resources load on the next game start. Active resources remain available until that boundary.
+
+Only verified managed payloads are removed. Manual installations, migrated originals and locally modified payloads are preserved; a failed verification explains why removal could not proceed. Native component preferences stay in the central settings file. Deleting an archive and uninstalling a mod are independent operations.
 
 ## Controls and storage
 

@@ -241,6 +241,39 @@ public sealed class ModCatalogUiTests
     }
 
     [Fact]
+    public void CompletedDownloadHasDistinctDeleteAndManagedUninstallActions()
+    {
+        Library service = new();
+        RemoteModEntry entry = service.View.Catalog.Entries[0];
+        service.Managed(entry, entry.Version);
+        service.AllowUninstall();
+        Guid id = Guid.NewGuid();
+        service.Publish(jobs: [Job(id, entry, "Installed", cancel: true) with { CanDeleteDownload = true }]);
+        MenuController menu = Menu(service, "mods-downloads");
+        Element(Arrange(menu), "commands").Key(UiKey.Confirm);
+        UiButton delete = Assert.IsType<UiButton>(Element(Arrange(menu), "library-cancel"));
+        Assert.True(delete.Visible);
+        Assert.Equal("Delete download", delete.Text);
+        delete.Key(UiKey.Confirm);
+        UiButton uninstall = Assert.IsType<UiButton>(Element(Arrange(menu), "library-secondary"));
+        Assert.Equal("Uninstall on restart", uninstall.Text);
+        uninstall.Key(UiKey.Confirm);
+        Assert.Equal(["delete:" + id, "uninstall:" + entry.Name], service.Commands);
+    }
+
+    [Fact]
+    public void UnmanagedCatalogEntryDoesNotOfferUninstall()
+    {
+        Library service = new();
+        MenuController menu = Menu(service);
+        Element(Arrange(menu), "commands").Key(UiKey.Confirm);
+        UiButton secondary = Assert.IsType<UiButton>(Element(Arrange(menu), "library-secondary"));
+        Assert.Equal("More details", secondary.Text);
+        Assert.False(Element(Arrange(menu), "library-cancel").Visible);
+        Assert.Empty(service.Commands);
+    }
+
+    [Fact]
     public void OpeningStaleCatalogRefreshesOnceAndFramePollingDoesNotRetry()
     {
         Library service = new();
@@ -457,6 +490,7 @@ public sealed class ModCatalogUiTests
         public void UseOfficialProfile() => View = View with { TargetProfile = "Classic/fr/test", OfficialSupported = true };
         public void MarkStale() => View = View with { Catalog = View.Catalog with { IsStale = true, Error = "Source unavailable" } };
         public void Managed(RemoteModEntry entry, string version, bool available = true) => View = View with { Installations = [new(entry.SourceId, entry.Id, version, "local-package", false) { Available = available, Error = available ? null : "Synthetic missing package." }] };
+        public void AllowUninstall() => View = View with { Installations = View.Installations.Select(item => item with { CanUninstall = true }).ToArray() };
         public void Publish(IReadOnlyList<RemoteModEntry>? entries = null, IReadOnlyList<ModLibraryJob>? jobs = null) => View = View with { Revision = View.Revision + 1, Catalog = View.Catalog with { Entries = entries ?? View.Catalog.Entries }, Jobs = jobs ?? View.Jobs };
         public void RefreshCatalog() => Commands.Add("refresh");
         public void Queue(RemoteModEntry entry) => Commands.Add("queue:" + entry.Name);
@@ -464,6 +498,8 @@ public sealed class ModCatalogUiTests
         public void Pause(Guid id) => Commands.Add("pause:" + id);
         public void Resume(Guid id) => Commands.Add("resume:" + id);
         public void Cancel(Guid id) => Commands.Add("cancel:" + id);
+        public void DeleteDownload(Guid id) => Commands.Add("delete:" + id);
+        public void Uninstall(RemoteModEntry entry) => Commands.Add("uninstall:" + entry.Name);
         public void Install(Guid id) => Commands.Add("install:" + id);
         public void Retry(Guid id) => Commands.Add("retry:" + id);
         public void OpenDownloadPage(Guid id) => Commands.Add("open:" + id);
