@@ -364,6 +364,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void CompleteActive(Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, bool changedField)
     {
+        Ff7AutoPlayActiveEvent completed = RefreshCompletedGatewayTravel(observation, active);
+        if (!ReferenceEquals(completed, active))
+        {
+            active = completed;
+            State.Active = active;
+        }
         if (active.TravelRoute is { } route)
         {
             AutoPlayTravelChoice.RequireComplete(route, active.TravelSelections);

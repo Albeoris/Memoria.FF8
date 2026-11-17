@@ -6,6 +6,30 @@ namespace Memoria.FF7.Runtime;
 public sealed partial class Ff7Session
 {
     private readonly Dictionary<ushort, int[]> autoPlayFieldConnections = [];
+    private readonly Dictionary<ushort, (string Identity, PcFieldGateway[] Gateways)> autoPlayGatewayDescriptors = [];
+
+    internal bool MatchesAutoPlayGateway(ushort field, string visitId, string eventId, string condition, int destination)
+    {
+        string[] parts = eventId.Split(':');
+        if (!IsKnownAutoPlayDestination(field) || parts.Length != 2 || parts[0] != "gateway" || !int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int index))
+        {
+            return false;
+        }
+        if (!autoPlayGatewayDescriptors.TryGetValue(field, out var descriptor))
+        {
+            PcFieldFile file = PcFieldFile.ReadCompressed(fields.ReadEntry(fields.Find(mapList[field]).Single()));
+            PcFieldScripts scripts = PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span);
+            PcFieldTriggers triggers = PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span);
+            descriptor = (FieldProgram.FromPcScripts(scripts).Identity, triggers.Gateways.ToArray());
+            autoPlayGatewayDescriptors[field] = descriptor;
+        }
+        if ((uint)index >= descriptor.Gateways.Length || visitId != $"ff7:{field}:{descriptor.Identity}" || descriptor.Gateways[index].DestinationField != destination)
+        {
+            return false;
+        }
+        string native = $"{descriptor.Identity}:gateway:{index}:{destination}:{descriptor.Gateways[index].DestinationTriangle}";
+        return condition == native || condition == native + ":native-transfer:1";
+    }
 
     internal int[] ReadAutoPlayFieldConnections(ushort field)
     {
@@ -21,7 +45,9 @@ public sealed partial class Ff7Session
         PcFieldScripts scripts = PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span);
         PcFieldTriggers triggers = PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span);
         HashSet<int> destinations = triggers.Gateways.Select(gateway => (int)gateway.DestinationField).Where(destination => destination > 64 && destination < mapList.Count).ToHashSet();
-        FieldMachine inspection = new(FieldProgram.FromPcScripts(scripts));
+        FieldProgram program = FieldProgram.FromPcScripts(scripts);
+        autoPlayGatewayDescriptors[field] = (program.Identity, triggers.Gateways.ToArray());
+        FieldMachine inspection = new(program);
         HashSet<ushort> entries = [];
         for (int entity = 0; entity < scripts.Entities.Count; entity++)
         {

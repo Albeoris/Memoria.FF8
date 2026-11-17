@@ -45,6 +45,7 @@ internal static class AutoPlayChoiceWorkflowTests
         RunStableFieldIdentity();
         RunRecordedTravelChoices();
         RunChangedTravelChoice();
+        RunCompletedGatewayAdvice();
 
         Ff7AutoPlayChoiceWorkflow CreateWorkflow()
         {
@@ -156,6 +157,70 @@ internal static class AutoPlayChoiceWorkflowTests
         Check(coverage.Routes.Count == 0 && coverage.RetiredRoutes.Count == 2 && coverage.GlobalRouteRediscovery, "Reached legacy choice routes were not retired and scheduled for current-domain observation.");
         Check(state.Coverage.Visits.Single().Events.Single(item => item.Event.Id == "unrelated").Routes.Count == 1, "Choice identity migration retired an unrelated event's route.");
         Check(state.Choice is not null && state.Coverage.Choices.Single().ActiveOption == 2 && checkpoints == 1 && state.PendingRestore is null, "Changed travel did not explore its currently reached native choice from an exact before-choice checkpoint.");
+    }
+
+    private static void RunCompletedGatewayAdvice()
+    {
+        string source = "ff7:100:source-native";
+        string destination = "ff7:200:destination-native";
+        string condition = "source-native:gateway:0:200:3:native-transfer:1";
+        AutoPlayChoiceSelection incidental = new("historical-approach-choice", 0);
+        AutoPlayEventRoute route = new(destination, condition, false, [incidental], "gateway:0");
+        Ff7AutoPlayActiveEvent active = new(source, "gateway:0", condition, 1, -1, -1, Ff7AutoPlayTargetKind.Gateway, 200, 10, "before-native-transfer", NavigationKey: "source-component", TravelRoute: route, TravelSelections: []);
+        Ff7AutoPlayObservation observation = new(destination, "destination-native", 2, [], true, true) { NavigationKey = "destination-component" };
+        Ff7AutoPlayState state = new() { Active = active };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+        AutoPlayEvent gateway = new(active.EventId, AutoPlayEventKind.Transition, ConditionSignature: condition);
+        planner.Observe(new(source, "source-native"), [gateway]);
+        planner.ObserveNavigation(source, active.NavigationKey!, [gateway]);
+        planner.Observe(new(destination, "destination-native"), []);
+        planner.ObserveNavigation(destination, observation.NavigationKey, []);
+        planner.ObserveChoice(incidental.Key, 2);
+        planner.Completed(source, gateway.Id, destination, observedStoryChanged: false, selections: route.Selections, entrySignature: condition, entrySignatureAuthoritative: true, targetId: gateway.Id);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == source).Events.Single();
+        string history = JsonSerializer.Serialize(state.Coverage);
+        string choices = JsonSerializer.Serialize(state.Coverage.Choices);
+        Ff7AutoPlayActiveEvent refreshed = Ff7AutoPlayPolicy.RefreshCompletedGatewayTravel(active, observation, nativeGatewayProved: true, liveChoice: false);
+        AutoPlayTravelChoice.RequireComplete(refreshed.TravelRoute!, refreshed.TravelSelections);
+        Check(refreshed.TravelRoute!.Selections is { Count: 0 } && refreshed.TravelSelections is { Count: 0 } && !refreshed.Accepted && !refreshed.TransitionOwned, "An actually proved native gateway handoff may refresh only its selected zero-choice advice without inventing script acceptance or transition-owner flags.");
+        Check(route.Selections!.SequenceEqual([incidental]) && JsonSerializer.Serialize(state.Coverage) == history, "Refreshing derived gateway advice must preserve the historical route, all choice ledgers and all source coverage.");
+        Ff7AutoPlayPolicy.RecordControlReturn(planner, refreshed, observation, navigationReceipt: true, exitSignature: null, progressChanged: false, selections: refreshed.TravelSelections!);
+        Check(coverage.Routes.Any(known => known.Selections!.SequenceEqual([incidental])) && coverage.Routes.Any(known => known.Selections is { Count: 0 }) && JsonSerializer.Serialize(state.Coverage.Choices) == choices, "Normal completion must append the actual zero-choice route while retaining the earlier journey and its choices.");
+        Reject(active, observation, nativeProof: false);
+        Reject(active, observation, liveChoice: true);
+        Reject(active with { Kind = Ff7AutoPlayTargetKind.ActorTalk, Entity = 1, Script = 1 }, observation);
+        Reject(active with { Entity = 1 }, observation);
+        Reject(active with { Script = 1 }, observation);
+        Reject(active with { DestinationField = 201 }, observation);
+        Reject(active, observation with { VisitId = "ff7:201:other" });
+        Reject(active, observation with { Generation = active.Generation });
+        Reject(active with { VisitId = destination }, observation);
+        Reject(active with { ConditionFingerprint = "changed-source-condition" }, observation);
+        Reject(active with { TravelRoute = route with { TargetId = "other-event" } }, observation);
+        Reject(active with { TravelRoute = route with { DestinationVisitKey = "ff7:201:other" } }, observation);
+        Reject(active with { TravelRoute = route with { Selections = [incidental, new("next-choice", 1)] }, TravelSelections = [incidental] }, observation);
+        Reject(active with { TravelSelections = [new("unexpected-choice", 1)] }, observation);
+        Ff7AutoPlayActiveEvent complete = active with { Kind = Ff7AutoPlayTargetKind.ActorTalk, TravelSelections = [incidental] };
+        Check(ReferenceEquals(Ff7AutoPlayPolicy.RefreshCompletedGatewayTravel(complete, observation, nativeGatewayProved: false, liveChoice: false), complete), "An already authenticated recorded choice execution must keep the existing completion contract unchanged.");
+        AutoPlayTravelChoice.RequireComplete(complete.TravelRoute!, complete.TravelSelections);
+        Ff7AutoPlayActiveEvent old = active with { TravelRoute = route with { Selections = [] }, TravelSelections = null };
+        Ff7AutoPlayActiveEvent restored = Ff7AutoPlayPolicy.RefreshCompletedGatewayTravel(old, observation, nativeGatewayProved: true, liveChoice: false);
+        AutoPlayTravelChoice.RequireComplete(restored.TravelRoute!, restored.TravelSelections);
+
+        static void Reject(Ff7AutoPlayActiveEvent attempt, Ff7AutoPlayObservation actual, bool nativeProof = true, bool liveChoice = false)
+        {
+            Ff7AutoPlayActiveEvent result = Ff7AutoPlayPolicy.RefreshCompletedGatewayTravel(attempt, actual, nativeProof, liveChoice);
+            bool rejected = false;
+            try
+            {
+                AutoPlayTravelChoice.RequireComplete(result.TravelRoute!, result.TravelSelections);
+            }
+            catch (NotSupportedException)
+            {
+                rejected = true;
+            }
+            Check(rejected && ReferenceEquals(result, attempt), "A genuine replay mismatch, missing native proof, partial prefix or live choice must retain strict shared completion rejection.");
+        }
     }
 
     private static string ReadFieldChoiceKey(Ff7SessionSave snapshot, string condition)
