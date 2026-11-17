@@ -109,7 +109,7 @@ public sealed class NativeBattleAiVariableAliasTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 71, SceneSlot = 0, Level = 5, NativeTemplate = template, NativeAi = Program(init) }
             ]
         }, BattleAtbMode.Normal);
-        DetachedExpandedAiFixture.DispatchLeadingInitializers(battle);
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
         return battle;
     }
 
@@ -130,7 +130,7 @@ public sealed class NativeBattleAiVariableAliasTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 71, NativeAi = ai }
             ]
         }, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
         return battle;
     }
 }

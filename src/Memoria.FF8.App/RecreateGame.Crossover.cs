@@ -317,7 +317,6 @@ internal sealed partial class RecreateGame
             keyboard.ControllerGeneration = controller.Generation;
             var input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), physicalInput.CanRead && !focusPaused && IsActive);
             crossoverSetup.Update(input, physicalInput.ReadMouse(), GraphicsDevice.Viewport.Bounds);
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
         if (!InFf7)
@@ -335,13 +334,11 @@ internal sealed partial class RecreateGame
             InputFrame input = keyboard.Read(windowModeHotkey.Filter(physicalInput.ReadKeyboard()), physicalInput.ReadController(), physicalInput.CanRead && !focusPaused && IsActive);
             UpdatePlayerSavePointer();
             UpdatePlayerSaveMenuAsync(input);
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
         ff7Scene!.SetFocusPaused(focusPaused || updateSave.Paused);
         if (updateSave.Paused)
         {
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return true;
         }
         if (UpdateFocusPause())
@@ -362,7 +359,6 @@ internal sealed partial class RecreateGame
             return true;
         }
         UpdateDiagnosticExit(time);
-        presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
         return true;
     }
 

@@ -170,9 +170,7 @@ public sealed partial class BattleSession
             return retainedCrisis;
         }
         bool disabled = definition.NativeLimitsDisabled ?? throw new NotSupportedException("Native Limit selection requires the actual battle prohibition flag.");
-        int deadParty = combatants.Count(member => member.IsPlayer && member.IsActive && (NativeSavedStatusBits(member) & 1) != 0);
-            // The expanded roster saturates the KO contribution at the original physical party capacity.
-            deadParty = Math.Min(deadParty, NativeBattleSlots.AllyCount);
+        int deadParty = allies.Count(member => member.IsActive && member.Slot is not null && (NativeSavedStatusBits(member) & 1) != 0);
         ushort savedStatuses = NativeSavedStatusBits(actor);
         uint battleStatuses = NativeBattleStatusBits(actor);
         byte roll = disabled || (battleStatuses & 0x200) != 0 ? (byte)0 : (byte)NextRandomByte();

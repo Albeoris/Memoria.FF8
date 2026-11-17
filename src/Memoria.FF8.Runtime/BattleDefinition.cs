@@ -449,9 +449,6 @@ public sealed record BattleSnapshot
     public BattleStock[] ScriptedRewards { get; init; } = [];
     public BattleStock[]? NativeRewardItems { get; init; }
     [JsonIgnore]
-    internal byte? LastNativeHealing { get; set; }
-    internal bool NativeAllocationPendingStatistics { get; set; }
-    internal NativeBattleLastAction? LastNativeAction { get; set; }
     internal BattlePreviousTarget? NativeLastAllocatedTarget { get; init; }
     public NativeBattleScriptState NativeScriptState { get; init; } = new();
     public BattleNativeLimitState[] NativeLimits { get; init; } = [];
@@ -554,6 +551,9 @@ public sealed partial class BattleCombatant
     internal Dictionary<int, string> AiActorReferences { get; } = [];
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
+    internal byte? LastNativeHealing { get; set; }
+    internal bool NativeAllocationPendingStatistics { get; set; }
+    internal NativeBattleLastAction? LastNativeAction { get; set; }
     internal BattlePreviousTarget? PreviousAiTarget { get; set; }
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }

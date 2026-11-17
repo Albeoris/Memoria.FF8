@@ -223,8 +223,13 @@ public sealed partial class BattleSession
             NativeQueuedCommand = 2,
             NativeSequence = mod.CastingSequence,
             NativeAction = spell.NativeAction,
-            MagicCasts = repeats.Select(selection => new BattleMagicCastInvocation(Request(selection), selection,
-                selection is BattleTargetSelection.Explicit { Actors: [var first, ..] } ? first : TargetActorReference(GetActor(targets[0])))).ToImmutableArray()
+            MagicCasts = repeats.Select(selection =>
+            {
+                BattleActorReference anchor = selection is BattleTargetSelection.Explicit { Actors: [var first, ..] }
+                    ? first : TargetActorReference(GetActor(targets[0]));
+                BattleRosterSlot slot = GetActor(anchor.ActorId).Slot ?? throw new InvalidOperationException("Encounter repeated magic requires an occupied target slot.");
+                return new BattleMagicCastInvocation(Request(selection), selection, anchor) { PreflightSlot = slot };
+            }).ToImmutableArray()
         };
         ProduceExpandedAiCallbackCommand(command);
         return targets;

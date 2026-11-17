@@ -51,7 +51,8 @@ public sealed class NativeBattleAiRegionalContinuationTests
 
     private static bool HasEnemyTurn(BattleSession battle)
     {
-        return battle.QueuedActions.Any(action => action.NativeAiCallbackStage == 1 && battle.Combatants.Any(actor => !actor.IsPlayer && actor.Id == action.ActorId)) || battle.ActiveAction is { NativeAiCallbackStage: 1 } active && battle.Combatants.Any(actor => !actor.IsPlayer && actor.Id == active.ActorId);
+        return battle.QueuedActions.Any(action => action.ExpandedAiCallback is { Stage: 1 }) ||
+            battle.ActiveAction is { ExpandedAiCallback.Stage: 1 };
     }
 
     private static GameSession CreateSession(GameAssets assets)

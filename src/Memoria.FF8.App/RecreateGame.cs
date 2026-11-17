@@ -173,6 +173,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        presentationPacer.BeginUpdate(appliedFrameLimit ?? 60, Stopwatch.GetTimestamp());
         using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
@@ -198,14 +199,12 @@ internal sealed partial class RecreateGame : Game
         if (UpdateWindowCloseConfirmation())
         {
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return;
         }
         if (authoringExitRequested && localizationWorkbench.Enabled && !dialogContext.IsBusy)
         {
             UpdateLocalizationAuthoring(gameTime.ElapsedGameTime);
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return;
         }
         if (dialogContext.IsBusy)
@@ -213,7 +212,6 @@ internal sealed partial class RecreateGame : Game
             dialogInputBlocked = true;
             UpdateGameConfirmation();
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             return;
         }
         if (dialogInputBlocked)
@@ -242,7 +240,6 @@ internal sealed partial class RecreateGame : Game
         }
         if (updateSave.Paused)
         {
-            presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
             return;
         }

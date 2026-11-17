@@ -122,7 +122,6 @@ public sealed class DiagnosticSlotsObservationFactsTests
             [
                 new() { Id = "selphie", Name = "Selphie", IsPlayer = true, NativeStatusResistances = new byte[40], Level = 20, ModelId = 5, InitialAtb = BattleSession.AtbMaximum, NativeLimit = missing == "limit-owner" ? null : rules },
                 new() { Id = "dead", Name = "Dead", IsPlayer = true, NativeStatusResistances = new byte[40], CurrentHp = 0, NativeStatus0 = 1 },
-                new() { Id = "inactive", Name = "Inactive", SceneSlot = 1, NativeStatusResistances = new byte[40], CurrentHp = 0, InitialActive = false },
                 new() { Id = "enemy", Name = "Enemy", SceneSlot = 0, NativeStatusResistances = new byte[40], Speed = 1 }
             ]
         }, BattleAtbMode.TurnBased);

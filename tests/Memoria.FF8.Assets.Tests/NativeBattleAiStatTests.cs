@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -74,7 +76,16 @@ public sealed class NativeBattleAiStatTests
     private static BattleSession AdmitInitial(BattleDefinition definition)
     {
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.Tick();
+        BattleCombatant actor = battle.Combatants.Single(candidate => !candidate.IsPlayer);
+        MethodInfo execute = typeof(BattleSession).GetMethod("RunNativeAi", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            execute.Invoke(battle, [actor, 0]);
+        }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Throw(error.InnerException);
+        }
         return battle;
     }
 

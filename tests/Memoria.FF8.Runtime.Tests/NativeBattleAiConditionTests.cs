@@ -34,7 +34,7 @@ public sealed class NativeBattleAiConditionTests
         BattleDefinition definition = Definition(Condition(1, 200, 0, 10));
         definition = definition with { Combatants = [definition.Combatants[0] with { MaximumHp = 101, CurrentHp = 25 }, definition.Combatants[1]] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
 
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(NativeBattleRandomState.Initialize(0).Indexes.ToArray(), battle.Capture().Random!.Indexes.ToArray());
@@ -102,7 +102,7 @@ public sealed class NativeBattleAiConditionTests
     }
 
     [Fact]
-    public void TimerConditionUsesCurrentBattleCallbacksInsteadOfAStaleEntryValue()
+    public void TimerConditionUsesTheCurrentNativeTimerAcrossTheLogicalBoundary()
     {
         NativeExamTimerState timer = NativeExamTimerState.FromColdProcess() with { TimerMemoryActivated = true, Alternatives = [new(NativeExamTimerState.Threshold - 1, NativeExamTimerState.Threshold - 1, 1)] };
         byte[] condition = Condition(19, 0, 0, 0);
@@ -111,10 +111,11 @@ public sealed class NativeBattleAiConditionTests
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
 
-        battle.Tick();
+        NativeExamTimerState advanced = timer.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1);
+        BattleSession next = BattleSession.Restore(battle.Capture() with { NativeExamTimer = advanced });
+        DetachedExpandedAiFixture.InterpretScalarCallback(next, "enemy", 1);
 
-        Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
-        Assert.Equal(1, battle.Frame);
+        Assert.Equal(1u, next.Capture().NativeAiVariables![0]);
         Assert.Equal(1, timer.Alternatives.Single().Remaining);
     }
 
@@ -131,19 +132,14 @@ public sealed class NativeBattleAiConditionTests
         BattleDefinition definition = Definition([0]);
         definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { NativeAi = ai, InitialAtb = BattleSession.AtbMaximum }] };
         BattleSession original = new(definition, BattleAtbMode.Normal);
-        original.Tick();
-        BattleSnapshot snapshot = original.Capture();
-        int enemyIndex = Array.FindIndex(snapshot.Combatants, actor => actor.Id == "enemy");
-        BattleCombatantSnapshot enemy = snapshot.Combatants[enemyIndex];
-        enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { LastAction = new(1, 0, 254, 65, 2, 3) } };
-        snapshot.Combatants[enemyIndex] = enemy;
-        snapshot = snapshot with { NativeActionMemory = snapshot.NativeActionMemory!.WithAction(enemy.NativeParticipant!.OriginalSlot!.Value.Offset, enemy.NativeParticipant.LastAction) };
-        BattleSession restored = BattleSession.Restore(snapshot);
+        BattleCombatant enemy = Assert.Single(original.Combatants, actor => actor.Id == "enemy");
+        enemy.LastNativeAction = new(1, 0, 254, 65, 2, 3);
+        BattleSession restored = BattleSession.Restore(original.Capture());
 
-        restored.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(restored, "enemy", 1);
 
         Assert.Equal(1u, restored.Capture().NativeAiVariables![0]);
-        Assert.Equal(enemy.NativeParticipant.LastAction, restored.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.LastAction);
+        Assert.Equal(enemy.LastNativeAction, restored.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.LastAction);
     }
 
     [Fact]
@@ -157,7 +153,7 @@ public sealed class NativeBattleAiConditionTests
     {
         byte[] initial = [39, 0, 1, .. Condition(6, 201, 0, 0)];
         BattleSession battle = new(Definition(initial), BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
 
         Assert.Equal(50, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
@@ -181,7 +177,7 @@ public sealed class NativeBattleAiConditionTests
     private static BattleSession AdmitInitial(BattleDefinition definition)
     {
         BattleSession battle = new(definition, BattleAtbMode.Normal);
-        battle.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
         return battle;
     }
 

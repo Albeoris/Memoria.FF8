@@ -30,6 +30,7 @@ internal sealed partial class RecreateGame
         long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
         base.EndDraw();
         long presentEnd = observePacing ? Stopwatch.GetTimestamp() : 0;
+        presentationPacer.CompletePresentedFrame();
         DiagnosticHostFramePhases? phases = observePacing ? diagnosticHostPhaseTiming.CompleteInterval() : null;
         using DiagnosticHostPhaseTiming.Scope postPresentTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.PostPresent);
         long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;

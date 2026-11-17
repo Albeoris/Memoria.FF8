@@ -30,7 +30,7 @@ public sealed partial class BattleSession
 
     private NativeContactWorking? nativeContactWorking;
 
-    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
+    private NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
     {
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), covered: false);
         RefreshNativePresentationStatus(recipient);

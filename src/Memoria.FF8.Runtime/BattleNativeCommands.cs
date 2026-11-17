@@ -63,7 +63,7 @@ public static class NativeBattleLimitRules
     public static byte CrisisLevel(BattleNativeLimitDefinition definition, int currentHp, int maximumHp, ushort savedStatuses, uint battleStatuses, int deadPartyCount, byte randomByte, bool disabled = false, byte forcedLevel = 0)
     {
         definition.Validate();
-        if (currentHp < 0 || maximumHp <= 0 || currentHp > maximumHp || deadPartyCount is < 0 or > 3 || forcedLevel > 4)
+        if (currentHp < 0 || maximumHp <= 0 || currentHp > maximumHp || deadPartyCount is < 0 or > ExpandedBattleFormation.MaximumAllies || forcedLevel > 4)
         {
             throw new InvalidDataException("Native Limit availability has invalid HP, party death count or forced level.");
         }

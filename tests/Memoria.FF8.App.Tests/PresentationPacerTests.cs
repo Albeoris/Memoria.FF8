@@ -1,7 +1,56 @@
+using System.Diagnostics;
+
 namespace Memoria.FF8.App.Tests;
 
 public sealed class PresentationPacerTests
 {
+    [Fact]
+    public void Slow_update_spends_its_current_deadline_before_draw()
+    {
+        using PresentationPacer pacer = new();
+        pacer.ObserveTiming(true);
+        pacer.BeginUpdate(60, 0);
+        Assert.Equal(0, pacer.TimingObservation.Calls);
+
+        long draw = Stopwatch.Frequency / 30;
+        pacer.WaitBeforeDraw(draw);
+        pacer.WaitBeforeDraw(draw);
+        pacer.CompletePresentedFrame();
+        Assert.Equal(1, pacer.TimingObservation.Calls);
+        Assert.Equal(0, pacer.TimingObservation.TimerCalls);
+        Assert.Equal(60, pacer.TimingObservation.FrameLimit);
+    }
+
+    [Theory]
+    [InlineData(0, 30)]
+    [InlineData(40, 40)]
+    public void Suppressed_ticks_throttle_and_recovery_does_not_wait_twice(int requestedLimit, int skippedLimit)
+    {
+        using PresentationPacer pacer = new();
+        pacer.ObserveTiming(true);
+        long second = Stopwatch.Frequency;
+        pacer.BeginUpdate(60, 0);
+        pacer.RequestFrameLimit(requestedLimit);
+        pacer.BeginUpdate(requestedLimit, second);
+        Assert.Equal(1, pacer.TimingObservation.Calls);
+        Assert.Equal(skippedLimit, pacer.TimingObservation.FrameLimit);
+
+        pacer.BeginUpdate(60, 2 * second);
+        pacer.RequestFrameLimit(120);
+        pacer.WaitBeforeDraw(2 * second);
+        pacer.CompletePresentedFrame();
+        Assert.Equal(2, pacer.TimingObservation.Calls);
+        Assert.Equal(skippedLimit, pacer.TimingObservation.FrameLimit);
+
+        pacer.BeginUpdate(0, 3 * second);
+        Assert.Equal(2, pacer.TimingObservation.Calls);
+        pacer.WaitBeforeDraw(3 * second);
+        pacer.CompletePresentedFrame();
+        Assert.Equal(3, pacer.TimingObservation.Calls);
+        Assert.Equal(0, pacer.TimingObservation.FrameLimit);
+        Assert.Equal(0, pacer.TimingObservation.TimerCalls);
+    }
+
     [Theory]
     [InlineData(30)]
     [InlineData(60)]

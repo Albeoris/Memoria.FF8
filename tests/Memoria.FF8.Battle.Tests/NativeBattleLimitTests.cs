@@ -23,6 +23,17 @@ public sealed class NativeBattleLimitTests
         Assert.Equal(3, NativeBattleLimitRules.CrisisLevel(definition, 100, 100, 0, 0x200, 0, 0, true, 3));
     }
 
+    [Fact]
+    public void Crisis_uses_all_occupied_KO_counts_before_clamping_the_result()
+    {
+        BattleNativeLimitDefinition definition = new(0, 5, 0, 250, new byte[32].ToImmutableArray());
+
+        Assert.Equal(2, NativeBattleLimitRules.CrisisLevel(definition, 1, 100, 0, 0, 3, 200));
+        Assert.Equal(3, NativeBattleLimitRules.CrisisLevel(definition, 1, 100, 0, 0, 5, 200));
+        Assert.Equal(4, NativeBattleLimitRules.CrisisLevel(definition, 1, 100, 0, 0, ExpandedBattleFormation.MaximumAllies, 200));
+        Assert.Throws<InvalidDataException>(() => NativeBattleLimitRules.CrisisLevel(definition, 1, 100, 0, 0, ExpandedBattleFormation.MaximumAllies + 1, 200));
+    }
+
     [Theory]
     [InlineData(0x48, 3, 0x8008)]
     [InlineData(0x08, 0, 0x8001)]

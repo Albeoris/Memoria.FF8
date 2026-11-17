@@ -101,15 +101,10 @@ public sealed partial class BattleSession
                     {
                         return eligible;
                     }
-                    if (allowReplacement && selected.FirstOrDefault() is { Slot: { } slot } first)
+                    if (selected.FirstOrDefault()?.Slot is { } slot &&
+                        SelectBattleTargetFromSlot(slot, allowReplacement, actor => IsBattleTargetEligible(actor, request)) is { } replacement)
                     {
-                        BattleCombatant[] available = SidePopulation(first.Side).Where(actor => IsBattleTargetEligible(actor, request)).ToArray();
-                        BattleCombatant? replacement = available.FirstOrDefault(actor => actor.Slot!.Value.Position > slot.Position)
-                            ?? available.LastOrDefault(actor => actor.Slot!.Value.Position < slot.Position);
-                        if (replacement is not null)
-                        {
-                            return [replacement];
-                        }
+                        return [replacement];
                     }
                     unavailable = allowReplacement;
                     return request.Replacement == BattleTargetReplacement.UseCurrentBattlePolicy ? selected.Where(actor => actor.IsActive).ToArray() : [];
@@ -124,6 +119,35 @@ public sealed partial class BattleSession
             nativeActionScratch = nativeActionScratch with { TargetUnavailableB0E = targetUnavailable };
         }
         return actors;
+    }
+
+    private BattleCombatant? SelectBattleTargetFromSlot(BattleRosterSlot slot, bool allowReplacement, Func<BattleCombatant, bool> eligible)
+    {
+        BattleCombatant? higher = null;
+        BattleCombatant? lower = null;
+        foreach (BattleCombatant actor in Roster(slot.Side))
+        {
+            if (actor.Slot is not { } current || !eligible(actor))
+            {
+                continue;
+            }
+            if (current == slot)
+            {
+                return actor;
+            }
+            if (allowReplacement)
+            {
+                if (current.Position > slot.Position && (higher is null || current.Position < higher.Slot!.Value.Position))
+                {
+                    higher = actor;
+                }
+                if (current.Position < slot.Position && (lower is null || current.Position > lower.Slot!.Value.Position))
+                {
+                    lower = actor;
+                }
+            }
+        }
+        return higher ?? lower;
     }
 
     private BattleTargetSelection ChooseOriginalRandomActionTarget(BattleSide side)

@@ -29,6 +29,40 @@ public sealed class DiagnosticBattleLifecycleTests
     }
 
     [Fact]
+    public void Installed_invalid_slots_source_does_not_publish_battle_and_allows_valid_retry()
+    {
+        string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
+        Assert.SkipUnless(directory is not null && Directory.Exists(directory), "Select installed resources for diagnostic entry admission.");
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        DiagnosticBattleRequest valid = new(94, 0, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1 };
+        DiagnosticBattleRequest invalid = valid with
+        {
+            Driver = new(new(BattleInputKind.Action, ActorId: "party-0", TargetId: "party-0", Ability: BattleAbility.LimitBreak, ActionId: 16 << 16 | 51), 280)
+            {
+                ExpectedNativeAction = 51,
+                ExpectedNativeCommand = 16,
+                LimitSelection = new(4, 4, 256),
+                SlotsAdmission = new(51, 256, 5)
+            }
+        };
+
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => world.StartDiagnosticBattle(invalid));
+        Assert.Contains("original Selphie", error.Message);
+        Assert.False(world.IsDiagnosticBattle);
+        Assert.False(session.HasActiveBattle);
+        Assert.Null(world.Battle);
+        Assert.Null(world.DiagnosticReceipt);
+
+        BattleSession active = world.StartDiagnosticBattle(valid);
+        Assert.Same(active, world.Battle);
+        Assert.True(world.IsDiagnosticBattle);
+        Assert.True(session.HasActiveBattle);
+        Assert.NotNull(world.DiagnosticReceipt);
+    }
+
+    [Fact]
     public void Installed_direct_battle_disposes_without_serializing_an_exploration_continuation()
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");

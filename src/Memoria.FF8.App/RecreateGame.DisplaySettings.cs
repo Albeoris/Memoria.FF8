@@ -32,6 +32,7 @@ internal sealed partial class RecreateGame
             appliedFrameLimit = frameLimit;
             presentationPacer.Reset();
         }
+        presentationPacer.RequestFrameLimit(frameLimit);
         bool samplesChanged = appliedMsaaSamples != uiPreferences.Graphics.MsaaSamples;
         if (GraphicsDeviceSettings.Apply(graphics, uiPreferences, ref appliedMsaaSamples))
         {
@@ -46,7 +47,6 @@ internal sealed partial class RecreateGame
 
     private void UpdateDisplayFrame(GameTime gameTime)
     {
-        presentationPacer.WaitForNextFrame(appliedFrameLimit ?? 60);
         TimeSpan workBudget = appliedFrameLimit is > 0 ? TimeSpan.FromSeconds(1d / appliedFrameLimit.Value) : PresentationTiming.SimulationStep;
         presentationTiming.Accumulate(gameTime.ElapsedGameTime);
         if (pendingCapture is not null)

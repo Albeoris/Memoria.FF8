@@ -303,9 +303,6 @@ public sealed partial class BattleSession
         {
             StageExpandedHostedGuardianFormReturn(actor, form);
         }
-        else
-        {
-        }
         if (guardianForceCasts.TryGetValue(actor.Id, out BattleGuardianForceCast? cast))
         {
             guardianForceCasts[actor.Id] = cast with { Command = cast.Command with { GuardianFormInvocation = null } };

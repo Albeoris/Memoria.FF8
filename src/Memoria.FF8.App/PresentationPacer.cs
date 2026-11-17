@@ -15,6 +15,10 @@ internal sealed class PresentationPacer : IDisposable
     private SafeWaitHandle? timer;
     private double nextDeadline;
     private int activeFrameLimit;
+    private long updateStarted;
+    private int requestedFrameLimit;
+    private bool awaitingPresentation;
+    private bool pacedThisUpdate;
     private bool disposed;
     private bool observeTiming;
     private long observedCalls;
@@ -28,7 +32,40 @@ internal sealed class PresentationPacer : IDisposable
     internal PresentationPacerObservation TimingObservation => new(observeTiming, observedCalls, observedTimerCalls, observedTimerTicks, observedResets, observedFrameLimit, invalidObservations);
 
 
+    internal void BeginUpdate(int frameLimit, long started)
+    {
+        pacedThisUpdate = awaitingPresentation;
+        if (pacedThisUpdate)
+        {
+            // The platform can suppress both BeginDraw and EndDraw. Keep the same deadline while polling.
+            WaitForDeadline(requestedFrameLimit > 0 ? requestedFrameLimit : 30, updateStarted, started, default);
+        }
+        updateStarted = started;
+        requestedFrameLimit = frameLimit;
+        awaitingPresentation = true;
+    }
+
+    internal void RequestFrameLimit(int frameLimit) => requestedFrameLimit = frameLimit;
+
+    internal void WaitBeforeDraw(long now)
+    {
+        if (!awaitingPresentation || pacedThisUpdate)
+        {
+            return;
+        }
+        WaitForDeadline(requestedFrameLimit, updateStarted, now, default);
+        pacedThisUpdate = true;
+    }
+
+    internal void CompletePresentedFrame() => awaitingPresentation = false;
+
     public void WaitForNextFrame(int frameLimit, CancellationToken cancellationToken = default)
+    {
+        long now = Stopwatch.GetTimestamp();
+        WaitForDeadline(frameLimit, now, now, cancellationToken);
+    }
+
+    private void WaitForDeadline(int frameLimit, long frameStarted, long now, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
@@ -42,12 +79,11 @@ internal sealed class PresentationPacer : IDisposable
             Reset();
             return;
         }
-        long now = Stopwatch.GetTimestamp();
         double period = Math.Max(1, Stopwatch.Frequency / (double)frameLimit);
         if (activeFrameLimit != frameLimit || nextDeadline == 0)
         {
             activeFrameLimit = frameLimit;
-            nextDeadline = now + period;
+            nextDeadline = frameStarted + period;
         }
         if (now >= nextDeadline)
         {

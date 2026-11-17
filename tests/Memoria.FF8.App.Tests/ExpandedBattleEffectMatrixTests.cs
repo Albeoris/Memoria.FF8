@@ -566,7 +566,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
         };
     }
 
-    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireMaximumParty = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, int examSeconds = 600)
+    internal static GameWorld StartBattle(string directory, GameState field, ushort formation, BattleActionDefinition? action = null, bool requireMaximumParty = true, BattleNativeAction? limit = null, BattleNativeAction? equipped = null, byte nativeSeed = 0, Action<GameSession>? captureSession = null, bool prepareHigherBand = false, Action<NativeCharacterVital[]>? prepareParty = null, Func<NativeCharacterVitals, NativeCharacterVitals>? prepareVitals = null, int examSeconds = 600, int additionalEnemies = 10)
     {
         GameSession session = new(field);
         session.SetExamTimer(session.ExamTimer!.SetRemaining(600));
@@ -636,7 +636,7 @@ public sealed partial class ExpandedBattleEffectMatrixTests(ITestOutputHelper ou
             byte[] selectedRows = Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount).Select(row => (byte)row).ToArray();
             vitals = (vitals with { Records = records }).WithBattleParty(selectedRows, NativeCharacterVitals.ExtendedRecordCount);
             session.SetCharacterVitals(prepareVitals?.Invoke(vitals) ?? vitals);
-            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = 10 });
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 11, AdditionalEnemies = additionalEnemies });
             string source = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
             if (examSeconds != 600)
             {

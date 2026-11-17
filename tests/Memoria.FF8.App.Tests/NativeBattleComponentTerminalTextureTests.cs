@@ -89,7 +89,8 @@ public sealed class NativeBattleComponentTerminalTextureTests
                 trauma.Atb = BattleSession.AtbMaximum;
             }
             world.ApplyBattleInput(new(BattleInputKind.Tick));
-            if (process.ActiveActionToken is not null && battle.ActiveAction is { NativeAiCallbackStage: 2, NativeAction.MagicId: var requested } && requested == effect)
+            if (process.ActiveActionToken is not null && battle.ActiveAction is { ExpandedAiCallback.Stage: 2 } &&
+                process.Graphics.Descriptors.Queue.Any(slot => process.Graphics.Descriptors.Packets[slot] is { Command: 104, Header: { } header } && process.ActionPackets.ReadHeader(header).Effect == effect))
             {
                 return battle;
             }

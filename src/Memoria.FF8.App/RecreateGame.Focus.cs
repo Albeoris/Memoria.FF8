@@ -90,7 +90,7 @@ internal sealed partial class RecreateGame
         }
         if (focusPaused)
         {
-            presentationPacer.WaitForNextFrame(30);
+            presentationPacer.RequestFrameLimit(30);
             SuppressDraw();
             return true;
         }
@@ -106,6 +106,11 @@ internal sealed partial class RecreateGame
 
     protected override bool BeginDraw()
     {
-        return (worldTransfer?.CanDraw ?? !focusPaused) && base.BeginDraw();
+        if (!(worldTransfer?.CanDraw ?? !focusPaused) || !base.BeginDraw())
+        {
+            return false;
+        }
+        presentationPacer.WaitBeforeDraw(Stopwatch.GetTimestamp());
+        return true;
     }
 }

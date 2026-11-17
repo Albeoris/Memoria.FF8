@@ -73,7 +73,7 @@ public sealed partial class BattlePresentationProcess
 
     internal bool TryCompleteEncounterModelRetirement(BattleEnemyActorModel owner, NativeBattleModelSlot? originalSlot)
     {
-        RequireIdle();
+        RequireAdmissionWindow();
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
         if (HasPendingModelLoad || graphics.ModelLoadCount != 0 ||
             graphics.ActorModels.TryGet(owner, out NativeBattleGraphicsModel? model) && (model.Flags0 & 3) != 0 ||

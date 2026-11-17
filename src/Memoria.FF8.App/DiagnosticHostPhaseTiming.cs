@@ -20,8 +20,9 @@ internal readonly record struct DiagnosticHostFramePhases(long Update, long Batt
 
     internal bool FitsInterval(long timerWait, long nonPresent)
     {
-        return timerWait <= Update && BattlePresentationUpdate <= Update - timerWait && BattleSceneRender <= Draw &&
-            Update <= nonPresent && Draw <= nonPresent - Update && PostPresent <= nonPresent - Update - Draw;
+        long work = nonPresent - timerWait;
+        return BattlePresentationUpdate <= Update && BattleSceneRender <= Draw &&
+            Update <= work && Draw <= work - Update && PostPresent <= work - Update - Draw;
     }
 }
 

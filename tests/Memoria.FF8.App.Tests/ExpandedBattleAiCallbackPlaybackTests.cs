@@ -30,7 +30,7 @@ public sealed class ExpandedBattleAiCallbackPlaybackTests
         Assert.Equal("Demi", demi.Name);
         Assert.True(demi is { MagicId: DemiEffect, AttackType: 8, HitCount: 1 });
 
-        BattleCombatantDefinition owner = Assert.Single(definition.Combatants, actor => !actor.IsPlayer && actor.SceneSlot is >= 0 and < ExpandedBattleFormation.OriginalEnemyPrototypeCount);
+        BattleCombatantDefinition owner = Assert.Single(definition.Combatants, actor => !actor.IsPlayer && actor.InitialActive && actor.ModelId == 101 && actor.SceneSlot is >= 0 and < ExpandedBattleFormation.OriginalEnemyPrototypeCount);
         // Target the fourth party member. The second cast is reached only after actual HP falls below 90%.
         byte[] turn = [4, 3, 3, Demi, 6, 2, 0, 3, 1, 9, 0, 3, 0, 3, Demi, 6, 0];
         BattleCombatantDefinition[] actors = definition.Combatants.Select(actor =>

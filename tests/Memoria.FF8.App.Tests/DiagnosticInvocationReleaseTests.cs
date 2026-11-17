@@ -76,7 +76,7 @@ public sealed class DiagnosticInvocationReleaseTests
         {
             "missing-witness" => release with { TerminalTextures = proof with { NaturalVictory = null } },
             "active-outcome" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Candidate = BattleOutcome.Active } } },
-            "living-enemy" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Combatants = witness.Combatants.SetItem(1, witness.Combatants[1] with { SavedStatus = 0, CurrentHp = 100 }) } } },
+            "living-enemy" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Combatants = witness.Combatants.SetItem(1, witness.Combatants[1] with { SavedStatus = 0, BattleStatus = 0, CurrentHp = 100, BattleCapable = true }) } } },
             "wrong-frame" => release with { TerminalTextures = proof with { NaturalVictory = witness with { Callback = witness.Callback + 1 } } },
             "exceptional-outcome" => release with { TerminalTextures = proof with { NaturalVictory = witness with { ExceptionalOutcome = true } } },
             "reused-armed-hold" => release with { TerminalTextures = proof with { Hold = proof.Hold with { Sequence = 1 } } },

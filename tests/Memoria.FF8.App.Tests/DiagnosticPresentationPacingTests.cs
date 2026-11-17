@@ -100,15 +100,15 @@ public sealed class DiagnosticPresentationPacingTests
     public void Host_phases_explain_other_time_without_counting_nested_work_twice()
     {
         DiagnosticPresentationPacing collector = new(1000, 3, 100, new(true, 0, 0, 0, 0, 60, 0));
-        collector.Record(1, 150, 140, 148, new(true, 1, 1, 5, 0, 60, 0), new(22, 4, 10, 3, 5));
-        collector.Record(2, 195, 182, 193, new(true, 2, 1, 5, 0, 60, 0), new(25, 15, 10, 4, 5));
+        collector.Record(1, 150, 140, 148, new(true, 1, 1, 20, 0, 60, 0), new(2, 1, 10, 3, 5));
+        collector.Record(2, 195, 182, 193, new(true, 2, 1, 20, 0, 60, 0), new(25, 15, 10, 4, 5));
         DiagnosticPacingSummary report = collector.Complete();
         DiagnosticHostPhaseSummary phases = Assert.IsType<DiagnosticHostPhaseSummary>(report.HostPhases);
         Assert.Equal(2, report.Samples);
         Assert.Equal(1, phases.Samples);
         Assert.Equal(1, phases.ExcludedSamples);
-        Assert.Equal(17, phases.UpdateExcludingTimerWait.TotalMilliseconds);
-        Assert.Equal(4, phases.BattlePresentationUpdate.TotalMilliseconds);
+        Assert.Equal(2, phases.UpdateExcludingTimerWait.TotalMilliseconds);
+        Assert.Equal(1, phases.BattlePresentationUpdate.TotalMilliseconds);
         Assert.Equal(10, phases.Draw.TotalMilliseconds);
         Assert.Equal(3, phases.BattleSceneRender.TotalMilliseconds);
         Assert.Equal(5, phases.PostPresent.TotalMilliseconds);
@@ -154,7 +154,7 @@ public sealed class DiagnosticPresentationPacingTests
     public void Slow_present_host_partition_and_native_subdivision_share_the_exact_interval()
     {
         DiagnosticPresentationPacing collector = new(1000, 2, 100, new(true, 0, 0, 0, 0, 60, 0));
-        DiagnosticHostFramePhases phases = new(22, 10, 10, 3, 5)
+        DiagnosticHostFramePhases phases = new(17, 10, 10, 3, 5)
         {
             Native = new(2, 1, 1, 0, 3, 0, 0, 2, 0, 1, 0)
         };

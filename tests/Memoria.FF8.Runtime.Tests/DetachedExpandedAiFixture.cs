@@ -7,6 +7,20 @@ internal static class DetachedExpandedAiFixture
 {
     private static readonly MethodInfo DispatchAction = typeof(BattleSession).GetMethod("DispatchAction", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
+    internal static void InterpretScalarCallback(BattleSession battle, string actorId, int stage)
+    {
+        BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.Id == actorId);
+        MethodInfo interpret = typeof(BattleSession).GetMethod("RunNativeAi", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        try
+        {
+            interpret.Invoke(battle, [actor, stage]);
+        }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Throw(error.InnerException);
+        }
+    }
+
     internal static void DispatchCallback(BattleSession battle, string actor, byte stage)
     {
         BattleAttackCommand head = Assert.IsType<BattleAttackCommand>(battle.QueuedActions.FirstOrDefault());

@@ -70,7 +70,7 @@ public sealed class NativeBattleStage26Tests
         NativeBattleRawMesh mesh = new([new(new(0, 0, 1000), 2)], []);
         IReadOnlyList<NativeBattleProjectedVertex>? scratch = null;
         NativeBattleCameraProjection projection = new(null, 512, 160, 108);
-        NativeBattleRawGeometryPackets.Emit5099D0([mesh], new[] { bone1, bone1, bone2 }, projection, 0, uint.MaxValue, 0, 17, 4, null, publishProjectedScratch: projected => scratch = projected);
+        NativeBattleRawGeometryPackets.Emit5099D0([mesh], new[] { bone1, bone1, bone2 }, projection, 0, uint.MaxValue, 0, 17, 4, null, publishProjectedScratch: projected => scratch = projected.ToArray());
         NativeBattleProjectedVertex vertex = Assert.Single(scratch!);
         Assert.Equal(1690u | (864u << 16), vertex.Screen);
         Assert.Equal((ushort)1000, vertex.Depth);

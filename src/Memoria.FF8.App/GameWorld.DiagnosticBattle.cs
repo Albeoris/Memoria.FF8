@@ -256,23 +256,26 @@ internal sealed partial class GameWorld
             {
                 prepared.Battle.ConfigureDiagnosticTerminalHold(terminalHold);
             }
-            battle = CommitPreparedBattleEntry(prepared);
-            battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
-            battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
-            DiagnosticReceipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, battle.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds) { PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? [], .. support] };
+            BattleSession candidate = prepared.Battle;
+            DiagnosticBattleReceipt receipt = new(diagnosticBattle.InstanceId, "direct-new-game-v2", executable, request, candidate.EntryStageId ?? throw new NotSupportedException("Diagnostic entry requires the actual encounter stage owner."), ["installed-cold-process", "hardcoded-new-game", "resource-derived-new-game", "explicit-diagnostic-field-inputs", "declarative-character-preparation", "declarative-inventory-preparation", "declarative-limit-preparation", "declarative-pocket-station-preparation", "native-music-entry", "canonical-encounter-construction", "lazy-effect-resolver", "diagnostic-publication"], ["retained-memory", "music", "global-sound", "exam-timer", "character-vitals", "input-configuration", "economy"], Stopwatch.GetElapsedTime(started).TotalMilliseconds)
+            {
+                PreparationChanges = [.. characters?.Changes ?? [], .. inventory?.Changes ?? [], .. limits?.Changes ?? [], .. pocketStation?.Changes ?? [], .. support],
+                InstantGuardianForceCharge = request.InstantGuardianForceCharge,
+                FreshEntryHost = request.Driver?.FreshEntry is { } freshEntry ? DiagnosticFreshEntryHost.Capture(assets.GameDirectory, freshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, candidate.DiagnosticLifecycleId) : null,
+                SlotsSource = request.Driver?.SlotsAdmission is null ? null : PrepareDiagnosticSlotsSource(candidate, request)
+            };
             if (request.Roster is not null)
             {
-                DiagnosticReceipt = DiagnosticReceipt with
+                receipt = receipt with
                 {
-                    RosterMembers = ObserveDiagnosticRosterMembers(battle, request.Roster.MountedReserveSceneSlot is null),
-                    RosterDonors = battle.ReadDefinition().AddedEnemySources
+                    RosterMembers = ObserveDiagnosticRosterMembers(candidate, request.Roster.MountedReserveSceneSlot is null),
+                    RosterDonors = candidate.ReadDefinition().AddedEnemySources
                 };
             }
-            DiagnosticReceipt = DiagnosticReceipt with { InstantGuardianForceCharge = request.InstantGuardianForceCharge, FreshEntryHost = request.Driver?.FreshEntry is null ? null : DiagnosticFreshEntryHost.Capture(assets.GameDirectory, request.Driver.FreshEntry, retained.EffectMemory?.ExecutionStack, diagnosticBattle.InstanceId, battle.DiagnosticLifecycleId) };
-            if (request.Driver?.SlotsAdmission is not null)
-            {
-                DiagnosticReceipt = DiagnosticReceipt with { SlotsSource = PrepareDiagnosticSlotsSource(battle, request) };
-            }
+            battle = CommitPreparedBattleEntry(prepared);
+            DiagnosticReceipt = receipt;
+            battle.DiagnosticEffectDispatched += ObserveDiagnosticOpening;
+            battle.DiagnosticEventPublished += ObserveDiagnosticOpeningCompletion;
             return battle;
         }
         catch

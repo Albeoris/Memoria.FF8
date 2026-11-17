@@ -36,10 +36,6 @@ public sealed partial class BattleSession
             uint mask = 1u << (status - 16);
             actor.NativeStatus1 = value == 1 ? actor.NativeStatus1 | mask : actor.NativeStatus1 & ~mask;
         }
-        if (value != 1)
-        {
-
-        }
     }
 
     private static void RestoreNativeStatus(BattleCombatant actor, NativeBattleStatusSnapshot? snapshot)

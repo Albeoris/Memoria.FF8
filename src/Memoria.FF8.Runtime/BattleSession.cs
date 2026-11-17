@@ -1691,9 +1691,6 @@ public sealed partial class BattleSession
         nativeGlobalRandom = candidate.nativeGlobalRandom;
         nativeGlobalRandomCalls = candidate.nativeGlobalRandomCalls;
         pendingSlotsDeal = candidate.pendingSlotsDeal;
-        if (!preparedExpandedAction)
-        {
-        }
         RestoreGuardianForces(candidateSnapshot);
         RestoreGuardianForms(candidate.CaptureGuardianForms(), candidate.Outcome);
         RestoreNativeSupport(candidate.nativeSupport);

@@ -154,7 +154,7 @@ internal sealed class DiagnosticPresentationPacing
         if (sample.HostPhases is { } phases && phases.FitsInterval(sample.TimerWaitTicks, NonPresentTicks(sample)))
         {
             status = "Aligned";
-            host = new((phases.Update - sample.TimerWaitTicks - phases.BattlePresentationUpdate) * milliseconds, phases.BattlePresentationUpdate * milliseconds, (phases.Draw - phases.BattleSceneRender) * milliseconds, phases.BattleSceneRender * milliseconds, phases.PostPresent * milliseconds, (NonPresentTicks(sample) - phases.Update - phases.Draw - phases.PostPresent) * milliseconds);
+            host = new((phases.Update - phases.BattlePresentationUpdate) * milliseconds, phases.BattlePresentationUpdate * milliseconds, (phases.Draw - phases.BattleSceneRender) * milliseconds, phases.BattleSceneRender * milliseconds, phases.PostPresent * milliseconds, (NonPresentTicks(sample) - sample.TimerWaitTicks - phases.Update - phases.Draw - phases.PostPresent) * milliseconds);
             DiagnosticNativeFramePhases timing = phases.Native;
             if (timing.Total <= phases.BattlePresentationUpdate)
             {
@@ -177,7 +177,7 @@ internal sealed class DiagnosticPresentationPacing
         // interval can still contribute pacing evidence, but its phase split is not comparable.
         DiagnosticPacingSample[] valid = observed.Where(sample => sample.HostPhases is { } phases && phases.FitsInterval(sample.TimerWaitTicks, NonPresentTicks(sample))).ToArray();
         return new(valid.Length, observed.Length - valid.Length,
-            Summarize(valid.Select(sample => sample.HostPhases!.Value.Update - sample.TimerWaitTicks)),
+            Summarize(valid.Select(sample => sample.HostPhases!.Value.Update)),
             Summarize(valid.Select(sample => sample.HostPhases!.Value.BattlePresentationUpdate)),
             Summarize(valid.Select(sample => sample.HostPhases!.Value.Draw)),
             Summarize(valid.Select(sample => sample.HostPhases!.Value.BattleSceneRender)),
@@ -185,7 +185,7 @@ internal sealed class DiagnosticPresentationPacing
             Summarize(valid.Select(sample =>
             {
                 DiagnosticHostFramePhases phases = sample.HostPhases!.Value;
-                return NonPresentTicks(sample) - phases.Update - phases.Draw - phases.PostPresent;
+                return NonPresentTicks(sample) - sample.TimerWaitTicks - phases.Update - phases.Draw - phases.PostPresent;
             })));
     }
 

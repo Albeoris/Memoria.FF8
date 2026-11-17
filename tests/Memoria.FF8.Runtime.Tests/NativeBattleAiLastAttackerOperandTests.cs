@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAiLastAttackerOperandTests
@@ -21,10 +19,10 @@ public sealed class NativeBattleAiLastAttackerOperandTests
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, NativeAi = ai }]
         }, BattleAtbMode.Normal);
         BattleCombatant enemy = battle.Combatants[1];
-        typeof(BattleCombatant).GetProperty("LastNativeAction", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(enemy, new NativeBattleLastAction(null, null, null, null, null, physical));
-        typeof(BattleCombatant).GetProperty("LastAttackerId", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(enemy, "enemy");
+        enemy.LastNativeAction = new(null, null, null, null, null, physical);
+        enemy.LastAttackerId = "enemy";
 
-        battle.Tick();
+        DetachedExpandedAiFixture.InterpretScalarCallback(battle, "enemy", 0);
 
         Assert.Equal(expected, battle.Capture().Combatants[1].NativeParticipant!.Variables[0]);
         Assert.Equal(physical, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.AttackerIndex);

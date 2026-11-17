@@ -77,11 +77,11 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        presentationPacer.RequestFrameLimit(60);
         try
         {
             if (!worldTransferIncoming && !PrepareWorldTransferAuthoring())
             {
-                presentationPacer.WaitForNextFrame(60);
                 return true;
             }
             worldTransfer.Update(time.ElapsedGameTime);
@@ -109,7 +109,6 @@ internal sealed partial class RecreateGame
             ResetElapsedTime();
             return true;
         }
-        presentationPacer.WaitForNextFrame(60);
         return true;
     }
 
