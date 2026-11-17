@@ -44,7 +44,7 @@ internal static class NativeModelEffectTests
         Check(state.Restored && !state.Completed && !state.SuppressesNativeLighting && Enumerable.Range(0, 4).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Reset did not immediately restore original parts and lighting.");
         state = Ff7NativeModelEffect.Advance(state, true);
         Check(state.Completed, "Reset completed before/after the native next processed frame.");
-        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [16, 42, 16]));
+        Throws<NotSupportedException>(() => Ff7NativeModelEffect.Request(null, 0, [36, 36, 16, 42]));
         Throws<InvalidDataException>(() => (requested with { Phase = 1 }).Validate());
         short[] table = new short[512];
         table[1] = 4096;
@@ -60,6 +60,7 @@ internal static class NativeModelEffectTests
         RunSingle54(table);
         RunFourPartDefault();
         RunFourPart35_36();
+        RunTwoOrThreeParts();
         RunInstalled();
     }
 
@@ -283,6 +284,61 @@ internal static class NativeModelEffectTests
         Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Step24 reset must finish only on its next eligible native callback.");
     }
 
+    private static void RunTwoOrThreeParts()
+    {
+        foreach (int[] counts in new int[][] { [127, 131], [1, 999], [35, 36, 54] })
+        {
+            Ff7NativeModelEffectState state = Ff7NativeModelEffect.Request(null, 0, counts);
+            Check(state.Profile == Ff7NativeModelEffect.TwoOrThreePartProfile && state.PartCount == counts.Length, "The generic native two/three-part classifier consulted a resource, vertex or polygon allowlist.");
+            Check(Ff7NativeModelEffect.Request(null, 0, counts, 512, Enumerable.Repeat(1, counts.Length).ToArray()).Profile == state.Profile, "Polygon counts changed the native part-count branch.");
+            state = Ff7NativeModelEffect.Advance(state, true);
+            Check(Enumerable.Range(0, counts.Length).All(part => !Ff7NativeModelEffect.PartVisible(state, part)), "Create did not hide every original rigid part.");
+            for (int callback = 0; callback < 100; callback++)
+            {
+                state = Ff7NativeModelEffect.Advance(state, true);
+            }
+            Check(state is { Stage: 1, Phase: 0, Counter: 100 } && Enumerable.Range(0, counts.Length).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Two/three-part Apply reused four-part selective hiding or changed its long hold.");
+            for (int callback = 0; callback < 12; callback++)
+            {
+                state = Ff7NativeModelEffect.Advance(state, true);
+            }
+            Check(state is { Stage: 2, Phase: 288, Counter: 0, SampleFrame: 11 }, "The generic step24 ramp changed its pre-advance cache selection.");
+            for (int callback = 0; callback < 10; callback++)
+            {
+                state = Ff7NativeModelEffect.Advance(state, true);
+            }
+            Check(state is { Stage: 3, Phase: 0, SampleFrame: 12 }, "The native endpoint hold lost the thirteenth cached sample.");
+            for (int callback = 0; callback < 160; callback++)
+            {
+                bool eligible = callback % 17 != 0;
+                Ff7NativeModelEffectState cold = JsonSerializer.Deserialize<Ff7NativeModelEffectState>(JsonSerializer.Serialize(state))!;
+                Check(Ff7NativeModelEffect.Advance(state, eligible) == Ff7NativeModelEffect.Advance(cold, eligible), "Cold or rejected-depth continuation changed the generic part-count profile.");
+                if (!eligible)
+                {
+                    Check(Ff7NativeModelEffect.Advance(state, false) == state, "A rejected native depth gate advanced a presentation field.");
+                }
+                state = Ff7NativeModelEffect.Advance(state, eligible);
+            }
+            short[] directions = new short[512];
+            directions[1] = 4096;
+            directions[48] = 1024;
+            directions[49] = 2048;
+            Check(Ff7NativeModelEffect.OrbitPoint(state, 0, directions) == new Vector3(128, 0, 16) && Ff7NativeModelEffect.OrbitPoint(state, 1, directions) == new Vector3(64, -32, 48), "Native two/three-part shifts or offset differ from the four-part step24 orbit.");
+            Check(Ff7NativeModelEffect.OrbitPoint(state with { NativeScale = 1024 }, 1, directions) == new Vector3(128, -64, 96), "The native scale multiplier changed the two/three-part orbit.");
+            _ = Ff7NativeModelEffect.OrbitPoint(state, 12, directions);
+            Throws<InvalidDataException>(() => Ff7NativeModelEffect.OrbitPoint(state, 13, directions));
+            Throws<ArgumentOutOfRangeException>(() => Ff7NativeModelEffect.PartVisible(state, counts.Length));
+            Throws<InvalidDataException>(() => (state with { PartCount = null }).Validate());
+            Throws<InvalidDataException>(() => (state with { PartCount = 4 }).Validate());
+            state = Ff7NativeModelEffect.Advance(Ff7NativeModelEffect.Request(state, 2, counts), true);
+            Check(state.Restored && !state.Completed && Enumerable.Range(0, counts.Length).All(part => Ff7NativeModelEffect.PartVisible(state, part)), "Reset failed to restore all generic original parts.");
+            Check(Ff7NativeModelEffect.Advance(state, true).Completed, "Reset completed outside its native second processed callback.");
+        }
+        Ff7NativeModelEffectState old = JsonSerializer.Deserialize<Ff7NativeModelEffectState>("{\"Profile\":\"pc-kawai13-four-part-default-v1\"}")!;
+        old.Validate();
+        Check(old.PartCount is null && Ff7NativeModelEffect.PartVisible(old, 3) && !JsonSerializer.Serialize(old).Contains("PartCount", StringComparison.Ordinal), "Old four-part presentation did not retain its inferred bounds or serialization.");
+    }
+
     private static void RunInstalled()
     {
         string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
@@ -319,6 +375,10 @@ internal static class NativeModelEffectTests
         Ff7FieldModelResources chest = Ff7FieldModelResources.Load(characters, mine.Models.Models[6]);
         Check(chest.HrcName.Equals("AVHE.hrc", StringComparison.OrdinalIgnoreCase) && mine.Models.Models[6].Scale == "384" && chest.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 35, 36, 36, 40 }) && chest.Geometry.Select(part => part.Polygon.Polygons.Count).SequenceEqual(new[] { 18, 50, 56, 20 }), "The reached original Mine chest topology/scale changed.");
         CheckInstalledPulse(chest, native, 384);
+        Ff7FieldResources temple = Ff7FieldResources.Load(installation, "kuro_1");
+        Ff7FieldModelResources twoPart = Ff7FieldModelResources.Load(characters, temple.Models.Models[10]);
+        Check(twoPart.Geometry.Select(part => part.Polygon.Vertices.Count).SequenceEqual(new[] { 127, 131 }) && twoPart.Geometry.Select(part => part.Polygon.Polygons.Count).SequenceEqual(new[] { 80, 80 }), "The reached original two-part resource topology changed.");
+        CheckInstalledPulse(twoPart, native);
         RunInstalledCheckpoint(installation);
     }
 
