@@ -66,13 +66,20 @@ internal sealed partial class MonoGameUiCanvas
 
     private void DrawNativeBattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
     {
-        float y = bounds.Y;
         float lineHeight = size;
-        foreach (DialogueLine line in document.Pages.FirstOrDefault()?.Lines ?? [])
+        DialogueVisualLine[] lines = (document.Pages.FirstOrDefault()?.Lines ?? []).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, value => NativeTextAdvance(value, size, NativeBattleTextContext), false, lineHeight)).ToArray();
+        float y = bounds.Y + Math.Max(0, (bounds.Height - lines.Length * lineHeight) / 2);
+        foreach (DialogueVisualLine line in lines)
         {
-            float x = bounds.X;
-            foreach (DialogueRun run in line.Runs)
+            if (y >= bounds.Bottom)
             {
+                break;
+            }
+            float lineX = bounds.X + Math.Max(0, (bounds.Width - line.Width) / 2);
+            foreach (DialoguePlacedRun placed in line.Runs)
+            {
+                DialogueRun run = placed.Run;
+                float x = lineX + placed.X;
                 Color color = run.Color * (run.Blink ? DialogueBlink.Opacity(seconds) : 1);
                 UiRect runBounds = new(x, y, Math.Max(1, bounds.Right - x), Math.Max(1, bounds.Bottom - y));
                 if (run.IsButton)
@@ -83,7 +90,6 @@ internal sealed partial class MonoGameUiCanvas
                 {
                     DrawNativeText(run.Text, size, runBounds, new UiColor(color.R, color.G, color.B, color.A), UiAlignment.Start, NativeBattleTextContext);
                 }
-                x += NativeTextAdvance(run.Text, size, NativeBattleTextContext);
             }
             y += lineHeight;
         }

@@ -53,6 +53,8 @@ public sealed partial class BattleHudController
 
     public string? BattleMessage => BattleMessageDocument?.Text;
 
+    internal bool BattleMessageIsEnemyActionTitle => activeBattleMessage is { IsEnemyActionTitle: true } message && ShowEnemySpellNames && battleMessageFrames >= message.NativeMessageDelayFrames;
+
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
     internal double BattleCallbackRate => session.NativeGraphics is null ? BattleSession.FramesPerSecond : NativeBattleGraphicsPresentationClock.CallbacksPerSecond;
