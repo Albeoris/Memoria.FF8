@@ -1,4 +1,12 @@
 <Project>
+  <!-- Runtime and JIT come from the .NET SDK/shared framework, including when older dependencies request NuGet runtime packages. -->
+  <ItemGroup>
+    <PrunePackageReference Include="Microsoft.NETCore.App" Version="2.1.30" />
+    <PrunePackageReference Include="Microsoft.NETCore.Jit" Version="2.0.8" />
+  </ItemGroup>
+  <Target Name="RejectPackagedLegacyRuntime" AfterTargets="ResolvePackageAssets">
+    <Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(NativeCopyLocalItems.NuGetPackageId)', '(^|\.)Microsoft\.NETCore\.(App|Jit|DotNetAppHost|DotNetHostPolicy|DotNetHostResolver)$'))" Text="Runtime package %(NativeCopyLocalItems.NuGetPackageId) cannot supply native libraries. Use the target framework's runtime from the .NET SDK or shared framework." />
+  </Target>
   <!-- Stops MSBuild from importing the workspace's Directory.Build.targets (the drop-in's build). -->
   <Target Name="CopyBundledMemoriaMods" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'Memoria.FF8.App' Or '$(MSBuildProjectName)' == 'Memoria.Launcher'">
     <ItemGroup>

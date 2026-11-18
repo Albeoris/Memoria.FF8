@@ -15,11 +15,6 @@
     <PackageVersion Include="MicroCom.Runtime" Version="[0.11.0]" />
     <PackageVersion Include="Microsoft.ApplicationInsights" Version="[2.23.0]" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="[6.0.0]" />
-    <PackageVersion Include="Microsoft.NETCore.App" Version="[2.1.30]" />
-    <PackageVersion Include="Microsoft.NETCore.DotNetAppHost" Version="[2.1.30]" />
-    <PackageVersion Include="Microsoft.NETCore.DotNetHostPolicy" Version="[2.1.30]" />
-    <PackageVersion Include="Microsoft.NETCore.DotNetHostResolver" Version="[2.1.30]" />
-    <PackageVersion Include="Microsoft.NETCore.Jit" Version="[2.0.8]" />
     <PackageVersion Include="Microsoft.NETCore.Platforms" Version="[2.1.14]" />
     <PackageVersion Include="Microsoft.NETCore.Targets" Version="[2.0.0]" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Telemetry" Version="[2.4.0]" />
@@ -28,11 +23,6 @@
     <PackageVersion Include="Microsoft.Testing.Platform.MSBuild" Version="[2.4.0]" />
     <PackageVersion Include="Microsoft.Win32.Registry" Version="[5.0.0]" />
     <PackageVersion Include="NETStandard.Library" Version="[2.0.3]" />
-    <PackageVersion Include="runtime.win-x64.Microsoft.NETCore.App" Version="[2.1.30]" />
-    <PackageVersion Include="runtime.win-x64.Microsoft.NETCore.DotNetAppHost" Version="[2.1.30]" />
-    <PackageVersion Include="runtime.win-x64.Microsoft.NETCore.DotNetHostPolicy" Version="[2.1.30]" />
-    <PackageVersion Include="runtime.win-x64.Microsoft.NETCore.DotNetHostResolver" Version="[2.1.30]" />
-    <PackageVersion Include="runtime.win-x64.Microsoft.NETCore.Jit" Version="[2.0.8]" />
     <PackageVersion Include="SharpDX" Version="[4.0.1]" />
     <PackageVersion Include="SharpDX.Direct2D1" Version="[4.0.1]" />
     <PackageVersion Include="SharpDX.Direct3D11" Version="[4.0.1]" />
