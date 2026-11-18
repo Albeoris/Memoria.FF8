@@ -31,6 +31,8 @@ public sealed partial class TitleArtworkRenderer : IDisposable
     private readonly int glintPrimitiveCount;
     private readonly int wordmarkPrimitiveCount;
     private readonly int wordmarkGlintPrimitiveCount;
+    private RenderTarget2D? artworkSurface;
+    private SpriteBatch? artworkBatch;
     private bool disposed;
 
     public TitleArtworkRenderer(GraphicsDevice graphicsDevice, TitleSceneStyle style = TitleSceneStyle.FinalFantasyVIII)
@@ -73,7 +75,8 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         wordmarkGlintPrimitiveCount = glints.Count / 3;
     }
 
-    public void Draw(Rectangle bounds, double seconds)
+    /// <summary>Draws the artwork, optionally preserving multisample coverage when drawing onto a single-sample backbuffer.</summary>
+    public void Draw(Rectangle bounds, double seconds, int backBufferArtworkSamples = 0)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (bounds.Width <= 0 || bounds.Height <= 0)
@@ -81,6 +84,83 @@ public sealed partial class TitleArtworkRenderer : IDisposable
             return;
         }
 
+        if (backBufferArtworkSamples > graphicsDevice.PresentationParameters.MultiSampleCount && graphicsDevice.GetRenderTargets().Length == 0)
+        {
+            graphicsDevice.Adapter.QueryRenderTargetFormat(graphicsDevice.GraphicsProfile, SurfaceFormat.Color, DepthFormat.None, backBufferArtworkSamples, out _, out _, out int samples);
+            if (samples > graphicsDevice.PresentationParameters.MultiSampleCount)
+            {
+                DrawMultisampled(bounds, seconds, samples);
+                return;
+            }
+        }
+
+        DrawArtwork(bounds, seconds);
+    }
+
+    private void DrawMultisampled(Rectangle bounds, double seconds, int samples)
+    {
+        Viewport previousViewport = graphicsDevice.Viewport;
+        Rectangle previousScissor = graphicsDevice.ScissorRectangle;
+        BlendState previousBlend = graphicsDevice.BlendState;
+        DepthStencilState previousDepth = graphicsDevice.DepthStencilState;
+        RasterizerState previousRasterizer = graphicsDevice.RasterizerState;
+        SamplerState previousSampler = graphicsDevice.SamplerStates[0];
+        Texture? previousTexture = graphicsDevice.Textures[0];
+        if (artworkSurface is null || artworkSurface.Width != previousViewport.Width || artworkSurface.Height != previousViewport.Height || artworkSurface.MultiSampleCount != samples)
+        {
+            artworkSurface?.Dispose();
+            artworkSurface = new RenderTarget2D(graphicsDevice, previousViewport.Width, previousViewport.Height, false, SurfaceFormat.Color, DepthFormat.None, samples, RenderTargetUsage.DiscardContents);
+        }
+        artworkBatch ??= new SpriteBatch(graphicsDevice);
+        bool targetRestored = false;
+        try
+        {
+            graphicsDevice.SetRenderTarget(artworkSurface);
+            graphicsDevice.Clear(Color.Transparent);
+            DrawArtwork(bounds, seconds);
+            RestoreBackBuffer();
+            targetRestored = true;
+            graphicsDevice.Viewport = previousViewport;
+            graphicsDevice.ScissorRectangle = previousScissor;
+            // AlphaBlend accumulates premultiplied artwork and coverage over transparent samples.
+            artworkBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            artworkBatch.Draw(artworkSurface, new Rectangle(0, 0, previousViewport.Width, previousViewport.Height), Color.White);
+            artworkBatch.End();
+        }
+        finally
+        {
+            if (!targetRestored)
+            {
+                RestoreBackBuffer();
+            }
+            graphicsDevice.Viewport = previousViewport;
+            graphicsDevice.ScissorRectangle = previousScissor;
+            graphicsDevice.BlendState = previousBlend;
+            graphicsDevice.DepthStencilState = previousDepth;
+            graphicsDevice.RasterizerState = previousRasterizer;
+            graphicsDevice.SamplerStates[0] = previousSampler;
+            graphicsDevice.Textures[0] = previousTexture;
+        }
+    }
+
+    private void RestoreBackBuffer()
+    {
+        PresentationParameters presentation = graphicsDevice.PresentationParameters;
+        RenderTargetUsage previousUsage = presentation.RenderTargetUsage;
+        try
+        {
+            // The backdrop was already drawn before this transparent artwork layer.
+            presentation.RenderTargetUsage = RenderTargetUsage.PreserveContents;
+            graphicsDevice.SetRenderTarget(null);
+        }
+        finally
+        {
+            presentation.RenderTargetUsage = previousUsage;
+        }
+    }
+
+    private void DrawArtwork(Rectangle bounds, double seconds)
+    {
         BlendState previousBlend = graphicsDevice.BlendState;
         DepthStencilState previousDepth = graphicsDevice.DepthStencilState;
         RasterizerState previousRasterizer = graphicsDevice.RasterizerState;
@@ -141,6 +221,8 @@ public sealed partial class TitleArtworkRenderer : IDisposable
         }
 
         disposed = true;
+        artworkSurface?.Dispose();
+        artworkBatch?.Dispose();
         metalBuffer?.Dispose();
         glintBuffer?.Dispose();
         wordmarkBuffer.Dispose();

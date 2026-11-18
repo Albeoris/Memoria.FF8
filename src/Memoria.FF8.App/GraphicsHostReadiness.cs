@@ -44,7 +44,7 @@ internal sealed class GraphicsHostReadiness
         {
             throw new NotSupportedException($"The {Backend} host requires the HiDef graphics profile; actual profile is {device.GraphicsProfile}.");
         }
-        device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, device.PresentationParameters.MultiSampleCount, out SurfaceFormat color, out DepthFormat depth, out int samples);
+        device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, GraphicsDeviceSettings.SceneMsaaSamples(device), out SurfaceFormat color, out DepthFormat depth, out int samples);
         if (color != SurfaceFormat.Color || depth != DepthFormat.Depth24)
         {
             throw new NotSupportedException($"The {Backend} device cannot provide the required Color/Depth24 render target (actual {color}/{depth}).");

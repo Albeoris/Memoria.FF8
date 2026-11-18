@@ -1654,7 +1654,7 @@ internal sealed partial class RecreateGame : Game
             titleScene ??= GraphicsHostReadiness.Initialize(() => new TitleSceneRenderer(GraphicsDevice));
             titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice);
             titleScene.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
-            titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
+            titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds, GraphicsDeviceSettings.SceneMsaaSamples(GraphicsDevice));
         }
         RenderModelBrowserPreview(gameTime.TotalGameTime);
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);

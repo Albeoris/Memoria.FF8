@@ -35,10 +35,8 @@ public sealed class Ff7GraphicsSettingsTests
         Invoke(scene, "EnsurePlayerMenu");
         void Choose(string setting, string value) => Invoke(scene, "ApplyPlayerMenuAction", new MenuAction("config", setting, Value: value));
         Assert.Equal(initialSamples, scene.PresentationPreferences.Graphics.MsaaSamples);
-        using (RenderTarget2D initialTarget = new(game.GraphicsDevice, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, initialSamples, RenderTargetUsage.PreserveContents))
-        {
-            Assert.Equal(initialTarget.MultiSampleCount, game.GraphicsDevice.PresentationParameters.MultiSampleCount);
-        }
+        Assert.Equal(0, game.GraphicsDevice.PresentationParameters.MultiSampleCount);
+        Assert.Equal(initialSamples, GraphicsDeviceSettings.SceneMsaaSamples(game.GraphicsDevice));
         Choose("Show FPS", "On");
         int[] samples = [0, 2, 4, 8, 0, 2, 4, 8];
         for (int frame = 0; frame < samples.Length; frame++)
@@ -56,7 +54,8 @@ public sealed class Ff7GraphicsSettingsTests
             GraphicsDevice device = game.GraphicsDevice;
             using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
             int supported = reference.MultiSampleCount;
-            Assert.Equal(supported, device.PresentationParameters.MultiSampleCount);
+            Assert.Equal(0, device.PresentationParameters.MultiSampleCount);
+            Assert.Equal(requested, GraphicsDeviceSettings.SceneMsaaSamples(device));
             GpuTriangleRenderer gpu = (GpuTriangleRenderer)Field(typeof(Ff7Scene), "triangles").GetValue(scene)!;
             gpu.Begin(64, 64, new Vector4N(0, 0, 0, 1));
             TriangleVertex Vertex(float x, float y) => new(new Vector2N(x, y), 1, 1, Vector2N.Zero, Vector4N.One);

@@ -11,6 +11,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GraphicsSettingsTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public void Standalone_devices_retain_their_actual_scene_sample_count(int samples)
+    {
+        using GpuTestDevice device = new(samples);
+        Assert.Equal(device.Device.PresentationParameters.MultiSampleCount, GraphicsDeviceSettings.SceneMsaaSamples(device.Device));
+    }
+
+    [Theory]
     [InlineData("Off", 0)]
     [InlineData("MSAA 2x", 2)]
     [InlineData("MSAA 4x", 4)]
@@ -96,8 +105,6 @@ public sealed class GraphicsSettingsTests
         Field("globalSettings").SetValue(game, paths);
         Field("uiPreferences").SetValue(game, preferences);
         Field("appliedMsaaSamples").SetValue(game, initialSamples);
-        GraphicsDeviceManager manager = (GraphicsDeviceManager)Field("graphics").GetValue(game)!;
-        manager.PreferMultiSampling = initialSamples > 0;
         using QualityObserver observer = new(game, paths, initialSamples);
         game.Components.Add(observer);
         game.Run();
@@ -150,7 +157,8 @@ public sealed class GraphicsSettingsTests
             GraphicsDevice device = game.GraphicsDevice;
             using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
             int supported = reference.MultiSampleCount;
-            Assert.Equal(supported, device.PresentationParameters.MultiSampleCount);
+            Assert.Equal(0, device.PresentationParameters.MultiSampleCount);
+            Assert.Equal(requested, GraphicsDeviceSettings.SceneMsaaSamples(device));
             GpuTriangleRenderer renderer = (GpuTriangleRenderer)Field("battleGpu").GetValue(game)!;
             renderer.Begin(16, 16, System.Numerics.Vector4.One);
             renderer.End();

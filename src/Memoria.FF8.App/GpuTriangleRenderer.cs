@@ -118,7 +118,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         {
             throw new ArgumentOutOfRangeException(nameof(width));
         }
-        device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, device.PresentationParameters.MultiSampleCount, out _, out _, out int multiSampleCount);
+        device.Adapter.QueryRenderTargetFormat(device.GraphicsProfile, SurfaceFormat.Color, DepthFormat.Depth24, GraphicsDeviceSettings.SceneMsaaSamples(device), out _, out _, out int multiSampleCount);
         if (workingTarget is null || workingTarget.Width != width || workingTarget.Height != height || workingTarget.MultiSampleCount != multiSampleCount)
         {
             workingTarget?.Dispose();
