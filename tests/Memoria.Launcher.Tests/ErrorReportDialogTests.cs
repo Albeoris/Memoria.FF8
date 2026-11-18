@@ -83,9 +83,21 @@ public sealed class ErrorReportDialogTests(LauncherHeadlessFixture fixture)
         typeof(ToggleButton).GetMethod("Toggle", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)!.Invoke(check, null);
     }
 
+    private static string GetPhysicalTempDirectory()
+    {
+        string temporaryDirectory = Path.GetFullPath(Path.GetTempPath());
+        string physicalDirectory = Path.GetPathRoot(temporaryDirectory)!;
+        foreach (string component in temporaryDirectory[physicalDirectory.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            DirectoryInfo directory = new(Path.Combine(physicalDirectory, component));
+            physicalDirectory = directory.ResolveLinkTarget(true)?.FullName ?? directory.FullName;
+        }
+        return physicalDirectory;
+    }
+
     private static void VerifyDeletion(int selectedIndex, bool deleteAll)
     {
-        string root = Path.Combine(Path.GetTempPath(), "memoria-dialog-tests-" + Guid.NewGuid().ToString("N"));
+        string root = Path.Combine(GetPhysicalTempDirectory(), "memoria-dialog-tests-" + Guid.NewGuid().ToString("N"));
         ErrorIncident[] incidents = Enumerable.Range(0, 3).Select(index => ErrorIncident.Capture(new Exception($"Incident detail {index}"), $"Subsystem {index}")).ToArray();
         foreach (ErrorIncident incident in incidents)
         {
