@@ -51,10 +51,10 @@ public sealed partial class MenuController
         return gameplay.GetMinimumAdditionalEnemies();
     }
 
-    private string AdditionalEnemiesCaption()
+    private string AdditionalEnemiesHelpDetails()
     {
-        string party = SystemText("ui.configentries.additional-enemies.party", "+1 per additional party member in battle.");
-        return MinimumAdditionalEnemies(FontPreferences) > 0 ? SystemText("ui.configentries.additional-enemies.hardcore", "Hardcore forces a minimum of 1.") + " " + party : party;
+        string party = SystemText("ui.configentries.additional-enemies.party", "+1 enemy per party member beyond three.");
+        return MinimumAdditionalEnemies(FontPreferences) > 0 ? party + " " + SystemText("ui.configentries.additional-enemies.hardcore", "Hardcore: minimum 1.") : party;
     }
 
     private UiElement BuildBattleSettingsRows()

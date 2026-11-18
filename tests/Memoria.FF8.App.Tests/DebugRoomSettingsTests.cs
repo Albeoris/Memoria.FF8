@@ -25,10 +25,9 @@ public sealed class DebugRoomSettingsTests
         UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
         Assert.Equal(0, slider.Value);
         Assert.Equal(1f, slider.ForcedMinimum);
-        Assert.Contains("Hardcore forces a minimum of 1.", slider.Caption);
-        Assert.Contains("+1 per additional party member in battle.", slider.Caption);
+        Assert.True(string.IsNullOrEmpty(slider.Caption));
         Assert.Equal(10, slider.Max);
-        Assert.Contains(slider.Caption, menus.SelectedEntry!.Help);
+        Assert.Equal("Adds enemies where the encounter and area allow it.\n+1 enemy per party member beyond three. Hardcore: minimum 1.", menus.SelectedEntry!.Help);
         menus.Navigate(MenuInput.Confirm);
         menus.Navigate(MenuInput.Left);
         Assert.Equal(0, preferences.AdditionalEnemies);
@@ -51,7 +50,7 @@ public sealed class DebugRoomSettingsTests
     [InlineData(BattleDifficulty.Normal, 5, 0)]
     [InlineData(BattleDifficulty.Hardcore, 3, 1)]
     [InlineData(BattleDifficulty.Hardcore, 5, 1)]
-    public void Additional_enemies_caption_and_minimum_follow_difficulty_without_party_scaling(BattleDifficulty difficulty, int allies, float minimum)
+    public void Additional_enemies_help_and_minimum_follow_difficulty_without_party_scaling(BattleDifficulty difficulty, int allies, float minimum)
     {
         UiPreferences preferences = new() { BattleAllyCount = allies, Difficulty = difficulty, AdditionalEnemies = 5 };
         MenuController menus = new(() =>
@@ -66,8 +65,10 @@ public sealed class DebugRoomSettingsTests
         menus.SelectEntry("config-combat", "Additional enemies");
         UiNumericSlider slider = Assert.IsType<UiNumericSlider>(menus.BuildView().FocusedElement);
         Assert.Equal(minimum, slider.ForcedMinimum);
-        Assert.Contains("+1 per additional party member in battle.", slider.Caption);
-        Assert.Equal(difficulty == BattleDifficulty.Hardcore, slider.Caption.Contains("Hardcore forces a minimum of 1.", StringComparison.Ordinal));
+        Assert.True(string.IsNullOrEmpty(slider.Caption));
+        string help = menus.SelectedEntry!.Help;
+        Assert.StartsWith("Adds enemies where the encounter and area allow it.\n+1 enemy per party member beyond three.", help);
+        Assert.Equal(difficulty == BattleDifficulty.Hardcore, help.Contains("Hardcore: minimum 1.", StringComparison.Ordinal));
     }
 
     [Fact]

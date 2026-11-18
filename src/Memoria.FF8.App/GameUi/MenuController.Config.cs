@@ -99,7 +99,7 @@ public sealed partial class MenuController
             string help = newGame && hardcoreLocked ? description : unavailableReason ?? description;
             if (setting.Id == "Additional enemies")
             {
-                help = AdditionalEnemiesCaption() + " " + help;
+                help += "\n" + AdditionalEnemiesHelpDetails();
             }
             if (setting.Id == "Graphics backend")
             {
@@ -260,7 +260,6 @@ public sealed partial class MenuController
                 Step = setting.Id is "Music volume" or "Effect volume" or "Voice volume" ? 1 : numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
                 Value = float.TryParse(value.TrimEnd('%'), CultureInfo.InvariantCulture, out float number) ? number : numbers[0],
                 ForcedMinimum = setting.Id == "Additional enemies" ? MinimumAdditionalEnemies(FontPreferences) : 0,
-                Caption = setting.Id == "Additional enemies" ? AdditionalEnemiesCaption() : string.Empty,
                 ValueFormat = setting.Id == "Fast-forward multiplier" ? "0'x'" : setting.Values[0].EndsWith('%') ? "0'%'" : "0",
                 ValueWidth = 66 * TextScale,
                 LabelWidthRatio = 0.52f,
