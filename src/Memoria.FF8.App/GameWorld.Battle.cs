@@ -217,9 +217,13 @@ internal sealed partial class GameWorld
                 .Where(row => (entryVitals.Records[row].MemberFlags & 1) != 0)
                 .Select(row => checked((byte)row)).ToArray();
             var admitted = combatants.ToDictionary(actor => checked((byte)actor.MagicRecordId!.Value));
-            foreach (BattleCombatantDefinition candidate in CreateBattleParty(entryVitals, eligibleRows.Where(row => !admitted.ContainsKey(row)).ToArray()))
+            byte[] missingRows = eligibleRows.Where(row => !admitted.ContainsKey(row)).ToArray();
+            if (missingRows.Length != 0)
             {
-                admitted.Add(checked((byte)candidate.MagicRecordId!.Value), candidate);
+                foreach (BattleCombatantDefinition candidate in CreateBattleParty(entryVitals, missingRows))
+                {
+                    admitted.Add(checked((byte)candidate.MagicRecordId!.Value), candidate);
+                }
             }
             NativeBattleExperienceDefinition experience = assets.ReadNativeBattleExperienceDefinition();
             replacementCandidates = eligibleRows.ToImmutableDictionary(row => row, row => admitted[row] with
