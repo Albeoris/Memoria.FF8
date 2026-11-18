@@ -250,17 +250,21 @@ public sealed partial class Ff7BattleRenderer
         ModelColorBlend? tint = actor.ModelModifiers is { Alpha: < 255 } modifiers ? new(modifiers.Red, modifiers.Green, modifiers.Blue, alpha) : null;
         Ff7ModelMaterialState material = new() { Cull = true };
         Ff7BattleScreenBounds bounds = default;
-        VisitActorGeometry(actor, (model, textures, transform) =>
+        // Deferred alpha groups must not update the state inherited by later opaque body or weapon groups.
+        for (int pass = 0; pass < 2; pass++)
         {
-            DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint, nativeActorColor: actor.NativeColor, actorPalette: actor.ModelModifiers?.TexturePalette);
-            if (captureBounds && actor.Slot.HasValue && alpha != 0)
+            VisitActorGeometry(actor, (model, textures, transform) =>
             {
-                foreach (Vector3 vertex in model.Vertices)
+                DrawModel(renderer, model, textures, transform, view, material, alpha / 255f, tint, nativeActorColor: actor.NativeColor, actorPalette: actor.ModelModifiers?.TexturePalette, actorTransparentPass: pass != 0);
+                if (pass == 0 && captureBounds && actor.Slot.HasValue && alpha != 0)
                 {
-                    bounds.Add(view.Transform(Vector3.Transform(vertex, transform)), view.Width, view.Height, view.Focal);
+                    foreach (Vector3 vertex in model.Vertices)
+                    {
+                        bounds.Add(view.Transform(Vector3.Transform(vertex, transform)), view.Width, view.Height, view.Focal);
+                    }
                 }
-            }
-        });
+            });
+        }
         if (actor.Slot is int slot && bounds.Value is { } modelBounds)
         {
             actorBounds[slot] = modelBounds;
@@ -303,7 +307,7 @@ public sealed partial class Ff7BattleRenderer
         return image;
     }
 
-    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null, CrossoverNativeActorColor? nativeActorColor = null, ImmutableDictionary<int, uint>? actorPalette = null)
+    private void DrawModel(ITriangleRenderer renderer, PcPolygonModel model, IReadOnlyList<PcTexture> textures, Matrix4x4 transform, CameraView view, Ff7ModelMaterialState material, float opacity = 1, ModelColorBlend? colorBlend = null, CrossoverNativeStageColor? guestStageColor = null, int? arenaPart = null, IReadOnlySet<NativeBattleArenaPrimitiveId>? suppressedArenaPrimitives = null, CrossoverNativeActorColor? nativeActorColor = null, ImmutableDictionary<int, uint>? actorPalette = null, bool? actorTransparentPass = null)
     {
         if (model.Groups.Count != model.RenderStates.Count)
         {
@@ -313,6 +317,10 @@ public sealed partial class Ff7BattleRenderer
         {
             PcModelGroup group = model.Groups[index];
             PcRenderState state = PcRenderState.Read(model.RenderStates[index].Span);
+            if (actorTransparentPass is bool transparent && ((state.Options & 0x400) != 0) != transparent)
+            {
+                continue;
+            }
             material.Apply(state);
             PixelImage? image = null;
             if (group.TexturesUsed != 0)

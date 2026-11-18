@@ -8,6 +8,46 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class Ff7BattleRenderingTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void OriginalPartyOpaquePartsDoNotInheritDeferredHairAndWeaponBlending(int character)
+    {
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipWhen(string.IsNullOrWhiteSpace(root), "Select original resources for FFVII party materials.");
+        Ff7Installation installation = Ff7Installation.Discover(root!);
+        using LgpArchive archive = LgpArchive.Open(installation.GetRequired(Ff7ResourceRole.BattleArchive).Path);
+        SceneFormation formation = SceneArchive.Read(File.ReadAllBytes(installation.GetRequired(Ff7ResourceRole.BattleScenes).Path))[300];
+        SceneBattleData scene = SceneBattleData.Read(formation);
+        Ff7BattleRenderer renderer = new(archive, formation.LocationId);
+        Ff7BattleActorVisual actor = new(Ff7BattleRenderer.PartyModelPrefix(character), new(0, 0, -1000), 0, 0, 0, 0);
+        Ff7BattleActorGeometry geometry = renderer.CaptureActorGeometry(actor);
+        Assert.NotEmpty(geometry.Faces);
+        Assert.Contains(geometry.Faces, face => (face.Material.Options & 0x400) != 0);
+        foreach (Ff7BattleActorFace face in geometry.Faces)
+        {
+            TriangleMaterial material = Assert.IsType<NativeBattleForeignRenderMaterial>(face.Surface!.Material).Material;
+            Assert.Equal((face.Material.Options & 0x400) == 0 ? TriangleBlend.Replace : TriangleBlend.HalfAdd, material.Blend);
+        }
+
+        Capture stage = new();
+        renderer.Render(stage, 320, 240, new(scene.Cameras[0], []));
+        List<TriangleMaterial> submitted = [];
+        Capture capture = new((_, material) => submitted.Add(material));
+        renderer.Render(capture, 320, 240, new(scene.Cameras[0], [actor]));
+        TriangleMaterial[] body = submitted.Skip(stage.Triangles).ToArray();
+        int firstDeferred = Array.FindIndex(body, material => material.Blend != TriangleBlend.Replace);
+        Assert.NotEmpty(body);
+        if (firstDeferred < 0)
+        {
+            firstDeferred = body.Length;
+        }
+        Assert.True(firstDeferred > 0, "Opaque body and weapon groups must precede the deferred details.");
+        Assert.All(body.Take(firstDeferred), material => Assert.True(material.DepthWrite));
+        Assert.All(body.Skip(firstDeferred), material => Assert.Equal(TriangleBlend.HalfAdd, material.Blend));
+    }
+
     [Fact]
     public void OpeningGuardsUseOpaqueMaterialsUntilTheDeathCallbackFadesThem()
     {

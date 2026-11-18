@@ -33,7 +33,8 @@ public sealed partial class Ff7BattleRenderer
         ImmutableArray<Ff7BattleActorFace>.Builder faces = ImmutableArray.CreateBuilder<Ff7BattleActorFace>();
         ImmutableArray<Vector3>.Builder vertices = ImmutableArray.CreateBuilder<Vector3>();
         int part = 0;
-        Ff7ModelMaterialState materialState = new();
+        Ff7ModelMaterialState opaqueMaterial = new();
+        Ff7ModelMaterialState transparentMaterial = new();
         ImmutableArray<Vector3> skeleton = [];
         ImmutableArray<Matrix4x4> boneTransforms = [];
         VisitActorGeometry(actor, (model, textures, transform) =>
@@ -48,6 +49,7 @@ public sealed partial class Ff7BattleRenderer
             {
                 PcModelGroup group = model.Groups[groupIndex];
                 PcRenderState material = PcRenderState.Read(model.RenderStates[groupIndex].Span);
+                Ff7ModelMaterialState materialState = (material.Options & 0x400) == 0 ? opaqueMaterial : transparentMaterial;
                 materialState.Apply(material);
                 Albeoris.Games.FF8.Imaging.PixelImage? image = null;
                 if (group.TexturesUsed != 0)
