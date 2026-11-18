@@ -7,6 +7,7 @@ public sealed partial class BattlePresentationProcess
 {
     private (NativeBattleWaterExecutionFrame Frame, NativeBattleGraphicsState Graphics) DrawNativeCinematicMesh(NativeBattleWaterExecutionFrame frame, byte kind, int secondFileLength, NativeBattleCinematicResources resources, NativeBattleGraphicsState graphics)
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.EffectCinematicMesh);
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native cinematic mesh requires its selected original effect.");
         NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect.Binding.Effect);
         if (resources.TextureProfile.InitializationAddress != profile.InitializationAddress || resources.TextureProfile.OwnerDirectoryAddress != profile.OwnerDirectoryAddress)

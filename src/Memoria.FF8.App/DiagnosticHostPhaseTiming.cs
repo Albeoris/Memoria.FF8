@@ -73,7 +73,7 @@ internal sealed record DiagnosticNativeCpuCycles(bool Available, long InvalidObs
 // Detail scopes can nest. Each row measures its own calls.
 internal readonly record struct DiagnosticNativeTimingDetail(long Calls, long CpuCycles, long PairedWallTicks)
 {
-    internal const int Count = (int)NativeBattleTimedDetail.OrderingPublication + 1;
+    internal const int Count = (int)NativeBattleTimedDetail.EffectCinematicMesh + 1;
 
     internal bool CanAdd(DiagnosticNativeTimingDetail other)
     {

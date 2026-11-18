@@ -102,6 +102,7 @@ internal sealed class NativeBattleMeteor223GridMemory
 
     internal NativeBattleWaterExecutionFrame Publish(int cursor)
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.MeteorGridPublication);
         NativeBattleGfGeometryBatch batch = new(attempts.ToImmutable(), checked(cursor - packetStart)) { NativeUnlinkedAllocation = true };
         return Services.Publish(Frame, unchecked((uint)packetStart), batch);
     }

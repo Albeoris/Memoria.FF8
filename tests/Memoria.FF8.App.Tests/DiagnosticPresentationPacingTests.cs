@@ -351,6 +351,39 @@ public sealed class DiagnosticPresentationPacingTests
     }
 
     [Theory]
+    [InlineData(NativeBattleTimedDetail.EffectMeshProjection)]
+    [InlineData(NativeBattleTimedDetail.EffectMeshSubmission)]
+    [InlineData(NativeBattleTimedDetail.MeteorGridExecution)]
+    [InlineData(NativeBattleTimedDetail.MeteorGridPublication)]
+    [InlineData(NativeBattleTimedDetail.EffectPacketAppend)]
+    [InlineData(NativeBattleTimedDetail.EffectCinematicMesh)]
+    public void Effect_cpu_details_survive_interval_and_report_aggregation(NativeBattleTimedDetail detail)
+    {
+        ulong stamp = 100;
+        DiagnosticHostPhaseTiming timing = new(true, true, Read);
+        INativeBattlePhaseTimingSink sink = timing;
+        sink.BeginCallback();
+        sink.BeginDetail(detail);
+        stamp += 10;
+        sink.RecordDetail(detail, 7);
+        sink.Record(NativeBattleTimedPhase.RequestsAndEffects, 7);
+        sink.CompleteCallback();
+        DiagnosticHostFramePhases interval = timing.CompleteInterval() with { Update = 10, BattlePresentationUpdate = 9 };
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 10, 7), interval.NativeCpuCycles!.Details![detail]);
+
+        DiagnosticPresentationPacing report = new(1000, 1, 100, new(true, 0, 0, 0, 0, 60, 0));
+        report.Record(1, 150, 140, 148, new(true, 1, 0, 0, 0, 60, 0), interval);
+        Assert.Equal(new DiagnosticNativeTimingDetail(1, 10, 7), report.Complete().NativeCpuCycles!.Details![detail]);
+
+        bool Read(out uint thread, out ulong cycles)
+        {
+            thread = 42;
+            cycles = stamp;
+            return true;
+        }
+    }
+
+    [Theory]
     [InlineData("unbalanced")]
     [InlineData("out of order")]
     [InlineData("reentrant")]

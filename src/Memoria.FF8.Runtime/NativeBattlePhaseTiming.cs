@@ -27,7 +27,13 @@ public enum NativeBattleTimedDetail
     OrderingPass0,
     OrderingPass1,
     OrderingPass2,
-    OrderingPublication
+    OrderingPublication,
+    EffectMeshProjection,
+    EffectMeshSubmission,
+    MeteorGridExecution,
+    MeteorGridPublication,
+    EffectPacketAppend,
+    EffectCinematicMesh
 }
 
 public interface INativeBattlePhaseTimingSink

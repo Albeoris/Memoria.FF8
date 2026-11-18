@@ -26,6 +26,7 @@ public static class NativeBattleScriptedMeshPreparation
 {
     public static NativeBattleScriptedMeshProjected Project(NativeBattleWaterMeshPrepared prepared, int shapeExtent, NativeBattleCameraProjection projection, short dqa, int dqb, NativeBattleEffectArena depthOwner, NativeBattleScriptedLightingMemory lighting, NativeBattleGeometryRegisterStep step, NativeBattleScriptedMeshMorphServices? morphServices = null, uint? retainedDepthScaleBits = null, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.EffectMeshProjection);
         NativeBattleWaterExecutionFrame frame = prepared.Frame;
         NativeBattleScriptedColorRegisters registers = step.Colors;
         depthOwner.Validate();
@@ -208,6 +209,7 @@ public static class NativeBattleScriptedMeshPreparation
 
     public static NativeBattleScriptedMeshSubmission Submit(NativeBattleScriptedMeshProjected projected, int shapeExtent, Func<int, uint> resolveActualHandler, Func<int, byte> resolveActualStride, Func<uint, int> resolveActualOtBucket)
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.EffectMeshSubmission);
         NativeBattleWaterExecutionFrame frame = projected.Frame;
         NativeBattleScriptedLightingMemory lighting = projected.Lighting;
         NativeBattleScriptedColorRegisters registers = projected.Registers;

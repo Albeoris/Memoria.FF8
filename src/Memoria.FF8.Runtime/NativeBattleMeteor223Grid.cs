@@ -19,6 +19,7 @@ public sealed class NativeBattleMeteor223Grid
 
     private NativeBattleWaterExecutionFrame Execute()
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.MeteorGridExecution);
         int current = memory.Current;
         if (memory.Dwords[current, 0xC4] == 0)
         {

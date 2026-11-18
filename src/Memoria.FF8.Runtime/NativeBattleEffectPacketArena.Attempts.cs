@@ -26,6 +26,7 @@ public static partial class NativeBattleEffectPacketArena
 
     internal static void AppendAttempts(NativeBattleEffectArenaWriter arena, NativeBattleLogicalOrdering.Builder links, int cursor, NativeBattleGfGeometryBatch batch, ushort flags20 = 0, int? moduleDraw = null, uint? privateOrderingAddress = null, string bank = "20DFAB8", int capacity = NativeBattleEffectArena.Length)
     {
+        using NativeBattlePhaseTiming.DetailScope timing = NativeBattlePhaseTiming.MeasureDetail(NativeBattleTimedDetail.EffectPacketAppend);
         if (batch.Attempts.IsDefault || batch.AllocationBytes < 0 || (batch.AllocationBytes & 3) != 0 || cursor < 0 || (cursor & 3) != 0 || cursor > capacity - batch.AllocationBytes)
         {
             throw new InvalidDataException("Native effect packet attempts require their original ordered stores/links and aligned allocation.");
