@@ -103,6 +103,10 @@ internal sealed class NativeBattleModelLifecycleServices(ImmutableDictionary<Bat
     internal void EmitDescriptorText(BattleEvent message) => receipts.Add(new NativeBattlePresentationDescriptorText(message));
     internal void EmitTerminal(NativeBattleTerminalEntered receipt) => receipts.Add(receipt);
     internal void EmitTerminal(NativeBattleTerminalFinished receipt) => receipts.Add(receipt);
+    internal void EmitDiagnosticOutcomeEntry(NativeBattleDiagnosticOutcomeEntry receipt)
+    {
+        receipts.Add(receipt);
+    }
 
     internal void Validate(BattleModelRoster roster, NativeBattleGraphicsState graphics)
     {

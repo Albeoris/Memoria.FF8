@@ -164,6 +164,45 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services));
     }
 
+    [Theory]
+    [InlineData(23, false)]
+    [InlineData(71, true)]
+    public void Effect77_body_selector29_requires_its_original_rig(int boneCount, bool supported)
+    {
+        NativeBattleWaterExecutionFrame frame = Fixture(0xAD);
+        frame = frame with { Arena = frame.Arena.Write(0x1002, [29, 0]).Write(0x2094, new byte[6]) };
+        frame = NativeBattleCinematicTypedTestFixture.BindActor(frame, OriginalOwner(3));
+        byte[] skeleton = new byte[16 + 48 * boneCount];
+        skeleton[0] = checked((byte)boneCount);
+        for (int bone = 0; bone < boneCount; bone++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16 + 48 * bone), -1);
+        }
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        int publications = 0;
+        NativeBattleCinematicActorAnchorServices services = new((current, _, restore, linked) =>
+        {
+            Assert.True(restore);
+            Assert.False(linked);
+            return new(current, skeleton.ToImmutableArray(), Enumerable.Repeat(identity, boneCount).ToImmutableArray(), identity);
+        }, (current, _) => current, (current, _) =>
+        {
+            publications++;
+            return current;
+        }, NativeBattleActorAnchorRegisterFixture.Services());
+        if (supported)
+        {
+            NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services);
+            Assert.Equal(0x1004u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+            Assert.Equal(1, publications);
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 4, 0x1000), services));
+            Assert.Equal(0, publications);
+        }
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction)
     {
         NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);

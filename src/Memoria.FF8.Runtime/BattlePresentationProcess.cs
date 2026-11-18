@@ -119,7 +119,9 @@ public sealed partial class BattlePresentationProcess
             throw new InvalidDataException("External diagnostic invocation requires its zero-amount presentation contacts.");
         }
         PreparedHostedDispatch prepared = PrepareHostedDispatch([new(header, contacts)], dispatchAppended: true, freshActionPackets: true, provenance: BattlePresentationInvocationProvenance.ExternalDiagnostic);
-        return PublishHostedAction(prepared);
+        long token = PublishHostedAction(prepared);
+        ObserveDiagnosticPreparedHeader(prepared.Action!.Invocation.Header);
+        return token;
     }
 
     internal BattlePresentationProcess.PreparedHostedDispatch PrepareAction(NativeBattleActionHeaderPreparation header, ImmutableArray<NativeBattleContactPacket> contacts)

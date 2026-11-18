@@ -323,6 +323,9 @@ try {
                             44 { 83 }
                             64 { 124 }
                             66 { 124 }
+                            76 { 126 }
+                            77 { 126 }
+                            79 { 122 }
                             167 { 70 }
                             308 { 105 }
                             314 { 103 }
@@ -331,7 +334,10 @@ try {
                             default { 0 }
                         }
                         $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
-                        if ($effect -in @(64, 66)) {
+                        if ($effect -eq 84) {
+                            $componentRequest.ally_id = 4
+                        }
+                        if ($effect -in @(64, 66, 76, 77, 79)) {
                             $componentRequest.stage_id = 142
                         }
                         Write-Json $requestPath $componentRequest

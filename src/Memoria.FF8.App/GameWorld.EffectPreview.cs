@@ -48,7 +48,14 @@ internal sealed partial class GameWorld
             return StartEffectComponentPreview(request, source);
         }
         effectPreviewRequest = request;
-        DiagnosticBattlePreparation fixture = new([], [new(0, request.AllyId, [], [])], true) { CombatParty = [0, 255, 255] };
+        NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Graphical preview requires its initialized saved character owner.");
+        int[] rows = vitals.Records.Select((record, row) => (record, row)).Where(candidate => candidate.record.CharacterId == request.AllyId).Select(candidate => candidate.row).ToArray();
+        if (rows.Length != 1)
+        {
+            throw new InvalidDataException("Graphical preview requires one saved character row for its selected identity.");
+        }
+        int row = rows[0];
+        DiagnosticBattlePreparation fixture = new([], [new(row, request.AllyId, [], [])], true) { CombatParty = [checked((byte)row), 255, 255] };
         BattleSession active = StartDiagnosticBattle(new(0, request.Seed, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, Fixture = fixture, AtbMode = BattleAtbMode.Normal });
         active.ConfigureDiagnosticEffectPreview();
         for (int frame = 0; frame < 3600 && (!active.NativeEntryReady || active.ObserveDiagnosticDrainBlockers().Count != 0); frame++)

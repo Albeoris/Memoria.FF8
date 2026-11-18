@@ -22,6 +22,7 @@ internal sealed record BattlePresentationSnapshot(BattlePresentationResources Re
 {
     internal BattleExternalEffectContinuation? ExternalEffect { get; init; }
     internal HostedPresentationInvocation? Invocation { get; init; }
+    internal NativeBattlePhysicalPartyStatuses? PhysicalPartyBattleStatuses { get; init; }
     internal HostedCompletionInvocation? Completion { get; init; }
     internal ImmutableArray<HostedControlPacket> ControlPackets { get; init; }
     internal HostedModelRegistry? ModelRegistry { get; init; }
@@ -114,6 +115,7 @@ public sealed partial class BattlePresentationProcess
             LastStep = LastStep,
             LastStepAction = LastStepActionToken,
             DiagnosticGeneration = diagnosticHeaderGeneration,
+            PhysicalPartyBattleStatuses = physicalPartyBattleStatuses,
             DiagnosticGenerations = diagnosticHeaderGenerations?.ToImmutableDictionary()
         };
         return NativeBattleStorageSnapshots.CapturePrivate(snapshot);
@@ -198,6 +200,8 @@ public sealed partial class BattlePresentationProcess
         LastStep = snapshot.LastStep;
         LastStepActionToken = snapshot.LastStepAction;
         diagnosticHeaderGeneration = snapshot.DiagnosticGeneration;
+        physicalPartyBattleStatuses = snapshot.PhysicalPartyBattleStatuses ?? NativeBattlePhysicalPartyStatuses.Unknown();
+        physicalPartyBattleStatuses.Validate();
         diagnosticHeaderGenerations = snapshot.DiagnosticGenerations?.ToDictionary();
         if (snapshot.ExternalEffect is { } external)
         {

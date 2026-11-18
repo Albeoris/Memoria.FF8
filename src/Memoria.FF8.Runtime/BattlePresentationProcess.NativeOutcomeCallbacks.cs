@@ -57,6 +57,9 @@ public sealed partial class BattlePresentationProcess
     {
         NativeBattleOutcomeState outcome = graphics.NativeOutcome ?? throw new NotSupportedException("Native47DF60 requires its established outcome byte owners.");
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native47DF60 requires its original player UI queue.");
+        NativeBattleDiagnosticOutcomeEntry? diagnosticEntry = hostedTerminal is null && hostedPresentationInvocation?.Provenance == BattlePresentationInvocationProvenance.ExternalDiagnostic
+            ? PrepareDiagnosticOutcomeEntry(graphics)
+            : null;
         NativeBattleUiCommands commands = ui.Commands;
         for (byte index = 0; index < 3; index++)
         {
@@ -65,7 +68,16 @@ public sealed partial class BattlePresentationProcess
         }
         commands = commands.Enqueue(0, 65);
         nativeActionPackets = nativeActionPackets.RestartContactPublication();
-        ReachHostedTerminalEntry();
+        if (diagnosticEntry is not null)
+        {
+            NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidOperationException("Native47DF60 diagnostic process entry requires its ordered frame receipts.");
+            hostedPresentationInvocation = diagnosticEntry.Invocation;
+            services.EmitDiagnosticOutcomeEntry(diagnosticEntry);
+        }
+        else
+        {
+            ReachHostedTerminalEntry();
+        }
         NativeEffectMemory = (NativeEffectMemory ?? throw new NotSupportedException("Native47DF60 requires its retained action-phase process byte.")) with { ActionPhaseDEA = 0 };
         return graphics with { NativeOutcome = outcome with { ActionOwnerB0D = 0, ExitModeDE8 = 2, AdmissionDFD = 1 }, UiServices = ui with { Commands = commands } };
     }

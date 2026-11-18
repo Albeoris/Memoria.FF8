@@ -15,6 +15,8 @@ public sealed partial class BattlePresentationProcess
         internal BattlePresentationInvocationProvenance Provenance { get; init; }
         internal bool AwaitingRenzokukenWidgetClose { get; init; }
         internal bool RenzokukenWidgetClosed { get; init; }
+        internal bool DiagnosticOutcomeEntryIssued { get; init; }
+        internal bool DiagnosticOutcomeEntryAcknowledged { get; init; }
     }
 
     private HostedPresentationInvocation? hostedPresentationInvocation;

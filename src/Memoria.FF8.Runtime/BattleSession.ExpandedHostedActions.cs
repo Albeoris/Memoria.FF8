@@ -296,6 +296,9 @@ public sealed partial class BattleSession
         {
             switch (receipt)
             {
+                case NativeBattleDiagnosticOutcomeEntry diagnosticOutcome:
+                    AcknowledgeDiagnosticOutcomeEntry(diagnosticOutcome, actionToken);
+                    break;
                 case NativeBattlePresentationContactReceived { Invocation: { Provenance: BattlePresentationInvocationProvenance.ExternalDiagnostic } invocation } external:
                     if (actionToken != invocation.Token || external.Renzokuken is not null || external.Packet.Primary.Amount6 != 0 || external.Packet.Secondary is not null)
                     {

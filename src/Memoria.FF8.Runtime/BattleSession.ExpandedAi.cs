@@ -133,7 +133,13 @@ public sealed partial class BattleSession
                 !batch.ActorIds.IsDefaultOrEmpty && batch.ActorIds.IndexOf(actor.Id) >= batch.LoadingIndex;
         }
         HostedDispatchControl.LoadEnemy expected = ReadHostedEncounterAllocationLoad(actor);
-        return snapshot.NativeLastAllocatedTarget == new BattlePreviousTarget.Actor(expected.Owner.Actor) &&
+        bool ownsLastAllocation = snapshot.NativeLastAllocatedTarget switch
+        {
+            BattlePreviousTarget.Actor captured => captured.Reference == expected.Owner.Actor,
+            NativeBattleTargetRequestAdapter.OriginalPreviousOperand original => actor.NativeActorIndex == original.Operand && expected.OriginalSlot?.Offset == original.Operand,
+            _ => false
+        };
+        return ownsLastAllocation &&
             snapshot.NativeScriptState?.AllocationControl is { ActionGate: true, PauseGate: true, SceneSlot: byte scene } &&
             scene == ReadNativeAllocationSourceScene(actor) &&
             snapshot.PresentationContinuation?.ModelRegistry?.Loads.TryGetValue(expected.Owner, out HostedModelLoadAdmission? admission) == true && admission.Load == expected;
