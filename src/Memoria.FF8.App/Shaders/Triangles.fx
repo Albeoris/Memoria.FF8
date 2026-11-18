@@ -34,56 +34,56 @@ float4 WorldFf7Bridge; // native rotation's Y axis, enabled
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture : register(t0);
 #else
-texture SourceTexture : register(t0);
+texture SourceTexture;
 #endif
 sampler TextureSampler : register(s0) = sampler_state
 { Texture = <SourceTexture>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture1 : register(t1);
 #else
-texture SourceTexture1 : register(t1);
+texture SourceTexture1;
 #endif
 sampler TextureSampler1 : register(s1) = sampler_state
 { Texture = <SourceTexture1>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture2 : register(t2);
 #else
-texture SourceTexture2 : register(t2);
+texture SourceTexture2;
 #endif
 sampler TextureSampler2 : register(s2) = sampler_state
 { Texture = <SourceTexture2>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture3 : register(t3);
 #else
-texture SourceTexture3 : register(t3);
+texture SourceTexture3;
 #endif
 sampler TextureSampler3 : register(s3) = sampler_state
 { Texture = <SourceTexture3>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture4 : register(t4);
 #else
-texture SourceTexture4 : register(t4);
+texture SourceTexture4;
 #endif
 sampler TextureSampler4 : register(s4) = sampler_state
 { Texture = <SourceTexture4>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture5 : register(t5);
 #else
-texture SourceTexture5 : register(t5);
+texture SourceTexture5;
 #endif
 sampler TextureSampler5 : register(s5) = sampler_state
 { Texture = <SourceTexture5>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture6 : register(t6);
 #else
-texture SourceTexture6 : register(t6);
+texture SourceTexture6;
 #endif
 sampler TextureSampler6 : register(s6) = sampler_state
 { Texture = <SourceTexture6>; };
 #if VULKAN || DIRECTX12
 Texture2D SourceTexture7 : register(t7);
 #else
-texture SourceTexture7 : register(t7);
+texture SourceTexture7;
 #endif
 sampler TextureSampler7 : register(s7) = sampler_state
 { Texture = <SourceTexture7>; };
@@ -273,7 +273,7 @@ float4 FieldShadowParameters; // available, ground opacity, PCF radius in UV uni
 Texture2D FieldShadowTexture : register(t8);
 sampler FieldShadowSampler : register(s8) = sampler_state
 #else
-texture FieldShadowTexture : register(t8);
+texture FieldShadowTexture;
 sampler FieldShadowSampler : register(s8) = sampler_state
 #endif
 { Texture = <FieldShadowTexture>; };

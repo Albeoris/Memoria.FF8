@@ -8,6 +8,87 @@ $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('memoria-shader-check-' + [
 $checkScript = Join-Path $fixtureRoot 'tools/Update-Shaders.ps1'
 $manifestRelative = 'tools/shader-manifest.json'
 
+function Assert-DirectXBindings
+{
+    $manifest = Get-Content -LiteralPath (Join-Path $productRoot $manifestRelative) -Raw | ConvertFrom-Json
+    foreach ($entry in ($manifest.effects | Where-Object { $_.profile -eq 'DirectX_11' }))
+    {
+        $stream = [IO.File]::OpenRead((Join-Path $productRoot $entry.output))
+        $reader = [IO.BinaryReader]::new($stream)
+        try
+        {
+            # MGFX v11 stores its signature, version, profile and hash before the effect data.
+            $signature = [Text.Encoding]::ASCII.GetString($reader.ReadBytes(4))
+            $version = $reader.ReadByte()
+            $profile = $reader.ReadByte()
+            if ($signature -ne 'MGFX' -or $version -ne 11 -or $profile -ne 1)
+            {
+                throw "Unexpected DX11 effect format: $($entry.output)."
+            }
+            $null = $reader.ReadInt32()
+            $constantBufferCount = $reader.ReadInt32()
+            for ($buffer = 0; $buffer -lt $constantBufferCount; $buffer++)
+            {
+                $null = $reader.ReadString()
+                $null = $reader.ReadUInt16()
+                $parameterCount = $reader.ReadInt32()
+                $null = $reader.ReadBytes($parameterCount * 6)
+            }
+            $shaderCount = $reader.ReadInt32()
+            for ($shader = 0; $shader -lt $shaderCount; $shader++)
+            {
+                $null = $reader.ReadBoolean()
+                $null = $reader.ReadString()
+                $entrypoint = $reader.ReadString()
+                $null = $reader.ReadBytes($reader.ReadInt32())
+                $samplerCount = $reader.ReadByte()
+                $textureSlots = @()
+                $samplerSlots = @()
+                for ($sampler = 0; $sampler -lt $samplerCount; $sampler++)
+                {
+                    $null = $reader.ReadByte()
+                    $textureSlot = $reader.ReadByte()
+                    $samplerSlot = $reader.ReadByte()
+                    if ($textureSlot -ge 16 -or $samplerSlot -ge 16)
+                    {
+                        throw "DX11 binding exceeds MonoGame's 16 slots: $($entry.output), $entrypoint, t$textureSlot/s$samplerSlot."
+                    }
+                    $textureSlots += $textureSlot
+                    $samplerSlots += $samplerSlot
+                    if ($reader.ReadBoolean())
+                    {
+                        # Three address modes, RGBA border, filter, two integers and a float.
+                        $null = $reader.ReadBytes(20)
+                    }
+                    $null = $reader.ReadString()
+                    $null = $reader.ReadByte()
+                }
+                if ($entry.source -like '*Triangles.fx' -and $samplerCount -gt 0)
+                {
+                    $expectedCount = if ($entrypoint -eq 'FieldPixelMain') { 9 } else { 8 }
+                    $expectedSlots = (0..($expectedCount - 1)) -join ','
+                    if ($samplerCount -ne $expectedCount -or (($textureSlots | Sort-Object) -join ',') -ne $expectedSlots -or (($samplerSlots | Sort-Object) -join ',') -ne $expectedSlots)
+                    {
+                        throw "DX11 triangle bindings must occupy t0..$($expectedCount - 1) and s0..$($expectedCount - 1): $entrypoint."
+                    }
+                }
+                $null = $reader.ReadBytes($reader.ReadByte())
+                $attributeCount = $reader.ReadByte()
+                for ($attribute = 0; $attribute -lt $attributeCount; $attribute++)
+                {
+                    $null = $reader.ReadString()
+                    $null = $reader.ReadBytes(4)
+                }
+            }
+        }
+        finally
+        {
+            $reader.Dispose()
+        }
+    }
+    Write-Host 'PASS: DX11 effect bindings fit MonoGame slots and triangle bindings remain compact'
+}
+
 function Reset-Fixture
 {
     $manifest = Get-Content -LiteralPath (Join-Path $productRoot $manifestRelative) -Raw | ConvertFrom-Json
@@ -41,6 +122,7 @@ function Assert-Check([bool]$ShouldPass, [string]$Scenario)
 
 try
 {
+    Assert-DirectXBindings
     Reset-Fixture
     Assert-Check $true 'Committed artifacts validate from a different directory'
     if ($Compile)
@@ -122,7 +204,7 @@ finally
     # Only this test's freshly created temporary directory is removed.
     $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
     $resolvedFixture = [IO.Path]::GetFullPath($fixtureRoot)
-    if ($resolvedFixture.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase) -and [IO.Path]::GetFileName($resolvedFixture).StartsWith('memoria-shader-check-', [StringComparison]::Ordinal))
+    if ($resolvedFixture.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase) -and [IO.Path]::GetFileName($resolvedFixture).StartsWith('memoria-shader-check-', [StringComparison]::Ordinal) -and (Test-Path -LiteralPath $resolvedFixture))
     {
         Remove-Item -LiteralPath $resolvedFixture -Recurse -Force
     }
