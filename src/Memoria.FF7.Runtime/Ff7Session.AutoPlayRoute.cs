@@ -21,19 +21,28 @@ public sealed partial class Ff7AutoplayDriver
 
     internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate = true)
     {
+        Ff7NativeRouteProbe probe = new();
+        foreach (int _ in EnumerateNativeRoute(target, targets, requireIntermediate, probe))
+        {
+        }
+        return probe.Result;
+    }
+
+    internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe)
+    {
         if (target.Kind is < Ff7AutoPlayTargetKind.LineTalk or > Ff7AutoPlayTargetKind.LineLeave)
         {
-            return null;
+            yield break;
         }
         if (!HasNativeRouteClockContract(session))
         {
-            return null;
+            yield break;
         }
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         int initialDistance = ReadNativeRouteDistance(target, targets);
         if (initialDistance == int.MaxValue)
         {
-            return null;
+            yield break;
         }
         foreach (bool run in new[] { true, false })
         {
@@ -56,9 +65,9 @@ public sealed partial class Ff7AutoplayDriver
                 string? boundary = null;
                 branch.InteractionScriptRequested += (entity, script, admitted) => accepted |= admitted && entity == target.Entity && script == target.Script;
                 branch.Machine.InstructionVariableAccessed += (access, _) => clockAccess |= IsNativeClockAccess(access);
-                try
+                bool AdvanceCallback(int callback)
                 {
-                    for (int callback = 0; callback < 256; callback++)
+                    try
                     {
                         Ff7Actor current = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
                         Ff7AutoplayInput input;
@@ -79,7 +88,7 @@ public sealed partial class Ff7AutoplayDriver
                         {
                             if (requireIntermediate && !ladderObserved)
                             {
-                                break;
+                                return false;
                             }
                             returned = true;
                             accepted = false;
@@ -97,11 +106,11 @@ public sealed partial class Ff7AutoplayDriver
                         branch.AdvanceTick(false);
                         if (clockAccess || !HasNativeRouteClockContract(branch))
                         {
-                            break;
+                            return false;
                         }
                         if (accepted && !returned)
                         {
-                            break;
+                            return false;
                         }
                         if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
                         {
@@ -109,25 +118,43 @@ public sealed partial class Ff7AutoplayDriver
                             if (branch.Battle is not null && (ladderObserved || !requireIntermediate) && returned && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(target, targets) < initialDistance)
                             {
                                 LastNativeRouteProbe = $"Native battle handoff after {steps.Count} callbacks; route distance {initialDistance}->{driver.ReadNativeRouteDistance(target, targets)}";
-                                return new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), BattleBoundary: true);
+                                probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), BattleBoundary: true);
+                                return false;
                             }
-                            break;
+                            return false;
                         }
                         if (accepted && returned)
                         {
                             LastNativeRouteProbe = $"Accepted {target.Id} after {steps.Count} native callbacks";
-                            return new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch));
+                            probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch));
+                            return false;
                         }
+                        return true;
                     }
-                    LastNativeRouteProbe = $"No final admission: {target.Id}, callbacks {steps.Count}, triangle {branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, boundary:{boundary}";
+                    catch (Ff7AutoPlayNavigationUnavailableException error)
+                    {
+                        LastNativeRouteProbe = $"{target.Id}, callbacks {steps.Count}: {error.Message}";
+                        return false;
+                    }
                 }
-                catch (Ff7AutoPlayNavigationUnavailableException error)
+                for (int callback = 0; callback < 256; callback++)
                 {
-                    LastNativeRouteProbe = $"{target.Id}, callbacks {steps.Count}: {error.Message}";
+                    // Yield before each detached callback so a retained iterator
+                    // never executes another callback without its caller's allowance.
+                    probe.Progress = $"{target.Id}:run{run}:direction{direction.Direction}:callback{callback}";
+                    yield return callback;
+                    if (!AdvanceCallback(callback))
+                    {
+                        break;
+                    }
                 }
+                if (probe.Result is not null)
+                {
+                    yield break;
+                }
+                LastNativeRouteProbe = $"No final admission: {target.Id}, callbacks {steps.Count}, triangle {branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, boundary:{boundary}";
             }
         }
-        return null;
     }
 
     internal static ushort BackwardLadderKey(int mode)

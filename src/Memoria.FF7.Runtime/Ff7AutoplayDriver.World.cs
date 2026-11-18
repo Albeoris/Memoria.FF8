@@ -36,6 +36,11 @@ public sealed partial class Ff7AutoplayDriver
 
     internal void BeginPlanningStep() => PlanningPending = false;
 
+    internal void DeferPlanning()
+    {
+        PlanningPending = true;
+    }
+
     internal Ff7AutoPlayWorldNavigationResult ChooseWorldInput(Ff7AutoPlayWorldScriptObservation target, int nodeBudget = 512)
     {
         int expanded = 0;

@@ -94,6 +94,12 @@ internal static class NativeOwnedRouteTests
             {
                 controller.Advance(1);
                 owned |= policy.State.NativeRoute is not null;
+                if (policy.State.NativeRoute is not null)
+                {
+                    Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new InvalidOperationException("A native continuation has no active event.");
+                    var admitted = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
+                    Check(!admitted.Unavailable && active.EntryAvailabilityFingerprint == admitted.AvailabilityFingerprint, "Resumed native admission lost its positive stable availability.");
+                }
                 if (cold && !restored && policy.State.NativeRoute is { Cursor: >= 6 })
                 {
                     Ff7SessionSave save = session.Capture();

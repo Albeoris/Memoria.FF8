@@ -3,6 +3,25 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-planning-original-only", StringComparer.Ordinal))
+{
+    NativePlanningQuantumTests.Run();
+    NativePlanningQuantumTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-planning-quantum-only", StringComparer.Ordinal))
+{
+    NativePlanningQuantumTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-upper-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeUpperFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-cycle-frontier-original-only", StringComparer.Ordinal))
 {
     NativeCycleFrontierTests.RunOriginal();

@@ -11,9 +11,26 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private AutoPlayPlanStep? TryProveRemoteNativeNavigation(Ff7AutoPlayObservation observation)
     {
+        using IEnumerator<AutoPlayPlanStep?> search = EnumerateRemoteNativeNavigation(observation).GetEnumerator();
+        while (true)
+        {
+            nativePlanningQuantum = new(int.MaxValue, TimeSpan.FromHours(1));
+            if (!search.MoveNext())
+            {
+                return null;
+            }
+            if (search.Current is { } result)
+            {
+                return result;
+            }
+        }
+    }
+
+    private IEnumerable<AutoPlayPlanStep?> EnumerateRemoteNativeNavigation(Ff7AutoPlayObservation observation)
+    {
         if (!Ff7AutoplayDriver.HasNativeRouteClockContract(session))
         {
-            return null;
+            yield break;
         }
         int candidates = 0;
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave))
@@ -22,7 +39,7 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 if (++candidates > 8)
                 {
-                    return null;
+                    yield break;
                 }
                 AutoPlayNavigationVisit? navigation = State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == source);
                 AutoPlayEvent? observed = navigation?.Events.SingleOrDefault(item => item.Id == target.Id);
@@ -45,11 +62,11 @@ public sealed partial class Ff7AutoPlayPolicy
                 bool selectedAccepted = false;
                 branch.Machine.InstructionVariableAccessed += (access, _) => clockAccess |= Ff7AutoplayDriver.IsNativeClockAccess(access);
                 branch.InteractionScriptRequested += (entity, script, accepted) => selectedAccepted |= repairObserved && accepted && entity == target.Entity && script == target.Script;
-                try
+                AutoPlayPlanStep? acceptedPlan = null;
+                bool planningYield = false;
+                bool AdvanceSlice()
                 {
-                    // Planning slices do not consume native callbacks. Both are
-                    // independently bounded, including any local repair proof.
-                    for (int slice = 0; slice < 1024 && inputs.Count < 256; slice++)
+                    try
                     {
                         Ff7Actor player = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
                         string current = Ff7AutoplayDriver.ReadNavigationKey(observation.VisitId, branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player.Triangle);
@@ -60,16 +77,17 @@ public sealed partial class Ff7AutoPlayPolicy
                             firstAfter = Ff7AutoplayDriver.ReadNativeRouteFingerprint(branch);
                         }
                         driver.BeginPlanningStep();
-                        Ff7AutoplayInput input = policy.ChooseInput(driver);
+                        Ff7AutoplayInput input = policy.ChooseInput(driver, nativePlanningQuantum ?? throw new InvalidOperationException("A detached proof requires its shared planning allowance."));
                         if (driver.PlanningPending)
                         {
-                            continue;
+                            planningYield = true;
+                            return true;
                         }
                         firstPlan ??= policy.latestNavigationPlan;
                         firstOwner ??= policy.State.Active;
                         if (firstArrival < 0 && firstOwner is not null && (!MatchesNativeTransportOwner(firstOwner, policy.State.Active) || firstPlan?.Goal is null || firstPlan.Goal != policy.State.NavigationGoal))
                         {
-                            break;
+                            return false;
                         }
                         repairObserved |= firstArrival >= 0 && current == source && policy.State.NativeRoute is { } repair && repair.EventId == target.Id && repair.ConditionFingerprint == target.ConditionFingerprint;
                         if (repairObserved && repairWitness is null)
@@ -81,7 +99,7 @@ public sealed partial class Ff7AutoPlayPolicy
                         branch.AdvanceTick(false);
                         if (clockAccess || !Ff7AutoplayDriver.HasNativeRouteClockContract(branch) || branch.World is not null || branch.FieldGeneration != observation.Generation)
                         {
-                            break;
+                            return false;
                         }
                         bool repairCompleted = HasCompletedNativeRepair(repairWitness, policy.State.NativeRoute, Ff7AutoplayDriver.ReadNativeRouteFingerprint(branch), branch.Battle is not null);
                         if (repairCompleted && (selectedAccepted || branch.Battle is not null) && firstPlan is { IsTravel: true, Route: not null } && firstOwner is not null && firstArrival > 0 && firstAfter is not null)
@@ -90,24 +108,50 @@ public sealed partial class Ff7AutoPlayPolicy
                             // source repair. Live playback stops after the first
                             // transport's own acknowledged arrival; downstream
                             // owners are replanned from their actual source.
+                            if (firstOwner.EntryAvailabilityFingerprint is string firstAvailability)
+                            {
+                                ApplyNativePlanningAvailability(State, firstOwner.VisitId, firstOwner.EventId, new(false, [], firstAvailability));
+                            }
                             State.NativeRoute = new(firstOwner.EventId, firstOwner.ConditionFingerprint, observation.Generation, inputs.Take(firstArrival).ToArray(), firstAfter);
                             LastRemoteNativeProbe = $"Proved {inputs.Count} native callbacks toward {target.Id}; admitted {firstArrival} callbacks owned by {firstOwner.EventId}";
-                            return firstPlan;
+                            acceptedPlan = firstPlan;
+                            return false;
                         }
                         if (branch.Battle is not null)
                         {
-                            break;
+                            return false;
                         }
+                        return true;
                     }
-                    LastRemoteNativeProbe = $"No remote repair boundary for {target.Id}; callbacks {inputs.Count}, first arrival {firstArrival}, repair {repairObserved}";
+                    catch (NotSupportedException error)
+                    {
+                        LastRemoteNativeProbe = $"Remote native proof for {target.Id}: {error.Message}";
+                        return false;
+                    }
                 }
-                catch (NotSupportedException error)
+                for (int slice = 0; slice < 1024 && inputs.Count < 256;)
                 {
-                    LastRemoteNativeProbe = $"Remote native proof for {target.Id}: {error.Message}";
+                    nativePlanningPhase = $"remote:{target.Id}:source:{source}:candidate{candidates}:slice{slice}:callbacks{inputs.Count}:owner:{policy.State.Active?.EventId}:repair{repairObserved}";
+                    LastRemoteNativeProbe = nativePlanningPhase;
+                    yield return null;
+                    planningYield = false;
+                    if (!AdvanceSlice())
+                    {
+                        break;
+                    }
+                    if (!planningYield)
+                    {
+                        slice++;
+                    }
                 }
+                if (acceptedPlan is not null)
+                {
+                    yield return acceptedPlan;
+                    yield break;
+                }
+                LastRemoteNativeProbe = $"No remote repair boundary for {target.Id}; callbacks {inputs.Count}, first arrival {firstArrival}, repair {repairObserved}, owner {policy.State.Active?.EventId}, native phase {policy.State.NativeRoute?.Cursor}/{policy.State.NativeRoute?.Steps.Length}";
             }
         }
-        return null;
     }
 
     internal static bool MatchesNativeTransportOwner(Ff7AutoPlayActiveEvent expected, Ff7AutoPlayActiveEvent? actual)

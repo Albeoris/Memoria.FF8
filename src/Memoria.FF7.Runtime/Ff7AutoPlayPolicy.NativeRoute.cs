@@ -6,13 +6,113 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    private Ff7NativePlanningCursor? nativePlanning;
+    private Ff7NativePlanningQuantum? nativePlanningQuantum;
+    private string? nativePlanningSource;
+    private string? nativePlanningIntent;
+    private string? nativePlanningPhase;
+    private long nativePlanningWork;
+    internal bool NativePlanningPending => nativePlanning is not null;
+    internal long NativePlanningGeneration { get; private set; }
+    internal string? NativePlanningPhase => nativePlanningPhase;
+
     private AutoPlayPlanStep? TryProveNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components)
+    {
+        string source = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
+        string intent = ReadNativePlanningIntent();
+        if (nativePlanning is not null && (source != nativePlanningSource || intent != nativePlanningIntent || !Ff7AutoplayDriver.HasNativeRouteClockContract(session)))
+        {
+            CancelNativePlanning();
+        }
+        if (nativePlanning is null)
+        {
+            NativePlanningGeneration++;
+            nativePlanningSource = source;
+            nativePlanningIntent = intent;
+            nativePlanning = new(EnumerateNativeNavigation(observation, driver, facts, components).GetEnumerator());
+        }
+        return ContinueNativePlanning(driver);
+    }
+
+    private AutoPlayPlanStep? ContinueNativePlanning(Ff7AutoplayDriver driver)
+    {
+        if (nativePlanning is null)
+        {
+            throw new InvalidOperationException("There is no pending native planning job.");
+        }
+        long before = nativePlanning.Operations;
+        try
+        {
+            nativePlanning.Resume(nativePlanningQuantum ?? new());
+        }
+        catch
+        {
+            CancelNativePlanning();
+            throw;
+        }
+        nativePlanningWork += nativePlanning.Operations - before;
+        if (!nativePlanning.Completed)
+        {
+            driver.DeferPlanning();
+            return null;
+        }
+        AutoPlayPlanStep? result = nativePlanning.Result;
+        CancelNativePlanning();
+        return result;
+    }
+
+    private string ReadNativePlanningIntent()
+    {
+        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { State.DestinationField, State.NavigationGoal, State.Active, State.NativeRoute, State.PendingRestore, State.Choice, State.Coverage, State.NavigationGuards, State.VisitGuards, State.NavigationProbes, State.GatewayTopology });
+        return Convert.ToHexString(SHA256.HashData(bytes));
+    }
+
+    private bool CanResumeNativePlanning()
+    {
+        if (State.PendingRestore is not null || State.NativeRoute is not null || session.Battle is not null || session.World is not null || session.Highway is not null || !Ff7AutoplayDriver.HasNativeRouteClockContract(session))
+        {
+            return false;
+        }
+        try
+        {
+            return nativePlanningSource == Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) && nativePlanningIntent == ReadNativePlanningIntent();
+        }
+        catch
+        {
+            CancelNativePlanning();
+            throw;
+        }
+    }
+
+    private void CancelNativePlanning()
+    {
+        nativePlanning?.Dispose();
+        nativePlanning = null;
+        nativePlanningSource = null;
+        nativePlanningIntent = null;
+        nativePlanningPhase = null;
+    }
+
+    private IEnumerable<AutoPlayPlanStep?> EnumerateNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components)
     {
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && State.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)))
         {
-            Ff7AutoPlayNativeRoute? proof = driver.ProveNativeRoute(target, observation.Events);
-            bool intermediate = proof is not null;
-            proof ??= driver.ProveNativeRoute(target, observation.Events, requireIntermediate: false);
+            Ff7NativeRouteProbe probe = new();
+            foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, true, probe))
+            {
+                nativePlanningPhase = probe.Progress;
+                yield return null;
+            }
+            bool intermediate = probe.Result is not null;
+            if (!intermediate)
+            {
+                foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, false, probe))
+                {
+                    nativePlanningPhase = probe.Progress;
+                    yield return null;
+                }
+            }
+            Ff7AutoPlayNativeRoute? proof = probe.Result;
             if (proof is null)
             {
                 continue;
@@ -35,11 +135,26 @@ public sealed partial class Ff7AutoPlayPolicy
                 coverage.Unavailable = availability.Unavailable;
                 coverage.UnavailableVariants = availability.UnavailableVariants;
                 State.NativeRoute = proof;
-                return next;
+                yield return next;
+                yield break;
             }
             components[observation.NavigationKey] = facts;
         }
-        return remoteNavigationProbe is null ? TryProveRemoteNativeNavigation(observation) : null;
+        if (remoteNavigationProbe is null)
+        {
+            foreach (AutoPlayPlanStep? step in EnumerateRemoteNativeNavigation(observation))
+            {
+                yield return step;
+            }
+        }
+    }
+
+    internal static void ApplyNativePlanningAvailability(Ff7AutoPlayState state, string visitId, string eventId, AutoPlayEventAvailability availability)
+    {
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == visitId).Events.Single(item => item.Event.Id == eventId);
+        coverage.AvailabilityFingerprint = availability.Fingerprint;
+        coverage.Unavailable = availability.Unavailable;
+        coverage.UnavailableVariants = new(availability.UnavailableVariants, StringComparer.Ordinal);
     }
 
     internal static string ReadNativeContinuationAvailability(string physical)
