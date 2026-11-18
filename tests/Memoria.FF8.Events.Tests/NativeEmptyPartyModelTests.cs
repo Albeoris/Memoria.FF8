@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events.Tests;
@@ -11,7 +12,7 @@ internal static partial class Program
     {
         byte[] Content(bool modeled)
         {
-            List<(Jsm.Opcode, int)> init = [(Jsm.Opcode.LBL, 0)];
+            List<(Jsm.Opcode, int)> init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0)];
             if (modeled)
             {
                 init.Add((Jsm.Opcode.SETMODEL, 0));
@@ -23,13 +24,15 @@ internal static partial class Program
         int metadataCalls = 0;
         EventEngine Create(bool modeled = false)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
+            using GameAssets assets = new(TestResources.GameDirectory);
+            session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) =>
                 {
                     metadataCalls++;
-                    return 0;
+                    return modeled ? 4 : 0;
                 }
             };
             engine.LoadField(600, Content(modeled), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -55,11 +58,17 @@ internal static partial class Program
             restored.Apply(new PlayerAction(PlayerActionKind.Wait));
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Empty native model party trace diverged after independent restore.");
         }
-        Require(metadataCalls == 0 && live.Actors[0].AnimationId == 0 && live.Actors[0].AnimationFrame == 0 && !live.Actors[0].AnimationPlaying && live.Actors[0].BaseAnimationId == 42 && live.Scene.NativePlayerPosition == new FieldFixedPosition(10 << 12, 20 << 12, 0), "Empty-model selection looked up or fabricated an animation resource, changed leader pose or manufactured default frames.");
+        Require(metadataCalls == 0 && live.Actors[0].AnimationId == 0 && live.Actors[0].AnimationFrame == 0 && !live.Actors[0].AnimationPlaying && live.Actors[0].BaseAnimationId == 0 && live.Scene.NativePlayerPosition == new FieldFixedPosition(10 << 12, 20 << 12, 0), "Empty-model selection looked up or fabricated an animation resource, changed leader pose or manufactured default frames.");
         EventEngine modeled = Create(true);
         modeled.Step();
         modeled.Step();
         PrepareSyntheticTrace(modeled);
+        // Bind a valid modeled resource first, then remove its frame metadata for the ordinary idle-selection refusal.
+        modeled.AnimationFrameCount = (_, _) =>
+        {
+            metadataCalls++;
+            return 0;
+        };
         int beforeMetadata = metadataCalls;
         int beforeModel = modeled.Actors[0].ModelId;
         int beforeAnimation = modeled.Actors[0].AnimationId;

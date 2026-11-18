@@ -26,14 +26,20 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(ushort initial, int operand, bool nativeState = true)
         {
-            GameSession session = nativeState ? GameSession.CreateColdProcess() : new GameSession(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             if (nativeState)
             {
                 session.StartNewGame();
                 Initialize(session);
             }
             EventEngine engine = new(session);
-            engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, initial), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.PSHM_W, 16), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            byte[] CreateContent(params (Jsm.Opcode Opcode, int Parameter)[] operations) => nativeState ? SyntheticMainProgram(operations) : SyntheticProgram(operations);
+            byte[] content = CreateContent((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, initial), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.PSHM_W, 16), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            if (nativeState)
+            {
+                engine.Step();
+            }
             return (session, engine);
         }
         foreach ((ushort initial, int operand, ushort expected) in new (ushort, int, ushort)[] { (500, 80, 580), (580, -100, 480), (480, 100, 580), (580, 70, 650), (650, 0, 650), (500, 65536, 500), (500, 32768, 100), (65530, 10, 100), (32760, 20, 100), (50, 0, 100), (3100, 1, 3100) })
@@ -61,9 +67,9 @@ internal static partial class Program
         Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true }, "Executed New Game did not establish native500/mask18/zero movement and actual52CA90 process UIfalse.");
         Require(flags.SeeD!.AddRankPoints(int.MaxValue).RankPoints == 499 && flags.SeeD.AddRankPoints(int.MinValue).RankPoints == 500, "SeeD full DWORD arithmetic narrowed or overflowed before the native WORD destination.");
         EventEngine projected = new(flags);
-        projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5003), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5008), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5012), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         projected.Step();
-        Require(flags.State.Variables[5001] == -6 && flags.State.Variables[5002] == 250 && flags.State.Variables[5003] == -6 && flags.SeeD!.RankPoints == 0x12FF && !flags.State.Variables.ContainsKey(16) && !flags.State.Variables.ContainsKey(17), "Native SeeD signed/unsigned BYTE/WORD projections or partial BYTE writes lost their owned WORD.");
+        Require(flags.State.Variables[5001] == -6 && flags.State.Variables[5008] == 250 && flags.State.Variables[5012] == -6 && flags.SeeD!.RankPoints == 0x12FF && !flags.State.Variables.ContainsKey(16) && !flags.State.Variables.ContainsKey(17), "Native SeeD signed/unsigned BYTE/WORD projections or partial BYTE writes lost their owned WORD.");
         const uint unrelated = 0xA5000267;
         flags.SetNativeEventOwners(flags.WorldControls! with { EventFlags104 = unrelated | 0x18 });
         EventEngine salary = new(flags);

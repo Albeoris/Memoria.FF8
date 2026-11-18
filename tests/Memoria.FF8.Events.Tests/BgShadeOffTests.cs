@@ -22,14 +22,17 @@ internal static partial class Program
             first.Add((loop ? Jsm.Opcode.RBGSHADELOOP : Jsm.Opcode.BGSHADE, 0));
             first.AddRange([(Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
             (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.PSHN_L, 110), (Jsm.Opcode.PSHN_L, 80), (Jsm.Opcode.PSHN_L, 70), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.BGSHADE, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)];
-            byte[] content = SyntheticObjects([0, 16 << 7], [first.ToArray(), second]);
+            first[0] = (Jsm.Opcode.LBL, 1);
+            second[0] = (Jsm.Opcode.LBL, 17);
+            byte[] content = SyntheticObjects([1, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], first.ToArray(), [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], second]);
             content[2] = 2;
             content[3] = 0;
             EventEngine Create()
             {
-                GameSession session = new(new GameState());
+                GameSession session = CreateInitializedSession();
                 EventEngine engine = new(session);
-                engine.LoadField(100, content, []);
+                engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                engine.Step();
                 return engine;
             }
             EventEngine engine = Create();
@@ -44,7 +47,7 @@ internal static partial class Program
                     reset = true;
                 }
             };
-            for (int tick = 0; tick < 10 && !reset; tick++)
+            for (int tick = 0; tick < 64 && !reset; tick++)
             {
                 engine.Step();
             }

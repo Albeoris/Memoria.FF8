@@ -24,13 +24,13 @@ internal static partial class Program
         }
 
         (Jsm.Opcode, int)[] leader = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] direct = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 65533), (Jsm.Opcode.PSHN_L, 65540), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] direct = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 65533), (Jsm.Opcode.PSHN_L, 65540), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] follower = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] detach = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SEVOLTRANS, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] detach = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SEVOLTRANS, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] other = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] otherDetach = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] otherDetach = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] control = [(Jsm.Opcode.LBL, 48), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] shake = [(Jsm.Opcode.LBL, 49), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.SHAKEOFF, 0), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] shake = [(Jsm.Opcode.LBL, 49), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.SHAKEOFF, 0), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1, (16 << 7) | 1, (32 << 7) | 1, (48 << 7) | 1], [leader, direct, follower, detach, other, otherDetach, control, shake]);
         (GameSession Session, EventEngine Engine) Create()
         {
@@ -49,8 +49,8 @@ internal static partial class Program
         int[] aliases = [0, 2, 1];
         live.Engine.Step();
         Require(live.Engine.Scene.BackgroundScrollPositions[0] is { Mode: 3, Status: 2, X: -3, Y: 4 } && !live.Session.State.Variables.ContainsKey(5000), "DSCROLL lost two-WORD narrowing, same-callback direct placement or return3 yield.");
-        Require(live.Engine.Scene.Party.SequenceEqual([0, 6, 1]) && live.Engine.Scene.FieldPartyNativeActorIds.SequenceEqual([0, 255, 255]) && Enumerable.Range(194, 3).Select(address => live.Session.State.Variables[address]).SequenceEqual(aliases), "FOLLOWOFF changed canonical party/saved aliases or retained runtime follower bindings.");
-        Require(live.Engine.Actors[1].NativeFollowOff is { PartySlot: 2, BaseAnimationId: 42, AnimationFrames: 5 } && live.Engine.Actors[2].NativeFollowOff is { PartySlot: 1 } && live.Engine.Actors[1].AnimationFrame == 0 && live.Engine.Actors[1].AnimationLoop, "FOLLOWOFF did not reset its original base animation through the known model frames.");
+        Require(live.Engine.Scene.Party.SequenceEqual([0, 6, 1]) && live.Engine.Scene.FieldPartyNativeActorIds.SequenceEqual([0, 255, 255]) && Enumerable.Range(194, 3).Select(address => live.Engine.Variables[address]).SequenceEqual(aliases), "FOLLOWOFF changed canonical party/saved aliases or retained runtime follower bindings.");
+        Require(live.Engine.Actors[1].NativeFollowOff is { PartySlot: 2, BaseAnimationId: 0, AnimationFrames: 5 } && live.Engine.Actors[2].NativeFollowOff is { PartySlot: 1 } && live.Engine.Actors[1].AnimationFrame == 0 && live.Engine.Actors[1].AnimationLoop, "FOLLOWOFF did not reset its original base animation through the known model frames.");
         Require(live.Engine.Scene.SoundVolumeTransition is { Voice: 1, DurationByte: 60, DurationMilliseconds: 600, Volume: 0, BackendStatus: GlobalSoundBackendStatus.Muted } && live.Session.State.Variables[5001] == 7, "SEVOLTRANS lost native narrowing or introduced a field wait.");
         Require(live.Engine.FieldShake is { X.Enabled: true, Y.Enabled: true } && live.Engine.FieldShake.X.Output == 0, "SHAKE failed to preserve first-phase output before its return3 yield.");
         JsonElement saved = live.Engine.Capture();

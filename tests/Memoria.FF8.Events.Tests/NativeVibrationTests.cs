@@ -20,14 +20,12 @@ internal static partial class Program
             {
                 main.Add((Jsm.Opcode.PSHN_L, priority));
             }
-            main.AddRange([(Jsm.Opcode.SETVIBRATE, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
+            main.AddRange([(Jsm.Opcode.SETVIBRATE, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             return SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], main.ToArray()]);
         }
         GameSession Session()
         {
-            GameSession session = GameSession.CreateColdProcess();
-            session.StartNewGame();
-            session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
+            GameSession session = CreateInitializedSession();
             return session;
         }
         EventEngine Engine(GameSession session, int pattern = 0, int priority = 256, bool missing = false, bool native = true)
@@ -49,7 +47,7 @@ internal static partial class Program
         live.Step();
         live.Step();
         Require(liveSession.State.Variables[5000] == 9 && live.Scene.VibrationRequest is { RawPattern: 0, RawPriority: 256, EffectivePriority: 257, PatternOffset: 256, NativeReturn: 32 } && liveSession.VibrationProcess!.LastSetReturn == 32 && issuedPriority == 1 && liveSession.VibrationProcess!.Slots[0].Priority == 0, "SETVIBRATE failed full DWORD issue/low BYTE storage, exact handle, same-budget return2.");
-        Require(liveSession.VibrationProcess!.Slots[0].A.Counter == 0 && liveSession.VibrationProcess.Ports[0].RequestedA == 0, "Native field callback did not sample its queue before StopAll/controller-request clearing.");
+        Require(liveSession.VibrationProcess is { QuarterClockRemainder: 2 } && liveSession.VibrationProcess.Slots[0].A.Counter == -1 && liveSession.VibrationProcess.Ports[0].RequestedA == 0, "First ordinary callback advanced a vibration stream before its four-tick quantum or failed controller-request clearing.");
         JsonElement snapshot = live.Capture();
         GameSession restoredSession = Session();
         EventEngine restored = Engine(restoredSession);
@@ -107,7 +105,17 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(before, invalid.Capture()), "Malformed vibration receipt mutated VM/process before restore refusal.");
         GameSession rejectedSession = Session();
-        RejectingVibrationServices rejectedService = new(rejectedSession);
+        IEventServices rejectedService = NativeTestServices.Create(rejectedSession, out NativeTestServices rejectingControl);
+        rejectingControl.Overrides[nameof(IEventServices.SetVibrationProcess)] = arguments =>
+        {
+            NativeVibrationProcessState vibration = (NativeVibrationProcessState)arguments![0]!;
+            if (vibration.LastSetReturn == 32)
+            {
+                throw new NotSupportedException("Declared SETVIBRATE owner-publication rejection.");
+            }
+            rejectedSession.SetVibrationProcess(vibration);
+            return null;
+        };
         EventEngine rejected = new(rejectedService) { ReadNativeVibrationBank = () => bank };
         rejected.LoadField(600, Content(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         rejected.Step();
@@ -125,42 +133,4 @@ internal static partial class Program
         Console.WriteLine("SETVIBRATE: authentic defined/absent banks, full DWORD issue, exact process handle, real queue output/callbacks, same-budget successor, independent restore, field-stop retention and atomic unsupported request/restore/setter checks passed.");
     }
 
-    private sealed class RejectingVibrationServices(GameSession session) : IEventServices
-    {
-        public NativeVibrationProcessState? VibrationProcess => session.VibrationProcess;
-        public bool CanStoreVibrationProcess => true;
-        public NativeEventRandomState? EventRandom => session.EventRandom;
-        public bool CanStoreEventRandom => true;
-        public bool CanStoreNativeEventOwners => true;
-        public NativeWorldControlState? WorldControls => session.WorldControls;
-        public bool IsMoviePlaying => false;
-
-        public void SetWorldControls(NativeWorldControlState controls) => session.SetWorldControls(controls);
-
-        public void SetVibrationProcess(NativeVibrationProcessState vibration)
-        {
-            if (vibration.LastSetReturn == 32)
-            {
-                throw new NotSupportedException("Declared SETVIBRATE owner-publication rejection.");
-            }
-            session.SetVibrationProcess(vibration);
-        }
-
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null)
-        {
-            session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory, inputConfiguration);
-        }
-
-        public void RequestMovie(int index)
-        {
-        }
-
-        public void RequestField(int fieldId, int entryPoint)
-        {
-        }
-
-        public void ShowDialog(string text)
-        {
-        }
-    }
 }

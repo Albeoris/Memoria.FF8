@@ -14,11 +14,10 @@ internal static partial class Program
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         byte[] Content(int x = 70) => SyntheticObjects([1], [
             [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, 39), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.RET, 8)],
-            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.MOVESYNC, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, -136), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.DIRP, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.MOVESYNC, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, -136), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.NOP, 0), (Jsm.Opcode.DIRP, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create(int x = 70, bool acceptZero = true)
         {
-            GameSession session = GameSession.CreateColdProcess();
-            session.Restore(session.State with { CharacterVitals = initial.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
+            GameSession session = CreateDirectedLinearTurnSession(initial, assets.ReadNewGameEconomy());
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -76,11 +75,18 @@ internal static partial class Program
         Require(wrapped.Actors[0].NativeScriptMovement?.TargetX == 70 * 4096 && wrapped.Actors[0].Direction == 39, "DIRP did not wrap the fullDWORD shift before its bounded native coordinate admission.");
         EventEngine refused = Create(acceptZero: false);
         string? beforeActor = null;
+        // Observe the immediate preflight boundary after this callback has reset presentation state.
+        refused.CommandExecuted += command =>
+        {
+            if (command.ScriptId == 1 && command.Name == nameof(Jsm.Opcode.NOP))
+            {
+                beforeActor = JsonSerializer.Serialize(refused.Actors[0]);
+            }
+        };
         try
         {
             while (refused.Frame < 12)
             {
-                beforeActor = JsonSerializer.Serialize(refused.Actors[0]);
                 refused.Step();
             }
             throw new InvalidOperationException("DIRP bypassed a missing zero-speed geometry certificate.");

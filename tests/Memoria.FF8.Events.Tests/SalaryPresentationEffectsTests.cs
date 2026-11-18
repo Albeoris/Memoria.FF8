@@ -17,11 +17,11 @@ internal static partial class Program
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
-        GameSession session = GameSession.CreateColdProcess();
+        GameSession session = CreateInitializedSession();
         EventEngine live = Create(session);
         live.Step();
         Require(live.Scene.GlobalSoundRequests.Single() is { OriginalEffectId: 91, Voice: 26, RawPan: 128, EffectivePan: 64, Volume: 127 } && live.Scene.SoundVolume is { Voice: 27, Volume: 42 } && live.Scene.SoundVolumeTransition is { Voice: 28, Volume: 41 } && session.GlobalSoundProcess is { Rotation: 4 } process && process.OriginalEffectIds[26] == 91 && process.OriginalEffectIds[27] == 0 && process.OriginalEffectIds[28] == 0 && session.State.Variables[5000] == 77, "EFFECTPLAY/SEVOL/SEVOLTRANS did not share the actual automatic allocator, or volume allocation changed physical original IDs.");
-        EventEngine restored = Create(GameSession.CreateColdProcess());
+        EventEngine restored = Create(CreateInitializedSession());
         restored.Restore(live.Capture());
         live.Step();
         restored.Step();
@@ -48,8 +48,10 @@ internal static partial class Program
         }
         Require(priorRequests == live.Scene.GlobalSoundRequests.Count && session.GlobalSoundProcess == prepared.SoundProcess && session.SalaryPresentation == prepared.Presentation, "Failed salary descriptor preparation changed earlier sound/UI owners or published a partial notification.");
 
-        RejectingSoundServices rejecting = new();
-        EventEngine refused = new(rejecting, NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ResolveGlobalSoundResource = MutedGlobalSample };
+        GameSession rejecting = CreateInitializedSession();
+        IEventServices rejectingServices = NativeTestServices.Create(rejecting, out NativeTestServices rejectingControl);
+        rejectingControl.Overrides[nameof(IEventServices.SetGlobalSoundProcess)] = _ => throw new NotSupportedException("Declared rejecting component publication.");
+        EventEngine refused = new(rejectingServices) { ResolveGlobalSoundResource = MutedGlobalSample };
         refused.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try
         {
@@ -75,26 +77,4 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(before, restored.Capture()), "Missing sound process shape partially restored the VM.");
     }
 
-    private sealed class RejectingSoundServices : IEventServices
-    {
-        public NativeGlobalSoundProcess? GlobalSoundProcess { get; } = NativeGlobalSoundProcess.FromBufferlessColdProcess();
-        public bool CanStoreGlobalSoundProcess => true;
-        public bool IsMoviePlaying => false;
-        public void SetGlobalSoundProcess(NativeGlobalSoundProcess state)
-        {
-            throw new NotSupportedException("Declared rejecting component publication.");
-        }
-        public void RequestMovie(int index)
-        {
-            throw new NotSupportedException();
-        }
-        public void RequestField(int fieldId, int entryPoint)
-        {
-            throw new NotSupportedException();
-        }
-        public void ShowDialog(string text)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

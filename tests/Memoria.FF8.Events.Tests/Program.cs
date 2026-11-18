@@ -12,9 +12,8 @@ internal static partial class Program
     {
         try
         {
-            if (args.Length >= 2 && args[0] == "--scenario")
+            string selectedGameDirectory = args.Length >= 2 && args[0] == "--scenario" ? (args.Length >= 3 ? args[2] : TestResources.GameDirectory) : (args.Length == 1 && args[0] != "--list" ? args[0] : TestResources.GameDirectory);
             {
-                string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["autoplay-position-gate"] = AutoPlayPositionGateContract,
@@ -292,8 +291,90 @@ internal static partial class Program
                         GardenNativeSplitBoundary(selectedGameDirectory);
                     },
                     ["mlimit"] = () => NativeMovementLimitAndBoundary(selectedGameDirectory),
-                    ["background-loop"] = () => NativeBackgroundLoopAndBoundary(selectedGameDirectory)
+                    ["background-loop"] = () => NativeBackgroundLoopAndBoundary(selectedGameDirectory),
+                    ["legacy-line-contact-and-resume"] = () => LineContactAndResume(),
+                    ["legacy-movie-axis-and-fault-resume"] = () => MovieAxisAndFaultResume(),
+                    ["legacy-arrival-initialization-order"] = () => ArrivalInitializationOrder(),
+                    ["legacy-background-loop-resume"] = () => BackgroundLoopResume(),
+                    ["legacy-initial-input-direction-and-restore"] = () => InitialInputDirectionAndRestore(selectedGameDirectory),
+                    ["legacy-player-action-corpus"] = () => PlayerActionCorpus(selectedGameDirectory),
+                    ["legacy-corridor-line-corpus"] = () => CorridorLineCorpus(selectedGameDirectory),
+                    ["legacy-movie-arrival-corpus"] = () => MovieArrivalCorpus(selectedGameDirectory),
+                    ["legacy-classroom-face-fault-retry"] = () => ClassroomFaceFaultRetry(selectedGameDirectory),
+                    ["legacy-classroom-move-cancel-boundary"] = () => ClassroomMoveCancelBoundary(selectedGameDirectory),
+                    ["legacy-move-cancel-target-and-wait"] = () => MoveCancelTargetAndWait(),
+                    ["legacy-set-pc-party-activation"] = () => SetPcPartyActivation(),
+                    ["legacy-party-request-wait-and-guard"] = () => PartyRequestWaitAndGuard(),
+                    ["legacy-classroom-party-request-boundary"] = () => ClassroomPartyRequestBoundary(selectedGameDirectory),
+                    ["legacy-party-turn-angles-and-resume"] = () => PartyTurnAnglesAndResume(),
+                    ["legacy-classroom-party-turn-boundary"] = () => ClassroomPartyTurnBoundary(selectedGameDirectory),
+                    ["legacy-background-module-initial-selection"] = () => BackgroundModuleInitialSelection(selectedGameDirectory),
+                    ["legacy-party-request-no-wait-and-guard"] = () => PartyRequestNoWaitAndGuard(),
+                    ["legacy-classroom-party-request-no-wait-boundary"] = () => ClassroomPartyRequestNoWaitBoundary(selectedGameDirectory),
+                    ["legacy-tutorial-unlock-persistence"] = () => TutorialUnlockPersistence(),
+                    ["legacy-classroom-tutorial-unlock-boundary"] = () => ClassroomTutorialUnlockBoundary(selectedGameDirectory),
+                    ["legacy-classroom-exit-transition"] = () => ClassroomExitTransition(selectedGameDirectory),
+                    ["legacy-map-jump3-packet-and-arrival"] = () => MapJump3PacketAndArrival(),
+                    ["legacy-garden-additional-actor-control"] = () => GardenAdditionalActorControl(selectedGameDirectory),
+                    ["legacy-native-area-request-and-guard"] = () => NativeAreaRequestAndGuard(),
+                    ["legacy-garden-area-request-boundary"] = () => GardenAreaRequestBoundary(selectedGameDirectory),
+                    ["legacy-door-line-gate-and-guard"] = () => DoorLineGateAndGuard(),
+                    ["legacy-inf-movement-and-contact-persistence"] = () => InfMovementAndContactPersistence(),
+                    ["legacy-refresh-party-bindings-and-guard"] = () => RefreshPartyBindingsAndGuard(),
+                    ["legacy-native-actor-compaction-and-null-requests"] = () => NativeActorCompactionAndNullRequests(),
+                    ["legacy-refreshed-party-turn-target"] = () => RefreshedPartyTurnTarget(),
+                    ["legacy-garden-refresh-party-boundary"] = () => GardenRefreshPartyBoundary(selectedGameDirectory),
+                    ["legacy-garden-join-boundary"] = () => GardenJoinBoundary(selectedGameDirectory),
+                    ["legacy-garden-harmless-party-contact-boundary"] = () => GardenHarmlessPartyContactBoundary(selectedGameDirectory),
+                    ["legacy-garden-automatic-field-party-load"] = () => GardenAutomaticFieldPartyLoad(selectedGameDirectory),
+                    ["legacy-garden-global-sound-boundary"] = () => GardenGlobalSoundBoundary(selectedGameDirectory),
+                    ["legacy-native-party-request-start-and-guard"] = () => NativePartyRequestStartAndGuard(),
+                    ["legacy-garden-party-request-start-boundary"] = () => GardenPartyRequestStartBoundary(selectedGameDirectory),
+                    ["legacy-garden-landing-join-boundary"] = () => GardenLandingJoinBoundary(selectedGameDirectory),
+                    ["legacy-garden-fractional-leader-join-boundary"] = () => GardenFractionalLeaderJoinBoundary(selectedGameDirectory),
+                    ["legacy-native-party-power-and-flag-aliases"] = () => NativePartyPowerAndFlagAliases(selectedGameDirectory),
+                    ["legacy-native-background-scroll-and-guard"] = () => NativeBackgroundScrollAndGuard(selectedGameDirectory),
+                    ["legacy-garden-slope-join-boundary"] = () => GardenSlopeJoinBoundary(selectedGameDirectory),
+                    ["legacy-garden-native-player-movement-boundary"] = () => GardenNativePlayerMovementBoundary(selectedGameDirectory),
+                    ["legacy-native-division-and-remainder"] = () => NativeDivisionAndRemainder(),
+                    ["legacy-native-background-animation-timing"] = () => NativeBackgroundAnimationTiming(),
+                    ["legacy-infirmary-curtain-cycles"] = () => InfirmaryCurtainCycles(selectedGameDirectory),
+                    ["legacy-front-infirmary-curtain-cycles"] = () => FrontInfirmaryCurtainCycles(selectedGameDirectory),
+                    ["legacy-installed-corpus"] = () => Require(RunInstalledCorpus(selectedGameDirectory, false) == RunInstalledCorpus(selectedGameDirectory, true), "Restoring animation/dialogue waits changed the final VM state or executed path.")
                 };
+                if (args.Length == 1 && args[0] == "--list")
+                {
+                    foreach (string name in scenarios.Keys)
+                    {
+                        Console.WriteLine(name);
+                    }
+                    return 0;
+                }
+                if (args.Length < 2 || args[0] != "--scenario")
+                {
+                    int failed = 0;
+                    int skipped = 0;
+                    foreach ((string name, Action scenario) in scenarios)
+                    {
+                        try
+                        {
+                            scenario();
+                            Console.WriteLine($"Event scenario {name} passed.");
+                        }
+                        catch (OptionalTestResourceUnavailableException exception)
+                        {
+                            skipped++;
+                            Console.WriteLine($"Event scenario {name}: optional fixture coverage skipped: {exception.Message}");
+                        }
+                        catch (Exception exception)
+                        {
+                            failed++;
+                            Console.Error.WriteLine($"Event scenario {name} failed: {exception}");
+                        }
+                    }
+                    Console.WriteLine($"Event scenarios: {scenarios.Count - failed - skipped} passed, {skipped} optional fixture skips, {failed} failed.");
+                    return failed == 0 ? 0 : 1;
+                }
                 if (!scenarios.TryGetValue(args[1], out Action? run))
                 {
                     throw new ArgumentException($"Unknown scenario '{args[1]}'. Available: {string.Join(", ", scenarios.Keys)}.");
@@ -302,129 +383,11 @@ internal static partial class Program
                 Console.WriteLine($"Event scenario {args[1]} passed.");
                 return 0;
             }
-            WaitAndCorruptInput();
-            NativeExamTimerContract();
-            NativeScalarMemoryContract();
-            DialogueChannelContract();
-            NativeDialogueCloseContract();
-            LineContactAndResume();
-            MovieAxisAndFaultResume();
-            ArrivalInitializationOrder();
-            BackgroundLoopResume();
-            FaceDirectionAnglesAndResume();
-            string gameDirectory = args.Length == 0 ? TestResources.GameDirectory : args[0];
-            InitialInputDirectionAndRestore(gameDirectory);
-            NativeMovementLimitAndBoundary(gameDirectory);
-            NativeBackgroundLoopAndBoundary(gameDirectory);
-            NativeScriptMovementAndBoundary(gameDirectory);
-            NativeAsyncRfmMoveContract(gameDirectory);
-            NativePlayerGroundContactContract(gameDirectory);
-            NativeWorldTransitionTransaction(gameDirectory);
-            MinimalMenuCompletionContract(gameDirectory);
-            NativePartyQueryContract(gameDirectory);
-            NativeRootTranslationAndBoundary(gameDirectory);
-            NativePlayerAcceptedRetryContract(gameDirectory);
-            NativeBackgroundClearContract(gameDirectory);
-            NativeBackgroundShadeOffContract(gameDirectory);
-            NativeDyingContract(gameDirectory);
-            NativeDressContract(gameDirectory);
-            NativeKeyOnContract(gameDirectory);
-            NativeKeyScanContract(gameDirectory);
-            NativeTerminalCommandsContract();
-            NativeMovieTimerClockContract();
-            NativeCarCommandsContract(gameDirectory);
-            NativeActorScrollContract();
-            NativeActorScrollCameraOneContract();
-            NativeSetPlacementContract();
-            NativeRcMoveContract();
-            NativePositiveCosineTurnContract();
-            NativeNegativeCosineTurnContract();
-            NativeSeeDContract(gameDirectory);
-            NativeDoorLineToggleContract();
-            NativePartyActorDirectionContract();
-            NativePartyFaceContract();
-            NativeGameOverContract(gameDirectory);
-            NativeAnimationLoopYieldContract();
-            NativeMovementAnimationContract(gameDirectory);
-            NativePlayerScriptHandoffContract(gameDirectory);
-            NativeEmptyPartyModelContract();
-            NativeVibrationContract();
-            NativeActorShadowContract();
-            NativeFootstepPairContract(gameDirectory);
-            PassivePointRevealContract(gameDirectory);
-            NativeDrawPointSetupContract(gameDirectory);
-            NativeMusicPositionContract(gameDirectory);
-            NativeMusicLoadContract();
-            NativeMusicPlaybackContract();
-            NativeBattleMusicByteContract();
-            NativeEncounterControlContract();
-            NativeMusicFadeContract();
-            NativeSoundInitializationContract(gameDirectory);
-            NativeSoundStopContract();
-            NativeTalkSelectionContract();
-            NativePreviousFieldContract();
-            NativePreviousWorldEntityContract();
-            NativeSlopedLineContract(gameDirectory);
-            NativeSoloSlopedSplitContract(gameDirectory);
-            string uninterrupted = RunInstalledCorpus(gameDirectory, false);
-            string resumed = RunInstalledCorpus(gameDirectory, true);
-            Require(uninterrupted == resumed, "Restoring animation/dialogue waits changed the final VM state or executed path.");
-            PlayerActionCorpus(gameDirectory);
-            CorridorLineCorpus(gameDirectory);
-            MovieArrivalCorpus(gameDirectory);
-            ClassroomFaceFaultRetry(gameDirectory);
-            ClassroomMoveCancelBoundary(gameDirectory);
-            MoveCancelTargetAndWait();
-            SetPcPartyActivation();
-            PartyRequestWaitAndGuard();
-            ClassroomPartyRequestBoundary(gameDirectory);
-            PartyTurnAnglesAndResume();
-            ClassroomPartyTurnBoundary(gameDirectory);
-            BackgroundModuleInitialSelection(gameDirectory);
-            PartyRequestNoWaitAndGuard();
-            ClassroomPartyRequestNoWaitBoundary(gameDirectory);
-            TutorialUnlockPersistence();
-            ClassroomTutorialUnlockBoundary(gameDirectory);
-            ClassroomExitTransition(gameDirectory);
-            MapJump3PacketAndArrival();
-            AdditionalActorControlAndGuard();
-            NativeActorModelVisibilityContract();
-            GardenAdditionalActorControl(gameDirectory);
-            NativeAreaRequestAndGuard();
-            GardenAreaRequestBoundary(gameDirectory);
-            DoorLineGateAndGuard();
-            InfMovementAndContactPersistence();
-            RefreshPartyBindingsAndGuard();
-            NativeActorCompactionAndNullRequests();
-            RefreshedPartyTurnTarget();
-            GardenRefreshPartyBoundary(gameDirectory);
-            NativeBaseAnimationContract();
-            GardenJoinBoundary(gameDirectory);
-            GardenHarmlessPartyContactBoundary(gameDirectory);
-            GardenAutomaticFieldPartyLoad(gameDirectory);
-            NativeGlobalSoundContract();
-            NativeFieldMediaContract();
-            GardenGlobalSoundBoundary(gameDirectory);
-            NativePartyRequestStartAndGuard();
-            GardenPartyRequestStartBoundary(gameDirectory);
-            GardenLandingJoinBoundary(gameDirectory);
-            GardenNativePushContactBoundary(gameDirectory);
-            GardenFractionalLeaderJoinBoundary(gameDirectory);
-            GardenNativeSplitBoundary(gameDirectory);
-            NativePartyPowerAndFlagAliases(gameDirectory);
-            NativeCardAndSaveEnableContract(gameDirectory);
-            NativeBackgroundScrollAndGuard(gameDirectory);
-            NativeDirectScrollAndBoundary(gameDirectory);
-            NativePartyScrollAndBoundary(gameDirectory);
-            NativeCosineScrollAndSyncBoundary(gameDirectory);
-            NativeLinearScrollAndSyncContract(gameDirectory);
-            GardenSlopeJoinBoundary(gameDirectory);
-            GardenNativePlayerMovementBoundary(gameDirectory);
-            NativeDivisionAndRemainder();
-            NativeBackgroundAnimationTiming();
-            InfirmaryCurtainCycles(gameDirectory);
-            FrontInfirmaryCurtainCycles(gameDirectory);
-            Console.WriteLine("Event scenarios passed.");
+
+        }
+        catch (OptionalTestResourceUnavailableException exception)
+        {
+            Console.WriteLine($"Optional fixture coverage skipped: {exception.Message}");
             return 0;
         }
         catch (Exception exception)
@@ -462,9 +425,9 @@ internal static partial class Program
     private static string RunInstalledCorpus(string gameDirectory, bool testRestore)
     {
         using GameAssets assets = new(gameDirectory);
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        EventEngine engine = new(session);
+        using InstalledTestWorld host = new(gameDirectory);
+        GameSession session = host.Session;
+        EventEngine engine = host.Engine;
         List<int> visitedFields = [];
         List<int> movies = [];
         List<int> messages = [];
@@ -484,15 +447,21 @@ internal static partial class Program
                 loadedField = session.State.FieldId;
                 FieldAssets field = assets.LoadField(loadedField);
                 loadedAssets = field;
-                engine.AnimationFrameCount = field.GetAnimationFrameCount;
-                engine.LoadField(field.Id, field.Jsm, field.Messages);
+                host.World.EnsureField();
                 visitedFields.Add(field.Id);
                 priorMessage = -2;
             }
-            engine.Step();
+            long callbackFrame = engine.Frame;
+            Require(host.World.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted, "Installed corpus rejected its ordinary callback.");
+            if (engine.Frame == callbackFrame && session.State.Scene == SceneKind.Field)
+            {
+                engine.Step();
+            }
             if (testRestore && !restoredAnimation && loadedField == 180 && engine.Frame == 30)
             {
-                engine = RoundTrip(engine, session, loadedAssets!);
+                host.RestoreIndependently();
+                engine = host.Engine;
+                session = host.Session;
                 restoredAnimation = true;
             }
             if (loadedField == 180 && visitedFields.Count == 2 && engine.Frame is 1 or 2 or 30)
@@ -503,16 +472,15 @@ internal static partial class Program
             if (session.IsMoviePlaying)
             {
                 movies.Add(session.State.MovieIndex);
-                int fieldBefore = session.State.FieldId;
-                engine.Step();
-                Require(session.State.FieldId == fieldBefore, "A movie wait transitioned before completion.");
-                session.CompleteMovie();
+                Require(host.World.Apply(new PlayerAction(PlayerActionKind.SkipMovie)).Accepted, "Installed corpus rejected movie skip.");
             }
             if (engine.CurrentDialogue is DialogueState { CanConfirm: true } dialogue)
             {
                 if (testRestore && !restoredDialogue && dialogue.FirstChoice is not null)
                 {
-                    engine = RoundTrip(engine, session, loadedAssets!);
+                    host.RestoreIndependently();
+                engine = host.Engine;
+                session = host.Session;
                     restoredDialogue = true;
                 }
                 if (dialogue.MessageId != priorMessage)
@@ -522,8 +490,8 @@ internal static partial class Program
                 }
                 choiceSeen |= dialogue.FirstChoice is not null;
                 nameSeen |= dialogue.IsNamePrompt;
-                engine.ConfirmDialogue(dialogue.InitialChoice ?? dialogue.FirstChoice, dialogue.IsNamePrompt ? "Research" : null);
-                session.DismissDialog();
+                PlayerAction confirm = dialogue.IsNamePrompt ? new(PlayerActionKind.EnterName, Text: "Research") : dialogue.FirstChoice is int first ? new(PlayerActionKind.Choose, dialogue.InitialChoice ?? first) : new(PlayerActionKind.Confirm);
+                Require(host.World.Apply(confirm).Accepted, "Installed corpus rejected dialogue input.");
             }
             if (engine.BackgroundStates.TryGetValue(0, out int curtain))
             {
@@ -551,17 +519,6 @@ internal static partial class Program
         return engine.Capture().GetRawText() + string.Join(',', messages);
     }
 
-    private static EventEngine RoundTrip(EventEngine original, GameSession session, FieldAssets field)
-    {
-        System.Text.Json.JsonElement checkpoint = original.Capture();
-        EventEngine restored = new(session);
-        restored.AnimationFrameCount = field.GetAnimationFrameCount;
-        restored.LoadField(field.Id, field.Jsm, field.Messages);
-        restored.Restore(checkpoint);
-        Require(checkpoint.GetRawText() == restored.Capture().GetRawText(), "Checkpoint failed to preserve the complete VM state before advancing.");
-        return restored;
-    }
-
     private static void PlayerActionCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false);
@@ -585,23 +542,9 @@ internal static partial class Program
     private static ActionCorpus RunActionChain(string gameDirectory, bool alternateChoice, bool continueCorridor = false, bool continueTo232 = false)
     {
         using GameAssets assets = new(gameDirectory);
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        EventEngine engine = new(session);
-        if (continueTo232)
-        {
-            engine.MoviePlayback = () => session.State.MoviePlayback;
-            engine.MovieSkipRequested += () =>
-            {
-                // movie0 actual ffprobe count_frames:326, FPS15, last zero-based frame325.
-                session.SetMoviePlayback(new MoviePlaybackState(0, session.State.MovieIndex == 0 ? 325 : 0, true, false, false));
-                session.CompleteMovie(skipped: true);
-            };
-        }
-        else
-        {
-            engine.MovieSkipRequested += session.CompleteMovie;
-        }
+        using InstalledTestWorld host = new(gameDirectory);
+        GameSession session = host.Session;
+        EventEngine engine = host.Engine;
         List<object> commandTrace = [];
         if (continueCorridor)
         {
@@ -621,12 +564,11 @@ internal static partial class Program
         {
             if (session.State.Scene == SceneKind.Field && loadedField != session.State.FieldId)
             {
-                field = assets.LoadField(session.State.FieldId);
+                host.World.EnsureField();
+                field = host.World.Field!;
                 loadedField = field.Id;
                 fields.Add(field.Id);
-                engine.AnimationFrameCount = field.GetAnimationFrameCount;
-                engine.ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out System.Numerics.Vector3 position, out int triangle) ? new WalkmeshPosition(position, triangle) : null;
-                engine.LoadField(field.Id, field.Jsm, field.Messages);
+
             }
         }
         {
@@ -659,12 +601,12 @@ internal static partial class Program
                 {
                     if (continueCorridor)
                     {
-                        Require(engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 30)).Accepted, "Natural corridor movement was rejected.");
+                        Require(host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 30)).Accepted, "Natural corridor movement was rejected.");
                         continue;
                     }
                     ActorState player = engine.Actors.First(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
                     System.Numerics.Vector2 before = new(player.X, player.Y);
-                    PlayerActionResult movement = engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 1));
+                    PlayerActionResult movement = host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 1));
                     Require(movement.Accepted && movement.FramesAdvanced == 1, "Ordinary corridor movement did not advance exactly one tick.");
                     float distance = System.Numerics.Vector2.Distance(before, new(player.X, player.Y));
                     Require(distance > 0 && Math.Abs(distance - player.MovementSpeed / 256f) < 0.001f, "Diagonal movement did not preserve original MSPEED magnitude.");
@@ -672,9 +614,14 @@ internal static partial class Program
                 }
                 else
                 {
-                    action = new PlayerAction(PlayerActionKind.Wait, Frames: continueCorridor ? 3000 : 30000);
+                    action = new PlayerAction(PlayerActionKind.Wait);
                 }
-                PlayerActionResult applied = engine.Apply(action);
+                long beforeAction = engine.Frame;
+                PlayerActionResult applied = host.World.Apply(action);
+                if (engine.Frame == beforeAction && session.State.Scene == SceneKind.Field && engine.FieldId == session.State.FieldId)
+                {
+                    engine.Step();
+                }
                 Require(applied.Accepted, "The real script chain rejected a normal player action.");
                 if (continueCorridor && applied.Detail is not null)
                 {
@@ -684,9 +631,9 @@ internal static partial class Program
                 }
             }
         }
-        Require(fields.SequenceEqual(new[] { 74, 180, 181, 180, 229 }) && (continueTo232 ? session.State.FieldArrival == new FieldTransition(232, 1389, -3580, 50, 0) : continueCorridor ? session.IsMoviePlaying && session.State.MovieIndex == 0 : engine.IsUserControlEnabled), "Action traversal failed to reach its genuine next trigger.");
+        Require(fields.SequenceEqual(new[] { 74, 180, 181, 180, 229 }) && (continueTo232 ? session.State.FieldArrival == new FieldTransition(232, 1389, -3580, 50, 0) : continueCorridor ? session.IsMoviePlaying && session.State.MovieIndex == 0 : engine.IsUserControlEnabled), $"Action traversal failed to reach its genuine next trigger: fields {string.Join(',', fields)}, field{engine.FieldId}/frame{engine.Frame}, trigger {engine.NextTrigger}, dialogue {engine.CurrentDialogue}.");
         Require(engine.Frame > 1 && engine.FieldId == 229, "Action traversal ended before corridor initialization/movement.");
-        return new ActionCorpus(engine.Capture().GetRawText(), engine.ActionLog.ToArray(), engine.Decisions.ToArray(), engine.DialogueOutcomes.ToArray(), engine.Coverage.ToArray(), engine.LineCrossings.ToArray());
+        return new ActionCorpus(engine.Capture().GetRawText(), engine.ActionLog.ToArray(), engine.Decisions.ToArray(), engine.DialogueOutcomes.ToArray(), engine.Coverage.ToArray(), engine.LineCrossings.ToArray(), session.State);
     }
 
     private static void CorridorLineCorpus(string gameDirectory)
@@ -707,25 +654,11 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         FieldAssets source = assets.LoadField(229);
         FieldAssets destination = assets.LoadField(232);
-        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 232 });
-        EventEngine arrivalEngine = new(session);
-        arrivalEngine.LoadField(229, source.Jsm, source.Messages);
         using var saved = System.Text.Json.JsonDocument.Parse(first.Checkpoint);
-        arrivalEngine.Restore(saved.RootElement);
-        HashSet<int> otherTriangles = Enumerable.Range(0, destination.Walkmesh.Triangles.Count).Where(index => index != 50).ToHashSet();
-        arrivalEngine.ResolveFieldArrival = arrival => destination.Walkmesh.TryPosition(arrival.X, arrival.Y, out System.Numerics.Vector3 position, out int triangle, otherTriangles) ? new WalkmeshPosition(position, triangle) : null;
-        arrivalEngine.AnimationFrameCount = destination.GetAnimationFrameCount;
-        JsmProgram destinationProgram = JsmProgram.Read(destination.Jsm);
-        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.20.json"), System.Text.Json.JsonSerializer.Serialize(new { Header = destination.Jsm.Take(4).ToArray(), RawGroups = Enumerable.Range(0, destination.Jsm.Take(4).Sum(value => (int)value)).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(destination.Jsm.AsSpan(8 + index * 2)) >> 7), Objects = destinationProgram.Objects.Select(obj => new { obj.Index, obj.Label, Scripts = obj.Scripts.Select(script => script.Id) }), Operations = destinationProgram.Operations.Skip(7348).Take(38).Select(op => new { op.Index, Opcode = op.Opcode.ToString(), op.Parameter }) }));
-        arrivalEngine.ReadFaceBaseline = actor =>
-        {
-            FieldModel model = destination.Models[actor.ModelId];
-            ModelAnimation animation = model.Animations[actor.AnimationId];
-            System.Numerics.Vector3 angles = model.ReadFirstControlRotation(actor.AnimationId, 0);
-            return new FaceDirectionBaseline((int)MathF.Round(angles.Y * 4096 / MathF.Tau) / 16, (int)MathF.Round(angles.Z * 4096 / MathF.Tau) / 16, (int)MathF.Round(angles.X * 4096 / MathF.Tau) / 16);
-        };
-        arrivalEngine.LoadSoundResource = _ => SoundResourceStatus.Muted;
-        arrivalEngine.LoadField(232, destination.Jsm, destination.Messages, new FieldTransition(232, 1389, -3580, 50, 0));
+        GameSession session = new(first.State with { EventState = null, DepartingFieldState = saved.RootElement.Clone() });
+        using GameWorld arrivalWorld = new(session, gameDirectory, validateWorldPresentation: false, sharedAssets: assets);
+        arrivalWorld.EnsureField();
+        EventEngine arrivalEngine = arrivalWorld.Events;
         Require(arrivalEngine.BackgroundStates.Count == 7 && arrivalEngine.BackgroundStates.Values.All(state => state == -1), "Actual classroom background modules were selected before any init script executed.");
         HashSet<string> classroomOpcodes = [];
         arrivalEngine.CommandExecuted += command =>
@@ -742,7 +675,7 @@ internal static partial class Program
         {
             try
             {
-                arrivalEngine.Step();
+                Require(arrivalWorld.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted, "Classroom initialization rejected an ordinary callback.");
             }
             catch (EventScriptException exception)
             {
@@ -931,188 +864,6 @@ internal static partial class Program
         Console.WriteLine("MOVECANCEL: actual frame363 -> 364 ordinary Wait replay matches; native14 -> actor14 stationary no-op, saved fault retries unchanged.");
     }
 
-    private static void MoveCancelTargetAndWait()
-    {
-        (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.MOVECANCEL, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.MOVESYNC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        byte[] content = SyntheticObjects([0, 16 << 7], [caller, target]);
-        content[2] = 1;
-        content[3] = 1;
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 9 };
-        engine.LoadField(100, content, []);
-        engine.Step();
-        var moving = engine.Capture();
-        Require(engine.Actors[1].MovementTarget is not null && !session.State.Variables.ContainsKey(512), "Target MOVESYNC did not wait for its real scripted movement.");
-        engine.Step();
-        Require(engine.Actors[1].X > 0 && engine.Actors[1].X < 1000 && engine.Actors[1].MovementTarget is null && session.State.Variables[512] == 7, "MOVECANCEL failed to stop the native target in place and release its movement wait.");
-        Require(engine.Actors[1].AnimationFrame == 0 && engine.Actors[1].AnimationFirst == 0 && engine.Actors[1].AnimationLast == 8 && engine.Actors[1].AnimationLoop, "MOVECANCEL did not restart the target base animation's complete native frame range.");
-        string cancelled = engine.Capture().GetRawText();
-        engine.Restore(moving);
-        engine.Step();
-        Require(cancelled == engine.Capture().GetRawText(), "Restoring the moving target changed cancellation or movement-wait completion.");
-    }
-
-    private static void SetPcPartyActivation()
-    {
-        EventEngine Run(params (Jsm.Opcode Opcode, int Parameter)[] commands)
-        {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
-            engine.LoadField(100, SyntheticProgram(commands), []);
-            engine.Step();
-            return engine;
-        }
-        EventEngine absent = Run((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0));
-        Require(absent.Actors[0].CharacterId == 5 && !absent.Actors[0].Active && absent.Actors[0].Visible, "SETPC absent-party registration changed visibility instead of clearing active state.");
-        EventEngine present = Run((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0));
-        Require(present.Actors[0].CharacterId == 1 && present.Actors[0].Active, "SETPC did not preserve an active party member or truncate character ID to a byte.");
-        EventEngine inactive = Run((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0));
-        Require(!inactive.Actors[0].Active, "SETPC implicitly activated a party member instead of preserving UNUSE.");
-        // This independent synthetic world models the late NPC USE branch; it is not an action trace through that story branch.
-        EventEngine npc = Run((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ISPARTY, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.CAL, 9), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.USE, 0), (Jsm.Opcode.RET, 0));
-        Require(npc.Scene.Party.Count == 0 && npc.Actors[0].CharacterId == 5 && npc.Actors[0].Active, "The late conditional USE branch failed to activate a registered character as an NPC.");
-    }
-
-    private static EventEngine CreatePartyRequestFixture(int slot, int priority, bool targetBusy, Jsm.Opcode opcode)
-    {
-        (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, priority), (Jsm.Opcode.PSHN_L, 1), (opcode, slot), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        List<(Jsm.Opcode, int)> targetInit = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0)];
-        if (targetBusy)
-        {
-            targetInit.Add((Jsm.Opcode.PSHN_L, 5));
-            targetInit.Add((Jsm.Opcode.WAIT, 0));
-        }
-        targetInit.Add((Jsm.Opcode.RET, 0));
-        (Jsm.Opcode, int)[] requested = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 513), (Jsm.Opcode.RET, 0)];
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, SyntheticObjects([0, (16 << 7) | 1], [caller, targetInit.ToArray(), requested]), []);
-        return engine;
-    }
-
-    private static void PartyRequestWaitAndGuard()
-    {
-        EventEngine Create(int slot, int priority, bool targetBusy) => CreatePartyRequestFixture(slot, priority, targetBusy, Jsm.Opcode.PREQEW);
-        EventEngine accepted = Create(0, 1, false);
-        accepted.Step();
-        accepted.Step();
-        var waiting = accepted.Capture();
-        Require(CapturedVariables(waiting).TryGetProperty("512", out _) == false && waiting.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == nameof(WaitReason.RequestEnd), "PREQEW caller resumed before its registered party actor completed the requested script.");
-        accepted.Step();
-        Require(!CapturedVariables(accepted.Capture()).TryGetProperty("512", out _), "PREQEW end wait released before the target WAIT duration.");
-        accepted.Step();
-        Require(CapturedVariables(accepted.Capture()).GetProperty("513").GetInt32() == 7 && !CapturedVariables(accepted.Capture()).TryGetProperty("512", out _), "The target completion did not precede its waiting caller's next scheduler turn.");
-        accepted.Step();
-        string completed = accepted.Capture().GetRawText();
-        Require(CapturedVariables(accepted.Capture()).GetProperty("512").GetInt32() == 11, "PREQEW end wait failed to release after target completion.");
-        accepted.Restore(waiting);
-        accepted.Step();
-        accepted.Step();
-        accepted.Step();
-        Require(completed == accepted.Capture().GetRawText(), "Restoring PREQEW's pending relationship changed target/caller completion order.");
-        foreach ((int slot, int priority) in new[] { (1, 1), (0, 0) })
-        {
-            EventEngine ignored = Create(slot, priority, true);
-            ignored.Step();
-            ignored.Step();
-            Require(CapturedVariables(ignored.Capture()).GetProperty("512").GetInt32() == 11 && ignored.Capture().GetProperty("Fibers").GetArrayLength() == 2, "PREQEW absent slot or occupied same-priority request was not consumed as a no-op.");
-        }
-        EventEngine conflicting = Create(0, 1, true);
-        conflicting.Step();
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("Unsupported PREQEW preemption executed.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        var fault = conflicting.Capture();
-        var callerFault = fault.GetProperty("Fibers")[0];
-        Require(conflicting.LastFault?.Opcode == nameof(Jsm.Opcode.PREQEW) && callerFault.GetProperty("Position").GetInt32() == 7 && callerFault.GetProperty("Stack")[0].GetInt32() == 1 && callerFault.GetProperty("Stack")[1].GetInt32() == 1, "Unsupported PREQEW preemption changed its PC or consumed original operands.");
-        conflicting.Restore(fault);
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("A restored PREQEW preemption fault resumed.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        Require(fault.GetRawText() == conflicting.Capture().GetRawText(), "Unsupported PREQEW preemption did not remain frozen after restore.");
-    }
-
-    private static void PartyRequestNoWaitAndGuard()
-    {
-        EventEngine accepted = CreatePartyRequestFixture(0, 1, false, Jsm.Opcode.PREQ);
-        accepted.Step();
-        accepted.Step();
-        var running = accepted.Capture();
-        Require(CapturedVariables(running).GetProperty("512").GetInt32() == 11 && !CapturedVariables(running).TryGetProperty("513", out _), "PREQ caller waited for its target instead of continuing immediately.");
-        var caller = running.GetProperty("Fibers")[0];
-        Require(caller.GetProperty("WaitReason").GetString() == nameof(WaitReason.None) && caller.GetProperty("RequestSequence").ValueKind == System.Text.Json.JsonValueKind.Null, "PREQ installed a caller wait relationship.");
-        accepted.Step();
-        accepted.Step();
-        string completed = accepted.Capture().GetRawText();
-        Require(CapturedVariables(accepted.Capture()).GetProperty("513").GetInt32() == 7, "PREQ target failed to finish independently of its caller.");
-        accepted.Restore(running);
-        accepted.Step();
-        accepted.Step();
-        Require(completed == accepted.Capture().GetRawText(), "Restoring the independent PREQ target changed its completion.");
-        foreach ((int slot, int priority) in new[] { (1, 1), (0, 0) })
-        {
-            EventEngine ignored = CreatePartyRequestFixture(slot, priority, true, Jsm.Opcode.PREQ);
-            ignored.Step();
-            ignored.Step();
-            Require(CapturedVariables(ignored.Capture()).GetProperty("512").GetInt32() == 11 && ignored.Capture().GetProperty("Fibers").GetArrayLength() == 2, "PREQ absent slot or occupied same-priority request was not consumed as a no-op.");
-        }
-        EventEngine conflicting = CreatePartyRequestFixture(0, 1, true, Jsm.Opcode.PREQ);
-        conflicting.Step();
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("Unsupported PREQ preemption executed.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        var fault = conflicting.Capture();
-        var preserved = fault.GetProperty("Fibers")[0];
-        Require(conflicting.LastFault?.Opcode == nameof(Jsm.Opcode.PREQ) && preserved.GetProperty("Position").GetInt32() == 7 && preserved.GetProperty("Stack")[0].GetInt32() == 1 && preserved.GetProperty("Stack")[1].GetInt32() == 1, "Unsupported PREQ preemption consumed operands or changed its PC.");
-        conflicting.Restore(fault);
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("Restored unsupported PREQ preemption resumed.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        Require(fault.GetRawText() == conflicting.Capture().GetRawText(), "Unsupported PREQ preemption did not stay frozen across restore.");
-
-        (Jsm.Opcode, int)[] signalCaller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PREQ, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_B, 1029), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.CAL, 13), (Jsm.Opcode.POPM_B, 1029), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] registered = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] dormant = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] facingLoop = [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHM_B, 1029), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.CAL, 12), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.JPF, 4), (Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.DIRA, 0), (Jsm.Opcode.JMP, -8), (Jsm.Opcode.RET, 0)];
-        GameSession signalSession = new(new GameState());
-        EventEngine signaled = new(signalSession);
-        signaled.LoadField(100, SyntheticObjects([0, (16 << 7) | 2], [signalCaller, registered, dormant, facingLoop]), []);
-        int faceSamples = 0;
-        signaled.CommandExecuted += command =>
-        {
-            if (command.Name == nameof(Jsm.Opcode.DIRA))
-            {
-                faceSamples++;
-            }
-        };
-        for (int frame = 0; frame < 5; frame++)
-        {
-            signaled.Step();
-        }
-        Require(faceSamples == 3 && signalSession.State.Variables[1029] == 128 && !signaled.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 18 && !fiber.GetProperty("Complete").GetBoolean()), "Command-driven bit128 signal failed to release the independent PREQ facing loop.");
-    }
-
     private static void ClassroomPartyRequestNoWaitBoundary(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
@@ -1186,12 +937,17 @@ internal static partial class Program
     {
         (Jsm.Opcode, int)[] forward = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.BGANIME, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
         (Jsm.Opcode, int)[] reverse = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RBGANIME, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 514), (Jsm.Opcode.BGANIMESYNC, 0), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.POPM_W, 516), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([0, 16 << 7], [forward, reverse]);
+        forward[0] = (Jsm.Opcode.LBL, 1);
+        reverse[0] = (Jsm.Opcode.LBL, 17);
+        forward = [.. forward[..^1], (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        reverse = [.. reverse[..^1], (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        byte[] program = SyntheticObjects([1, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], forward, [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], reverse]);
         program[2] = 2;
         program[3] = 0;
-        GameSession session = new(new GameState());
+        GameSession session = CreateInitializedSession();
         EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
+        engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
         engine.Step();
         Require(engine.BackgroundStates[0] == 1 && engine.BackgroundStates[1] == 2 && !session.State.Variables.ContainsKey(512) && session.State.Variables[514] == 9, "BGANIME did not block, RBGANIME did not continue, or initial inclusive frame order changed.");
         EventEngine? resumed = null;
@@ -1212,9 +968,9 @@ internal static partial class Program
             }
             if (frame == 5)
             {
-                GameSession resumedSession = new(new GameState());
+                GameSession resumedSession = CreateInitializedSession();
                 resumed = new EventEngine(resumedSession);
-                resumed.LoadField(100, program, []);
+                resumed.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 resumed.Restore(engine.Capture());
             }
             if (resumed is not null)
@@ -1225,12 +981,13 @@ internal static partial class Program
         Require(session.State.Variables[512] == 7 && session.State.Variables[516] == 11, "Native inclusive background animations failed their caller completion waits.");
         foreach (int rawSpeed in new[] { 0, -1, 65536 })
         {
-            GameSession fastSession = new(new GameState());
+            GameSession fastSession = CreateInitializedSession();
             EventEngine fast = new(fastSession);
-            byte[] fastProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, rawSpeed), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BGANIME, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
+            byte[] fastProgram = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, rawSpeed), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BGANIME, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
             fastProgram[2] = 1;
             fastProgram[3] = 0;
-            fast.LoadField(100, fastProgram, []);
+            fast.LoadField(600, fastProgram, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            fast.Step();
             fast.Step();
             Require(fast.BackgroundStates[0] == 1, "Native signed16 zero/negative divider failed to advance on its starting module tick.");
             fast.Step();
@@ -1239,12 +996,13 @@ internal static partial class Program
             fast.Step();
             Require(fastSession.State.Variables[512] == 7, "Native zero/negative divider failed to release BGANIME after its completion tick.");
         }
-        GameSession holdSession = new(new GameState());
+        GameSession holdSession = CreateInitializedSession();
         EventEngine hold = new(holdSession);
-        byte[] holdProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.RBGANIME, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BGDRAW, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.BGOFF, 0), (Jsm.Opcode.RET, 0));
+        byte[] holdProgram = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.RBGANIME, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BGDRAW, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.BGOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         holdProgram[2] = 1;
         holdProgram[3] = 0;
-        hold.LoadField(100, holdProgram, []);
+        hold.LoadField(600, holdProgram, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        hold.Step();
         hold.Step();
         hold.Step();
         var held = hold.Capture().GetProperty("BackgroundAnimations")[0];
@@ -1259,6 +1017,7 @@ internal static partial class Program
 
     private static void FrontInfirmaryCurtainCycles(string gameDirectory)
     {
+        GameState oldFront = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.2"));
         using GameAssets assets = new(gameDirectory);
         GameSession entrySession = GameSession.CreateColdProcess();
         entrySession.StartNewGame();
@@ -1291,7 +1050,6 @@ internal static partial class Program
         }
         EventEngine original = Create();
         var beforeInvalidRestore = original.Capture();
-        GameState oldFront = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.2"));
         foreach ((int last, bool complete) in new[] { (12, false), (9, false), (9, true) })
         {
             var diagnostic = System.Text.Json.Nodes.JsonNode.Parse(oldFront.EventState!.Value.GetRawText())!;
@@ -1537,12 +1295,14 @@ internal static partial class Program
         Require(engine.Actors[0].PrimitiveTransparencyEnabled && !engine.Actors[0].AdditionalControlDisabled, "ACTORMODE2 changed the independent transparency bit.");
         engine.Step();
         Require(!engine.Actors[0].PrimitiveTransparencyEnabled && !engine.Actors[0].AdditionalControlDisabled, "ACTORMODE1 failed to disable primitive transparency independently.");
+        System.Text.Json.JsonElement retry = default;
         foreach (int mode in new[] { 4, -1, 65536, 65539, 3 })
         {
             byte[] guarded = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mode), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
             engine.CanDisableAdditionalControl = _ => false;
             engine.LoadField(601, guarded, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();
+            retry = engine.Capture();
             try
             {
                 engine.Step();
@@ -1554,19 +1314,13 @@ internal static partial class Program
             var frozen = engine.Capture();
             var caller = frozen.GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
             Require(caller.GetProperty("Position").GetInt32() == 5 && caller.GetProperty("Stack")[0].GetInt32() == mode && !engine.Actors[0].AdditionalControlDisabled, "Unsupported ACTORMODE consumed or truncated its original32-bit operand before failing.");
-            engine.Restore(frozen);
-            try
-            {
-                engine.Step();
-                throw new InvalidOperationException("Restored unproved ACTORMODE continued.");
-            }
-            catch (EventScriptException) when (engine.LastFault?.Opcode == nameof(Jsm.Opcode.ACTORMODE))
-            {
-            }
-            Require(frozen.GetRawText() == engine.Capture().GetRawText(), "Contextually unsupported ACTORMODE did not remain frozen through Restore/Step.");
+            ExpectInterruptedRestoreRefusal(engine, frozen);
         }
-        engine.CanDisableAdditionalControl = _ => true;
-        engine.Restore(engine.Capture());
+        GameSession retrySession = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
+        engine = new EventEngine(retrySession) { CanDisableAdditionalControl = _ => true, AnimationFrameCount = (_, _) => 4 };
+        engine.LoadField(601, ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
+        engine.Restore(retry);
         Require(engine.LastFault is null, "Proved ACTORMODE3 metadata failed to unlock the preserved boundary.");
         engine.Step();
         Require(engine.Actors[0].AdditionalControlDisabled, "ACTORMODE3 metadata retry failed to apply its preserved operand.");
@@ -1609,54 +1363,6 @@ internal static partial class Program
         Console.WriteLine($"ACTORMODE3: genuine field139 Wait1/frame3 -> frame{first.Engine.Frame}; Additional24 leaf/49vertices suppressed; exact replay/restore, no control or story-variable change.");
     }
 
-    private static void NativeAreaRequestAndGuard()
-    {
-        (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.REQ, 3), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] requested = [(Jsm.Opcode.LBL, 5), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([2 << 7, (3 << 7) | 2, 6 << 7, 1], [init, caller, init, init, init, requested, init]);
-        program[0] = 1;
-        program[1] = 1;
-        program[2] = 1;
-        program[3] = 1;
-        JsmProgram parsed = JsmProgram.Read(program);
-        Require(parsed.NativeObjects.SequenceEqual(new[] { 0, 1, 3, 2 }) && parsed.Objects.Single(obj => obj.IsArea).Label == 3, "Native objects/doors/modules/areas permutation disagrees with the original doors-before-areas raw group consumption.");
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
-        engine.Step();
-        engine.Step();
-        var pending = engine.Capture();
-        engine.Restore(pending);
-        engine.Step();
-        Require(session.State.Variables[512] == 7 && engine.LastFault is null, "REQ did not resolve its global script label on the native area object.");
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.REQ, Jsm.Opcode.REQSW, Jsm.Opcode.REQEW })
-        {
-            engine.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 99), (opcode, 0), (Jsm.Opcode.RET, 0)), []);
-            try
-            {
-                engine.Step();
-                throw new InvalidOperationException("Invalid REQ target script consumed its operands before failing.");
-            }
-            catch (EventScriptException) when (engine.LastFault?.Opcode == opcode.ToString())
-            {
-            }
-            var frozen = engine.Capture();
-            var fiber = frozen.GetProperty("Fibers")[0];
-            Require(fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 99, 3 }), "Invalid REQ target script did not preserve its original PC/operands.");
-            engine.Restore(frozen);
-            try
-            {
-                engine.Step();
-                throw new InvalidOperationException("Invalid REQ target script resumed after restore.");
-            }
-            catch (EventScriptException) when (engine.LastFault?.Opcode == opcode.ToString())
-            {
-            }
-            Require(frozen.GetRawText() == engine.Capture().GetRawText(), "Invalid REQ target script did not remain exactly frozen.");
-        }
-    }
-
     private static void GardenAreaRequestBoundary(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
@@ -1693,118 +1399,6 @@ internal static partial class Program
         retry.Step();
         Require(!retry.Actors[23].DoorLineEnabled && retry.LastFault is null, "Frozen genuine DOORLINEOFF boundary failed to execute its exact gate write.");
         Console.WriteLine("REQ/DOORLINEOFF: untouched field139 ordinary Move1/frame5 -> native29/area23/script243/frame6 disables INF gate; exact replay/restore/component fault retry, SETLINE gate unchanged.");
-    }
-
-    private static void RefreshPartyBindingsAndGuard()
-    {
-        (Jsm.Opcode, int)[] first = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.USE, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] door = [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] duplicate = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] callerInit = [(Jsm.Opcode.LBL, 48), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 49), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([8 << 7, 16 << 7, 0, 32 << 7, (48 << 7) | 1], [first, door, duplicate, unused, callerInit, caller]);
-        program[1] = 1;
-        program[3] = 4;
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
-        engine.Step();
-        engine.Step();
-        string actors = engine.Capture().GetProperty("Actors").GetRawText();
-        engine.Step();
-        Require(engine.Scene.Party.SequenceEqual(new[] { 5 }) && engine.Scene.NativeActorObjectIds.SequenceEqual(new[] { 0, 3, 4 }) && engine.Scene.FieldPartyNativeActorIds.SequenceEqual(new[] { 0, 255, 255 }) && engine.Variables[194] == 0 && engine.Variables[195] == 255 && engine.Variables[196] == 255, "REFRESHPARTY used raw/door identity, retained an init-disabled duplicate, or matched defaultFE to emptyFF.");
-        Require(session.State.Variables[512] == 123 && engine.Capture().GetProperty("Actors").GetRawText() == actors, "REFRESHPARTY consumed operands or changed actor flags, movement or geometry.");
-        var snapshot = engine.Capture();
-        engine.Restore(snapshot);
-        Require(snapshot.GetRawText() == engine.Capture().GetRawText(), "REFRESHPARTY's typed and script-visible binding bytes failed exact restore.");
-        foreach ((int address, int value) in new[] { (104, 0x800), (105, 8) })
-        {
-            GameSession guarded = new(new GameState());
-            guarded.SetEventMemory(guarded.State.EventMemory.Write(address, 4, NativeScalarValue.Exact(value)));
-            EventEngine blocked = new(guarded);
-            blocked.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)), []);
-            try
-            {
-                blocked.Step();
-                throw new InvalidOperationException("REFRESHPARTY silently entered its unproved auxiliary-party branch.");
-            }
-            catch (EventScriptException) when (blocked.LastFault?.Opcode == nameof(Jsm.Opcode.REFRESHPARTY))
-            {
-            }
-            var frozen = blocked.Capture();
-            Require(frozen.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2 && frozen.GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 123 && blocked.Scene.FieldPartyNativeActorIds.Count == 0, "Unsupported REFRESHPARTY advanced PC, consumed stack or rebuilt its bindings.");
-            blocked.Restore(frozen);
-            try
-            {
-                blocked.Step();
-                throw new InvalidOperationException("Unsupported auxiliary-party branch continued after restore.");
-            }
-            catch (EventScriptException)
-            {
-            }
-            Require(frozen.GetRawText() == blocked.Capture().GetRawText(), "Unsupported auxiliary-party refresh failed to remain exactly frozen.");
-        }
-    }
-
-    private static void NativeActorCompactionAndNullRequests()
-    {
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.REQ, Jsm.Opcode.REQSW, Jsm.Opcode.REQEW })
-        {
-            (Jsm.Opcode, int)[] removed = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] callerInit = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 999), (opcode, 0), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-            byte[] program = SyntheticObjects([16 << 7, 1], [callerInit, caller, removed]);
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
-            engine.LoadField(100, program, []);
-            engine.Step();
-            Require(engine.Scene.NativeActorLayoutVersion == 1 && engine.Scene.NativeActorObjectIds.SequenceEqual(new[] { 0 }) && engine.Actors.All(actor => actor.CharacterId == -2 && actor.PushRadius == 48 && actor.TalkRadius == 128), "Native compaction lost its raw null slot or native FE/push48/talk128 defaults.");
-            var initialized = engine.Capture();
-            engine.Step();
-            Require(engine.LastFault is null && session.State.Variables[512] == 123 && engine.Capture().GetProperty("Fibers").EnumerateArray().All(fiber => fiber.GetProperty("Initialization").GetBoolean()), "Null native request did not consume exactly two operands and return without a request/wait.");
-            string completed = engine.Capture().GetRawText();
-            engine.Restore(initialized);
-            engine.Step();
-            Require(completed == engine.Capture().GetRawText(), "Raw null request changed after retained-layout restoration.");
-        }
-        List<(Jsm.Opcode, int)> delayed = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UNUSE, 0)];
-        delayed.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), 20));
-        delayed.Add((Jsm.Opcode.USE, 0));
-        delayed.Add((Jsm.Opcode.RET, 0));
-        GameSession delayedSession = new(new GameState());
-        EventEngine delayedEngine = new(delayedSession);
-        delayedEngine.LoadField(100, SyntheticProgram(delayed.ToArray()), []);
-        delayedEngine.Step();
-        Require(!delayedEngine.Actors[0].Active && delayedEngine.Scene.NativeActorLayoutVersion == 0, "Budget-limited init compacted before its original RET.");
-        var midInit = delayedEngine.Capture();
-        delayedEngine.Restore(midInit);
-        delayedEngine.Step();
-        Require(delayedEngine.Actors[0].Active && delayedEngine.Scene.NativeActorObjectIds.SequenceEqual(new[] { 0 }) && delayedEngine.Scene.NativeActorLayoutVersion == 1, "Post-init compaction missed later original USE after exact mid-init restoration.");
-    }
-
-    private static void RefreshedPartyTurnTarget()
-    {
-        (Jsm.Opcode, int)[] active = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.USE, 0), (Jsm.Opcode.PSHN_L, -10), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] inactive = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.USE, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] disable = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] callerInit = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PCTURN, 0), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([(16 << 7) | 1, 0, (32 << 7) | 1], [active, inactive, disable, callerInit, caller]);
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
-        engine.Step();
-        Require(engine.Scene.NativeActorObjectIds.SequenceEqual(new[] { 1, 0, 2 }) && engine.Actors[1].Active, "Post-init compaction failed to retain the original first native actor before later UNUSE.");
-        engine.Step();
-        Require(!engine.Actors[1].Active && engine.Actors[0].Active && engine.Scene.FieldPartyNativeActorIds[0] == 0 && session.State.Variables[512] == 10 && engine.Actors[2].RotationTarget == 64, "Refreshed PGETINFO/PCTURN re-compacted a later UNUSED actor or selected the active sorted duplicate.");
-        var pending = engine.Capture();
-        engine.Step();
-        string completed = engine.Capture().GetRawText();
-        Require(engine.Actors[2].Direction == 64 && !engine.Actors[1].Active && engine.Actors[1].X == 10 && engine.Actors[0].X == -10, "Refreshed PCTURN changed its target or failed its native fixed angle.");
-        engine.Restore(pending);
-        engine.Step();
-        Require(completed == engine.Capture().GetRawText(), "Refreshed duplicate-target PCTURN changed its fixed target after exact restore.");
     }
 
     private static void GardenRefreshPartyBoundary(string gameDirectory)
@@ -1862,151 +1456,6 @@ internal static partial class Program
         {
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException).Throw();
         }
-    }
-
-    private static void InfMovementAndContactPersistence()
-    {
-        (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] areaInit = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] areaDefault = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] areaEntry = [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([(16 << 7) | 2, 0], [player, areaInit, areaDefault, areaEntry]);
-        program[0] = 1;
-        program[3] = 1;
-        GameSession session = new(new GameState());
-        EventEngine Create()
-        {
-            EventEngine result = new(session);
-            result.LoadField(100, program, []);
-            return result;
-        }
-        InfAreaTrigger trigger = new(new System.Numerics.Vector3(0, -20, 0), new System.Numerics.Vector3(0, 20, 0), 0, 0);
-        EventEngine engine = Create();
-        engine.Step();
-        engine.InfAreaTriggers = [trigger];
-        CommitComponentPlayer(engine, -1, 0, 0, 0);
-        Require(engine.Actors[1].DoorLineContact && engine.Actors[1].DoorLineEntryPending && !session.State.Variables.ContainsKey(512), "INF entry failed to use current proximity/facing and defer its original script.");
-        var pending = engine.Capture();
-        EventEngine restored = Create();
-        restored.InfAreaTriggers = [trigger];
-        restored.Restore(pending);
-        Require(pending.GetRawText() == restored.Capture().GetRawText(), "INF per-area contact/pending entry did not survive exact restore.");
-        engine.Step();
-        restored.Step();
-        Require(session.State.Variables[512] == 7 && !engine.Actors[1].DoorLineEntryPending && engine.Capture().GetRawText() == restored.Capture().GetRawText(), "INF entry failed to execute original local2 at native priority6 after restore.");
-        long sequence = restored.Capture().GetProperty("Sequence").GetInt64();
-        CommitComponentPlayer(restored, 0, 0, 0, 0);
-        restored.Step();
-        Require(restored.Capture().GetProperty("Sequence").GetInt64() == sequence, "INF side0 contact incorrectly rearmed while already contacted.");
-
-        foreach (byte side in new byte[] { 0, 1, 2, 3, 4, 5 })
-        {
-            engine = Create();
-            engine.Step();
-            engine.InfAreaTriggers = [trigger];
-            CommitComponentPlayer(engine, -1, 0, 0, 0);
-            engine.Step();
-            engine.InfAreaTriggers = [trigger with { Side = side }];
-            CommitComponentPlayer(engine, 0, 0, 0, 0);
-            Require(engine.Actors[1].DoorLineContact == (side % 2 == 0), $"INF near mode{side} failed native even-entry/odd-clear contact semantics.");
-        }
-        foreach (byte side in new byte[] { 0, 1, 2, 3, 4, 5 })
-        {
-            engine = Create();
-            engine.Step();
-            engine.InfAreaTriggers = [trigger with { Start = new System.Numerics.Vector3(-200, -20, 0), End = new System.Numerics.Vector3(-200, 20, 0), Side = side }];
-            CommitComponentPlayer(engine, -1, 0, 0, 0);
-            Require(engine.Actors[1].DoorLineContact == (side is 3 or 5), $"INF far mode{side} failed native inverse/contact-side behavior.");
-        }
-        engine = Create();
-        engine.Step();
-        engine.InfAreaTriggers = [trigger with { Start = new System.Numerics.Vector3(200, -20, 0), End = new System.Numerics.Vector3(200, 20, 0), Side = 5 }];
-        CommitComponentPlayer(engine, -1, 0, 0, 0);
-        Require(!engine.Actors[1].DoorLineContact, "INF far mode5 ignored its signed-side condition.");
-
-        FieldTransition packet = new(143, -2466, -5997, 37, 185);
-        InfGateway gateway = new(new System.Numerics.Vector3(0, -20, 0), new System.Numerics.Vector3(0, 20, 0), packet);
-        engine = Create();
-        engine.Step();
-        engine.InfGateways = [gateway];
-        CommitComponentPlayer(engine, 1, 0, 0, 0);
-        Require(session.State.FieldArrival == packet && engine.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "INF gateway failed to preserve its native field/XY/triangle/direction packet.");
-        long departureFrame = engine.Frame;
-        engine.Step();
-        Require(engine.Frame == departureFrame, "INF gateway executed the departing VM after its packet request.");
-
-        engine = Create();
-        engine.Step();
-        engine.InfGateways = [gateway];
-        CommitComponentPlayer(engine, 1, 0, 200, 0);
-        Require(engine.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "INF gateway used proposed walkmesh Z instead of native current actor Z.");
-
-        engine = Create();
-        engine.Step();
-        engine.InfGateways = [gateway with { Start = new System.Numerics.Vector3(0, -20, 100), End = new System.Numerics.Vector3(0, 20, 100) }];
-        CommitComponentPlayer(engine, 1, 0, 0, 0);
-        Require(engine.NextTrigger.Kind != PlayerTriggerKind.FieldTransition, "INF strict 3D distance accepted a gateway exactly one push radius away.");
-        engine = Create();
-        engine.Step();
-        engine.InfGateways = [gateway with { Start = new System.Numerics.Vector3(0, 10, 0), End = new System.Numerics.Vector3(0, 20, 0) }];
-        CommitComponentPlayer(engine, 1, 0, 0, 0);
-        Require(engine.NextTrigger.Kind != PlayerTriggerKind.FieldTransition, "INF line distance clamped an out-of-segment projection into a crossing.");
-
-        foreach (int fieldId in new[] { 0, 71 })
-        {
-            engine = Create();
-            engine.Step();
-            engine.InfGateways = [gateway with { Destination = packet with { FieldId = fieldId } }];
-            var before = engine.Capture();
-            FieldTransition? priorPacket = session.State.FieldArrival;
-            try
-            {
-                CommitComponentPlayer(engine, 1, 0, 0, 0);
-                throw new InvalidOperationException("INF world gateway used the field arrival service.");
-            }
-            catch (NotSupportedException)
-            {
-            }
-            Require(before.GetRawText() == engine.Capture().GetRawText() && session.State.FieldArrival == priorPacket, "Unsupported world INF gateway changed movement, direction, contact or packet before rejecting.");
-        }
-        Console.WriteLine("INF routing: finite quantized3D gateway crossing/currentZ/typed packet and safe world rejection; all six native modes, original local2/priority6, exact pending/contact restore.");
-    }
-
-    private static void DoorLineGateAndGuard()
-    {
-        byte[] area = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.DOORLINEOFF, 0), (Jsm.Opcode.RET, 0));
-        area[0] = 1;
-        area[3] = 0;
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, area, []);
-        Require(engine.Actors[0].DoorLineEnabled, "Native area gate failed to initialize enabled before its script.");
-        engine.Step();
-        var disabled = engine.Capture();
-        Require(!engine.Actors[0].DoorLineEnabled && engine.Actors[0].LineEnabled && !engine.Actors[0].LineContact && engine.IsUserControlEnabled, "DOORLINEOFF changed the independent SETLINE contact/gate or player control.");
-        engine.Restore(disabled);
-        Require(disabled.GetRawText() == engine.Capture().GetRawText(), "Disabled area gate did not survive exact snapshot restoration.");
-        engine.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.DOORLINEOFF, 0), (Jsm.Opcode.RET, 0)), []);
-        try
-        {
-            engine.Step();
-            throw new InvalidOperationException("DOORLINEOFF accepted an unproved non-area entity layout.");
-        }
-        catch (EventScriptException) when (engine.LastFault?.Opcode == nameof(Jsm.Opcode.DOORLINEOFF))
-        {
-        }
-        var frozen = engine.Capture();
-        Require(frozen.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1 && engine.Actors[0].DoorLineEnabled, "Unproved DOORLINEOFF advanced its PC or changed its gate.");
-        engine.Restore(frozen);
-        try
-        {
-            engine.Step();
-            throw new InvalidOperationException("Unproved DOORLINEOFF resumed after restore.");
-        }
-        catch (EventScriptException) when (engine.LastFault?.Opcode == nameof(Jsm.Opcode.DOORLINEOFF))
-        {
-        }
-        Require(frozen.GetRawText() == engine.Capture().GetRawText(), "Unproved non-area DOORLINEOFF failed to remain frozen.");
     }
 
     private static void TutorialUnlockPersistence()
@@ -2120,49 +1569,6 @@ internal static partial class Program
         Console.WriteLine("PREQEW: historical exact frame1427 -> 1428 replay; party0 -> Squall1 script7/label11 priority1, typed end wait and fault retry passed.");
     }
 
-    private static void PartyTurnAnglesAndResume()
-    {
-        EventEngine Create(int start, int x, int y, int duration)
-        {
-            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.PCTURN, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
-            engine.LoadField(100, SyntheticObjects([0, 16 << 7], [caller, player]), []);
-            engine.Step();
-            engine.Step();
-            return engine;
-        }
-        EventEngine wrapped = Create(250, 10, -100, 260);
-        Require(wrapped.Actors[0].RotationTarget == 260 && wrapped.Actors[0].RotationTotalFrames == 4 && wrapped.Actors[0].RotationFrames == 5, "PCTURN did not capture the nearest wrapped angle or duration's low byte.");
-        wrapped.Step();
-        Require(wrapped.Actors[0].Direction == 250 && wrapped.Actors[0].RotationFrames == 4, "PCTURN skipped the native elapsed0 sample.");
-        wrapped.Step();
-        Require(wrapped.Actors[0].Direction == 251, "PCTURN first eased step did not use native integer cosine interpolation.");
-        var midturn = wrapped.Capture();
-        EventEngine resumed = Create(250, 10, -100, 260);
-        resumed.Restore(midturn);
-        Require(midturn.GetRawText() == resumed.Capture().GetRawText(), "PCTURN midturn state failed to round-trip.");
-        for (int index = 0; index < 3; index++)
-        {
-            wrapped.Step();
-            resumed.Step();
-            Require(wrapped.Capture().GetRawText() == resumed.Capture().GetRawText(), "Restoring PCTURN changed an angular sample or completion tick.");
-        }
-        Require(wrapped.Actors[0].Direction == 4 && wrapped.Actors[0].RotationTarget is null && !wrapped.Actors[0].RotationUsesNativeCosine && wrapped.Actors[0].RotationFrames == 0 && CapturedVariables(wrapped.Capture()).GetProperty("512").GetInt32() == 7, "PCTURN did not include its endpoint and release its source wait after duration+1 ticks.");
-        EventEngine tie = Create(0, 0, 100, 4);
-        tie.Step();
-        tie.Step();
-        tie.Step();
-        Require(tie.Actors[0].Direction == 64 && tie.Actors[0].RotationTarget == 128, "PCTURN changed the native positive half-turn tie into a negative turn.");
-        EventEngine immediate = Create(0, 100, 0, 256);
-        Require(immediate.Actors[0].Direction == 0 && immediate.Actors[0].RotationTarget == 64, "Zero-duration PCTURN incorrectly skipped its next native driver tick.");
-        immediate.Step();
-        Require(immediate.Actors[0].Direction == 64 && immediate.Actors[0].RotationTarget is null, "Zero-duration PCTURN did not complete on its first driver sample.");
-        EventEngine aligned = Create(64, 100, 0, 15);
-        Require(aligned.Actors[0].RotationTarget is null && !aligned.Actors[0].RotationUsesNativeCosine && aligned.Actors[0].RotationFrames == 0 && CapturedVariables(aligned.Capture()).GetProperty("512").GetInt32() == 7, "Already aligned PCTURN introduced a rotation wait.");
-    }
-
     private static void ClassroomPartyTurnBoundary(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
@@ -2204,102 +1610,6 @@ internal static partial class Program
         retry.Step();
         Require(retry.Actors[11].RotationTarget == 143 && retry.Actors[11].RotationFrames == 16, "PCTURN fault retry failed to consume the original operands and start the native turn.");
         Console.WriteLine("PCTURN: exact1724 -> 1725 replay; Quistis120 -> fixed143, duration15/16 cosine ticks -> message11/frame1741; midwait and fault retry passed.");
-    }
-
-    private static void BackgroundModuleInitialSelection(string gameDirectory)
-    {
-        (Jsm.Opcode, int)[] idle = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] selection = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BGDRAW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.BGOFF, 0), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([16 << 7, 0], [idle, selection]);
-        program[2] = 2;
-        program[3] = 0;
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
-        Require(engine.BackgroundStates[0] == -1 && engine.BackgroundStates[1] == -1, "Background modules did not start disabled in native raw-group order.");
-        engine.Step();
-        engine.Step();
-        Require(engine.BackgroundStates[0] == -1 && engine.BackgroundStates[1] == -1, "An unselected module appeared during its preceding wait.");
-        engine.Step();
-        Require(engine.BackgroundStates[0] == 0 && engine.BackgroundStates[1] == -1, "BGDRAW0 did not select only its actual source module.");
-        var selected = engine.Capture();
-        EventEngine resumed = new(session);
-        resumed.LoadField(100, program, []);
-        resumed.Restore(selected);
-        engine.Step();
-        resumed.Step();
-        Require(engine.BackgroundStates[0] == 0 && engine.Capture().GetRawText() == resumed.Capture().GetRawText(), "Selected background frame changed across a saved wait.");
-        engine.Step();
-        resumed.Step();
-        Require(engine.BackgroundStates[0] == -1 && engine.BackgroundStates[1] == -1 && engine.Capture().GetRawText() == resumed.Capture().GetRawText(), "BGOFF did not disable the previously selected module after restore.");
-
-        using GameAssets assets = new(gameDirectory);
-        FieldAssets classroom = assets.LoadField(232);
-        EventObject deskModule = JsmProgram.Read(classroom.Jsm).Objects.Single(obj => obj.BackgroundModuleIndex == 6);
-        Require(deskModule.Index == 35 && deskModule.Label == 328 && deskModule.Scripts[0].Start == 7480 && deskModule.Scripts[0].End == 7482, "Actual desk-sprite module no longer matches its original no-selection init script.");
-        BackgroundTile[] deskTiles = classroom.Background.Where(tile => tile.AnimationId == 6).ToArray();
-        Require(deskTiles.Length == 11 && deskTiles.All(tile => tile.AnimationState == 0) && deskTiles.Select(tile => tile.Z).Distinct().Order().SequenceEqual([391, 559]), "Actual two desk sprites lost their module6/frame0 MAP selection or depth groups.");
-        GameState historical = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.12"));
-        GameSession historicalSession = new(historical);
-        EventEngine restoredHistorical = new(historicalSession);
-        restoredHistorical.LoadField(232, classroom.Jsm, classroom.Messages);
-        Require(restoredHistorical.BackgroundStates[6] == -1, "Actual classroom LoadField failed to initialize never-selected module6 as disabled.");
-        restoredHistorical.Restore(historical.EventState!.Value);
-        Require(!restoredHistorical.BackgroundStates.ContainsKey(6) && restoredHistorical.Frame == 1724, "Restore migrated the historical missing-module state or changed its exact preceding frame.");
-        Console.WriteLine("Background selection: initialized off -> BGDRAW0 -> saved wait -> BGOFF; actual classroom module6 has11 frame0 tiles in two desk-depth groups; historical missing state retained.");
-    }
-
-    private static void BackgroundLoopResume()
-    {
-        (Jsm.Opcode, int)[] idle = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] shade = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 25), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.PSHN_L, 126), (Jsm.Opcode.PSHN_L, 126), (Jsm.Opcode.PSHN_L, 126), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.RBGSHADELOOP, 0), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([16 << 7, 0], [idle, shade]);
-        program[2] = 1;
-        program[3] = 1;
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.LoadField(100, program, []);
-        engine.Step();
-        Require(engine.GetBackgroundModuleShades()[0] == new System.Numerics.Vector3(126), "Shade module did not begin at its actual RGB endpoint.");
-        for (int index = 0; index < 12; index++)
-        {
-            engine.Step();
-        }
-        var snapshot = engine.Capture();
-        EventEngine restored = new(session);
-        restored.LoadField(100, program, []);
-        restored.Restore(snapshot);
-        for (int index = 12; index < 49; index++)
-        {
-            engine.Step();
-            restored.Step();
-            Require(engine.GetBackgroundModuleShades()[0] == restored.GetBackgroundModuleShades()[0], "Restoring a running module shade loop changed an observed frame color.");
-            if (index == 24)
-            {
-                Require(engine.GetBackgroundModuleShades()[0] == System.Numerics.Vector3.Zero, "Shade loop did not finish its first25-frame fade at black.");
-            }
-        }
-        Require(engine.GetBackgroundModuleShades()[0] == new System.Numerics.Vector3(126) && engine.Capture().GetRawText() == restored.Capture().GetRawText(), "Loop second endpoint/holds or exact phase snapshot diverged.");
-    }
-
-    private static void ArrivalInitializationOrder()
-    {
-        (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -99), (Jsm.Opcode.PSHN_L, -99), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.AMESW, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([1], [init, main]);
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session) { ResolveFieldArrival = arrival => new WalkmeshPosition(new System.Numerics.Vector3(arrival.X, arrival.Y, -7), arrival.Triangle) };
-        engine.LoadField(100, program, ["Arrival"], new FieldTransition(100, 10, 20, 50, 32));
-        var pending = engine.Capture();
-        engine.Restore(pending);
-        Require(pending.GetRawText() == engine.Capture().GetRawText(), "Pending coordinate arrival was lost on restore.");
-        engine.Step();
-        Require(engine.Actors[0].X == 10 && engine.Actors[0].Y == 20 && engine.Actors[0].Z == -7 && engine.Actors[0].WalkmeshTriangle == 50 && engine.Actors[0].Direction == 32, "Arrival failed to override initialization SET3 before default scripts.");
-        engine.Step();
-        Require(engine.IsDialogueOpen, "Default script failed to start after coordinate arrival.");
-        engine.ConfirmDialogue();
-        engine.Step();
-        Require(engine.Actors[0].X == 4 && engine.Actors[0].Y == 5 && engine.Actors[0].Z == 6, "Arrival incorrectly overrode later original SET3.");
     }
 
     private static void MovieAxisAndFaultResume()
@@ -2355,38 +1665,6 @@ internal static partial class Program
         Require(session.State.Variables[512] == 0, "A previous completed movie frame leaked into the new clip before its first decoder sample.");
     }
 
-    private static void LineContactAndResume()
-    {
-        (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 0)];
-        List<(Jsm.Opcode, int)[]> scripts = [player, [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 0)]];
-        for (int label = 17; label < 23; label++)
-        {
-            scripts.Add([(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 0)]);
-        }
-        scripts.Add([(Jsm.Opcode.LBL, 23), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.AMESW, 0), (Jsm.Opcode.RET, 0)]);
-        byte[] program = SyntheticObjects([0, (16 << 7) | 7], scripts);
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session);
-        engine.ResolveWalkmesh = (x, y) => new WalkmeshPosition(new System.Numerics.Vector3(x, y, 0), 0);
-        engine.LoadField(100, program, ["Crossed"]);
-        engine.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 10));
-        engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 2));
-        Require(engine.Actors[0].Direction == 64, "Native positive-X movement facing must be64.");
-        Require(engine.LineCrossings.Count == 1 && engine.CurrentDialogue?.Text == "Crossed" && engine.Actors[1].LineContact, "Forward entry did not dispatch the original crossing script.");
-        System.Text.Json.JsonElement snapshot = engine.Capture();
-        EventEngine restored = new(session);
-        restored.ResolveWalkmesh = engine.ResolveWalkmesh;
-        restored.LoadField(100, program, ["Crossed"]);
-        restored.Restore(snapshot);
-        Require(snapshot.GetRawText() == restored.Capture().GetRawText(), "Saving at a line contact lost the pending original script/contact state.");
-        restored.Apply(new PlayerAction(PlayerActionKind.Confirm));
-        restored.Apply(new PlayerAction(PlayerActionKind.Move));
-        restored.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
-        Require(restored.LineCrossings.Count == 0, "Stopping on or leaving a contacted line retriggered its script.");
-        restored.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1));
-        Require(restored.LineCrossings.Count == 1 && restored.IsDialogueOpen, "Reverse entry after leaving did not rearm the enabled line.");
-    }
-
     private static byte[] SyntheticObjects(ushort[] groups, List<(Jsm.Opcode Opcode, int Parameter)[]> scripts)
     {
         int scriptsOffset = 8 + groups.Length * 2;
@@ -2413,7 +1691,15 @@ internal static partial class Program
         return bytes;
     }
 
-    private sealed record ActionCorpus(string Checkpoint, PlayerActionObservation[] Actions, BranchDecision[] Decisions, DialogueOutcome[] Dialogues, BranchCoverage[] Coverage, LineCrossing[] Lines);
+    private sealed record ActionCorpus(string Checkpoint, PlayerActionObservation[] Actions, BranchDecision[] Decisions, DialogueOutcome[] Dialogues, BranchCoverage[] Coverage, LineCrossing[] Lines, GameState State);
+
+    private static byte[] SyntheticMainProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
+    {
+        (Jsm.Opcode Opcode, int Parameter)[] body = operations.ToArray();
+        Require(body.Length > 0 && body[0].Opcode == Jsm.Opcode.LBL, "A synthetic main script requires its entry label.");
+        body[0] = (Jsm.Opcode.LBL, 1);
+        return SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], body]);
+    }
 
     private static byte[] SyntheticProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
     {

@@ -11,13 +11,13 @@ internal static partial class Program
     {
         (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
         (Jsm.Opcode, int)[] areaInit = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.DOORLINEOFF, 0), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] areaMain = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 124), (Jsm.Opcode.DOORLINEON, 0), (Jsm.Opcode.DOORLINEOFF, 0), (Jsm.Opcode.DOORLINEON, 0), (Jsm.Opcode.POPM_W, 5001), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] areaMain = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 124), (Jsm.Opcode.DOORLINEON, 0), (Jsm.Opcode.DOORLINEOFF, 0), (Jsm.Opcode.DOORLINEON, 0), (Jsm.Opcode.POPM_W, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
         byte[] content = SyntheticObjects([(16 << 7) | 1, 0], [actor, areaInit, areaMain]);
         content[0] = 1;
         content[3] = 1;
         (GameSession Session, EventEngine Engine) Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
@@ -39,10 +39,10 @@ internal static partial class Program
         restored.Engine.Restore(live.Engine.Capture());
         live.Engine.Step();
         restored.Engine.Step();
-        Require(live.Engine.Actors[1].DoorLineEnabled && live.Session.State.Variables[5001] == 124 && toggles.SequenceEqual(new[] { (false, 1L), (true, 2L), (false, 2L), (true, 2L) }) && JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "DOORLINEON/OFF lost current-area selection, no-yield budget or independent gate persistence.");
+        Require(live.Engine.Actors[1].DoorLineEnabled && live.Engine.EventMemory.Read(5001, 2).RequireExact() == 124 && toggles.SequenceEqual(new[] { (false, 1L), (true, 2L), (false, 2L), (true, 2L) }) && JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "DOORLINEON/OFF lost current-area selection, no-yield budget or independent gate persistence.");
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.DOORLINEON, Jsm.Opcode.DOORLINEOFF })
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine invalid = new(session);
             invalid.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (opcode, 0), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), []);
             try

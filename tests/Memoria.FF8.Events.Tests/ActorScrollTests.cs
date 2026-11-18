@@ -13,15 +13,15 @@ internal static partial class Program
         byte[] Content(int rawTarget)
         {
             (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] follow = [(Jsm.Opcode.LBL, 1), (rawTarget < 0 ? Jsm.Opcode.PSHN_L : Jsm.Opcode.PSHAC, rawTarget), (Jsm.Opcode.DSCROLLA, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.DSCROLLA, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] follow = [(Jsm.Opcode.LBL, 1), (rawTarget < 0 ? Jsm.Opcode.PSHN_L : Jsm.Opcode.PSHAC, rawTarget), (Jsm.Opcode.DSCROLLA, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, 0), (Jsm.Opcode.DSCROLLA, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] replacement = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, -3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] replacement = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, -3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
             return SyntheticObjects([1, 16 << 7, (32 << 7) | 1], [init, follow, unused, target, replacement]);
         }
         (GameSession Session, EventEngine Engine) Create(int rawTarget = 2)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1, CanSetBackgroundScrollPosition = (layer, _, _) => layer == 0 };
             // The synthetic host supplies a unique endpoint that changes each actual callback.
             // App projection tests separately exercise the real native camera/clamp certificate.

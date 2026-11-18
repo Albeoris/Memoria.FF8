@@ -11,14 +11,15 @@ internal static partial class Program
     {
         EventEngine Create(int rawDuration = 65540, bool certificate = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine result = new(session)
             {
                 CanSetBackgroundScrollPosition = (_, _, _) => true,
                 CanSetCosineBackgroundScroll = (layer, x, y, duration) => certificate && layer == 0 && x == 12 && y == -24 && duration == (short)rawDuration
             };
-            result.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.CSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), []);
+            result.LoadField(600, FieldMediaProgram( (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.CSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             result.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
+            result.Step();
             result.Step();
             return result;
         }
@@ -38,8 +39,8 @@ internal static partial class Program
         Require(operands.Count == 1 && operands[0].SequenceEqual(new[] { 65548, -65560, 65540 }), "CSCROLL changed fullDWORD command evidence or consumed a nonexistent layer operand.");
         Require(packet is { Mode: 5, Status: 0, X: 40, Y: -80, TargetX: 12, TargetY: -24, Duration: 4, Counter: 0 }, "CSCROLL failed its layer0 lowWORD packet or changed current coordinates before the post-VM driver.");
         BackgroundScrollPosition first = live.Scene.BackgroundScrollPositions[0];
-        JsonElement pending = live.Capture().GetProperty("Fibers")[0];
-        Require(first is { Mode: 5, Status: 1, Counter: 1, X: 40, Y: -80, PreviousX: 40, PreviousY: -80 } && pending.GetProperty("Position").GetInt32() == 9 && pending.GetProperty("WaitReason").GetString() == "BackgroundScroll" && pending.GetProperty("Stack").GetArrayLength() == 0, "CSCROLL yielded its own budget, lost counter0 or failed immediate SCROLLSYNC polling.");
+        JsonElement pending = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+        Require(first is { Mode: 5, Status: 1, Counter: 1, X: 40, Y: -80, PreviousX: 40, PreviousY: -80 } && pending.GetProperty("Position").GetInt32() == 11 && pending.GetProperty("WaitReason").GetString() == "BackgroundScroll" && pending.GetProperty("Stack").GetArrayLength() == 0, "CSCROLL yielded its own budget, lost counter0 or failed immediate SCROLLSYNC polling.");
 
         EventEngine restored = Create();
         restored.Restore(live.Capture());
@@ -76,8 +77,8 @@ internal static partial class Program
             catch (EventScriptException) when (declined.LastFault?.Opcode == nameof(Jsm.Opcode.CSCROLL))
             {
             }
-            JsonElement refused = declined.Capture().GetProperty("Fibers")[0];
-            Require(refused.GetProperty("Position").GetInt32() == 8 && refused.GetProperty("Stack").GetArrayLength() == 3 && refused.GetProperty("Stack")[1].GetInt32() == -65560 && refused.GetProperty("Stack")[2].GetInt32() == 65548 && declined.Scene.BackgroundScrollPositions[0] == before, "Refused CSCROLL changed PC, original operands or scroll history.");
+            JsonElement refused = declined.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+            Require(refused.GetProperty("Position").GetInt32() == 10 && refused.GetProperty("Stack").GetArrayLength() == 3 && refused.GetProperty("Stack")[1].GetInt32() == -65560 && refused.GetProperty("Stack")[2].GetInt32() == 65548 && declined.Scene.BackgroundScrollPositions[0] == before, "Refused CSCROLL changed PC, original operands or scroll history.");
         }
         Console.WriteLine("CSCROLL: implicit layer0, three lowWORD operands, preserved current/post-VM cosine phases, same-budget sync, zero duration, independent restore and atomic refusal passed.");
     }

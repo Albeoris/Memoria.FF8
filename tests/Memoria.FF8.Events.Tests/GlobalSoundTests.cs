@@ -59,8 +59,7 @@ internal static partial class Program
             var frozen = bounded.Capture();
             var caller = frozen.GetProperty("Fibers")[0];
             Require(caller.GetProperty("Position").GetInt32() == 5 && caller.GetProperty("Stack").GetArrayLength() == 4 && bounded.Scene.GlobalSoundRequests.Count == 0 && !boundedSession.State.Variables.ContainsKey(800), "Unsupported global sound changed original PC, four operands or request state.");
-            bounded.Restore(frozen);
-            Require(frozen.GetRawText() == bounded.Capture().GetRawText(), "Unsupported global sound fault failed exact frozen restore.");
+            ExpectInterruptedRestoreRefusal(bounded, frozen);
         }
     }
 

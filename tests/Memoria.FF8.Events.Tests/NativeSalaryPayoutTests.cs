@@ -91,7 +91,8 @@ internal static partial class Program
             session.InitializeNewGameSalaryTable(table);
             session.SetWorldControls(session.WorldControls!.WithSalaryEnabled(true).WithSalaryDisplayEnabled(false));
             EventEngine engine = new(session);
-            engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x6000), (Jsm.Opcode.POPM_L, 8), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.LoadField(600, SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x6000), (Jsm.Opcode.POPM_L, 8), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return (session, engine);
         }
         var counter = Counter();

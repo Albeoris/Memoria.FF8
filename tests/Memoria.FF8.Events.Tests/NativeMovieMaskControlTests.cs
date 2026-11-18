@@ -164,8 +164,11 @@ internal static partial class Program
                 issueFrame = fixture.Engine.Frame;
                 JsonElement saved = fixture.Engine.Capture();
                 JsonElement caller = saved.GetProperty("Fibers")[0];
+                JsonNode expectedActors = JsonNode.Parse(actorsBefore!.Value.GetRawText())!;
+                JsonNode operands = expectedActors[0]!["NativeOperandMemory"]!;
+                operands["LiveDepth"] = operands["LiveDepth"]!.GetValue<int>() - 1;
                 sceneBefore!["NativeMovieMask"] = JsonNode.Parse(saved.GetProperty("Scene").GetProperty("NativeMovieMask").GetRawText());
-                Require(command.Arguments.SequenceEqual(new[] { raw }) && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 222 }) && fixture.Engine.Scene.NativeMovieMask!.Value == unchecked((byte)raw) && actorsBefore is JsonElement actors && JsonElement.DeepEquals(actors, saved.GetProperty("Actors")) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(sceneBefore), saved.GetProperty("Scene")), "SETDCAMERA changed unrelated actor/camera/follow/scroll state, narrowed the wrong width or consumed more than its one original DWORD.");
+                Require(command.Arguments.SequenceEqual(new[] { raw }) && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 222 }) && fixture.Engine.Scene.NativeMovieMask!.Value == unchecked((byte)raw) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedActors), saved.GetProperty("Actors")) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(sceneBefore), saved.GetProperty("Scene")), "SETDCAMERA changed unrelated actor/camera/follow/scroll state, narrowed the wrong width or consumed more than its one original physical DWORD.");
             }
         };
         fixture.Engine.Step();

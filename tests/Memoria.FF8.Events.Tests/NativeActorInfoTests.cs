@@ -30,8 +30,8 @@ internal static partial class Program
             {
                 main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5040 + register * 4)]);
             }
-            main.Add((Jsm.Opcode.RET, 8));
-            var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
+            main.AddRange([(Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+            var session = CreateDirectedLinearTurnSession(initialVitals, assets.ReadNewGameEconomy());
             var engine = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,

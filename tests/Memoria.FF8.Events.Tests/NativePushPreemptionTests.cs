@@ -16,7 +16,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([0, (16 << 7) | 3], [player, peer, main, [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine result = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

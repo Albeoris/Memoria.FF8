@@ -14,13 +14,14 @@ internal static partial class Program
         byte[] unsupportedProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create(byte[] content)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
         EventEngine refused = Create(unsupportedProgram);
         refused.Step();
+        JsonElement resumable = refused.Capture();
         try
         {
             refused.Step();
@@ -33,9 +34,11 @@ internal static partial class Program
         JsonElement caller = stopped.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(caller.GetProperty("Stack").GetArrayLength() == 4 && refused.Actors[0].MovementTarget is null && refused.Actors[0].X == 0 && refused.Actors[0].Y == 0, "Native MOVE refusal consumed operands or installed a managed movement target.");
         EventEngine independent = Create(unsupportedProgram);
-        independent.Restore(stopped);
-        Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Native MOVE refusal lost the preserved original operation and operands after restore.");
-        JsonNode legacy = JsonNode.Parse(stopped.GetRawText())!;
+        ExpectInterruptedRestoreRefusal(refused, stopped);
+        ExpectInterruptedRestoreRefusal(independent, stopped);
+        independent.Restore(resumable);
+        Require(JsonElement.DeepEquals(resumable, independent.Capture()), "Completed native callback did not restore before the unsupported MOVE.");
+        JsonNode legacy = JsonNode.Parse(resumable.GetRawText())!;
         legacy["Actors"]![0]!["MovementTarget"] = JsonSerializer.SerializeToNode(new System.Numerics.Vector3(10, 20, 30), new JsonSerializerOptions { IncludeFields = true });
         try
         {
@@ -45,11 +48,11 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Obsolete managed movement restore mutated the current native VM.");
+        Require(JsonElement.DeepEquals(resumable, independent.Capture()), "Obsolete managed movement restore mutated the current native VM.");
 
         foreach (string property in new[] { "FaceStateVersion", "NativeBaseAnimationVersion" })
         {
-            JsonNode missing = JsonNode.Parse(stopped.GetRawText())!;
+            JsonNode missing = JsonNode.Parse(resumable.GetRawText())!;
             missing["Actors"]![0]!.AsObject().Remove(property);
             try
             {
@@ -59,12 +62,12 @@ internal static partial class Program
             catch (InvalidDataException)
             {
             }
-            Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Missing actor provenance restore changed the current native VM or services.");
+            Require(JsonElement.DeepEquals(resumable, independent.Capture()), "Missing actor provenance restore changed the current native VM or services.");
         }
 
         foreach (string property in new[] { "FaceStateVersion", "NativeBaseAnimationVersion" })
         {
-            JsonNode oldVersion = JsonNode.Parse(stopped.GetRawText())!;
+            JsonNode oldVersion = JsonNode.Parse(resumable.GetRawText())!;
             oldVersion["Actors"]![0]![property] = 0;
             try
             {
@@ -74,9 +77,9 @@ internal static partial class Program
             catch (InvalidDataException)
             {
             }
-            Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Obsolete actor version restore changed current VM or services.");
+            Require(JsonElement.DeepEquals(resumable, independent.Capture()), "Obsolete actor version restore changed current VM or services.");
         }
-        JsonNode missingControls = JsonNode.Parse(stopped.GetRawText())!;
+        JsonNode missingControls = JsonNode.Parse(resumable.GetRawText())!;
         missingControls.AsObject().Remove("WorldControls");
         try
         {
@@ -86,14 +89,16 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Missing world-control field restore mutated the current unknown-state VM.");
-        GameSession knownControlsSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
+        Require(JsonElement.DeepEquals(resumable, independent.Capture()), "Missing world-control field restore mutated the current unknown-state VM.");
+        GameSession knownControlsSession = CreateInitializedSession();
         EventEngine knownControls = new(knownControlsSession) { AnimationFrameCount = (_, _) => 4 };
         knownControls.LoadField(600, unsupportedProgram, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement knownBefore = knownControls.Capture();
+        JsonNode unknownControls = JsonNode.Parse(resumable.GetRawText())!;
+        unknownControls["WorldControls"] = null;
         try
         {
-            knownControls.Restore(stopped);
+            knownControls.Restore(JsonSerializer.SerializeToElement(unknownControls));
             throw new InvalidOperationException("Unknown saved controls silently retained a different known service state.");
         }
         catch (InvalidDataException)
@@ -125,8 +130,10 @@ internal static partial class Program
         EventEngine restoredSplit = Create(splitProgram);
         restoredSplit.Restore(completed);
         Require(JsonElement.DeepEquals(completed, restoredSplit.Capture()), "Completed SPLIT raw physical body failed independent native restore.");
-        byte[] dialogueProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
-        GameSession dialogueSession = new(new GameState());
+        byte[] dialogueProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        GameSession dialogueSession = CreateInitializedSession();
+        using GameAssets inputAssets = new(TestResources.GameDirectory);
+        dialogueSession.InitializeNewGameInputConfiguration(inputAssets.ReadNewGameInputConfiguration());
         EventEngine dialogueEngine = new(dialogueSession)
         {
             AnimationFrameCount = (_, _) => 4,

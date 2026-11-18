@@ -14,12 +14,12 @@ internal static partial class Program
             [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.RANIMELOOP, 65537), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RANIMELOOP, 1), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create()
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateInitializedSession();
             session.SetWorldControls(NativeWorldControlState.CreateNewGame());
             session.SetEventRandom(session.EventRandom!.ClearSavedStateForNewGame());
             EventEngine engine = new(session)
             {
-                AnimationFrameCount = (model, animation) => model == 2 && animation == 1 ? 4 : throw new InvalidOperationException($"RANIMELOOP did not select the signed low-WORD model animation: model{model}, animation{animation}.")
+                AnimationFrameCount = (model, animation) => model == 2 && animation is 0 or 1 ? 4 : throw new InvalidOperationException($"RANIMELOOP did not select the signed low-WORD model animation: model{model}, animation{animation}.")
             };
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;

@@ -17,7 +17,8 @@ internal static partial class Program
         {
             List<(Jsm.Opcode, int)> operations = [(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, result), (Jsm.Opcode.POPI_L, 1)];
             operations.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), defaultFrame ? 13 : 12));
-            operations.AddRange([(Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.CAL, 2), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_W, destination + 1)]);
+            // Separate output cells so byte-addressed WORD writes retain both observations.
+            operations.AddRange([(Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.CAL, 2), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_W, destination + 4)]);
             if (defaultFrame)
             {
                 operations.Add((Jsm.Opcode.HALT, 0));
@@ -26,7 +27,7 @@ internal static partial class Program
             return operations.ToArray();
         }
         (Jsm.Opcode, int)[] door = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)];
-        byte[] content = SyntheticObjects([(16 << 7) | 7, 0], [Empty(0), door, Expression(17, 77, 100, 5000, defaultFrame: true), Empty(18), Expression(19, 555, 333, 5002), Expression(20, 999, 444, 5004), Empty(21), Empty(22), Empty(23)]);
+        byte[] content = SyntheticObjects([(16 << 7) | 7, 0], [Empty(0), door, Expression(17, 77, 100, 5000, defaultFrame: true), Empty(18), Expression(19, 555, 333, 5008), Expression(20, 999, 444, 5016), Empty(21), Empty(22), Empty(23)]);
         content[1] = 1;
         content[3] = 1;
         EventEngine Create()
@@ -78,7 +79,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), midBudget.Capture()), "Door RET8 resumption diverged after independent pending-request or mid-expression restore.");
         }
         JsonElement variables = CapturedVariables(live.Capture());
-        Require(variables.GetProperty("5000").GetInt32() == 2300 && variables.GetProperty("5001").GetInt32() == 77 && variables.GetProperty("5002").GetInt32() == 7659 && variables.GetProperty("5003").GetInt32() == 555 && variables.GetProperty("5004").GetInt32() == 10212 && variables.GetProperty("5005").GetInt32() == 999 && labels.SequenceEqual([19, 20]), "Native slots failed6→5→default0 order, lower operand/result restoration or same-budget RET8 continuation.");
+        Require(variables.GetProperty("5000").GetInt32() == 2300 && variables.GetProperty("5004").GetInt32() == 77 && variables.GetProperty("5008").GetInt32() == 7659 && variables.GetProperty("5012").GetInt32() == 555 && variables.GetProperty("5016").GetInt32() == 10212 && variables.GetProperty("5020").GetInt32() == 999 && labels.SequenceEqual([19, 20]), "Native slots failed6→5→default0 order, lower operand/result restoration or same-budget RET8 continuation.");
         Console.WriteLine("Native door slots6→5→0: meaningful default and two meaningful requests, unfinished operands/PC/eight-result bank ownership, native sixteen-op budgets, RET8 continuation and independent pending/mid-expression restores passed (synthetic component requests).");
     }
 }

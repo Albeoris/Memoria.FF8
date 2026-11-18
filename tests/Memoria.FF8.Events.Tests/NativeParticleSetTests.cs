@@ -18,6 +18,7 @@ internal static partial class Program
         {
             EventEngine engine = CreateParticleSetFixture(vitals, economy, [(Jsm.Opcode.NOP, 0), (Jsm.Opcode.PSHN_L, rawSlot), (Jsm.Opcode.PARTICLEON, 0), (Jsm.Opcode.PSHN_L, rawSlot), (Jsm.Opcode.PARTICLESET, 0), (Jsm.Opcode.PSHN_L, rawSlot), (Jsm.Opcode.PARTICLEOFF, 0)]);
             JsonElement? beforeActor = null;
+            JsonElement? beforeStack = null;
             JsonElement? beforeRandom = null;
             long? commandFrame = null;
             int commands = 0;
@@ -26,13 +27,17 @@ internal static partial class Program
                 if (command.Name == nameof(Jsm.Opcode.NOP) && command.ObjectId == 7)
                 {
                     beforeActor = JsonSerializer.SerializeToElement(engine.Actors[7]);
+                    beforeStack = ParticleSetCaller(engine).GetProperty("Stack");
                     beforeRandom = engine.Capture().GetProperty("EventRandom");
                 }
                 if (command.Name is nameof(Jsm.Opcode.PARTICLEON) or nameof(Jsm.Opcode.PARTICLESET) or nameof(Jsm.Opcode.PARTICLEOFF))
                 {
                     commandFrame ??= engine.Frame;
                     commands++;
-                    Require(command.Arguments.SequenceEqual([rawSlot]) && engine.Frame == commandFrame && JsonElement.DeepEquals(beforeActor!.Value, JsonSerializer.SerializeToElement(engine.Actors[7])), "Particle byte writes changed the original raw operand, yielded their VM callback or mutated actor body/animation state.");
+                    JsonNode expectedActor = JsonNode.Parse(beforeActor!.Value.GetRawText())!;
+                    JsonNode operands = expectedActor["NativeOperandMemory"]!;
+                    operands["Words"]![operands["LiveDepth"]!.GetValue<int>() + 1] = rawSlot;
+                    Require(command.Arguments.SequenceEqual([rawSlot]) && engine.Frame == commandFrame && JsonElement.DeepEquals(beforeStack!.Value, ParticleSetCaller(engine).GetProperty("Stack")) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedActor), JsonSerializer.SerializeToElement(engine.Actors[7])), "Particle byte writes changed the original raw operand or physical push/pop, yielded their VM callback or mutated actor body/animation state.");
                     if (command.Name == nameof(Jsm.Opcode.PARTICLESET))
                     {
                         Require(engine.Scene.NativeActorObjectIds.SequenceEqual([3, 6, 7, 8, 12]) && engine.Scene.NativeParticleSlots[rawSlot & 15] == 0x82 && engine.ReadNativeParticleAttachment(rawSlot & 15) is { Value: 0x82, InstanceIndex: 2, ObjectId: 7, X: -19, Y: -22, Z: 32760 }, "PARTICLESET confused its actual dense renderer byte with logical object/model7, narrowed the slot incorrectly or changed native raw attachment coordinates.");

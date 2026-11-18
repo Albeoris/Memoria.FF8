@@ -65,15 +65,10 @@ internal static partial class Program
         }
         Require(unknown.Actors[0].NativeDisplayOffset is null && unknown.Actors[0].DisplayOffset == Vector3.Zero && unknown.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 3, "Unproved DOFFSET allocation consumed its original operands.");
 
-        byte[] waitingContent = FieldMediaProgram([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.LOFFSETS, 0)]);
+        byte[] waitingContent = FieldMediaProgram([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.LOFFSETS, 0)]);
         EventEngine missing = CreateFieldMedia(waitingContent);
         missing.Step();
-        JsonObject incomplete = JsonNode.Parse(missing.Capture().GetRawText())!.AsObject();
-        JsonNode fiber = incomplete["Fibers"]!.AsArray().Single(item => item!["ScriptId"]!.GetValue<int>() == 1)!;
-        fiber["Stack"]!.AsArray().RemoveAt(0);
-        fiber["StackExpressions"]!.AsArray().RemoveAt(0);
-        int position = fiber["Position"]!.GetValue<int>();
-        missing.Restore(JsonSerializer.SerializeToElement(incomplete));
+        int position = missing.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Position").GetInt32();
         NativeDisplayOffsetState? original = missing.Actors[0].NativeDisplayOffset;
         try
         {

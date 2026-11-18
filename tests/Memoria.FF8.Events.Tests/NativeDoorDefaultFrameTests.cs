@@ -54,7 +54,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(engine.Capture(), preBody.Capture()), "Default-before-HALT state diverged after independent restore.");
         }
         JsonElement variables = CapturedVariables(engine.Capture());
-        Require(Enumerable.Range(0, 8).All(register => variables.GetProperty((6300 + register).ToString()).GetInt32() == (register + 1) * 11), "Skipped default LBL cleared live init values before actual PSHI reads.");
+        Require(Enumerable.Range(0, 8).All(register => variables.GetProperty((6300 + 4 * register).ToString()).GetInt32() == (register + 1) * 11), "Skipped default LBL cleared live init values before actual PSHI reads.");
         QueueNativeDoorWaitComponent(engine, 24, 3);
         if (twoRequests)
         {
@@ -135,9 +135,10 @@ internal static partial class Program
         }
         else if (!defaultReturn)
         {
+            // Event-memory operands are byte addresses; each observed DWORD needs its own four bytes.
             for (int register = 0; register < 8; register++)
             {
-                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 6300 + register)]);
+                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 6300 + 4 * register)]);
             }
         }
         if (!defaultReturn)

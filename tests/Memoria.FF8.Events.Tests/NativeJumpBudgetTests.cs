@@ -9,19 +9,23 @@ internal static partial class Program
 {
     private static void NativeJumpBudgetContract()
     {
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.JMP, -1), (Jsm.Opcode.RET, 0));
+        byte[] program = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.JMP, -2), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
-            engine.LoadField(100, program, []);
+            GameSession session = CreateInitializedSession();
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 2 };
+            engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return engine;
         }
         EventEngine original = Create();
+        int commands = 0;
+        original.CommandExecuted += _ => commands++;
         original.Step();
+        Require(commands == 5, $"A backward-jump callback did not execute five stores within its sixteen-instruction budget: {commands}.");
         JsonElement snapshot = original.Capture();
-        JsonElement fiber = snapshot.GetProperty("Fibers")[0];
-        Require(fiber.GetProperty("Position").GetInt32() == 0 && fiber.GetProperty("WaitReason").GetString() == "None", "Native JMP must retain its relative PC and exhaust the same sixteen-operation budget without inventing a frame wait.");
+        JsonElement fiber = snapshot.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
+        Require(fiber.GetProperty("Position").GetInt32() == 5 && fiber.GetProperty("WaitReason").GetString() == "None", "Native JMP must retain its relative PC and exhaust the same sixteen-operation budget without inventing a frame wait.");
         EventEngine restored = Create();
         restored.Restore(snapshot);
         for (int frame = 0; frame < 4; frame++)

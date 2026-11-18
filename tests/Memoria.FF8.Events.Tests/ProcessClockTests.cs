@@ -10,18 +10,18 @@ internal static partial class Program
 {
     private static void NativeProcessClockContract()
     {
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 205), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1500), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.RET, 8));
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
+        byte[] content = FieldMediaProgram( (Jsm.Opcode.PSHM_B, 205), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1500), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0));
+        GameSession session = CreateInitializedSession();
         EventEngine live = new(session);
-        live.LoadField(999, content, []);
+        live.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        live.Step();
         for (int frame = 0; frame < 3; frame++)
         {
             live.Step();
         }
         Require(live.ExamTimer is { ClockCalls: 6, TimerMemoryActivated: true } && live.ExamTimer.RequireRemaining() == 60 && live.ExamTimer.Alternatives[0].FirstPhase == 6 * 2191, "First SET discarded genuine pre-SET callbacks or pre-SET clock tracking claimed unproved timer coordinate memory.");
-        EventEngine resumed = new(GameSession.CreateColdProcess(), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
-        resumed.LoadField(999, content, []);
+        EventEngine resumed = new(CreateInitializedSession());
+        resumed.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement issued = live.Capture();
         resumed.Restore(issued);
         uint expectedPhase = 6 * 2191;
@@ -43,8 +43,9 @@ internal static partial class Program
             live.Step();
             resumed.Step();
         }
-        Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()) && live.ExamTimer!.Alternatives.SequenceEqual([new NativeTimerAlternative(expectedPhase, expectedPhase, expectedRemaining)]), "Cold-process countdown or independent VM restore disagreed with native scalar clock through the fifty-second threshold.");
-        Require(live.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("0").GetInt32() == expectedRemaining, "GETTIMER lost the exact process-clock result.");
+        NativeTimerAlternative remaining = live.ExamTimer!.Alternatives.Single();
+        Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()) && remaining.FirstPhase == expectedPhase && remaining.LastPhase == expectedPhase && remaining.Remaining == expectedRemaining, "Cold-process countdown or independent VM restore disagreed with native scalar clock through the fifty-second threshold.");
+        Require(live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean()).GetProperty("Results").GetProperty("0").GetInt32() == expectedRemaining, "GETTIMER lost the exact process-clock result.");
         foreach (string missing in new[] { "ExamTimer", "TimerMemoryActivated" })
         {
             JsonNode invalid = JsonNode.Parse(issued.GetRawText())!;
@@ -67,9 +68,10 @@ internal static partial class Program
             }
             Require(JsonElement.DeepEquals(before, resumed.Capture()), "Invalid process-clock restore changed VM or services before refusal.");
         }
-        GameSession unknown = new(new GameState());
+        GameSession unknown = new(CreateInitializedSession().State with { ExamTimer = null, Playtime = null });
         EventEngine refused = new(unknown);
-        refused.LoadField(999, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.RET, 8)), []);
+        refused.LoadField(999, FieldMediaProgram((Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        refused.Step();
         try
         {
             refused.Step();
@@ -78,7 +80,7 @@ internal static partial class Program
         catch (EventScriptException) when (refused.LastFault?.Opcode == "SETTIMER")
         {
         }
-        Require(unknown.ExamTimer is null && refused.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2 && refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 60, "Missing-clock SET refusal consumed the operand or changed its PC.");
+        Require(unknown.ExamTimer is null && refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean()).GetProperty("Position").GetInt32() == JsmProgram.Read(FieldMediaProgram((Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0))).Operations.Single(operation => operation.Opcode == Jsm.Opcode.SETTIMER).Index && refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean()).GetProperty("Stack")[0].GetInt32() == 60, "Missing-clock SET refusal consumed the operand or changed its PC.");
         Console.WriteLine("Native process clock: explicit cold origin, pre-SET callbacks, exact fifty-second countdown, independent restore and atomic missing-clock refusal passed.");
     }
 }

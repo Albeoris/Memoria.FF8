@@ -13,7 +13,8 @@ internal static partial class Program
     private static void NativePolygonColorContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        NativeModelPartsDefinition definition = assets.LoadField(895).Models[6].NativeParts!;
+        FieldAssets field = assets.LoadField(895);
+        NativeModelPartsDefinition definition = field.Models[6].NativeParts!;
         List<(Jsm.Opcode, int)[]> scripts =
         [
             [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.PSHN_L, 768), (Jsm.Opcode.POLYCOLORALL, 0), (Jsm.Opcode.RET, 8)],
@@ -28,8 +29,8 @@ internal static partial class Program
         content[3] = 2;
         EventEngine Create()
         {
-            GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session) { ReadNativeModelParts = id => id == 6 ? definition : null };
+            GameSession session = CreateInitializedSession();
+            EventEngine engine = new(session) { ReadNativeModelParts = id => id == 6 ? definition : null, AnimationFrameCount = field.GetAnimationFrameCount };
             engine.LoadField(600, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             return engine;
         }
@@ -38,7 +39,7 @@ internal static partial class Program
         live.Step();
         Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(1, 255, 0) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0), "Init POLYCOLORALL failed BYTE narrowing or wrote a nonactor record.");
         live.Step();
-        Require(live.Actors[1].PolygonColor == new Vector3(17, 34, 51) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0) && !live.Actors[2].Active && live.Scene.ModelParts!.Resources.Count == 1 && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77, "Caller-only RGB leaked through shared model resource or failed same-budget successor.");
+        Require(live.Actors[1].PolygonColor == new Vector3(17, 34, 51) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0) && !live.Actors[2].Active && live.Scene.ModelParts!.Resources.Count == 1 && live.EventMemory.Read(5000, 4).RequireExact() == 77, "Caller-only RGB leaked through shared model resource or failed same-budget successor.");
         JsonElement saved = live.Capture();
         EventEngine restored = Create();
         restored.Restore(saved);
@@ -48,7 +49,7 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RGB state changed after independent model-instance restore.");
         }
-        Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(64, 65, 66) && live.Actors[2].PolygonColor == new Vector3(64, 65, 66) && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 88, "POLYCOLORALL skipped a retained UNUSE body, tinted only the caller or wrote the script record.");
+        Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(64, 65, 66) && live.Actors[2].PolygonColor == new Vector3(64, 65, 66) && live.EventMemory.Read(5001, 4).RequireExact() == 88, "POLYCOLORALL skipped a retained UNUSE body, tinted only the caller or wrote the script record.");
 
         foreach (int failure in new[] { 0, 1, 2 })
         {

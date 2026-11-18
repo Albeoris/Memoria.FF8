@@ -23,7 +23,7 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(bool priorMove = false, bool geometry = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

@@ -27,11 +27,11 @@ internal static partial class Program
                 callerInit.Add((Jsm.Opcode.FOOTSTEPCOPY, 0));
             }
             callerInit.Add((Jsm.Opcode.RET, 0));
-            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPCOPY, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPCOPY, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] hiddenInit = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.FOOTSTEPOFF, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] hidden = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] hidden = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] inactiveInit = initializationCopy ? [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)] : [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] inactive = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] inactive = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             return SyntheticObjects([1, (16 << 7) | 1, (32 << 7) | 1], [callerInit.ToArray(), caller, hiddenInit, hidden, inactiveInit, inactive]);
         }
         (GameSession Session, EventEngine Engine) Create(byte[] content, bool authenticated = true)
@@ -128,7 +128,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([1, 16 << 7],
         [
             [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.FOOTSTEP, 34), (Jsm.Opcode.RET, 0)],
-            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPCUT, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.FOOTSTEPCOPY, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)],
+            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPCUT, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.FOOTSTEPCOPY, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.FOOTSTEPOFF, 0), (Jsm.Opcode.PSHN_L, 56), (Jsm.Opcode.FOOTSTEP, 78), (Jsm.Opcode.RET, 0)]
         ]);
         (GameSession Session, EventEngine Engine) Create()

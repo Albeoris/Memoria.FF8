@@ -79,10 +79,20 @@ internal static partial class Program
             engine.Step();
             restored.Step();
             Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && session.EventRandom!.State == 1103527590 && session.EventRandom.DrawPoints == bank, "Held no-eligible message redrew RNG or changed depletion.");
+            WaitForNativeWindowReady(engine, 6, () =>
+            {
+                engine.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Draw-point window readiness diverged after independent restore.");
+            });
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Ordinary draw-point message confirmation was refused.");
             Require(engine.Scene.DrawPointInteraction is not null && !session.State.Variables.ContainsKey(500), "Zero-callback confirmation advanced the field VM outside its real callback.");
-            engine.Step();
-            restored.Step();
+            CloseNativeWindow(engine, 6, () =>
+            {
+                engine.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Draw-point closing callbacks diverged after independent restore.");
+            });
             Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && engine.IsUserControlEnabled && session.State.Variables[500] == 77 && engine.Actors[0].NativeMovementAccelerationTarget == 1, "Closing DRAWPOINT did not return2/pop once and run UCON/successor in the same callback.");
             JsonElement completed = engine.Capture();
             JsonElement results = completed.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Results");

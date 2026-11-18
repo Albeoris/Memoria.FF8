@@ -12,12 +12,12 @@ internal static partial class Program
         byte[] Content(int x)
         {
             (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, -10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 37), (Jsm.Opcode.SET3, 5), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] placement = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, 6597), (Jsm.Opcode.SET, 65536 + 271), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] placement = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, 6597), (Jsm.Opcode.SET, 65536 + 271), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
             return SyntheticObjects([1], [init, placement]);
         }
         (GameSession Session, EventEngine Engine) Create(int x = 1048576 + 82)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session);
             engine.LoadField(600, Content(x), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);

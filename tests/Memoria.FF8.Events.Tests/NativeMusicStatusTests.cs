@@ -29,7 +29,7 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 3), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHI_L, 7), (Jsm.Opcode.POPM_L, 5002), (Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 3), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHI_L, 7), (Jsm.Opcode.POPM_L, 5008), (Jsm.Opcode.RET, 0));
         (GameSession Session, EventEngine Engine) Create()
         {
             GameSession session = GameSession.CreateColdProcess();
@@ -52,11 +52,11 @@ internal static partial class Program
         resumed.Engine.Restore(pending);
         live.Engine.Step();
         resumed.Engine.Step();
-        Require(JsonElement.DeepEquals(live.Engine.Capture(), resumed.Engine.Capture()) && live.Session.State.Variables[5000] == 0 && live.Session.State.Variables[5001] == 333 && live.Session.State.Variables[5002] == 777 && live.Engine.Scene.MusicPlaying && live.Engine.Scene.MusicProcess == process && live.Session.State.GlobalSoundProcess == sound, "MUSICSTATUS failed zero-operand return2, preserved registers/process or independent restore.");
+        Require(JsonElement.DeepEquals(live.Engine.Capture(), resumed.Engine.Capture()) && live.Session.State.Variables[5000] == 0 && live.Session.State.Variables[5004] == 333 && live.Session.State.Variables[5008] == 777 && live.Engine.Scene.MusicPlaying && live.Engine.Scene.MusicProcess == process && live.Session.State.GlobalSoundProcess == sound, "MUSICSTATUS failed zero-operand return2, preserved registers/process or independent restore.");
 
         byte[] opaque = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.POPI_L, 2), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
-        GameSession opaqueSession = GameSession.CreateColdProcess();
-        EventEngine opaqueEngine = new(opaqueSession) { LoadSoundResource = _ => SoundResourceStatus.Muted };
+        GameSession opaqueSession = CreateInitializedSession();
+        EventEngine opaqueEngine = new(opaqueSession) { AnimationFrameCount = (_, _) => 1, LoadSoundResource = _ => SoundResourceStatus.Muted };
         opaqueEngine.Scene.Party.Clear();
         opaqueEngine.Scene.Party.AddRange([0, 255, 255]);
         opaqueEngine.LoadField(600, opaque, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

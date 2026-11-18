@@ -95,7 +95,7 @@ internal static partial class Program
         catch (EventScriptException) when (unknownMax.LastFault?.Opcode == "REST")
         {
         }
-        Require(unknownMaxSession.CharacterVitals == noMaximum && Fiber(unknownMax).GetProperty("Position").GetInt32() == 7, "Unsupported REST changed its owners or advanced the original instruction.");
+        Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(unknownMaxSession.CharacterVitals), JsonSerializer.SerializeToElement(noMaximum)) && Fiber(unknownMax).GetProperty("Position").GetInt32() == 7, "Unsupported REST changed its saved values or advanced the original instruction.");
 
         (GameSession unknownSession, EventEngine unknown) = Create(null, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.REST, 0), (Jsm.Opcode.RET, 0)));
         try

@@ -190,7 +190,16 @@ internal static partial class Program
             Require(CardsEqual(loaded.CardInventory, session.CardInventory) && JsonElement.DeepEquals(loaded.EventState!.Value, captured), "Independent disk save/load changed native cards.");
             NativeCardInventory mismatched = initial.Acquire(1, out _);
             GameSession mismatch = new(saved.State with { CardInventory = mismatched });
-            mismatch.Save(path);
+            try
+            {
+                mismatch.Save(path);
+                throw new InvalidOperationException("Save published a root/event card-byte disagreement.");
+            }
+            catch (InvalidDataException exception) when (exception.Message.Contains("card inventory checkpoints disagree", StringComparison.Ordinal))
+            {
+            }
+            Require(CardsEqual(GameSession.Load(path).CardInventory, saved.State.CardInventory), "Rejected card save replaced the previous valid checkpoint.");
+            File.WriteAllText(path, JsonSerializer.Serialize(mismatch.State));
             try
             {
                 GameSession.Load(path);

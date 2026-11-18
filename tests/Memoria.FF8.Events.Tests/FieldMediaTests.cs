@@ -13,10 +13,10 @@ internal static partial class Program
 {
     private static byte[] FieldMediaProgram(params (Jsm.Opcode Opcode, int Parameter)[] commands)
     {
-        byte[] bytes = SyntheticProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), .. commands, (Jsm.Opcode.RET, 0)]);
+        byte[] bytes = SyntheticProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 1), .. commands, (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), 2);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), checked((ushort)(commands.Length + 4)));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), checked((ushort)(commands.Length + 5)));
         for (int index = 0; index < commands.Length; index++)
         {
             if (commands[index].Opcode == Jsm.Opcode.EFFECTPLAY2)
@@ -29,7 +29,7 @@ internal static partial class Program
 
     private static EventEngine CreateFieldMedia(byte[] program, bool native = true, int fieldId = 101)
     {
-        GameSession session = GameSession.CreateColdProcess();
+        GameSession session = native ? CreateInitializedSession() : GameSession.CreateColdProcess();
         EventEngine engine = new(session)
         {
             ResolveGlobalSoundResource = MutedGlobalSample,

@@ -11,7 +11,8 @@ internal static partial class Program
 {
     private static void NativeMovieTimerClockContract()
     {
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
+        NativeMovieCameraFlags camera = NativeMovieCameraReader.Read(File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "Data", "movies", "disc00_02.cam")));
+        byte[] content = FieldMediaProgram( (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000));
         (GameSession Session, EventEngine Engine) Create(GameState? state = null)
         {
             GameSession session;
@@ -21,6 +22,7 @@ internal static partial class Program
                 session.StartNewGame();
                 using GameAssets assets = new(TestResources.GameDirectory);
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+                session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
                 // This explicit timer-domain diagnostic does not claim a cold timer phase or route history.
                 session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
             }
@@ -28,9 +30,10 @@ internal static partial class Program
             {
                 session = new GameSession(state);
             }
-            EventEngine engine = new(session) { MoviePlayback = () => session.State.MoviePlayback };
+            EventEngine engine = new(session) { MoviePlayback = () => session.State.MoviePlayback, ReadMovieCameraFlags = (disc, index) => disc == 0 && index == 2 ? camera : throw new NotSupportedException("No other movie camera resource was declared by this component.") };
             engine.MovieSkipRequested += () => session.CompleteMovie(true);
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return (session, engine);
         }
 
@@ -39,19 +42,24 @@ internal static partial class Program
         Require(current.Session.NativeMovieClockFlag == false && current.Session.ExamTimer!.ClockCalls == 2, "MOVIEREADY did not yield its original return3 callback before starting playback.");
         current.Engine.Step();
         Require(current.Session.NativeMovieClockFlag == true && current.Session.ExamTimer!.ClockCalls == 4 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 0 }, "MOVIE start retroactively added active-movie calls to the earlier pre-VM sample.");
+        current.Session.SetMoviePlayback(new MoviePlaybackState(0, 999, true, false, false));
+        current.Session.SetMoviePlayback(new MoviePlaybackState(1, 999, true, false, false));
+        current.Session.SetMoviePlayback(new MoviePlaybackState(2, 999, true, false, false));
         current.Engine.Step();
         Require(current.Session.ExamTimer!.ClockCalls == 8 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 1 }, "An actual active movie callback did not run four native clock calls.");
         NativeExamTimerState expected = NativeExamTimerState.FromReachedSet(600).KillDisplay().AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 2).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 1);
         Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(current.Session.ExamTimer)), "Movie callbacks changed the correlated unknown native fractional phase.");
 
-        current.Session.SetMoviePlayback(new MoviePlaybackState(350, 999, true, false, false));
+        current.Session.SetMoviePlayback(new MoviePlaybackState(2, 999, true, false, false));
         current.Session.SetMoviePosition(12345);
-        current.Session.SetMoviePlayback(new MoviePlaybackState(999, 999, true, false, false));
+        current.Session.SetMoviePlayback(new MoviePlaybackState(2, 999, true, false, false));
         Require(current.Session.ExamTimer.ClockCalls == 8, "Decoded frame or duration samples fabricated native callback clocks.");
         JsonElement saved = current.Engine.Capture();
         var independent = Create(current.Session.State);
         independent.Engine.Restore(saved);
         Require(JsonElement.DeepEquals(saved, independent.Engine.Capture()), "Active movie callback ledger did not restore independently.");
+        current.Session.SetMoviePlayback(new MoviePlaybackState(3, 999, true, false, false));
+        independent.Session.SetMoviePlayback(new MoviePlaybackState(3, 999, true, false, false));
         current.Engine.Step();
         independent.Engine.Step();
         Require(current.Session.ExamTimer.ClockCalls == 12 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "Restored active movie callback or timer phase diverged.");
@@ -77,9 +85,13 @@ internal static partial class Program
         natural.Engine.Step();
         Require(natural.Session.ExamTimer.ClockCalls == 10 && natural.Session.State.Variables[5000] == 77 && natural.Session.State.Variables[80] == 2, "Natural completion failed to resume the normal field clock or changed the retained predecode movie word.");
 
-        UnprovedMovieClockServices unproved = new();
-        EventEngine unsupported = new(unproved, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
-        unsupported.LoadField(100, content, []);
+        GameSession unproved = CreateInitializedSession();
+        unproved.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
+        IEventServices unprovedServices = NativeTestServices.Create(unproved, out NativeTestServices unprovedControl);
+        unprovedControl.Overrides["get_NativeMovieClockFlag"] = _ => null;
+        EventEngine unsupported = new(unprovedServices) { ReadMovieCameraFlags = (_, _) => camera };
+        unsupported.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        unsupported.Step();
         try
         {
             unsupported.Step();
@@ -89,7 +101,7 @@ internal static partial class Program
         catch (EventScriptException) when (unsupported.LastFault?.Opcode == "MOVIE")
         {
         }
-        Require(!unproved.IsMoviePlaying && unproved.ExamTimer.ClockCalls == 4 && unsupported.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 4, "Unproved movie departure mutated its scene or advanced the original MOVIE operation.");
+        Require(!unproved.IsMoviePlaying && unproved.ExamTimer!.ClockCalls == 4 && unsupported.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean()).GetProperty("Position").GetInt32() == 6, "Unproved movie departure mutated its scene or advanced the original MOVIE operation.");
 
         foreach (Action<JsonNode> corrupt in new Action<JsonNode>[]
         {
@@ -119,29 +131,4 @@ internal static partial class Program
         Console.WriteLine("Movie timer: accepted start callback2, active callbacks4, decoded samples0, skip/natural cleanup0, post-return callbacks2, independent restore and exact loader ledger validation passed.");
     }
 
-    private sealed class UnprovedMovieClockServices : IEventServices
-    {
-        public NativeExamTimerState ExamTimer { get; private set; } = NativeExamTimerState.FromReachedSet(600).KillDisplay();
-        public bool IsMoviePlaying { get; private set; }
-
-        public void SetExamTimer(NativeExamTimerState timer)
-        {
-            ExamTimer = timer;
-        }
-
-        public void RequestMovie(int index)
-        {
-            IsMoviePlaying = true;
-        }
-
-        public void RequestField(int fieldId, int entryPoint)
-        {
-            throw new NotSupportedException();
-        }
-
-        public void ShowDialog(string text)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

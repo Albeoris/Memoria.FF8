@@ -10,17 +10,18 @@ internal static partial class Program
 {
     private static void InitialInputDirectionAndRestore(string gameDirectory)
     {
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         EventEngine Create(byte initial)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { InitInputAxisDirection = initial };
-            engine.LoadField(100, content, []);
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
         EventEngine engine = Create(128);
         JsonElement loaded = engine.Capture();
         Require(engine.Frame == 0 && engine.InputAxisDirection == 128 && loaded.GetProperty("AxisStart").GetInt32() == 128 && loaded.GetProperty("AxisTarget").GetInt32() == 128 && loaded.GetProperty("AxisDuration").GetInt32() == 0, "Native INF input direction was not installed before the first field VM update.");
+        engine.Step();
         engine.Step();
         engine.Step();
         Require(engine.InputAxisDirection == 112, "AXIS did not interpolate from the native INF initial direction.");

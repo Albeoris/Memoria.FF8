@@ -55,16 +55,16 @@ internal static partial class Program
         string savePath = Path.Combine(Path.GetTempPath(), $"memoria-reset-gf-{Guid.NewGuid():N}.json");
         try
         {
-            GameSession savedSession = new(session.State with { Scene = SceneKind.Field, FieldId = 323, EventState = checkpoint });
+            GameSession savedSession = new(session.State with { Scene = SceneKind.Field, FieldId = 323, FieldLoadContext = NativeFieldLoadContext.FromGameplayContinuation(323), EventState = checkpoint });
             savedSession.Save(savePath);
             GameState loaded = GameSession.Load(savePath);
             Require(loaded.CharacterVitals!.Records.SequenceEqual(reset.Records) && JsonElement.DeepEquals(loaded.EventState!.Value, checkpoint), "Independent game save/load changed junction byte content or matching root/event identity.");
             NativeCharacterVital[] changedRecords = reset.Records.ToArray();
             changedRecords[6] = changedRecords[6] with { Junction = changedRecords[6].Junction with { GuardianForces = 1 } };
             GameSession mismatchedSession = new(savedSession.State with { CharacterVitals = reset with { Records = changedRecords } });
-            mismatchedSession.Save(savePath);
             try
             {
+                mismatchedSession.Save(savePath);
                 GameSession.Load(savePath);
                 throw new InvalidOperationException("Mismatched game/event GF assignments were accepted.");
             }

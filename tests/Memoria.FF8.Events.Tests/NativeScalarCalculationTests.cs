@@ -11,14 +11,16 @@ internal static partial class Program
     {
         EventEngine Create(byte[] content)
         {
-            GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+            GameSession session = CreateInitializedSession();
+            session.SetExamTimer(session.ExamTimer! with { Alternatives = [new NativeTimerAlternative(0, uint.MaxValue, 0)] });
             EventEngine engine = new(session);
-            engine.LoadField(999, content, []);
+            engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return engine;
         }
         foreach ((int kind, int threshold, int? expected) in new[] { (9, 10, (int?)0), (7, 10, (int?)1), (6, 60, (int?)null), (9, 60, (int?)null), (13, -1, (int?)-1) })
         {
-            byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, threshold), (Jsm.Opcode.CAL, kind), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8));
+            byte[] content = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, threshold), (Jsm.Opcode.CAL, kind), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8));
             EventEngine live = Create(content);
             live.Step();
             EventEngine resumed = Create(content);
@@ -37,21 +39,20 @@ internal static partial class Program
             }
             JsonElement current = live.Capture();
             Require(JsonElement.DeepEquals(current, resumed.Capture()), "Timer/CAL continuation or refusal diverged after independent restore.");
-            JsonElement fiber = current.GetProperty("Fibers")[0];
-            Require(fiber.GetProperty("Results").GetProperty("0").GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 59, 60 }), "CAL changed the original GETTIMER alternatives or timer phase.");
+            JsonElement fiber = current.GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("ScriptId").GetInt32() == 1);
+            Require(fiber.GetProperty("Results").GetProperty("0").GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 59, 60 }), $"CAL changed the original GETTIMER alternatives or timer phase: {fiber}.");
             if (expected is int known)
             {
-                Require(live.LastFault is null && fiber.GetProperty("Results").GetProperty("1").GetInt32() == known && fiber.GetProperty("Stack").GetArrayLength() == 0, "Unanimous CAL did not consume exactly two operands and produce its original signedDWORD result.");
+                Require(live.LastFault is null && fiber.GetProperty("Results").GetProperty("1").GetInt32() == known && fiber.GetProperty("Stack").GetArrayLength() == 1 && fiber.GetProperty("Stack")[0].GetInt32() == 2, "Unanimous CAL did not consume exactly two operands and produce its original signedDWORD result.");
             }
             else
             {
-                Require(fiber.GetProperty("Position").GetInt32() == 8 && fiber.GetProperty("Stack")[0].GetInt32() == threshold && fiber.GetProperty("Stack")[1].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 59, 60 }), "Ambiguous CAL changed issuing PC or original typed operands.");
+                Require(fiber.GetProperty("Position").GetInt32() == 10 && fiber.GetProperty("Stack")[0].GetInt32() == threshold && fiber.GetProperty("Stack")[1].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 59, 60 }), "Ambiguous CAL changed issuing PC or original typed operands.");
                 EventEngine frozen = Create(content);
-                frozen.Restore(current);
-                Require(JsonElement.DeepEquals(current, frozen.Capture()), "Ambiguous CAL boundary did not restore exactly.");
+                ExpectInterruptedRestoreRefusal(frozen, current);
             }
         }
-        byte[] correlated = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.RET, 8));
+        byte[] correlated = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.CAL, 6), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.RET, 8));
         EventEngine sameRead = Create(correlated);
         sameRead.Step();
         try
@@ -62,7 +63,7 @@ internal static partial class Program
         catch (EventScriptException) when (sameRead.LastFault?.Opcode == "CAL")
         {
         }
-        Require(sameRead.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 2, "Same-read CAL refusal consumed its source alternatives.");
+        Require(sameRead.Capture().GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 2, "Same-read CAL refusal consumed its source alternatives.");
         foreach (int kind in new[] { 3, 4 })
         {
             GameSession divisionSession = new(new GameState());

@@ -81,6 +81,8 @@ internal static partial class Program
         moving.LoadField(102, FieldMediaProgram(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         Require(moving.FieldShake == priorLoad.ResetForLoad() && moving.FieldShake!.X.Output == 7, "Executed normal field loader overwrote process cursor or output.");
         moving.Step();
+        Require(moving.FieldShake == priorLoad.ResetForLoad(), "Synchronous field initialization advanced the retained shake process.");
+        moving.Step();
         Require(moving.FieldShake!.X.Cursor == 1 && moving.FieldShake!.X.Output == 0, "First actual inactive field callback did not clear retained output without resetting cursor.");
         JsonElement before = live.Capture();
         JsonObject malformed = JsonNode.Parse(snapshot.GetRawText())!.AsObject();
@@ -98,8 +100,8 @@ internal static partial class Program
         warm.StartNewGame();
         warm.SetFieldShake(produced);
         warm.StartNewGame();
-        Require(warm.FieldShake == produced, "Warm NewGame reset process shake.");
-        EventEngine absent = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ShakeTables = tables };
+        Require(warm.FieldShake == cold, "NewGame did not restore the clean process shake owner.");
+        EventEngine absent = new(new GameSession(CreateInitializedSession().State with { FieldShake = null })) { ShakeTables = tables };
         absent.LoadField(101, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         absent.Step();
         try
@@ -112,11 +114,12 @@ internal static partial class Program
         }
         JsonElement refused = absent.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(refused.GetProperty("Stack").GetArrayLength() == 4 && absent.FieldShake is null, "Unknown SHAKE admission consumed operands or initialized cursor.");
-        NativeShakeAccessServices access = new();
-        EventEngine unavailable = new(access, NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ShakeTables = tables };
+        GameSession access = CreateInitializedSession();
+        IEventServices accessServices = NativeTestServices.Create(access, out NativeTestServices accessControl);
+        EventEngine unavailable = new(accessServices) { ShakeTables = tables };
         unavailable.LoadField(101, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         unavailable.Step();
-        access.CanStoreFieldShake = false;
+        accessControl.Overrides["get_CanStoreFieldShake"] = _ => false;
         JsonElement beforeRefusal = unavailable.Capture();
         NativeFieldShake? beforeOwner = access.FieldShake;
         try
@@ -128,8 +131,8 @@ internal static partial class Program
         {
         }
         Require(JsonElement.DeepEquals(beforeRefusal, unavailable.Capture()) && beforeOwner == access.FieldShake, "Unavailable shake callback mutated the VM frame or process owner before refusal.");
-        GameSession scalarSession = new(GameSession.CreateColdProcess().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
-        byte[] scalarContent = FieldMediaProgram((Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.SHAKEOFF, 0), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0));
+        GameSession scalarSession = new(CreateInitializedSession().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
+        byte[] scalarContent = FieldMediaProgram((Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.SHAKEOFF, 0), (Jsm.Opcode.POPI_L, 1));
         EventEngine scalar = new(scalarSession) { ShakeTables = tables };
         scalar.LoadField(101, scalarContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         scalar.Step();
@@ -138,7 +141,7 @@ internal static partial class Program
         scalar.Step();
         JsonElement scalarFiber = scalar.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(scalar.FieldShake is { X.Enabled: false, Y.Enabled: false } && scalarFiber.GetProperty("Stack").GetArrayLength() == 0 && scalarFiber.GetProperty("Results").TryGetProperty("1", out JsonElement retained) && retained.ValueKind == JsonValueKind.Object, "Zero-operand SHAKEOFF rejected/deleted unrelated uncertainty or failed its same-budget successor.");
-        GameSession ambiguousSession = new(GameSession.CreateColdProcess().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
+        GameSession ambiguousSession = new(CreateInitializedSession().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
         byte[] ambiguousContent = FieldMediaProgram((Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0));
         EventEngine ambiguous = new(ambiguousSession) { ShakeTables = tables };
         ambiguous.LoadField(101, ambiguousContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -155,33 +158,6 @@ internal static partial class Program
         EventEngine offWithoutTables = CreateFieldMedia(FieldMediaProgram((Jsm.Opcode.SHAKEOFF, 0)));
         offWithoutTables.Step();
         Require(offWithoutTables.FieldShake is { X.Enabled: false, X.Output: 0, Y.Enabled: false, Y.Output: 0 }, "Inactive zero-operand SHAKEOFF demanded unused lookup tables.");
-        Console.WriteLine("Native shake: cold BSS cursor/output, WORD widths/wrap, asymmetric phases, native load retention, warm NewGame provenance, SHAKE/OFF cadence, required current schema and independent restore passed.");
-    }
-    private sealed class NativeShakeAccessServices : IEventServices
-    {
-        public NativeFieldShake? FieldShake { get; private set; } = NativeFieldShake.FromColdProcess();
-        public bool CanStoreFieldShake { get; set; } = true;
-        public bool IsMoviePlaying => false;
-
-        public void SetFieldShake(NativeFieldShake state)
-        {
-            if (!CanStoreFieldShake)
-            {
-                throw new NotSupportedException("Component current shake writer unavailable.");
-            }
-            FieldShake = state;
-        }
-
-        public void RequestMovie(int index)
-        {
-        }
-
-        public void RequestField(int fieldId, int entryPoint)
-        {
-        }
-
-        public void ShowDialog(string text)
-        {
-        }
+        Console.WriteLine("Native shake: cold BSS cursor/output, WORD widths/wrap, asymmetric phases, native load retention, clean NewGame origin, SHAKE/OFF cadence, required current schema and independent restore passed.");
     }
 }

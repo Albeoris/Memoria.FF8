@@ -57,7 +57,12 @@ internal static partial class Program
                     int fullOperand = priorCaller.GetProperty("Stack")[0].GetInt32();
                     Require(command.Arguments.SequenceEqual([fullOperand]) && currentCaller.GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(priorCaller.GetProperty("Results"), currentCaller.GetProperty("Results")), "KEY did not consume exactly its full DWORD or changed native results.");
                     Require(current.GetProperty("UserControlEnabled").GetBoolean() == (fullOperand != 0) && current.GetProperty("UserControlSequenceDisabled").GetBoolean() == before.GetProperty("UserControlSequenceDisabled").GetBoolean(), "KEY truncated its DWORD or changed the independent UCOFF/UCON sequence guard.");
-                    Require(JsonElement.DeepEquals(before.GetProperty("Actors"), current.GetProperty("Actors")) && JsonElement.DeepEquals(before.GetProperty("Scene"), current.GetProperty("Scene")) && JsonElement.DeepEquals(before.GetProperty("FieldButtonInput"), current.GetProperty("FieldButtonInput")), "KEY changed actor state, party bindings or the current sampled input.");
+                    JsonElement priorActor = before.GetProperty("Actors")[0];
+                    JsonElement currentActor = current.GetProperty("Actors")[0];
+                    Require(priorActor.EnumerateObject().All(property => property.Name == nameof(ActorState.NativeOperandMemory) || JsonElement.DeepEquals(property.Value, currentActor.GetProperty(property.Name))) && JsonElement.DeepEquals(before.GetProperty("Scene"), current.GetProperty("Scene")) && JsonElement.DeepEquals(before.GetProperty("FieldButtonInput"), current.GetProperty("FieldButtonInput")), "KEY changed actor state, party bindings or the current sampled input.");
+                    JsonElement priorMemory = priorActor.GetProperty(nameof(ActorState.NativeOperandMemory));
+                    JsonElement currentMemory = currentActor.GetProperty(nameof(ActorState.NativeOperandMemory));
+                    Require(priorMemory.GetProperty("LiveDepth").GetInt32() - 1 == currentMemory.GetProperty("LiveDepth").GetInt32() && priorMemory.EnumerateObject().All(property => property.Name == "LiveDepth" || JsonElement.DeepEquals(property.Value, currentMemory.GetProperty(property.Name))), "KEY did not pop exactly one physical operand or changed retained operand words and saved depths.");
                     if (keyCommands++ == 0)
                     {
                         firstKeyFrame = live.Frame;

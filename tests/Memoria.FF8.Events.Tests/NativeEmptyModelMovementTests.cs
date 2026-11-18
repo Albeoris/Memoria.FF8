@@ -20,10 +20,10 @@ internal static partial class Program
             byte[] content = SyntheticObjects([0, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 1), (Jsm.Opcode.RET, 8)], initial.ToArray(), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETINFO, 0), (Jsm.Opcode.JMP, -3), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState());
+                var session = CreateInitializedSession();
                 var engine = new EventEngine(session)
                 {
-                    AnimationFrameCount = (_, _) => throw new InvalidOperationException("An empty model requested rendered animation frame metadata."),
+                    AnimationFrameCount = (model, _) => model == 0 ? 4 : throw new InvalidOperationException("An empty model requested rendered animation frame metadata."),
                     CanUseNativeScriptMove = actor => actor.ObjectId == 1,
                     ResolveNativeScriptDirection = query => query.FixedX >= -8 * 4096 ? new(NativeScriptDirectionStatus.Snapped, query.TargetX, query.TargetY, query.MovementDirection, query.TurnAccumulator) : new(NativeScriptDirectionStatus.Moving, query.FixedX, query.FixedY, 64, 0),
                     ResolveNativeScriptMovement = query =>

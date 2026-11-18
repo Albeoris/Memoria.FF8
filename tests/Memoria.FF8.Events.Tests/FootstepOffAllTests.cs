@@ -25,11 +25,11 @@ internal static partial class Program
             return SyntheticObjects([1, (16 << 7) | 1, (32 << 7) | 1, 48 << 7],
             [
                 [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.FOOTSTEP, 34), (Jsm.Opcode.RET, 0)],
-                [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPOFFALL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)],
+                [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FOOTSTEPOFFALL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.PSHN_L, 56), (Jsm.Opcode.FOOTSTEP, 78), (Jsm.Opcode.RET, 0)],
-                [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.RET, 0)],
+                [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
                 [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.FOOTSTEPON, 0), (Jsm.Opcode.RET, 0)],
-                [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)],
+                [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
                 removedInit.ToArray()
             ]);
         }

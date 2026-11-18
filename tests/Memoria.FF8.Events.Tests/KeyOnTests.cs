@@ -74,6 +74,11 @@ internal static partial class Program
         dialogue.Step();
         dialogue.Step();
         dialogue.Step();
+        for (int callback = 0; callback < 32 && dialogue.CurrentDialogue?.NativeWindow is not { Progress: 4096, Text.Ready: true }; callback++)
+        {
+            dialogue.Step();
+        }
+        Require(dialogue.CurrentDialogue?.NativeWindow is { Progress: 4096, Text.Ready: true }, "KEYON dialogue fixture did not finish its native opening and text clocks before confirmation.");
         Require(dialogue.Apply(new PlayerAction(PlayerActionKind.Confirm)) is { Accepted: true, FramesAdvanced: 0 } && dialogue.ButtonInput is { PendingPulse: 0x40, Pressed: 0 }, "Dialogue completion lost the edge before its next field callback.");
         JsonElement pending = dialogue.Capture();
         GameSession restoredSession = CreateSession();

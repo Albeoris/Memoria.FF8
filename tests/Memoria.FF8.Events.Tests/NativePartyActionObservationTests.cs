@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -53,7 +54,9 @@ internal static partial class Program
                 Require(ReferenceEquals(exception, stop), "Party observer exception was wrapped or replaced.");
             }
             JsonElement diagnostic = stopped.Capture();
-            Require(observed is { FieldId: 600, CallerObjectId: 0, ScriptId: 1, PartySlot: 0, RawPriority: 1, LocalSelector: 4, ReceiverObjectId: 1, ReceiverCharacterId: 0, PhysicalBinding: 1, DeclaredScriptCount: 3, PhysicalPointerIndex: 6, PhysicalCodeObjectId: 2, PhysicalScriptId: 6 } && observed.ProgramHash.Length == 64 && observed.Frame == stopped.Frame && observed.FiberSequence > 0 && stopped.LastFault is null && atBoundary is not null && JsonElement.DeepEquals(atBoundary.Value, diagnostic), "Party observer changed native PC/stack/slots, created a fault, or supplied an invented receiver/code identity.");
+            JsonNode expectedDiagnostic = JsonNode.Parse(atBoundary!.Value.GetRawText())!;
+            expectedDiagnostic["FieldCallbackInterrupted"] = true;
+            Require(observed is { FieldId: 600, CallerObjectId: 0, ScriptId: 1, PartySlot: 0, RawPriority: 1, LocalSelector: 4, ReceiverObjectId: 1, ReceiverCharacterId: 0, PhysicalBinding: 1, DeclaredScriptCount: 3, PhysicalPointerIndex: 6, PhysicalCodeObjectId: 2, PhysicalScriptId: 6 } && observed.ProgramHash.Length == 64 && observed.Frame == stopped.Frame && observed.FiberSequence > 0 && stopped.LastFault is null && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedDiagnostic), diagnostic), "Party observer changed native PC/stack/slots beyond marking an interrupted callback, created a fault, or supplied an invented receiver/code identity.");
             JsonElement caller = diagnostic.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1);
             Require(caller.GetProperty("Position").GetInt32() == observed!.Operation && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([4, 1]) && !diagnostic.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.TryGetProperty("NativePartyRequestPointer", out _)), "Party observer consumed operands or queued ownership before policy could inspect the actual request.");
             // This is diagnostic state inside a callback, not a resumable checkpoint.

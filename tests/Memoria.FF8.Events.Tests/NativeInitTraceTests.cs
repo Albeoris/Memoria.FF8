@@ -49,7 +49,7 @@ internal static partial class Program
         };
         live.Step();
         JsonElement completedSnapshot = live.Capture();
-        Require(observedOpaque && completedSnapshot.GetProperty("Variables").GetProperty("5000").GetInt32() == 12345 && completedSnapshot.GetProperty("Variables").GetProperty("5004").GetInt32() == 567, "Synchronous initialization failed its transient trace observation, stack, R0 or return2 continuation.");
+        Require(observedOpaque && live.EventMemory.Read(5000, 4).RequireExact() == 12345 && live.EventMemory.Read(5004, 4).RequireExact() == 567, "Synchronous initialization failed its transient trace observation, stack, R0 or return2 continuation.");
         EventEngine independent = Create();
         independent.LoadField(600, content, [], arrival, nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         independent.Restore(completedSnapshot);

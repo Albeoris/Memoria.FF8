@@ -17,9 +17,10 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(int start, int target, int duration, bool native = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = native ? CreateInitializedSession() : GameSession.CreateColdProcess();
             EventEngine engine = new(session);
-            engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.Unknown8, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
+            engine.LoadField(600, FieldMediaProgram((Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.Unknown8, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000)), [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
+            engine.Step();
             return (session, engine);
         }
         foreach ((int start, int rawTarget, int rawDuration, int target, int duration) in new[] { (58, 186, 23, -70, 23), (234, 35, 124, 35, 124), (10, 200, 4, -56, 4), (58, 65722, 257, -70, 1), (58, -300, 3, -300, 3), (58, 186, 0, -70, 0), (58, 58, 3, 58, 3), (255, 32767, 2, 32511, 2) })
@@ -66,8 +67,8 @@ internal static partial class Program
         catch (EventScriptException) when (invalid.Engine.LastFault?.Opcode == nameof(Jsm.Opcode.Unknown8))
         {
         }
-        JsonElement refused = invalid.Engine.Capture().GetProperty("Fibers")[0];
-        Require(invalid.Engine.Actors[0].Direction == 58 && invalid.Engine.Actors[0].RotationTarget is null && refused.GetProperty("Position").GetInt32() == 5 && refused.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 23, 186 }), "Unknown8 refusal changed its PC, operands or actor turn state.");
+        JsonElement refused = invalid.Engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+        Require(invalid.Engine.Actors[0].Direction == 58 && invalid.Engine.Actors[0].RotationTarget is null && refused.GetProperty("Position").GetInt32() == 7 && refused.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 23, 186 }), "Unknown8 refusal changed its PC, operands or actor turn state.");
         Console.WriteLine("Unknown8: forced direction, signedWORD/BYTE narrowing, cosine elapsed0 and endpoint, return budget, mid-turn restore and atomic native-profile refusal passed.");
     }
 }

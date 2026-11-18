@@ -11,11 +11,11 @@ internal static partial class Program
     private static void NativeRcMoveContract()
     {
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.RCMOVE, 0), (Jsm.Opcode.PSHN_L, 192), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.MOVESYNC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.RCMOVE, 0), (Jsm.Opcode.PSHN_L, 192), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.MOVESYNC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
         byte[] content = SyntheticObjects([1], [init, main]);
         (GameSession Session, EventEngine Engine) Create(bool geometry = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

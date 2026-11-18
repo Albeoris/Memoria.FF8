@@ -200,7 +200,7 @@ internal static partial class Program
             ScriptCommand[] jumps = commands.Where(command => command.ScriptId == 19 && command.Name == "JUMP3").ToArray();
             ScriptCommand[] moves = commands.Where(command => command.ScriptId == 17 && command.Name == "MOVE").ToArray();
             Require(jumps.Length >= 2 && jumps[0].Arguments.SequenceEqual(new[] { 260, 0, 0, 3 }) && jumps.Skip(1).All(command => command.Arguments.Count == 0), "The original push consumed its JUMP3 operands more than once or skipped the held completion poll.");
-            Require(moves.Length >= 2 && Fiber(17).GetProperty("WaitReason").GetString() == "Frames" && actor.NativeScriptMovement is not { Active: true } && actor.NativeMovementCompletion542 == 2, "The lower MOVE reissued instead of consuming shared completion after the push.");
+            Require(moves.Length >= 2 && Fiber(17).GetProperty("WaitReason").GetString() == "None" && Fiber(17).GetProperty("Stack").GetArrayLength() == 1 && Fiber(17).GetProperty("Stack")[0].GetInt32() == 29 && actor.NativeScriptMovement is not { Active: true } && actor.NativeMovementCompletion542 == 2, "The lower MOVE reissued instead of consuming shared completion after the push.");
             Require(jumpIssued ? actor.NativeJump is null && actor.X == 1000 : actor.NativeJump is { Active: false } && actor.WalkmeshTriangle == 9 && actor.X < 261, "The two request orderings failed to preserve their respective mode1 and mode2 endpoints.");
         }
     }

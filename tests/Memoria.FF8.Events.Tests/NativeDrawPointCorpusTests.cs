@@ -100,14 +100,25 @@ internal static partial class Program
             legacySession.SetEventMemory(legacy.EventMemory.Write(211, 1, NativeScalarValue.Exact(0)));
             legacy.RestoreFieldState(JsonSerializer.SerializeToElement(historical));
             Require(legacy.EventMemory.Read(211, 1).RequireExact() == 0x40, "Dormant legacy field restoration lost the reconstructed dialogue mask.");
+            WaitForNativeWindowReady(legacy, 6, legacy.Step);
             Require(legacy.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Recovered historical draw-point window could not close.");
-            legacy.Step();
+            CloseNativeWindow(legacy, 6, legacy.Step);
             Require(legacy.Scene.DrawPointInteraction is null && legacy.EventMemory.Read(211, 1).RequireExact() == 0, "Recovered historical draw-point interaction remained blocked.");
             (_, EventEngine restored) = Create();
             restored.Restore(saved);
+            WaitForNativeWindowReady(engine, 6, () =>
+            {
+                engine.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Extracted draw-point window readiness diverged after independent restore.");
+            });
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Extracted original no-eligible message did not acknowledge normally.");
-            engine.Step();
-            restored.Step();
+            CloseNativeWindow(engine, 6, () =>
+            {
+                engine.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Extracted draw-point closing callbacks diverged after independent restore.");
+            });
             Require(engine.EventMemory.Read(210, 2).RequireExact() == 0x80AB, "Closing channel6 changed another channel or neighboring memory.");
             Require(engine.Scene.DrawPointInteraction is null && engine.IsUserControlEnabled && commands.Last(command => command.Name == "DRAWPOINT").Arguments.SequenceEqual([raw]) && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Extracted original continuation depleted a point without acquisition or changed after restore.");
         }

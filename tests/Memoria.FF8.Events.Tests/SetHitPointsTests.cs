@@ -73,7 +73,17 @@ internal static partial class Program
             Require(loaded.CharacterVitals!.Records[3].HitPoints == new NativeHpWord(9999, 9999) && loaded.CharacterVitals.Records[3].Status == 0xFFFF && JsonElement.DeepEquals(loaded.EventState!.Value, savedState.EventState!.Value), "Game save/load lost exact current HP or native root/VM ownership.");
             NativeCharacterVital[] altered = savedState.CharacterVitals!.Records.ToArray();
             altered[3] = altered[3] with { HitPoints = new NativeHpWord(1, 1) };
-            new GameSession(savedState with { CharacterVitals = savedState.CharacterVitals with { Records = altered } }).Save(savePath);
+            GameState conflicting = savedState with { CharacterVitals = savedState.CharacterVitals with { Records = altered } };
+            try
+            {
+                new GameSession(conflicting).Save(savePath);
+                throw new InvalidOperationException("Save published a root/VM HP disagreement.");
+            }
+            catch (InvalidDataException exception) when (exception.Message.Contains("character vitals checkpoints disagree", StringComparison.Ordinal))
+            {
+            }
+            Require(GameSession.Load(savePath).CharacterVitals!.Records[3].HitPoints == new NativeHpWord(9999, 9999), "Rejected save replaced the previous valid HP checkpoint.");
+            File.WriteAllText(savePath, JsonSerializer.Serialize(conflicting));
             try
             {
                 GameSession.Load(savePath);

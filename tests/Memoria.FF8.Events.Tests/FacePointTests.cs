@@ -17,7 +17,7 @@ internal static partial class Program
             [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, z), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.FACEDIR, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create(int x = 100, int duration = 4, bool facing = true, int y = 0, int z = 100, int yawLimit = 10)
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

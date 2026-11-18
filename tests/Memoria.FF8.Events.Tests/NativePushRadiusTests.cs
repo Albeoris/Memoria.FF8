@@ -27,7 +27,7 @@ internal static partial class Program
             EventEngine engine = CreateNativeRadiusEngine(radius, peerX);
             engine.Step();
             MethodInfo contact = typeof(EventEngine).GetMethod("EvaluateNativePlayerGroundContacts", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            var result = ((bool Collision, int[] PushContacts))contact.Invoke(engine, new object[] { engine.Actors[0], new NativePlayerGroundProbe(0, 0, 0) })!;
+            var result = ((bool Collision, int[] PushContacts))contact.Invoke(engine, new object[] { engine.Actors[0], new NativePlayerGroundProbe(0, 0, 0), -1 })!;
             Require(result.Collision == collision, $"Native signed mean-radius IMUL comparison disagreed for radius{radius}, distance{peerX}; wrapped negative radius² must not create a false collision.");
         }
         Console.WriteLine("PUSHRADIUS99: full DWORD operand retained, low unsignedWORD502 (-1→65535,65536→0), independent restore, radius64 strict contact and signed mean-radius² overflow comparisons passed.");
@@ -36,8 +36,8 @@ internal static partial class Program
     private static EventEngine CreateNativeRadiusEngine(int radiusOperand, int peerX)
     {
         (Jsm.Opcode, int)[] Actor(int label, int model, int x) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, model), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, radiusOperand), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.RET, 8)];
-        var session = new GameSession(new GameState());
-        var engine = new EventEngine(session);
+        var session = CreateInitializedSession();
+        var engine = new EventEngine(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, SyntheticObjects([0, 16 << 7], [Actor(0, 0, 0), Actor(16, 1, peerX)]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }

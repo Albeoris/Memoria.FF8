@@ -87,7 +87,7 @@ internal static partial class Program
         Vector3 expected = new(sampledMotion!.FixedX / 4096, sampledMotion.FixedY / 4096, -32756);
         if (asynchronous)
         {
-            Require(sampled == expected && actor.FaceDuration == 4 && actor.FaceProgress == 1 && actor.FirstControlRotation is not null && HasVariable(live, "5000") && !HasVariable(live, "5001") && live.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 123456 && CallerFiber(live).GetProperty("Stack").GetArrayLength() == 0, "RFACEDIRP lost signed fractional capture/query30 WORD wrap, low-WORD duration or same-callback return2 continuation before FACEDIRSYNC.");
+            Require(sampled == expected && actor.FaceDuration == 4 && actor.FaceProgress == 1 && actor.FirstControlRotation is not null && HasVariable(live, "5000") && !HasVariable(live, "5001") && CapturedVariables(live.Capture()).GetProperty("5002").GetInt32() == 123456 && CallerFiber(live).GetProperty("Stack").GetArrayLength() == 0, "RFACEDIRP lost signed fractional capture/query30 WORD wrap, low-WORD duration or same-callback return2 continuation before FACEDIRSYNC.");
             EventEngine asyncCopy = Create(moving: true);
             asyncCopy.Restore(live.Capture());
             while (actor.FaceProgress < actor.FaceDuration)

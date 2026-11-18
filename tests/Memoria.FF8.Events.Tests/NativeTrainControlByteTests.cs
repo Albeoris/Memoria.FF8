@@ -57,8 +57,9 @@ internal static partial class Program
             NativeWorldControlState original = session.WorldControls!;
             EventEngine engine = new(session);
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (opcode, address), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            NativeEventMemory before = session.EventMemory;
             ExpectWorldControlFault(engine, opcode, 2, [123]);
-            Require(session.WorldControls == original && session.State.Variables.Count == 0, "Refused surrounding native train memory changed the owner or operands.");
+            Require(session.WorldControls == original && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before), JsonSerializer.SerializeToElement(session.EventMemory)), "Refused surrounding native train memory changed the owner or operands.");
         }
         foreach (int alias in new[] { 100, 102, 103, 104 })
         {

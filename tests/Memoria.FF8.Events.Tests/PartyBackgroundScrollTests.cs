@@ -13,7 +13,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(int slot = 0)
         {
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.DSCROLLP, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.RET, 0)]]);
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
             engine.ResolveNativeActorScrollCenter = actor => actor == 0 ? ((short)engine.Frame, (short)-engine.Frame) : null;
             engine.CanRestoreNativeActorScroll = (scene, _) => scene.ActorBackgroundScroll is { NativeActorId: 0 };

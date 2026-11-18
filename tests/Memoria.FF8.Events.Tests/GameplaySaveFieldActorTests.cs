@@ -89,11 +89,34 @@ internal static partial class Program
         Require(malformedDrawRejected, "Malformed semantic model draw key did not fail with controlled validation.");
         SetGameplayActorValue(target.Scene, nameof(SceneEventState.ModelParts), validParts);
 
-        foreach (string member in new[] { nameof(ActorState.MovementTarget), nameof(ActorState.RotationTarget), nameof(ActorState.NativePushContactPending) })
+        EventEngine turning = Create();
+        turning.Step();
+        SetGameplayActorValue(turning.Actors[0], nameof(ActorState.RotationTarget), 1f);
+        SetGameplayActorValue(turning.Actors[0], nameof(ActorState.RotationTotalFrames), 4);
+        SetGameplayActorValue(turning.Actors[0], nameof(ActorState.RotationFrames), 4);
+        GameplaySaveFieldActors turnSaved = turning.CaptureGameplaySaveFieldActors();
+        Require(turnSaved.Actors[0].Turn == new GameplaySaveActorTurn(3, 0, 1, 4, 4), "Semantic actor capture lost an active represented body turn.");
+        EventEngine turnTarget = Create();
+        SetGameplayActorValue(turnTarget.Scene, nameof(SceneEventState.NativeFieldInitialization), turnTarget.Scene.NativeFieldInitialization! with { Origin = NativeFieldInitializationOrigin.GameplayContinuation, Stage = NativeFieldInitializationStage.Completed });
+        turnTarget.RestoreGameplaySaveFieldActors(turnSaved);
+        Require(turnTarget.Frame == 0 && turnTarget.Actors[0].RotationTarget == 1f && turnTarget.Actors[0].RotationTotalFrames == 4 && turnTarget.Actors[0].RotationFrames == 4 && turnTarget.Actors[0].Direction == 0, "Semantic actor reconstruction changed an active turn phase or executed its callback.");
+        SetGameplayActorValue(turning.Actors[0], nameof(ActorState.RotationTarget), 1.5f);
+        bool invalidTurnRejected = false;
+        try
+        {
+            turning.CaptureGameplaySaveFieldActors();
+        }
+        catch (InvalidDataException)
+        {
+            invalidTurnRejected = true;
+        }
+        Require(invalidTurnRejected, "Semantic actors accepted a nonintegral native turn target.");
+
+        foreach (string member in new[] { nameof(ActorState.MovementTarget), nameof(ActorState.NativePushContactPending) })
         {
             EventEngine active = Create();
             active.Step();
-            SetGameplayActorValue(active.Actors[0], member, member == nameof(ActorState.MovementTarget) ? new Vector3(1, 2, 3) : member == nameof(ActorState.RotationTarget) ? (object)1f : true);
+            SetGameplayActorValue(active.Actors[0], member, member == nameof(ActorState.MovementTarget) ? new Vector3(1, 2, 3) : true);
             bool rejected = false;
             try
             {

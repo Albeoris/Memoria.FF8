@@ -10,15 +10,15 @@ internal static partial class Program
     private static void NativeCurrentDirectScrollContract()
     {
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] first = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 65544), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] first = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 65544), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] secondInit = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -65544), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -65544), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1, (16 << 7) | 1], [init, first, secondInit, second]);
         EventEngine Create(bool known, bool admitted = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (layer, _, _) => admitted && layer == 0 };
-            engine.LoadField(600, content, []);
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();
             if (known)
             {
@@ -47,12 +47,13 @@ internal static partial class Program
         EventEngine initiallyUnknown = Create(false);
         initiallyUnknown.Step();
         Require(initiallyUnknown.Scene.BackgroundScrollPositions[0] is { X: 0, Y: -8, PreviousX: null, PreviousY: null, Counter: 0, Duration: null, Status: 2 }, "Direct placement required or invented unused prior current/previous/duration words.");
-        byte[] unknownContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.DSCROLL, 0), (Jsm.Opcode.RET, 8));
+        byte[] unknownContent = FieldMediaProgram((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.DSCROLL, 0));
         EventEngine Unknown()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true };
-            engine.LoadField(600, unknownContent, []);
+            engine.LoadField(600, unknownContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return engine;
         }
         EventEngine unknown = Unknown();
@@ -68,9 +69,14 @@ internal static partial class Program
         unknown.Step();
         EventEngine pendingResume = Unknown();
         pendingResume.Restore(pending);
+        Require(JsonElement.DeepEquals(pending, pendingResume.Capture()), "Pending direct placement lost its exact nullable words during independent restore.");
+        JsonElement completed = unknown.Capture();
+        EventEngine completedResume = Unknown();
+        completedResume.Restore(completed);
         unknown.Step();
         pendingResume.Step();
-        Require(JsonElement.DeepEquals(unknown.Capture(), pendingResume.Capture()), "Unknown direct pending words did not survive independent restore and target commit.");
+        completedResume.Step();
+        Require(pendingResume.Scene.BackgroundScrollPositions[0] == unknown.Scene.BackgroundScrollPositions[0] && JsonElement.DeepEquals(unknown.Capture(), completedResume.Capture()), "Unknown direct target commit or completed-callback independent restore changed its next ordinary callback.");
         foreach (string word in new[] { "X", "Duration" })
         {
             var malformed = System.Text.Json.Nodes.JsonNode.Parse(pending.GetRawText())!;
@@ -86,9 +92,10 @@ internal static partial class Program
             }
             Require(JsonElement.DeepEquals(before, pendingResume.Capture()), "Malformed nullable scroll restore changed current VM or services.");
         }
-        GameSession linearSession = new(new GameState());
+        GameSession linearSession = CreateInitializedSession();
         EventEngine explicitStart = new(linearSession) { CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
-        explicitStart.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.PSHN_L, -9), (Jsm.Opcode.PSHN_L, 29), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)), []);
+        explicitStart.LoadField(600, FieldMediaProgram((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.PSHN_L, -9), (Jsm.Opcode.PSHN_L, 29), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        explicitStart.Step();
         explicitStart.CommandExecuted += command =>
         {
             if (command.Name == "LSCROLL3")

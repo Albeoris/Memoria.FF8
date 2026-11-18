@@ -37,7 +37,7 @@ internal static partial class Program
             Require(write.Writer == NativeBattleFlagWriter.BattleMode && write.RawOperand == raw && write.PersistentFlags == word && write.ActiveFlags == word && write.Operation == 5, "BATTLEMODE lost its low WORD, source operation or full replacement of both native words.");
             JsonElement snapshot = first.Capture();
             JsonElement callback = snapshot.GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
-            Require(callback.GetProperty("Results").GetProperty("3").GetInt32() == 1234 && callback.GetProperty("WaitReason").GetString() == "Frames", "BATTLEMODE consumed a sentinel or yielded its own instruction budget.");
+            Require(callback.GetProperty("Results").GetProperty("3").GetInt32() == 1234 && callback.GetProperty("WaitReason").GetString() == "None" && callback.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([9]), "BATTLEMODE consumed a sentinel or yielded its own instruction budget.");
             Require(first.ExamTimer!.Event182Mask4 == ((word & 4) != 0) && first.ExamTimer.SaveGlobalMask4 == ((word & 4) != 0) && first.ExamTimer.Event183Mask1 == ((word & 0x100) != 0), "Reached SETTIMER ignored the authentic battle-mode WORD masks.");
             GameSession other = CreateSession();
             EventEngine restored = new(other);

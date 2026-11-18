@@ -9,13 +9,13 @@ internal static partial class Program
 {
     private static void NativeMessageVariableContract()
     {
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, -7), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.RET, 8));
+        byte[] content = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, -7), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         EventEngine Create(bool verified = true)
         {
-            GameSession session = GameSession.CreateColdProcess();
-            session.StartNewGame();
+            GameSession session = verified ? CreateInitializedSession() : GameSession.CreateColdProcess();
             EventEngine engine = new(session);
             engine.LoadField(999, content, ["Score {Var 49}"], nativeRuntimeProfile: verified ? NativeFieldRuntimeProfile.FF8En : null);
+            engine.Step();
             return engine;
         }
         EventEngine live = Create();
@@ -41,12 +41,15 @@ internal static partial class Program
         catch (EventScriptException)
         {
         }
-        JsonElement fiber = unproved.Capture().GetProperty("Fibers")[0];
-        Require(fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack")[0].GetInt32() == 100 && fiber.GetProperty("Stack")[1].GetInt32() == -7 && unproved.MessageVariables == NativeMessageVariables.FromColdProcess(), "Refused MESVAR consumed operands, advanced PC or wrote the bank.");
-        byte[] uncertain = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.RET, 8));
-        GameSession uncertainSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+        JsonElement fiber = unproved.Capture().GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("ScriptId").GetInt32() == 1);
+        Require(fiber.GetProperty("Position").GetInt32() == 5 && fiber.GetProperty("Stack")[0].GetInt32() == 100 && fiber.GetProperty("Stack")[1].GetInt32() == -7 && unproved.MessageVariables == NativeMessageVariables.FromColdProcess(), "Refused MESVAR consumed operands, advanced PC or wrote the bank.");
+        byte[] uncertain = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+        GameSession uncertainSession = CreateInitializedSession();
+        uncertainSession.SetExamTimer(uncertainSession.ExamTimer! with { Alternatives = [new NativeTimerAlternative(0, uint.MaxValue, 0)] });
+        NativeMessageVariables? initialBank = uncertainSession.MessageVariables;
         EventEngine uncertainEngine = new(uncertainSession);
         uncertainEngine.LoadField(997, uncertain, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        uncertainEngine.Step();
         uncertainEngine.Step();
         try
         {
@@ -56,8 +59,8 @@ internal static partial class Program
         catch (EventScriptException)
         {
         }
-        JsonElement uncertainFiber = uncertainEngine.Capture().GetProperty("Fibers")[0];
-        Require(uncertainEngine.LastFault?.Opcode == "MESVAR" && uncertainFiber.GetProperty("Position").GetInt32() == 8 && uncertainFiber.GetProperty("Stack")[0].GetProperty("Values").GetArrayLength() > 1 && uncertainFiber.GetProperty("Stack")[1].GetInt32() == 1 && uncertainSession.MessageVariables is null, "MESVAR refusal lost its typed DWORD alternatives or wrote an invented message bank.");
+        JsonElement uncertainFiber = uncertainEngine.Capture().GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("ScriptId").GetInt32() == 1);
+        Require(uncertainEngine.LastFault?.Opcode == "MESVAR" && uncertainFiber.GetProperty("Position").GetInt32() == 10 && uncertainFiber.GetProperty("Stack")[0].GetProperty("Values").GetArrayLength() > 1 && uncertainFiber.GetProperty("Stack")[1].GetInt32() == 1 && uncertainSession.MessageVariables == initialBank, "MESVAR refusal lost its typed DWORD alternatives or wrote an invented message bank.");
         Console.WriteLine("MESVAR fullDWORD/masked slot, unsigned text, live open-message expansion, raw template persistence, field retention and atomic refusal passed.");
     }
 }

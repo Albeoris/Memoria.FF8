@@ -44,8 +44,15 @@ internal static partial class Program
             NativePartyBindingMemory? binding = null;
             byte[]? backup = null;
             int observed = 0;
+            bool reachedWait = false;
             live.CommandExecuted += command =>
             {
+                if (command.Name == nameof(Jsm.Opcode.WAIT) && !reachedWait)
+                {
+                    reachedWait = true;
+                    binding = live.Scene.PartyBindingMemory;
+                    backup = session.CharacterVitals!.JunctionPartyBackup.ToArray();
+                }
                 if (command.Name != nameof(Jsm.Opcode.CHANGEPARTY))
                 {
                     return;
@@ -68,19 +75,15 @@ internal static partial class Program
                     Require(live.Scene.Party.SequenceEqual([11, 1, 4]) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(session.CharacterVitals)), "Unknown new identity did not preserve raw field BYTE11 and native FF physical-row lookup/rebuild.");
                 }
             };
-            bool reachedWait = false;
             for (int callback = 0; callback < 12; callback++)
             {
                 live.Step();
-                if (live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("WaitReason").GetString() == "Frames"))
+                if (reachedWait)
                 {
-                    reachedWait = true;
                     break;
                 }
             }
             Require(reachedWait, $"CHANGEPARTY fixture failed to enter its declared frame wait: {live.Capture().GetProperty("Fibers").GetRawText()}");
-            binding = live.Scene.PartyBindingMemory;
-            backup = session.CharacterVitals!.JunctionPartyBackup.ToArray();
             (EventEngine independent, GameSession _) = Create(restoredCombat);
             independent.Restore(live.Capture());
             for (int callback = 0; callback < 6 && observed < 3; callback++)

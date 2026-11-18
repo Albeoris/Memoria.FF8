@@ -44,7 +44,7 @@ internal static partial class Program
             };
             live.Step();
             JsonElement current = live.Capture();
-            Require(executions == 1 && current.GetProperty("Variables").GetProperty("6000").GetInt32() == 12345 && current.GetProperty("Variables").GetProperty("6004").GetInt32() == 0 && current.GetProperty("Variables").GetProperty("6008").GetInt32() == 903 && current.GetProperty("Variables").GetProperty("6012").GetInt32() == 99 && live.Frame == 1, "Native520200 did not preserve the lower operand/R1 or return2 to its ordinary successor in the same callback.");
+            Require(executions == 1 && CapturedVariables(current).GetProperty("6000").GetInt32() == 12345 && CapturedVariables(current).GetProperty("6004").GetInt32() == 0 && CapturedVariables(current).GetProperty("6008").GetInt32() == 903 && CapturedVariables(current).GetProperty("6012").GetInt32() == 99 && live.Frame == 1, "Native520200 did not preserve the lower operand/R1 or return2 to its ordinary successor in the same callback.");
             EventEngine restored = Create(argument);
             restored.Restore(current);
             for (int tick = 0; tick < 3; tick++)

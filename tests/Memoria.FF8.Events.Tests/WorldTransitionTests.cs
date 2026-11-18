@@ -224,6 +224,7 @@ internal static partial class Program
                 return refuse ? null : original(request);
             };
             string playerBefore = JsonSerializer.Serialize(new { gate.PlayerActor!.X, gate.PlayerActor.Y, gate.PlayerActor.PushRadius, gate.Scene.MapJumpDisabled });
+            JsonElement clean = gate.Capture();
             FieldTeleportContactResult transfer = default;
             try
             {
@@ -235,9 +236,18 @@ internal static partial class Program
             }
             if (refuse)
             {
-                Require(refusedBefore is JsonElement before && JsonElement.DeepEquals(before, gate.Capture()) && session.State.WorldArrival is null && session.WorldControls == gateControls, "World gateway refusal mutated field contacts, XYZ or flags.");
-                gate.PrepareWorldTransition = original;
-                FieldTeleportContactResult retry = gate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
+                Require(refusedBefore is not null, "World gateway refusal did not reach resource preparation.");
+                JsonNode expectedRefusal = JsonNode.Parse(refusedBefore!.Value.GetRawText())!;
+                expectedRefusal["FieldCallbackInterrupted"] = true;
+                JsonElement interruptedCapture = gate.Capture();
+                Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedRefusal), interruptedCapture) && session.State.WorldArrival is null && session.WorldControls == gateControls, "World gateway refusal mutated field contacts, XYZ or flags beyond marking its interrupted callback.");
+                ExpectInterruptedRestoreRefusal(gate, interruptedCapture);
+                // Retry from a completed callback in a fresh owner; native clocks do not rewind.
+                (EventEngine retryGate, _) = Create(gateProgram, known, contacts: true);
+                retryGate.InfGateways = [gateway];
+                retryGate.InfAreaTriggers = [trigger];
+                retryGate.Restore(clean);
+                FieldTeleportContactResult retry = retryGate.TeleportPlayerAndDispatchContacts(new(1, 0, 0, 0, 64));
                 Require(retry is { PlacementApplied: true, NativeInterrupted: false, AdmittedGatewayIndex: 0 }, "A refused gateway left diagnostic admission state or pending input behind for a later successful call.");
             }
             else
@@ -302,7 +312,12 @@ internal static partial class Program
         catch (NotSupportedException)
         {
         }
-        Require(negativeModePrepares == 1 && negativeBefore is JsonElement negativeSnapshot && JsonElement.DeepEquals(negativeSnapshot, negativeGate.Capture()), "Negative world mode failed to preserve original state after reaching preparation.");
+        Require(negativeModePrepares == 1 && negativeBefore is not null, "Negative world mode did not reach exactly one resource preparation.");
+        JsonNode expectedNegative = JsonNode.Parse(negativeBefore!.Value.GetRawText())!;
+        expectedNegative["FieldCallbackInterrupted"] = true;
+        JsonElement negativeCapture = negativeGate.Capture();
+        Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedNegative), negativeCapture), "Negative world mode changed original state beyond marking its interrupted callback.");
+        ExpectInterruptedRestoreRefusal(negativeGate, negativeCapture);
         (Jsm.Opcode, int)[] disabledPlayer = player.Take(player.Length - 1).Concat(new[] { (Jsm.Opcode.MAPJUMPOFF, 0), (Jsm.Opcode.RET, 0) }).ToArray();
         byte[] disabledGateProgram = SyntheticObjects([(16 << 7) | 2, 0], [disabledPlayer, [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 0)]]);
         disabledGateProgram[0] = 1;

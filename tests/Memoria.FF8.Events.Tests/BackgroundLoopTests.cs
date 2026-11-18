@@ -13,9 +13,16 @@ internal static partial class Program
     {
         EventEngine Create(byte[] program)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session);
-            engine.LoadField(100, program, []);
+            byte[] ordinary = NativeTutorialOrdinaryProgram(program);
+            Array.Resize(ref ordinary, ordinary.Length + 4);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(ordinary.AsSpan(ordinary.Length - 8), (int)Jsm.Opcode.HALT);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(ordinary.AsSpan(ordinary.Length - 4), (int)Jsm.Opcode.RET << 24 | 8);
+            int end = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(ordinary.AsSpan(14));
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(ordinary.AsSpan(14), checked((ushort)(end + 1)));
+            engine.LoadField(100, ordinary, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return engine;
         }
         foreach ((int first, int last, int divider) in new[] { (1, 3, 4), (2, 0, 2), (2, 2, 3) })

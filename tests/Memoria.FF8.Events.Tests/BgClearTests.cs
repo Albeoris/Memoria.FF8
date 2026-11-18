@@ -18,9 +18,10 @@ internal static partial class Program
             engine.LoadField(fieldId, content, []);
             return engine;
         }
-        byte[] Content(int operand)
+        byte[] Content(int operand, bool main = false)
         {
-            byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.RBGANIMELOOP, 0), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.BGCLEAR, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+            (Jsm.Opcode, int)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.RBGANIMELOOP, 0), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.BGCLEAR, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)];
+            byte[] content = main ? SyntheticMainProgram(operations) : SyntheticProgram(operations);
             content[2] = 1;
             content[3] = 0;
             return content;
@@ -73,8 +74,8 @@ internal static partial class Program
             JsonElement fiber = saved.GetProperty("Fibers")[0];
             Require(engine.Scene.BackgroundClearValue == 0 && engine.LastFault?.Opcode == "BGCLEAR" && fiber.GetProperty("Position").GetInt32() == 7 && fiber.GetProperty("Stack")[0].GetInt32() == operand, "BGCLEAR refusal changed issuing PC, operand or clear byte.");
             EventEngine restored = Create(content);
-            restored.Restore(saved);
-            Require(JsonElement.DeepEquals(saved, restored.Capture()), "Unsupported BGCLEAR boundary did not restore exactly.");
+            ExpectInterruptedRestoreRefusal(engine, saved);
+            ExpectInterruptedRestoreRefusal(restored, saved);
         }
         byte[] valid = Content(1);
         EventEngine special = Create(valid, 1);
@@ -87,12 +88,14 @@ internal static partial class Program
         {
         }
         Require(special.Scene.BackgroundClearValue == 0 && special.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 1, "BGCLEAR special field refusal consumed its operand.");
-        EventEngine underflow = Create(valid);
+        EventEngine underflow = Create(Content(1, main: true));
+        underflow.Step();
         underflow.Step();
         JsonNode empty = JsonNode.Parse(underflow.Capture().GetRawText())!;
         empty["Scene"]!["BackgroundClearValue"] = 0;
-        empty["Fibers"]![0]!["Position"] = 7;
-        empty["Fibers"]![0]!["WaitReason"] = "None";
+        JsonNode underflowFiber = empty["Fibers"]!.AsArray().Single(fiber => !fiber!["Initialization"]!.GetValue<bool>())!;
+        underflowFiber["Position"] = 9;
+        underflowFiber["WaitReason"] = "None";
         underflow.Restore(JsonSerializer.SerializeToElement(empty));
         try
         {
@@ -102,7 +105,8 @@ internal static partial class Program
         catch (EventScriptException)
         {
         }
-        Require(underflow.Scene.BackgroundClearValue == 0 && underflow.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 7, "BGCLEAR underflow changed PC or clear byte.");
+        JsonElement heldUnderflow = underflow.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+        Require(underflow.Scene.BackgroundClearValue == 0 && heldUnderflow.GetProperty("Position").GetInt32() == 9 && heldUnderflow.GetProperty("Stack").GetArrayLength() == 0, "BGCLEAR underflow changed PC, operands or clear byte.");
         EventEngine width = Create(valid);
         JsonElement widthBefore = width.Capture();
         JsonNode malformed = JsonNode.Parse(widthBefore.GetRawText())!;

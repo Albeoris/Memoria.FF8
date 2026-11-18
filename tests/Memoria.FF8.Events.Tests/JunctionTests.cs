@@ -14,12 +14,31 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).WithMemberFlags(5, true);
         NativeCharacterAppearance appearance = assets.ReadNewGameCharacterAppearance();
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 1000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 7000), (Jsm.Opcode.SETHP, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.PSHN_L, 74), (Jsm.Opcode.POPM_B, 1001), (Jsm.Opcode.RET, 8));
-        (GameSession Session, EventEngine Engine) Create(byte[] content, NativeCharacterVitals? vitals = null, uint flags = 7)
+        // Native synchronous initialization consumes return3 without yielding; this contract observes ordinary callback boundaries.
+        byte[] program = SyntheticObjects([1], [
+            [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)],
+            [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 1000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 7000), (Jsm.Opcode.SETHP, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.PSHN_L, 74), (Jsm.Opcode.POPM_B, 1001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        (GameSession Session, EventEngine Engine) Create(byte[] content, NativeCharacterVitals? vitals = null, uint flags = 7, bool withColdProcess = true)
         {
-            GameSession session = new(new GameState { CharacterVitals = vitals ?? initial.DeepCopy(), CharacterAppearance = appearance, WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = flags } });
+            bool hasDefault = JsmProgram.Read(content).Objects[0].Scripts.Count > 1;
+            GameState source = new() { CharacterVitals = vitals ?? initial.DeepCopy(), CharacterAppearance = appearance, WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = flags } };
+            GameSession session;
+            if (withColdProcess)
+            {
+                session = GameSession.CreateColdProcess();
+                session.StartNewGame();
+                session.Restore(session.State with { CharacterVitals = source.CharacterVitals, CharacterAppearance = appearance, WorldControls = source.WorldControls, InputConfiguration = assets.ReadNewGameInputConfiguration() });
+            }
+            else
+            {
+                session = new GameSession(source);
+            }
             EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            if (hasDefault)
+            {
+                engine.Step();
+            }
             return (session, engine);
         }
         (GameSession session, EventEngine engine) = Create(program);
@@ -100,7 +119,7 @@ internal static partial class Program
         {
         }
         Require(JsonElement.DeepEquals(before, restored.Capture()), "Backup alias refusal partially mutated current owners.");
-        (GameSession menuSession, EventEngine menu) = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.RET, 8)));
+        (GameSession menuSession, EventEngine menu) = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.JUNCTION, 0), (Jsm.Opcode.RET, 8)), withColdProcess: false);
         NativeCharacterVitals untouched = menuSession.CharacterVitals!;
         try
         {

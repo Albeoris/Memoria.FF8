@@ -25,11 +25,16 @@ internal static partial class Program
 
     private static void NativeDrawPointSetupContract(string gameDirectory)
     {
+        using GameAssets setupAssets = new(gameDirectory);
+        NativeDrawPointCatalog setupCatalog = setupAssets.ReadNativeDrawPointCatalog();
+        NativeDrawPointParticleTables setupParticles = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
         EventEngine Create(byte[] content, int fieldId = 148, Dictionary<int, int>? variables = null)
         {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session, variables is null ? null : NativeEventMemory.FromDWords(variables));
-            engine.LoadField(fieldId, content, []);
+            GameSession session = CreateInitializedSession();
+            session.InitializeNewGameInputConfiguration(setupAssets.ReadNewGameInputConfiguration());
+            EventEngine engine = new(session, variables is null ? null : NativeEventMemory.FromDWords(variables)) { AnimationFrameCount = (_, _) => 4, ReadNativeDrawPointCatalog = () => setupCatalog, DrawPointParticleTables = setupParticles };
+            engine.LoadField(fieldId, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.RestartNativeDrawPointPresentationForMigration();
             return engine;
         }
         byte[] Content(int mask = 1, int index = 4, bool clear = false)
@@ -53,7 +58,7 @@ internal static partial class Program
             Require(engine.Scene.DrawPointFieldStateVersion == 1 && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 1 && engine.Scene.DrawPointIndex == expected && engine.Scene.DrawPointReset is { SampledDisplayMask: 1, ObjectId: 0, ScriptId: 0, Operation: 7 } reset && reset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && reset.Sparks.Count == 8 && reset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)), "Draw-point setup lost its low bytes, native anchor reset or immediate index continuation.");
             JsonElement saved = engine.Capture();
             Require(saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("5").GetInt32() == expected, "Exact native byte reads did not use the known typed setup/index.");
-            Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && CapturedVariables(saved).EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
+            Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && JsonElement.DeepEquals(saved.GetProperty("EventMemory"), before.GetProperty("EventMemory")) && JsonElement.DeepEquals(saved.GetProperty("CharacterVitals"), before.GetProperty("CharacterVitals")), "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
             Require(commands.Single(command => command.Name == "SETDRAWPOINT").Arguments.SequenceEqual([mask]) && commands.Single(command => command.Name == "Unknown16").Arguments.SequenceEqual([index]), "Draw-point setup discarded its original full operands.");
             EventEngine independent = Create(content);
             independent.Restore(saved);
@@ -61,7 +66,7 @@ internal static partial class Program
             engine.Step();
             independent.Step();
             Require(JsonElement.DeepEquals(engine.Capture(), independent.Capture()), "Restored draw-point setup changed ordinary wait continuation.");
-            independent.LoadField(149, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
+            independent.LoadField(149, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             Require(independent.Scene.DrawPointFieldStateVersion == 1 && independent.Scene.DrawPointEnabled == 0 && independent.Scene.DrawPointDisplayParameter == 0 && independent.Scene.DrawPointReset is null && independent.Scene.DrawPointIndex == expected, "Normal field load did not reset field display bytes while preserving known global B242.");
         }
         EventEngine cleared = Create(Content(clear: true));
@@ -78,7 +83,16 @@ internal static partial class Program
         foreach (int alias in new[] { 85, 88, 237, 239, 240, 241, 242 })
         {
             Dictionary<int, int> variables = new() { [alias] = 99 };
-            EventEngine blocked = Create(Content(), variables: variables);
+            EventEngine blocked;
+            try
+            {
+                blocked = Create(Content(), variables: variables);
+            }
+            catch (InvalidDataException exception) when (exception.Message.Contains("overlaps a canonical memory owner", StringComparison.Ordinal))
+            {
+                Require(variables[alias] == 99, "Rejecting a generic alias at allocation changed the supplied memory cell.");
+                continue;
+            }
             ExpectDrawPointFault(blocked, "SETDRAWPOINT", 7, 1);
             Require(variables[alias] == 99 && blocked.Scene.DrawPointReset is null, "Ambiguous native byte alias changed before setup refusal.");
         }
@@ -94,17 +108,14 @@ internal static partial class Program
         }
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.SETDRAWPOINT, Jsm.Opcode.Unknown16 })
         {
-            EventEngine empty = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (opcode, 0), (Jsm.Opcode.RET, 0)));
-            JsonNode missingOperand = JsonNode.Parse(empty.Capture().GetRawText())!;
-            missingOperand["Fibers"]![0]!["Position"] = 2;
-            empty.Restore(JsonSerializer.SerializeToElement(missingOperand));
-            ExpectDrawPointFault(empty, opcode.ToString(), 2);
+            EventEngine empty = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (opcode, 0), (Jsm.Opcode.RET, 8)));
+            ExpectDrawPointFault(empty, opcode.ToString(), 1);
         }
         EventEngine special = Create(Content(), 1);
         ExpectDrawPointFault(special, "SETDRAWPOINT", 7, 1);
-        EventEngine retainedAliases = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), variables: new Dictionary<int, int> { [238] = 5 });
+        EventEngine retainedAliases = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_B, 208), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.PSHM_B, 208), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 8)));
         retainedAliases.Step();
-        Require(retainedAliases.LastFault is null && CapturedVariables(retainedAliases.Capture()).GetProperty("238").GetInt32() == 5, "Native CLEAR changed an alias outside its original256..1279 range.");
+        Require(retainedAliases.LastFault is null && CapturedVariables(retainedAliases.Capture()).GetProperty("208").GetInt32() == 5 && retainedAliases.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 5, "Native CLEAR changed a retained byte outside its original256..1279 range.");
 
         byte[] knownContent = Content();
         EventEngine known = Create(knownContent);

@@ -12,7 +12,7 @@ internal static partial class Program
     {
         DialogueChannelReuseContract();
         DialogueChannelStyleContract();
-        byte[] content = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.AMES, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 160), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 180), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.WINCLOSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+        byte[] content = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.AMES, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 160), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 180), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.WINCLOSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         string[] messages = ["Persistent", "First automatic", "Second automatic"];
         GameSession session = CreateChannelSession();
         EventEngine engine = LoadChannels(session, 100, content, messages);
@@ -23,11 +23,12 @@ internal static partial class Program
             engine.Step();
         }
         Require(engine.Dialogues.Count == 3 && engine.CurrentDialogue?.Channel == 2 && engine.Dialogues.Single(dialogue => dialogue.Channel == 0).CanConfirm == false, "Original automatic and persistent channels lost independent state.");
-        for (int callback = 0; callback < 8 && engine.Dialogues.Any(dialogue => dialogue.NativeWindow!.Progress < 4096); callback++)
+        // Wait for text readiness as well as window growth so Confirm closes each automatic channel.
+        for (int callback = 0; callback < 24 && engine.Dialogues.Any(dialogue => dialogue.NativeWindow!.Progress < 4096 || dialogue.NativeWindow.Text is { Ready: false }); callback++)
         {
             engine.Step();
         }
-        Require(engine.Dialogues.Count == 3 && engine.Dialogues.All(dialogue => dialogue.NativeWindow is { Version: 1, Progress: 4096, Delta: 512 }), "Opened channels did not reach their full native window state before confirmation.");
+        Require(engine.Dialogues.Count == 3 && engine.Dialogues.All(dialogue => dialogue.NativeWindow is { Version: 1, Progress: 4096, Delta: 512, Text: { Ready: true } }), "Opened channels did not reach their full native window state before confirmation.");
         var snapshot = engine.Capture();
         GameSession restoredSession = CreateChannelSession();
         EventEngine restored = LoadChannels(restoredSession, 100, content, messages);
@@ -44,7 +45,7 @@ internal static partial class Program
         Require(persistentChannels.GetRawText() == engine.Capture().GetProperty("Dialogues").GetRawText() && engine.Frame == frameBeforeInteraction && engine.ActionLog.Count == actionsBeforeInteraction && engine.LastFault is null, "Refused interaction dismissed persistent AMES or advanced its callback/action log.");
         Require(engine.Capture().GetRawText() == restored.Capture().GetRawText(), "Independent interaction refusals changed their retained native input or complete VM differently.");
         Require(!engine.IsDialogueBlocking && engine.NextTrigger.Kind == PlayerTriggerKind.Waiting, "Persistent AMES prevented ordinary script continuation.");
-        for (int callback = 0; callback < 12 && engine.IsDialogueOpen; callback++)
+        for (int callback = 0; callback < 48 && engine.IsDialogueOpen; callback++)
         {
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced == 1 && restored.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced == 1, "Ordinary waiting stopped at a persistent background window.");
             Require(engine.Capture().GetRawText() == restored.Capture().GetRawText(), "Restored window closing callback diverged.");
@@ -54,7 +55,7 @@ internal static partial class Program
 
         byte[] synchronized = BattleModeCallbackProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
         engine.LoadField(101, synchronized, ["Synchronized"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-        for (int callback = 0; callback < 8 && engine.CurrentDialogue is not { Channel: 3, CanConfirm: true }; callback++)
+        for (int callback = 0; callback < 24 && engine.CurrentDialogue is not { Channel: 3, CanConfirm: true, NativeWindow: { Text: { Ready: true } } }; callback++)
         {
             engine.Step();
         }
@@ -181,6 +182,7 @@ internal static partial class Program
         GameSession session = new(new GameState());
         EventEngine engine = new(session);
         engine.LoadField(102, content, messages);
+        var clean = engine.Capture();
         RejectOccupiedChannel(engine);
         Require(engine.Dialogues.Select(dialogue => dialogue.Channel).SequenceEqual([1, 2]) && engine.Dialogues.Select(dialogue => dialogue.MessageId).SequenceEqual([2, 3]), "Occupied RAMESW changed the accepted persistent-channel reuse prefix.");
         Require(engine.CurrentDialogue is { Channel: 2, MessageId: 3, CanConfirm: false } && engine.DialogueOutcomes.Count == 0, "Occupied RAMESW replaced or confirmed an existing persistent channel.");
@@ -190,9 +192,11 @@ internal static partial class Program
         GameSession restoredSession = new(new GameState());
         EventEngine restored = new(restoredSession);
         restored.LoadField(102, content, messages);
-        restored.Restore(held);
-        Require(held.GetRawText() == restored.Capture().GetRawText() && session.Dialog == restoredSession.Dialog, "Occupied-channel refusal lost its complete standalone VM or channel focus.");
+        ExpectInterruptedRestoreRefusal(engine, held);
+        ExpectInterruptedRestoreRefusal(restored, held);
+        restored.Restore(clean);
         RejectOccupiedChannel(restored);
+        Require(held.GetRawText() == restored.Capture().GetRawText() && session.Dialog == restoredSession.Dialog, "Independent occupied-channel refusal lost its complete VM or channel focus.");
         var retriedMain = restored.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 0);
         Require(retriedMain.GetProperty("Position").GetInt32() == 33 && heldMain.GetProperty("Stack").GetRawText() == retriedMain.GetProperty("Stack").GetRawText() && engine.Dialogues.SequenceEqual(restored.Dialogues), "Restored occupied-channel refusal consumed operands or changed the accepted channels.");
 

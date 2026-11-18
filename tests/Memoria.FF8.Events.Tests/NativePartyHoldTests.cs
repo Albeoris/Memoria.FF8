@@ -11,6 +11,7 @@ internal static partial class Program
     private static void NativePartyHoldContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
+        FieldAssets field = assets.LoadField(600);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         NativeCharacterVitals held = initial.WithHoldFlags(0, true);
         Require(held.Records[0].MemberFlags == (ushort)(initial.Records[0].MemberFlags | 6) && held.Records[0].HitPoints == initial.Records[0].HitPoints && held.CombatParty.SequenceEqual(initial.CombatParty) && held.GuardianForces.SequenceEqual(initial.GuardianForces), "HOLD did not preserve HP/stat producers while setting exactly physical membership bits2/4.");
@@ -24,7 +25,7 @@ internal static partial class Program
         session.InitializeNewGameCharacterVitals(initial);
         session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session);
+        EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
         ScriptCommand? holdCommand = null;
         engine.CommandExecuted += command =>
         {
@@ -33,7 +34,7 @@ internal static partial class Program
                 holdCommand = command;
             }
         };
-        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.RET, 8)]]);
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         // A declared component executes the actual unknown out-of-retained-table
         // PGETINFO producer; no field visit or original route is claimed.
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

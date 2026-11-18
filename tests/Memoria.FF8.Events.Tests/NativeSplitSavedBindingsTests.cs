@@ -27,7 +27,7 @@ internal static partial class Program
         }
         EventEngine Create(bool nonzeroLimit = false)
         {
-            GameSession session = new(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -146,8 +146,20 @@ internal static partial class Program
         }
         Require(partial.Actors[1].Y == 40 && partial.Actors[2].Y == -20 && partial.Actors[3].Y == 20 && partial.Scene.NativePlayerPosition == new FieldFixedPosition(246, 40 * 4096, 0), "Later native SPLIT refusal rolled back an earlier committed body or advanced a later body.");
         EventEngine frozenCopy = Create();
-        frozenCopy.Restore(partial.Capture());
-        Require(JsonElement.DeepEquals(partial.Capture(), frozenCopy.Capture()), "Native partial SPLIT boundary failed exact current restore.");
+        JsonElement interrupted = partial.Capture();
+        ExpectInterruptedRestoreRefusal(partial, interrupted);
+        ExpectInterruptedRestoreRefusal(frozenCopy, interrupted);
+        frozenCopy.Restore(pending);
+        frozenCopy.ResolveNativeJoinMovement = partial.ResolveNativeJoinMovement;
+        try
+        {
+            frozenCopy.Step();
+            throw new InvalidOperationException("Independent SPLIT retry admitted unproved later geometry.");
+        }
+        catch (EventScriptException) when (frozenCopy.LastFault?.Opcode == "SPLIT")
+        {
+        }
+        Require(JsonElement.DeepEquals(interrupted, frozenCopy.Capture()), "Native partial SPLIT boundary diverged after retry from its completed callback.");
         EventEngine limited = Create(true);
         while (limited.Capture().GetProperty("PartySplit").ValueKind == JsonValueKind.Null && limited.Frame < 20)
         {

@@ -20,7 +20,9 @@ internal static partial class Program
             first.AddRange(new[] { rawDuration, 346, 336, 326, 256, 266, 276 }.Select(value => (Jsm.Opcode.PSHN_L, value)));
             first.AddRange([(Jsm.Opcode.BGSHADE, 0), (Jsm.Opcode.PSHN_L, 85), (Jsm.Opcode.POPM_B, 6102), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.PSHN_L, 110), (Jsm.Opcode.PSHN_L, 80), (Jsm.Opcode.PSHN_L, 70), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.BGSHADE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
-            byte[] content = SyntheticObjects([0, 16 << 7], [first.ToArray(), second]);
+            first[0] = (Jsm.Opcode.LBL, 1);
+            second[0] = (Jsm.Opcode.LBL, 17);
+            byte[] content = SyntheticObjects([1, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], first.ToArray(), [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], second]);
             content[2] = 2;
             content[3] = 0;
             EventEngine Create()
@@ -33,6 +35,7 @@ internal static partial class Program
                 session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
                 EventEngine engine = new(session, session.EventMemory);
                 engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                engine.Step();
                 return engine;
             }
             EventEngine live = Create();
@@ -53,7 +56,7 @@ internal static partial class Program
                 if (command.Name == nameof(Jsm.Opcode.BGSHADESTOP))
                 {
                     stopFrame = live.Frame;
-                    JsonElement fiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0);
+                    JsonElement fiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0 && !item.GetProperty("Initialization").GetBoolean());
                     Require(command.Arguments.Count == 0 && fiber.GetProperty("Stack").EnumerateArray().Single().GetInt32() == 77 && live.GetBackgroundModuleShades()[0] == endpoint, "BGSHADESTOP consumed an operand or retained the interpolated color instead of its current target.");
                     Require(!live.Scene.BackgroundShadeLoops.ContainsKey(0) && live.Scene.BackgroundShades[0].FadeFrames == 0 && live.BackgroundStates[0] == 3 && live.Scene.BackgroundShades[1].SecondColor == new Vector3(80, 70, 60), "BGSHADESTOP changed another module, background frame or retained its loop.");
                 }
@@ -68,21 +71,21 @@ internal static partial class Program
             {
                 live.Step();
             }
-            Require(stopFrame == loopFrame + delay && live.Capture().GetProperty("Variables").GetProperty("6100").GetInt32() == 77 && live.GetBackgroundModuleShades()[0] == endpoint, "BGSHADESTOP did not return2 in the same VM budget or lost the phase-boundary target.");
+            Require(stopFrame == loopFrame + delay && CapturedVariables(live.Capture()).GetProperty("6100").GetInt32() == 77 && live.GetBackgroundModuleShades()[0] == endpoint, "BGSHADESTOP did not return2 in the same VM budget or lost the phase-boundary target.");
             EventEngine restored = Create();
             restored.Restore(live.Capture());
-            for (int tick = 0; tick < 16 && !live.Capture().GetProperty("Variables").TryGetProperty("6102", out _); tick++)
+            for (int tick = 0; tick < 16 && !CapturedVariables(live.Capture()).TryGetProperty("6102", out _); tick++)
             {
                 live.Step();
                 restored.Step();
                 Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Stopped shade or subsequent blocking BGSHADE diverged after independent restore.");
                 if (shadeFrame == live.Frame)
                 {
-                    JsonElement fiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0);
-                    Require(fiber.GetProperty("WaitReason").GetString() == "NativeBackgroundShade" && fiber.GetProperty("NativeShadeOperation").GetInt32() == fiber.GetProperty("Position").GetInt32() && !live.Capture().GetProperty("Variables").TryGetProperty("6102", out _), "BGSHADE did not retain its issued PC and return1, including duration0.");
+                    JsonElement fiber = live.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0 && !item.GetProperty("Initialization").GetBoolean());
+                    Require(fiber.GetProperty("WaitReason").GetString() == "NativeBackgroundShade" && fiber.GetProperty("NativeShadeOperation").GetInt32() == fiber.GetProperty("Position").GetInt32() && !CapturedVariables(live.Capture()).TryGetProperty("6102", out _), "BGSHADE did not retain its issued PC and return1, including duration0.");
                 }
             }
-            Require(issues == 1 && live.Frame == shadeFrame + unchecked((ushort)rawDuration) + 1 && live.Capture().GetProperty("Variables").GetProperty("6102").GetInt32() == 85 && live.GetBackgroundModuleShades()[0] == new Vector3(0, 10, 20), "BGSHADE did not poll through its inclusive renderer endpoint and then return2 without consuming operands again.");
+            Require(issues == 1 && live.Frame == shadeFrame + unchecked((ushort)rawDuration) + 1 && CapturedVariables(live.Capture()).GetProperty("6102").GetInt32() == 85 && live.GetBackgroundModuleShades()[0] == new Vector3(0, 10, 20), "BGSHADE did not poll through its inclusive renderer endpoint and then return2 without consuming operands again.");
         }
         Console.WriteLine("BGSHADESTOP: forward phase-boundary/reverse target snap, no operands, same-budget return2, module/frame isolation, subsequent BYTE/WORD BGSHADE issue/poll timing including duration0 and independent restore passed.");
     }

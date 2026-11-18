@@ -13,7 +13,7 @@ internal static partial class Program
         (EventEngine Engine, GameSession Session) Create(int targetId = 0)
         {
             byte[] content = SyntheticObjects([1, (16 << 7) | 1], [Init(0, 0, 1000), [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Init(16, 1, 0), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, targetId), (Jsm.Opcode.PSHN_L, 150), (Jsm.Opcode.RMOVEA, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
-            var session = new GameSession(new GameState());
+            var session = CreateInitializedSession();
             var engine = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,

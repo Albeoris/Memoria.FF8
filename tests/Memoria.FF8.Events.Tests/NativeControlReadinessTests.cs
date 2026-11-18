@@ -73,7 +73,7 @@ internal static partial class Program
         EventEngine inactive = Create(SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]));
         inactive.Step();
         inactive.Step();
-        Require(inactive.PlayerActor is { Active: false } && inactive.NextTrigger.Kind == PlayerTriggerKind.Waiting && !inactive.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted, "Inactive current native leader became playable or accepted ordinary movement.");
+        Require(inactive.PlayerActor is { ObjectId: 0, Active: false, Visible: true } && inactive.NextTrigger.Kind == PlayerTriggerKind.Playable && inactive.CanAcceptMovementInput, "Later UNUSE removed the retained player binding or blocked ordinary movement admission.");
         EventEngine dialogue = Create(SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.AMESW, 0), (Jsm.Opcode.RET, 8)]]));
         dialogue.Step();
         dialogue.Step();

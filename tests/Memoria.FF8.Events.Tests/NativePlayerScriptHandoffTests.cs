@@ -14,11 +14,12 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 212), (Jsm.Opcode.PSHN_L, 554), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 133), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 216), (Jsm.Opcode.PSHN_L, 553), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 216), (Jsm.Opcode.PSHN_L, 553), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1], [init, main]);
         EventEngine Create(bool moving = false)
         {
-            GameSession session = new(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
+            GameSession session = CreateDirectedLinearTurnSession(initialVitals, assets.ReadNewGameEconomy());
+            session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -47,7 +48,7 @@ internal static partial class Program
                     return new NativeScriptMovementResult(NativeScriptMovementStatus.Accepted, x, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new NativeScriptMovementProposal(x, query.FixedY, query.Direction, fans)]);
                 }
             };
-            (Jsm.Opcode, int)[] movingMain = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 554), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] movingMain = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 554), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             engine.LoadField(600, moving ? SyntheticObjects([1], [init, movingMain]) : content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -67,7 +68,7 @@ internal static partial class Program
             // the same commit boundary used by ordinary Move.
             // No research checkpoint or journal is fabricated by this fixture.
             MethodInfo commit = typeof(EventEngine).GetMethod("MovePlayerCore", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            commit.Invoke(engine, [position.X / 4096f, position.Y / 4096f, position.Z / 4096f, 7, position, direction, true, null]);
+            commit.Invoke(engine, [position.X / 4096f, position.Y / 4096f, position.Z / 4096f, 7, position, direction, true, null, null]);
         }
         EventEngine live = Create();
         live.Step();
@@ -85,7 +86,8 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Fractional player-to-script handoff diverged after independent restore.");
         }
-        Require(live.Scene.FieldPartyNativeActorIds[0] == 255 && live.Scene.PartyBindingMemory is { First: 0 } && live.Actors[0].NativeMovementCompletion542 == 2 && live.Actors[0].NativeScriptMovement is { Active: false, FixedX: 884736, FixedY: 2265088, FixedZ: 819200, Triangle: 7 } && live.Scene.NativePlayerPosition == new FieldFixedPosition(884736, 2265088, 819200) && live.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 133, 0), "FOLLOWOFF/native MOVE fell back to float movement, lost saved leader binding or changed snap triangle authority.");
+        // FOLLOWOFF releases this actor from the runtime player mapping; its exact actor placement advances independently of the dormant player cache.
+        Require(live.Scene.FieldPartyNativeActorIds[0] == 255 && live.Scene.PartyBindingMemory is { First: 0 } && live.Actors[0].NativeMovementCompletion542 == 2 && live.Actors[0].NativeScriptMovement is { Active: false, FixedX: 884736, FixedY: 2265088, FixedZ: 819200, Triangle: 7 } && live.Scene.NativePlayerPosition == fractional && live.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 133, 0), "FOLLOWOFF/native MOVE fell back to float movement, lost saved leader binding or changed snap triangle authority.");
         EventEngine held = Create();
         held.Step();
         held.Step();

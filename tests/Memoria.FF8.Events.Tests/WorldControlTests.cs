@@ -43,10 +43,19 @@ internal static partial class Program
         JsonObject legacyJson = JsonNode.Parse(legacyCapture.GetRawText())!.AsObject();
         legacyJson.Remove("WorldControls");
         legacy.SetWorldControls(initial);
-        legacyEngine.Restore(JsonSerializer.SerializeToElement(legacyJson));
-        Require(legacy.WorldControls == initial, "Missing legacy VM controls erased explicitly proved service metadata.");
-        legacyEngine.Restore(legacyCapture);
-        Require(legacy.WorldControls == initial, "Null legacy VM controls erased explicitly proved service metadata.");
+        foreach (JsonElement unavailable in new[] { JsonSerializer.SerializeToElement(legacyJson), legacyCapture })
+        {
+            JsonElement before = legacyEngine.Capture();
+            try
+            {
+                legacyEngine.Restore(unavailable);
+                throw new InvalidOperationException("Missing legacy VM controls silently retained a different known service owner.");
+            }
+            catch (InvalidDataException exception) when (exception.Message.Contains("canonical world-control state", StringComparison.Ordinal))
+            {
+            }
+            Require(legacy.WorldControls == initial && JsonElement.DeepEquals(before, legacyEngine.Capture()), "Refusing unavailable legacy controls changed proved service metadata or the current VM.");
+        }
 
         GameSession byteSession = new(new GameState { WorldControls = initial });
         EventEngine bytes = new(byteSession);
@@ -78,9 +87,9 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
-        FieldAssets start = assets.LoadField(74);
-        EventEngine original = new(fresh);
-        original.LoadField(74, start.Jsm, start.Messages);
+        using GameWorld world = new(fresh, gameDirectory, validateWorldPresentation: false, sharedAssets: assets);
+        world.EnsureField();
+        EventEngine original = world.Events;
         bool reached = false;
         original.CommandExecuted += command =>
         {
@@ -111,7 +120,6 @@ internal static partial class Program
         JsonElement checkpoint = engine.Capture();
         JsonElement fiber = checkpoint.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("Position").GetInt32() == operation && !item.GetProperty("Complete").GetBoolean());
         Require(fiber.GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()).SequenceEqual(stack), "World-control alias refusal consumed original operands.");
-        engine.Restore(checkpoint);
-        Require(JsonElement.DeepEquals(checkpoint, engine.Capture()), "World-control alias refusal failed exact frozen restore.");
+        ExpectInterruptedRestoreRefusal(engine, checkpoint);
     }
 }

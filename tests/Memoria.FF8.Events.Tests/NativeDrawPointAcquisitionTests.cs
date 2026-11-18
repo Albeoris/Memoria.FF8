@@ -101,8 +101,9 @@ internal static partial class Program
                 {
                     Require(engine.Scene.DrawPointInteraction is { SharedSelection: true, Message: 4 } && Phase() == 3 && engine.CurrentDialogue is { FirstChoice: 1, LastChoice: 2, CancelChoice: 1 } sharedSelection && sharedSelection.Text == catalog.FormatSharedSelection(false) && !sharedSelection.Text.Contains("{Char ", StringComparison.Ordinal), "Unavailable shared draw did not offer only Don't draw/Draw choices.");
                     StepRestored();
+                    WaitForNativeWindowReady(engine, 6, StepRestored);
                     Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Unavailable shared draw selection refused cancellation.");
-                    StepRestored();
+                    CloseNativeWindow(engine, 6, StepRestored);
                     Require(engine.Scene.DrawPointInteraction is null && engine.CurrentDialogue is null && session.CharacterVitals!.GetMagicCount(0, magic) == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && engine.IsUserControlEnabled && session.State.Variables[500] == 77, "Canceled shared draw changed stock/depletion or retained its wait.");
                     Require(awards.Count == 0, "Canceled shared draw published a stock award.");
                     continue;
@@ -144,8 +145,9 @@ internal static partial class Program
             }
             Require(engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 66) == 1 && session.EventRandom!.State == 1103527590, "Eligible draw point omitted native sound66 or drew script RNG more than once.");
             StepRestored();
+            WaitForNativeWindowReady(engine, 6, StepRestored);
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Eligible discovery message refused ordinary acknowledgement.");
-            StepRestored();
+            CloseNativeWindow(engine, 6, StepRestored);
             Require(Phase() == 2 && engine.CurrentDialogue is null, "Acknowledged eligible draw skipped its separate selection preparation callback.");
             // Another window may take focus between discovery and selection.
             RestoreForeignFocus();
@@ -158,14 +160,16 @@ internal static partial class Program
             Require(engine.Scene.NativeDialogueFocus == 6 && engine.CurrentDialogue?.FirstChoice == 1 && engine.Scene.NativeAaskPreviousFocus == 7, "Draw choice poll failed to recover an unfocused saved selection.");
             if (cancel)
             {
+                WaitForNativeWindowReady(engine, 6, StepRestored);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Original draw selection Cancel refused.");
-                StepRestored();
+                CloseNativeWindow(engine, 6, StepRestored);
                 Require(engine.Scene.DrawPointInteraction is null && session.CharacterVitals!.Records[0].MagicInventory[0].Count == initialCount && session.EventRandom!.DrawPoints!.Depletion.All(value => value == 0) && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Canceled selection awarded/depleted or retained its operand/control wait.");
                 Require(awards.Count == 0, "Canceled personal draw published a stock award.");
                 continue;
             }
+            WaitForNativeWindowReady(engine, 6, StepRestored);
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Choose, 2)).Accepted, "Explicit character draw selection refused.");
-            StepRestored();
+            CloseNativeWindow(engine, 6, StepRestored);
             Require(Phase() == 4, "Character choice skipped original phase4 body resolution.");
             StepRestored();
             Require(Phase() == 5 && engine.NativeDrawPointAcquisitionActive && engine.Scene.GlobalSoundRequests.Count(request => request.OriginalEffectId == 67) == 1, "Eligible selection skipped actual native particles or native sound67.");
@@ -182,12 +186,14 @@ internal static partial class Program
             if (full)
             {
                 Require(Phase() == 1 && engine.Scene.DrawPointInteraction is { Message: 6, Acquired: 0 } && session.MessageVariables!.At(7) == 0 && session.CharacterVitals!.Records[0].MagicInventory[0].Count == 100, "Full native inventory changed stock or failed to return to phase1 after message6.");
+                WaitForNativeWindowReady(engine, 6, StepRestored);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Failed acquisition message refused acknowledgement.");
-                StepRestored();
+                CloseNativeWindow(engine, 6, StepRestored);
                 StepRestored();
                 Require(Phase() == 3 && engine.Scene.DrawPointInteraction!.Quantity == quantity && session.EventRandom.State == 1103527590, "Failed acquisition retried discovery/RNG instead of original selection.");
+                WaitForNativeWindowReady(engine, 6, StepRestored);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted, "Retried draw selection Cancel refused.");
-                StepRestored();
+                CloseNativeWindow(engine, 6, StepRestored);
                 Require(engine.Scene.DrawPointInteraction is null && session.EventRandom.DrawPoints!.Depletion.All(value => value == 0), "Failed draw/cancel depleted the original packed point.");
             }
             else
@@ -196,8 +202,9 @@ internal static partial class Program
                 StepRestored();
                 Require(engine.CurrentDialogue!.Text.Contains(expectedAcquired.ToString(), StringComparison.Ordinal), "Successful draw text did not expand canonical message variable7.");
                 Require(session.EventRandom.DrawPoints!.Depletion.All(value => value == 0), "Successful draw depleted before final message acknowledgement.");
+                WaitForNativeWindowReady(engine, 6, StepRestored);
                 Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Successful acquisition message refused acknowledgement.");
-                StepRestored();
+                CloseNativeWindow(engine, 6, StepRestored);
                 int depletion = (session.EventRandom.DrawPoints.Depletion[index / 4] >> (2 * (index & 3))) & 3;
                 Require(engine.Scene.DrawPointInteraction is null && depletion == ((catalog.PointBytes[index] & 0x40) != 0 ? 2 : 3) && engine.CurrentDialogue is null && session.State.Variables[500] == 77 && engine.IsUserControlEnabled, "Acknowledged successful draw lost native depletion2/3, operand completion or same-callback successor.");
                 JsonElement owner = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);

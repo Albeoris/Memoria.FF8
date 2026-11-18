@@ -11,15 +11,17 @@ internal static partial class Program
     {
         EventEngine Create(int rawDuration = 65540, bool certificate = true, bool knownStart = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { CanSetLinearBackgroundScroll = query => certificate && query.Layer == 0 && query.StartX == 40 && query.StartY == -80 && query.TargetX == 12 && query.TargetY == -24 && query.Duration >= 0, CanRestoreLinearBackgroundScroll = _ => true };
-            engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)), []);
+            engine.LoadField(600, FieldMediaProgram( (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.CanSetBackgroundScrollPosition = (_, _, _) => true;
             engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
+            engine.Step();
             engine.Step();
             if (!knownStart)
             {
                 engine.Scene.BackgroundScrollPositions.Clear();
+                typeof(SceneEventState).GetProperty(nameof(SceneEventState.NativeLayerZeroScrollCurrent))!.SetValue(engine.Scene, null);
             }
             return engine;
         }
@@ -36,7 +38,7 @@ internal static partial class Program
         };
         live.Step();
         Require(operands is not null && operands.SequenceEqual([65548, -65560, 65540]) && packet is { Mode: 4, Status: 0, X: 40, Y: -80, TargetX: 12, TargetY: -24, Duration: 4, NativeLinearVersion: 1 }, "LSCROLL changed three lowWORD operands, implicit layer0 or pre-driver current history.");
-        Require(live.Scene.BackgroundScrollPositions[0] is { Status: 1, Counter: 1, PreviousX: 40, PreviousY: -80, X: 40, Y: -80 } && live.Capture().GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "BackgroundScroll", "LSCROLL lost native counter0 or same-budget synchronization polling.");
+        Require(live.Scene.BackgroundScrollPositions[0] is { Status: 1, Counter: 1, PreviousX: 40, PreviousY: -80, X: 40, Y: -80 } && live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean()).GetProperty("WaitReason").GetString() == "BackgroundScroll", "LSCROLL lost native counter0 or same-budget synchronization polling.");
         EventEngine restored = Create();
         restored.Restore(live.Capture());
         for (short elapsed = 1; elapsed <= 4; elapsed++)
@@ -61,8 +63,8 @@ internal static partial class Program
             catch (EventScriptException) when (declined.LastFault?.Opcode == nameof(Jsm.Opcode.LSCROLL))
             {
             }
-            JsonElement fiber = declined.Capture().GetProperty("Fibers")[0];
-            Require(fiber.GetProperty("Position").GetInt32() == 8 && fiber.GetProperty("Stack").GetArrayLength() == 3 && !declined.Scene.BackgroundScrollPositions.Values.Any(state => state.Mode == 4), "Rejected LSCROLL advanced PC, consumed operands or created a linear phase.");
+            JsonElement fiber = declined.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+            Require(fiber.GetProperty("Position").GetInt32() == 10 && fiber.GetProperty("Stack").GetArrayLength() == 3 && !declined.Scene.BackgroundScrollPositions.Values.Any(state => state.Mode == 4), "Rejected LSCROLL advanced PC, consumed operands or created a linear phase.");
         }
         Console.WriteLine("LSCROLL: implicit layer0, authentic start, lowWORD operands, shared linear phases, zero duration, synchronization and atomic refusal passed.");
     }

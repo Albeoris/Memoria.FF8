@@ -47,8 +47,8 @@ internal static partial class Program
             JsonElement fiber = refused.GetProperty("Fibers")[0];
             Require(engine.Actors[0].MovementDirectionLimit == 4 && engine.Actors[0].MovementTarget is null && fiber.GetProperty("Position").GetInt32() == 7 && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 0, 30, 20, 10 }), "MLIMIT consumer refusal changed movement targets, PC or four operands.");
             EventEngine restored = Create(program);
-            restored.Restore(refused);
-            Require(JsonElement.DeepEquals(refused, restored.Capture()), "Frozen MLIMIT movement boundary did not restore exactly.");
+            ExpectInterruptedRestoreRefusal(engine, refused);
+            ExpectInterruptedRestoreRefusal(restored, refused);
         }
 
         using GameAssets assets = new(gameDirectory);

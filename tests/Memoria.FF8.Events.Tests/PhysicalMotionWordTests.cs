@@ -15,7 +15,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([1], [init, main]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

@@ -11,14 +11,15 @@ internal static partial class Program
     {
         EventEngine Scroll(int layer, int rawDuration)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateInitializedSession();
             EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
-            engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), []);
+            engine.LoadField(600, FieldMediaProgram((Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.SCROLLSYNC2, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Scene.BackgroundScrollPositions[1] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             if (layer == 0)
             {
                 engine.ResolveNativeNormalBackgroundScrollCenter = () => ((short)40, (short)-80);
             }
+            engine.Step();
             engine.Step();
             return engine;
         }
@@ -56,24 +57,24 @@ internal static partial class Program
             catch (EventScriptException)
             {
             }
-            JsonElement fiber = invalid.Capture().GetProperty("Fibers")[0];
-            Require(invalid.LastFault?.Opcode == "LSCROLL2" && fiber.GetProperty("Position").GetInt32() == 9 && fiber.GetProperty("Stack").GetArrayLength() == 4, "LSCROLL2 refusal consumed operands or advanced PC.");
+            JsonElement fiber = invalid.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+            Require(invalid.LastFault?.Opcode == "LSCROLL2" && fiber.GetProperty("Position").GetInt32() == 11 && fiber.GetProperty("Stack").GetArrayLength() == 4, "LSCROLL2 refusal consumed operands or advanced PC.");
         }
 
         EventEngine layerZero = Scroll(0, 4);
         layerZero.Step();
         Require(layerZero.Scene.BackgroundScrollPositions[0] is { X: 40, Y: -80, PreviousX: 40, PreviousY: -80 }, "Layer0 linear scroll lost its authentic center because another layer record existed.");
 
-        GameSession menuSession = new(new GameState());
+        GameSession menuSession = CreateInitializedSession();
         EventEngine menu = new(menuSession);
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.MENUTUTO, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
-        menu.LoadField(600, NativeTutorialOrdinaryProgram(content), []);
+        byte[] content = FieldMediaProgram((Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.MENUTUTO, 0), (Jsm.Opcode.POPM_B, 5000));
+        menu.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         menu.Step();
         menu.Step();
         Require(menu.Scene.NativeTutorial is { RawArgument: 0, MenuId: 26, TutorialId: null } && menu.Scene.MinimalMenuCompletions.Count == 0 && !menuSession.State.Variables.ContainsKey(5000), "MENUTUTO changed its zero-operand request or immediate return3 yield.");
-        GameSession menuRestoredSession = new(new GameState());
+        GameSession menuRestoredSession = CreateInitializedSession();
         EventEngine menuRestored = new(menuRestoredSession);
-        menuRestored.LoadField(600, NativeTutorialOrdinaryProgram(content), []);
+        menuRestored.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         menuRestored.Restore(menu.Capture());
         menu.CompleteNativeTutorial();
         menuRestored.CompleteNativeTutorial();

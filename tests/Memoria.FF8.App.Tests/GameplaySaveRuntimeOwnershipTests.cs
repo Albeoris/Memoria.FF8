@@ -141,6 +141,22 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     }
 
     [Fact]
+    public void Scene_replay_sources_are_produced_by_completed_draws_and_recover_empty_for_a_fresh_process()
+    {
+        GameplayRuntimeMemberOwnership authority = GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleRetainedMemory)][nameof(NativeBattleRetainedMemory.SceneReplaySources)];
+        Assert.Equal(GameplayRuntimeRestoration.DeferredProducer, authority.Restoration);
+        NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();
+        Assert.Null(cold.SceneReplaySources);
+        NativeBattleRetainedMemory restored = NativeBattleSceneCopyProvenance.RestoreRetainedSources(cold);
+        Assert.NotNull(restored.SceneReplaySources);
+        Assert.Empty(restored.SceneReplaySources);
+        Assert.Equal(cold.EffectMemory, restored.EffectMemory);
+        Assert.Same(cold.ActionMemory, restored.ActionMemory);
+        Assert.Same(cold.ActionPackets, restored.ActionPackets);
+        Assert.Null(cold.SceneReplaySources);
+    }
+
+    [Fact]
     public void Fresh_process_memory_has_no_late_producer_or_selected_environment_values()
     {
         NativeBattleRetainedMemory cold = NativeBattleRetainedMemory.FromColdProcess();

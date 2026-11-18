@@ -2,6 +2,8 @@ using System.Text.Json;
 
 namespace Memoria.FF8.Tests;
 
+internal sealed class OptionalTestResourceUnavailableException(string message) : FileNotFoundException(message);
+
 internal static class TestResources
 {
     private static readonly Lazy<string> Artifacts = new(CreateArtifactDirectory);
@@ -37,7 +39,7 @@ internal static class TestResources
 #endif
         if (string.IsNullOrWhiteSpace(catalog) || !File.Exists(catalog))
         {
-            throw new FileNotFoundException("Set MEMORIA_FF8_TEST_FIXTURE_CATALOG to an optional JSON object mapping test resource IDs to external paths.");
+            throw new OptionalTestResourceUnavailableException($"Optional external resource '{resource}' is unavailable. Set MEMORIA_FF8_TEST_FIXTURE_CATALOG to its JSON path catalog.");
         }
         Dictionary<string, string> resources = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(catalog)) ?? throw new InvalidDataException("The external fixture catalog must contain a JSON object.");
 #if FF8_XUNIT_RESOURCE_TESTS
@@ -45,7 +47,7 @@ internal static class TestResources
 #endif
         if (!resources.TryGetValue(resource, out string? path) || string.IsNullOrWhiteSpace(path))
         {
-            throw new InvalidDataException($"The external fixture catalog has no path for resource '{resource}'.");
+            throw new OptionalTestResourceUnavailableException($"The optional external fixture catalog has no path for resource '{resource}'.");
         }
         string resolved = Path.GetFullPath(path, FixtureDirectory);
 #if FF8_XUNIT_RESOURCE_TESTS

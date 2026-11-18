@@ -271,11 +271,11 @@ internal static partial class Program
         EventEngine Create() => CreateLadderMode3Fixture(vitals, economy, input, true, automatic: false, preempt: true);
         EventEngine live = Create();
         ReachLadderMode3Issue(live);
-        for (int callback = 0; callback < 8 && live.IsUserControlEnabled; callback++)
+        for (int callback = 0; callback < 8 && !live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 2 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "None" && fiber.GetProperty("Stack").GetArrayLength() == 1 && fiber.GetProperty("Stack")[0].GetInt32() is > 0 and < 6); callback++)
         {
             live.Step();
         }
-        Require(!live.IsUserControlEnabled && live.Actors[0].NativeLadderMode3 is { Active: true } && live.Actors[0].NativeMovementRequest is null && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 2 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "Frames"), "Higher request failed to enter UCOFF/WAIT over the retained mode3 ladder or invented a mode1 movement backup.");
+        Require(!live.IsUserControlEnabled && live.Actors[0].NativeLadderMode3 is { Active: true } && live.Actors[0].NativeMovementRequest is null && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 2 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "None" && fiber.GetProperty("Stack").GetArrayLength() == 1 && fiber.GetProperty("Stack")[0].GetInt32() is > 0 and < 6), "Higher request failed to enter UCOFF/WAIT over the retained mode3 ladder or invented a mode1 movement backup.");
         int before = live.Actors[0].NativeTurnAccumulator474!.Value;
         EventEngine restored = Create();
         restored.Restore(live.Capture());

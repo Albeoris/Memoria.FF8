@@ -11,11 +11,11 @@ internal static partial class Program
 {
     private static void NativeRootTranslationAndBoundary(string gameDirectory)
     {
-        EventEngine Create(byte[] content, int fieldId = 100)
+        EventEngine Create(byte[] content, int fieldId = 100, bool native = false)
         {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
-            engine.LoadField(fieldId, content, []);
+            GameSession session = native ? CreateInitializedSession() : new(new GameState());
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
+            engine.LoadField(fieldId, content, [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
 
@@ -52,19 +52,26 @@ internal static partial class Program
             JsonElement fiber = saved.GetProperty("Fibers")[0];
             Require(engine.Actors[0].RootTranslationZ == 0 && engine.LastFault?.Opcode == "SETROOTTRANS" && fiber.GetProperty("Position").GetInt32() == (missingModel ? 2 : 3) && fiber.GetProperty("Stack")[0].GetInt32() == -30, "SETROOTTRANS refusal consumed its operand or changed PC/root word.");
             EventEngine restored = Create(content, missingModel ? 100 : 1);
-            restored.Restore(saved);
-            Require(JsonElement.DeepEquals(saved, restored.Capture()), "Refused SETROOTTRANS boundary did not restore exactly.");
+            ExpectInterruptedRestoreRefusal(engine, saved);
+            ExpectInterruptedRestoreRefusal(restored, saved);
         }
 
-        byte[] empty = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.SETROOTTRANS, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        EventEngine underflow = Create(empty);
+        byte[] underflowProgram = SyntheticMainProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 30), (Jsm.Opcode.SETROOTTRANS, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8));
+        EventEngine underflow = Create(underflowProgram, native: true);
+        underflow.Step();
         underflow.Step();
         // The bytecode decoder rejects a statically empty stack. Exercise a restored runtime stack instead.
         JsonObject emptyStack = JsonNode.Parse(underflow.Capture().GetRawText())!.AsObject();
         emptyStack["Actors"]![0]!["RootTranslationZ"] = 0;
-        emptyStack["Fibers"]![0]!["Position"] = 3;
-        emptyStack["Fibers"]![0]!["WaitReason"] = "None";
+        JsonNode underflowFiber = emptyStack["Fibers"]!.AsArray().Single(fiber => !fiber!["Initialization"]!.GetValue<bool>())!;
+        int emptyDepth = emptyStack["Actors"]![0]!["NativeOperandMemory"]!["LiveDepth"]!.GetValue<int>() - underflowFiber["Stack"]!.AsArray().Count;
+        underflowFiber["Position"] = 5;
+        underflowFiber["WaitReason"] = "None";
+        underflowFiber["Stack"] = new JsonArray();
+        underflowFiber["StackExpressions"] = new JsonArray();
+        emptyStack["Actors"]![0]!["NativeOperandMemory"]!["LiveDepth"] = emptyDepth;
         underflow.Restore(JsonSerializer.SerializeToElement(emptyStack));
+        JsonElement physicalBefore = underflow.Capture().GetProperty("Actors")[0].GetProperty("NativeOperandMemory");
         try
         {
             underflow.Step();
@@ -73,7 +80,9 @@ internal static partial class Program
         catch (EventScriptException)
         {
         }
-        Require(underflow.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 3 && underflow.Actors[0].RootTranslationZ == 0, "SETROOTTRANS underflow advanced PC or changed root translation.");
+        JsonElement underflowState = underflow.Capture();
+        JsonElement heldUnderflow = underflowState.GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+        Require(heldUnderflow.GetProperty("Position").GetInt32() == 5 && heldUnderflow.GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(physicalBefore, underflowState.GetProperty("Actors")[0].GetProperty("NativeOperandMemory")) && underflow.Actors[0].RootTranslationZ == 0, "SETROOTTRANS underflow advanced PC, changed physical operands or changed root translation.");
         byte[] module = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -30), (Jsm.Opcode.SETROOTTRANS, 0), (Jsm.Opcode.RET, 0));
         module[2] = 1;
         module[3] = 0;
@@ -91,7 +100,7 @@ internal static partial class Program
         malformed["Actors"]![0]!["RootTranslationZ"] = 32768;
         try
         {
-            Create(empty).Restore(JsonSerializer.SerializeToElement(malformed));
+            Create(underflowProgram, native: true).Restore(JsonSerializer.SerializeToElement(malformed));
             throw new InvalidOperationException("A checkpoint root word outside signed16 was accepted.");
         }
         catch (JsonException)
