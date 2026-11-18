@@ -39,6 +39,7 @@ internal sealed partial class RecreateGame
     private DiagnosticMountedReserveReceipt? diagnosticMountedReserve;
     private DiagnosticAllocatedEnemyFocusReceipt? diagnosticAllocatedFocus;
     private bool diagnosticFreshEntryInitializationPublished;
+    private readonly List<BattleDiagnosticCompletionGate> diagnosticCompletionGates = [];
 
     private static readonly string[] DiagnosticCampaignStages = ["initialization", "action_one", "cleanup_rearm", "action_two", "teardown"];
 
@@ -89,6 +90,11 @@ internal sealed partial class RecreateGame
         }
         if (recipe.FreshEntry is not null)
         {
+            diagnosticCompletionGates.Clear();
+            if (Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_COMPLETION_GATES") == "1")
+            {
+                diagnosticDriverBattle.DiagnosticCompletionGateObserved += ObserveDiagnosticCompletionGate;
+            }
             diagnosticDriverBattle.DiagnosticInvocationReleased += ObserveDiagnosticInvocationRelease;
             diagnosticDriverBattle.ConfigureDiagnosticInvocationCompletion(recipe.ExpectedEffect, recipe.Input.ActorId!, recipe.ExpectedNativeCommand, recipe.ExpectedNativeAction ?? recipe.Input.ActionId);
         }
@@ -123,6 +129,16 @@ internal sealed partial class RecreateGame
         }
         driver.ObserveInvocationRelease(release);
         diagnosticTelemetry!.SealInvocation(release);
+    }
+
+    private void ObserveDiagnosticCompletionGate(BattleDiagnosticCompletionGate gate)
+    {
+        if (diagnosticCompletionGates.Count >= 4 || options.ControlDirectory is not { } control)
+        {
+            return;
+        }
+        diagnosticCompletionGates.Add(gate);
+        WriteDiagnosticJson(Path.Combine(control, "completion-gates.json"), new { schema_version = 1, gates = diagnosticCompletionGates.ToArray() });
     }
 
     private void AdvanceDiagnosticDriver(TimeSpan now)
@@ -384,6 +400,7 @@ internal sealed partial class RecreateGame
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticShotImpact;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticMountedReserveActivation;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
+        diagnosticDriverBattle.DiagnosticCompletionGateObserved -= ObserveDiagnosticCompletionGate;
         UnsubscribeDiagnosticCounter(diagnosticDriverBattle);
         if (world?.IsDiagnosticBattle == true)
         {
@@ -423,6 +440,17 @@ internal sealed partial class RecreateGame
         if (options.ControlDirectory is { } control)
         {
             NativeBattleGraphicsState? graphics = diagnosticDriverBattle?.Presentation?.Graphics;
+            if (Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_COMPLETION_GATES") == "1")
+            {
+                BattleDiagnosticInvocationRelease? completion = diagnosticDriverBattle?.LastDiagnosticInvocationCompletion;
+                WriteDiagnosticJson(Path.Combine(control, "completion-gates.json"), new
+                {
+                    schema_version = 1,
+                    gates = diagnosticCompletionGates.ToArray(),
+                    pending_owners = diagnosticDriverBattle?.LastDiagnosticInvocationPendingOwners,
+                    completion = completion is null ? null : new { completion.Boundary, completion.CompletionToken, completion.Callback, completion.NativeEventCompleted, completion.PresentationAcknowledged, completion.HeaderCapturedBeforeReset, completion.CurrentCompletionPacketGuaranteedRemoval, completion.PacketRemoved, completion.Blockers }
+                });
+            }
             WriteDiagnosticJson(Path.Combine(control, "progress.json"), new { stage, sequence = diagnosticProgressSequence, completed_stages = diagnosticCompletedStages.ToArray(), driver_phase = driver.Stage.ToString(), execution = driver.Execution, callback, frame = diagnosticDriverBattle?.Frame, native_graphics_callback = graphics?.Callback, native_ui_pause = graphics?.UiServices?.PauseDE9, native_effect = graphics?.OriginalEffect?.RequestedEffect, returned_descriptor = graphics?.OriginalEffect?.ReturnedDescriptor, pending_contacts = graphics?.PendingContacts.Length, module_tasks = graphics?.ModuleEffects.PublishedCount, descriptor_tasks = graphics?.Descriptors.Tasks.Where(task => (task.Flags & 1) != 0).Select(task => new { task.Kind, task.State }).ToArray(), terminal_hold_phase = diagnosticDriverBattle?.DiagnosticTerminalHold?.Phase.ToString(), drain_blockers = driver.LastDrainBlockers, loop_metrics = metrics.Latest, texture_decoding = battleScene?.TextureDecoding, presentation_pacing = diagnosticTelemetry?.PresentationPacingProgress() });
             if (diagnosticTelemetry is { Active: true } telemetry)
             {

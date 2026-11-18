@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record BattleDiagnosticInvocationPool(uint DescriptorAddress, uint BankAddress, ushort Stride, int ActiveRows, bool Head, bool Tail);
+public sealed record BattleDiagnosticCompletionGate(string Stage, long Callback, long GraphicsCallback, long DispatchSerial, long? HostedCompletionToken, string? HostedActor, long? ReceiptToken, string? ReceiptActor, string? ReceiptOwner, int? RetiredSlot, ushort? PacketCommand, uint? PacketArgument, int? HeaderOrdinal, long? HeaderGeneration, long? ExpectedHeaderGeneration, string? HeaderSource, byte? HeaderActor, byte? ExpectedHeaderActor, byte? HeaderCommand, int? HeaderAction, ushort? HeaderEffect);
 public sealed record BattleDiagnosticVictoryCombatant(string Id, int? NativeIndex, bool IsPlayer, uint NativeFlags, ushort SavedStatus, uint BattleStatus, int CurrentHp)
 {
     public BattleRosterSlot Slot { get; init; }
@@ -59,6 +60,9 @@ public sealed partial class BattleSession
     private sealed record DiagnosticInvocationPolicy(ushort Effect, string ActorId, byte? Command, int ActionId);
     private sealed record DiagnosticInvocationCompletion(BattleDiagnosticEffectDispatch Dispatch, BattleActionHeaderReference HeaderReference, NativeBattleRetainedActionHeaderSlot? Header, NativeBattleDescriptorPacket? Packet, byte? ActorIndex, BattleRosterSlot EventSlot, long CompletionToken, uint Callback, int PacketSlot, byte PacketSerial, bool HeaderCaptured, Guid LifecycleId, long SimulationFrame, long HostCallback, long GraphicsCallback, long DispatchSerial);
     public event Action<BattleDiagnosticInvocationRelease>? DiagnosticInvocationReleased;
+    public event Action<BattleDiagnosticCompletionGate>? DiagnosticCompletionGateObserved;
+    private bool diagnosticCompletionGatesEnabled;
+    private byte diagnosticCompletionGatesRecorded;
 
     private DiagnosticInvocationPolicy? diagnosticInvocationPolicy;
     private BattleDiagnosticEffectDispatch? diagnosticInvocationDispatch;
@@ -92,6 +96,10 @@ public sealed partial class BattleSession
 
     private void ObservePresentationDescriptorRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket original)
     {
+        if (original.Command == 10)
+        {
+            ObserveDiagnosticCompletionGate(1, "descriptor-retired", Presentation, null, slot, original);
+        }
         if (diagnosticInvocationDispatch is null || LastDiagnosticInvocationCompletion is { Released: true } ||
             expandedHostedEvent is not { CompletionToken: not null } pending || original.Command != 10 || original.Argument != pending.Callback)
         {
@@ -106,6 +114,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticHostedCompletionBeforeAck(BattlePresentationProcess process, NativeBattlePresentationCompletionRequested receipt)
     {
+        ObserveDiagnosticCompletionGate(2, "before-completion-ack", process, receipt, diagnosticRetiredCompletion?.Slot, diagnosticRetiredCompletion?.Original);
         if (diagnosticRetiredCompletion is not { } retired ||
             diagnosticInvocationDispatch is not { HeaderReference: { } reference, NativeHeaderGeneration: > 0, ActorSlot: { } slot } dispatch ||
             receipt.ActorId != dispatch.ActorId || retired.Original.Argument != receipt.Callback || process.ActionPackets.ActionCount <= reference.Ordinal)
@@ -141,6 +150,21 @@ public sealed partial class BattleSession
             throw new InvalidOperationException("Focal completion requires one explicit live diagnostic observer and invocation.");
         }
         diagnosticInvocationPolicy = new(effect, actorId, command, actionId);
+        diagnosticCompletionGatesEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_COMPLETION_GATES") == "1";
+    }
+
+    private void ObserveDiagnosticCompletionGate(byte flag, string stage, BattlePresentationProcess? process, NativeBattlePresentationCompletionRequested? receipt, int? retiredSlot, NativeBattleDescriptorPacket? packet)
+    {
+        if (!diagnosticCompletionGatesEnabled || (diagnosticCompletionGatesRecorded & flag) != 0 || diagnosticInvocationDispatch is not { } dispatch || process is null || DiagnosticCompletionGateObserved is not { } observer)
+        {
+            return;
+        }
+        diagnosticCompletionGatesRecorded |= flag;
+        BattleActionHeaderReference? reference = dispatch.HeaderReference;
+        NativeBattleActionHeaderSlot? header = reference is { } selected && selected.Ordinal >= 0 && selected.Ordinal < process.ActionPackets.ActionCount ? process.ActionPackets.ReadHeader(selected) : null;
+        byte? actor = header is not null && process.ActionPackets.ModelAliases.TryEncodeExact(header.Source, out byte operand) ? operand : null;
+        uint? argument = packet is not null && (packet.UnknownByteMask & 0xF0) == 0 ? packet.Argument : null;
+        observer(new(stage, NativeHostCallbacks ?? Frame, process.Graphics.Callback, dispatch.Serial, expandedHostedEvent?.CompletionToken, expandedHostedEvent?.Command.ActorId, receipt?.Token, receipt?.ActorId, receipt?.Owner.ToString(), retiredSlot, packet?.Command, argument, reference?.Ordinal, header is null ? null : process.ReadDiagnosticCounterHeaderGeneration(reference!.Value.Ordinal), dispatch.NativeHeaderGeneration, header?.Source.ToString(), actor, dispatch.NativeActorIndex, header?.Command, header?.Action, header?.Effect));
     }
 
     private void ObserveDiagnosticInvocationCompletion(DiagnosticInvocationCompletion? attempt, bool completed, bool acknowledged, BattleDiagnosticInvocationRelease? executingCertificate = null, NativeBattleDescriptorPacket? retiredWitness = null)
