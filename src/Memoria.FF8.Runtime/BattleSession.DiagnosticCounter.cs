@@ -153,6 +153,7 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticParticipantCallback(BattleParticipantCallbackReceipt receipt)
     {
+        ObserveDiagnosticFollowupCallback(receipt);
         if (!ObservingDiagnosticCounter || FindTargetActor(receipt.Request.Actor) is not { IsPlayer: false, Slot: { } slot } actor)
         {
             return;

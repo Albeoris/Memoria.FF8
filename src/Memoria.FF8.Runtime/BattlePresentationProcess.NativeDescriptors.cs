@@ -28,16 +28,21 @@ public sealed partial class BattlePresentationProcess
         {
             graphics = FeedHostedEntryDescriptors(graphics);
         }
-        Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket>? observeRemoval = services?.DescriptorRemoved;
-        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot), HasBattleEntry ? ObserveHostedPacketRemoved : observeRemoval);
+        Action<NativeBattleGraphicsState, NativeBattleDescriptorState, int, NativeBattleDescriptorPacket>? observeRemoval = services?.DescriptorRemoved;
+        NativeBattleDescriptorState final = graphics.Descriptors.Advance(Dispatch, Poll, (state, slot) => ObserveNativeDescriptorStack(graphics, state, slot), HasBattleEntry ? ObserveHostedPacketRemoved : observeRemoval is null ? null : ObservePacketRemoved);
         return graphics with { Descriptors = final };
 
         void ObserveHostedPacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket packet)
         {
-            observeRemoval?.Invoke(state, slot, packet);
+            ObservePacketRemoved(state, slot, packet);
             ObserveHostedActionPacketRemoved(slot, packet);
             ObserveHostedCompletionRemoved(graphics, state, slot, packet);
             ObserveHostedControlPacketRemoved(slot, packet);
+        }
+
+        void ObservePacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket packet)
+        {
+            observeRemoval?.Invoke(graphics, state, slot, packet);
         }
 
         NativeBattleDescriptorDispatch Dispatch(NativeBattleDescriptorState descriptors, int slot)

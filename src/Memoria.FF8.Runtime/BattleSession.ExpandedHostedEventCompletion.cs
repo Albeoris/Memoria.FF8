@@ -119,7 +119,7 @@ public sealed partial class BattleSession
         PublishDiagnosticCounterContacts(candidate, process, dispatch.AppendedHeaders);
         publication.PublishCommittedObservations();
         ObserveDiagnosticHostedCompletionAcknowledged(process, receipt);
-        if (ObservingDiagnosticCounter && nextEvent.LogicallyComplete && hostedEvent.Command.ExpandedAiCallback is { } participant)
+        if (ObservingDiagnosticParticipantCallbacks && nextEvent.LogicallyComplete && hostedEvent.Command.ExpandedAiCallback is { } participant)
         {
             ObserveDiagnosticParticipantCallback(new(participant, BattleParticipantCallbackPhase.Completed, []));
         }

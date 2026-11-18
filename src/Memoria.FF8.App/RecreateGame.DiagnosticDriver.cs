@@ -96,6 +96,8 @@ internal sealed partial class RecreateGame
                 diagnosticDriverBattle.DiagnosticCompletionGateObserved += ObserveDiagnosticCompletionGate;
             }
             diagnosticDriverBattle.DiagnosticInvocationReleased += ObserveDiagnosticInvocationRelease;
+            diagnosticDriverBattle.DiagnosticInvocationFocalRetired += ObserveDiagnosticInvocationFocalRetired;
+            diagnosticDriverBattle.DiagnosticInvocationFollowupReleased += ObserveDiagnosticInvocationFollowupRelease;
             diagnosticDriverBattle.ConfigureDiagnosticInvocationCompletion(recipe.ExpectedEffect, recipe.Input.ActorId!, recipe.ExpectedNativeCommand, recipe.ExpectedNativeAction ?? recipe.Input.ActionId);
         }
         PublishDiagnosticDriverProgress();
@@ -129,6 +131,22 @@ internal sealed partial class RecreateGame
         }
         driver.ObserveInvocationRelease(release);
         diagnosticTelemetry!.SealInvocation(release);
+    }
+
+    private void ObserveDiagnosticInvocationFocalRetired(BattleDiagnosticInvocationRelease release)
+    {
+        diagnosticTelemetry!.SealFollowupFocalRetirement(release);
+    }
+
+    private void ObserveDiagnosticInvocationFollowupRelease(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        DiagnosticBattleDriver driver = diagnosticDriver ?? throw new InvalidOperationException("Follow-up release lost its live driver.");
+        if (release.FinalDrain.LifecycleId != diagnosticDriverBattle!.DiagnosticLifecycleId)
+        {
+            throw new InvalidDataException("Follow-up release changed its actual battle lifecycle.");
+        }
+        driver.ObserveInvocationFollowupRelease(release);
+        diagnosticTelemetry!.SealFollowupRelease(release);
     }
 
     private void ObserveDiagnosticCompletionGate(BattleDiagnosticCompletionGate gate)
@@ -400,6 +418,8 @@ internal sealed partial class RecreateGame
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticShotImpact;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticMountedReserveActivation;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
+        diagnosticDriverBattle.DiagnosticInvocationFocalRetired -= ObserveDiagnosticInvocationFocalRetired;
+        diagnosticDriverBattle.DiagnosticInvocationFollowupReleased -= ObserveDiagnosticInvocationFollowupRelease;
         diagnosticDriverBattle.DiagnosticCompletionGateObserved -= ObserveDiagnosticCompletionGate;
         UnsubscribeDiagnosticCounter(diagnosticDriverBattle);
         if (world?.IsDiagnosticBattle == true)

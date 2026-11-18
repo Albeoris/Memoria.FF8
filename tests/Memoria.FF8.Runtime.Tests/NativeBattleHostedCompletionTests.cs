@@ -15,6 +15,53 @@ public sealed class NativeBattleHostedCompletionTests
     private static readonly NativeBattleContactPacket Contact = new(new(Enemy, 0, 1, 0, 0, 0, 0), null);
 
     [Theory]
+    [InlineData(0x47DDA0u)]
+    [InlineData(0x47DE70u)]
+    [InlineData(0x47E120u)]
+    public void Completion_retirement_observer_keeps_actual_executing_owners_before_outbox_acknowledgement(uint callback)
+    {
+        var (logical, process) = Fixture();
+        Field(process, "nativeActionPackets").SetValue(process, PopulatedPackets(process.NativeActionPackets));
+        BattlePresentationServices host = (BattlePresentationServices)Field(process, "services").GetValue(process)!;
+        NativeBattleGraphicsState? executing = null;
+        NativeBattleDescriptorState? retired = null;
+        NativeBattleDescriptorPacket? original = null;
+        int executingHeaders = -1;
+        Field(process, "services").SetValue(process, host with
+        {
+            DescriptorRemoved = (graphics, state, slot, packet) =>
+            {
+                host.DescriptorRemoved(graphics, state, slot, packet);
+                if (packet.Command == 10)
+                {
+                    executing = graphics;
+                    retired = state;
+                    original = packet;
+                    executingHeaders = process.ActionPackets.ActionCount;
+                    Assert.Contains(slot, graphics.Descriptors.Queue);
+                    Assert.Same(packet, graphics.Descriptors.Packets[slot]);
+                    Assert.DoesNotContain(slot, state.Queue);
+                }
+            }
+        });
+        long token = process.PublishCompletion(process.PrepareCompletion(callback, Owner, ActorId));
+        NativeBattleModelLifecycleServices outbox = logical.CaptureModelLifecycleServices(process.Graphics.ActorModels.Roster);
+        RunDescriptors(process, outbox);
+        NativeBattlePresentationCompletionRequested receipt = Assert.IsType<NativeBattlePresentationCompletionRequested>(Assert.Single(outbox.ReadOrderedReceipts()));
+        Assert.Equal(token, receipt.Token);
+        Assert.Single(executing!.Descriptors.Queue);
+        Assert.Equal(1, executingHeaders);
+        Assert.Empty(retired!.Queue);
+        Assert.Empty(process.Graphics.Descriptors.Queue);
+        Assert.Equal((byte)128, original!.PriorityState);
+        process.PublishCompletionAck(process.PrepareCompletionAck(token, true));
+        Assert.Equal(0, process.ActionPackets.ActionCount);
+        Assert.Single(executing.Descriptors.Queue);
+        Assert.Equal(1, executingHeaders);
+        Assert.True(process.IsCompletionAcknowledged(token));
+    }
+
+    [Theory]
     [InlineData(0x47DDA0u, true)]
     [InlineData(0x47DE70u, true)]
     [InlineData(0x47DE70u, false)]

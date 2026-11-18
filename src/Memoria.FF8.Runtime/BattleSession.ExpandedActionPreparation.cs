@@ -107,7 +107,7 @@ public sealed partial class BattleSession
         candidate.expandedPartyPresentation = expandedPartyPresentation;
         candidate.expandedPartyReadyStatusMirrors = expandedPartyReadyStatusMirrors;
         candidate.nativeAffinityAction = nativeAffinityAction;
-        candidate.participantCallbackObservations = ObservingDiagnosticCounter ? [] : null;
+        candidate.participantCallbackObservations = ObservingDiagnosticParticipantCallbacks ? [] : null;
         candidate.preparedResolutionObservations = DiagnosticResolution is null ? null : [];
         candidate.diagnosticCounterTracksContacts = ObservingDiagnosticCounter;
         candidate.trackDiagnosticReflections = DiagnosticEffectDispatched is not null;

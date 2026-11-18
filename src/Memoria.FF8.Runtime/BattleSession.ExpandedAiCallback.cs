@@ -33,7 +33,7 @@ public sealed partial class BattleSession
         {
             staged.Add(new(request, BattleParticipantCallbackPhase.Queued, [], reaction));
         }
-        else if (ObservingDiagnosticCounter)
+        else if (ObservingDiagnosticParticipantCallbacks)
         {
             ObserveDiagnosticParticipantCallback(new(request, BattleParticipantCallbackPhase.Queued, [], reaction));
         }
@@ -111,7 +111,7 @@ public sealed partial class BattleSession
             candidate.producingExpandedAiCallback = false;
         }
         PublishPreparedExpandedActionCandidate(before, candidate, mirror, process, completionOwner);
-        if (ObservingDiagnosticCounter)
+        if (ObservingDiagnosticParticipantCallbacks)
         {
             ImmutableArray<BattleActionHeaderReference> headers = expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>()
                 .Select(invocation => invocation.HeaderReference).OfType<BattleActionHeaderReference>().ToImmutableArray();

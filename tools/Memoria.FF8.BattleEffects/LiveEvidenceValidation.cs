@@ -15,7 +15,7 @@ public sealed record LiveEvidenceVerdict(string Verdict, string[] Errors, Teleme
 /// <summary>Independently checks retained live observations. Campaign fixture provenance and reviewer acceptance remain distinct from telemetry admission.</summary>
 public static partial class LiveEvidenceValidation
 {
-    private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter(), new DiagnosticBattleActorReferenceJsonConverter() } };
 
     public static LiveEvidenceVerdict ValidateFile(string path, CaseRecipe? recipe = null)
     {
@@ -211,7 +211,7 @@ public static partial class LiveEvidenceValidation
                 {
                     invocationRelease = ValidateFreshInvocationRelease(report, execution, typedDispatches, startCallback, endCallback, endFrame);
                 }
-                else if (execution.TryGetProperty("invocation_release", out JsonElement unexpectedRelease) && unexpectedRelease.ValueKind != JsonValueKind.Null)
+                else if (execution.TryGetProperty("invocation_release", out JsonElement unexpectedRelease) && unexpectedRelease.ValueKind != JsonValueKind.Null || execution.TryGetProperty("followup_release", out JsonElement unexpectedFollowup) && unexpectedFollowup.ValueKind != JsonValueKind.Null)
                 {
                     throw new InvalidDataException("Ordinary two-use evidence cannot substitute a focal release for global drain.");
                 }
@@ -485,7 +485,38 @@ public static partial class LiveEvidenceValidation
         BattleDiagnosticInvocationRelease release = execution.GetProperty("invocation_release").Deserialize<BattleDiagnosticInvocationRelease>(Json) ?? throw new InvalidDataException("Fresh entry requires its actual native invocation release.");
         BattleDiagnosticEffectDispatch focal = dispatches.Single(value => value.Serial == release.Dispatch.Serial);
         TelemetryOwnerState end = execution.GetProperty("end_owners").Deserialize<TelemetryOwnerState>(Json) ?? throw new InvalidDataException("Fresh release has no retained end owner.");
-        DiagnosticInvocationReleaseValidation.Validate(release, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+        long tailBoundaryFrame = endFrame;
+        long tailBoundaryTicks = release.Timestamp;
+        if (execution.TryGetProperty("followup_release", out JsonElement followupElement) && followupElement.ValueKind != JsonValueKind.Null)
+        {
+            BattleDiagnosticInvocationFollowupRelease followup = followupElement.Deserialize<BattleDiagnosticInvocationFollowupRelease>(Json) ?? throw new InvalidDataException("Fresh followup requires its observed callback and final drain receipts.");
+            if (!JsonElement.DeepEquals(execution.GetProperty("invocation_release"), followupElement.GetProperty("focal_retirement")))
+            {
+                throw new InvalidDataException("Followup release changed the original focal retirement receipt.");
+            }
+            DiagnosticInvocationReleaseValidation.ValidateFollowup(followup, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+            foreach (BattleDiagnosticInvocationFollowupCallback callback in followup.Callbacks)
+            {
+                if (execution.GetProperty("before").EnumerateArray().Count(state => Text(state, "id") == callback.Actor.ActorId) != 1 || execution.GetProperty("after").EnumerateArray().Count(state => Text(state, "id") == callback.Actor.ActorId) != 1)
+                {
+                    throw new InvalidDataException("Native followup actor is absent or ambiguous in the focal combatant ledger.");
+                }
+            }
+            tailBoundaryFrame = Number(execution, "aftercare_end_frame");
+            tailBoundaryTicks = Number(execution, "aftercare_end_ticks");
+            if (Number(execution, "aftercare_end_callback") != followup.FinalDrain.Callback || tailBoundaryTicks != followup.FinalDrain.Timestamp || tailBoundaryFrame < endFrame)
+            {
+                throw new InvalidDataException("Followup aftercare cutoff differs from its observed final native drain.");
+            }
+        }
+        else
+        {
+            DiagnosticInvocationReleaseValidation.Validate(release, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+            if (new[] { "aftercare_end_callback", "aftercare_end_frame", "aftercare_end_ticks" }.Any(name => execution.TryGetProperty(name, out JsonElement value) && value.ValueKind != JsonValueKind.Null))
+            {
+                throw new InvalidDataException("Aftercare cutoffs require an authenticated native followup release.");
+            }
+        }
         JsonElement tail = execution.GetProperty("post_release_tail");
         long first = Number(tail, "first_presented_frame");
         long last = Number(tail, "last_presented_frame");
@@ -493,7 +524,7 @@ public static partial class LiveEvidenceValidation
         long lastTicks = Number(tail, "last_timestamp");
         long count = Number(tail, "presented_frames");
         long requiredTail = Number(report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver"), "tail_frames");
-        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != endFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= release.Timestamp || lastTicks <= firstTicks)
+        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != tailBoundaryFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= tailBoundaryTicks || lastTicks <= firstTicks)
         {
             throw new InvalidDataException("Fresh release and separate actual presentation tail do not match their focal execution boundary.");
         }

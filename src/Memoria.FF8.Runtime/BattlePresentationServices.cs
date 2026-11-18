@@ -37,7 +37,7 @@ internal sealed record BattlePresentationServices(
     Func<BattleModelOwner, NativeBattlePreparedScanExtra> ReadPreparedScanExtra,
     Func<bool> ObservesActionHeaders,
     Action<BattlePresentationProcess, BattlePresentationEffectObservation> ObserveEffect,
-    Action<NativeBattleDescriptorState, int, NativeBattleDescriptorPacket> DescriptorRemoved,
+    Action<NativeBattleGraphicsState, NativeBattleDescriptorState, int, NativeBattleDescriptorPacket> DescriptorRemoved,
     Action<BattlePresentationProcess> FrameEnded,
     Func<(NativeBattlePartyPresentation Presentation, bool[] Guardian)> ReadStackVitals,
     Func<NativeBattleActionHeaderSlot, bool> MatchesVisualEntry,

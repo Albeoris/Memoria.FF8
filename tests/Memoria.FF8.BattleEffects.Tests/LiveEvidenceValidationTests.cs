@@ -876,7 +876,7 @@ public sealed class LiveEvidenceValidationTests
     [Theory]
     [InlineData("producer_address")]
     [InlineData("recipient_id")]
-    [InlineData("recipient_index")]
+    [InlineData("original_recipient_operand")]
     [InlineData("status_bit")]
     [InlineData("timer_before")]
     [InlineData("decrement")]
@@ -1351,6 +1351,7 @@ public sealed class LiveEvidenceValidationTests
             {
                 execution[boundary]![0]!["maximum_hp"] = 100;
                 execution[boundary]![0]!["native_index"] = 0;
+                execution[boundary]![0]!["slot"] = null;
                 execution[boundary]![0]!["model_id"] = null;
                 execution[boundary]![0]!["native_ai_script_sha256"] = null;
             }

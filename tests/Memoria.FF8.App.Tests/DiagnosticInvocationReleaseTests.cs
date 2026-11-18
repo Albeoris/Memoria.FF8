@@ -7,6 +7,71 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticInvocationReleaseTests
 {
+    [Fact]
+    public void Followup_release_keeps_original_focal_retirement_and_proves_later_native_drain()
+    {
+        BattleDiagnosticInvocationFollowupRelease release = FollowupReceipt();
+        BattleDiagnosticInvocationRelease focal = release.FocalRetirement;
+        DiagnosticInvocationReleaseValidation.ValidateFollowupFocalRetirement(focal, focal.Dispatch, focal.LifecycleId);
+        DiagnosticInvocationReleaseValidation.ValidateFollowup(release, focal.Dispatch, focal.LifecycleId);
+        Assert.False(focal.Released);
+        Assert.Equal("action-or-reaction", Assert.Single(focal.Blockers));
+        Assert.True(release.FinalDrain.Callback > focal.Callback);
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(focal, focal.Dispatch, focal.LifecycleId));
+    }
+
+    [Theory]
+    [InlineData("lifecycle")]
+    [InlineData("packet-reused")]
+    [InlineData("focal-frame-changed")]
+    [InlineData("unfinished-callback")]
+    [InlineData("unqueued-callback")]
+    [InlineData("duplicate-callback")]
+    [InlineData("nonplayer-callback")]
+    [InlineData("extra-owner")]
+    [InlineData("new-focal")]
+    [InlineData("early-drain")]
+    public void Followup_release_rejects_changed_native_anchor_or_unproved_callback_drain(string fault)
+    {
+        BattleDiagnosticInvocationFollowupRelease release = FollowupReceipt();
+        BattleDiagnosticInvocationRelease focal = release.FocalRetirement;
+        BattleDiagnosticInvocationFollowupRelease invalid = fault switch
+        {
+            "lifecycle" => release with { FinalDrain = release.FinalDrain with { LifecycleId = Guid.NewGuid() } },
+            "packet-reused" => release with { FocalRetirement = focal with { RemovedCompletionPacket = focal.RemovedCompletionPacket! with { Bytes = focal.RemovedCompletionPacket!.Bytes.SetItem(0, 99) } } },
+            "focal-frame-changed" => release with { FocalRetirement = focal with { Callback = focal.Callback + 1 } },
+            "unfinished-callback" => release with { Callbacks = [release.Callbacks[0] with { CompletedCallback = 0 }] },
+            "unqueued-callback" => release with { Callbacks = [release.Callbacks[0] with { QueuedCallback = 0 }] },
+            "duplicate-callback" => release with { Callbacks = [release.Callbacks[0], release.Callbacks[0]] },
+            "nonplayer-callback" => release with { Callbacks = [release.Callbacks[0] with { Actor = new BattleEnemyActorReference("enemy-0") }] },
+            "extra-owner" => release with { FinalDrain = release.FinalDrain with { Owners = release.FinalDrain.Owners with { PendingContacts = 1 } } },
+            "new-focal" => release with { FinalDrain = release.FinalDrain with { FocalDispatch = focal.Dispatch with { Serial = focal.Dispatch.Serial + 1 } } },
+            _ => release with { FinalDrain = release.FinalDrain with { Callback = focal.Callback } }
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.ValidateFollowup(invalid, focal.Dispatch, focal.LifecycleId));
+    }
+
+    internal static BattleDiagnosticInvocationFollowupRelease FollowupReceipt()
+    {
+        BattleDiagnosticInvocationRelease basis = PostFrameReceipt();
+        BattleDiagnosticEffectDispatch dispatch = basis.Dispatch with { HeaderReference = new(0), ActorSlot = BattleRosterSlot.Ally(0) };
+        BattleDiagnosticInvocationRelease executing = basis.ExecutingCompletion! with { Dispatch = dispatch, HeaderReference = new(0), EventSlot = BattleRosterSlot.Ally(0), CompletionToken = 1 };
+        BattlePartyActorReference actor = new("party-1");
+        BattleDiagnosticInvocationRelease retirement = basis with
+        {
+            Dispatch = dispatch,
+            HeaderReference = new(0),
+            EventSlot = BattleRosterSlot.Ally(0),
+            CompletionToken = 1,
+            ExecutingCompletion = executing,
+            Owners = basis.Owners with { ActionOrCommand = true },
+            Blockers = ["action-or-reaction"],
+            PendingFollowups = [new(actor, 2, 2)]
+        };
+        BattleDiagnosticInvocationFinalDrain drain = new(basis.LifecycleId, 6, basis.SimulationFrame + 1, basis.GraphicsCallback!.Value + 2, basis.Timestamp + 100, dispatch, basis.Owners);
+        return new(retirement, drain, [new(actor, 2, 2, 4, 5)]);
+    }
+
     [Theory]
     [InlineData("unaliased-enemies", true)]
     [InlineData("maximum-occupied-roster", true)]

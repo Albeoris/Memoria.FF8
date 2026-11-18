@@ -19,18 +19,33 @@ public sealed class ShotLiveEvidenceValidationTests
         ushort effect = Effects[ammo];
         byte learnedAfter = (byte)(1 << ammo);
         DiagnosticShotCycleDeclaration declaration = new(ammo, effect, effect);
-        DiagnosticShotObservation Point(long cb, int stock, BattleNativeShotPhase? phase, byte learned) => new(cb, stock, learned, phase is { } value ? new(ammo, 8, 120, value == BattleNativeShotPhase.Ending ? (short)-1 : value == BattleNativeShotPhase.Opening ? (short)120 : (short)100, (byte)stock, value) : null);
+        DiagnosticShotObservation Point(long cb, int stock, BattleNativeShotPhase? phase, byte learned)
+        {
+            BattleDiagnosticShotState? state = phase switch
+            {
+                BattleNativeShotPhase.Opening => new(ammo, 8, 120, 120, checked((byte)stock), phase.Value),
+                BattleNativeShotPhase.Ready => new(ammo, 8, 120, 100, checked((byte)stock), phase.Value) { Widget = new(100, 5, 4, 0, false) },
+                BattleNativeShotPhase.AwaitingEffect => new(ammo, 8, 120, 100, checked((byte)stock), phase.Value) { Widget = new(100, 6, 4, 0, false) },
+                BattleNativeShotPhase.Ending => new(ammo, 8, 120, -1, checked((byte)stock), phase.Value) { Widget = new(-1, 8, 4, 0, false) },
+                _ => null
+            };
+            return new(cb, stock, learned, state);
+        }
         byte learned = index == 0 ? (byte)0 : learnedAfter;
         byte[] commands = [14, 237, 238];
-        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + stage + 1, "party0", command == 14 ? BattleAbility.LimitBreak : BattleAbility.NativeCommand, command == 14 ? 101 + ammo : ammo, effect, effect, command) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
+        BattleDiagnosticEffectDispatch[] dispatches = commands.Select((command, stage) => new BattleDiagnosticEffectDispatch(index * 3 + stage + 1, callback + (stage == 2 ? 4 : stage + 1), "party0", command == 14 ? BattleAbility.LimitBreak : BattleAbility.NativeCommand, command == 14 ? 101 + ammo : ammo, effect, effect, command) { NativeActorIndex = 0, NativeTargetMask = 8, NativeHeaderIndex = 0, NativeHeaderGeneration = index * 3 + stage + 1 }).ToArray();
+        DiagnosticShotObservation readyToFire = Point(callback + 1, inventory, BattleNativeShotPhase.Ready, learned);
+        DiagnosticShotObservation readyToEnd = Point(callback + 3, inventory - 1, BattleNativeShotPhase.Ready, learnedAfter);
         return new(index + 1, "party0", "enemy0", 0, 3, declaration, effect, new("party0", 2, 14, true, [1], NativeBattleRandomState.Initialize(0), NativeBattleRandomState.Initialize(0)), Point(callback, inventory, null, learned))
         {
             Opening = Point(callback, inventory, BattleNativeShotPhase.Opening, learned),
-            ReadyToFire = Point(callback + 1, inventory, BattleNativeShotPhase.Ready, learned),
-            Triggered = Point(callback + 1, inventory - 1, BattleNativeShotPhase.AwaitingEffect, learned),
-            ReadyToEnd = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ready, learnedAfter),
-            Ending = Point(callback + 2, inventory - 1, BattleNativeShotPhase.Ending, learnedAfter),
-            Completed = Point(callback + 4, inventory - 1, null, learnedAfter),
+            ReadyToFire = readyToFire,
+            TriggerRequested = readyToFire with { Shot = readyToFire.Shot! with { FireRequested = true } },
+            Triggered = Point(callback + 2, inventory - 1, BattleNativeShotPhase.AwaitingEffect, learned),
+            ReadyToEnd = readyToEnd,
+            CloseRequested = readyToEnd with { Shot = readyToEnd.Shot! with { Phase = BattleNativeShotPhase.Ending } },
+            Ending = Point(callback + 4, inventory - 1, BattleNativeShotPhase.Ending, learnedAfter),
+            Completed = Point(callback + 5, inventory - 1, null, learnedAfter),
             Dispatches = dispatches,
             DispatchPackets = dispatches.Select(PacketProof).ToArray()
         };
@@ -71,21 +86,21 @@ public sealed class ShotLiveEvidenceValidationTests
             long callback = 10 + index * 10;
             long frame = index * 10;
             long ticks = 100 + index * 100;
-            execution["end_callback"] = callback + 4;
-            execution["end_frame"] = frame + 4;
-            execution["renderer_frames"] = 4;
-            execution["end_owners"]!["native_callback"] = callback + 4;
-            execution["end_owners"]!["frame_index"] = frame + 4;
+            execution["end_callback"] = callback + 6;
+            execution["end_frame"] = frame + 6;
+            execution["renderer_frames"] = 6;
+            execution["end_owners"]!["native_callback"] = callback + 6;
+            execution["end_owners"]!["frame_index"] = frame + 6;
             execution["dispatches"] = JsonSerializer.SerializeToNode(cycles[index].Dispatches, Json);
-            TelemetryFrameCollector frames = new(ticks, 1000, 4);
-            for (int ordinal = 1; ordinal <= 4; ordinal++)
+            TelemetryFrameCollector frames = new(ticks, 1000, 6);
+            for (int ordinal = 1; ordinal <= 6; ordinal++)
             {
-                frames.RecordPresentation(new(ticks + ordinal * 10, frame + ordinal, ordinal < 3 ? "effect" : "tail", callback + ordinal, ordinal, ordinal, 0));
+                frames.RecordPresentation(new(ticks + ordinal * 10, frame + ordinal, ordinal < 5 ? "effect" : "tail", callback + ordinal, ordinal, ordinal, 0));
             }
             execution["frames"] = JsonSerializer.SerializeToNode(frames.Complete(), Json);
             execution["effect_started_ticks"] = ticks + 15;
-            execution["effect_completed_ticks"] = ticks + 30;
-            execution["effect_duration_ms"] = 15;
+            execution["effect_completed_ticks"] = ticks + 40;
+            execution["effect_duration_ms"] = 25;
             int hp = 500 - index;
             object State(string id, int health, int physical) => new { id, native_index = physical, current_hp = health, maximum_hp = 500, statuses0 = 0, statuses1 = 0, magic_stocks = Array.Empty<object>() };
             execution["before"] = JsonSerializer.SerializeToNode(new[] { State("party0", 1, 0), State("enemy0", hp, 3) }, Json);

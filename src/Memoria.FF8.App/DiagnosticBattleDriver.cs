@@ -287,6 +287,7 @@ internal sealed class DiagnosticBattleDriver
         executionStarted = seconds;
     }
     internal BattleDiagnosticInvocationRelease? FocalRelease { get; private set; }
+    internal BattleDiagnosticInvocationFollowupRelease? FocalFollowupRelease { get; private set; }
     internal BattleDiagnosticTerminalHoldReceipt? TerminalTextureAdmission { get; private set; }
 
     internal void ObserveTerminalTextureAdmission(BattleDiagnosticTerminalHoldReceipt admission)
@@ -315,6 +316,17 @@ internal sealed class DiagnosticBattleDriver
         }
         DiagnosticInvocationReleaseValidation.Validate(release, currentFocalDispatch, release.LifecycleId);
         FocalRelease = release;
+    }
+
+    internal void ObserveInvocationFollowupRelease(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        if (recipe.FreshEntry is null || Stage != DiagnosticDriverStage.Drain || currentFocalDispatch is null || FocalRelease is not null)
+        {
+            throw new InvalidDataException("Follow-up release is outside its single-use invocation.");
+        }
+        DiagnosticInvocationReleaseValidation.ValidateFollowup(release, currentFocalDispatch, release.FocalRetirement.LifecycleId);
+        FocalFollowupRelease = release;
+        FocalRelease = release.FocalRetirement;
     }
 
     internal IReadOnlyList<BattleDiagnosticEffectDispatch> Dispatches => dispatches;
@@ -474,7 +486,7 @@ internal sealed class DiagnosticBattleDriver
         {
             return false;
         }
-        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalRelease.TerminalTextures is null || observation.Drained && (FocalRelease.TerminalTextures.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || TerminalTextureAdmission is not null)) : observation.Drained;
+        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalFollowupRelease is not null ? observation.Drained : FocalRelease.TerminalTextures is null || observation.Drained && (FocalRelease.TerminalTextures.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || TerminalTextureAdmission is not null)) : observation.Drained;
         LastDrainBlockers = observation.DrainBlockers;
         if (observation.Callback < previousCallback)
         {

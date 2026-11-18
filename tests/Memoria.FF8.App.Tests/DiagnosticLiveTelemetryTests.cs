@@ -4,6 +4,47 @@ namespace Memoria.FF8.Tests;
 
 public sealed class DiagnosticLiveTelemetryTests
 {
+    [Fact]
+    public void Native_followup_drain_does_not_extend_the_focal_measurement_or_enter_its_presentation_tail()
+    {
+        BattleSession battle = Battle();
+        using DiagnosticLiveTelemetry telemetry = new(battle, Guid.NewGuid(), 2);
+        telemetry.Begin(System.Diagnostics.Stopwatch.GetTimestamp(), 10, 0, "renderer");
+        BattleDiagnosticInvocationFollowupRelease sample = DiagnosticInvocationReleaseTests.FollowupReceipt();
+        BattleDiagnosticInvocationRelease focal = sample.FocalRetirement with { LifecycleId = battle.DiagnosticLifecycleId, SimulationFrame = battle.Frame, ExecutingCompletion = sample.FocalRetirement.ExecutingCompletion! with { LifecycleId = battle.DiagnosticLifecycleId, SimulationFrame = battle.Frame } };
+        typeof(DiagnosticLiveTelemetry).GetMethod("ObserveDispatch", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(telemetry, [focal.Dispatch]);
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 17);
+        telemetry.Presented(System.Diagnostics.Stopwatch.GetTimestamp(), 11, "Drain", 1, 1, 0);
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, focal.Callback);
+        focal = focal with { Timestamp = System.Diagnostics.Stopwatch.GetTimestamp() };
+        telemetry.SealFollowupFocalRetirement(focal);
+        DiagnosticLiveExecution original = Assert.Single(telemetry.Executions);
+        NativeBattleTelemetry.Record(1001, NativeBattleTrafficKind.CpuCopyPayload, 999);
+        telemetry.Presented(focal.Timestamp + 1, 12, "Drain", 2, 1, 0);
+        telemetry.Presented(focal.Timestamp + 2, 13, "Drain", 3, 1, 0);
+        Assert.False(Assert.Single(telemetry.Executions).Completed);
+        Assert.Null(Assert.Single(telemetry.Executions).PostReleaseTail);
+        BattleDiagnosticInvocationFollowupRelease followup = sample with { FocalRetirement = focal, FinalDrain = sample.FinalDrain with { LifecycleId = battle.DiagnosticLifecycleId, SimulationFrame = battle.Frame, Timestamp = focal.Timestamp + 3 } };
+        typeof(BattleSession).GetProperty(nameof(BattleSession.NativeHostCallbacks))!.SetValue(battle, followup.FinalDrain.Callback);
+        telemetry.SealFollowupRelease(followup);
+        telemetry.Presented(focal.Timestamp + 4, 14, "Tail", 4, 1, 0);
+        telemetry.Presented(focal.Timestamp + 5, 15, "Tail", 5, 1, 0);
+        telemetry.Complete(15, true, 2, null);
+        DiagnosticLiveExecution final = Assert.Single(telemetry.Executions);
+        Assert.True(final.Completed);
+        Assert.Same(focal, final.InvocationRelease);
+        Assert.Same(followup, final.FollowupRelease);
+        Assert.Equal(original.EndCallback, final.EndCallback);
+        Assert.Equal(original.EndFrame, final.EndFrame);
+        Assert.Equal(original.EndOwners, final.EndOwners);
+        Assert.Equal(original.EffectCompletedTicks, final.EffectCompletedTicks);
+        Assert.Equal(original.Frames, final.Frames);
+        Assert.Equal(17, final.Traffic.CpuCopyPayloadBytes);
+        Assert.Equal(13, final.AftercareEndFrame);
+        Assert.Equal(14, final.PostReleaseTail!.FirstPresentedFrame);
+        Assert.Equal(2, final.PostReleaseTail.PresentedFrames);
+    }
+
     private static BattleSession Battle()
     {
         return new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1 }] }, BattleAtbMode.Normal);
@@ -110,7 +151,8 @@ public sealed class DiagnosticLiveTelemetryTests
     {
         BattleSession battle = Battle();
         battle.ConfigureDiagnosticScheduling(true);
-        battle.Tick();
+        // This policy-only fixture has no native presentation process.
+        typeof(BattleSession).GetProperty(nameof(BattleSession.Frame))!.SetValue(battle, 1L);
         Assert.Throws<InvalidOperationException>(() => battle.ConfigureDiagnosticScheduling(false));
         LaunchOptions options = new() { BattleTestPath = "recipe.json", ControlDirectory = "control" };
         Assert.Equal(!System.Diagnostics.Debugger.IsAttached, options.AudioEnabled);

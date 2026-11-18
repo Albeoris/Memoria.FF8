@@ -17,6 +17,14 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticInvocationRelease? InvocationRelease { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticInvocationFollowupRelease? FollowupRelease { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? AftercareEndCallback { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? AftercareEndFrame { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public long? AftercareEndTicks { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticTerminalTextureAttempt? TerminalTextureAttempt { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleDiagnosticTerminalHoldReceipt? TerminalTextureAdmission { get; init; }
@@ -65,6 +73,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private long lastPresentedFrame;
     private long lastPresentedTimestamp;
     private BattleDiagnosticInvocationRelease? invocationRelease;
+    private bool awaitingFollowupDrain;
+    private long? followupDrainTimestamp;
     private DiagnosticInvocationTail? postReleaseTail;
     private int sealedExecutionIndex = -1;
     private bool sealedTailFinalized;
@@ -208,8 +218,8 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     {
         lastPresentedFrame = frame;
         lastPresentedTimestamp = timestamp;
-        long? tailBoundary = invocationRelease?.Timestamp;
-        if (invocationRelease is not null && tailBoundary is long completedBoundary && !sealedTailFinalized && timestamp > completedBoundary)
+        long? tailBoundary = followupDrainTimestamp ?? invocationRelease?.Timestamp;
+        if (invocationRelease is not null && !awaitingFollowupDrain && tailBoundary is long completedBoundary && !sealedTailFinalized && timestamp > completedBoundary)
         {
             if (postReleaseTail is null)
             {
@@ -253,6 +263,33 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         sealedExecutionIndex = executions.Count - 1;
     }
 
+    internal void SealFollowupFocalRetirement(BattleDiagnosticInvocationRelease release)
+    {
+        if (!Active || invocationRelease is not null || release.LifecycleId != battle.DiagnosticLifecycleId || release.Callback != battle.NativeHostCallbacks || release.SimulationFrame != battle.Frame)
+        {
+            throw new InvalidDataException("Follow-up focal retirement is outside its original battle window.");
+        }
+        BattleDiagnosticEffectDispatch focal = dispatches.Single(value => value.Serial == release.Dispatch.Serial);
+        DiagnosticInvocationReleaseValidation.ValidateFollowupFocalRetirement(release, focal, battle.DiagnosticLifecycleId);
+        invocationRelease = release;
+        awaitingFollowupDrain = true;
+        effectCompletedTicks = release.Timestamp;
+        Complete(lastPresentedFrame, false, 0, null);
+        sealedExecutionIndex = executions.Count - 1;
+    }
+
+    internal void SealFollowupRelease(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        if (Active || !awaitingFollowupDrain || sealedExecutionIndex < 0 || invocationRelease is null || !ReferenceEquals(release.FocalRetirement, invocationRelease) || release.FinalDrain.Callback != battle.NativeHostCallbacks || release.FinalDrain.SimulationFrame != battle.Frame || postReleaseTail is not null)
+        {
+            throw new InvalidDataException("Follow-up drain lost its sealed original retirement window.");
+        }
+        DiagnosticInvocationReleaseValidation.ValidateFollowup(release, invocationRelease.Dispatch, battle.DiagnosticLifecycleId);
+        executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { FollowupRelease = release, AftercareEndCallback = release.FinalDrain.Callback, AftercareEndFrame = lastPresentedFrame, AftercareEndTicks = release.FinalDrain.Timestamp };
+        followupDrainTimestamp = release.FinalDrain.Timestamp;
+        awaitingFollowupDrain = false;
+    }
+
     internal void ObserveTerminalTextureAdmission(BattleDiagnosticTerminalHoldReceipt admission)
     {
         if (Active || invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecutionIndex < 0 || sealedTailFinalized || admission.Callback > battle.NativeHostCallbacks || admission.Frame > battle.Frame || executions[sealedExecutionIndex].TerminalTextureAdmission is not null)
@@ -271,7 +308,7 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             {
                 DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
                 string? integrityError = sealedExecution.IntegrityError ?? error;
-                bool actualTail = completed && integrityError is null && (invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecution.TerminalTextureAdmission is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
+                bool actualTail = completed && !awaitingFollowupDrain && integrityError is null && (invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecution.TerminalTextureAdmission is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
                 executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
                 sealedTailFinalized = true;
             }

@@ -4,6 +4,44 @@ namespace Memoria.FF8.BattleEffects;
 
 public static class DiagnosticInvocationReleaseValidation
 {
+    public static void ValidateFollowupFocalRetirement(BattleDiagnosticInvocationRelease retirement, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
+    {
+        ValidateIdentity(retirement, focal, lifecycle);
+        if (retirement.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || retirement.TerminalTextures is not null || !retirement.PacketRemoved || retirement.Released || retirement.Blockers is not ["action-or-reaction"] || !retirement.Owners.ActionOrCommand || HasOutstandingOwners(retirement.Owners with { ActionOrCommand = false }, 0) || retirement.HeaderReference is null || retirement.EventSlot is null || retirement.CompletionToken <= 0 || retirement.PendingFollowups.IsDefaultOrEmpty || retirement.PendingFollowups.Length > 64)
+        {
+            throw new InvalidDataException("Follow-up retirement requires exact focal packet removal and only proved queued native player callbacks.");
+        }
+        ValidateGraphicsFrameCertificate(retirement, focal, lifecycle);
+        HashSet<(BattleActorReference Actor, byte Stage)> pending = [];
+        foreach (BattleDiagnosticInvocationPendingCallback callback in retirement.PendingFollowups)
+        {
+            if (callback is null || callback.Actor is not BattlePartyActorReference || callback.Stage is not (2 or 3) || callback.QueuedCallback < focal.Callback || callback.QueuedCallback > retirement.Callback || !pending.Add((callback.Actor, callback.Stage)))
+            {
+                throw new InvalidDataException("Focal follow-up callback queue identity or timing is ambiguous.");
+            }
+        }
+    }
+
+    public static void ValidateFollowup(BattleDiagnosticInvocationFollowupRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
+    {
+        ArgumentNullException.ThrowIfNull(release);
+        BattleDiagnosticInvocationRelease retirement = release.FocalRetirement ?? throw new InvalidDataException("Follow-up release has no focal retirement.");
+        ValidateFollowupFocalRetirement(retirement, focal, lifecycle);
+        BattleDiagnosticInvocationFinalDrain drain = release.FinalDrain ?? throw new InvalidDataException("Follow-up release has no actual final drain.");
+        if (drain.LifecycleId != lifecycle || drain.Callback <= retirement.Callback || drain.SimulationFrame < retirement.SimulationFrame || drain.GraphicsCallback <= retirement.GraphicsCallback || drain.Timestamp <= retirement.Timestamp || drain.FocalDispatch is null || !DiagnosticEffectDispatchEvidence.Matches(drain.FocalDispatch, focal) || drain.Owners is null || HasOutstandingOwners(drain.Owners, 0) || release.Callbacks.IsDefault || release.Callbacks.Length != retirement.PendingFollowups.Length)
+        {
+            throw new InvalidDataException("Follow-up drain changed focal lineage or retains actual native owners.");
+        }
+        HashSet<(BattleActorReference Actor, byte Stage)> completed = [];
+        foreach (BattleDiagnosticInvocationFollowupCallback callback in release.Callbacks)
+        {
+            if (callback is null || callback.Actor is not BattlePartyActorReference || callback.Stage is not (2 or 3) || !completed.Add((callback.Actor, callback.Stage)) || !retirement.PendingFollowups.Any(pending => pending.Actor == callback.Actor && pending.Stage == callback.Stage && pending.QueuedCallback == callback.QueuedCallback) || callback.StartedCallback < retirement.Callback || callback.CompletedCallback < callback.StartedCallback || callback.CompletedCallback > drain.Callback)
+            {
+                throw new InvalidDataException("Follow-up drain lacks the actual once-queued, started and completed native callback witnesses.");
+            }
+        }
+    }
+
     public static void Validate(BattleDiagnosticInvocationRelease release, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
         ValidateIdentity(release, focal, lifecycle);

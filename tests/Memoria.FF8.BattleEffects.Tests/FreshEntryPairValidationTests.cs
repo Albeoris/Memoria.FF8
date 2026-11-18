@@ -11,7 +11,33 @@ namespace Memoria.FF8.BattleEffects.Tests;
 
 public sealed class FreshEntryPairValidationTests
 {
-    private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
+    private static readonly JsonSerializerOptions Json = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter(), new DiagnosticBattleActorReferenceJsonConverter() } };
+
+    [Theory]
+    [InlineData(BattleSide.Allies)]
+    [InlineData(BattleSide.Enemies)]
+    public void Diagnostic_actor_references_roundtrip_the_original_explicit_identity_and_side_wire(BattleSide side)
+    {
+        BattleActorReference actor = side == BattleSide.Allies ? new BattlePartyActorReference("actor") : new BattleEnemyActorReference("actor");
+        JsonSerializerOptions sourceOptions = new(RecordJson.Options) { Converters = { new JsonStringEnumConverter() } };
+        JsonElement source = JsonSerializer.SerializeToElement(actor, sourceOptions);
+        JsonElement encoded = JsonSerializer.SerializeToElement(actor, Json);
+        Assert.True(JsonElement.DeepEquals(source, encoded));
+        Assert.Equal(actor, encoded.Deserialize<BattleActorReference>(Json));
+    }
+
+    [Theory]
+    [InlineData("{\"actor_id\":\"party0\"}")]
+    [InlineData("{\"side\":\"Allies\"}")]
+    [InlineData("{\"actor_id\":\"party0\",\"side\":\"Unknown\"}")]
+    [InlineData("{\"actor_id\":\"party0\",\"side\":2}")]
+    [InlineData("{\"actor_id\":\" \",\"side\":\"Allies\"}")]
+    [InlineData("{\"actor_id\":\"party0\",\"side\":\"Allies\",\"extra\":true}")]
+    [InlineData("{\"actor_id\":\"party0\",\"actor_id\":\"party1\",\"side\":\"Allies\"}")]
+    public void Diagnostic_actor_reference_json_rejects_missing_ambiguous_or_unknown_identity(string value)
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<BattleActorReference>(value, Json));
+    }
 
     [Fact]
     public void Two_independent_source_bound_single_use_entries_pass_without_claiming_campaign_acceptance()
@@ -62,6 +88,127 @@ public sealed class FreshEntryPairValidationTests
         Assert.Equal(2, pair.Entries.Length);
         Assert.All(pair.Entries, entry => Assert.Single(entry.Executions));
         Assert.False(pair.CampaignAcceptance);
+    }
+
+    [Fact]
+    public void Native_player_followups_release_aftercare_without_extending_the_focal_performance_window()
+    {
+        using Fixture fixture = new(ActualExecutable());
+        using JsonDocument before = JsonDocument.Parse(fixture.Reports[0].ToJsonString());
+        LiveEvidenceVerdict original = LiveEvidenceValidation.ValidateFreshEntry(before.RootElement);
+        fixture.UseFollowupRelease();
+        foreach (JsonObject report in fixture.Reports)
+        {
+            JsonObject execution = report["executions"]![0]!.AsObject();
+            BattleDiagnosticInvocationRelease focal = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+            Assert.False(focal.Released);
+            Assert.Equal("action-or-reaction", Assert.Single(focal.Blockers));
+            using JsonDocument document = JsonDocument.Parse(report.ToJsonString());
+            LiveEvidenceVerdict verdict = LiveEvidenceValidation.ValidateFreshEntry(document.RootElement);
+            Assert.True(verdict.Verdict == "PASS", string.Join(";", verdict.Errors));
+            Assert.Equal(original.EffectDurationsMs, verdict.EffectDurationsMs);
+            Assert.Equal(JsonSerializer.Serialize(original.EffectExecutions, Json), JsonSerializer.Serialize(verdict.EffectExecutions, Json));
+        }
+        FreshEntryPairVerdict pair = FreshEntryPairValidation.ValidateFiles(fixture.Pins());
+        Assert.True(pair.FunctionalPass, string.Join(";", pair.Errors));
+    }
+
+    [Theory]
+    [InlineData("missing-proof")]
+    [InlineData("focal-frame")]
+    [InlineData("focal-owner")]
+    [InlineData("focal-token")]
+    [InlineData("different-focal-receipt")]
+    [InlineData("lifecycle")]
+    [InlineData("dispatch-lineage")]
+    [InlineData("unfinished-callback")]
+    [InlineData("callback-owner")]
+    [InlineData("unobserved-owner")]
+    [InlineData("final-owner")]
+    [InlineData("aftercare-callback")]
+    [InlineData("aftercare-ticks")]
+    [InlineData("tail-before-drain")]
+    [InlineData("focal-fps-dilution")]
+    public void Fresh_followup_evidence_rejects_changed_lineage_unfinished_callbacks_and_aftercare_cutoffs(string fault)
+    {
+        using Fixture fixture = new();
+        fixture.UseFollowupRelease();
+        JsonObject execution = fixture.Reports[0]["executions"]![0]!.AsObject();
+        BattleDiagnosticInvocationFollowupRelease followup = execution["followup_release"]!.Deserialize<BattleDiagnosticInvocationFollowupRelease>(Json)!;
+        switch (fault)
+        {
+            case "missing-proof":
+                execution["followup_release"] = null;
+                break;
+            case "focal-frame":
+                followup = followup with { FocalRetirement = followup.FocalRetirement with { GraphicsCallback = followup.FocalRetirement.GraphicsCallback + 1 } };
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(followup.FocalRetirement, Json);
+                break;
+            case "focal-owner":
+                followup = followup with { FocalRetirement = followup.FocalRetirement with { EventSlot = BattleRosterSlot.Ally(1) } };
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(followup.FocalRetirement, Json);
+                break;
+            case "focal-token":
+                followup = followup with { FocalRetirement = followup.FocalRetirement with { CompletionToken = 0 } };
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(followup.FocalRetirement, Json);
+                break;
+            case "different-focal-receipt":
+                execution["invocation_release"]!["timestamp"] = followup.FocalRetirement.Timestamp + 1;
+                break;
+            case "lifecycle":
+                followup = followup with { FinalDrain = followup.FinalDrain with { LifecycleId = Guid.NewGuid() } };
+                break;
+            case "dispatch-lineage":
+                followup = followup with { FinalDrain = followup.FinalDrain with { FocalDispatch = followup.FinalDrain.FocalDispatch with { Serial = followup.FinalDrain.FocalDispatch.Serial + 1 } } };
+                break;
+            case "unfinished-callback":
+                followup = followup with { Callbacks = followup.Callbacks.SetItem(0, followup.Callbacks[0] with { CompletedCallback = followup.FinalDrain.Callback + 1 }) };
+                break;
+            case "callback-owner":
+                followup = followup with { Callbacks = followup.Callbacks.SetItem(0, followup.Callbacks[0] with { Actor = new BattlePartyActorReference("party1") }) };
+                break;
+            case "unobserved-owner":
+                BattlePartyActorReference absent = new("absent");
+                followup = followup with { FocalRetirement = followup.FocalRetirement with { PendingFollowups = followup.FocalRetirement.PendingFollowups.SetItem(0, followup.FocalRetirement.PendingFollowups[0] with { Actor = absent }) }, Callbacks = followup.Callbacks.SetItem(0, followup.Callbacks[0] with { Actor = absent }) };
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(followup.FocalRetirement, Json);
+                break;
+            case "final-owner":
+                followup = followup with { FinalDrain = followup.FinalDrain with { Owners = followup.FinalDrain.Owners with { TimedOrReaction = true } } };
+                break;
+            case "aftercare-callback":
+                execution["aftercare_end_callback"] = followup.FinalDrain.Callback + 1;
+                break;
+            case "aftercare-ticks":
+                execution["aftercare_end_ticks"] = followup.FinalDrain.Timestamp - 1;
+                break;
+            case "tail-before-drain":
+                execution["post_release_tail"]!["first_timestamp"] = followup.FinalDrain.Timestamp;
+                break;
+            case "focal-fps-dilution":
+                execution["effect_completed_ticks"] = followup.FinalDrain.Timestamp;
+                break;
+        }
+        if (fault != "missing-proof")
+        {
+            execution["followup_release"] = JsonSerializer.SerializeToNode(followup, Json);
+        }
+        using JsonDocument document = JsonDocument.Parse(fixture.Reports[0].ToJsonString());
+        LiveEvidenceVerdict verdict = LiveEvidenceValidation.ValidateFreshEntry(document.RootElement);
+        string rejection = fault switch
+        {
+            "missing-proof" => "Focal release retains explicit native blockers.",
+            "focal-frame" => "Deferred release changed its same-callback native event/header/packet certificate or retried across graphics frames.",
+            "focal-owner" or "focal-token" => "Focal release lacks its exact native completed event, acknowledged header generation, dispatch or executing completion packet.",
+            "different-focal-receipt" => "Followup release changed the original focal retirement receipt.",
+            "lifecycle" or "dispatch-lineage" or "final-owner" => "Follow-up drain changed focal lineage or retains actual native owners.",
+            "unfinished-callback" or "callback-owner" => "Follow-up drain lacks the actual once-queued, started and completed native callback witnesses.",
+            "unobserved-owner" => "Native followup actor is absent or ambiguous in the focal combatant ledger.",
+            "aftercare-callback" or "aftercare-ticks" => "Followup aftercare cutoff differs from its observed final native drain.",
+            "tail-before-drain" or "focal-fps-dilution" => "Fresh release and separate actual presentation tail do not match their focal execution boundary.",
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        Assert.Equal("ERROR", verdict.Verdict);
+        Assert.Equal("REPORT_INVALID: " + rejection, Assert.Single(verdict.Errors));
     }
 
     [Theory]
@@ -448,6 +595,30 @@ public sealed class FreshEntryPairValidationTests
                 JsonObject execution = report["executions"]![0]!.AsObject();
                 BattleDiagnosticInvocationRelease baseline = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
                 execution["invocation_release"] = JsonSerializer.SerializeToNode(PostFrameRelease(baseline), Json);
+            }
+        }
+
+        public void UseFollowupRelease()
+        {
+            foreach (JsonObject report in Reports)
+            {
+                JsonObject execution = report["executions"]![0]!.AsObject();
+                BattleDiagnosticInvocationRelease baseline = execution["invocation_release"]!.Deserialize<BattleDiagnosticInvocationRelease>(Json)!;
+                BattleDiagnosticEffectDispatch dispatch = baseline.Dispatch with { HeaderReference = new BattleActionHeaderReference(0), ActorSlot = BattleRosterSlot.Ally(0) };
+                BattleDiagnosticInvocationRelease strict = baseline with { Dispatch = dispatch, HeaderReference = dispatch.HeaderReference, EventSlot = dispatch.ActorSlot, CompletionToken = 1 };
+                BattleDiagnosticInvocationRelease retired = PostFrameRelease(strict);
+                BattlePartyActorReference actor = new("party0");
+                BattleDiagnosticInvocationRelease focal = retired with { Owners = retired.Owners with { ActionOrCommand = true }, Blockers = ["action-or-reaction"], PendingFollowups = [new(actor, 2, retired.Callback)] };
+                BattleDiagnosticInvocationFinalDrain drain = new(focal.LifecycleId, focal.Callback + 3, focal.SimulationFrame + 1, focal.GraphicsCallback!.Value + 1, 122, dispatch, retired.Owners);
+                BattleDiagnosticInvocationFollowupRelease followup = new(focal, drain, [new(actor, 2, retired.Callback, retired.Callback + 1, retired.Callback + 2)]);
+                execution["dispatches"]![0] = JsonSerializer.SerializeToNode(dispatch, Json);
+                execution["invocation_release"] = JsonSerializer.SerializeToNode(focal, Json);
+                execution["followup_release"] = JsonSerializer.SerializeToNode(followup, Json);
+                long endFrame = execution["end_frame"]!.GetValue<long>();
+                execution["aftercare_end_callback"] = drain.Callback;
+                execution["aftercare_end_frame"] = endFrame + 2;
+                execution["aftercare_end_ticks"] = drain.Timestamp;
+                execution["post_release_tail"] = new JsonObject { ["first_presented_frame"] = endFrame + 3, ["last_presented_frame"] = endFrame + 4, ["first_timestamp"] = 125, ["last_timestamp"] = 130, ["presented_frames"] = 2 };
             }
         }
 
