@@ -16,6 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
     private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private string? movementEvent;
+    private AutoPlayPlanStep? latestNavigationPlan;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
     {
@@ -232,6 +233,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 throw new InvalidOperationException("The shared planner selected a target absent from the current native visit.");
             }
             planner.BeginEvent(observation.VisitId, target.Id);
+            latestNavigationPlan = next;
             RetainDestinationGoal(next, observation.NavigationKey, target.ConditionFingerprint);
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
             State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, SpatialOwner: target.SpatialOwner, DirectEffectOwner: target.DirectEffectOwner, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : [], EntryGuardFingerprints: physicalGuards.Where(entry => State.NavigationGuards.TryGetValue(entry.Key, out var guard) && guard.NavigationKey == observation.NavigationKey && guard.EventId == target.Id).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal));

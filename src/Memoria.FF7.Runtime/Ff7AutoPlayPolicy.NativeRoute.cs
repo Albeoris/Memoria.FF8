@@ -11,6 +11,8 @@ public sealed partial class Ff7AutoPlayPolicy
         foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && State.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)))
         {
             Ff7AutoPlayNativeRoute? proof = driver.ProveNativeRoute(target, observation.Events);
+            bool intermediate = proof is not null;
+            proof ??= driver.ProveNativeRoute(target, observation.Events, requireIntermediate: false);
             if (proof is null)
             {
                 continue;
@@ -20,18 +22,64 @@ public sealed partial class Ff7AutoPlayPolicy
             Dictionary<string, string> revised = new(facts, StringComparer.Ordinal);
             foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.EventId == target.Id && entry.Value.NavigationKey == observation.NavigationKey && entry.Value.MovementFailure is not null))
             {
-                revised[entry.Key] = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{facts[entry.Key]}|native-continuation:{proof.Steps[0].Before}:{proof.After}")));
+                revised[entry.Key] = ReadNativeContinuationAvailability(facts[entry.Key]);
             }
             components[observation.NavigationKey] = revised;
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, candidate) => ReadNavigationAvailability(navigation, candidate, observation, driver, components));
-            if (next?.Event.Id == target.Id && IsDestinationPlan(State, next, observation.NavigationKey))
+            if (next?.Event.Id == target.Id && IsDestinationPlan(State, next, observation.NavigationKey) && (intermediate || IsNativeContinuationGoalPending(State, next.Goal, observation.NavigationKey, target.Id)))
             {
+                AutoPlayNavigationVisit current = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
+                AutoPlayEventAvailability availability = ReadComponentAvailability(State, current, current.Events.Single(item => item.Id == target.Id), revised);
+                AutoPlayEventCoverage<Ff7AutoPlayDeferral> coverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
+                coverage.AvailabilityFingerprint = availability.Fingerprint;
+                coverage.Unavailable = availability.Unavailable;
+                coverage.UnavailableVariants = availability.UnavailableVariants;
                 State.NativeRoute = proof;
                 return next;
             }
             components[observation.NavigationKey] = facts;
         }
-        return null;
+        return remoteNavigationProbe is null ? TryProveRemoteNativeNavigation(observation) : null;
+    }
+
+    internal static string ReadNativeContinuationAvailability(string physical)
+    {
+        // Native-state hashes authenticate a particular execution. Consumption
+        // uses this stable capability identity, independent of ticks/requests.
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{physical}|native-continuation:2")));
+    }
+
+    internal static bool IsNativeContinuationGoalPending(Ff7AutoPlayState state, AutoPlayTravelGoal? goal, string currentNavigationKey, string repairedEvent)
+    {
+        if (goal is null)
+        {
+            AutoPlayEvent? local = state.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == currentNavigationKey)?.Events.SingleOrDefault(item => item.Id == repairedEvent);
+            if (local is not null)
+            {
+                goal = new(currentNavigationKey, local.Id, local.ConditionSignature);
+            }
+        }
+        AutoPlayNavigationVisit? source = state.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == goal?.NavigationKey);
+        AutoPlayEvent? observed = source?.Events.SingleOrDefault(item => item.Id == goal?.EventId && item.ConditionSignature == goal.Conditions);
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = source is null || observed is null ? null : state.Coverage.Visits.Single(visit => visit.Visit.Key == source.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
+        if (coverage is null || observed is null || source is null)
+        {
+            return false;
+        }
+        if (observed.ConditionSignature is string condition ? coverage.Conditions?.HasExecutedEntry(condition) != true : !coverage.Completed)
+        {
+            return true;
+        }
+        if (source.RouteRediscovery.GetValueOrDefault(observed.Id) || coverage.RouteNeedsRediscovery || coverage.GlobalRouteRediscovery)
+        {
+            return true;
+        }
+        if (source.Key == currentNavigationKey && observed.Id == repairedEvent)
+        {
+            return false;
+        }
+        AutoPlayEventAvailability? availability = ReadRetainedNavigationAvailability(state, source, observed);
+        return availability is { Unavailable: false, Fingerprint: string fingerprint } && !coverage.CompletedAvailabilityFingerprints.Contains(fingerprint);
     }
 
     private Ff7AutoplayInput ReadNativeRouteInput()

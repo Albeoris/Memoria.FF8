@@ -25,7 +25,7 @@ internal sealed class ControlQueue
         Console.WriteLine($"control-queue={root}");
     }
 
-    public void Poll()
+    public void Poll(Func<ControlRequest, bool>? allowDispatch = null)
     {
         string? path = Directory.EnumerateFiles(Path.Combine(root, "requests"), "*.json").Order(StringComparer.Ordinal).FirstOrDefault();
         if (path is null)
@@ -60,6 +60,10 @@ internal sealed class ControlQueue
                 if (request.ExpiresAt is { } expiresAt && expiresAt <= DateTimeOffset.UtcNow)
                 {
                     throw new TimeoutException("The control request expired before it could be dispatched.");
+                }
+                if (allowDispatch?.Invoke(request) == false)
+                {
+                    throw new InvalidOperationException("A modal operation owns the game. Only observation and recovery controls are available until it finishes.");
                 }
                 response = new { Id = id, Ok = true, Result = dispatch(request) };
             }

@@ -164,6 +164,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
         {
+            PollModalRecoveryControls();
             return;
         }
         presentationTiming.BeginPresentationFrame(ActiveBattle, CanAdvanceBattleRenderPhase);
@@ -177,6 +178,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
         }
         if (UpdateWorldTransfer(gameTime))
         {
+            PollModalRecoveryControls();
             return;
         }
         // Keep launcher handoff and recovery responsive during native pickers and exit confirmation.
@@ -184,17 +186,20 @@ internal sealed partial class RecreateGame : GamePresentationHost
         SynchronizePhysicalInputFocus();
         if (UpdateWindowCloseConfirmation())
         {
+            PollModalRecoveryControls();
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
             return;
         }
         if (authoringExitRequested && localizationWorkbench.Enabled && !dialogContext.IsBusy)
         {
+            PollModalRecoveryControls();
             UpdateLocalizationAuthoring(gameTime.ElapsedGameTime);
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
             return;
         }
         if (dialogContext.IsBusy)
         {
+            PollModalRecoveryControls();
             dialogInputBlocked = true;
             UpdateGameConfirmation();
             controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
@@ -562,6 +567,14 @@ internal sealed partial class RecreateGame : GamePresentationHost
         fieldAudio?.Update();
         base.Update(gameTime);
         metrics.Update(updateStarted);
+    }
+
+    private void PollModalRecoveryControls()
+    {
+        if (pendingCapture is null)
+        {
+            controls?.Poll(ModalRecoveryControlPolicy.Allows);
+        }
     }
 
     internal void ResumeGameplayAudio()

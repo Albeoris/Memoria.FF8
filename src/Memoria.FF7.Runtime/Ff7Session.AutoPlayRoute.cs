@@ -19,7 +19,7 @@ public sealed partial class Ff7AutoplayDriver
 {
     internal string? LastNativeRouteProbe { get; private set; }
 
-    internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets)
+    internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate = true)
     {
         if (target.Kind is < Ff7AutoPlayTargetKind.LineTalk or > Ff7AutoPlayTargetKind.LineLeave)
         {
@@ -51,7 +51,7 @@ public sealed partial class Ff7AutoplayDriver
                 List<Ff7AutoPlayRouteStep> steps = [];
                 bool accepted = false;
                 bool ladderObserved = false;
-                bool returned = false;
+                bool returned = !requireIntermediate;
                 bool clockAccess = false;
                 string? boundary = null;
                 branch.InteractionScriptRequested += (entity, script, admitted) => accepted |= admitted && entity == target.Entity && script == target.Script;
@@ -71,13 +71,13 @@ public sealed partial class Ff7AutoplayDriver
                             ladderObserved = true;
                             input = new(Held: BackwardLadderKey(ladder.Mode), Run: false);
                         }
-                        else if (callback < 4 && !ladderObserved || current.Ladder is not null || branch.Host.Process.PlayerLocked)
+                        else if (requireIntermediate && callback < 4 && !ladderObserved || current.Ladder is not null || branch.Host.Process.PlayerLocked)
                         {
                             input = default;
                         }
                         else
                         {
-                            if (!ladderObserved)
+                            if (requireIntermediate && !ladderObserved)
                             {
                                 break;
                             }
@@ -87,7 +87,7 @@ public sealed partial class Ff7AutoplayDriver
                             {
                                 input = driver.ChooseTargetInput(target, targets, mode => driver.ApproachLine(target.Entity, target.Kind, mode));
                             }
-                            catch (Ff7AutoPlayNavigationUnavailableException)
+                            catch (Ff7AutoPlayNavigationUnavailableException) when (ladderObserved)
                             {
                                 input = driver.ApproachLine(target.Entity, target.Kind, false);
                             }
@@ -106,7 +106,7 @@ public sealed partial class Ff7AutoplayDriver
                         if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
                         {
                             boundary = $"battle:{branch.Battle is not null}, world:{branch.World is not null}, generation:{branch.FieldGeneration}";
-                            if (branch.Battle is not null && ladderObserved && returned && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(target, targets) < initialDistance)
+                            if (branch.Battle is not null && (ladderObserved || !requireIntermediate) && returned && branch.FieldGeneration == session.FieldGeneration && driver.ReadNativeRouteDistance(target, targets) < initialDistance)
                             {
                                 LastNativeRouteProbe = $"Native battle handoff after {steps.Count} callbacks; route distance {initialDistance}->{driver.ReadNativeRouteDistance(target, targets)}";
                                 return new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), BattleBoundary: true);

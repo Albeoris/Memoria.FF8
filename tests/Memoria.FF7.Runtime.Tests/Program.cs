@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-cycle-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeCycleFrontierTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-event-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeEventFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-return-loop-original-only", StringComparer.Ordinal))
 {
     NativeReturnLoopTests.RunOriginal();
