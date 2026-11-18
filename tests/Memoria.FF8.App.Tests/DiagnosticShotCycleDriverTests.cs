@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Tests;
 
-public sealed class DiagnosticShotCycleDriverTests
+public sealed partial class DiagnosticShotCycleDriverTests
 {
     private static BattleInput Input => new(BattleInputKind.Action, ActorId: "party-2", TargetId: "enemy-0", Ability: BattleAbility.LimitBreak, ActionId: 14 << 16);
     private static DiagnosticShotCycleDeclaration Declaration => new(0, 188, 188);

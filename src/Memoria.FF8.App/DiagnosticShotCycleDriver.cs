@@ -85,7 +85,7 @@ internal sealed class DiagnosticShotCycleDriver
             }
             if (Receipt.Ending is null && observation.Shot is { RemainingTimer: -1, Widget.Closing: true })
             {
-                Receipt = Receipt with { Ending = observation };
+                ObserveClosingTransition(observation);
             }
             if (observation.Shot is null && drained)
             {
@@ -152,5 +152,17 @@ internal sealed class DiagnosticShotCycleDriver
             throw new InvalidDataException("Ordinary Shot cancellation did not retain its finite ammunition and ending process.");
         }
         Receipt = Receipt with { CloseRequested = observation };
+    }
+
+    internal void ObserveClosingTransition(DiagnosticShotObservation observation)
+    {
+        if (Receipt.CloseRequested is not { } requested || Receipt.Ending is not null || Completed || observation.Callback <= requested.Callback ||
+            observation.Inventory != requested.Inventory || observation.LearnedFlags != requested.LearnedFlags ||
+            observation.Shot is not { Phase: BattleNativeShotPhase.Ending, RemainingTimer: -1, FireRequested: false, Widget: { RemainingTimer: -1, Closing: true } } ending ||
+            ending.ActionId != Receipt.Declaration.AmmoAction || ending.TargetMask != Receipt.Opening!.Shot!.TargetMask || ending.InitialTimer != requested.Shot!.InitialTimer || ending.RemainingAmmo != observation.Inventory)
+        {
+            throw new InvalidDataException("Shot ending observation requires its actual requested native closing transition.");
+        }
+        Receipt = Receipt with { Ending = observation };
     }
 }

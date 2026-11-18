@@ -115,5 +115,9 @@ public sealed partial class BattleSession
             nativeShotProcesses.Remove(facts.ActorId);
             nativeLimitLevels.Remove(facts.ActorId);
         }
+        if (live.Widget?.Closing != true && step.Widget is { RemainingTimer: -1, Closing: true })
+        {
+            DiagnosticShotClosingObserved?.Invoke(facts.ActorId);
+        }
     }
 }

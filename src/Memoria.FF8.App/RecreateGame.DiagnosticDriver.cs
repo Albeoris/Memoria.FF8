@@ -81,6 +81,7 @@ internal sealed partial class RecreateGame
         if (recipe.ShotCycle is not null)
         {
             diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticShotImpact;
+            diagnosticDriverBattle.DiagnosticShotClosingObserved += ObserveDiagnosticShotClosing;
         }
         diagnosticMountedReserve = null;
         diagnosticAllocatedFocus = null;
@@ -416,6 +417,7 @@ internal sealed partial class RecreateGame
         diagnosticTelemetry.Dispose();
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticShotImpact;
+        diagnosticDriverBattle.DiagnosticShotClosingObserved -= ObserveDiagnosticShotClosing;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticMountedReserveActivation;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
         diagnosticDriverBattle.DiagnosticInvocationFocalRetired -= ObserveDiagnosticInvocationFocalRetired;

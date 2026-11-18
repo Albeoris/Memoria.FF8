@@ -30,6 +30,9 @@ public sealed record BattleDiagnosticDuelState(byte MoveSetId, ushort TargetMask
 
 public sealed partial class BattleSession
 {
+    /// <summary>Observes the native Shot closing transition before subsequent UI service polls.</summary>
+    public event Action<string>? DiagnosticShotClosingObserved;
+
     public BattleDiagnosticShotState? ObserveDiagnosticShotState(string actorId)
     {
         if (GetNativeShot(actorId) is not { } state)

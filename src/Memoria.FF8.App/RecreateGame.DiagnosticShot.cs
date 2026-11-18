@@ -102,6 +102,22 @@ internal sealed partial class RecreateGame
         driver.BeginShotCycle(new(driver.Execution, actorId, targetId, Index(actorId), Index(targetId), declaration, diagnosticDriverRecipe.ExpectedEffect, selection, before));
     }
 
+    private void ObserveDiagnosticShotClosing(string actorId)
+    {
+        if (actorId != diagnosticDriverRecipe?.Input.ActorId || diagnosticDriver is not { Finished: false, ShotCycle: { } cycle })
+        {
+            return;
+        }
+        try
+        {
+            cycle.ObserveClosingTransition(ObserveDiagnosticShot(diagnosticDriverBattle!));
+        }
+        catch (InvalidDataException exception)
+        {
+            diagnosticDriver.Fail("SHOT_CLOSING_PROOF_INVALID: " + exception.Message);
+        }
+    }
+
     private DiagnosticShotObservation ObserveDiagnosticShot(BattleSession active)
     {
         DiagnosticShotCycleDeclaration declaration = diagnosticDriverRecipe!.ShotCycle!;
