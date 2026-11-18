@@ -11,6 +11,7 @@ internal static partial class Program
     private static void NativeChangePartyContract()
     {
         using GameAssets assets = new(TestResources.GameDirectory);
+        ScriptedAdditionalPartyContract(assets);
         (EventEngine Engine, GameSession Session) Create(byte[]? restoredCombat = null, int slot = 0)
         {
             GameSession session = GameSession.CreateColdProcess();

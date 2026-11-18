@@ -91,6 +91,10 @@ public sealed partial class EventEngine
                 }
                 slots[empty] = row;
             }
+            if (!state.DreamEnabled)
+            {
+                state = state.RemoveAdditionalCombatPartyRows(slots.Where(slot => slot != 255));
+            }
         }
         if (character >= 8)
         {
@@ -152,7 +156,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("SETPARTY requires its original physical combat rows outside dream mode.");
         }
-        return (state with { CombatParty = slots }).RebuildParty().RepairDyingParty();
+        return (state with { CombatParty = slots, AdditionalCombatParty = null, AdditionalCombatPartyMinimumCapacities = null }).RebuildParty().RepairDyingParty();
     }
 
     private int[] ExecuteSetParty(Fiber fiber)
@@ -172,6 +176,10 @@ public sealed partial class EventEngine
             state = state.WithHoldFlags(character, false);
         }
         byte[] slots = state.CombatParty.ToArray();
+        if (!state.DreamEnabled)
+        {
+            state = state.RemoveAdditionalCombatPartyRows(Enumerable.Range(0, state.Records.Length).Where(row => state.Records[row].CharacterId == character).Select(row => (byte)row));
+        }
         int slot = Array.FindIndex(slots, index => index != 255 && state.Records[index].CharacterId == character);
         if (slot >= 0)
         {

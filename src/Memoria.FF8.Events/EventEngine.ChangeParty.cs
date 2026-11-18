@@ -42,6 +42,10 @@ public sealed partial class EventEngine
         byte[] combat = state.CombatParty.ToArray();
         int combatSlot = Array.FindIndex(combat, row => row != 255 && state.Records[row].CharacterId == Scene.Party[fieldSlot]);
         byte newRow = state.FindPhysicalRow(character);
+        if (!state.DreamEnabled && newRow != 255)
+        {
+            state = state.RemoveAdditionalCombatPartyRows([newRow]);
+        }
         int existing = newRow != 255 && HasExtendedCombatParty(state) ? Array.IndexOf(combat, newRow) : -1;
         if (combatSlot < 0 && existing >= 0)
         {

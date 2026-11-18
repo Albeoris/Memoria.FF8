@@ -19,6 +19,15 @@ public sealed partial record NativeCharacterVitals
         return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers);
     }
 
+    public NativeCharacterVitals RemoveAdditionalCombatPartyRows(IEnumerable<byte> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        HashSet<byte> removed = rows.ToHashSet();
+        byte[] remaining = (AdditionalCombatParty ?? []).Where(row => !removed.Contains(row)).ToArray();
+        ImmutableSortedDictionary<byte, byte>? capacities = AdditionalCombatPartyMinimumCapacities?.RemoveRange(removed);
+        return this with { AdditionalCombatParty = remaining.Length == 0 ? null : remaining, AdditionalCombatPartyMinimumCapacities = capacities is { Count: > 0 } ? capacities : null };
+    }
+
     internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, ImmutableSortedDictionary<byte, byte>? minimumCapacities, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true)
     {
         ValidateBattlePartyCapacity(capacity);

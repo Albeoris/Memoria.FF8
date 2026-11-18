@@ -63,10 +63,13 @@ internal static partial class Program
         }
         session.SetEventState(active);
         engine.Restore(active);
+        session.SetCharacterVitals(session.CharacterVitals! with { AdditionalCombatParty = [2], AdditionalCombatPartyMinimumCapacities = System.Collections.Immutable.ImmutableSortedDictionary<byte, byte>.Empty.Add(2, 5) });
+        Require(!engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && session.CharacterVitals!.AdditionalCombatParty!.SequenceEqual(new byte[] { 2 }), "Incomplete PHS confirmation changed additional battle selections.");
         Require(engine.Apply(new PlayerAction(PlayerActionKind.SelectPartyMember, 1)).Accepted, "Explicit ordinary Zell selection was refused.");
         Require(session.CharacterVitals!.CombatParty.SequenceEqual(new byte[] { 4, 0, 255 }) && engine.Scene.Party.SequenceEqual(new[] { 0, 4, 255 }), "Temporary party selection prematurely wrote canonical saved parties.");
         Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && engine.PartyMenu is { Phase: NativePartyMenuPhase.Closing }, "Party confirmation did not enter the native completion/exit phase.");
         Require(session.CharacterVitals!.CombatParty.SequenceEqual(new byte[] { 4, 0, 1 }) && engine.Scene.Party.SequenceEqual(new[] { 0, 4, 1 }), "Native confirmation did not preserve forced-field slots and fill holes in selected menu order.");
+        Require(session.CharacterVitals.AdditionalCombatParty is null && session.CharacterVitals.AdditionalCombatPartyMinimumCapacities is null, "Confirmed scripted PHS retained battle members outside its explicit party selection.");
         Require(engine.Frame == fieldFrame && session.ExamTimer.ClockCalls == clockCalls + 4 && !session.State.Variables.ContainsKey(500), "Explicit selection/confirmation changed field chronology instead of one native menu clock call each.");
         JsonElement closing = engine.Capture();
         session.SetEventState(closing);

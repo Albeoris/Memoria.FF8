@@ -301,7 +301,7 @@ public sealed partial class EventEngine
         }
         NativeCharacterVitals vitals = services.CharacterVitals!;
         byte[] fieldParty = vitals.PreparePartyMenuFieldSlots(Scene.Party, current.TemporaryCombatParty!);
-        NativeCharacterVitals next = (vitals with { CombatParty = current.TemporaryCombatParty!.ToArray() }).RebuildParty();
+        NativeCharacterVitals next = (vitals with { CombatParty = current.TemporaryCombatParty!.ToArray(), AdditionalCombatParty = null, AdditionalCombatPartyMinimumCapacities = null }).RebuildParty();
         PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
         Scene.Party.Clear();
         Scene.Party.AddRange(fieldParty.Select(value => (int)value));
