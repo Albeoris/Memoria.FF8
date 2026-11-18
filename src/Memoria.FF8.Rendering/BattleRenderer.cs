@@ -49,6 +49,11 @@ public sealed partial class BattleRenderer
     private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ, Vector4 ColorOverZ);
 
     public BattleRenderer(int width, int height, PixelBounds? projectionBounds = null)
+        : this(width, height, projectionBounds, null, null)
+    {
+    }
+
+    private BattleRenderer(int width, int height, PixelBounds? projectionBounds, byte[]? replayPixels, float[]? replayDepth)
     {
         if (width < 1 || height < 1 || width > 4096 || height > 4096)
         {
@@ -61,8 +66,8 @@ public sealed partial class BattleRenderer
         {
             throw new ArgumentOutOfRangeException(nameof(projectionBounds));
         }
-        pixels = new byte[checked(width * height * 4)];
-        depth = new float[width * height];
+        pixels = replayPixels ?? new byte[checked(width * height * 4)];
+        depth = replayDepth ?? new float[width * height];
     }
 
     public ITriangleRenderer? TriangleRenderer { get; set; }

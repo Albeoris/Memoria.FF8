@@ -73,32 +73,40 @@ internal sealed partial class NativeBattleArenaOverlay
         RecordExecutionChange(offset, entry);
     }
 
-    private bool MayHaveExecutionReferences()
+    private long EstimateExecutionReferenceCount()
     {
-        return executionChanges.Count != 0 ||
-            (privateParent is not null ? privateParent.MayHaveExecutionReferences() : Source.Working.ExecutionReferenceCount != 0);
+        // Overrides, removals and references outside a private slice may overestimate lookup work.
+        return executionChanges.Count + (privateParent is not null ? privateParent.EstimateExecutionReferenceCount() : (long)Source.Working.ExecutionReferenceCount);
     }
 
     private void InvalidateExecutionReferences(int offset, int length)
     {
-        if (length == 0 || !MayHaveExecutionReferences())
+        if (length == 0)
         {
             return;
         }
-        // Scalar stores can intersect only references starting in the store or up to three bytes before it.
-        if (length <= 4)
+        long referenceCount = EstimateExecutionReferenceCount();
+        if (referenceCount == 0)
         {
-            Span<int> overlapping = stackalloc int[7];
-            int count = 0;
+            return;
+        }
+        // References can start in the store or up to three bytes before it. Probe these offsets
+        // when that costs less than walking the reference table, retaining the short scalar path.
+        if (length <= 4 || (long)length + 3 <= referenceCount)
+        {
             int end = checked(offset + length);
             for (int start = Math.Max(0, offset - 3); start < end; start++)
             {
-                if (FindExecutionReference(start) is { } entry && start + entry.Width > offset)
+                if (FindExecutionReference(start) is { } entry && (long)start + entry.Width > offset)
                 {
-                    overlapping[count++] = start;
+                    executionChanges.EnsureCapacity(checked(executionChanges.Count + 1));
+                    if (checkpoint)
+                    {
+                        executionUndo.EnsureCapacity(checked(executionUndo.Count + 1));
+                    }
+                    RecordExecutionChange(start, null);
                 }
             }
-            Remove(overlapping[..count]);
             return;
         }
 

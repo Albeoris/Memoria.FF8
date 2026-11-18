@@ -7,12 +7,15 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
+    private sealed record SceneReplayBuffer(byte[] Pixels, float[] Depth);
+
     private sealed class SceneReplayContext
     {
         internal readonly Dictionary<long, ushort[]> Words = [];
         internal readonly HashSet<long> Active = [];
         internal readonly HashSet<long> Requested = [];
         internal SceneReplayMemo? Memo;
+        internal List<SceneReplayBuffer> Buffers = [];
     }
 
     private sealed class SceneReplayMemo
@@ -91,7 +94,7 @@ public sealed partial class BattleRenderer
 
     private void BeginSceneReplay(NativeBattlePreparedPrimitiveFrame frame, NativeBattlePrimitiveCapabilities? capabilities, IReadOnlyList<NativeBattleTextureReplacement>? replacements, INativeBattleEffectTextureSource? textureSource)
     {
-        sceneReplayContext = new();
+        sceneReplayContext = new() { Buffers = sceneReplayContext.Buffers };
         ImmutableDictionary<long, NativeBattleSceneReplaySource>? sources = frame.SceneReplaySources;
         bool populatedUi = sources?.Values.Any(source => source.UiFrame is { } ui && (!ui.Opaque.IsEmpty || ui.Semi.Any(batch => !batch.Quads.IsEmpty))) == true;
         if (sources is null || sources.Count > 64 || replacements is { Count: > 0 } || populatedUi)
@@ -244,7 +247,13 @@ public sealed partial class BattleRenderer
             int projectionHeight = Math.Clamp((int)Math.Round(Height * 1728 / (area.Bottom - area.Top)), 1, Height);
             int projectionX = Math.Clamp((int)Math.Round(-area.Left * projectionWidth / 2560), 0, Width - projectionWidth);
             int projectionY = Math.Clamp((int)Math.Round(-area.Top * projectionHeight / 1728), 0, Height - projectionHeight);
-            BattleRenderer renderer = new(Width, Height, new PixelBounds(projectionX, projectionY, projectionWidth, projectionHeight))
+            int bufferIndex = sceneReplayContext.Active.Count - 1;
+            if (bufferIndex == sceneReplayContext.Buffers.Count)
+            {
+                sceneReplayContext.Buffers.Add(new(new byte[checked(Width * Height * 4)], new float[checked(Width * Height)]));
+            }
+            SceneReplayBuffer buffer = sceneReplayContext.Buffers[bufferIndex];
+            BattleRenderer renderer = new(Width, Height, new PixelBounds(projectionX, projectionY, projectionWidth, projectionHeight), buffer.Pixels, buffer.Depth)
             {
                 isSceneReplay = true,
                 sceneReplayContext = sceneReplayContext

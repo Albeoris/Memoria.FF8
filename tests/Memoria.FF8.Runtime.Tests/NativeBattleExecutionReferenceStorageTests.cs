@@ -181,6 +181,75 @@ public sealed class NativeBattleExecutionReferenceStorageTests
         Assert.Equal(new byte[] { 9, 8, 7, 6, 4, 0, 3, 7 }, parent.View.Read(12, 8));
     }
 
+    [Theory]
+    [InlineData(8, 0)]
+    [InlineData(8, 8)]
+    [InlineData(32, 0)]
+    [InlineData(32, 8)]
+    public void Range_overlay_stores_invalidate_crossing_references_and_preserve_checkpoint_ownership(int length, int offset)
+    {
+        const int origin = 64;
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        for (int index = 0; index < 48; index++)
+        {
+            arena.WriteExecutionReference(512 + index * 4, 4, Header, [1, 2, 3, 4]);
+        }
+        if (offset != 0)
+        {
+            arena.WriteExecutionReference(origin, 2, Targets, [5, 6]);
+            arena.WriteExecutionReference(origin + offset - 3, 4, Header, [9, 8, 7, 6]);
+        }
+        arena.WriteExecutionReference(origin + offset + 2, 2, Targets);
+        arena.WriteExecutionReference(origin + offset + length - 1, 4, Header, [4, 3, 2, 1]);
+        arena.WriteExecutionReference(origin + offset + length + 3, 1, Model, [7]);
+        using NativeBattleEffectArenaTransaction parent = new(arena);
+        parent.WriteExecutionReference(origin + offset + 2, 2, Model, null);
+        parent.BeginCheckpoint();
+        NativeBattleEffectArena view = NativeBattleEffectArena.BorrowWorking(arena.Working, origin, offset + length + 4);
+        using (NativeBattleEffectArenaTransaction child = NativeBattleEffectArenaTransaction.CreatePrivateChild(view))
+        {
+            child.BeginCheckpoint();
+            child.Write(offset, new byte[length]);
+            AssertInvalidated(child.View);
+            Assert.All(child.View.ReadSnapshot(offset, length).Known, value => Assert.True(value));
+            child.RollbackCheckpoint();
+            Assert.Equal(Model, child.View.ReadExecutionReference<BattleExecutionReference.Model>(offset + 2, 2));
+            Assert.False(child.View.ReadSnapshot(offset + 2, 2).Known[0]);
+            Assert.Equal(Header, child.View.ReadExecutionReference<BattleExecutionReference.Header>(offset + length - 1, 4));
+            if (offset != 0)
+            {
+                Assert.Equal(Header, child.View.ReadExecutionReference<BattleExecutionReference.Header>(offset - 3, 4));
+            }
+            child.BeginCheckpoint();
+            child.MarkUnknown(offset, length);
+            child.MarkUnknown(offset, length);
+            AssertInvalidated(child.View);
+            Assert.All(child.View.ReadSnapshot(offset, length).Known, value => Assert.False(value));
+            child.CommitCheckpoint();
+            child.Freeze();
+        }
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Model>(origin + offset + 2, 2, out _));
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Header>(origin + offset + length - 1, 4, out _));
+        parent.RollbackCheckpoint();
+        Assert.Equal(Model, parent.View.ReadExecutionReference<BattleExecutionReference.Model>(origin + offset + 2, 2));
+        Assert.False(parent.View.ReadSnapshot(origin + offset + 2, 2).Known[0]);
+        Assert.Equal(Header, parent.View.ReadExecutionReference<BattleExecutionReference.Header>(origin + offset + length - 1, 4));
+        Assert.Equal(new byte[] { 4, 3, 2, 1 }, parent.View.Read(origin + offset + length - 1, 4));
+        Assert.Equal(Header, parent.View.ReadExecutionReference<BattleExecutionReference.Header>(512, 4));
+
+        void AssertInvalidated(NativeBattleEffectArena target)
+        {
+            Assert.False(target.TryReadExecutionReference<BattleExecutionReference.Model>(offset + 2, 2, out _));
+            Assert.False(target.TryReadExecutionReference<BattleExecutionReference.Header>(offset + length - 1, 4, out _));
+            Assert.Equal(Model, target.ReadExecutionReference<BattleExecutionReference.Model>(offset + length + 3, 1));
+            if (offset != 0)
+            {
+                Assert.False(target.TryReadExecutionReference<BattleExecutionReference.Header>(offset - 3, 4, out _));
+                Assert.Equal(Targets, target.ReadExecutionReference<BattleExecutionReference.Targets>(0, 2));
+            }
+        }
+    }
+
     [Fact]
     public void In_memory_restore_keeps_aliases_and_JSON_retains_only_actual_bytes()
     {

@@ -133,9 +133,33 @@ public sealed class AppSparseReplayPixelTests
     private static ushort[] ReplayWords(int width, int height, ImmutableDictionary<long, NativeBattleSceneReplaySource> pool, long id)
     {
         BattleRenderer renderer = new(width, height);
+        return ReplayWords(renderer, pool, id);
+    }
+
+    private static ushort[] ReplayWords(BattleRenderer renderer, ImmutableDictionary<long, NativeBattleSceneReplaySource> pool, long id)
+    {
         typeof(BattleRenderer).GetField("sceneCopyUiTexture", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(renderer, (Func<int, int, bool, PixelImage>)ResolveUi);
         NativeBattlePreparedPrimitiveFrame frame = Frame([]) with { SceneReplaySources = pool };
+        typeof(BattleRenderer).GetMethod("BeginSceneReplay", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, [frame, Capabilities, null, null]);
         return (ushort[])typeof(BattleRenderer).GetMethod("ReplaySceneWords", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, [frame, id, Capabilities])!;
+    }
+
+    [Fact]
+    public void Successive_capture_pools_clear_replay_scratch_without_changing_previous_words()
+    {
+        const int width = 853;
+        const int height = 479;
+        BattleRenderer renderer = new(width, height);
+        NativeBattleSceneReplaySource patterned = new(PatternFrame(), Textures, BattleSceneVisibleArea.Native) { UiFrame = Ui() };
+        NativeBattleSceneReplaySource empty = new(Frame([]), Textures, BattleSceneVisibleArea.Native);
+        var firstPool = ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty.Add(1, patterned);
+        var secondPool = ImmutableDictionary<long, NativeBattleSceneReplaySource>.Empty.Add(1, empty);
+        ushort[] first = ReplayWords(renderer, firstPool, 1);
+        ushort[] original = first.ToArray();
+        Assert.Equal(FullWords(width, height, patterned, firstPool), first);
+        Assert.Equal(FullWords(width, height, empty, secondPool), ReplayWords(renderer, secondPool, 1));
+        Assert.Equal(original, first);
+        Assert.Equal(original, ReplayWords(renderer, firstPool, 1));
     }
 
     private static NativeBattlePreparedPrimitiveFrame PatternFrame()

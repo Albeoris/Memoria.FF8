@@ -12,6 +12,7 @@ internal sealed partial class RecreateGame
     private readonly long presentationClockStarted = Stopwatch.GetTimestamp();
     private TimeSpan nextFpsLabelUpdate;
     private string fpsLabel = "FPS: --";
+    internal Action<long, long, PresentationPacerObservation, DiagnosticHostFramePhases?>? PresentedFrameObserver { get; set; }
 
     private void BeginMeasuredFrame()
     {
@@ -26,16 +27,17 @@ internal sealed partial class RecreateGame
 
     protected override void EndDraw()
     {
-        bool observePacing = diagnosticHostPhaseTiming.Enabled;
+        bool observePacing = diagnosticHostPhaseTiming.Enabled || PresentedFrameObserver is not null;
         long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
         base.EndDraw();
         long presentEnd = observePacing ? Stopwatch.GetTimestamp() : 0;
         presentationPacer.CompletePresentedFrame();
-        DiagnosticHostFramePhases? phases = observePacing ? diagnosticHostPhaseTiming.CompleteInterval() : null;
+        DiagnosticHostFramePhases? phases = diagnosticHostPhaseTiming.Enabled ? diagnosticHostPhaseTiming.CompleteInterval() : null;
         using DiagnosticHostPhaseTiming.Scope postPresentTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.PostPresent);
         long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;
         graphicsReadiness?.Presented(Window);
         PresentationPacerObservation pacer = observePacing ? presentationPacer.TimingObservation : default;
+        PresentedFrameObserver?.Invoke(presentBegin, presentEnd, pacer, phases);
         if (observePacing)
         {
             diagnosticTelemetry?.ObservePresentationPacing(presentBegin, presentEnd, pacer, phases);
