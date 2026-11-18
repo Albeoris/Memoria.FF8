@@ -984,14 +984,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (input.LoadMenu || input.SaveMenu)
         {
-            if (input.SaveMenu && (InFf7 ? ff7Scene?.CanSaveMemoria != true : session.State.Scene == SceneKind.Title || fieldFaulted))
-            {
-                ShowSaveNotice(InFf7 ? "Saving is unavailable at the current FFVII boundary." : "Start or load a running game before saving.");
-            }
-            else
-            {
-                OpenPlayerSaveMenu(input.LoadMenu ? PlayerSaveMenuMode.Load : PlayerSaveMenuMode.Save);
-            }
+            OpenPlayerSaveMenu(input.LoadMenu ? PlayerSaveMenuMode.Load : PlayerSaveMenuMode.Save);
             return true;
         }
         if (saveMenu.IsOpen)
@@ -1025,6 +1018,32 @@ internal sealed partial class RecreateGame : Game
 
     private void OpenPlayerSaveMenu(PlayerSaveMenuMode mode)
     {
+        if (mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave)
+        {
+            try
+            {
+                if (InFf7)
+                {
+                    if (ff7Scene?.CanSaveMemoria != true)
+                    {
+                        throw new InvalidOperationException("Saving is unavailable at the current FFVII boundary.");
+                    }
+                }
+                else
+                {
+                    if (world is null || session.State.Scene == SceneKind.Title || fieldFaulted || fieldRenderFaulted || events?.LastFault is not null)
+                    {
+                        throw new InvalidOperationException("Start or load a running game before saving.");
+                    }
+                    _ = world.CaptureGameplaySave();
+                }
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or NotSupportedException or InvalidDataException)
+            {
+                ShowSaveNotice(exception.Message);
+                return;
+            }
+        }
         if (movie is not null)
         {
             session.SetMoviePosition(movie.PositionSeconds);
