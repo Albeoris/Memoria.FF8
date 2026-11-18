@@ -80,27 +80,27 @@
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "294018ab8316f20988734ac78ff5acc2beee3ba70770276c9b9d80576274549d",
+      "sourceSha256": "38f211654d48ee509d74bfe1f68895d4a57f20683b474a4f4a6366b8c54bd643",
       "profile": "DirectX_11",
       "defines": "",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.mgfxo",
-      "outputSha256": "4cab0c873ea699e914377b1501e1d350f57e09926de001bf8bb554777ea81dff"
+      "outputSha256": "b31399b50372c49f6f2366f951b24558a809d6c53fcc9023292ec3daab20243a"
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "294018ab8316f20988734ac78ff5acc2beee3ba70770276c9b9d80576274549d",
+      "sourceSha256": "38f211654d48ee509d74bfe1f68895d4a57f20683b474a4f4a6366b8c54bd643",
       "profile": "DirectX_12",
       "defines": "DIRECTX12=1",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.dx12.mgfxo",
-      "outputSha256": "b518267c1a9db4ffc8764c9fc56e2cf63a7dd7298836b6575b1d19eebc77edf8"
+      "outputSha256": "1bb8c5d2bdcfb909dd3fdcc942a04d7b308760c456f1f6cbd84cb898cf26bf9d"
     },
     {
       "source": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.fx",
-      "sourceSha256": "294018ab8316f20988734ac78ff5acc2beee3ba70770276c9b9d80576274549d",
+      "sourceSha256": "38f211654d48ee509d74bfe1f68895d4a57f20683b474a4f4a6366b8c54bd643",
       "profile": "Vulkan",
       "defines": "",
       "output": "src/Memoria.FF8.TitleScene/Shaders/MeteorScene.vulkan.mgfxo",
-      "outputSha256": "7946ffa0c2a6c909e9588fadaa39f86b9f776b3bac90fa1aef8e718130423f18"
+      "outputSha256": "155a1feeb72755bb7a923e052a79cc1f1c2b8f357bd6ae228c1ff5a016b86afb"
     }
   ]
 }

@@ -79,11 +79,70 @@ float3 MeteorToObject(float3 v)
     return float3(dot(v, MeteorObjectAxisX), dot(v, MeteorObjectAxisY), dot(v, MeteorObjectAxisZ));
 }
 
+bool MeteorIntersect(float3 origin, float3 direction, out float depth)
+{
+    // In ellipsoid coordinates relief is bounded by .18 + .065 + .011.
+    // Intersect that enclosing ellipsoid before tracing the displaced surface.
+    float3 scaledOrigin = origin * float3(0.88, 1.05, 1);
+    float3 scaledDirection = direction * float3(0.88, 1.05, 1);
+    float directionSquared = dot(scaledDirection, scaledDirection);
+    float projection = dot(scaledOrigin, scaledDirection);
+    float discriminant = projection * projection - directionSquared * (dot(scaledOrigin, scaledOrigin) - 1.096 * 1.096);
+    depth = 0;
+    if (discriminant < 0)
+    {
+        return false;
+    }
+    float span = sqrt(discriminant);
+    depth = max(0, (-projection - span) / directionSquared);
+    float end = (-projection + span) / directionSquared;
+    float previousDepth = depth;
+    // Each smoothstep-noise coordinate derivative is bounded by 1.5.
+    // Sum the relief frequencies and amplitudes to bound this ray's field slope.
+    // The field is not a signed distance: unscaled steps can skip its surface.
+    float lipschitz = 0.72 * (length(scaledDirection) + 1.5 * (0.18 * 3.7 + 0.065 * 8.3 + 0.022 * 26) * dot(abs(scaledDirection), float3(1, 1, 1)));
+    [loop]
+    for (int step = 0; step < 1024; step++)
+    {
+        float distance = MeteorDistance(origin + direction * depth);
+        if (distance < 0)
+        {
+            // Refine a crossing rather than shading a sample inside the solid.
+            float upper = depth;
+            [unroll]
+            for (int refine = 0; refine < 12; refine++)
+            {
+                depth = (previousDepth + upper) * 0.5;
+                if (MeteorDistance(origin + direction * depth) < 0)
+                {
+                    upper = depth;
+                }
+                else
+                {
+                    previousDepth = depth;
+                }
+            }
+            depth = (previousDepth + upper) * 0.5;
+            return true;
+        }
+        if (distance < 0.00025)
+        {
+            return true;
+        }
+        previousDepth = depth;
+        depth += distance / lipschitz;
+        if (depth > end)
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
 float3 MeteorNormal(float3 p)
 {
-    const float e = 0.003;
-    float d = MeteorDistance(p);
-    return normalize(float3(MeteorDistance(p + float3(e, 0, 0)) - d, MeteorDistance(p + float3(0, e, 0)) - d, MeteorDistance(p + float3(0, 0, e)) - d));
+    const float e = 0.0015;
+    return normalize(float3(MeteorDistance(p + float3(e, 0, 0)) - MeteorDistance(p - float3(e, 0, 0)), MeteorDistance(p + float3(0, e, 0)) - MeteorDistance(p - float3(0, e, 0)), MeteorDistance(p + float3(0, 0, e)) - MeteorDistance(p - float3(0, 0, e))));
 }
 
 // Shared by the luminous flame and its reflected light; the key stays stable.
@@ -322,19 +381,8 @@ float4 SurfacePixel(float4 position : SV_POSITION, float4 color : COLOR0, float2
     {
         float3 ray = MeteorToObject(float3(head / 0.24, -1.6));
         float3 rayDirection = MeteorToObject(float3(0, 0, 1));
-        float depth = 0;
-        float d = 1;
-        [loop]
-        for (int step = 0; step < 38; step++)
-        {
-            d = MeteorDistance(ray + rayDirection * depth);
-            if (d < 0.0015 || depth > 3.2)
-            {
-                break;
-            }
-            depth += max(d, 0.001);
-        }
-        if (d < 0.0015)
+        float depth;
+        if (MeteorIntersect(ray, rayDirection, depth))
         {
             float3 hitPosition = ray + rayDirection * depth;
             float3 normal = MeteorNormal(hitPosition);
