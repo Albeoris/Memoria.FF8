@@ -41,6 +41,13 @@ public sealed partial class EventEngine
         {
             ValidateNativePlayerInput(player!, beforeScripts: true);
         }
+        if (axes == Vector2.Zero)
+        {
+            // 4789A0's no-direction branch selects idle and publishes the
+            // stationary trace without entering479C60's motor/contact queries.
+            advance();
+            return;
+        }
         int[] pushContacts = [];
         IReadOnlyList<NativeLineContactChange> lineChanges = [];
         pendingNativePlayerInput = () =>

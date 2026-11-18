@@ -25,12 +25,12 @@ public sealed class OpeningCorridorMovementTests
                 break;
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+            PlayerAction next = OpeningInputHarness.SelectAction(session.IsMoviePlaying, dialogue);
             try
             {
                 PlayerActionResult result = world.Apply(next);
                 Assert.True(result.Accepted);
-                AdvanceClosingDialogue(world, next, result);
+                OpeningInputHarness.AdvanceUnchangedInput(world, result);
             }
             catch (EventScriptException)
             {
@@ -140,12 +140,12 @@ public sealed class OpeningCorridorMovementTests
         bool forcedNpcMovementSeen = false;
         for (int tick = 0; tick < 2000 && session.State.FieldId == 229 && !session.IsMoviePlaying; tick++)
         {
-            PlayerAction next = world.Events.IsDialogueBlocking ? new PlayerAction(PlayerActionKind.Confirm) : world.Events.IsUserControlEnabled ? new PlayerAction(PlayerActionKind.Move, Vertical: 1) : new PlayerAction(PlayerActionKind.Wait);
+            PlayerAction next = world.Events.CurrentDialogue is DialogueState dialogue ? OpeningInputHarness.SelectAction(false, dialogue) : world.Events.IsUserControlEnabled ? new PlayerAction(PlayerActionKind.Move, Vertical: 1) : new PlayerAction(PlayerActionKind.Wait);
             try
             {
                 PlayerActionResult result = world.Apply(next);
                 Assert.True(result.Accepted);
-                AdvanceClosingDialogue(world, next, result);
+                OpeningInputHarness.AdvanceUnchangedInput(world, result);
             }
             catch (EventScriptException)
             {
@@ -187,15 +187,4 @@ public sealed class OpeningCorridorMovementTests
         Assert.True(forcedNpcMovementSeen, "Natural corridor must observe Quistis's original forced movement with its script-selected animation.");
         Console.WriteLine($"Natural229 movie{session.State.MovieIndex} at frame{world.Events.Frame}, player({player.X},{player.Y}); no fault.");
     }
-    private static void AdvanceClosingDialogue(GameWorld world, PlayerAction action, PlayerActionResult result)
-    {
-        if (action.Kind == PlayerActionKind.Wait && result.FramesAdvanced == 0 && world.Events.CurrentDialogue is { CanConfirm: false, IsNamePrompt: false })
-        {
-            long frame = world.Events.Frame;
-            world.AdvanceAutoPlayInputFrame();
-            Assert.Equal(frame + 1, world.Events.Frame);
-            Assert.Null(world.Events.LastFault);
-        }
-    }
-
 }

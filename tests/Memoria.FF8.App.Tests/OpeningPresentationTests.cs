@@ -46,9 +46,10 @@ public sealed class OpeningPresentationTests
                 }
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction action = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue is { CanConfirm: true, IsNamePrompt: true } ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue is { CanConfirm: true, FirstChoice: int choice } ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+            PlayerAction action = OpeningInputHarness.SelectAction(session.IsMoviePlaying, dialogue);
             PlayerActionResult result = world.Apply(action);
             Assert.True(result.Accepted, $"Opening input {action} at field{world.Events.FieldId}/frame{world.Events.Frame}: {result.Detail}");
+            OpeningInputHarness.AdvanceUnchangedInput(world, result);
             world.CommitFieldPresentation();
         }
         Assert.Fail($"Fresh opening presentation exceeded its bounded action budget: field{world.Events.FieldId}/frame{world.Events.Frame}, trigger {world.Events.NextTrigger}, dialogue {world.Events.CurrentDialogue}, fault {world.Events.LastFault}.");
@@ -89,5 +90,39 @@ public sealed class OpeningPresentationTests
             Assert.Fail(JsonSerializer.Serialize(new { exception.Message, Field = world.Events.FieldId, world.Events.Frame, scene.CameraIndex, Leader = leader is null ? null : new { leader.ObjectId, leader.X, leader.Y, leader.Z }, Position = position, Probe = probe }));
         }
         return true;
+    }
+}
+
+internal static class OpeningInputHarness
+{
+    internal static PlayerAction SelectAction(bool moviePlaying, DialogueState? dialogue)
+    {
+        if (moviePlaying)
+        {
+            return new(PlayerActionKind.SkipMovie);
+        }
+        bool ready = dialogue is { CanConfirm: true } && (dialogue.IsNamePrompt || dialogue.NativeWindow is { Progress: 4096, Delta: >= 0 } window && window.Text is not { Ready: false });
+        if (!ready)
+        {
+            return new(PlayerActionKind.Wait);
+        }
+        if (dialogue!.IsNamePrompt)
+        {
+            return new(PlayerActionKind.EnterName, Text: "Cecilia");
+        }
+        return dialogue.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : new(PlayerActionKind.Confirm);
+    }
+
+    internal static void AdvanceUnchangedInput(GameWorld world, PlayerActionResult result)
+    {
+        if (result.FramesAdvanced != 0)
+        {
+            return;
+        }
+        world.EnsureField();
+        long frame = world.Events.Frame;
+        world.AdvanceAutoPlayInputFrame();
+        Assert.Equal(frame + 1, world.Events.Frame);
+        Assert.Null(world.Events.LastFault);
     }
 }

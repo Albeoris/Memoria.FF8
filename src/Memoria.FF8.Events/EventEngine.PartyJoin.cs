@@ -487,20 +487,13 @@ public sealed partial class EventEngine
     private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition, bool MovementSucceeded) ResolveNativePartyPlayerStep(ActorState player, Vector2 axes)
     {
         FieldFixedPosition current = ReadNativePartyPlayerPosition(player);
-        int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
+        int direction = (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection + PlayerInputDirectionOffset);
         int speed = services.IsMoviePlaying ? NativePlayerMovementSpeed : Memoria.FF8.Runtime.PlayerMovementSpeed.Scale(NativePlayerMovementSpeed, EffectivePlayerMovementSpeedPercent);
         if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
             throw new NotSupportedException("Native party player movement requires the certified native adapter; flat fallback is unsupported.");
         }
-        if (axes != Vector2.Zero)
-        {
-            return ResolveCertifiedNativePlayerStep(player, current, direction, speed);
-        }
-        ValidatePendingNativePushContacts();
-        WalkmeshPosition stationary = new(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle);
-        PreparePartyTraceFollowers(stationary, direction, false);
-        return (stationary, current, direction, [], false, null, false);
+        return ResolveCertifiedNativePlayerStep(player, current, direction, speed);
     }
 
     private FieldFixedPosition ReadNativePartyPlayerPosition(ActorState player)

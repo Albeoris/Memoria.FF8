@@ -12,378 +12,375 @@ internal static partial class Program
     {
         try
         {
-            string selectedGameDirectory = args.Length >= 2 && args[0] == "--scenario" ? (args.Length >= 3 ? args[2] : TestResources.GameDirectory) : (args.Length == 1 && args[0] != "--list" ? args[0] : TestResources.GameDirectory);
+            string selectedGameDirectory = args is ["--list"] ? string.Empty : args.Length >= 2 && args[0] == "--scenario" ? (args.Length >= 3 ? args[2] : TestResources.GameDirectory) : (args.Length == 1 ? args[0] : TestResources.GameDirectory);
+            Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
             {
-                Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
+                ["autoplay-position-gate"] = AutoPlayPositionGateContract,
+                ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
+                ["gameplay-animation-waits"] = GameplayAnimationWaitContract,
+                ["gameplay-script-menu"] = () => GameplayScriptMenuContract(selectedGameDirectory),
+                ["jsm-resource-validation"] = JsmResourceValidationContract,
+                ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
+                ["native-refinement-input"] = NativeRefinementInputContract,
+                ["wait-corrupt-input"] = WaitAndCorruptInput,
+                ["native-wait"] = () => NativeWaitContract(selectedGameDirectory),
+                ["native-dialogue-opening-input"] = () => NativeDialogueOpeningInputContract(selectedGameDirectory),
+                ["omega-tutorial-save"] = OmegaTutorialSaveContract,
+                ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
+                ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
+                ["native-blocking-dialogue"] = NativeBlockingDialogueContract,
+                ["native-blink-eyes"] = () => NativeBlinkEyesContract(selectedGameDirectory),
+                ["native-checkpoint-byte-encoding"] = () => NativeCheckpointByteEncodingContract(selectedGameDirectory),
+                ["native-global-jump"] = () => NativeGlobalJumpContract(selectedGameDirectory),
+                ["remaining-scroll-codes"] = RemainingLayerScrollContracts,
+                ["remaining-character-codes"] = () => RemainingCharacterCodeContract(selectedGameDirectory),
+                ["native-pcopy-info"] = () => NativeCopyInfoContract(selectedGameDirectory, true),
+                ["remaining-presentation-codes"] = RemainingPresentationContracts,
+                ["explicit-scroll-axis-sync"] = ExplicitScrollAndAxisSyncContracts,
+                ["native-party-move-cancel"] = () => NativeMovementCancellationContract(party: true),
+                ["native-forced-party-move"] = () => NativePartyMoveContract(selectedGameDirectory, forced: true),
+                ["remaining-sound-codes"] = RemainingSoundCodeContract,
+                ["remaining-control-codes"] = RemainingControlCodeContract,
+                ["remaining-dialogue-codes"] = RemainingDialogueCodeContract,
+                ["actor-mode"] = AdditionalActorControlAndGuard,
+                ["native-actor-model-visibility"] = NativeActorModelVisibilityContract,
+                ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
+                ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
+                ["native-party-turn-replacement"] = () => NativePartyTurnReplacementContract(selectedGameDirectory),
+                ["native-fmovea"] = () => NativeForcedActorMoveContract(selectedGameDirectory),
+                ["native-self-request"] = () => NativeSelfRequestContract(selectedGameDirectory),
+                ["message-variable"] = NativeMessageVariableContract,
+                ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
+                ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,
+                ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
+                ["extended-roster-story-locks"] = () => ExtendedRosterStoryLocks(selectedGameDirectory),
+                ["native-disc-save"] = () => NativeDiscSaveContract(selectedGameDirectory),
+                ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
+                ["native-menu-battle"] = () => NativeMenuBattleContract(selectedGameDirectory),
+                ["native-party-slots"] = () => NativePartySlotContract(selectedGameDirectory),
+                ["native-sealedoff"] = () => NativeSealedOffContract(selectedGameDirectory),
+                ["native-lastin"] = () => NativeLastInContract(selectedGameDirectory),
+                ["native-swap"] = () => NativeSwapContract(selectedGameDirectory),
+                ["native-party-reserve-refresh"] = () => NativePartyReserveRefreshContract(selectedGameDirectory),
+                ["native-train-control-byte"] = () => NativeTrainControlByteContract(selectedGameDirectory),
+                ["native-base-animation"] = NativeBaseAnimationContract,
+                ["native-animation-backup"] = () => NativeAnimationBackupContract(selectedGameDirectory),
+                ["native-field-bars"] = () => NativeFieldBarsContract(selectedGameDirectory),
+                ["native-actor-visibility"] = () => NativeActorVisibilityContract(selectedGameDirectory),
+                ["native-party-request-pointer"] = NativePartyRequestPointerContract,
+                ["native-party-action-observer"] = () => NativePartyActionObservationContract(selectedGameDirectory),
+                ["native-field-load-reason"] = NativeFieldLoadReasonContract,
+                ["native-battle-counter-mirrors"] = NativeBattleCounterMirrorContract,
+                ["native-request-physical-alias"] = () => NativeRequestPhysicalAliasContract(selectedGameDirectory),
+                ["native-world-entry-memory"] = () => NativeWorldEntryMemoryContract(selectedGameDirectory),
+                ["native-world-music-selection"] = () => NativeWorldMusicSelectionContract(selectedGameDirectory),
+                ["native-maccel"] = () => NativeMovementAccelerationContract(),
+                ["native-reverse-maccel"] = () => NativeMovementAccelerationContract(reverseOnly: true),
+                ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
+                ["native-model-initial-checkpoint"] = () => NativeModelInitializationCheckpointContract(selectedGameDirectory),
+                ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
+                ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
+                ["native-split-control-caller"] = () => NativeSplitControlCallerContract(selectedGameDirectory),
+                ["native-field-party-binding"] = () => NativeCurrentFieldPartyBindingContract(selectedGameDirectory),
+                ["native-init-trace"] = () => NativeInitializationTraceContract(selectedGameDirectory),
+                ["native-field-initialization"] = () => NativeSerialFieldInitializationContract(selectedGameDirectory),
+                ["native-copy-info"] = () => NativeCopyInfoContract(selectedGameDirectory),
+                ["native-junction"] = () => NativeDreamJunctionContract(selectedGameDirectory),
+                ["native-economy"] = () => NativeEconomyContract(selectedGameDirectory),
+                ["native-salary-payout"] = () => NativeSalaryPayoutContract(selectedGameDirectory),
+                ["native-jump-budget"] = NativeJumpBudgetContract,
+                ["map-jump-origin"] = NativeMapJumpOriginContract,
+                ["native-disc-jump"] = () => NativeDiscJumpContract(selectedGameDirectory),
+                ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
+                ["cosine-offset-start"] = NativeCosineOffsetExplicitStartContract,
+                ["physical-motion-words"] = NativePhysicalMotionWordContract,
+                ["field-media"] = NativeFieldMediaContract,
+                ["native-place-id"] = NativePlaceIdContract,
+                ["global-sound"] = NativeGlobalSoundContract,
+                ["salary-presentation-effects"] = NativeSalaryPresentationEffectsContract,
+                ["exam-timer"] = NativeExamTimerContract,
+                ["native-process-clock"] = NativeProcessClockContract,
+                ["native-field-shake"] = () => NativeFieldShakeContract(selectedGameDirectory),
+                ["native-direct-scroll"] = NativeCurrentDirectScrollContract,
+                ["native-scalar-memory"] = NativeScalarMemoryContract,
+                ["native-signed-long-memory"] = NativeSignedLongMemoryContract,
+                ["native-facing-hold"] = NativeFacingHoldContract,
+                ["native-setwitch"] = NativeSetWitchContract,
+                ["native-spu"] = NativeSpuContract,
+                ["native-music-replay"] = NativeMusicReplayContract,
+                ["native-scalar-calculation"] = NativeScalarCalculationContract,
+                ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
+                ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,
+                ["scroll-related"] = () =>
                 {
-                    ["autoplay-position-gate"] = AutoPlayPositionGateContract,
-                    ["gameplay-field-actors"] = () => GameplaySaveFieldActorContract(selectedGameDirectory),
-                    ["gameplay-animation-waits"] = GameplayAnimationWaitContract,
-                    ["gameplay-script-menu"] = () => GameplayScriptMenuContract(selectedGameDirectory),
-                    ["jsm-resource-validation"] = JsmResourceValidationContract,
-                    ["selected-model-native-registration"] = () => NativeBattleFieldRegistrationContract(selectedGameDirectory, true),
-                    ["native-refinement-input"] = NativeRefinementInputContract,
-                    ["wait-corrupt-input"] = WaitAndCorruptInput,
-                    ["native-wait"] = () => NativeWaitContract(selectedGameDirectory),
-                    ["native-dialogue-opening-input"] = () => NativeDialogueOpeningInputContract(selectedGameDirectory),
-                    ["omega-tutorial-save"] = OmegaTutorialSaveContract,
-                    ["native-keyon2"] = () => NativeKeyScan2Contract(selectedGameDirectory, true),
-                    ["native-shared-choice-focus"] = NativeSharedChoiceFocusContract,
-                    ["native-blocking-dialogue"] = NativeBlockingDialogueContract,
-                    ["native-blink-eyes"] = () => NativeBlinkEyesContract(selectedGameDirectory),
-                    ["native-checkpoint-byte-encoding"] = () => NativeCheckpointByteEncodingContract(selectedGameDirectory),
-                    ["native-global-jump"] = () => NativeGlobalJumpContract(selectedGameDirectory),
-                    ["remaining-scroll-codes"] = RemainingLayerScrollContracts,
-                    ["remaining-character-codes"] = () => RemainingCharacterCodeContract(selectedGameDirectory),
-                    ["native-pcopy-info"] = () => NativeCopyInfoContract(selectedGameDirectory, true),
-                    ["remaining-presentation-codes"] = RemainingPresentationContracts,
-                    ["explicit-scroll-axis-sync"] = ExplicitScrollAndAxisSyncContracts,
-                    ["native-party-move-cancel"] = () => NativeMovementCancellationContract(party: true),
-                    ["native-forced-party-move"] = () => NativePartyMoveContract(selectedGameDirectory, forced: true),
-                    ["remaining-sound-codes"] = RemainingSoundCodeContract,
-                    ["remaining-control-codes"] = RemainingControlCodeContract,
-                    ["remaining-dialogue-codes"] = RemainingDialogueCodeContract,
-                    ["actor-mode"] = AdditionalActorControlAndGuard,
-                    ["native-actor-model-visibility"] = NativeActorModelVisibilityContract,
-                    ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
-                    ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
-                    ["native-party-turn-replacement"] = () => NativePartyTurnReplacementContract(selectedGameDirectory),
-                    ["native-fmovea"] = () => NativeForcedActorMoveContract(selectedGameDirectory),
-                    ["native-self-request"] = () => NativeSelfRequestContract(selectedGameDirectory),
-                    ["message-variable"] = NativeMessageVariableContract,
-                    ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
-                    ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,
-                    ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
-                    ["extended-roster-story-locks"] = () => ExtendedRosterStoryLocks(selectedGameDirectory),
-                    ["native-disc-save"] = () => NativeDiscSaveContract(selectedGameDirectory),
-                    ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
-                    ["native-menu-battle"] = () => NativeMenuBattleContract(selectedGameDirectory),
-                    ["native-party-slots"] = () => NativePartySlotContract(selectedGameDirectory),
-                    ["native-sealedoff"] = () => NativeSealedOffContract(selectedGameDirectory),
-                    ["native-lastin"] = () => NativeLastInContract(selectedGameDirectory),
-                    ["native-swap"] = () => NativeSwapContract(selectedGameDirectory),
-                    ["native-party-reserve-refresh"] = () => NativePartyReserveRefreshContract(selectedGameDirectory),
-                    ["native-train-control-byte"] = () => NativeTrainControlByteContract(selectedGameDirectory),
-                    ["native-base-animation"] = NativeBaseAnimationContract,
-                    ["native-animation-backup"] = () => NativeAnimationBackupContract(selectedGameDirectory),
-                    ["native-field-bars"] = () => NativeFieldBarsContract(selectedGameDirectory),
-                    ["native-actor-visibility"] = () => NativeActorVisibilityContract(selectedGameDirectory),
-                    ["native-party-request-pointer"] = NativePartyRequestPointerContract,
-                    ["native-party-action-observer"] = () => NativePartyActionObservationContract(selectedGameDirectory),
-                    ["native-field-load-reason"] = NativeFieldLoadReasonContract,
-                    ["native-battle-counter-mirrors"] = NativeBattleCounterMirrorContract,
-                    ["native-request-physical-alias"] = () => NativeRequestPhysicalAliasContract(selectedGameDirectory),
-                    ["native-world-entry-memory"] = () => NativeWorldEntryMemoryContract(selectedGameDirectory),
-                    ["native-world-music-selection"] = () => NativeWorldMusicSelectionContract(selectedGameDirectory),
-                    ["native-maccel"] = () => NativeMovementAccelerationContract(),
-                    ["native-reverse-maccel"] = () => NativeMovementAccelerationContract(reverseOnly: true),
-                    ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
-                    ["native-model-initial-checkpoint"] = () => NativeModelInitializationCheckpointContract(selectedGameDirectory),
-                    ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
-                    ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
-                    ["native-split-control-caller"] = () => NativeSplitControlCallerContract(selectedGameDirectory),
-                    ["native-field-party-binding"] = () => NativeCurrentFieldPartyBindingContract(selectedGameDirectory),
-                    ["native-init-trace"] = () => NativeInitializationTraceContract(selectedGameDirectory),
-                    ["native-field-initialization"] = () => NativeSerialFieldInitializationContract(selectedGameDirectory),
-                    ["native-copy-info"] = () => NativeCopyInfoContract(selectedGameDirectory),
-                    ["native-junction"] = () => NativeDreamJunctionContract(selectedGameDirectory),
-                    ["native-economy"] = () => NativeEconomyContract(selectedGameDirectory),
-                    ["native-salary-payout"] = () => NativeSalaryPayoutContract(selectedGameDirectory),
-                    ["native-jump-budget"] = NativeJumpBudgetContract,
-                    ["map-jump-origin"] = NativeMapJumpOriginContract,
-                    ["native-disc-jump"] = () => NativeDiscJumpContract(selectedGameDirectory),
-                    ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
-                    ["cosine-offset-start"] = NativeCosineOffsetExplicitStartContract,
-                    ["physical-motion-words"] = NativePhysicalMotionWordContract,
-                    ["field-media"] = NativeFieldMediaContract,
-                    ["native-place-id"] = NativePlaceIdContract,
-                    ["global-sound"] = NativeGlobalSoundContract,
-                    ["salary-presentation-effects"] = NativeSalaryPresentationEffectsContract,
-                    ["exam-timer"] = NativeExamTimerContract,
-                    ["native-process-clock"] = NativeProcessClockContract,
-                    ["native-field-shake"] = () => NativeFieldShakeContract(selectedGameDirectory),
-                    ["native-direct-scroll"] = NativeCurrentDirectScrollContract,
-                    ["native-scalar-memory"] = NativeScalarMemoryContract,
-                    ["native-signed-long-memory"] = NativeSignedLongMemoryContract,
-                    ["native-facing-hold"] = NativeFacingHoldContract,
-                    ["native-setwitch"] = NativeSetWitchContract,
-                    ["native-spu"] = NativeSpuContract,
-                    ["native-music-replay"] = NativeMusicReplayContract,
-                    ["native-scalar-calculation"] = NativeScalarCalculationContract,
-                    ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
-                    ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,
-                    ["scroll-related"] = () =>
-                    {
-                        NativeDirectScrollAndBoundary(selectedGameDirectory);
-                        NativePartyScrollAndBoundary(selectedGameDirectory);
-                        NativeCosineScrollAndSyncBoundary(selectedGameDirectory);
-                    },
-                    ["dialogue-channels"] = DialogueChannelContract,
-                    ["dialogue-channel-style"] = DialogueChannelStyleContract,
-                    ["native-dialogue-close"] = NativeDialogueCloseContract,
-                    ["native-script-move"] = () => NativeScriptMovementAndBoundary(selectedGameDirectory),
-                    ["native-motion-authority"] = NativeMotionAuthorityContract,
-                    ["native-rfmove"] = () =>
-                    {
-                        NativeAsyncRfmMoveContract(selectedGameDirectory);
-                        NativeScriptMovementAndBoundary(selectedGameDirectory);
-                    },
-                    ["native-player-contacts"] = () => NativePlayerGroundContactContract(selectedGameDirectory),
-                    ["world-transition"] = () => NativeWorldTransitionTransaction(selectedGameDirectory),
-                    ["native-tutorial"] = NativeTutorialContract,
-                    ["minimal-menu"] = () => MinimalMenuCompletionContract(selectedGameDirectory),
-                    ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
-                    ["inactive-party-request"] = () =>
-                    {
-                        using GameAssets assets = new(selectedGameDirectory);
-                        NativeInactivePartyRequestContract(assets);
-                    },
-                    ["inactive-request"] = () => NativeInactiveRequestContract(selectedGameDirectory),
-                    ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
-                    ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
-                    ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
-                    ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
-                    ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
-                    ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
-                    ["dying"] = () => NativeDyingContract(selectedGameDirectory),
-                    ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
-                    ["dress"] = () => NativeDressContract(selectedGameDirectory),
-                    ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
-                    ["native-triple-triad"] = NativeTripleTriadContract,
-                    ["native-howmanycard"] = () => NativeHowManyCardContract(selectedGameDirectory),
-                    ["native-card-location"] = () => NativeCardLocationContract(selectedGameDirectory),
-                    ["native-party-menu-enable"] = NativePartyMenuEnableContract,
-                    ["native-control-readiness"] = () => NativeControlReadinessContract(selectedGameDirectory),
-                    ["key-on"] = () => NativeKeyOnContract(selectedGameDirectory),
-                    ["key-scan"] = () => NativeKeyScanContract(selectedGameDirectory),
-                    ["key-scan2"] = () => NativeKeyScan2Contract(selectedGameDirectory),
-                    ["native-polygon-color"] = () => NativePolygonColorContract(selectedGameDirectory),
-                    ["terminal-commands"] = NativeTerminalCommandsContract,
-                    ["movie-timer"] = NativeMovieTimerClockContract,
-                    ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
-                    ["actor-scroll"] = NativeActorScrollContract,
-                    ["actor-scroll-camera-one"] = NativeActorScrollCameraOneContract,
-                    ["actor-cosine-scroll"] = NativeActorCosineScrollContract,
-                    ["actor-linear-scroll"] = NativeActorLinearScrollContract,
-                    ["scroll-current-lifetime"] = () => NativeScrollCurrentLifetimeContract(selectedGameDirectory),
-                    ["party-linear-scroll"] = NativePartyLinearScrollContract,
-                    ["party-cosine-scroll"] = NativePartyCosineScrollContract,
-                    ["set-placement"] = NativeSetPlacementContract,
-                    ["rcmove"] = NativeRcMoveContract,
-                    ["door-line-toggle"] = NativeDoorLineToggleContract,
-                    ["door-operand-suspension"] = NativeDoorOperandSuspensionContract,
-                    ["native-door-raw-request"] = () => NativeDoorRawRequestContract(selectedGameDirectory),
-                    ["native-door-request-wait"] = () => NativeDoorRequestWaitContract(selectedGameDirectory),
-                    ["native-door-default-frame"] = () => NativeDoorDefaultFrameContract(selectedGameDirectory),
-                    ["native-movie-mask-control"] = () => NativeMovieMaskControlContract(selectedGameDirectory),
-                    ["native-music-status"] = () => NativeMusicStatusContract(selectedGameDirectory),
-                    ["native-actor-info-unknown"] = () => NativeActorInfoUnknownReadContract(selectedGameDirectory),
-                    ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),
-                    ["native-movement-request"] = NativeMovementRequestContract,
-                    ["native-mode0-request-transfer"] = NativeModeZeroRequestTransferContract,
-                    ["native-completed-async-request"] = () =>
-                    {
-                        using GameAssets assets = new(selectedGameDirectory);
-                        NativeCompletedAsyncRequestContract(assets);
-                    },
-                    ["native-single-backup-overwrite"] = NativeSingleBackupOverwriteContract,
-                    ["native-move-cancel"] = () => NativeMovementCancellationContract(),
-                    ["native-push-radius"] = NativePushRadiusContract,
-                    ["native-empty-model-move"] = NativeEmptyModelMovementContract,
-                    ["native-dialogue-busy"] = NativeDialogueBusyContract,
-                    ["native-dialogue-mask"] = NativeDialogueMaskContract,
-                    ["native-only-movement"] = NativeOnlyMovementContract,
-                    ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
-                    ["native-join-move-takeover"] = NativeJoinMoveTakeoverContract,
-                    ["native-facedir"] = NativeFacePointContract,
-                    ["native-facediri"] = () => NativeFaceImmediateContract(selectedGameDirectory),
-                    ["native-facedirp"] = NativePartyFaceContract,
-                    ["native-rfacedirp"] = () => NativePartyFaceContract(true),
-                    ["native-gameover"] = () => NativeGameOverContract(selectedGameDirectory),
-                    ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
-                    ["native-movement-animation"] = () => NativeMovementAnimationContract(selectedGameDirectory),
-                    ["native-face-sync"] = NativeFaceSyncContract,
-                    ["native-rfacedir"] = NativeAsyncFacePointContract,
-                    ["native-rfacedira"] = () => NativeAsyncFaceActorContract(selectedGameDirectory),
-                    ["native-ladder-mode3"] = () => NativeLadderMode3Contract(selectedGameDirectory),
-                    ["native-ladder-mode3-request"] = () => NativeLadderMode3RequestContract(selectedGameDirectory),
-                    ["native-ladder-short-clips"] = NativeLadderShortClipContract,
-                    ["native-particle-set"] = () => NativeParticleSetContract(selectedGameDirectory),
-                    ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
-                    ["native-face-angles"] = FaceDirectionAnglesAndResume,
-                    ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
-                    ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
-                    ["native-join-triangle-carry"] = () => NativeJoinTriangleCarryContract(selectedGameDirectory),
-                    ["native-meaningful-contact"] = NativeMeaningfulContactContract,
-                    ["native-rmovea"] = NativeRmMoveActorContract,
-                    ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
-                    ["negative-cosine-turn"] = NativeNegativeCosineTurnContract,
-                    ["salary-field-movement"] = () => NativeSalaryFieldMovementContract(selectedGameDirectory),
-                    ["seed-rank"] = () => NativeSeeDContract(selectedGameDirectory),
-                    ["party-actor-direction"] = NativePartyActorDirectionContract,
-                    ["player-script-handoff"] = () => NativePlayerScriptHandoffContract(selectedGameDirectory),
-                    ["empty-party-model"] = NativeEmptyPartyModelContract,
-                    ["vibration"] = NativeVibrationContract,
-                    ["actor-shadow"] = NativeActorShadowContract,
-                    ["actor-shadow-form"] = NativeActorShadowFormContract,
-                    ["footstep-pair"] = () => NativeFootstepPairContract(selectedGameDirectory),
-                    ["footstep-audio"] = () => NativeFootstepAudioContract(selectedGameDirectory),
-                    ["footstep-off-all"] = () => NativeFootstepOffAllContract(selectedGameDirectory),
-                    ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
-                    ["native-drawpoint-source-byte"] = () => NativeDrawPointSourceByteContract(selectedGameDirectory),
-                    ["passive-point-reveal"] = () => PassivePointRevealContract(selectedGameDirectory),
-                    ["native-menu-drawpoint-mask"] = () => NativeMenuDrawPointMaskContract(selectedGameDirectory),
-                    ["native-drawpoint-no-eligible"] = () => NativeDrawPointNoEligibleContract(selectedGameDirectory),
-                    ["native-drawpoint-acquisition"] = () => NativeDrawPointAcquisitionContract(selectedGameDirectory),
-                    ["native-drawpoint-corpus"] = () => NativeDrawPointCorpusContract(selectedGameDirectory),
-                    ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
-                    ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
-                    ["music-load"] = NativeMusicLoadContract,
-                    ["battle-music-byte"] = NativeBattleMusicByteContract,
-                    ["native-encounter-control"] = NativeEncounterControlContract,
-                    ["native-music-playback"] = NativeMusicPlaybackContract,
-                    ["choice-music"] = NativeChoiceMusicContract,
-                    ["move-flush"] = () => NativeMoveFlushContract(selectedGameDirectory),
-                    ["native-field-fade"] = NativeFadeNoneContract,
-                    ["native-fade-player-gate"] = NativeFadeBlackPlayerGateContract,
-                    ["native-fade-black-join"] = NativeFadeBlackScriptJoinContract,
-                    ["cosine-scroll-zero"] = NativeLayerZeroCosineScrollContract,
-                    ["native-jump"] = NativeJumpContract,
-                    ["native-jump3"] = NativeJump3Contract,
-                    ["native-party-jump"] = () => NativePartyJumpContract(selectedGameDirectory),
-                    ["native-party-move"] = () => NativePartyMoveContract(selectedGameDirectory),
-                    ["native-party-async-move"] = () => NativePartyMoveContract(selectedGameDirectory, true),
-                    ["native-ladder"] = NativeLadderContract,
-                    ["native-ladder-reverse"] = NativeLadderReverseAndRestoreContract,
-                    ["native-ladder-followers"] = NativeLadderFollowerContract,
-                    ["native-jump-request"] = NativeJumpMovementRequestContract,
-                    ["native-jump-turn"] = () => NativeJumpTurnContract(selectedGameDirectory),
-                    ["native-dollet-jump"] = () => NativeDolletJumpContract(selectedGameDirectory),
-                    ["native-cmove"] = NativeHeldFacingCmoveContract,
-                    ["native-change-party"] = NativeChangePartyContract,
-                    ["party-follow"] = NativePartyBackgroundScrollContract,
-                    ["native-party-linear-turn"] = NativePartyLinearTurnContract,
-                    ["native-directed-linear-turn"] = NativeDirectedLinearTurnContract,
-                    ["native-base-animation-allocation"] = () => NativeBaseAnimationAllocationContract(selectedGameDirectory),
-                    ["native-push-preemption"] = NativeEmptyPushPreemptionContract,
-                    ["push-contact"] = () => GardenNativePushContactBoundary(selectedGameDirectory),
-                    ["follow-on"] = NativeFollowOnContract,
-                    ["native-follow-off"] = () => NativeFollowOffContract(selectedGameDirectory),
-                    ["music-fade"] = NativeMusicFadeContract,
-                    ["music-volume-sync"] = NativeMusicVolumeSyncContract,
-                    ["scroll-ratio"] = NativeScrollRatioContract,
-                    ["all-sound-volume"] = NativeAllSoundVolumeContract,
-                    ["sound-volume"] = NativeSoundVolumeContract,
-                    ["sound-position"] = NativeSoundPositionContract,
-                    ["battle-mode"] = NativeBattleModeContract,
-                    ["native-battle-flag-initialization"] = NativeBattleFlagInitializationContract,
-                    ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
-                    ["sound-stop"] = NativeSoundStopContract,
-                    ["native-talk"] = NativeTalkSelectionContract,
-                    ["native-talk-jump"] = NativeTalkAndJumpContract,
-                    ["previous-field"] = NativePreviousFieldContract,
-                    ["previous-world-entity"] = NativePreviousWorldEntityContract,
-                    ["native-sloped-line"] = () => NativeSlopedLineContract(selectedGameDirectory),
-                    ["native-split-saved-bindings"] = NativeSplitSavedBindingsContract,
-                    ["native-sloped-split"] = () =>
-                    {
-                        NativeSoloSlopedSplitContract(selectedGameDirectory);
-                        GardenNativeSplitBoundary(selectedGameDirectory);
-                    },
-                    ["mlimit"] = () => NativeMovementLimitAndBoundary(selectedGameDirectory),
-                    ["background-loop"] = () => NativeBackgroundLoopAndBoundary(selectedGameDirectory),
-                    ["legacy-line-contact-and-resume"] = () => LineContactAndResume(),
-                    ["legacy-movie-axis-and-fault-resume"] = () => MovieAxisAndFaultResume(),
-                    ["legacy-arrival-initialization-order"] = () => ArrivalInitializationOrder(),
-                    ["legacy-background-loop-resume"] = () => BackgroundLoopResume(),
-                    ["legacy-initial-input-direction-and-restore"] = () => InitialInputDirectionAndRestore(selectedGameDirectory),
-                    ["legacy-player-action-corpus"] = () => PlayerActionCorpus(selectedGameDirectory),
-                    ["legacy-corridor-line-corpus"] = () => CorridorLineCorpus(selectedGameDirectory),
-                    ["legacy-movie-arrival-corpus"] = () => MovieArrivalCorpus(selectedGameDirectory),
-                    ["legacy-classroom-face-fault-retry"] = () => ClassroomFaceFaultRetry(selectedGameDirectory),
-                    ["legacy-classroom-move-cancel-boundary"] = () => ClassroomMoveCancelBoundary(selectedGameDirectory),
-                    ["legacy-move-cancel-target-and-wait"] = () => MoveCancelTargetAndWait(),
-                    ["legacy-set-pc-party-activation"] = () => SetPcPartyActivation(),
-                    ["legacy-party-request-wait-and-guard"] = () => PartyRequestWaitAndGuard(),
-                    ["legacy-classroom-party-request-boundary"] = () => ClassroomPartyRequestBoundary(selectedGameDirectory),
-                    ["legacy-party-turn-angles-and-resume"] = () => PartyTurnAnglesAndResume(),
-                    ["legacy-classroom-party-turn-boundary"] = () => ClassroomPartyTurnBoundary(selectedGameDirectory),
-                    ["legacy-background-module-initial-selection"] = () => BackgroundModuleInitialSelection(selectedGameDirectory),
-                    ["legacy-party-request-no-wait-and-guard"] = () => PartyRequestNoWaitAndGuard(),
-                    ["legacy-classroom-party-request-no-wait-boundary"] = () => ClassroomPartyRequestNoWaitBoundary(selectedGameDirectory),
-                    ["legacy-tutorial-unlock-persistence"] = () => TutorialUnlockPersistence(),
-                    ["legacy-classroom-tutorial-unlock-boundary"] = () => ClassroomTutorialUnlockBoundary(selectedGameDirectory),
-                    ["legacy-classroom-exit-transition"] = () => ClassroomExitTransition(selectedGameDirectory),
-                    ["legacy-map-jump3-packet-and-arrival"] = () => MapJump3PacketAndArrival(),
-                    ["legacy-garden-additional-actor-control"] = () => GardenAdditionalActorControl(selectedGameDirectory),
-                    ["legacy-native-area-request-and-guard"] = () => NativeAreaRequestAndGuard(),
-                    ["legacy-garden-area-request-boundary"] = () => GardenAreaRequestBoundary(selectedGameDirectory),
-                    ["legacy-door-line-gate-and-guard"] = () => DoorLineGateAndGuard(),
-                    ["legacy-inf-movement-and-contact-persistence"] = () => InfMovementAndContactPersistence(),
-                    ["legacy-refresh-party-bindings-and-guard"] = () => RefreshPartyBindingsAndGuard(),
-                    ["legacy-native-actor-compaction-and-null-requests"] = () => NativeActorCompactionAndNullRequests(),
-                    ["legacy-refreshed-party-turn-target"] = () => RefreshedPartyTurnTarget(),
-                    ["legacy-garden-refresh-party-boundary"] = () => GardenRefreshPartyBoundary(selectedGameDirectory),
-                    ["legacy-garden-join-boundary"] = () => GardenJoinBoundary(selectedGameDirectory),
-                    ["legacy-garden-harmless-party-contact-boundary"] = () => GardenHarmlessPartyContactBoundary(selectedGameDirectory),
-                    ["legacy-garden-automatic-field-party-load"] = () => GardenAutomaticFieldPartyLoad(selectedGameDirectory),
-                    ["legacy-garden-global-sound-boundary"] = () => GardenGlobalSoundBoundary(selectedGameDirectory),
-                    ["legacy-native-party-request-start-and-guard"] = () => NativePartyRequestStartAndGuard(),
-                    ["legacy-garden-party-request-start-boundary"] = () => GardenPartyRequestStartBoundary(selectedGameDirectory),
-                    ["legacy-garden-landing-join-boundary"] = () => GardenLandingJoinBoundary(selectedGameDirectory),
-                    ["legacy-garden-fractional-leader-join-boundary"] = () => GardenFractionalLeaderJoinBoundary(selectedGameDirectory),
-                    ["legacy-native-party-power-and-flag-aliases"] = () => NativePartyPowerAndFlagAliases(selectedGameDirectory),
-                    ["legacy-native-background-scroll-and-guard"] = () => NativeBackgroundScrollAndGuard(selectedGameDirectory),
-                    ["legacy-garden-slope-join-boundary"] = () => GardenSlopeJoinBoundary(selectedGameDirectory),
-                    ["legacy-garden-native-player-movement-boundary"] = () => GardenNativePlayerMovementBoundary(selectedGameDirectory),
-                    ["legacy-native-division-and-remainder"] = () => NativeDivisionAndRemainder(),
-                    ["legacy-native-background-animation-timing"] = () => NativeBackgroundAnimationTiming(),
-                    ["legacy-infirmary-curtain-cycles"] = () => InfirmaryCurtainCycles(selectedGameDirectory),
-                    ["legacy-front-infirmary-curtain-cycles"] = () => FrontInfirmaryCurtainCycles(selectedGameDirectory),
-                    ["legacy-installed-corpus"] = () => Require(RunInstalledCorpus(selectedGameDirectory, false) == RunInstalledCorpus(selectedGameDirectory, true), "Restoring animation/dialogue waits changed the final VM state or executed path.")
-                };
-                if (args.Length == 1 && args[0] == "--list")
+                    NativeDirectScrollAndBoundary(selectedGameDirectory);
+                    NativePartyScrollAndBoundary(selectedGameDirectory);
+                    NativeCosineScrollAndSyncBoundary(selectedGameDirectory);
+                },
+                ["dialogue-channels"] = DialogueChannelContract,
+                ["dialogue-channel-style"] = DialogueChannelStyleContract,
+                ["native-dialogue-close"] = NativeDialogueCloseContract,
+                ["native-script-move"] = () => NativeScriptMovementAndBoundary(selectedGameDirectory),
+                ["native-motion-authority"] = NativeMotionAuthorityContract,
+                ["native-rfmove"] = () =>
                 {
-                    foreach (string name in scenarios.Keys)
-                    {
-                        Console.WriteLine(name);
-                    }
-                    return 0;
+                    NativeAsyncRfmMoveContract(selectedGameDirectory);
+                    NativeScriptMovementAndBoundary(selectedGameDirectory);
+                },
+                ["native-player-contacts"] = () => NativePlayerGroundContactContract(selectedGameDirectory),
+                ["world-transition"] = () => NativeWorldTransitionTransaction(selectedGameDirectory),
+                ["native-tutorial"] = NativeTutorialContract,
+                ["minimal-menu"] = () => MinimalMenuCompletionContract(selectedGameDirectory),
+                ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
+                ["inactive-party-request"] = () =>
+                {
+                    using GameAssets assets = new(selectedGameDirectory);
+                    NativeInactivePartyRequestContract(assets);
+                },
+                ["inactive-request"] = () => NativeInactiveRequestContract(selectedGameDirectory),
+                ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
+                ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
+                ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
+                ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
+                ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
+                ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
+                ["dying"] = () => NativeDyingContract(selectedGameDirectory),
+                ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
+                ["dress"] = () => NativeDressContract(selectedGameDirectory),
+                ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
+                ["native-triple-triad"] = NativeTripleTriadContract,
+                ["native-howmanycard"] = () => NativeHowManyCardContract(selectedGameDirectory),
+                ["native-card-location"] = () => NativeCardLocationContract(selectedGameDirectory),
+                ["native-party-menu-enable"] = NativePartyMenuEnableContract,
+                ["native-control-readiness"] = () => NativeControlReadinessContract(selectedGameDirectory),
+                ["key-on"] = () => NativeKeyOnContract(selectedGameDirectory),
+                ["key-scan"] = () => NativeKeyScanContract(selectedGameDirectory),
+                ["key-scan2"] = () => NativeKeyScan2Contract(selectedGameDirectory),
+                ["native-polygon-color"] = () => NativePolygonColorContract(selectedGameDirectory),
+                ["terminal-commands"] = NativeTerminalCommandsContract,
+                ["movie-timer"] = NativeMovieTimerClockContract,
+                ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
+                ["actor-scroll"] = NativeActorScrollContract,
+                ["actor-scroll-camera-one"] = NativeActorScrollCameraOneContract,
+                ["actor-cosine-scroll"] = NativeActorCosineScrollContract,
+                ["actor-linear-scroll"] = NativeActorLinearScrollContract,
+                ["scroll-current-lifetime"] = () => NativeScrollCurrentLifetimeContract(selectedGameDirectory),
+                ["party-linear-scroll"] = NativePartyLinearScrollContract,
+                ["party-cosine-scroll"] = NativePartyCosineScrollContract,
+                ["set-placement"] = NativeSetPlacementContract,
+                ["rcmove"] = NativeRcMoveContract,
+                ["door-line-toggle"] = NativeDoorLineToggleContract,
+                ["door-operand-suspension"] = NativeDoorOperandSuspensionContract,
+                ["native-door-raw-request"] = () => NativeDoorRawRequestContract(selectedGameDirectory),
+                ["native-door-request-wait"] = () => NativeDoorRequestWaitContract(selectedGameDirectory),
+                ["native-door-default-frame"] = () => NativeDoorDefaultFrameContract(selectedGameDirectory),
+                ["native-movie-mask-control"] = () => NativeMovieMaskControlContract(selectedGameDirectory),
+                ["native-music-status"] = () => NativeMusicStatusContract(selectedGameDirectory),
+                ["native-actor-info-unknown"] = () => NativeActorInfoUnknownReadContract(selectedGameDirectory),
+                ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),
+                ["native-movement-request"] = NativeMovementRequestContract,
+                ["native-mode0-request-transfer"] = NativeModeZeroRequestTransferContract,
+                ["native-completed-async-request"] = () =>
+                {
+                    using GameAssets assets = new(selectedGameDirectory);
+                    NativeCompletedAsyncRequestContract(assets);
+                },
+                ["native-single-backup-overwrite"] = NativeSingleBackupOverwriteContract,
+                ["native-move-cancel"] = () => NativeMovementCancellationContract(),
+                ["native-push-radius"] = NativePushRadiusContract,
+                ["native-empty-model-move"] = NativeEmptyModelMovementContract,
+                ["native-dialogue-busy"] = NativeDialogueBusyContract,
+                ["native-dialogue-mask"] = NativeDialogueMaskContract,
+                ["native-only-movement"] = NativeOnlyMovementContract,
+                ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
+                ["native-join-move-takeover"] = NativeJoinMoveTakeoverContract,
+                ["native-facedir"] = NativeFacePointContract,
+                ["native-facediri"] = () => NativeFaceImmediateContract(selectedGameDirectory),
+                ["native-facedirp"] = NativePartyFaceContract,
+                ["native-rfacedirp"] = () => NativePartyFaceContract(true),
+                ["native-gameover"] = () => NativeGameOverContract(selectedGameDirectory),
+                ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
+                ["native-movement-animation"] = () => NativeMovementAnimationContract(selectedGameDirectory),
+                ["native-face-sync"] = NativeFaceSyncContract,
+                ["native-rfacedir"] = NativeAsyncFacePointContract,
+                ["native-rfacedira"] = () => NativeAsyncFaceActorContract(selectedGameDirectory),
+                ["native-ladder-mode3"] = () => NativeLadderMode3Contract(selectedGameDirectory),
+                ["native-ladder-mode3-request"] = () => NativeLadderMode3RequestContract(selectedGameDirectory),
+                ["native-ladder-short-clips"] = NativeLadderShortClipContract,
+                ["native-particle-set"] = () => NativeParticleSetContract(selectedGameDirectory),
+                ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
+                ["native-face-angles"] = FaceDirectionAnglesAndResume,
+                ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
+                ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
+                ["native-join-triangle-carry"] = () => NativeJoinTriangleCarryContract(selectedGameDirectory),
+                ["native-meaningful-contact"] = NativeMeaningfulContactContract,
+                ["native-rmovea"] = NativeRmMoveActorContract,
+                ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
+                ["negative-cosine-turn"] = NativeNegativeCosineTurnContract,
+                ["salary-field-movement"] = () => NativeSalaryFieldMovementContract(selectedGameDirectory),
+                ["seed-rank"] = () => NativeSeeDContract(selectedGameDirectory),
+                ["party-actor-direction"] = NativePartyActorDirectionContract,
+                ["player-script-handoff"] = () => NativePlayerScriptHandoffContract(selectedGameDirectory),
+                ["empty-party-model"] = NativeEmptyPartyModelContract,
+                ["vibration"] = NativeVibrationContract,
+                ["actor-shadow"] = NativeActorShadowContract,
+                ["actor-shadow-form"] = NativeActorShadowFormContract,
+                ["footstep-pair"] = () => NativeFootstepPairContract(selectedGameDirectory),
+                ["footstep-audio"] = () => NativeFootstepAudioContract(selectedGameDirectory),
+                ["footstep-off-all"] = () => NativeFootstepOffAllContract(selectedGameDirectory),
+                ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
+                ["native-drawpoint-source-byte"] = () => NativeDrawPointSourceByteContract(selectedGameDirectory),
+                ["passive-point-reveal"] = () => PassivePointRevealContract(selectedGameDirectory),
+                ["native-menu-drawpoint-mask"] = () => NativeMenuDrawPointMaskContract(selectedGameDirectory),
+                ["native-drawpoint-no-eligible"] = () => NativeDrawPointNoEligibleContract(selectedGameDirectory),
+                ["native-drawpoint-acquisition"] = () => NativeDrawPointAcquisitionContract(selectedGameDirectory),
+                ["native-drawpoint-corpus"] = () => NativeDrawPointCorpusContract(selectedGameDirectory),
+                ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
+                ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
+                ["music-load"] = NativeMusicLoadContract,
+                ["battle-music-byte"] = NativeBattleMusicByteContract,
+                ["native-encounter-control"] = NativeEncounterControlContract,
+                ["native-music-playback"] = NativeMusicPlaybackContract,
+                ["choice-music"] = NativeChoiceMusicContract,
+                ["move-flush"] = () => NativeMoveFlushContract(selectedGameDirectory),
+                ["native-field-fade"] = NativeFadeNoneContract,
+                ["native-fade-player-gate"] = NativeFadeBlackPlayerGateContract,
+                ["native-fade-black-join"] = NativeFadeBlackScriptJoinContract,
+                ["cosine-scroll-zero"] = NativeLayerZeroCosineScrollContract,
+                ["native-jump"] = NativeJumpContract,
+                ["native-jump3"] = NativeJump3Contract,
+                ["native-party-jump"] = () => NativePartyJumpContract(selectedGameDirectory),
+                ["native-party-move"] = () => NativePartyMoveContract(selectedGameDirectory),
+                ["native-party-async-move"] = () => NativePartyMoveContract(selectedGameDirectory, true),
+                ["native-ladder"] = NativeLadderContract,
+                ["native-ladder-reverse"] = NativeLadderReverseAndRestoreContract,
+                ["native-ladder-followers"] = NativeLadderFollowerContract,
+                ["native-jump-request"] = NativeJumpMovementRequestContract,
+                ["native-jump-turn"] = () => NativeJumpTurnContract(selectedGameDirectory),
+                ["native-dollet-jump"] = () => NativeDolletJumpContract(selectedGameDirectory),
+                ["native-cmove"] = NativeHeldFacingCmoveContract,
+                ["native-change-party"] = NativeChangePartyContract,
+                ["party-follow"] = NativePartyBackgroundScrollContract,
+                ["native-party-linear-turn"] = NativePartyLinearTurnContract,
+                ["native-directed-linear-turn"] = NativeDirectedLinearTurnContract,
+                ["native-base-animation-allocation"] = () => NativeBaseAnimationAllocationContract(selectedGameDirectory),
+                ["native-push-preemption"] = NativeEmptyPushPreemptionContract,
+                ["push-contact"] = () => GardenNativePushContactBoundary(selectedGameDirectory),
+                ["follow-on"] = NativeFollowOnContract,
+                ["native-follow-off"] = () => NativeFollowOffContract(selectedGameDirectory),
+                ["music-fade"] = NativeMusicFadeContract,
+                ["music-volume-sync"] = NativeMusicVolumeSyncContract,
+                ["scroll-ratio"] = NativeScrollRatioContract,
+                ["all-sound-volume"] = NativeAllSoundVolumeContract,
+                ["sound-volume"] = NativeSoundVolumeContract,
+                ["sound-position"] = NativeSoundPositionContract,
+                ["battle-mode"] = NativeBattleModeContract,
+                ["native-battle-flag-initialization"] = NativeBattleFlagInitializationContract,
+                ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
+                ["sound-stop"] = NativeSoundStopContract,
+                ["native-talk"] = NativeTalkSelectionContract,
+                ["native-talk-jump"] = NativeTalkAndJumpContract,
+                ["previous-field"] = NativePreviousFieldContract,
+                ["previous-world-entity"] = NativePreviousWorldEntityContract,
+                ["native-sloped-line"] = () => NativeSlopedLineContract(selectedGameDirectory),
+                ["native-split-saved-bindings"] = NativeSplitSavedBindingsContract,
+                ["native-sloped-split"] = () =>
+                {
+                    NativeSoloSlopedSplitContract(selectedGameDirectory);
+                    GardenNativeSplitBoundary(selectedGameDirectory);
+                },
+                ["mlimit"] = () => NativeMovementLimitAndBoundary(selectedGameDirectory),
+                ["background-loop"] = () => NativeBackgroundLoopAndBoundary(selectedGameDirectory),
+                ["legacy-line-contact-and-resume"] = () => LineContactAndResume(),
+                ["legacy-movie-axis-and-fault-resume"] = () => MovieAxisAndFaultResume(),
+                ["legacy-arrival-initialization-order"] = () => ArrivalInitializationOrder(),
+                ["legacy-background-loop-resume"] = () => BackgroundLoopResume(),
+                ["legacy-initial-input-direction-and-restore"] = () => InitialInputDirectionAndRestore(selectedGameDirectory),
+                ["legacy-player-action-corpus"] = () => PlayerActionCorpus(selectedGameDirectory),
+                ["legacy-corridor-line-corpus"] = () => CorridorLineCorpus(selectedGameDirectory),
+                ["legacy-movie-arrival-corpus"] = () => MovieArrivalCorpus(selectedGameDirectory),
+                ["legacy-classroom-face-fault-retry"] = () => ClassroomFaceFaultRetry(selectedGameDirectory),
+                ["legacy-classroom-move-cancel-boundary"] = () => ClassroomMoveCancelBoundary(selectedGameDirectory),
+                ["legacy-move-cancel-target-and-wait"] = () => MoveCancelTargetAndWait(),
+                ["legacy-set-pc-party-activation"] = () => SetPcPartyActivation(),
+                ["legacy-party-request-wait-and-guard"] = () => PartyRequestWaitAndGuard(),
+                ["legacy-classroom-party-request-boundary"] = () => ClassroomPartyRequestBoundary(selectedGameDirectory),
+                ["legacy-party-turn-angles-and-resume"] = () => PartyTurnAnglesAndResume(),
+                ["legacy-classroom-party-turn-boundary"] = () => ClassroomPartyTurnBoundary(selectedGameDirectory),
+                ["legacy-background-module-initial-selection"] = () => BackgroundModuleInitialSelection(selectedGameDirectory),
+                ["legacy-party-request-no-wait-and-guard"] = () => PartyRequestNoWaitAndGuard(),
+                ["legacy-classroom-party-request-no-wait-boundary"] = () => ClassroomPartyRequestNoWaitBoundary(selectedGameDirectory),
+                ["legacy-tutorial-unlock-persistence"] = () => TutorialUnlockPersistence(),
+                ["legacy-classroom-tutorial-unlock-boundary"] = () => ClassroomTutorialUnlockBoundary(selectedGameDirectory),
+                ["legacy-classroom-exit-transition"] = () => ClassroomExitTransition(selectedGameDirectory),
+                ["legacy-map-jump3-packet-and-arrival"] = () => MapJump3PacketAndArrival(),
+                ["legacy-garden-additional-actor-control"] = () => GardenAdditionalActorControl(selectedGameDirectory),
+                ["legacy-native-area-request-and-guard"] = () => NativeAreaRequestAndGuard(),
+                ["legacy-garden-area-request-boundary"] = () => GardenAreaRequestBoundary(selectedGameDirectory),
+                ["legacy-door-line-gate-and-guard"] = () => DoorLineGateAndGuard(),
+                ["legacy-inf-movement-and-contact-persistence"] = () => InfMovementAndContactPersistence(),
+                ["legacy-refresh-party-bindings-and-guard"] = () => RefreshPartyBindingsAndGuard(),
+                ["legacy-native-actor-compaction-and-null-requests"] = () => NativeActorCompactionAndNullRequests(),
+                ["legacy-refreshed-party-turn-target"] = () => RefreshedPartyTurnTarget(),
+                ["legacy-garden-refresh-party-boundary"] = () => GardenRefreshPartyBoundary(selectedGameDirectory),
+                ["legacy-garden-join-boundary"] = () => GardenJoinBoundary(selectedGameDirectory),
+                ["legacy-garden-harmless-party-contact-boundary"] = () => GardenHarmlessPartyContactBoundary(selectedGameDirectory),
+                ["legacy-garden-automatic-field-party-load"] = () => GardenAutomaticFieldPartyLoad(selectedGameDirectory),
+                ["legacy-garden-global-sound-boundary"] = () => GardenGlobalSoundBoundary(selectedGameDirectory),
+                ["legacy-native-party-request-start-and-guard"] = () => NativePartyRequestStartAndGuard(),
+                ["legacy-garden-party-request-start-boundary"] = () => GardenPartyRequestStartBoundary(selectedGameDirectory),
+                ["legacy-garden-landing-join-boundary"] = () => GardenLandingJoinBoundary(selectedGameDirectory),
+                ["legacy-garden-fractional-leader-join-boundary"] = () => GardenFractionalLeaderJoinBoundary(selectedGameDirectory),
+                ["legacy-native-party-power-and-flag-aliases"] = () => NativePartyPowerAndFlagAliases(selectedGameDirectory),
+                ["legacy-native-background-scroll-and-guard"] = () => NativeBackgroundScrollAndGuard(selectedGameDirectory),
+                ["legacy-garden-slope-join-boundary"] = () => GardenSlopeJoinBoundary(selectedGameDirectory),
+                ["legacy-garden-native-player-movement-boundary"] = () => GardenNativePlayerMovementBoundary(selectedGameDirectory),
+                ["legacy-native-division-and-remainder"] = () => NativeDivisionAndRemainder(),
+                ["legacy-native-background-animation-timing"] = () => NativeBackgroundAnimationTiming(),
+                ["legacy-infirmary-curtain-cycles"] = () => InfirmaryCurtainCycles(selectedGameDirectory),
+                ["legacy-front-infirmary-curtain-cycles"] = () => FrontInfirmaryCurtainCycles(selectedGameDirectory),
+                ["legacy-installed-corpus"] = () => Require(RunInstalledCorpus(selectedGameDirectory, false) == RunInstalledCorpus(selectedGameDirectory, true), "Restoring animation/dialogue waits changed the final VM state or executed path.")
+            };
+            if (args.Length == 1 && args[0] == "--list")
+            {
+                foreach (string name in scenarios.Keys)
+                {
+                    Console.WriteLine(name);
                 }
-                if (args.Length < 2 || args[0] != "--scenario")
-                {
-                    int failed = 0;
-                    int skipped = 0;
-                    foreach ((string name, Action scenario) in scenarios)
-                    {
-                        try
-                        {
-                            scenario();
-                            Console.WriteLine($"Event scenario {name} passed.");
-                        }
-                        catch (OptionalTestResourceUnavailableException exception)
-                        {
-                            skipped++;
-                            Console.WriteLine($"Event scenario {name}: optional fixture coverage skipped: {exception.Message}");
-                        }
-                        catch (Exception exception)
-                        {
-                            failed++;
-                            Console.Error.WriteLine($"Event scenario {name} failed: {exception}");
-                        }
-                    }
-                    Console.WriteLine($"Event scenarios: {scenarios.Count - failed - skipped} passed, {skipped} optional fixture skips, {failed} failed.");
-                    return failed == 0 ? 0 : 1;
-                }
-                if (!scenarios.TryGetValue(args[1], out Action? run))
-                {
-                    throw new ArgumentException($"Unknown scenario '{args[1]}'. Available: {string.Join(", ", scenarios.Keys)}.");
-                }
-                run();
-                Console.WriteLine($"Event scenario {args[1]} passed.");
                 return 0;
             }
-
+            if (args.Length < 2 || args[0] != "--scenario")
+            {
+                int failed = 0;
+                int skipped = 0;
+                foreach ((string name, Action scenario) in scenarios)
+                {
+                    try
+                    {
+                        scenario();
+                        Console.WriteLine($"Event scenario {name} passed.");
+                    }
+                    catch (OptionalTestResourceUnavailableException exception)
+                    {
+                        skipped++;
+                        Console.WriteLine($"Event scenario {name}: optional fixture coverage skipped: {exception.Message}");
+                    }
+                    catch (Exception exception)
+                    {
+                        failed++;
+                        Console.Error.WriteLine($"Event scenario {name} failed: {exception}");
+                    }
+                }
+                Console.WriteLine($"Event scenarios: {scenarios.Count - failed - skipped} passed, {skipped} optional fixture skips, {failed} failed.");
+                return failed == 0 ? 0 : 1;
+            }
+            if (!scenarios.TryGetValue(args[1], out Action? run))
+            {
+                throw new ArgumentException($"Unknown scenario '{args[1]}'. Available: {string.Join(", ", scenarios.Keys)}.");
+            }
+            run();
+            Console.WriteLine($"Event scenario {args[1]} passed.");
+            return 0;
         }
         catch (OptionalTestResourceUnavailableException exception)
         {
@@ -530,8 +527,8 @@ internal static partial class Program
         int alternateIndex = Array.IndexOf(alternate.Dialogues, other);
         Require(first.Dialogues[initialIndex + 1].MessageId == 3, "The first displayed AASK answer did not take its original result-zero message branch.");
         Require(alternate.Dialogues[alternateIndex + 1].MessageId == 5, "The second displayed AASK answer did not take its original result-one message branch.");
-        Require(first.Decisions.Any(decision => decision.Predicate == "(B[1024] == 0)" && decision.ConditionPassed) && alternate.Decisions.Any(decision => decision.Predicate == "(B[1024] == 0)" && !decision.ConditionPassed), "Choosing the two visible answers failed to produce distinct source predicate outcomes.");
-        Require(first.Decisions.Any(decision => decision.Predicate.Contains("W[256]")), "Branch tracing lost the source story predicate.");
+        Require(first.Decisions.Any(decision => decision.Predicate == "(native[1024/1] == 0)" && decision.ConditionPassed) && alternate.Decisions.Any(decision => decision.Predicate == "(native[1024/1] == 0)" && !decision.ConditionPassed), "Choosing the two visible answers failed to produce distinct source predicate outcomes.");
+        Require(first.Decisions.Any(decision => decision.Predicate.Contains("native[256/2]")), "Branch tracing lost the source story predicate.");
         Require(first.Coverage.Any(branch => branch.TrueCount > 0 && branch.FalseCount > 0), "The actual revisit did not observe both outcomes of any source condition.");
         Require(first.Decisions.All(decision => decision.ActionIndex > 0 && decision.Operation >= 0), "A branch decision lost its source/action evidence.");
         File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.14.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage }));
@@ -546,6 +543,14 @@ internal static partial class Program
         GameSession session = host.Session;
         EventEngine engine = host.Engine;
         List<object> commandTrace = [];
+        List<ScriptCommand> doorEntries = [];
+        engine.CommandExecuted += command =>
+        {
+            if (command.FieldId == 229 && command.Name == nameof(Jsm.Opcode.LBL) && (command.ObjectId == 10 && command.ScriptId == 59 || command.ObjectId == 11 && command.ScriptId == 67))
+            {
+                doorEntries.Add(command);
+            }
+        };
         if (continueCorridor)
         {
             engine.CommandExecuted += command =>
@@ -559,6 +564,7 @@ internal static partial class Program
         List<int> fields = [];
         int loadedField = -1;
         bool chosen = false;
+        bool corridorCentered = false;
         FieldAssets? field = null;
         void LoadPendingField()
         {
@@ -572,7 +578,7 @@ internal static partial class Program
             }
         }
         {
-            for (int index = 0; index < 200; index++)
+            for (int index = 0; index < 6000; index++)
             {
                 if (continueTo232 ? session.State.FieldId == 232 : continueCorridor && session.IsMoviePlaying && session.State.MovieIndex == 0)
                 {
@@ -584,7 +590,7 @@ internal static partial class Program
                 {
                     action = new PlayerAction(PlayerActionKind.SkipMovie);
                 }
-                else if (engine.CurrentDialogue is DialogueState { CanConfirm: true } dialogue)
+                else if (engine.CurrentDialogue is DialogueState { CanConfirm: true } dialogue && dialogue.NativeWindow is not { Progress: < 4096 } && dialogue.NativeWindow?.Text is not { Ready: false })
                 {
                     if (dialogue.FirstChoice is int firstChoice)
                     {
@@ -601,15 +607,21 @@ internal static partial class Program
                 {
                     if (continueCorridor)
                     {
-                        Require(host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 30)).Accepted, "Natural corridor movement was rejected.");
+                        if (!corridorCentered)
+                        {
+                            Require(host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1, Frames: 2)).Accepted, "Native corridor centering was rejected.");
+                            corridorCentered = true;
+                        }
+                        Require(host.World.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: 1, Frames: 30)).Accepted, "Natural corridor movement was rejected.");
                         continue;
                     }
+                    Require(host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1, Frames: 2)).Accepted, "Native corridor centering was rejected.");
                     ActorState player = engine.Actors.First(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-                    System.Numerics.Vector2 before = new(player.X, player.Y);
-                    PlayerActionResult movement = host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 1));
+                    FieldFixedPosition before = engine.Scene.NativePlayerPosition!;
+                    FieldNativeMovementResult expectedStep = FieldNativeMovementProbe.Resolve(field!.Walkmesh, new FieldNativeMovementRequest(player.WalkmeshTriangle, before.X, before.Y, before.Z, 160, checked((short)player.MovementSpeed), checked((ushort)player.PushRadius), true, false, engine.Scene.NativePlayerEarlyRetryState!.Value, true), engine.Scene.LockedTriangles);
+                    PlayerActionResult movement = host.World.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1, Vertical: -1));
                     Require(movement.Accepted && movement.FramesAdvanced == 1, "Ordinary corridor movement did not advance exactly one tick.");
-                    float distance = System.Numerics.Vector2.Distance(before, new(player.X, player.Y));
-                    Require(distance > 0 && Math.Abs(distance - player.MovementSpeed / 256f) < 0.001f, "Diagonal movement did not preserve original MSPEED magnitude.");
+                    Require(expectedStep.Status == FieldNativeMovementStatus.Accepted && engine.Scene.NativePlayerPosition == new FieldFixedPosition(expectedStep.FixedX, expectedStep.FixedY, expectedStep.FixedZ) && player.WalkmeshTriangle == expectedStep.Triangle && player.Direction == expectedStep.Direction && engine.Scene.NativePlayerPosition != before, "Diagonal movement did not preserve the native fixed-point speed, trigonometric proposal and ground result.");
                     break;
                 }
                 else
@@ -623,33 +635,31 @@ internal static partial class Program
                     engine.Step();
                 }
                 Require(applied.Accepted, "The real script chain rejected a normal player action.");
-                if (continueCorridor && applied.Detail is not null)
-                {
-                    File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.16.json"), engine.Capture().GetRawText());
-                    File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.17.json"), System.Text.Json.JsonSerializer.Serialize(commandTrace));
-                    throw new InvalidOperationException($"Corridor wait budget exhausted at frame {engine.Frame}; checkpoint persisted for source diagnosis.");
-                }
+
             }
         }
         Require(fields.SequenceEqual(new[] { 74, 180, 181, 180, 229 }) && (continueTo232 ? session.State.FieldArrival == new FieldTransition(232, 1389, -3580, 50, 0) : continueCorridor ? session.IsMoviePlaying && session.State.MovieIndex == 0 : engine.IsUserControlEnabled), $"Action traversal failed to reach its genuine next trigger: fields {string.Join(',', fields)}, field{engine.FieldId}/frame{engine.Frame}, trigger {engine.NextTrigger}, dialogue {engine.CurrentDialogue}.");
         Require(engine.Frame > 1 && engine.FieldId == 229, "Action traversal ended before corridor initialization/movement.");
-        return new ActionCorpus(engine.Capture().GetRawText(), engine.ActionLog.ToArray(), engine.Decisions.ToArray(), engine.DialogueOutcomes.ToArray(), engine.Coverage.ToArray(), engine.LineCrossings.ToArray(), session.State);
+        return new ActionCorpus(engine.Capture().GetRawText(), engine.ActionLog.ToArray(), engine.Decisions.ToArray(), engine.DialogueOutcomes.ToArray(), engine.Coverage.ToArray(), engine.LineCrossings.ToArray(), session.State, doorEntries.ToArray());
     }
 
     private static void CorridorLineCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false, continueCorridor: true);
-        Require(first.Lines.Select(line => line.ObjectId).SequenceEqual(new[] { 10, 11 }), "Natural movement did not execute both original corridor crossing scripts exactly once.");
-        Require(first.Lines.Select(line => line.ScriptId).SequenceEqual(new[] { 59, 67 }), "Crossing dispatch used the wrong source scripts.");
+        Require(first.DoorEntries.Select(command => command.ObjectId).SequenceEqual(new[] { 10, 11 }), "Natural movement did not enter both original corridor contact scripts exactly once.");
+        Require(first.DoorEntries.Select(command => command.ScriptId).SequenceEqual(new[] { 59, 67 }), "Native entry dispatch used the wrong source scripts.");
+        using GameAssets assets = new(gameDirectory);
+        JsmProgram corridor = JsmProgram.Read(assets.LoadField(229).Jsm);
+        Require(corridor.Objects[10].Scripts[7].Id == 59 && corridor.Objects[11].Scripts[7].Id == 67, "Corridor contact scripts no longer match their original native entry slots.");
         Require(first.Dialogues.Any(dialogue => dialogue.FieldId == 229), "Crossing failed to reach the original corridor conversations.");
         File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.18.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines }));
-        Console.WriteLine($"Natural corridor corpus: {first.Actions.Length} ordinary actions, lines 10/59 and 11/67 -> original movie0 trigger; native actions passed.");
+        Console.WriteLine($"Natural corridor corpus: {first.Actions.Length} ordinary actions, native entries10/59 and11/67 -> original movie0 trigger; native actions passed.");
     }
 
     private static void MovieArrivalCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false, continueCorridor: true, continueTo232: true);
-        Require(first.Decisions.Any(item => item.Predicate.Contains("L[80]") && item.ConditionPassed), "Decoded terminal frame did not satisfy the original movie-frame predicate.");
+        Require(first.Decisions.Any(item => item.Predicate.Contains("native[80/4]") && item.ConditionPassed), "Decoded terminal frame did not satisfy the original movie-frame predicate.");
         File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.19.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines, Arrival = new FieldTransition(232, 1389, -3580, 50, 0) }));
         using GameAssets assets = new(gameDirectory);
         FieldAssets source = assets.LoadField(229);
@@ -704,7 +714,7 @@ internal static partial class Program
         Require(spawned && reachedTrigger && arrivalEngine.LastFault is null, "Actual classroom setup failed to reach its first genuine dialogue/control trigger.");
         Require(arrivalEngine.Scene.CameraIndex == 1 && arrivalEngine.Scene.BackgroundShadeLoops.ContainsKey(3) && arrivalEngine.Scene.PartyTrace?.FirstTrail.Length == 64, "Classroom camera, module shade loop or native party trace initialization was lost.");
         Require(arrivalEngine.BackgroundStates[0] == 1 && arrivalEngine.BackgroundStates[6] == -1, "Actual classroom init lost its selected camera background or displayed never-selected desk sprites.");
-        Require(arrivalEngine.Scene.Party.SequenceEqual([0]) && new[] { 3, 6, 10, 12, 13 }.All(index => !arrivalEngine.Actors[index].Active), "Actual classroom SETPC retained absent party placeholders as active actors.");
+        Require(arrivalEngine.Scene.Party.SequenceEqual([0, 255, 255]) && new[] { 3, 6, 10, 12, 13 }.All(index => !arrivalEngine.Actors[index].Active), "Actual classroom SETPC retained absent party placeholders as active actors.");
         Require(arrivalEngine.Actors[1].Active && arrivalEngine.Actors[1].CharacterId == 0 && arrivalEngine.Actors[11].Active && arrivalEngine.Actors[11].CharacterId == -2, "Classroom party activation disabled Squall or the separate Quistis NPC.");
         var arrivalSnapshot = arrivalEngine.Capture();
         arrivalEngine.Restore(arrivalSnapshot);
@@ -1244,26 +1254,6 @@ internal static partial class Program
         Console.WriteLine($"MAPJUMP3: ordinary Move(0,-1,1)2420 -> field139/bg2f_2 XY(-3172,-5705) triangle130 dir72 extra8341; destination planeZ={spawn.Z}; saved fault retry preserves source operands.");
     }
 
-    private static void MapJump3PacketAndArrival()
-    {
-        GameSession session = new(new GameState { Scene = SceneKind.Field });
-        EventEngine engine = new(session);
-        byte[] departure = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65636), (Jsm.Opcode.PSHN_L, 65526), (Jsm.Opcode.PSHN_L, -65516), (Jsm.Opcode.PSHN_L, 98305), (Jsm.Opcode.PSHN_L, 288), (Jsm.Opcode.MAPJUMP3, 50), (Jsm.Opcode.PSHN_L, 999), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
-        engine.LoadField(101, departure, []);
-        engine.Step();
-        FieldTransition arrival = new(100, -10, 20, 50, 32, -32767);
-        Require(session.State.FieldArrival == arrival && !session.State.Variables.ContainsKey(512), "MAPJUMP3 packet truncation or stop-before-next-instruction failed.");
-        byte[] destination = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 111), (Jsm.Opcode.PSHN_L, 222), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0));
-        engine.ResolveFieldArrival = request => new WalkmeshPosition(new System.Numerics.Vector3(request.X, request.Y, -7), request.Triangle);
-        engine.LoadField(100, destination, [], arrival);
-        var pending = engine.Capture();
-        Require(pending.GetProperty("PendingArrival").GetProperty("NativeExtraWord").GetInt32() == -32767, "Pending arrival discarded its native packet word.");
-        engine.Restore(pending);
-        Require(pending.GetRawText() == engine.Capture().GetRawText(), "Pending MAPJUMP3 arrival changed during restore.");
-        engine.Step();
-        Require(engine.Actors[0].X == -10 && engine.Actors[0].Y == 20 && engine.Actors[0].Z == -7 && engine.Actors[0].WalkmeshTriangle == 50 && engine.Actors[0].Direction == 32 && engine.Capture().GetProperty("PendingArrival").ValueKind == System.Text.Json.JsonValueKind.Null, "MAPJUMP3 arrival used its extra word as height or failed to override init before defaults.");
-    }
-
     private static void AdditionalActorControlAndGuard()
     {
         byte[] ActorProgram(params (Jsm.Opcode Opcode, int Parameter)[] main) => SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 0)], main]);
@@ -1612,59 +1602,6 @@ internal static partial class Program
         Console.WriteLine("PCTURN: exact1724 -> 1725 replay; Quistis120 -> fixed143, duration15/16 cosine ticks -> message11/frame1741; midwait and fault retry passed.");
     }
 
-    private static void MovieAxisAndFaultResume()
-    {
-        GameSession session = new(new GameState { Scene = SceneKind.Field });
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.AXIS, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.PSHM_L, 80), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
-        EventEngine engine = new(session) { MoviePlayback = () => session.State.MoviePlayback };
-        engine.LoadField(100, content, []);
-        engine.Step();
-        session.SetMoviePlayback(new MoviePlaybackState(145, 325, true, false, false));
-        engine.Step();
-        Require(session.State.Variables[80] == 145 && !session.State.Variables.ContainsKey(512) && engine.InputAxisDirection == 16, "Movie frame sampling, per-fiber movie wait or AXIS tick ordering failed.");
-        var snapshot = engine.Capture();
-        EventEngine resumed = new(session) { MoviePlayback = engine.MoviePlayback };
-        resumed.LoadField(100, content, []);
-        resumed.Restore(snapshot);
-        Require(snapshot.GetRawText() == resumed.Capture().GetRawText(), "Mid-movie AXIS snapshot lost timing or decoder frame state.");
-        session.CompleteMovie(skipped: true);
-        resumed.Step();
-        resumed.Step();
-        resumed.Step();
-        Require(session.State.Variables[512] == 325 && resumed.InputAxisDirection == 64, "Skipped real terminal frame was truncated or AXIS did not finish at its byte target.");
-
-        byte[] unsupported = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.PSHN_L, 456), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.RET, 0));
-        resumed.LoadField(101, unsupported, []);
-        try
-        {
-            resumed.Step();
-            throw new InvalidOperationException("Unsupported command executed.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        var fault = resumed.Capture();
-        var fiber = fault.GetProperty("Fibers")[0];
-        Require(fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack")[0].GetInt32() == 456 && fiber.GetProperty("Stack")[1].GetInt32() == 123 && resumed.NextTrigger.Kind == PlayerTriggerKind.Faulted, "Unsupported command advanced the PC, consumed operands or hid its fault.");
-        resumed.Restore(fault);
-        try
-        {
-            resumed.Step();
-            throw new InvalidOperationException("A faulted saved VM continued past its unsupported opcode.");
-        }
-        catch (EventScriptException)
-        {
-        }
-        Require(fault.GetRawText() == resumed.Capture().GetRawText(), "A repeated unsupported command changed its saved retryable state.");
-
-        session.Restore(new GameState { Scene = SceneKind.Field, MoviePlayback = new MoviePlaybackState(325, 325, false, true, true) });
-        byte[] freshMovie = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.PSHM_L, 80), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0));
-        resumed = new EventEngine(session) { MoviePlayback = () => session.State.MoviePlayback };
-        resumed.LoadField(102, freshMovie, []);
-        resumed.Step();
-        Require(session.State.Variables[512] == 0, "A previous completed movie frame leaked into the new clip before its first decoder sample.");
-    }
-
     private static byte[] SyntheticObjects(ushort[] groups, List<(Jsm.Opcode Opcode, int Parameter)[]> scripts)
     {
         int scriptsOffset = 8 + groups.Length * 2;
@@ -1691,7 +1628,7 @@ internal static partial class Program
         return bytes;
     }
 
-    private sealed record ActionCorpus(string Checkpoint, PlayerActionObservation[] Actions, BranchDecision[] Decisions, DialogueOutcome[] Dialogues, BranchCoverage[] Coverage, LineCrossing[] Lines, GameState State);
+    private sealed record ActionCorpus(string Checkpoint, PlayerActionObservation[] Actions, BranchDecision[] Decisions, DialogueOutcome[] Dialogues, BranchCoverage[] Coverage, LineCrossing[] Lines, GameState State, ScriptCommand[] DoorEntries);
 
     private static byte[] SyntheticMainProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
     {

@@ -10,68 +10,70 @@ internal static partial class Program
 {
     private static void NativePartyRequestStartAndGuard()
     {
-        EventEngine accepted = CreatePartyRequestFixture(0, 1, false, Jsm.Opcode.PREQSW);
-        accepted.Step();
-        accepted.Step();
-        JsonElement pending = accepted.Capture();
-        JsonElement caller = pending.GetProperty("Fibers")[0];
-        Require(CapturedVariables(pending).GetProperty("512").GetInt32() == 11 && !CapturedVariables(pending).TryGetProperty("513", out _), "PREQSW waited for target completion instead of continuing when its idle target started.");
-        Require(caller.GetProperty("WaitReason").GetString() == nameof(WaitReason.None) && caller.GetProperty("RequestSequence").ValueKind == JsonValueKind.Null, "An immediately started PREQSW installed an invented caller completion wait.");
-        accepted.Step();
-        accepted.Step();
-        string completed = accepted.Capture().GetRawText();
-        Require(CapturedVariables(accepted.Capture()).GetProperty("513").GetInt32() == 7, "PREQSW target failed to finish independently.");
-        accepted.Restore(pending);
-        accepted.Step();
-        accepted.Step();
-        Require(completed == accepted.Capture().GetRawText(), "Restoring an independent PREQSW target changed its completion.");
-
+        foreach (bool busy in new[] { false, true })
+        {
+            EventEngine accepted = CreatePartyRequestFixture(0, 1, busy, Jsm.Opcode.PREQSW);
+            for (int callback = 0; callback < 3; callback++)
+            {
+                accepted.Step();
+            }
+            JsonElement pending = accepted.Capture();
+            JsonElement caller = pending.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+            Require(!CapturedVariables(pending).TryGetProperty("512", out _) && !CapturedVariables(pending).TryGetProperty("516", out _) && caller.GetProperty("WaitReason").GetString() == nameof(WaitReason.None) && caller.GetProperty("RequestSequence").ValueKind == JsonValueKind.Null, "Started PREQSW invented a completion wait or failed its native return3 yield.");
+            JsonElement suspended = pending.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 3);
+            EventEngine restored = CreatePartyRequestFixture(0, 1, busy, Jsm.Opcode.PREQSW);
+            restored.Restore(pending);
+            accepted.Step();
+            restored.Step();
+            JsonElement started = accepted.Capture();
+            Require(CapturedVariables(started).GetProperty("512").GetInt32() == 11 && !CapturedVariables(started).TryGetProperty("516", out _) && JsonElement.DeepEquals(started, restored.Capture()), "PREQSW waited for target completion instead of continuing on the next source callback after start.");
+            if (busy)
+            {
+                Require(JsonElement.DeepEquals(suspended, started.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 3)), "Started higher party request advanced the suspended default's retained WAIT or changed its owner.");
+            }
+            for (int callback = 0; callback < 4; callback++)
+            {
+                accepted.Step();
+                restored.Step();
+                Require(JsonElement.DeepEquals(accepted.Capture(), restored.Capture()), "PREQSW target/default/caller continuation diverged after independent cold restore.");
+            }
+            Require(CapturedVariables(accepted.Capture()).GetProperty("516").GetInt32() == 7, "PREQSW target failed to finish independently of its caller.");
+        }
         foreach ((int slot, int priority) in new[] { (1, 1), (0, 0) })
         {
             EventEngine ignored = CreatePartyRequestFixture(slot, priority, true, Jsm.Opcode.PREQSW);
-            ignored.Step();
-            ignored.Step();
-            Require(CapturedVariables(ignored.Capture()).GetProperty("512").GetInt32() == 11 && ignored.Capture().GetProperty("Fibers").GetArrayLength() == 2, "PREQSW absent party slot or occupied same-priority slot was not consumed and dropped.");
+            for (int callback = 0; callback < 5; callback++)
+            {
+                ignored.Step();
+            }
+            Require(CapturedVariables(ignored.Capture()).GetProperty("512").GetInt32() == 11 && !ignored.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 4), "PREQSW absent party slot or occupied same-priority slot was not consumed and dropped.");
         }
-
-        EventEngine conflicting = CreatePartyRequestFixture(0, 1, true, Jsm.Opcode.PREQSW);
-        conflicting.Step();
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("Unsupported PREQSW competing target was preempted.");
-        }
-        catch (EventScriptException) when (conflicting.LastFault?.Opcode == nameof(Jsm.Opcode.PREQSW))
-        {
-        }
-        JsonElement frozen = conflicting.Capture();
-        caller = frozen.GetProperty("Fibers")[0];
-        Require(caller.GetProperty("Position").GetInt32() == 7 && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 1, 1 }), "Unsupported PREQSW preemption consumed original operands or changed its PC.");
-        conflicting.Restore(frozen);
-        try
-        {
-            conflicting.Step();
-            throw new InvalidOperationException("A restored PREQSW competing-target boundary resumed.");
-        }
-        catch (EventScriptException) when (conflicting.LastFault?.Opcode == nameof(Jsm.Opcode.PREQSW))
-        {
-        }
-        Require(frozen.GetRawText() == conflicting.Capture().GetRawText(), "PREQSW preemption boundary failed exact frozen restore.");
-
-        foreach ((int slot, int priority) in new[] { (3, 1), (0, 8), (0, 0) })
+        foreach ((int slot, int priority) in new[] { (3, 1), (0, 8) })
         {
             EventEngine invalid = CreatePartyRequestFixture(slot, priority, false, Jsm.Opcode.PREQSW);
+            invalid.Step();
             invalid.Step();
             try
             {
                 invalid.Step();
-                throw new InvalidOperationException("Unsupported PREQSW slot/priority executed.");
+                throw new InvalidOperationException("Out-of-range PREQSW slot or priority was accepted.");
             }
             catch (EventScriptException) when (invalid.LastFault?.Opcode == nameof(Jsm.Opcode.PREQSW))
             {
             }
-            caller = invalid.Capture().GetProperty("Fibers")[0];
-            Require(caller.GetProperty("Position").GetInt32() == 7 && caller.GetProperty("Stack").GetArrayLength() == 2, "Invalid PREQSW bounds consumed original operands or changed its PC.");
+            JsonElement frozen = invalid.Capture();
+            JsonElement caller = frozen.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+            Require(caller.GetProperty("Position").GetInt32() == invalid.LastFault!.Operation && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([2, priority]) && !CapturedVariables(frozen).TryGetProperty("512", out _), "Invalid PREQSW bounds changed the original PC, operands or successor.");
+            ExpectInterruptedRestoreRefusal(invalid, frozen);
+            try
+            {
+                invalid.Step();
+                throw new InvalidOperationException("Rejected interrupted restore cleared the PREQSW fault guard.");
+            }
+            catch (EventScriptException) when (invalid.LastFault?.Opcode == nameof(Jsm.Opcode.PREQSW))
+            {
+            }
+            Require(JsonElement.DeepEquals(frozen, invalid.Capture()), "PREQSW fault guard changed the frozen execution state.");
         }
     }
 

@@ -53,6 +53,10 @@ internal static class TestResources
 #if FF8_XUNIT_RESOURCE_TESTS
         Xunit.Assert.SkipUnless(File.Exists(resolved), $"The optional external fixture for resource '{resource}' is unavailable.");
 #endif
+        if (!File.Exists(resolved))
+        {
+            throw new OptionalTestResourceUnavailableException($"The optional external fixture for resource '{resource}' is unavailable.");
+        }
         return resolved;
     }
 
