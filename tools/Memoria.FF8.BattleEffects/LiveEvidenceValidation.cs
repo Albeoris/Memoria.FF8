@@ -1136,18 +1136,6 @@ public static partial class LiveEvidenceValidation
         }
     }
 
-    private static bool HasNativeStatusRemovalProvenance(JsonElement execution, JsonElement resolution, Dictionary<string, JsonElement> before, Dictionary<string, JsonElement> after)
-    {
-        BattleDiagnosticNativeStatusRemoval? proof = resolution.GetProperty("native_status_removal").Deserialize<BattleDiagnosticNativeStatusRemoval>(Json);
-        string actor = Text(resolution, "actor_id");
-        string recipient = Text(resolution, "actual_target_id");
-        if (proof is null || proof.ProducerAddress != 0x494410 || (proof.ActionStatuses1 & 0x10000) == 0 || (proof.AppliedBattleStatuses & 0x10000) == 0 || Text(resolution, "kind") != "damage" || recipient != Text(resolution, "original_target_id") || !HasObservedBattleIdentity(before, actor, proof.ActorSlot, proof.ActorIndex) || !HasObservedBattleIdentity(after, actor, proof.ActorSlot, proof.ActorIndex) || !HasObservedBattleIdentity(before, recipient, proof.RecipientSlot, proof.RecipientIndex) || !HasObservedBattleIdentity(after, recipient, proof.RecipientSlot, proof.RecipientIndex) || Text(resolution, "hp_owner") != HpOwner(proof.RecipientSlot, proof.RecipientIndex) || Number(resolution, "resolved_amount") < 0 || Number(resolution, "actual_amount") != Number(resolution, "before_hp") || Number(resolution, "before_hp") <= 0 || Number(resolution, "after_hp") != 0 || Number(after[recipient], "current_hp") != 0 || (Number(after[recipient], "statuses0") & 1) == 0)
-        {
-            return false;
-        }
-        return execution.GetProperty("dispatches").EnumerateArray().Any(dispatch => Text(dispatch, "actor_id") == actor && OptionalNumber(dispatch, "native_actor_index") == proof.ActorIndex && OptionalNumber(dispatch, "native_command") == proof.NativeCommand && Number(dispatch, "action_id") == proof.NativeActionId && IncludesReachedRecipient(dispatch, recipient, proof.RecipientIndex) && Number(dispatch, "callback") >= Number(resolution, "callback"));
-    }
-
     private static bool IncludesReachedRecipient(JsonElement dispatch, string recipient, byte? original)
     {
         if (OptionalNumber(dispatch, "native_target_mask") is long mask && original is byte alias)

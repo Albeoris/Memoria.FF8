@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects.Tests;
 
-public sealed class LiveEvidenceValidationTests
+public sealed partial class LiveEvidenceValidationTests
 {
     [Fact]
     public void NativeEjectionProofAllowsStatusDrivenHpRemovalWithoutChangingTheZeroFormula()
