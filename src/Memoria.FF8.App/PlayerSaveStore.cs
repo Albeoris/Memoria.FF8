@@ -160,11 +160,11 @@ internal sealed partial class PlayerSaveStore
     {
         if (RequiresMemoriaBattleRoster(state))
         {
-            throw new NotSupportedException("The original FFVIII save format cannot retain expanded battle settings or guest progression. Choose a Memoria slot.");
+            throw new NotSupportedException("The original FFVIII save format cannot retain selected additional battle party members. Clear the additional selection before exporting. Choose a Memoria slot to preserve it.");
         }
     }
 
-    private static bool RequiresMemoriaBattleRoster(GameState state) => state.GameplayPreferences.BattleAllyCount > 3 || state.GameplayPreferences.AdditionalEnemies > 0 || state.PendingGameplayPreferences?.BattleAllyCount is > 3 || state.PendingGameplayPreferences?.AdditionalEnemies is > 0 || state.CharacterVitals?.Records.Length > NativeCharacterVitals.NativeRecordCount || state.CharacterVitals?.AdditionalCombatParty is { Length: > 0 };
+    private static bool RequiresMemoriaBattleRoster(GameState state) => state.CharacterVitals?.AdditionalCombatParty is { Length: > 0 };
 
     public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false)
     {

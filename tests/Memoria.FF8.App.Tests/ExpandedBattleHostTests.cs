@@ -312,7 +312,7 @@ public sealed class ExpandedBattleHostTests
                 Assert.Equal(4, compact.Records[casterRow].MagicInventory.Single(spell => spell.SpellId == groupMagic.ActionId).Count);
                 GameState reduced = restored with { GameplayPreferences = restored.GameplayPreferences with { BattleAllyCount = 3 } };
                 Assert.True(PlayerSaveStore.RequiresMemoriaFormat(reduced));
-                Assert.Throws<NotSupportedException>(() => PlayerSaveStore.ValidateOriginalBattleRoster(reduced));
+                PlayerSaveStore.ValidateOriginalBattleRoster(reduced);
             }
         }
         else

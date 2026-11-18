@@ -10,6 +10,38 @@ public sealed partial class OriginalSaveBankTests : IDisposable
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.FF8-original-banks-" + Guid.NewGuid().ToString("N"));
 
     [Theory]
+    [InlineData(false, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 3)]
+    [InlineData(true, 4)]
+    [InlineData(true, 11)]
+    public void Native_save_projects_an_ordinary_party_despite_expanded_settings_and_reserve_records(bool extended, int capacity)
+    {
+        PlayerSaveStore store = CreateStore();
+        GameState defaults = Defaults();
+        NativeCharacterVitals vitals = defaults.CharacterVitals!.WithExtendedRoster(extended) with { CombatParty = [5, 0, 7] };
+        GameState state = defaults with { CharacterVitals = vitals, GameplayPreferences = defaults.GameplayPreferences with { BattleAllyCount = capacity, AdditionalEnemies = 10 } };
+        GameSession session = new(state);
+        GameState before = session.State;
+
+        store.Save(1, session);
+        byte[] source = File.ReadAllBytes(store.GetPath(1));
+        store.Transfer(1, 101, targetSource: defaults.CharacterVitals, allowGuardianForceLoss: true);
+        store.Save(102, session, targetSource: defaults.CharacterVitals, allowGuardianForceLoss: true);
+
+        foreach (int slot in new[] { 101, 102 })
+        {
+            GameState exported = store.Load(slot);
+            Assert.Equal(NativeCharacterVitals.NativeRecordCount, exported.CharacterVitals!.Records.Length);
+            Assert.Equal(new byte[] { 5, 0, 7 }, exported.CharacterVitals.CombatParty);
+            Assert.Equal(defaults.Economy!.Gil, exported.Economy!.Gil);
+        }
+        Assert.Equal(source, File.ReadAllBytes(store.GetPath(1)));
+        Assert.Same(before, session.State);
+        Assert.Equal(extended ? NativeCharacterVitals.ExtendedRecordCount : NativeCharacterVitals.NativeRecordCount, vitals.Records.Length);
+    }
+
+    [Theory]
     [InlineData(3)]
     [InlineData(4)]
     public void Native_save_rejects_dormant_or_active_additional_members_before_writing(int capacity)
@@ -28,7 +60,7 @@ public sealed partial class OriginalSaveBankTests : IDisposable
 
         NotSupportedException refused = Assert.Throws<NotSupportedException>(() => store.Save(101, session, targetSource: vitals, allowGuardianForceLoss: true));
 
-        Assert.Contains("Choose a Memoria slot", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("selected additional battle party members", refused.Message, StringComparison.Ordinal);
         Assert.Same(before, session.State);
         Assert.Equal(previous, File.ReadAllBytes(target));
         Assert.Equal(previousFiles, Directory.GetFiles(store.OriginalDirectory!).Order());

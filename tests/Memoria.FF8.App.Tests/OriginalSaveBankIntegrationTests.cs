@@ -95,8 +95,8 @@ public sealed class OriginalSaveBankIntegrationTests
         byte[] originalSource = File.ReadAllBytes(fixture!);
         try
         {
-            GameState source = GameSession.Load(fixture!);
             using GameAssets assets = new(gameDirectory);
+            GameState source = PlayerStateLoader.Load(fixture!, gameDirectory, sharedAssets: assets);
             NativeCharacterVitals target = assets.ReadNewGameCharacterVitals();
             string originals = Path.Combine(directory, "originals");
             Directory.CreateDirectory(originals);
