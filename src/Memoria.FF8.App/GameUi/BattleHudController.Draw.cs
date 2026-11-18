@@ -47,7 +47,7 @@ public sealed partial class BattleHudController
         {
             return session.GuardianForces.Any(gf => gf.Id == id - 64 && !gf.Acquired) ? 1 : 0;
         }
-        if (SelectedActor is not { } actor || session.ActionDefinitions.FirstOrDefault(action => action.Ability == BattleAbility.Magic && action.Id == id) is not { Available: true } spell)
+        if (SelectedActor is not { } actor || session.GetActionDefinition(BattleAbility.Magic, id) is not { Available: true } spell)
         {
             return 0;
         }
@@ -83,7 +83,7 @@ public sealed partial class BattleHudController
 
     private BattleActionDefinition DrawMagicChoice(int id)
     {
-        BattleActionDefinition action = session.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == id);
+        BattleActionDefinition action = session.GetActionDefinition(BattleAbility.Magic, id) ?? throw new InvalidOperationException("The selected Draw spell has no action definition.");
         NativeKnownMagic? known = session.KnownMagic;
         if (known is null && action.NativeAction is not null)
         {

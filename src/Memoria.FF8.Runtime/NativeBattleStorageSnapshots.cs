@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
@@ -169,6 +170,10 @@ internal sealed partial class NativeBattleStorageRestoreContext : NativeBattleSt
 internal abstract class NativeBattleStorageContext
 {
     private static readonly ConcurrentDictionary<Type, FieldInfo[]> Fields = new();
+    private static readonly ConcurrentDictionary<Type, bool> RecordTypes = new();
+    private static readonly ConcurrentDictionary<Type, bool> ReferenceFreeTypes = new();
+    private static readonly ConcurrentDictionary<Type, bool> ImmutableTypes = new();
+    private static readonly MethodInfo ReferenceFreeType = typeof(NativeBattleStorageContext).GetMethod(nameof(IsReferenceFree), BindingFlags.Static | BindingFlags.NonPublic)!;
     private static readonly MethodInfo Clone = typeof(object).GetMethod("MemberwiseClone", BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static readonly MethodInfo ImmutableArrayMapper = typeof(NativeBattleStorageContext).GetMethod(nameof(MapImmutableArray), BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static readonly MethodInfo ImmutableDictionaryMapper = typeof(NativeBattleStorageContext).GetMethod(nameof(MapImmutableDictionary), BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -236,6 +241,10 @@ internal abstract class NativeBattleStorageContext
         Type type = value.GetType();
         // Installed inputs and immutable arena geometry are shared. Mutable execution storage is captured below.
         if (value is BattlePresentationResources or NativeBattleArenaGeometry || IsLeaf(type))
+        {
+            return value;
+        }
+        if (CanShareImmutableValues && IsImmutableValue(type))
         {
             return value;
         }
@@ -343,6 +352,10 @@ internal abstract class NativeBattleStorageContext
         object? result = null;
         foreach (FieldInfo field in GetFields(type))
         {
+            if (IsLeaf(field.FieldType))
+            {
+                continue;
+            }
             object? original = field.GetValue(source);
             object? mapped = field.FieldType == typeof(NativeBattleRetainedStorageAuthority) ? null : RequireAssignable(MapObject(original), field.FieldType);
             if (!ReferenceEquals(original, mapped))
@@ -449,7 +462,7 @@ internal abstract class NativeBattleStorageContext
     private object MapImmutableArray<T>(object boxed)
     {
         ImmutableArray<T> source = (ImmutableArray<T>)boxed;
-        if (source.IsDefault || IsLeaf(typeof(T)))
+        if (source.IsDefault || IsLeaf(typeof(T)) || CanShareImmutableValues && IsImmutableValue(typeof(T)))
         {
             return boxed;
         }
@@ -469,6 +482,10 @@ internal abstract class NativeBattleStorageContext
 
     private object MapImmutableDictionary<TKey, TValue>(ImmutableDictionary<TKey, TValue> source) where TKey : notnull
     {
+        if (IsLeaf(typeof(TKey)) && IsLeaf(typeof(TValue)) || CanShareImmutableValues && IsImmutableValue(typeof(TKey)) && IsImmutableValue(typeof(TValue)))
+        {
+            return source;
+        }
         ImmutableDictionary<TKey, TValue>.Builder? result = null;
         foreach ((TKey key, TValue value) in source)
         {
@@ -510,10 +527,52 @@ internal abstract class NativeBattleStorageContext
 
     private static bool IsLeaf(Type type) => type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) || type == typeof(Guid) || typeof(Type).IsAssignableFrom(type) ||
         type == typeof(NativeBattleBonePose) ||
+        type.IsValueType && !typeof(INativeBattleStorageNode).IsAssignableFrom(type) && ReferenceFreeTypes.GetOrAdd(type, static current => (bool)ReferenceFreeType.MakeGenericMethod(current).Invoke(null, null)!) ||
         // Published packet slices contain only unmanaged values on permanently retained pages.
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(NativeBattleImmutableSlice<>);
 
-    private static bool IsRecord(Type type) => type.GetMethod("<Clone>$", BindingFlags.Instance | BindingFlags.Public) is not null || type.IsValueType && type.GetMethod("PrintMembers", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(System.Text.StringBuilder)]) is not null;
+    private static bool IsReferenceFree<T>() => !RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+
+    private bool CanShareImmutableValues => this is NativeBattleStorageCaptureContext || this is NativeBattleStorageRestoreContext { Purpose: NativeBattleStorageRestorePurpose.PrivateContinuation };
+
+    private static bool IsImmutableValue(Type type) => ImmutableTypes.GetOrAdd(type, static current => IsImmutableValue(current, []));
+
+    private static bool IsImmutableValue(Type type, HashSet<Type> visiting)
+    {
+        if (IsLeaf(type))
+        {
+            return true;
+        }
+        if (ImmutableTypes.TryGetValue(type, out bool known))
+        {
+            return known;
+        }
+        // Storage owners must pass through their authority and alias mapping even when frozen.
+        if (typeof(INativeBattleStorageNode).IsAssignableFrom(type) || type == typeof(NativeBattleEffectMemory) || type == typeof(NativeBattleOriginalEffectState) || !visiting.Add(type))
+        {
+            return false;
+        }
+        try
+        {
+            bool immutable;
+            if (type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(ImmutableArray<>) || type.GetGenericTypeDefinition() == typeof(ImmutableDictionary<,>)))
+            {
+                immutable = type.GenericTypeArguments.All(argument => IsImmutableValue(argument, visiting));
+            }
+            else
+            {
+                immutable = type.IsSealed && IsRecord(type) && GetFields(type).All(field => field.IsInitOnly && IsImmutableValue(field.FieldType, visiting));
+            }
+            ImmutableTypes.TryAdd(type, immutable);
+            return immutable;
+        }
+        finally
+        {
+            visiting.Remove(type);
+        }
+    }
+
+    private static bool IsRecord(Type type) => RecordTypes.GetOrAdd(type, static current => current.GetMethod("<Clone>$", BindingFlags.Instance | BindingFlags.Public) is not null || current.IsValueType && current.GetMethod("PrintMembers", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(System.Text.StringBuilder)]) is not null);
 
     private static FieldInfo[] GetFields(Type type) => Fields.GetOrAdd(type, static current =>
     {

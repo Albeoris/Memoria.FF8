@@ -133,7 +133,7 @@ public sealed partial record NativeCharacterVitals
         GuardianForceProfile?.Validate();
         if (GuardianForceProfile is { } profile)
         {
-            (MenuDefinitions with { Templates = profile.Source }).Validate();
+            MenuDefinitions.ValidateTemplates(profile.Source);
         }
         MagicSystem.Validate(Records.Length);
         Definitions.Validate();

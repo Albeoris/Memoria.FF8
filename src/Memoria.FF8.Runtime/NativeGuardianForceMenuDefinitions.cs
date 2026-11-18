@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -10,6 +12,12 @@ public sealed record NativeGuardianForceInitialState(NativeGuardianForceLearnedB
 /// <summary>Native4ACB70's twenty-one four-byte GF learning entries and kernel11..17 ability AP bytes.</summary>
 public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired] ImmutableArray<ImmutableArray<NativeGuardianForceLearningRule>> Learning, [property: JsonRequired] ImmutableArray<byte> AbilityPoints, [property: JsonRequired] ImmutableArray<byte> CommandAbilityCommands, [property: JsonRequired] ImmutableArray<byte> PartyAbilityFlags)
 {
+    // These definitions contain only immutable arrays and sealed records of immutable values.
+    // Cache by identity so record copies and resource replacements always validate independently.
+    private static readonly ConditionalWeakTable<NativeGuardianForceMenuDefinitions, object> validatedDefinitions = new();
+    private static readonly ConditionalWeakTable<NativeGuardianForceMenuDefinitions, ConditionalWeakTable<object, object>> validatedTemplateSources = new();
+    private static readonly object validationCompleted = new();
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> Templates { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -38,6 +46,37 @@ public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired]
     }
 
     public void Validate()
+    {
+        validatedDefinitions.GetValue(this, static definitions =>
+        {
+            definitions.ValidateCore();
+            return validationCompleted;
+        });
+    }
+
+    internal void ValidateTemplates(ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates)
+    {
+        if (templates == Templates)
+        {
+            Validate();
+            return;
+        }
+        // Read the immutable backing array only for identity; weak keys let replaced mod sources expire.
+        object? source = ImmutableCollectionsMarshal.AsArray(templates);
+        if (source is null)
+        {
+            (this with { Templates = templates }).Validate();
+            return;
+        }
+        ConditionalWeakTable<object, object> sources = validatedTemplateSources.GetValue(this, static _ => new());
+        if (!sources.TryGetValue(source, out _))
+        {
+            (this with { Templates = templates }).Validate();
+            sources.GetValue(source, static _ => validationCompleted);
+        }
+    }
+
+    private void ValidateCore()
     {
         if (!InitialStates.IsDefault && (InitialStates.Length != 16 || InitialStates.Any(entry => entry is null || entry.LearnedBank is null || entry.AbilityProgress.IsDefault || entry.AbilityProgress.Length != 21)))
         {

@@ -131,6 +131,85 @@ public sealed class NativeExamTimerTests
     }
 
     [Fact]
+    public void ExactPhaseBatchesMatchScalarClockAndPreserveDisplayState()
+    {
+        foreach ((NativeTimerCallbackKind kind, int perCallback) in new[] { (NativeTimerCallbackKind.NormalField, 2), (NativeTimerCallbackKind.World, 2), (NativeTimerCallbackKind.Menu, 1), (NativeTimerCallbackKind.Battle, 4), (NativeTimerCallbackKind.MovieField, 4) })
+        {
+            foreach (int remaining in new[] { 0, 1, 2, 600, -1, int.MinValue })
+            {
+                foreach (uint phase in new uint[] { 0, 65535, NativeExamTimerState.Threshold - NativeExamTimerState.Increment - 1, NativeExamTimerState.Threshold - NativeExamTimerState.Increment, NativeExamTimerState.Threshold - 1, NativeExamTimerState.Threshold, uint.MaxValue - NativeExamTimerState.Increment, uint.MaxValue - NativeExamTimerState.Increment + 1, uint.MaxValue })
+                {
+                    foreach (int callbacks in new[] { 0, 1, 60, 30000 })
+                    {
+                        NativeTimerDisplayBlink blink = new(1UL << 63, true, 255);
+                        NativeExamTimerState initial = NativeExamTimerState.FromReachedSet(remaining) with
+                        {
+                            Alternatives = [new NativeTimerAlternative(phase, phase, remaining) { DisplayBlink = blink }],
+                            ClockCalls = 123,
+                            DisplayEnabled = true,
+                            DisplayX = 250,
+                            DisplayY = 10,
+                            DisplayIntensity814 = 4096,
+                            Event182Mask4 = true,
+                            SaveGlobalMask4 = false,
+                            Event183Mask1 = true
+                        };
+                        uint expectedPhase = phase;
+                        int expectedRemaining = remaining;
+                        int calls = callbacks * perCallback;
+                        for (int call = 0; call < calls; call++)
+                        {
+                            expectedPhase = unchecked(expectedPhase + 2191);
+                            if ((expectedPhase & 0xFFFE0000) != 0 && expectedRemaining != 0)
+                            {
+                                expectedRemaining = unchecked(expectedRemaining - 1);
+                                expectedPhase &= 0xFFFF;
+                            }
+                        }
+                        NativeExamTimerState actual = initial.AdvanceCallbacks(kind, callbacks);
+                        actual.Validate();
+                        Assert.Equal(new NativeTimerAlternative(expectedPhase, expectedPhase, expectedRemaining) { DisplayBlink = blink }, Assert.Single(actual.Alternatives));
+                        Assert.Same(blink, actual.Alternatives[0].DisplayBlink);
+                        Assert.Equal(123L + calls, actual.ClockCalls);
+                        Assert.Equal(initial with { Alternatives = actual.Alternatives, ClockCalls = actual.ClockCalls }, actual);
+                    }
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void SingletonFastPathRetainsCorruptionAndArgumentValidation()
+    {
+        NativeExamTimerState valid = NativeExamTimerState.FromColdProcess();
+        NativeExamTimerState[] invalidStates =
+        [
+            valid with { Version = 2 },
+            valid with { ClockCalls = -1 },
+            valid with { Alternatives = null! },
+            valid with { Alternatives = [] },
+            valid with { Alternatives = [null!] },
+            valid with { Alternatives = [new(2, 1, 0)] },
+            valid with { Alternatives = [new(0, 0, 1)] },
+            valid with { Alternatives = [new(0, 0, 0) { DisplayBlink = new(0, false, null) }] }
+        ];
+        foreach (NativeExamTimerState invalid in invalidStates)
+        {
+            Assert.Throws<InvalidDataException>(() => invalid.Validate());
+            Assert.Throws<InvalidDataException>(() => invalid.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1, paused: true));
+        }
+        Assert.Same(valid, valid.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1, paused: true));
+        Assert.Same(valid, valid.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1, clockDisabled: true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => valid.AdvanceCallbacks((NativeTimerCallbackKind)999, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => valid.AdvanceCallbacks(NativeTimerCallbackKind.Battle, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => valid.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 30001));
+        NativeExamTimerState overflowing = valid with { ClockCalls = long.MaxValue - 3 };
+        Assert.Throws<OverflowException>(() => overflowing.AdvanceCallbacks(NativeTimerCallbackKind.Battle, 1));
+        Assert.Equal(long.MaxValue - 3, overflowing.ClockCalls);
+        Assert.Equal(new NativeTimerAlternative(0, 0, 0) { DisplayBlink = new(1, false, 0) }, Assert.Single(overflowing.Alternatives));
+    }
+
+    [Fact]
     public void IntervalImageMatchesEnumerationAcrossWrapAndTruncation()
     {
         foreach ((uint first, uint last) in new[] { (128800u, 131300u), (4294965000u, uint.MaxValue), (65530u, 132000u) })

@@ -32,7 +32,8 @@ public sealed partial class BattleSession
         }
 
         ObserveDiagnosticHostedCompletionBeforeAck(process, receipt);
-        BattleSnapshot before = CaptureState();
+        OwnedBattleDefinition definition = new(this.definition);
+        BattleSnapshot before = CaptureState(definition);
         if (!ReferenceEquals(before.ActiveAction, hostedEvent.ActivePresentation))
         {
             throw new InvalidDataException("Hosted completion captured a different logical action from its validated live event.");
@@ -40,9 +41,9 @@ public sealed partial class BattleSession
         BattleCombatant liveActor = GetActor(receipt.ActorId);
         bool retainCommittedMirror = hostedEvent.ActivePresentation.ExpandedAiCallback is null &&
             !CanRetainBattleActionActor(liveActor, hostedEvent.ActivePresentation.NativePlayerReaction, hostedEvent.ActivePresentation.NativeAiCallbackStage, hostedEvent.ActivePresentation.TargetRequest);
-        BattleSnapshot seed = NativeBattleStorageSnapshots.CapturePrivate(retainCommittedMirror ? before with { ActiveAction = null } : before);
-        HostedEventCompletionCandidateProof proof = new(seed, hostedEvent, receipt);
-        BattleSession candidate = CreatePreparedHostedActionCandidate(seed, proof);
+        PreparedActionSeed seed = CapturePreparedActionSeed(retainCommittedMirror ? before with { ActiveAction = null } : before, definition);
+        HostedEventCompletionCandidateProof proof = new(seed.Snapshot, hostedEvent, receipt);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(seed.Snapshot, proof, seed.Definition);
         if (hostedEvent.Command.NativeDuel is not null || hostedEvent.Renzokuken is not null)
         {
             // A timed Limit retains this exact owner while the native aftercare suffix is pending.
@@ -106,7 +107,7 @@ public sealed partial class BattleSession
         candidate.BindExpandedHostedPrefix(prefix, dispatch.Packets.Roster);
         nextEvent = nextEvent with { CompletionToken = dispatch.Completion?.Request.Token };
 
-        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed, proof));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(seed.Snapshot, proof, seed.Definition), seed.Definition);
         process.ValidatePreparedDispatch(dispatch);
         HostedEncounterLoadCheckpoint? encounterLoad = process.PrepareEncounterLoad(candidate.EncounterAllocation, dispatch);
         publication.Publish();

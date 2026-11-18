@@ -5,6 +5,15 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private sealed record PreparedActionSeed(BattleSnapshot Snapshot, OwnedBattleDefinition Definition);
+
+    private static PreparedActionSeed CapturePreparedActionSeed(BattleSnapshot snapshot, OwnedBattleDefinition definition)
+    {
+        definition.RequireIdentity(snapshot.Definition);
+        BattleSnapshot captured = NativeBattleStorageSnapshots.CapturePrivate(snapshot with { Definition = null! }) with { Definition = definition.Definition };
+        return new(captured, definition);
+    }
+
     private sealed class PreparedActionPublication
     {
         private readonly BattleSession owner;
@@ -19,14 +28,14 @@ public sealed partial class BattleSession
         private bool published;
         private bool observationsPublished;
 
-        internal PreparedActionPublication(BattleSession owner, BattleSession candidate, BattleSession preflight)
+        internal PreparedActionPublication(BattleSession owner, BattleSession candidate, BattleSession preflight, OwnedBattleDefinition? ownedDefinition = null)
         {
             this.owner = owner;
             this.candidate = candidate;
             frame = owner.Frame;
             action = owner.ActiveAction;
             hostedEvent = owner.expandedHostedEvent;
-            state = candidate.CaptureState();
+            state = candidate.CaptureState(ownedDefinition);
             previousEventCount = owner.events.Count;
             previousLastEvent = previousEventCount == 0 ? null : owner.events[^1];
             if (preflight.events.Count != previousEventCount || state.Events.Length < previousEventCount)
@@ -88,9 +97,9 @@ public sealed partial class BattleSession
         }
     }
 
-    private BattleSession CreatePreparedHostedActionCandidate(BattleSnapshot snapshot, HostedCandidateProof? proof = null)
+    private BattleSession CreatePreparedHostedActionCandidate(BattleSnapshot snapshot, HostedCandidateProof? proof = null, OwnedBattleDefinition? ownedDefinition = null)
     {
-        BattleSession candidate = RestoreSnapshot(snapshot, proof);
+        BattleSession candidate = RestoreSnapshot(snapshot, proof, ownedDefinition);
         candidate.preparingExpandedHostedAction = true;
         candidate.stagingExpandedHostedGuardianForms = true;
         candidate.preparePresentationModelBinding = preparePresentationModelBinding;
@@ -112,13 +121,14 @@ public sealed partial class BattleSession
     private void PrepareAndPublishExpandedAction(BattleActionPresentation command)
     {
         BattlePresentationProcess process = expandedPresentationProcess ?? throw new InvalidOperationException("Action preparation requires its attached presentation process.");
-        BattleSnapshot before = NativeBattleStorageSnapshots.CapturePrivate(CaptureState());
-        BattleSession candidate = CreatePreparedHostedActionCandidate(before);
+        OwnedBattleDefinition definition = new(this.definition);
+        PreparedActionSeed before = CapturePreparedActionSeed(CaptureState(definition), definition);
+        BattleSession candidate = CreatePreparedHostedActionCandidate(before.Snapshot, ownedDefinition: before.Definition);
         candidate.CommitExpandedAction(command);
-        PublishPreparedExpandedActionCandidate(before, candidate, command, process);
+        PublishPreparedExpandedActionCandidate(before.Snapshot, candidate, command, process, ownedDefinition: before.Definition);
     }
 
-    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, BattleSession candidate, BattleActionPresentation command, BattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null)
+    private void PublishPreparedExpandedActionCandidate(BattleSnapshot before, BattleSession candidate, BattleActionPresentation command, BattlePresentationProcess process, BattleModelOwner? capturedCompletionOwner = null, OwnedBattleDefinition? ownedDefinition = null)
     {
         PreparedHostedDispatch? admission = null;
         ExpandedHostedEvent? hostedEvent = null;
@@ -139,7 +149,7 @@ public sealed partial class BattleSession
             candidate.BindExpandedHostedPrefix(prefix, admission.Packets.Roster);
             hostedEvent = new(command, candidate.ActiveAction!, callback, admission.Completion?.Request.Token, CompletionOwner: completionOwner);
         }
-        PreparedActionPublication publication = new(this, candidate, Restore(before));
+        PreparedActionPublication publication = new(this, candidate, RestoreSnapshot(before, null, ownedDefinition), ownedDefinition);
         if (admission is not null)
         {
             process.ValidatePreparedDispatch(admission);

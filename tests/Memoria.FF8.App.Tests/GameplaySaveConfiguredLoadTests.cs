@@ -10,6 +10,53 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GameplaySaveConfiguredLoadTests
 {
     [Fact]
+    public void Hardcore_startup_prepares_enabled_encounter_layers_before_restoring_the_save()
+    {
+        string directory = TestResources.GameDirectory;
+        using GameAssets assets = new(directory);
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, true);
+        GameplaySaveProgression progress = document.Progression!;
+        GameplayPreferences preferences = (progress.Rules.Preferences with { Difficulty = BattleDifficulty.Hardcore }).NormalizeForDifficulty();
+        NativeCharacterVitals characters = document.Characters.Restore(assets.ReadNewGameCharacterVitals());
+        characters = MagicModeCoordinator.Preview(characters, preferences).Vitals;
+        document = document with { Characters = GameplaySaveCharacters.Capture(characters), Progression = progress with { Rules = progress.Rules with { Preferences = preferences } } };
+        string folder = Path.Combine(Path.GetTempPath(), "Memoria.FF8-hardcore-encounter-startup-" + Guid.NewGuid().ToString("N"));
+        string mods = Path.Combine(folder, "mods");
+        string package = Path.Combine(mods, "Memoria", "Encounter");
+        string definitions = Path.Combine(package, "gameplay", "encounters");
+        Directory.CreateDirectory(definitions);
+        try
+        {
+            File.WriteAllText(Path.Combine(package, "mod.ini"), "enabled=1\n");
+            File.WriteAllText(Path.Combine(definitions, "encounter.json"), """
+                {
+                  "schemaVersion": 1,
+                  "documentId": "fixture.startup-encounter",
+                  "encounter": "ff8.disc1.edea",
+                  "atomic": true,
+                  "operations": [
+                    { "id": "hp", "kind": "SetActorProperty", "actor": "original", "property": "stats.maximumHpMultiplier", "expectedValue": 1.0, "value": 1.25 }
+                  ]
+                }
+                """);
+            string path = Path.Combine(folder, "slot.sav");
+            using (FileStream destination = File.Create(path))
+            {
+                GameplaySaveCodec.Write(destination, document);
+            }
+            byte[] original = File.ReadAllBytes(path);
+            GameState loaded = PlayerStateLoader.Parse(["--state", path, "--game-dir", directory, "--mods-dir", mods]).InitialState;
+            Assert.Equal(BattleDifficulty.Hardcore, loaded.GameplayPreferences.Difficulty);
+            Assert.Equal(document.Economy.Gil, loaded.Economy!.Gil);
+            Assert.Equal(original, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Publication_validates_current_selected_GF_layers_when_a_legacy_session_retains_an_older_layer()
     {
         string directory = TestResources.GameDirectory;

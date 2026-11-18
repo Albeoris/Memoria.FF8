@@ -60,7 +60,17 @@ internal static partial class PlayerStateLoader
 
     private static GameResourceHost OpenSelectedHost(LaunchOptions options)
     {
-        return new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        GameResourceHost selected = new(options.GameDirectory, watch: false, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
+        try
+        {
+            selected.ConnectEncounterMods();
+            return selected;
+        }
+        catch
+        {
+            selected.Dispose();
+            throw;
+        }
     }
 
     private static GameplaySaveComponentDocument? ReadGameplayDocument(string path)

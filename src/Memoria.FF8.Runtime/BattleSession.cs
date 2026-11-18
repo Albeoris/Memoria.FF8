@@ -25,12 +25,31 @@ public sealed partial class BattleSession
     {
     }
 
-    private BattleSession(BattleDefinition definition, BattleAtbMode mode, bool initializeNativeAi)
+    private sealed record OwnedBattleDefinition(BattleDefinition Definition)
+    {
+        internal void RequireIdentity(BattleDefinition definition)
+        {
+            if (!ReferenceEquals(Definition, definition))
+            {
+                throw new InvalidOperationException("A private battle candidate requires its exact captured definition owner.");
+            }
+        }
+    }
+
+    private BattleSession(BattleDefinition definition, BattleAtbMode mode, bool initializeNativeAi, OwnedBattleDefinition? ownedDefinition = null)
     {
         ValidateMode(mode);
-        BattleDefinition clonedDefinition = CloneDefinition(definition);
-        GameplayTuning tuning = (clonedDefinition.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).DiscardLegacyStatusStatTuning();
-        this.definition = NativeBattleStorageSnapshots.Capture(clonedDefinition with { StatusStatModifiers = StatusStatRules.Resolve(clonedDefinition.StatusStatModifiers), Tuning = tuning });
+        if (ownedDefinition is null)
+        {
+            BattleDefinition clonedDefinition = CloneDefinition(definition);
+            GameplayTuning tuning = (clonedDefinition.Tuning ?? throw new InvalidDataException("Battle tuning is missing.")).DiscardLegacyStatusStatTuning();
+            this.definition = NativeBattleStorageSnapshots.Capture(clonedDefinition with { StatusStatModifiers = StatusStatRules.Resolve(clonedDefinition.StatusStatModifiers), Tuning = tuning });
+        }
+        else
+        {
+            ownedDefinition.RequireIdentity(definition);
+            this.definition = definition;
+        }
         nativeGil = this.definition.NativeGil;
         chocoboRewards = this.definition.ChocoboRewards.ObserveInventory(this.definition.NativeItemInventory ?? []);
         nativeCards = this.definition.NativeCards?.DeepCopy();
@@ -367,16 +386,17 @@ public sealed partial class BattleSession
         return NativeBattleStorageSnapshots.Capture(CaptureState());
     }
 
-    private BattleSnapshot CaptureState()
+    private BattleSnapshot CaptureState(OwnedBattleDefinition? ownedDefinition = null)
     {
         RequireEncounterDamagePublicationBoundary();
+        ownedDefinition?.RequireIdentity(definition);
         return new BattleSnapshot
         {
             DiagnosticTerminalHold = DiagnosticTerminalHold,
             OriginalStockDrawOperations = originalStockDrawOperations.ToArray(),
             TurnAdvance = turnAdvance,
             Escape = nativeEscape,
-            Definition = CloneDefinition(definition),
+            Definition = ownedDefinition?.Definition ?? CloneDefinition(definition),
             GuardianForms = CaptureGuardianForms(),
             MagicVitals = magicVitals?.DeepCopy(),
             NativeEntryAdvantage = NativeEntryAdvantage,
@@ -442,9 +462,10 @@ public sealed partial class BattleSession
         return RestoreSnapshot(snapshot, null);
     }
 
-    private static BattleSession RestoreSnapshot(BattleSnapshot snapshot, HostedCandidateProof? hostedProof)
+    private static BattleSession RestoreSnapshot(BattleSnapshot snapshot, HostedCandidateProof? hostedProof, OwnedBattleDefinition? ownedDefinition = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ownedDefinition?.RequireIdentity(snapshot.Definition);
         var completion = hostedProof as HostedEventCompletionCandidateProof;
         var duel = hostedProof as HostedDuelCandidateProof;
         var renzokuken = hostedProof as HostedRenzokukenCandidateProof;
@@ -477,7 +498,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("A battle checkpoint with magic rules requires its authoritative banks and reservations.");
             }
-            BattleSession session = new(snapshot.Definition, snapshot.Mode, false);
+            BattleSession session = new(snapshot.Definition, snapshot.Mode, false, ownedDefinition);
             session.InitializeBattleMagic(snapshot.MagicVitals, false);
             session.RestorePartyOccupancy(snapshot);
             session.RestoreNativeAllocations(snapshot.NativeAllocations);

@@ -79,6 +79,10 @@ public sealed partial record NativeExamTimerState
         {
             alternative.DisplayBlink?.Validate();
         }
+        if (Alternatives.Length == 1)
+        {
+            return;
+        }
         NativeTimerAlternative[] canonical = Normalize(Alternatives);
         if (!canonical.SequenceEqual(Alternatives))
         {
@@ -149,6 +153,26 @@ public sealed partial record NativeExamTimerState
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
         int calls = checked(callbacks * perCallback);
+        if (Alternatives.Length == 1 && Alternatives[0].FirstPhase == Alternatives[0].LastPhase)
+        {
+            NativeTimerAlternative source = Alternatives[0];
+            uint phase = source.FirstPhase;
+            int remaining = source.Remaining;
+            int call = 0;
+            for (; call < calls && remaining != 0; call++)
+            {
+                phase = unchecked(phase + Increment);
+                if (phase >= Threshold)
+                {
+                    remaining = unchecked(remaining - 1);
+                    phase &= ushort.MaxValue;
+                }
+            }
+            // Zero remaining keeps the full DWORD phase, including wraparound.
+            phase = unchecked(phase + (uint)(calls - call) * Increment);
+            NativeTimerAlternative advanced = source with { FirstPhase = phase, LastPhase = phase, Remaining = remaining };
+            return this with { Alternatives = [advanced], ClockCalls = checked(ClockCalls + calls) };
+        }
         NativeTimerAlternative[] alternatives = Alternatives;
         for (int call = 0; call < calls; call++)
         {
