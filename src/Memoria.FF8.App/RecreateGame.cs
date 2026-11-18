@@ -1715,6 +1715,10 @@ internal sealed partial class RecreateGame : Game
             metrics.Draw();
             return;
         }
+        if (sceneInspector is null && ActiveBattle is null && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldBars is { } bars)
+        {
+            DrawFieldBars(bounds, bars);
+        }
         if (sceneInspector is null && events is not null && session.State.DebugView?.DialogueVisible != false && DialoguePresentation.CanDraw(session.State.Scene, field?.Id == session.State.FieldId, presentBattle))
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
@@ -1722,10 +1726,6 @@ internal sealed partial class RecreateGame : Game
             {
                 DrawDialogueUi(bounds, viewport, dialogue, gameTime.TotalGameTime.TotalSeconds);
             }
-        }
-        if (sceneInspector is null && ActiveBattle is null && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldBars is { } bars)
-        {
-            DrawFieldBars(bounds, bars);
         }
         if (sceneInspector is null && ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
         {
