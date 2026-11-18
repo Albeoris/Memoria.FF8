@@ -6,7 +6,83 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MeteorMotionTests
 {
     [Fact]
-    public void ImpulsesAreRareAndExcursionsFinishBeforeTheNextEventIncludingTheCycleSeam()
+    public void TwoMinuteChaseHasFortySecondAdvanceTwentySecondRecoilAndSixtySecondReturn()
+    {
+        Assert.Equal(120, MeteorMotion.CycleSeconds);
+        Assert.Equal(40, MeteorMotion.AdvanceSeconds);
+        Assert.Equal(20, MeteorMotion.RecoilSeconds);
+        Assert.Equal(3 * 0.06 * MeteorMotion.Radius, MeteorMotion.ForwardDistance, 12);
+        Assert.Equal(3 * 0.10 * MeteorMotion.Radius, MeteorMotion.BackwardDistance, 12);
+        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(0));
+        Assert.InRange(Math.Abs(FlightPosition(40) + 0.18 * 0.24), 0, 0.00000002);
+        Assert.InRange(Math.Abs(FlightPosition(60) - 0.30 * 0.24), 0, 0.00000002);
+        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(120));
+        Assert.True(FlightPosition(20) < 0);
+        Assert.True(FlightPosition(90) > 0);
+        Assert.True(MeteorMotion.SampleScreenOffset(40).Y > 0);
+        Assert.True(MeteorMotion.SampleScreenOffset(60).Y < 0);
+        for (int second = -240; second <= 360; second++)
+        {
+            Assert.Equal(MeteorMotion.SampleScreenOffset(second), MeteorMotion.SampleScreenOffset(second + 120));
+        }
+    }
+
+    [Fact]
+    public void AdvanceAcceleratesForTwentySecondsAndReturnSlowsGraduallyOverItsLastThirtySeconds()
+    {
+        float previousSpeed = 0;
+        for (int second = 2; second <= 20; second += 2)
+        {
+            float speed = -FlightVelocity(second);
+            Assert.True(speed > previousSpeed);
+            previousSpeed = speed;
+        }
+        Assert.True(-FlightVelocity(90) > -FlightVelocity(100));
+        Assert.True(-FlightVelocity(100) > -FlightVelocity(110));
+        Assert.True(-FlightVelocity(110) > -FlightVelocity(118));
+        Assert.True(FlightPosition(90) > FlightPosition(105));
+        Assert.True(FlightPosition(105) > FlightPosition(119));
+        Assert.True(FlightPosition(119) > 0);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(40)]
+    [InlineData(60)]
+    [InlineData(120)]
+    public void TranslationStopsSmoothlyAtEveryTurnAndTheCycleSeam(double seconds)
+    {
+        const double step = 0.1;
+        double center = FlightPosition(seconds);
+        double before = FlightPosition(seconds - step);
+        double after = FlightPosition(seconds + step);
+        Assert.InRange(Math.Abs((after - before) / (2 * step)), 0, 0.000002);
+        Assert.InRange(Math.Abs((after - 2 * center + before) / (step * step)), 0, 0.00005);
+    }
+
+    [Fact]
+    public void FlameBoostPeaksAtTheForwardTurnAndReturnsToTheSharedBaselineDuringReturn()
+    {
+        Assert.Equal(1.3f, MeteorMotion.SampleFlameIntensity(40));
+        Assert.Equal(1.3f, MeteorMotion.SampleFlameIntensity(160));
+        foreach (double seconds in new[] { -60d, 60, 75, 90, 110, 120 })
+        {
+            float baseline = (float)(1 + 0.055 * Math.Sin(seconds * 3.2) + 0.025 * Math.Sin(seconds * 7.1));
+            Assert.InRange(Math.Abs(MeteorMotion.SampleFlameIntensity(seconds) - baseline), 0, 0.000001f);
+        }
+        for (int frame = 0; frame <= 120 * 60; frame++)
+        {
+            double seconds = frame / 60d;
+            Assert.InRange(MeteorMotion.SampleFlameIntensity(seconds), 0.92f, 1.3f);
+        }
+        Assert.InRange(MeteorMotion.SampleFlameIntensity(30), 1.25f, 1.3f);
+        Assert.InRange(MeteorMotion.SampleFlameIntensity(45), 1.25f, 1.3f);
+        Assert.InRange(MeteorMotion.SampleFlameIntensity(double.MaxValue), 0.92f, 1.3f);
+        Assert.InRange(MeteorMotion.SampleFlameIntensity(double.MinValue), 0.92f, 1.3f);
+    }
+
+    [Fact]
+    public void AngularImpulsesRemainRareAndFinishBeforeTheNextEventIncludingTheCycleSeam()
     {
         for (int slot = -1; slot < MeteorMotion.ImpulseSlotCount; slot++)
         {
@@ -14,15 +90,12 @@ public sealed class MeteorMotionTests
             MeteorMotionImpulse next = MeteorMotion.DescribeImpulse(slot + 1);
             Assert.InRange(next.StartSeconds - impulse.StartSeconds, 2, 5);
             Assert.InRange(impulse.AngularDurationSeconds, 0.4, 0.8);
-            Assert.InRange(impulse.ExcursionDurationSeconds, 1.6, 2);
             Assert.InRange(impulse.PeakTiltRadians * 180 / Math.PI, 0.15, 0.30000001);
-            Assert.True(impulse.StartSeconds + impulse.ExcursionDurationSeconds < next.StartSeconds);
-            Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds + 0.01));
+            Assert.True(impulse.StartSeconds + impulse.AngularDurationSeconds < next.StartSeconds);
+            Assert.InRange(ReadTilt(MeteorMotion.Sample(impulse.StartSeconds + impulse.AngularDurationSeconds + 0.01)).Length(), 0, 0.0000001f);
         }
-        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(-0.01));
-        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(0));
-        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(0.01));
-        Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(MeteorMotion.ImpulsePeriodSeconds));
+        Assert.InRange(ReadTilt(MeteorMotion.Sample(-0.01)).Length(), 0, 0.0000001f);
+        Assert.InRange(ReadTilt(MeteorMotion.Sample(0)).Length(), 0, 0.0000001f);
     }
 
     [Fact]
@@ -58,35 +131,9 @@ public sealed class MeteorMotionTests
     }
 
     [Fact]
-    public void EachExcursionAdvancesThenLagsFartherAndReturnsToRestWithoutDrift()
-    {
-        for (int slot = 0; slot < 128; slot++)
-        {
-            MeteorMotionImpulse impulse = MeteorMotion.DescribeImpulse(slot);
-            Vector2 forwardScreen = MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.25);
-            Vector2 backwardScreen = MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.6);
-            Vector2 forward = ToFlight(forwardScreen);
-            Vector2 backward = ToFlight(backwardScreen);
-            Assert.InRange(forward.X, -0.060001f * 0.24f, -0.039999f * 0.24f);
-            Assert.InRange(backward.X, 0.079999f * 0.24f, 0.100001f * 0.24f);
-            Assert.True(forwardScreen.X < 0 && forwardScreen.Y > 0);
-            Assert.True(backwardScreen.X > 0 && backwardScreen.Y < 0);
-            Assert.InRange(forwardScreen.Length() / 0.24f * 200, 7.999f, 12.002f);
-            Assert.InRange(backwardScreen.Length() / 0.24f * 200, 15.999f, 20.002f);
-            Assert.True(backward.X > -forward.X);
-            Assert.InRange(Math.Abs(forward.X + impulse.ForwardDistance), 0, 0.00000001);
-            Assert.InRange(Math.Abs(backward.X - impulse.BackwardDistance), 0, 0.00000001);
-            AssertFlightBounds(forwardScreen);
-            AssertFlightBounds(backwardScreen);
-            Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(impulse.StartSeconds - 0.01));
-            Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds + 0.01));
-        }
-    }
-
-    [Fact]
     public void SpinAndNegativeHistoryRemainContinuousAcrossTheirWrapBoundaries()
     {
-        foreach (double boundary in new[] { 0d, 450, MeteorMotion.ImpulsePeriodSeconds })
+        foreach (double boundary in new[] { 0d, 40, 60, 120, 450, MeteorMotion.ImpulsePeriodSeconds })
         {
             MeteorMotionSample before = MeteorMotion.Sample(boundary - 0.000001);
             MeteorMotionSample after = MeteorMotion.Sample(boundary + 0.000001);
@@ -110,12 +157,12 @@ public sealed class MeteorMotionTests
     [Fact]
     public void SamplingOrderAndPresentationFrameRateDoNotChangeMotion()
     {
-        MeteorMotionSample[] atThirtyFrames = new MeteorMotionSample[301];
+        MeteorMotionSample[] atThirtyFrames = new MeteorMotionSample[3601];
         for (int frame = 0; frame < atThirtyFrames.Length; frame++)
         {
             atThirtyFrames[frame] = MeteorMotion.Sample(frame / 30d);
         }
-        for (int frame = 600; frame >= 0; frame--)
+        for (int frame = 7200; frame >= 0; frame--)
         {
             MeteorMotionSample sample = MeteorMotion.Sample(frame / 60d);
             if (frame % 2 == 0)
@@ -123,7 +170,7 @@ public sealed class MeteorMotionTests
                 Assert.Equal(atThirtyFrames[frame / 2], sample);
             }
         }
-        Assert.Equal(atThirtyFrames[300], MeteorMotion.Sample(10));
+        Assert.Equal(atThirtyFrames[3600], MeteorMotion.Sample(120));
     }
 
     [Theory]
@@ -164,6 +211,9 @@ public sealed class MeteorMotionTests
     [Theory]
     [InlineData(0)]
     [InlineData(0.125)]
+    [InlineData(40)]
+    [InlineData(60)]
+    [InlineData(120)]
     [InlineData(5)]
     [InlineData(-3)]
     [InlineData(1234567890123)]
@@ -187,6 +237,7 @@ public sealed class MeteorMotionTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => MeteorMotion.Sample(seconds));
         Assert.Throws<ArgumentOutOfRangeException>(() => MeteorMotion.SampleScreenOffset(seconds));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MeteorMotion.SampleFlameIntensity(seconds));
         Assert.Throws<ArgumentOutOfRangeException>(() => MeteorMotion.FillTailScreenOffsets(seconds, new Vector2[9]));
     }
 
@@ -206,10 +257,20 @@ public sealed class MeteorMotionTests
         return new(0.94f * screen.X - 0.341f * screen.Y, 0.341f * screen.X + 0.94f * screen.Y);
     }
 
+    private static float FlightPosition(double seconds)
+    {
+        return ToFlight(MeteorMotion.SampleScreenOffset(seconds)).X;
+    }
+
+    private static float FlightVelocity(double seconds)
+    {
+        return (FlightPosition(seconds + 0.1) - FlightPosition(seconds - 0.1)) / 0.2f;
+    }
+
     private static void AssertFlightBounds(Vector2 screen)
     {
         Vector2 flight = ToFlight(screen);
-        Assert.InRange(flight.X, -0.060001f * 0.24f, 0.100001f * 0.24f);
-        Assert.InRange(Math.Abs(flight.Y), 0, 0.00000001f);
+        Assert.InRange(flight.X, -0.180001f * 0.24f, 0.300001f * 0.24f);
+        Assert.InRange(Math.Abs(flight.Y), 0, 0.00000002f);
     }
 }

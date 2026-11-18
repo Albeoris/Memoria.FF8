@@ -258,6 +258,7 @@ internal sealed class PreviewGame : Game
                 MeteorHeadOffsetX = meteorPose?.ScreenOffset.X,
                 MeteorHeadOffsetY = meteorPose?.ScreenOffset.Y,
                 MeteorTailLagSeconds = meteorPose.HasValue ? (double?)MeteorMotion.TailMaximumLagSeconds : null,
+                MeteorFlameIntensity = meteorPose.HasValue ? (float?)MeteorMotion.SampleFlameIntensity(options.Time) : null,
                 Field = (int?)null,
                 Frame = 0,
                 AnimationSeconds = options.Time,

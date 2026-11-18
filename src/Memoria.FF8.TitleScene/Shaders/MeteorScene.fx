@@ -11,6 +11,7 @@ float Aspect;
 float InverseHeight;
 float4 MeteorLightWeights;
 float2 MeteorHeadOffset;
+float MeteorFlameIntensity;
 float3 MeteorObjectAxisX;
 float3 MeteorObjectAxisY;
 float3 MeteorObjectAxisZ;
@@ -88,7 +89,7 @@ float3 MeteorNormal(float3 p)
 // Shared by the luminous flame and its reflected light; the key stays stable.
 float FlameLightIntensity()
 {
-    return 1 + 0.055 * sin(Time * 3.2) + 0.025 * sin(Time * 7.1);
+    return MeteorFlameIntensity;
 }
 
 float MeteorLightVisibility(float3 p, float3 normal, float3 lightDirection)

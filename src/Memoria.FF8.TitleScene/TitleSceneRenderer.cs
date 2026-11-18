@@ -99,6 +99,7 @@ public sealed class TitleSceneRenderer : IDisposable
                 effect.Parameters["MeteorLightWeights"].SetValue(meteorLightWeights);
                 MeteorMotionSample motion = MeteorMotion.Sample(seconds);
                 effect.Parameters["MeteorHeadOffset"].SetValue(ToFlightOffset(motion.ScreenOffset));
+                effect.Parameters["MeteorFlameIntensity"].SetValue(MeteorMotion.SampleFlameIntensity(seconds));
                 effect.Parameters["MeteorObjectAxisX"].SetValue(new Vector3(motion.AxisX.X, motion.AxisX.Y, motion.AxisX.Z));
                 effect.Parameters["MeteorObjectAxisY"].SetValue(new Vector3(motion.AxisY.X, motion.AxisY.Y, motion.AxisY.Z));
                 effect.Parameters["MeteorObjectAxisZ"].SetValue(new Vector3(motion.AxisZ.X, motion.AxisZ.Y, motion.AxisZ.Z));
