@@ -220,8 +220,7 @@ internal sealed class PreviewGame : Game
             Render(options.Time + 8);
             GraphicsDevice.GetBackBufferData(pixels);
             int changedPixels = reference.Where((color, index) => color != pixels[index]).Count();
-            bool expectsAnimation = options.Style != TitleSceneStyle.FinalFantasyVII || options.MeteorLighting is null or MeteorLightingPass.Full or MeteorLightingPass.Rim or MeteorLightingPass.KeyAndRim;
-            if (changedPixels == 0 && expectsAnimation)
+            if (changedPixels == 0)
             {
                 throw new InvalidOperationException("Animation check failed: time + 8 produced an identical frame.");
             }
@@ -250,11 +249,15 @@ internal sealed class PreviewGame : Game
             }
             Directory.CreateDirectory(Path.GetDirectoryName(options.Output)!);
             SaveImage(options.Output, pixels);
+            MeteorMotionSample? meteorPose = options.Style == TitleSceneStyle.FinalFantasyVII ? MeteorMotion.Sample(options.Time) : null;
             var report = new
             {
                 Scene = "Title",
                 Style = options.Style.ToString(),
                 MeteorLighting = options.Style == TitleSceneStyle.FinalFantasyVII ? (options.MeteorLighting ?? MeteorLightingPass.Full).ToString() : null,
+                MeteorHeadOffsetX = meteorPose?.ScreenOffset.X,
+                MeteorHeadOffsetY = meteorPose?.ScreenOffset.Y,
+                MeteorTailLagSeconds = meteorPose.HasValue ? (double?)MeteorMotion.TailMaximumLagSeconds : null,
                 Field = (int?)null,
                 Frame = 0,
                 AnimationSeconds = options.Time,

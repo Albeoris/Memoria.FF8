@@ -14,6 +14,7 @@ public sealed class TitleSceneRenderer : IDisposable
     private readonly Texture2D whitePixel;
     private readonly Effect effect;
     private readonly TitleSceneStyle style;
+    private readonly Vector2[] meteorTailOffsets = new Vector2[MeteorMotion.TailSampleCount];
     private RenderTarget2D? surface;
     private bool disposed;
 
@@ -96,6 +97,18 @@ public sealed class TitleSceneRenderer : IDisposable
             if (style == TitleSceneStyle.FinalFantasyVII)
             {
                 effect.Parameters["MeteorLightWeights"].SetValue(meteorLightWeights);
+                MeteorMotionSample motion = MeteorMotion.Sample(seconds);
+                effect.Parameters["MeteorHeadOffset"].SetValue(ToFlightOffset(motion.ScreenOffset));
+                effect.Parameters["MeteorObjectAxisX"].SetValue(new Vector3(motion.AxisX.X, motion.AxisX.Y, motion.AxisX.Z));
+                effect.Parameters["MeteorObjectAxisY"].SetValue(new Vector3(motion.AxisY.X, motion.AxisY.Y, motion.AxisY.Z));
+                effect.Parameters["MeteorObjectAxisZ"].SetValue(new Vector3(motion.AxisZ.X, motion.AxisZ.Y, motion.AxisZ.Z));
+                Span<System.Numerics.Vector2> tail = stackalloc System.Numerics.Vector2[MeteorMotion.TailSampleCount];
+                MeteorMotion.FillTailScreenOffsets(seconds, tail);
+                for (int index = 0; index < meteorTailOffsets.Length; index++)
+                {
+                    meteorTailOffsets[index] = ToFlightOffset(tail[index]);
+                }
+                effect.Parameters["MeteorTailOffsets"].SetValue(meteorTailOffsets);
             }
             effect.Parameters["Aspect"].SetValue((float)bounds.Width / bounds.Height);
             effect.Parameters["InverseHeight"].SetValue(1.0f / bounds.Height);
@@ -128,6 +141,11 @@ public sealed class TitleSceneRenderer : IDisposable
             graphicsDevice.SamplerStates[0] = previousSampler;
             graphicsDevice.Textures[0] = previousTexture;
         }
+    }
+
+    private static Vector2 ToFlightOffset(System.Numerics.Vector2 screenOffset)
+    {
+        return new(0.94f * screenOffset.X - 0.341f * screenOffset.Y, 0.341f * screenOffset.X + 0.94f * screenOffset.Y);
     }
 
     private void EnsureSurface(int width, int height)

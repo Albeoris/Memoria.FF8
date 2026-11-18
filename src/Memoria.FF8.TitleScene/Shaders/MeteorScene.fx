@@ -10,6 +10,11 @@ float Time;
 float Aspect;
 float InverseHeight;
 float4 MeteorLightWeights;
+float2 MeteorHeadOffset;
+float3 MeteorObjectAxisX;
+float3 MeteorObjectAxisY;
+float3 MeteorObjectAxisZ;
+float2 MeteorTailOffsets[9];
 #if VULKAN || DIRECTX12
 Texture2D Texture : register(t0);
 sampler TextureSampler : register(s0) = sampler_state
@@ -64,6 +69,13 @@ float MeteorDistance(float3 p)
     float3 q = p * float3(0.88, 1.05, 1.0);
     float relief = noise(q * 3.7 + 4.1) * 0.18 + noise(q * 8.3) * 0.065 + abs(noise(q * 26) - 0.5) * 0.022;
     return (length(q) - 0.84 - relief) * 0.72;
+}
+
+// Object basis vectors are evaluated from absolute presentation time on the CPU.
+// The orthographic camera, flight axis and light rig remain in flight space.
+float3 MeteorToObject(float3 v)
+{
+    return float3(dot(v, MeteorObjectAxisX), dot(v, MeteorObjectAxisY), dot(v, MeteorObjectAxisZ));
 }
 
 float3 MeteorNormal(float3 p)
@@ -157,10 +169,10 @@ float3 MeteorMaterial(float3 p, float3 n)
     // supplied source offsets (-3,3,2), (3,1,-2), (0,-1,4) into object space:
     // X follows the tail, Y is screen-down, camera is on -Z. These vectors point
     // FROM the surface TOWARD each source, as required by N dot L.
-    float3 keyDirection = normalize(float3(-1.797, -3.843, -2));
-    float3 rimDirection = normalize(float3(3.161, 0.083, 2));
-    float3 fillDirection = normalize(float3(-0.341, 0.94, -4));
-    float3 viewDirection = float3(0, 0, -1);
+    float3 keyDirection = MeteorToObject(normalize(float3(-1.797, -3.843, -2)));
+    float3 rimDirection = MeteorToObject(normalize(float3(3.161, 0.083, 2)));
+    float3 fillDirection = MeteorToObject(normalize(float3(-0.341, 0.94, -4)));
+    float3 viewDirection = MeteorToObject(float3(0, 0, -1));
     float3 albedo = lerp(float3(0.018, 0.034, 0.041), float3(0.12, 0.19, 0.22), plates);
     albedo *= (0.55 + flakes * 0.9) * (1 - seams * 0.7);
     float3 stone = 0;
@@ -193,6 +205,17 @@ float2 MeteorCoordinates(float2 p)
     float compositionScale = min(1.0, Aspect / 1.35);
     float2 delta = float2(p.x / compositionScale + 0.30, (p.y - 0.30) / compositionScale);
     return float2(dot(delta, float2(0.94, -0.341)), dot(delta, float2(0.341, 0.94)));
+}
+
+float2 MeteorPlumeCoordinates(float2 q)
+{
+    // At the shell use the current head position. Increasing downstream distance
+    // selects older analytic samples, reaching .25 seconds at the far tail.
+    // Only translation is delayed: the plume never inherits the rock's rotation.
+    float history = smoothstep(0.12, 1.10, q.x - MeteorHeadOffset.x) * 8;
+    int first = min((int)history, 7);
+    float2 offset = lerp(MeteorTailOffsets[first], MeteorTailOffsets[first + 1], history - first);
+    return q - offset;
 }
 
 // Advected turbulent sheets stream downstream (+X), continuously replenished at
@@ -279,25 +302,28 @@ float4 SurfacePixel(float4 position : SV_POSITION, float4 color : COLOR0, float2
 {
     float2 p = float2((uv.x - 0.5) * Aspect, uv.y);
     float2 q = MeteorCoordinates(p);
+    float2 head = q - MeteorHeadOffset;
+    float2 plume = MeteorPlumeCoordinates(q);
     float mist = fbm(float3(p * 3, Time * 0.014));
     float3 result = float3(0.002, 0.009, 0.013) + float3(0.001, 0.027, 0.019) * mist;
     result += float3(0.0, 0.045, 0.028) * exp(-dot((p - float2(-0.25, 0.2)) * 2.8, (p - float2(-0.25, 0.2)) * 2.8));
-    result = (result + Combustion(q)) * MeteorLightWeights.w;
+    result = (result + Combustion(plume)) * MeteorLightWeights.w;
     // Orthographic camera through the independent 3D solid. A bounded footprint
     // and fixed maximum step count keep cost independent of elapsed time.
     [branch]
-    // Includes the maximum relief (.84 + .18 + .065 + .011), object
-    // anisotropy and .24 scene scale, so trailing protrusions are not clipped.
-    if (abs(q.x) < 0.305 && abs(q.y) < 0.255)
+    // The full rotating solid fits inside the .305-radius footprint. Subtract
+    // translation first so all poses retain that bound without clipping.
+    if (abs(head.x) < 0.305 && abs(head.y) < 0.305)
     {
-        float3 ray = float3(q / 0.24, -1.6);
+        float3 ray = MeteorToObject(float3(head / 0.24, -1.6));
+        float3 rayDirection = MeteorToObject(float3(0, 0, 1));
         float depth = 0;
         float d = 1;
         [loop]
         for (int step = 0; step < 38; step++)
         {
-            d = MeteorDistance(ray + float3(0, 0, depth));
-            if (d < 0.0015 || depth > 2.7)
+            d = MeteorDistance(ray + rayDirection * depth);
+            if (d < 0.0015 || depth > 3.2)
             {
                 break;
             }
@@ -305,12 +331,12 @@ float4 SurfacePixel(float4 position : SV_POSITION, float4 color : COLOR0, float2
         }
         if (d < 0.0015)
         {
-            float3 hitPosition = ray + float3(0, 0, depth);
+            float3 hitPosition = ray + rayDirection * depth;
             float3 normal = MeteorNormal(hitPosition);
             result = MeteorMaterial(hitPosition, normal);
         }
     }
-    result += (Lifestream(p) + AblationSparks(q)) * MeteorLightWeights.w;
+    result += (Lifestream(p) + AblationSparks(plume)) * MeteorLightWeights.w;
     // Preserve a quiet menu area while allowing the lower streams to frame it.
     return float4(result, 1);
 }
