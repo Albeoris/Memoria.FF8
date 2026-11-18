@@ -35,7 +35,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
     private RenderTarget2D? centreCaptureTarget;
     private Effect? centreCaptureEffect;
     private SpriteBatch? centreCaptureBatch;
-    private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes);
+    private readonly record struct CachedTexture(WeakReference<PixelImage> Image, Texture2D Texture, long Bytes, bool Orphaned = false);
     private readonly Dictionary<(TriangleBlend, bool, bool), BlendState> blends = [];
     private readonly Dictionary<(TriangleDepthComparison, bool), DepthStencilState> depths = [];
     private const int MaximumStreamVertices = 32768;
@@ -599,9 +599,10 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         for (LinkedListNode<CachedTexture>? node = recentTextures.First; node is not null;)
         {
             LinkedListNode<CachedTexture>? next = node.Next;
-            if (!node.Value.Image.TryGetTarget(out _))
+            if (!node.Value.Orphaned && !node.Value.Image.TryGetTarget(out _))
             {
-                RemoveCachedTexture(node);
+                UnbindTexture(node.Value.Texture);
+                node.Value = node.Value with { Orphaned = true };
             }
             node = next;
         }
@@ -652,9 +653,32 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         }
         long bytes = checked((long)image.Pixels.Length * 4);
         bool cacheable = bytes <= maximumCachedTextureBytes;
+        if (cacheable && FindOrphanedTexture(image.Width, image.Height) is { } reusable && reusable.Value.Bytes == bytes)
+        {
+            Texture2D retained = reusable.Value.Texture;
+            try
+            {
+                WeakReference<PixelImage> owner = new(image);
+                UnbindTexture(retained);
+                retained.SetData(image.Pixels);
+                NativeBattleTelemetry.Record(2002, NativeBattleTrafficKind.GpuUpload, bytes);
+                FrameTextureUploads++;
+                textures.Add(image, reusable);
+                reusable.Value = new(owner, retained, bytes);
+                recentTextures.Remove(reusable);
+                recentTextures.AddLast(reusable);
+                return retained;
+            }
+            catch
+            {
+                textures.Remove(image);
+                RemoveCachedTexture(reusable);
+                throw;
+            }
+        }
         while (cacheable && (recentTextures.Count >= maximumCachedTextures || cachedTextureBytes > maximumCachedTextureBytes - bytes))
         {
-            LinkedListNode<CachedTexture> oldest = recentTextures.First!;
+            LinkedListNode<CachedTexture> oldest = FindOrphanedTexture() ?? recentTextures.First!;
             RemoveCachedTexture(oldest);
         }
         Texture2D texture = new(device, image.Width, image.Height, false, SurfaceFormat.Color);
@@ -680,6 +704,18 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
             transientTexture = texture;
         }
         return texture;
+    }
+
+    private LinkedListNode<CachedTexture>? FindOrphanedTexture(int? width = null, int? height = null)
+    {
+        for (LinkedListNode<CachedTexture>? node = recentTextures.First; node is not null; node = node.Next)
+        {
+            if (!node.Value.Image.TryGetTarget(out _) && (width is null || !node.Value.Texture.IsDisposed && node.Value.Texture.Width == width && node.Value.Texture.Height == height && node.Value.Texture.Format == SurfaceFormat.Color))
+            {
+                return node;
+            }
+        }
+        return null;
     }
 
     private BlendState Blend(TriangleBlend blend, bool colorWrite, bool preserveTargetAlpha)

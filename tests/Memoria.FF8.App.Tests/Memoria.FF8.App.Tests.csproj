@@ -5,6 +5,8 @@
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Match the Release application's runtime policy for graphical host measurements. -->
+    <TieredCompilationQuickJit Condition="'$(Configuration)' == 'Release'">false</TieredCompilationQuickJit>
     <ApplicationManifest Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>

@@ -853,6 +853,18 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             return;
         }
+        if ((long)length + 3 <= pointers.Count)
+        {
+            long end = (long)offset + length;
+            for (int start = Math.Max(0, offset - 3); start < end; start++)
+            {
+                if (pointers.ContainsKey(start) && start + 4L > offset)
+                {
+                    (removedPointers ??= []).Add(start);
+                }
+            }
+            return;
+        }
         foreach (var entry in pointers)
         {
             int pointer = entry.Key;

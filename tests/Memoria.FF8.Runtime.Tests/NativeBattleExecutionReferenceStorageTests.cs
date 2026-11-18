@@ -37,6 +37,58 @@ public sealed class NativeBattleExecutionReferenceStorageTests
     }
 
     [Fact]
+    public void Working_reference_collection_matches_sparse_and_dense_owner_overlap_and_rollback()
+    {
+        (int Offset, int Length)[] stores = [(0, 1), (1, 1), (7, 1), (7, 2), (9, 1), (10, 1), (1023, 1), (1019, 4), (1017, 7), (0, 32), (0, 1024), (1024, 0), (9, 0)];
+        foreach ((int offset, int length) in stores)
+        {
+            foreach (bool unknown in new[] { false, true })
+            {
+                foreach (int extraReferences in new[] { 0, 64 })
+                {
+                    using NativeBattleWorkingMemory memory = new(1024);
+                    memory.WriteExecutionReference(0, 1, Model, [1]);
+                    memory.WriteExecutionReference(8, 2, Targets);
+                    memory.WriteExecutionReference(1020, 4, Header, [9, 8, 7, 6]);
+                    for (int index = 0; index < extraReferences; index++)
+                    {
+                        memory.WriteExecutionReference(512 + index * 4, 4, Header);
+                    }
+                    int[] starts = [0, 8, 1020];
+                    BattleExecutionReferenceEntry[] originals = starts.Select(start => memory.FindExecutionReference(start)!).ToArray();
+                    byte[] bytes = new byte[1024];
+                    bool[] known = new bool[1024];
+                    memory.ReadWithKnownness(0, bytes, known);
+                    memory.BeginCheckpoint();
+                    if (unknown)
+                    {
+                        memory.MarkUnknown(offset, length);
+                    }
+                    else
+                    {
+                        memory.Write(offset, new byte[length]);
+                    }
+                    for (int index = 0; index < starts.Length; index++)
+                    {
+                        bool overlaps = length != 0 && starts[index] < (long)offset + length && starts[index] + (long)originals[index].Width > offset;
+                        Assert.Equal(overlaps ? null : originals[index], memory.FindExecutionReference(starts[index]));
+                    }
+                    memory.RollbackCheckpoint();
+                    for (int index = 0; index < starts.Length; index++)
+                    {
+                        Assert.Equal(originals[index], memory.FindExecutionReference(starts[index]));
+                    }
+                    byte[] restoredBytes = new byte[1024];
+                    bool[] restoredKnown = new bool[1024];
+                    memory.ReadWithKnownness(0, restoredBytes, restoredKnown);
+                    Assert.Equal(bytes, restoredBytes);
+                    Assert.Equal(known, restoredKnown);
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void Nested_and_outer_checkpoint_restore_reference_kind_bytes_and_knownness()
     {
         using NativeBattleWorkingMemory memory = new(96);
@@ -55,11 +107,20 @@ public sealed class NativeBattleExecutionReferenceStorageTests
         Assert.Equal(0x06070809u, memory.ReadUInt32(12));
     }
 
-    [Fact]
-    public void Rejected_width_encoding_and_journal_reservation_leave_owner_unchanged()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Rejected_width_encoding_and_journal_reservation_leave_owner_unchanged(bool dense)
     {
         using NativeBattleWorkingMemory memory = new(96, maxJournalEntries: 1);
         memory.WriteExecutionReference(10, 2, Targets, [4, 0]);
+        if (dense)
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                memory.WriteExecutionReference(32 + index * 4, 4, Header);
+            }
+        }
         long version = memory.Version;
         Assert.Throws<ArgumentOutOfRangeException>(() => memory.WriteExecutionReference(10, 3, Model));
         Assert.Throws<ArgumentException>(() => memory.WriteExecutionReference(10, 2, Model, [4]));

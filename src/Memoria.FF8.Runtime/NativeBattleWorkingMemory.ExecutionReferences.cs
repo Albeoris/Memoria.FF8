@@ -74,6 +74,18 @@ internal sealed partial class NativeBattleWorkingMemory
         {
             return;
         }
+        if ((long)length + 3 <= executionReferences.Count)
+        {
+            long end = (long)offset + length;
+            for (int start = Math.Max(0, offset - 3); start < end; start++)
+            {
+                if (executionReferences.TryGetValue(start, out BattleExecutionReferenceEntry? entry) && start + (long)entry.Width > offset)
+                {
+                    (removedExecutionReferences ??= []).Add(start);
+                }
+            }
+            return;
+        }
         foreach ((int start, BattleExecutionReferenceEntry entry) in executionReferences)
         {
             if (start < (long)offset + length && start + (long)entry.Width > offset)

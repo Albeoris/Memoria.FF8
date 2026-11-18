@@ -194,7 +194,7 @@ public sealed class BattleMeteorPartyPerformanceTests
             Released = released,
             Damages = battle.Events.Skip(eventStart).Where(entry => entry.Kind == "Damage" && entry.ActorId == caster.Id).Select(entry => new { entry.TargetId, entry.Amount }).Take(64).ToArray(),
             Graphics = new { Backend = "Vulkan", Width = game.GraphicsDevice.PresentationParameters.BackBufferWidth, Height = game.GraphicsDevice.PresentationParameters.BackBufferHeight, Samples = game.GraphicsDevice.PresentationParameters.MultiSampleCount, PresentInterval = game.GraphicsDevice.PresentationParameters.PresentationInterval.ToString() },
-            Runtime = new { Version = Environment.Version.ToString(), System.Runtime.GCSettings.IsServerGC, LatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(), Environment.ProcessorCount },
+            Runtime = new { Version = Environment.Version.ToString(), System.Runtime.GCSettings.IsServerGC, LatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(), Environment.ProcessorCount, QuickJitHostOption = AppContext.GetData("System.Runtime.TieredCompilation.QuickJit"), QuickJitEnvironment = Environment.GetEnvironmentVariable("DOTNET_TC_QuickJit"), GcHeapCountEnvironment = Environment.GetEnvironmentVariable("DOTNET_GCHeapCount") },
             Presented = presented,
             Seconds = duration.Elapsed.TotalSeconds,
             Idle = Summarize(1, idleTimestamp, idlePacer, idleStart, idleEnd),

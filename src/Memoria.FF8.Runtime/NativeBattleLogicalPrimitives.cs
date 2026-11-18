@@ -295,6 +295,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
     {
         internal NativeBattleModelPrimitive Primitive => Storage is NativeBattleModelPrimitiveBatch batch ? batch[Index] : (NativeBattleGeometryPrimitive)Storage;
     }
+    private sealed record PacketInsertion(int Bucket, uint? PreviousAddress, ImmutableArray<uint> Words, ImmutableArray<int> VertexPayload4, ImmutableArray<BattleSceneScreenPoint>? ProjectedCoordinates, NativeBattlePilotVisualGeometry? PilotGeometry, string? PresentationActorId, NativeBattleScreenCoverage? ScreenCoverage, NativeBattleSceneCapture? SceneCapture, NativeBattleModelTextureOwner? ModelTextureOwner, bool RetainAuthoredPayload);
+
     internal readonly record struct JournalEntry(Action? Callback, ModelPacketInsertion ModelPacket = default);
 
     internal sealed class Delta(object identity, long expectedVersion, ImmutableArray<JournalEntry> edits)
@@ -679,14 +681,26 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
         internal void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates, string? textureSourceOwner, NativeBattlePilotVisualGeometry? pilotGeometry, string? presentationActorId, NativeBattleScreenCoverage? screenCoverage, NativeBattleSceneCapture? sceneCapture, NativeBattleModelTextureOwner? modelTextureOwner)
         {
-            Run(() => PrependCore(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner), () => Prepend(bucket, reference, words, flags20, vertexPayload4, moduleDraw, projectedCoordinates, textureSourceOwner, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner));
+            PacketInsertion packet = new(bucket, null, words, vertexPayload4, projectedCoordinates, pilotGeometry, presentationActorId, screenCoverage, sceneCapture, modelTextureOwner, false);
+            PrependModel(new(reference, packet, 0, flags20, moduleDraw, textureSourceOwner));
         }
         internal void PrependModel(ModelPacketInsertion insertion)
         {
             operationDepth++;
             try
             {
-                if (insertion.Storage is NativeBattlePlacedModelPrimitives placement)
+                if (insertion.Storage is PacketInsertion packet)
+                {
+                    if (packet.PreviousAddress is uint previousAddress)
+                    {
+                        PrependAddressedCore(previousAddress, insertion.Reference, packet.Words, insertion.Flags20, packet.VertexPayload4, insertion.ModuleDraw, packet.PilotGeometry, packet.ScreenCoverage, packet.SceneCapture, packet.ProjectedCoordinates, packet.ModelTextureOwner, packet.RetainAuthoredPayload);
+                    }
+                    else
+                    {
+                        PrependCore(packet.Bucket, insertion.Reference, packet.Words, insertion.Flags20, packet.VertexPayload4, insertion.ModuleDraw, packet.ProjectedCoordinates, insertion.TextureSourceOwner, packet.PilotGeometry, packet.PresentationActorId, packet.ScreenCoverage, packet.SceneCapture, packet.ModelTextureOwner);
+                    }
+                }
+                else if (insertion.Storage is NativeBattlePlacedModelPrimitives placement)
                 {
                     NativeBattleModelPrimitiveBatch batch = placement.Batch;
                     int row = insertion.Index;
@@ -706,7 +720,8 @@ public sealed partial record NativeBattleLogicalOrdering : INativeBattleStorageN
         }
         internal void PrependAddressed(uint previousAddress, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw, NativeBattlePilotVisualGeometry? pilotGeometry, NativeBattleScreenCoverage? screenCoverage, NativeBattleSceneCapture? sceneCapture, ImmutableArray<BattleSceneScreenPoint>? projectedCoordinates, NativeBattleModelTextureOwner? modelTextureOwner, bool retainAuthoredPayload = false)
         {
-            Run(() => PrependAddressedCore(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry, screenCoverage, sceneCapture, projectedCoordinates, modelTextureOwner, retainAuthoredPayload), () => PrependAddressed(previousAddress, reference, words, flags20, vertexPayload4, moduleDraw, pilotGeometry, screenCoverage, sceneCapture, projectedCoordinates, modelTextureOwner, retainAuthoredPayload));
+            PacketInsertion packet = new(0, previousAddress, words, vertexPayload4, projectedCoordinates, pilotGeometry, null, screenCoverage, sceneCapture, modelTextureOwner, retainAuthoredPayload);
+            PrependModel(new(reference, packet, 0, flags20, moduleDraw, null));
         }
         private bool InvalidatePacketRangeCore(NativeBattlePrimitiveReference reference, int length)
         {

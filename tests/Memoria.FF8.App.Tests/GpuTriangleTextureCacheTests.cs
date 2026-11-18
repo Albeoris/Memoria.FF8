@@ -12,21 +12,107 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GpuTriangleTextureCacheTests
 {
     [Fact]
-    public void DeadCpuImagesAreNotRetainedAndOnlyTheirGpuEntriesArePrunedAtFrameEnd()
+    public void DeadCpuImagesLeaveUnboundGpuStorageWithinTheCacheBudget()
     {
         using GpuTestDevice device = new();
-        using GpuTriangleRenderer renderer = new(device.Device);
-        (WeakReference<PixelImage> image, Texture2D texture) = RenderTemporaryImage(renderer, device);
+        AssertDeadCpuImageStorage(device.Device);
+    }
+
+    internal static void AssertDeadCpuImageStorage(GraphicsDevice device)
+    {
+        using GpuTriangleRenderer renderer = new(device);
+        (WeakReference<PixelImage> image, Texture2D texture) = RenderTemporaryImage(renderer);
         CollectImages();
         Assert.False(IsAlive(image));
         Assert.False(texture.IsDisposed);
 
         Frame(renderer, new TriangleMaterial(null));
-        Assert.True(texture.IsDisposed);
-        Assert.Null(device.Device.Textures[0]);
-        Assert.Equal(0L, (long)typeof(GpuTriangleRenderer).GetField("cachedTextureBytes", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!);
+        Assert.False(texture.IsDisposed);
+        Assert.Null(device.Textures[0]);
+        Assert.Equal(4L, (long)typeof(GpuTriangleRenderer).GetField("cachedTextureBytes", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!);
         Frame(renderer, new TriangleMaterial(null));
         Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.White, pixel));
+    }
+
+    [Fact]
+    public void SameSizedOrphanStorageIsFullyUploadedBeforeReuse()
+    {
+        using GpuTestDevice device = new();
+        AssertSameSizedStorageReuse(device.Device);
+    }
+
+    internal static void AssertSameSizedStorageReuse(GraphicsDevice device)
+    {
+        using GpuTriangleRenderer renderer = new(device);
+        (WeakReference<PixelImage> image, Texture2D texture) = RenderTemporaryImage(renderer);
+        CollectImages();
+        Assert.False(IsAlive(image));
+        Frame(renderer);
+        PixelImage replacement = Image(0, 255, 0);
+        Frame(renderer, new TriangleMaterial(replacement));
+        Assert.Same(texture, LastTexture(renderer));
+        Assert.False(texture.IsDisposed);
+        Assert.Equal(1, renderer.FrameTextureUploads);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Lime, pixel));
+        Frame(renderer, new TriangleMaterial(replacement));
+        Assert.Equal(0, renderer.FrameTextureUploads);
+        renderer.InvalidateTexture(replacement);
+        Assert.True(texture.IsDisposed);
+        Assert.Null(device.Textures[0]);
+        GC.KeepAlive(replacement);
+    }
+
+    [Fact]
+    public void EqualByteSizeWithDifferentDimensionsDoesNotReuseOrphanStorage()
+    {
+        using GpuTestDevice device = new();
+        AssertDimensionMismatch(device.Device);
+    }
+
+    internal static void AssertDimensionMismatch(GraphicsDevice device)
+    {
+        using GpuTriangleRenderer renderer = new(device);
+        (WeakReference<PixelImage> image, Texture2D texture) = RenderTemporaryImage(renderer, 2, 1);
+        CollectImages();
+        Assert.False(IsAlive(image));
+        Frame(renderer);
+        PixelImage replacement = new(1, 2, [new Rgba32(0, 0, 255, 255), new Rgba32(0, 0, 255, 255)]);
+        Frame(renderer, new TriangleMaterial(replacement));
+        Assert.NotSame(texture, LastTexture(renderer));
+        Assert.False(texture.IsDisposed);
+        Assert.Equal(1, renderer.FrameTextureUploads);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Blue, pixel));
+        GC.KeepAlive(replacement);
+    }
+
+    [Theory]
+    [InlineData(2, 1024)]
+    [InlineData(8, 12)]
+    public void OrphanStorageIsEvictedBeforeAnOlderLiveImageWhenBudgetsRequireSpace(int entries, long bytes)
+    {
+        using GpuTestDevice device = new();
+        AssertOrphanFirstEviction(device.Device, entries, bytes);
+    }
+
+    internal static void AssertOrphanFirstEviction(GraphicsDevice device, int entries, long bytes)
+    {
+        using GpuTriangleRenderer renderer = new(device, entries, bytes);
+        PixelImage live = Image(0, 255, 0);
+        Frame(renderer, new TriangleMaterial(live));
+        Texture2D liveTexture = LastTexture(renderer);
+        (WeakReference<PixelImage> image, Texture2D orphan) = RenderTemporaryImage(renderer, 2, 1);
+        CollectImages();
+        Assert.False(IsAlive(image));
+        Frame(renderer);
+        PixelImage replacement = new(1, 2, [new Rgba32(0, 0, 255, 255), new Rgba32(0, 0, 255, 255)]);
+        Frame(renderer, new TriangleMaterial(replacement));
+        Assert.True(orphan.IsDisposed);
+        Assert.False(liveTexture.IsDisposed);
+        Frame(renderer, new TriangleMaterial(live));
+        Assert.Equal(0, renderer.FrameTextureUploads);
+        Assert.All(GpuTestDevice.Read(renderer.Target), pixel => Assert.Equal(Color.Lime, pixel));
+        GC.KeepAlive(live);
+        GC.KeepAlive(replacement);
     }
 
     [Fact]
@@ -71,7 +157,7 @@ public sealed class GpuTriangleTextureCacheTests
         Texture2D texture;
         try
         {
-            (WeakReference<PixelImage> image, Texture2D captured) = RenderTemporaryImage(renderer, device);
+            (WeakReference<PixelImage> image, Texture2D captured) = RenderTemporaryImage(renderer);
             texture = captured;
             CollectImages();
             Assert.False(IsAlive(image));
@@ -181,16 +267,21 @@ public sealed class GpuTriangleTextureCacheTests
     private static PixelImage Image(byte red, byte green, byte blue) => new(1, 1, [new Rgba32(red, green, blue, 255)]);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (WeakReference<PixelImage> Image, Texture2D Texture) RenderTemporaryImage(GpuTriangleRenderer renderer, GpuTestDevice device)
+    private static (WeakReference<PixelImage> Image, Texture2D Texture) RenderTemporaryImage(GpuTriangleRenderer renderer, int width = 1, int height = 1)
     {
-        PixelImage image = Image(255, 0, 0);
+        PixelImage image = new(width, height, Enumerable.Repeat(new Rgba32(255, 0, 0, 255), width * height).ToArray());
         Frame(renderer, new TriangleMaterial(image) { DynamicTexture = true });
+        Texture2D texture = LastTexture(renderer);
+        GC.KeepAlive(image);
+        return (new(image), texture);
+    }
+
+    private static Texture2D LastTexture(GpuTriangleRenderer renderer)
+    {
         object recent = typeof(GpuTriangleRenderer).GetField("recentTextures", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(renderer)!;
         object last = recent.GetType().GetProperty("Last")!.GetValue(recent)!;
         object entry = last.GetType().GetProperty("Value")!.GetValue(last)!;
-        Texture2D texture = Assert.IsType<Texture2D>(entry.GetType().GetProperty("Texture")!.GetValue(entry));
-        GC.KeepAlive(image);
-        return (new(image), texture);
+        return Assert.IsType<Texture2D>(entry.GetType().GetProperty("Texture")!.GetValue(entry));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

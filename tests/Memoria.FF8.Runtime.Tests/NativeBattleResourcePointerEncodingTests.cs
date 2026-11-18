@@ -3,6 +3,62 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleResourcePointerEncodingTests
 {
     [Fact]
+    public void Working_pointer_collection_matches_sparse_and_dense_owner_overlap_and_rollback()
+    {
+        (int Offset, int Length)[] stores = [(0, 1), (4, 1), (7, 1), (7, 2), (11, 1), (12, 1), (1023, 1), (1019, 4), (1017, 7), (0, 32), (0, 1024), (1024, 0), (9, 0)];
+        foreach ((int offset, int length) in stores)
+        {
+            foreach (bool unknown in new[] { false, true })
+            {
+                foreach (int extraPointers in new[] { 0, 64 })
+                {
+                    using NativeBattleWorkingMemory memory = new(1024);
+                    NativeBattleResourcePointer first = new(null, 0x11223344);
+                    NativeBattleResourcePointer last = new(null, 0x55667788);
+                    memory.SetResourcePointer(0, first);
+                    memory.SetResourcePointer(8, null);
+                    memory.SetResourcePointer(1020, last);
+                    for (int index = 0; index < extraPointers; index++)
+                    {
+                        memory.SetResourcePointer(512 + index * 4, null);
+                    }
+                    int[] starts = [0, 8, 1020];
+                    NativeBattleResourcePointer?[] originals = [first, null, last];
+                    byte[] bytes = new byte[1024];
+                    bool[] known = new bool[1024];
+                    memory.ReadWithKnownness(0, bytes, known);
+                    memory.BeginCheckpoint();
+                    if (unknown)
+                    {
+                        memory.MarkUnknown(offset, length);
+                    }
+                    else
+                    {
+                        memory.Write(offset, new byte[length]);
+                    }
+                    for (int index = 0; index < starts.Length; index++)
+                    {
+                        bool overlaps = length != 0 && starts[index] < (long)offset + length && starts[index] + 4L > offset;
+                        Assert.Equal(!overlaps, memory.TryGetResourcePointer(starts[index], out NativeBattleResourcePointer? pointer));
+                        Assert.Equal(overlaps ? null : originals[index], pointer);
+                    }
+                    memory.RollbackCheckpoint();
+                    for (int index = 0; index < starts.Length; index++)
+                    {
+                        Assert.True(memory.TryGetResourcePointer(starts[index], out NativeBattleResourcePointer? pointer));
+                        Assert.Equal(originals[index], pointer);
+                    }
+                    byte[] restoredBytes = new byte[1024];
+                    bool[] restoredKnown = new bool[1024];
+                    memory.ReadWithKnownness(0, restoredBytes, restoredKnown);
+                    Assert.Equal(bytes, restoredBytes);
+                    Assert.Equal(known, restoredKnown);
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void Nonzero_party_bank_encodes_classic_placement_without_changing_resource_ownership()
     {
         NativeBattleResourcePointer pointer = new(new(2, 0x1234) { ResourceOnly = true }, null, 16);
