@@ -3,6 +3,25 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-return-loop-original-only", StringComparer.Ordinal))
+{
+    NativeReturnLoopTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-owned-route-original-only", StringComparer.Ordinal))
+{
+    NativeOwnedRouteTests.Run();
+    NativeOwnedRouteTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-owned-route-only", StringComparer.Ordinal))
+{
+    NativeOwnedRouteTests.Run();
+    return 0;
+}
+
 if (args.Contains("--world-destination-goal-only", StringComparer.Ordinal))
 {
     WorldDestinationGoalTests.Run();

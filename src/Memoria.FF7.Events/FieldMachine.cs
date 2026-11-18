@@ -21,6 +21,7 @@ public sealed partial class FieldMachine
     }
 
     public FieldVariables Variables { get; }
+    public event Action<FieldVariableRead, bool>? InstructionVariableAccessed;
     public string ProgramIdentity => program.Identity;
     public long Tick { get; private set; }
     public bool Initialized { get; private set; }
@@ -232,7 +233,35 @@ public sealed partial class FieldMachine
     {
         int priority = entities[id].Priority;
         int pc = entities[id].Pc;
-        bool yielded = ExecuteCore(id);
+        bool yielded;
+        if (InstructionVariableAccessed is null)
+        {
+            yielded = ExecuteCore(id);
+        }
+        else
+        {
+            Action<FieldVariableRead>? previousRead = Variables.ReadObserved;
+            Action<FieldVariableRead>? previousWrite = Variables.WriteObserved;
+            Variables.ReadObserved = read =>
+            {
+                previousRead?.Invoke(read);
+                InstructionVariableAccessed?.Invoke(read, false);
+            };
+            Variables.WriteObserved = write =>
+            {
+                previousWrite?.Invoke(write);
+                InstructionVariableAccessed?.Invoke(write, true);
+            };
+            try
+            {
+                yielded = ExecuteCore(id);
+            }
+            finally
+            {
+                Variables.ReadObserved = previousRead;
+                Variables.WriteObserved = previousWrite;
+            }
+        }
         InstructionExecuted?.Invoke(id, priority, pc, program.Read(pc));
         return yielded;
     }

@@ -12,7 +12,7 @@ public sealed record Ff7AutoPlayWorldModeGoal(string TargetEventId, Ff7AutoPlayW
 
 public sealed record Ff7AutoPlayActiveEvent(string VisitId, string EventId, string ConditionFingerprint, long Generation, int Entity, int Script, Ff7AutoPlayTargetKind Kind, int? DestinationField, int BeforeStory, string BeforeWitness, bool Accepted = false, bool Returned = false, bool TransitionOwned = false, int LinePhase = 0, float LineSide = 0, int MovementCallbacks = 0, int StagnantCallbacks = 0, int? LastX = null, int? LastY = null, int? LastZ = null, bool CompletionRecorded = false, string? NavigationKey = null, string? NavigationProbeKey = null, string? EntryAvailabilityFingerprint = null, int[]? SpatialDestinations = null, AutoPlayEventRoute? TravelRoute = null, IReadOnlyList<AutoPlayChoiceSelection>? TravelSelections = null, Ff7AutoPlaySpatialOwner? SpatialOwner = null, IReadOnlyDictionary<string, string>? EntryGuardFingerprints = null, FieldSpatialEffectOwner? DirectEffectOwner = null, Ff7AutoPlayWorldControlObservation? WorldControl = null, int WorldControlPhase = 0, Ff7AutoPlayWorldModeGoal? WorldModeGoal = null);
 public sealed record Ff7AutoPlayMovementFailure(int MinX, int MaxX, int MinY, int MaxY, int? MinZ = null, int? MaxZ = null);
-public sealed record Ff7AutoPlayNavigationGuard(string VisitId, int Entity, int[]? BlockingEntities = null, string? EventId = null, string? NavigationKey = null, int? SourceTriangle = null, Ff7AutoPlayMovementFailure? MovementFailure = null, int[]? SpatialBoundaryTriangles = null, string? ObservedFingerprint = null);
+public sealed record Ff7AutoPlayNavigationGuard(string VisitId, int Entity, int[]? BlockingEntities = null, string? EventId = null, string? NavigationKey = null, int? SourceTriangle = null, Ff7AutoPlayMovementFailure? MovementFailure = null, int[]? SpatialBoundaryTriangles = null, string? ObservedFingerprint = null, bool? MovementSourceInside = null);
 public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string EventId, string? ConditionSignature, int Revision, int SourceTriangle, int TargetTriangle);
 
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
@@ -22,6 +22,7 @@ public sealed class Ff7AutoPlayState
     public AutoPlayPlannerState<Ff7AutoPlayDeferral> Coverage { get; set; } = new();
     public ushort? DestinationField { get; set; }
     public Ff7AutoPlayActiveEvent? Active { get; set; }
+    public Ff7AutoPlayNativeRoute? NativeRoute { get; set; }
     public Ff7AutoPlayChoiceState? Choice { get; set; }
     public Ff7AutoPlayRestoreRequest? PendingRestore { get; set; }
     public Dictionary<string, Ff7AutoPlayNavigationGuard> NavigationGuards { get; set; } = new(StringComparer.Ordinal);
@@ -48,5 +49,9 @@ public sealed class Ff7AutoPlayState
             throw new InvalidDataException("The automatic play observation state is unsupported or corrupt.");
         }
         _ = new AutoPlayPlanner<Ff7AutoPlayDeferral>(Coverage);
+        if (NativeRoute is { } route && (route.Generation < 0 || string.IsNullOrEmpty(route.EventId) || string.IsNullOrEmpty(route.ConditionFingerprint) || route.Steps is null || route.Steps.Length is < 1 or > 256 || route.Cursor < 0 || route.Cursor > route.Steps.Length || route.After is not { Length: 64 } || route.Steps.Any(step => step is null || step.Before is not { Length: 64 } || step.Input.Horizontal is < -1 or > 1 || step.Input.Vertical is < -1 or > 1)))
+        {
+            throw new InvalidDataException("The bounded native navigation continuation is corrupt.");
+        }
     }
 }

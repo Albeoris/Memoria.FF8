@@ -338,15 +338,32 @@ internal static class AutoPlayNavigationRefreshTests
         string legacy = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(legacyWitness)));
         Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]) == legacy, "A legacy retained failure was revalidated before observing its actual native source.");
         Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [player, blocker], [blocker.Entity], retainedFingerprints: [legacy]) != legacy, "An actual source observation did not revalidate the obsolete optional scope contract.");
-        string moved = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]);
+        string moved = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false, retainedSourceInside: true, retainedFingerprints: [legacy]);
         Check(moved != legacy, "A changed retained legacy collider did not reopen its original source proof.");
         Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy]) == legacy, "A returned retained collider failed to restore the original legacy refusal after an intervening observation.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [blocked]) == blocked, "A newly recorded current-source refusal reopened when projected into its retained component.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedSourceInside: true, retainedFingerprints: [blocked]) == blocked, "A newly recorded current-source refusal reopened when projected into its retained component.");
         Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedFingerprints: [legacy, moved]) == legacy, "A later recorded collider failure hid an earlier valid legacy refusal when its collider returned.");
         Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity]) != blocked, "The actual current source inherited unrelated retained membership.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
-        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false) != blocked, "A remote source-region projection hid changed native target eligibility.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedSourceInside: true) == blocked, "The current player's remote location released an unchanged source movement-region proof.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("native-source", region, [elsewhere, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false, retainedSourceInside: true) != blocked, "A remote source-region projection hid changed relevant blocker occupancy.");
+        Check(Ff7AutoPlayPolicy.ReadMovementFailureFingerprint("changed-native-source", region, [elsewhere, blocker], [blocker.Entity], currentSource: false, retainedSourceInside: true) != blocked, "A remote source-region projection hid changed native target eligibility.");
+        foreach (string component in new[] { "left", "right" })
+        {
+            string physical = "native-source:" + component;
+            string completed = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint(physical, region, [elsewhere, blocker], [blocker.Entity]);
+            string remote = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint(physical, region, [player, blocker], [blocker.Entity], currentSource: false, retainedSourceInside: false);
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral> consumed = new() { Event = new(component, AutoPlayEventKind.Interaction, ConditionSignature: "stable"), Completed = true, Conditions = new(), AvailabilityFingerprint = remote };
+            consumed.Conditions.ConsumedEntries.Add("stable");
+            consumed.CompletedAvailabilityFingerprints.Add(completed);
+            Check(remote == completed && !AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(consumed), "A completed outside-region component became a new frontier when the player entered the opposing component.");
+            consumed.AvailabilityFingerprint = Ff7AutoPlayPolicy.ReadMovementFailureFingerprint(physical, region, [player, blocker with { X4096 = 16 }], [blocker.Entity], currentSource: false, retainedSourceInside: false);
+            Check(AutoPlayPlanner<Ff7AutoPlayDeferral>.NeedsExecution(consumed), "A real retained-source occupancy change failed to revise its completed availability.");
+        }
+        Ff7AutoPlayState typed = new();
+        typed.NavigationGuards["outside"] = new("visit", 1, MovementFailure: region, ObservedFingerprint: "observed", MovementSourceInside: false);
+        typed.NavigationGuards["older"] = new("visit", 1, MovementFailure: region, ObservedFingerprint: "recorded");
+        Ff7AutoPlayState cold = typed.Clone();
+        Check(cold.NavigationGuards["outside"].MovementSourceInside == false && cold.NavigationGuards["older"].MovementSourceInside is null && cold.NavigationGuards["older"].ObservedFingerprint == "recorded", "Cold restoration invented or lost retained source membership.");
     }
 
     private static void CheckOriginalScopedFailureContinuation()

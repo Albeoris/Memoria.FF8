@@ -74,7 +74,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    internal static string ReadMovementFailureFingerprint(string physical, Ff7AutoPlayMovementFailure? failure, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<int>? blockingEntities = null, bool currentSource = true, IReadOnlyCollection<string>? retainedFingerprints = null)
+    internal static string ReadMovementFailureFingerprint(string physical, Ff7AutoPlayMovementFailure? failure, IReadOnlyList<Ff7Actor> actors, IReadOnlyList<int>? blockingEntities = null, bool currentSource = true, IReadOnlyCollection<string>? retainedFingerprints = null, bool? retainedSourceInside = null)
     {
         if (failure is null)
         {
@@ -86,14 +86,18 @@ public sealed partial class Ff7AutoPlayPolicy
             witness.Append($"|occupancy:{actor.Entity}:{actor.Model}:{actor.X4096}:{actor.Y4096}:{actor.Z4096}:{actor.Triangle}:{actor.CollisionRadius}");
         }
         string previous = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(witness.ToString())));
-        if (!currentSource && retainedFingerprints?.Contains(previous) == true)
+        if (!currentSource && retainedSourceInside is null && retainedFingerprints?.Contains(previous) == true)
         {
             // Retained components have no new native source-position observation.
             return previous;
         }
-        Ff7Actor? source = currentSource ? actors.Single(actor => actor.PlayerControlled) : null;
-        bool inside = source is null || source.X4096 >= failure.MinX && source.X4096 <= failure.MaxX && source.Y4096 >= failure.MinY && source.Y4096 <= failure.MaxY && (failure.MinZ is null || source.Z4096 >= failure.MinZ) && (failure.MaxZ is null || source.Z4096 <= failure.MaxZ);
+        bool inside = currentSource ? ReadMovementSourceInside(failure, actors.Single(actor => actor.PlayerControlled)) : retainedSourceInside ?? throw new InvalidOperationException("A remote movement region requires its retained native source observation.");
         witness.Append($"|movement-region-membership:1:{inside}");
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(witness.ToString())));
+    }
+
+    internal static bool ReadMovementSourceInside(Ff7AutoPlayMovementFailure failure, Ff7Actor source)
+    {
+        return source.X4096 >= failure.MinX && source.X4096 <= failure.MaxX && source.Y4096 >= failure.MinY && source.Y4096 <= failure.MaxY && (failure.MinZ is null || source.Z4096 >= failure.MinZ) && (failure.MaxZ is null || source.Z4096 <= failure.MaxZ);
     }
 }

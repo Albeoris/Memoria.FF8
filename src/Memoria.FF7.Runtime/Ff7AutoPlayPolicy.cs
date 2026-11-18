@@ -94,6 +94,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             return ChooseWorldInput(driver);
         }
+        if (State.NativeRoute is not null)
+        {
+            TrackControllableFrontierProgress();
+            return ReadNativeRouteInput();
+        }
         if (session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled) is { Ladder.Completed: false } climbing)
         {
             TrackControllableFrontierProgress();
@@ -141,7 +146,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (guard.NavigationKey == observation.NavigationKey)
             {
-                State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = physicalGuards[entry.Key] };
+                State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = physicalGuards[entry.Key], MovementSourceInside = guard.MovementFailure is null ? null : ReadMovementSourceInside(guard.MovementFailure, session.Host.Process.Actors.Single(actor => actor.PlayerControlled)) };
             }
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
@@ -208,6 +213,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 next = null;
             }
+            next ??= TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
             if (next is null)
             {
                 if (nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
@@ -233,6 +239,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
         }
         Ff7AutoPlayActiveEvent current = State.Active!;
+        if (State.NativeRoute is not null)
+        {
+            return ReadNativeRouteInput();
+        }
         if (current.Accepted)
         {
             return default;
@@ -251,7 +261,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             int margin = checked(player.CollisionRadius * 4096);
             Ff7AutoPlayMovementFailure failure = new(recentPositions.Min(position => position.X) - margin, recentPositions.Max(position => position.X) + margin, recentPositions.Min(position => position.Y) - margin, recentPositions.Max(position => position.Y) + margin);
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "movement-cycle", failure);
-            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, [], selectedTarget.Id, observation.NavigationKey, player.Triangle, failure, driver.CaptureSpatialBoundaryTriangles());
+            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, [], selectedTarget.Id, observation.NavigationKey, player.Triangle, failure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: ReadMovementSourceInside(failure, player));
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget), failure, session.Host.Process.Actors);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
@@ -277,7 +287,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
-            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles());
+            Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, player.Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: absence.MovementFailure is null ? null : ReadMovementSourceInside(absence.MovementFailure, player));
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
@@ -494,6 +505,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
 
     private void ObserveTick(Ff7NativeTickObservation observation)
     {
+        ObserveNativeRouteBoundary();
         if (State.Active is not { } active || active.Generation != observation.Generation)
         {
             return;

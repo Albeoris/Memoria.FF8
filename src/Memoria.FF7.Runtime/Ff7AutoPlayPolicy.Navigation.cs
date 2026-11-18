@@ -50,6 +50,12 @@ public sealed partial class Ff7AutoPlayPolicy
                     foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == navigation.VisitKey && entry.Value.NavigationKey == navigation.Key).ToArray())
                     {
                         Ff7AutoPlayNavigationGuard guard = entry.Value;
+                        if (!current && guard.MovementFailure is not null && guard.MovementSourceInside is null)
+                        {
+                            // An older cache has no authenticated remote source
+                            // membership. Keep its recorded fact until arrival.
+                            continue;
+                        }
                         if (!current && guard.SpatialBoundaryTriangles is null)
                         {
                             // An older source proof cannot be revalidated using another component's boundary set.
@@ -61,7 +67,7 @@ public sealed partial class Ff7AutoPlayPolicy
                             continue;
                         }
                         string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities, triangle, current ? null : guard.SpatialBoundaryTriangles!.ToHashSet());
-                        projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, currentSource: current, retainedFingerprints: State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => attempt.GuardKey == entry.Key).Select(attempt => attempt.GuardFingerprint).ToArray());
+                        projected[entry.Key] = ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, currentSource: current, retainedFingerprints: State.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => attempt.GuardKey == entry.Key).Select(attempt => attempt.GuardFingerprint).ToArray(), retainedSourceInside: guard.MovementSourceInside);
                         State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = projected[entry.Key] };
                     }
                 }
