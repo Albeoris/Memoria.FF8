@@ -5,10 +5,9 @@
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <!-- Match the Release application's runtime policy for graphical host measurements. -->
-    <TieredCompilationQuickJit Condition="'$(Configuration)' == 'Release'">false</TieredCompilationQuickJit>
     <ApplicationManifest Condition="'$(MemoriaTargetRuntime)' == 'win-x64'">../../src/Memoria.FF8.App/app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <Import Project="../../AppRuntime.props" />
   <ItemGroup>
     <Compile Include="../Shared/NativeBattleFixtureState.cs" Link="NativeBattleFixtureState.cs" />
     <Compile Include="../Shared/NativeBattleTypedFixture.cs" Link="NativeBattleTypedFixture.cs" />

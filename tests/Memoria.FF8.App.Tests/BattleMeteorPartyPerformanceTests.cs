@@ -80,9 +80,19 @@ public sealed class BattleMeteorPartyPerformanceTests
         string[] resolution = (Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_RESOLUTION") ?? "1024x768").Split('x');
         int width = int.Parse(resolution[0], System.Globalization.CultureInfo.InvariantCulture);
         int height = int.Parse(resolution[1], System.Globalization.CultureInfo.InvariantCulture);
-        UiPreferences preferences = new() { WindowWidth = width, WindowHeight = height, VSync = true, BattleFps = 60, Graphics = new() { Backend = GraphicsBackend.Vulkan, MsaaSamples = 8 } };
+        string? requestedVSync = Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_VSYNC");
+        Assert.True(requestedVSync is null or "0" or "1", "MEMORIA_FF8_METEOR_PERFORMANCE_VSYNC must be 0 or 1.");
+        bool vSync = requestedVSync != "0";
+        string? requestedMsaa = Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_MSAA");
+        int msaaSamples = 8;
+        if (requestedMsaa is not null)
+        {
+            Assert.True(int.TryParse(requestedMsaa, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out msaaSamples) && msaaSamples is 0 or 2 or 4 or 8, "MEMORIA_FF8_METEOR_PERFORMANCE_MSAA must be 0, 2, 4 or 8.");
+        }
+        GraphicsBackend backend = GraphicsBackendSelection.Parse(GraphicsHostReadiness.Backend);
+        UiPreferences preferences = new() { WindowWidth = width, WindowHeight = height, VSync = vSync, BattleFps = 60, Graphics = new() { Backend = backend, MsaaSamples = msaaSamples } };
         preferences.Save(settings.UiPreferencesPath);
-        LaunchOptions options = new() { GameDirectory = gameDirectory, InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), SettingsDirectory = directory, MuteAudio = true, ExitAfterSeconds = 90, ResolutionSpecified = true, Width = width, Height = height, RequestedGraphicsBackend = GraphicsBackend.Vulkan };
+        LaunchOptions options = new() { GameDirectory = gameDirectory, InitialState = session.State, StatePath = source, SavePath = Path.Combine(directory, "unused.json"), SettingsDirectory = directory, MuteAudio = true, ExitAfterSeconds = 90, ResolutionSpecified = true, Width = width, Height = height, RequestedGraphicsBackend = backend };
         using RecreateGame game = new(options, session);
         Set(game, "world", world);
         Set(game, "globalSettings", settings);
@@ -177,6 +187,7 @@ public sealed class BattleMeteorPartyPerformanceTests
         game.Run();
         castEnd ??= Capture();
         int stockAfter = battle.QuoteMagic(caster.Id, 16).Available;
+        using Process process = Process.GetCurrentProcess();
         object summary = new
         {
             Formation = formation,
@@ -193,8 +204,9 @@ public sealed class BattleMeteorPartyPerformanceTests
             Error = Get<string?>(game, "error"),
             Released = released,
             Damages = battle.Events.Skip(eventStart).Where(entry => entry.Kind == "Damage" && entry.ActorId == caster.Id).Select(entry => new { entry.TargetId, entry.Amount }).Take(64).ToArray(),
-            Graphics = new { Backend = "Vulkan", Width = game.GraphicsDevice.PresentationParameters.BackBufferWidth, Height = game.GraphicsDevice.PresentationParameters.BackBufferHeight, Samples = game.GraphicsDevice.PresentationParameters.MultiSampleCount, PresentInterval = game.GraphicsDevice.PresentationParameters.PresentationInterval.ToString() },
-            Runtime = new { Version = Environment.Version.ToString(), System.Runtime.GCSettings.IsServerGC, LatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(), Environment.ProcessorCount, QuickJitHostOption = AppContext.GetData("System.Runtime.TieredCompilation.QuickJit"), QuickJitEnvironment = Environment.GetEnvironmentVariable("DOTNET_TC_QuickJit"), GcHeapCountEnvironment = Environment.GetEnvironmentVariable("DOTNET_GCHeapCount") },
+            Graphics = new { Backend = GraphicsHostReadiness.Backend, RequestedVSync = vSync, RequestedMsaaSamples = msaaSamples, Width = game.GraphicsDevice.PresentationParameters.BackBufferWidth, Height = game.GraphicsDevice.PresentationParameters.BackBufferHeight, Samples = game.GraphicsDevice.PresentationParameters.MultiSampleCount, PresentInterval = game.GraphicsDevice.PresentationParameters.PresentationInterval.ToString() },
+            Runtime = new { Version = Environment.Version.ToString(), System.Runtime.GCSettings.IsServerGC, LatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(), Environment.ProcessorCount, QuickJitHostOption = AppContext.GetData("System.Runtime.TieredCompilation.QuickJit"), QuickJitEnvironment = Environment.GetEnvironmentVariable("DOTNET_TC_QuickJit"), GcHeapCountHostOption = AppContext.GetData("System.GC.HeapCount"), GcHeapCountEnvironment = Environment.GetEnvironmentVariable("DOTNET_GCHeapCount") },
+            Process = new { PriorityClass = process.PriorityClass.ToString(), Affinity = OperatingSystem.IsWindows() || OperatingSystem.IsLinux() ? process.ProcessorAffinity.ToInt64() : (long?)null, process.PeakWorkingSet64 },
             Presented = presented,
             Seconds = duration.Elapsed.TotalSeconds,
             Idle = Summarize(1, idleTimestamp, idlePacer, idleStart, idleEnd),

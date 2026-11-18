@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <MemoriaPrecompile Condition="'$(MemoriaPrecompile)' == ''">false</MemoriaPrecompile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Ordinary builds retain optimized first-use JIT compilation. -->
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(MemoriaPrecompile)' == 'true'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release' And '$(MemoriaPrecompile)' == 'true'">
+    <RuntimeHostConfigurationOption Include="System.GC.HeapCount" Value="2" />
+  </ItemGroup>
+</Project>

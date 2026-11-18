@@ -8,9 +8,8 @@
     <PlatformTarget>$(MemoriaTargetArchitecture)</PlatformTarget>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8</RootNamespace>
-    <!-- Optimize application methods on first use to avoid frame-time warmup. -->
-    <TieredCompilationQuickJit Condition="'$(Configuration)' == 'Release'">false</TieredCompilationQuickJit>
   </PropertyGroup>
+  <Import Project="../../AppRuntime.props" />
   <ItemGroup>
     <EmbeddedResource Include="../../Artwork/Application/application.ico" LogicalName="Memoria.Application.ico" />
     <EmbeddedResource Include="../../Artwork/Application/application.bmp" LogicalName="Icon.bmp" />

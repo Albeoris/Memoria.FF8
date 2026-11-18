@@ -6,6 +6,7 @@ param(
     [string]$Scope = 'Distribution',
     [ValidateSet('', 'win-x64', 'linux-x64', 'osx-x64', 'osx-arm64')]
     [string]$RuntimeIdentifier = '',
+    [string]$ArtifactsDirectory = '',
     [switch]$Test,
     [switch]$TestPortable
 )
@@ -60,8 +61,11 @@ function Invoke-PortableTests {
 }
 
 $root = $PSScriptRoot
-$graphBuild = Join-Path $root ('artifacts/build/' + $RuntimeIdentifier + '/graph')
+$artifacts = if ($ArtifactsDirectory) { [IO.Path]::GetFullPath($ArtifactsDirectory) } else { Join-Path $root 'artifacts' }
+$graphBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')
+$precompile = if ($Configuration -eq 'Release') { 'true' } else { 'false' }
 $graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
+$graphArguments += '-p:MemoriaPrecompile=' + $precompile
 if ($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY) {
     $graphArguments += @(('-p:MemoriaPsfDecoderDirectory=' + [IO.Path]::GetFullPath($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY)), '-p:MemoriaPsfDecoderPrepared=true')
 }
@@ -77,7 +81,7 @@ if ($Scope -ne 'Distribution') {
             }
         }
         else {
-            $destination = Join-Path $root "artifacts/launcher/$RuntimeIdentifier"
+            $destination = Join-Path $artifacts "launcher/$RuntimeIdentifier"
             Invoke-DotNet @('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:PublishTrimmed=false', '-o', $destination)
             if ($Test) {
                 Invoke-DotNet @('run', '--project', 'tests/Memoria.Launcher.Tests', '-c', $Configuration)
@@ -90,7 +94,6 @@ if ($Scope -ne 'Distribution') {
     }
     return
 }
-$artifacts = Join-Path $root 'artifacts'
 $package = Join-Path $artifacts ('package/' + $RuntimeIdentifier)
 $staging = Join-Path $artifacts ('staging-' + [Guid]::NewGuid().ToString('N'))
 $payload = $staging
@@ -133,9 +136,9 @@ try {
     Invoke-DotNet (@('build', $solution, '-c', $Configuration, $buildNodes) + $graphArguments + $nativeVulkanArguments)
     $nativeDirect3D12 = Join-Path $artifacts 'native-dx12'
     if ($RuntimeIdentifier -eq 'win-x64') {
-        & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12
+        & (Join-Path $root 'tools/Build-NativeDirect3D12.ps1') -OutputDirectory $nativeDirect3D12 -BuildDirectory (Join-Path $artifacts 'native-dx12-build')
     }
-    $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false')
+    $publishArguments = @('-c', $Configuration, '-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', ('-p:MemoriaPrecompile=' + $precompile))
     foreach ($backend in $backends) {
         $hostOutput = Join-Path $data ('Game/' + $backend.Directory)
         $hostBuild = if ($backend.Name -eq 'Vulkan') { $graphBuild } else { Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/' + $backend.Directory) }
