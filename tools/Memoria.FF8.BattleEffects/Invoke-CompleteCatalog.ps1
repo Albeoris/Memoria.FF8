@@ -377,6 +377,14 @@ try {
                             209 { 115 }
                             218 { 128 }
                             219 { 114 }
+                            227 { 121 }
+                            248 { 71 }
+                            253 { 105 }
+                            254 { 107 }
+                            255 { 106 }
+                            276 { 92 }
+                            279 { 30 }
+                            { $_ -ge 243 -and $_ -le 246 } { 101 }
                             308 { 105 }
                             314 { 103 }
                             315 { 75 }
@@ -386,6 +394,24 @@ try {
                         $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
                         if ($effect -eq 110) {
                             $componentRequest.stage_id = 3
+                        }
+                        if ($effect -eq 279) {
+                            $componentRequest.stage_id = 127
+                        }
+                        if ($effect -ge 261 -and $effect -le 263) {
+                            $componentRequest.ally_id = $effect - 253
+                        }
+                        if ($effect -eq 248) {
+                            $componentRequest.stage_id = 25
+                        }
+                        if ($effect -ge 253 -and $effect -le 255) {
+                            $componentRequest.stage_id = 65
+                        }
+                        if ($effect -ge 243 -and $effect -le 246) {
+                            $componentRequest.stage_id = 25
+                        }
+                        if ($effect -eq 228) {
+                            $componentRequest.ally_id = 7
                         }
                         if ($effect -in @(112, 212, 215, 216)) {
                             $componentRequest.ally_id = 1
@@ -405,7 +431,7 @@ try {
                         if ($effect -in @(84, 92) -or ($effect -ge 86 -and $effect -le 89)) {
                             $componentRequest.ally_id = 4
                         }
-                        if ($effect -in @(64, 66, 76, 77, 79)) {
+                        if ($effect -in @(64, 66, 76, 77, 79, 227)) {
                             $componentRequest.stage_id = 142
                         }
                         Write-Json $requestPath $componentRequest

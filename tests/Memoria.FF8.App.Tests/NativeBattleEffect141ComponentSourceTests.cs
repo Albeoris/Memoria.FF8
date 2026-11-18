@@ -9,6 +9,7 @@ public sealed class NativeBattleEffect141ComponentSourceTests
     [InlineData(159, 9, 92)]
     [InlineData(160, 71, 36)]
     [InlineData(161, 738, 131)]
+    [InlineData(259, 94, 61)]
     public void Installed_component_preserves_real_Renzokuken_logical_owner_through_actual_widget_registration(ushort effect, int formation, int targetModel)
     {
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
