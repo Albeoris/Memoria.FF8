@@ -3,6 +3,65 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleResourcePointerEncodingTests
 {
     [Fact]
+    public void Pointer_presence_preserves_explicit_null_collisions_word_boundaries_and_snapshot_undo()
+    {
+        using NativeBattleWorkingMemory memory = new(16384);
+        memory.SetResourcePointer(60, null);
+        memory.SetResourcePointer(4093, null);
+        memory.BeginCheckpoint();
+        memory.Write(32, [1]);
+        Assert.True(memory.TryGetResourcePointer(60, out _));
+        memory.Write(4096, [2]);
+        Assert.False(memory.TryGetResourcePointer(4093, out _));
+        memory.RollbackCheckpoint();
+        Assert.True(memory.TryGetResourcePointer(4093, out _));
+        using NativeBattleWorkingMemory restored = NativeBattleWorkingMemory.Restore(memory.Capture());
+        restored.Write(4096, [3]);
+        Assert.False(restored.TryGetResourcePointer(4093, out _));
+        restored.SetResourcePointer(8192, null);
+        restored.Write(8193, [4]);
+        restored.Write(512, [5]);
+        Assert.False(restored.TryGetResourcePointer(8192, out _));
+        Assert.True(restored.TryGetResourcePointer(60, out NativeBattleResourcePointer? explicitNull));
+        Assert.Null(explicitNull);
+        memory.Write(0, new byte[8193]);
+        Assert.False(memory.TryGetResourcePointer(4093, out _));
+    }
+
+    [Fact]
+    public void Private_pointer_presence_tracks_late_null_ancestors_unaligned_slices_and_overlay_reuse()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        arena.WriteResourcePointer(4093, null);
+        using NativeBattleEffectArenaTransaction parent = new(arena);
+        NativeBattleEffectArena slice = NativeBattleEffectArena.BorrowWorking(arena.Working, 4061, 128);
+        using (NativeBattleEffectArenaTransaction child = NativeBattleEffectArenaTransaction.CreatePrivateChild(slice))
+        {
+            child.Write(0, [1]);
+            parent.View.WriteResourcePointer(4125, null);
+            parent.BeginCheckpoint();
+            child.Write(65, [2]);
+            child.Write(35, [3]);
+            child.View.WriteResourcePointer(96, null);
+            child.Write(97, [4]);
+            Assert.False(child.View.TryGetResourcePointer(64, out _));
+            Assert.False(child.View.TryGetResourcePointer(32, out _));
+            Assert.False(child.View.TryGetResourcePointer(96, out _));
+            child.Freeze();
+        }
+        Assert.False(parent.View.TryGetResourcePointer(4093, out _));
+        parent.RollbackCheckpoint();
+        Assert.True(parent.View.TryGetResourcePointer(4093, out _));
+        Assert.True(parent.View.TryGetResourcePointer(4125, out NativeBattleResourcePointer? explicitNull));
+        Assert.Null(explicitNull);
+        parent.Freeze();
+        parent.Write(4096, [5]);
+        Assert.False(parent.View.TryGetResourcePointer(4093, out _));
+        parent.Freeze();
+        Assert.False(arena.TryGetResourcePointer(4093, out _));
+    }
+
+    [Fact]
     public void Working_pointer_collection_matches_sparse_and_dense_owner_overlap_and_rollback()
     {
         (int Offset, int Length)[] stores = [(0, 1), (4, 1), (7, 1), (7, 2), (11, 1), (12, 1), (1023, 1), (1019, 4), (1017, 7), (0, 32), (0, 1024), (1024, 0), (9, 0)];

@@ -30,6 +30,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     private bool[] known = [];
     private object backingIdentity = new();
     private Dictionary<int, NativeBattleResourcePointer?>? pointers;
+    private NativeBattleReferencePresence? referencePresence;
     private List<int>? removedPointers;
     private List<ByteUndo>? byteUndo;
     private List<PointerUndo>? pointerUndo;
@@ -373,6 +374,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         {
             throw new InvalidDataException("Native working memory pointer has an invalid source owner.");
         }
+        MarkReferencePresence(offset);
         uint? numeric = pointer?.NativeByteValue;
         Span<byte> bytes = stackalloc byte[4];
         if (numeric is uint address)
@@ -615,6 +617,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             }
             else if (entry.Present)
             {
+                MarkReferencePresence(entry.Offset);
                 pointers![entry.Offset] = entry.Value;
             }
             else
@@ -725,6 +728,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             {
                 throw new InvalidDataException("Native working snapshot pointer contradicts physical bytes.");
             }
+            result.MarkReferencePresence(entry.Key);
             (result.pointers ??= new()).Add(entry.Key, pointer);
         }
         result.RestoreExecutionReferences(snapshot.ExecutionReferences);
@@ -849,7 +853,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
     {
         CollectExecutionReferences(offset, length);
         removedPointers?.Clear();
-        if (pointers is null)
+        if (pointers is null || !MayHaveReferenceStarts(Math.Max(0, offset - 3), (long)offset + length))
         {
             return;
         }
@@ -873,6 +877,17 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
                 (removedPointers ??= []).Add(pointer);
             }
         }
+    }
+
+    private void MarkReferencePresence(int offset)
+    {
+        (referencePresence ??= new()).Add(offset, logicalLength);
+    }
+
+    internal bool MayHaveReferenceStarts(int first, long end)
+    {
+        RequireActive();
+        return referencePresence?.MayContain(first, Math.Min(end, logicalLength)) == true;
     }
 
     private void InvalidatePointers()

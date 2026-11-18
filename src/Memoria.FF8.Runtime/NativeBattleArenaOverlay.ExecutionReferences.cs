@@ -57,6 +57,7 @@ internal sealed partial class NativeBattleArenaOverlay
         BattleExecutionReferenceEntry entry = new(width, reference);
         ExecutionReferenceEncoding.Validate(width, nativeBytes);
         Source.RequireRange(offset, width);
+        MarkReferencePresence(offset);
         executionChanges.EnsureCapacity(checked(executionChanges.Count + 1));
         if (checkpoint)
         {
@@ -79,9 +80,32 @@ internal sealed partial class NativeBattleArenaOverlay
         return executionChanges.Count + (privateParent is not null ? privateParent.EstimateExecutionReferenceCount() : (long)Source.Working.ExecutionReferenceCount);
     }
 
+    private void MarkReferencePresence(int offset)
+    {
+        (referencePresence ??= new()).Add(offset, Source.Bound);
+    }
+
+    private bool MayHaveReferenceStarts(int first, long end)
+    {
+        NativeBattleEffectArena owner = Source;
+        first = Math.Min(first, owner.Bound);
+        end = Math.Min(end, owner.Bound);
+        if (referencePresence?.MayContain(first, end) == true)
+        {
+            return true;
+        }
+        return privateParent is not null
+            ? privateParent.MayHaveReferenceStarts(checked(privateParentOffset + first), privateParentOffset + end)
+            : owner.Working.MayHaveReferenceStarts(checked(owner.WorkingOffset + first), owner.WorkingOffset + end);
+    }
+
     private void InvalidateExecutionReferences(int offset, int length)
     {
         if (length == 0)
+        {
+            return;
+        }
+        if (!MayHaveReferenceStarts(Math.Max(0, offset - 3), (long)offset + length))
         {
             return;
         }
@@ -138,6 +162,7 @@ internal sealed partial class NativeBattleArenaOverlay
 
     private void RecordExecutionChange(int offset, BattleExecutionReferenceEntry? entry)
     {
+        MarkReferencePresence(offset);
         if (checkpoint)
         {
             bool present = executionChanges.TryGetValue(offset, out BattleExecutionReferenceEntry? previous);
@@ -153,6 +178,7 @@ internal sealed partial class NativeBattleArenaOverlay
             var (offset, present, entry) = executionUndo[index];
             if (present)
             {
+                MarkReferencePresence(offset);
                 executionChanges[offset] = entry;
             }
             else

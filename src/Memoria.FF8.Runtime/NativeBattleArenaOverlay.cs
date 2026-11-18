@@ -16,6 +16,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     private bool[] checkpointSaved = [];
     private readonly List<int> dirty = [];
     private readonly Dictionary<int, PointerChange> pointers = [];
+    private NativeBattleReferencePresence? referencePresence;
     private readonly List<int> pointerScratch = [];
     private readonly List<ByteUndo> byteUndo = [];
     private readonly List<PointerUndo> pointerUndo = [];
@@ -357,6 +358,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
     {
         Source.RequireRange(offset, 4);
         NativeBattleEffectArena.ValidatePointer(pointer);
+        MarkReferencePresence(offset);
         InvalidateExecutionReferences(offset, 4);
         SavePointer(offset);
         pointers[offset] = new(true, pointer);
@@ -405,6 +407,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
             PointerUndo undo = pointerUndo[index];
             if (undo.Present)
             {
+                MarkReferencePresence(undo.Offset);
                 pointers[undo.Offset] = undo.Value;
             }
             else
@@ -666,6 +669,10 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         InvalidateExecutionReferences(offset, length);
         pointerScratch.Clear();
         NativeBattleEffectArena owner = Source;
+        if (!MayHaveReferenceStarts(Math.Max(0, offset - 3), (long)offset + length))
+        {
+            return;
+        }
         using (var retained = owner.Working.EnumerateResourcePointers())
         {
             while (retained.MoveNext())
@@ -700,6 +707,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         foreach (int key in pointerScratch)
         {
             SavePointer(key);
+            MarkReferencePresence(key);
             pointers[key] = new(false, null);
         }
 
@@ -727,6 +735,7 @@ internal sealed partial class NativeBattleArenaOverlay : INativeBattleReadWindow
         }
         pointers.Clear();
         executionChanges.Clear();
+        referencePresence?.Clear();
         pointerScratch.Clear();
         byteUndo.Clear();
         pointerUndo.Clear();

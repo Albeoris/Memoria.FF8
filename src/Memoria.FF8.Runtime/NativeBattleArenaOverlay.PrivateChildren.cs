@@ -222,6 +222,7 @@ internal sealed partial class NativeBattleArenaOverlay
             {
                 int target = checked(destinationOffset + offset);
                 SavePointer(target);
+                MarkReferencePresence(target);
                 pointers[target] = value;
             }
             foreach ((int offset, BattleExecutionReferenceEntry? entry) in child.executionChanges)
@@ -244,6 +245,7 @@ internal sealed partial class NativeBattleArenaOverlay
             {
                 if (undo.Present)
                 {
+                    MarkReferencePresence(undo.Offset);
                     pointers[undo.Offset] = undo.Value;
                 }
                 else
@@ -270,6 +272,7 @@ internal sealed partial class NativeBattleArenaOverlay
             {
                 foreach ((int offset, BattleExecutionReferenceEntry? entry) in originalExecutionChanges)
                 {
+                    MarkReferencePresence(offset);
                     executionChanges.Add(offset, entry);
                 }
             }

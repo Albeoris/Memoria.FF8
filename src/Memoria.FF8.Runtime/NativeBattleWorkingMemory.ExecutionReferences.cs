@@ -15,6 +15,7 @@ internal sealed partial class NativeBattleWorkingMemory
         BattleExecutionReferenceEntry entry = new(width, reference);
         RequireRange(offset, width);
         ExecutionReferenceEncoding.Validate(width, nativeBytes);
+        MarkReferencePresence(offset);
 
         ReadOnlySpan<byte> bytes = nativeBytes is { } exact ? exact.AsSpan() : default;
         PrepareStorageReceipts();
@@ -70,7 +71,7 @@ internal sealed partial class NativeBattleWorkingMemory
     private void CollectExecutionReferences(int offset, int length)
     {
         removedExecutionReferences?.Clear();
-        if (executionReferences is null)
+        if (executionReferences is null || !MayHaveReferenceStarts(Math.Max(0, offset - 3), (long)offset + length))
         {
             return;
         }
@@ -131,6 +132,7 @@ internal sealed partial class NativeBattleWorkingMemory
     {
         if (undo.Present)
         {
+            MarkReferencePresence(undo.Offset);
             executionReferences![undo.Offset] = undo.Execution!;
         }
         else
@@ -161,6 +163,7 @@ internal sealed partial class NativeBattleWorkingMemory
             {
                 throw new InvalidDataException("Retained execution references overlap.");
             }
+            MarkReferencePresence(offset);
             (executionReferences ??= []).Add(offset, entry);
         }
     }

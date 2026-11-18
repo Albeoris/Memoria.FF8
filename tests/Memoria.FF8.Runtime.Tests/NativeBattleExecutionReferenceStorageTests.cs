@@ -9,6 +9,63 @@ public sealed class NativeBattleExecutionReferenceStorageTests
     private static readonly BattleExecutionReference.Header Header = new(new(4));
 
     [Fact]
+    public void Reference_presence_keeps_block_collisions_word_boundaries_rollback_and_restored_facts_exact()
+    {
+        using NativeBattleWorkingMemory memory = new(16384);
+        memory.WriteExecutionReference(63, 1, Model, [1]);
+        memory.WriteExecutionReference(4093, 4, Header, [9, 8, 7, 6]);
+        memory.BeginCheckpoint();
+        memory.Write(32, [2]);
+        Assert.Equal(Model, memory.ReadExecutionReference<BattleExecutionReference.Model>(63, 1));
+        memory.Write(4096, [3]);
+        Assert.False(memory.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+        memory.RollbackCheckpoint();
+        Assert.Equal(Header, memory.ReadExecutionReference<BattleExecutionReference.Header>(4093, 4));
+        using NativeBattleWorkingMemory restored = NativeBattleWorkingMemory.Restore(memory.Capture());
+        restored.Write(4096, [4]);
+        Assert.False(restored.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+        restored.WriteExecutionReference(8192, 2, Targets);
+        restored.Write(8193, [5]);
+        restored.Write(512, [6]);
+        Assert.False(restored.TryReadExecutionReference<BattleExecutionReference.Targets>(8192, 2, out _));
+        Assert.Equal(Model, restored.ReadExecutionReference<BattleExecutionReference.Model>(63, 1));
+        memory.Write(0, new byte[8193]);
+        Assert.False(memory.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+    }
+
+    [Fact]
+    public void Private_reference_presence_tracks_unaligned_slices_late_ancestors_and_overlay_reuse()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.Clear();
+        arena.WriteExecutionReference(4093, 4, Header, [9, 8, 7, 6]);
+        using NativeBattleEffectArenaTransaction parent = new(arena);
+        NativeBattleEffectArena slice = NativeBattleEffectArena.BorrowWorking(arena.Working, 4061, 128);
+        using (NativeBattleEffectArenaTransaction child = NativeBattleEffectArenaTransaction.CreatePrivateChild(slice))
+        {
+            child.Write(0, [1]);
+            parent.WriteExecutionReference(4125, 2, Targets, null);
+            parent.BeginCheckpoint();
+            child.Write(65, [2]);
+            child.Write(35, [3]);
+            child.WriteExecutionReference(96, 1, Model, [4]);
+            child.Write(96, [5]);
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Targets>(64, 2, out _));
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Header>(32, 4, out _));
+            Assert.False(child.View.TryReadExecutionReference<BattleExecutionReference.Model>(96, 1, out _));
+            child.Freeze();
+        }
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+        parent.RollbackCheckpoint();
+        Assert.Equal(Header, parent.View.ReadExecutionReference<BattleExecutionReference.Header>(4093, 4));
+        Assert.Equal(Targets, parent.View.ReadExecutionReference<BattleExecutionReference.Targets>(4125, 2));
+        parent.Freeze();
+        parent.Write(4096, [6]);
+        Assert.False(parent.View.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+        parent.Freeze();
+        Assert.False(arena.TryReadExecutionReference<BattleExecutionReference.Header>(4093, 4, out _));
+    }
+
+    [Fact]
     public void Exact_variant_and_width_are_required_and_raw_stores_invalidate_spans()
     {
         using NativeBattleWorkingMemory memory = new(96);
