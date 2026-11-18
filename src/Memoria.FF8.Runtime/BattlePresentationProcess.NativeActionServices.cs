@@ -109,6 +109,7 @@ public sealed partial class BattlePresentationProcess
             byte sequence = nativeActionPackets.ReadHeader(context.Header).Sequence;
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(context.ResolveActor(graphics), actor) };
             graphics = sequence != 0 ? SelectNativeHeaderSequence(graphics, context.ResolveActor(graphics), sequence) : ApplyNativeActiveHeaderContacts(graphics);
+            ObserveHostedContactFreeSelection(graphics, context);
             graphics = StartNativeHeaderCamera(graphics, context);
             phase = 3;
         }

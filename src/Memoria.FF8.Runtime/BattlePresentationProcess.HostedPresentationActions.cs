@@ -17,6 +17,7 @@ public sealed partial class BattlePresentationProcess
         internal bool RenzokukenWidgetClosed { get; init; }
         internal bool DiagnosticOutcomeEntryIssued { get; init; }
         internal bool DiagnosticOutcomeEntryAcknowledged { get; init; }
+        internal NativeBattleContactFreeSequence? ContactFreeSequence { get; init; }
     }
 
     private HostedPresentationInvocation? hostedPresentationInvocation;
@@ -58,12 +59,13 @@ public sealed partial class BattlePresentationProcess
         return action.Invocation.Token;
     }
 
-    private void ObserveHostedActionPacketRemoved(int slot, NativeBattleDescriptorPacket packet)
+    private void ObserveHostedActionPacketRemoved(NativeBattleGraphicsState graphics, int slot, NativeBattleDescriptorPacket packet)
     {
         if (hostedPresentationInvocation is { } invocation && slot == invocation.DescriptorSlot &&
             packet.Serial == invocation.DescriptorSerial && packet.Command == 104 && packet.Header == invocation.Header &&
             packet.PriorityState == 255)
         {
+            hostedContactFreeRetirement = ReadHostedContactFreeRetirement(graphics, invocation);
             lastHostedActionCompleted = invocation.Token;
             hostedPresentationInvocation = null;
         }

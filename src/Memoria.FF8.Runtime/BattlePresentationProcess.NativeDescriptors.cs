@@ -35,7 +35,7 @@ public sealed partial class BattlePresentationProcess
         void ObserveHostedPacketRemoved(NativeBattleDescriptorState state, int slot, NativeBattleDescriptorPacket packet)
         {
             ObservePacketRemoved(state, slot, packet);
-            ObserveHostedActionPacketRemoved(slot, packet);
+            ObserveHostedActionPacketRemoved(graphics, slot, packet);
             ObserveHostedCompletionRemoved(graphics, state, slot, packet);
             ObserveHostedControlPacketRemoved(slot, packet);
         }

@@ -22,6 +22,7 @@ internal sealed record BattlePresentationSnapshot(BattlePresentationResources Re
 {
     internal BattleExternalEffectContinuation? ExternalEffect { get; init; }
     internal HostedPresentationInvocation? Invocation { get; init; }
+    internal HostedContactFreeRetirement? ContactFreeRetirement { get; init; }
     internal NativeBattlePhysicalPartyStatuses? PhysicalPartyBattleStatuses { get; init; }
     internal HostedCompletionInvocation? Completion { get; init; }
     internal ImmutableArray<HostedControlPacket> ControlPackets { get; init; }
@@ -78,6 +79,7 @@ public sealed partial class BattlePresentationProcess
         {
             ExternalEffect = entry is null ? CaptureExternalEffectContinuation() : null,
             Invocation = hostedPresentationInvocation,
+            ContactFreeRetirement = hostedContactFreeRetirement,
             Completion = hostedCompletionInvocation,
             ControlPackets = hostedControlPackets,
             ModelRegistry = hostedModelRegistry,
@@ -163,6 +165,7 @@ public sealed partial class BattlePresentationProcess
         nativeGlobalRandom = snapshot.Shared.GlobalRandom;
         ImportSharedState(snapshot.Shared);
         hostedPresentationInvocation = snapshot.Invocation;
+        hostedContactFreeRetirement = snapshot.ContactFreeRetirement;
         hostedCompletionInvocation = snapshot.Completion;
         hostedControlPackets = snapshot.ControlPackets;
         hostedModelRegistry = snapshot.ModelRegistry;

@@ -371,7 +371,15 @@ public sealed partial class BattleSession
         {
             NativeBattleActionHeaderPreparation header = invocation.Header;
             int delivered = expandedInvocationProgress?.Occurrences.Count ?? 0;
-            throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.ContactCount} prepared contacts.");
+            bool contactFree = expandedInvocationProgress is not null && delivered == 0 && invocation.FollowingCasts.IsEmpty &&
+                invocation.Command.NativeAction is { AttackType: 0, Power: 0, Statuses0: 0, Statuses1: 0 } native &&
+                native.Command == header.Command && native.ActionId == header.Action && native.MagicId == header.Effect &&
+                expandedHostedActionToken is long token && invocation.HeaderReference is { } reference &&
+                expandedPresentationProcess?.HasHostedContactFreeRetirement(token, reference, header) == true;
+            if (!contactFree)
+            {
+                throw new InvalidDataException($"Expanded effect {header.Effect} for native command {header.Command}/{header.Action} completed with {delivered} of {invocation.ContactCount} prepared contacts.");
+            }
         }
         if (!invocation.RoutedGraphicsContacts.IsEmpty && expandedInvocationProgress?.PresentedRoutedContacts != invocation.RoutedGraphicsContacts.Length)
         {
