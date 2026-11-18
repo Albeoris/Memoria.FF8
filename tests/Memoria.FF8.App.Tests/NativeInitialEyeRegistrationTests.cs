@@ -1,11 +1,54 @@
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Events;
+using Albeoris.Games.FF8.Imaging;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeInitialEyeRegistrationTests
 {
+    [Fact]
+    public void Logical_save_with_legacy_zero_eye_modes_restores_automatic_blinking_without_rewriting_source()
+    {
+        string source = TestResources.FixturePath("App.Tests.NativeInitialEyeRegistrationTests.1");
+        byte[] original = File.ReadAllBytes(source);
+        GameSession session = new(GameplaySaveSessionLoader.Load(source, TestResources.GameDirectory));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        NativeFieldRegistrationState registration = Assert.IsType<NativeFieldRegistrationState>(world.Events.Scene.NativeFieldRegistration);
+        NativeFieldEyeProcess process = Assert.IsType<NativeFieldEyeProcess>(world.Events.Scene.NativeEyeProcess);
+        NativeFieldRegisteredInstance[] blinking = registration.Instances.Where(instance => instance.ModelId >= 0 && world.Field!.Models[instance.ModelId].NativeEyes is { Bank.Length: > 0 }).ToArray();
+        Assert.NotEmpty(blinking);
+        foreach (NativeFieldRegisteredInstance instance in blinking)
+        {
+            Assert.Equal(0x80000u, world.Events.Actors[instance.ObjectId].NativeEyes!.Mode);
+            Assert.Equal(0x10, process.Memory.FileStaging!.Read(instance.Address + 114, 1)[0] & 0xF0);
+        }
+        NativeBattleRetainedMemory memory = process.Memory;
+        Dictionary<int, Rgba32[]> initialPixels = blinking.Select(instance => (instance.ObjectId, Visual: world.CreateVisual(world.Events.Actors[instance.ObjectId]))).Where(item => item.Visual.RegisteredTextures is { Count: > 0 }).ToDictionary(item => item.ObjectId, item => item.Visual.RegisteredTextures![0].Pixels.ToArray());
+        Assert.NotEmpty(initialPixels);
+        bool copied = false;
+        bool pixelsChanged = false;
+        for (int callback = 0; callback < 64; callback++)
+        {
+            world.Events.Step();
+            NativeBattleRetainedMemory next = session.CurrentNativeBattleMemory!;
+            copied |= !ReferenceEquals(memory.EffectMemory!.Textures, next.EffectMemory!.Textures);
+            memory = next;
+            foreach ((int objectId, Rgba32[] pixels) in initialPixels)
+            {
+                pixelsChanged |= !pixels.SequenceEqual(world.CreateVisual(world.Events.Actors[objectId]).RegisteredTextures![0].Pixels);
+            }
+        }
+        Assert.True(copied, "Restored automatic eyes must execute their native texture copies.");
+        Assert.True(pixelsChanged, "Model drawing must receive the changing eye texture pixels.");
+        session.SetEventState(world.Events.Capture());
+        using GameWorld restored = new(new GameSession(session.PrepareSnapshot()), TestResources.GameDirectory);
+        restored.EnsureField();
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        Assert.Equal(original, File.ReadAllBytes(source));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -83,6 +126,7 @@ public sealed class NativeInitialEyeRegistrationTests
         NativeFieldEyeProcess process = Assert.IsType<NativeFieldEyeProcess>(world.Events.Scene.NativeEyeProcess);
         NativeFieldRegistrationState registration = Assert.IsType<NativeFieldRegistrationState>(world.Events.Scene.NativeFieldRegistration);
         Assert.Equal(74, registration.FieldId);
+        Assert.All(registration.Instances, instance => Assert.Equal(0x80000u, world.Events.Actors[instance.ObjectId].NativeEyes!.Mode));
         process.Validate(registration);
         // Scene.NativeEyeProcess is cached registration context. Active-field capture refreshes
         // its shared physical memory after subsequent texture publications.

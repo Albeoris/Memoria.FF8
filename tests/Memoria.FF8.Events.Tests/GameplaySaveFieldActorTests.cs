@@ -27,6 +27,7 @@ internal static partial class Program
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (model, animation) => field.GetAnimationFrameCount(model, animation) + (changed ? 2 : 0),
+                ReadNativeEyes = model => field.Models[model].NativeEyes,
                 ReadNativeModelParts = model => model == 13 ? definition : null
             };
             engine.LoadField(106, selectedProgram ?? content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);

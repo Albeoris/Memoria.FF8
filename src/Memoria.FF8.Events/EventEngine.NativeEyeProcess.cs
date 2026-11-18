@@ -7,7 +7,7 @@ public sealed partial class EventEngine
 {
     public Func<NativeFieldRegistrationResources?>? ReadNativeFieldRegistrationResources { get; set; }
 
-    private void InitializeNativeFieldEyeProcess()
+    private void InitializeNativeFieldEyeProcess(bool applyEyeModes = true)
     {
         if (ReadNativeFieldRegistrationResources?.Invoke() is not { } resources)
         {
@@ -22,6 +22,20 @@ public sealed partial class EventEngine
         NativeFieldRegistrationStep step = NativeFieldRegistrationMachine.Register(NativeFieldRegistrationEntry.FieldEntry, resources, retainedActors, retained);
         Scene.NativeFieldRegistration = step.State;
         PublishNativeFieldEyeProcess(new(1, step.Memory, session.State.CrtRandom));
+        // Initial 52B840 applies actor eye selections after 532A40 registration.
+        if (applyEyeModes)
+        {
+            foreach (NativeFieldRegisteredInstance instance in step.State.Instances)
+            {
+                ActorState actor = actors[instance.ObjectId];
+                NativeActorEyes eyes = actor.NativeEyes ?? throw new InvalidDataException("Native initial eye setup lost its allocated actor mode.");
+                NativeFieldEyeProcess process = ReadCurrentNativeEyeProcess(Scene.NativeEyeProcess!);
+                NativeBattleFieldResourceReloadResult result = NativeFieldRegistrationMachine.SetEyes532340(step.State, process.Memory, actor.ObjectId, eyes.Mode, actor.NativeEyeBlinkParameter611, process.CrtRandom);
+                PublishNativeFieldEyeProcess(new(1, result.Memory, result.CrtRandomAfter));
+                byte? backend = instance.ModelId >= 0 && ReadNativeEyes?.Invoke(instance.ModelId) is { Bank.Length: > 0 } ? (byte)(result.Memory.FileStaging!.Read(instance.Address + 114, 1)[0] & 0xF0) : null;
+                actor.NativeEyes = eyes with { BoundModelId = instance.ModelId, BackendHighNibble114 = backend };
+            }
+        }
     }
 
     private void PublishNativeFieldEyeProcess(NativeFieldEyeProcess process)

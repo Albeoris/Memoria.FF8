@@ -115,7 +115,7 @@ public sealed partial class EventEngine
             RestoreGameplayAnimation(actors[savedActor.ObjectId], savedActor);
             RestoreGameplayLadderRenderer(actors[savedActor.ObjectId], savedActor);
         }
-        InitializeNativeFieldEyeProcess();
+        InitializeNativeFieldEyeProcess(applyEyeModes: false);
         RestoreGameplayActorPresentation(detached);
         InitializeNativeModelParts();
         RestoreGameplayModelParts(detached);
@@ -289,8 +289,9 @@ public sealed partial class EventEngine
             {
                 actor.NativeEyes = PrepareNativeEyes(actor, value.Appearance.EyeMode == 0x200000);
             }
-            else if (value.Appearance.EyeMode == 0x80000)
+            else if (value.Appearance.EyeMode is 0 or 0x80000)
             {
+                // Older logical saves recorded zero before the allocated automatic default was represented.
                 int model = actor.NativeAnimationHeader!.BoundModelId!.Value;
                 NativeFieldEyeDefinition? definition = model < 0 ? null : ReadNativeEyes?.Invoke(model) ?? throw new NotSupportedException("Logical blink restoration requires the selected current model eye bank.");
                 actor.NativeEyes = new(1, 0x80000, model, definition?.Bank.Length > 0 ? (byte)0x10 : null, null);

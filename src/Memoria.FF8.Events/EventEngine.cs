@@ -302,7 +302,8 @@ public sealed partial class EventEngine
                 actors[^1].RunAnimationId = 0;
                 actors[^1].NativeBaseAnimationVersion = 1;
                 actors[^1].NativeAnimationHeader = new NativeActorAnimationHeader(1, 255, 0, 16, 0, 0, 0, null);
-                actors[^1].NativeEyes = new NativeActorEyes(1, 0, null, null, null);
+                // 52BC00 initializes DWORD352 to 0x10080002, including automatic eyes.
+                actors[^1].NativeEyes = new NativeActorEyes(1, 0x80000, null, null, null);
                 actors[^1].NativeAnimationBackup = new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0);
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.

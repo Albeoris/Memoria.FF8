@@ -73,6 +73,10 @@ public sealed partial class EventEngine
             {
                 continue;
             }
+            if (eyes is { Mode: 0x80000, BoundModelId: null, BackendHighNibble114: null, Patch: null } && actor.NativeAnimationHeader?.BoundModelId is null && actor.NativeEyeBlinkParameter611 is not null && program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId))
+            {
+                continue;
+            }
             if (eyes.Mode == 0x80000 && eyes.BoundModelId == -1 && actor.NativeAnimationHeader?.BoundModelId == -1 && eyes.BackendHighNibble114 is null && eyes.Patch is null && actor.NativeEyeBlinkParameter611 is not null)
             {
                 continue;
