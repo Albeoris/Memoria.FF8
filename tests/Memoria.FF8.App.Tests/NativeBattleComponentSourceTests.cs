@@ -94,6 +94,9 @@ public sealed partial class NativeBattleComponentSourceTests
             79 => 122,
             110 => 74,
             137 => 99,
+            209 => 115,
+            218 => 128,
+            219 => 114,
             167 => 70,
             308 => 105,
             314 => 103,
@@ -105,7 +108,7 @@ public sealed partial class NativeBattleComponentSourceTests
 
     internal static EffectPreviewRequest CreateComponentRequest(ushort effect)
     {
-        return new(OriginalComponentEnemy(effect), effect == 112 ? (byte)1 : effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 ? 142 : effect == 110 ? 3 : effect == 137 ? 98 : 0 };
+        return new(OriginalComponentEnemy(effect), effect is 112 or 212 or 215 or 216 ? (byte)1 : effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 ? 142 : effect == 110 ? 3 : effect == 137 ? 98 : effect == 209 ? 137 : effect == 218 ? 68 : effect == 219 ? 121 : 0 };
     }
 
     internal static BattleSession PrepareComponentSource(GameWorld world, EffectPreviewRequest request)
@@ -168,7 +171,7 @@ public sealed partial class NativeBattleComponentSourceTests
         {
             return PrepareOriginalEffect110Component(world, request);
         }
-        if (effect == 112)
+        if (effect is 112 or 212)
         {
             return PrepareOriginalEffect112Component(world, request);
         }
@@ -183,6 +186,18 @@ public sealed partial class NativeBattleComponentSourceTests
         if (effect == 165)
         {
             return PrepareOriginalEffect165Component(world, request);
+        }
+        if (effect == 209)
+        {
+            return PrepareOriginalEffect209Component(world, request);
+        }
+        if (effect is 215 or 216)
+        {
+            return PrepareOriginalDuelFinisherComponent(world, request);
+        }
+        if (effect is 218 or 219)
+        {
+            return PrepareOriginalEffect218219Component(world, request);
         }
         if (effect == 308)
         {

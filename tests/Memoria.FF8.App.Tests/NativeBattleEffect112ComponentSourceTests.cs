@@ -5,8 +5,10 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleEffect112ComponentSourceTests
 {
-    [Fact]
-    public void Installed_component_retains_original_Zell_finisher_through_Duel_override_and_next_pose_callback()
+    [Theory]
+    [InlineData(112, 7, 0x2521950u)]
+    [InlineData(212, 6, NativeBattleDuel212Controller.Targets)]
+    public void Installed_component_retains_original_Zell_finisher_through_Duel_override_and_next_pose_callback(ushort effect, ushort action, uint targetDescriptor)
     {
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(game is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");
@@ -14,12 +16,12 @@ public sealed class NativeBattleEffect112ComponentSourceTests
         session.StartNewGame();
         using GameWorld world = new(session, game!);
         string originalRecords = JsonSerializer.Serialize(session.State.CharacterVitals!.Records);
-        BattleSession source = NativeBattleComponentSourceTests.PrepareComponentSource(world, NativeBattleComponentSourceTests.CreateComponentRequest(112));
+        BattleSession source = NativeBattleComponentSourceTests.PrepareComponentSource(world, NativeBattleComponentSourceTests.CreateComponentRequest(effect));
         Assert.Equal(originalRecords, JsonSerializer.Serialize(session.State.CharacterVitals!.Records));
-        BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, 112);
+        BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, effect);
         Assert.Equal((byte)0, admission.OriginalActorIndex);
         Assert.Equal((byte)239, admission.Command);
-        Assert.Equal((ushort)7, admission.Action);
+        Assert.Equal(action, admission.Action);
         BattlePresentationProcess process = source.Presentation!;
         BattleCombatant caster = Assert.Single(source.Combatants, actor => actor.NativeActorIndex == 0);
         Assert.Equal(1, caster.ModelId);
@@ -27,7 +29,7 @@ public sealed class NativeBattleEffect112ComponentSourceTests
         BattleActionHeaderReference reference = new(admission.HeaderIndex);
         NativeBattleActionHeaderSlot header = process.ActionPackets.ReadHeader(reference);
         Assert.Equal((byte)28, header.Sequence);
-        Assert.Equal(NativeBattleActionGraphics.ResolvePlayerSequence(239, 0, 7, source.ReadDefinition().NativeCommandSequences), header.Sequence);
+        Assert.Equal(NativeBattleActionGraphics.ResolvePlayerSequence(239, 0, action, source.ReadDefinition().NativeCommandSequences), header.Sequence);
         NativeBattleContactPacket contact = Assert.Single(process.ActionPackets.ReadHeaderContacts(reference));
         Assert.Equal(process.FindOriginalActor(NativeBattleModelSlot.Decode(3)), contact.Primary.Recipient);
         Assert.Equal(0, contact.Primary.Amount6);
@@ -46,7 +48,7 @@ public sealed class NativeBattleEffect112ComponentSourceTests
         {
             fork.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
             NativeBattleGraphicsState current = fork.Presentation!.Graphics;
-            NativeBattleEffectTaskPool? targets = current.OriginalEffect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == 0x2521950);
+            NativeBattleEffectTaskPool? targets = current.OriginalEffect?.Pools.FirstOrDefault(pool => pool.DescriptorAddress == targetDescriptor);
             if (targets is not null)
             {
                 for (int slot = 0; slot < targets.Slots.Length; slot++)

@@ -347,6 +347,9 @@ try {
                             110 { 74 }
                             137 { 99 }
                             167 { 70 }
+                            209 { 115 }
+                            218 { 128 }
+                            219 { 114 }
                             308 { 105 }
                             314 { 103 }
                             315 { 75 }
@@ -357,8 +360,17 @@ try {
                         if ($effect -eq 110) {
                             $componentRequest.stage_id = 3
                         }
-                        if ($effect -eq 112) {
+                        if ($effect -in @(112, 212, 215, 216)) {
                             $componentRequest.ally_id = 1
+                        }
+                        if ($effect -eq 209) {
+                            $componentRequest.stage_id = 137
+                        }
+                        if ($effect -eq 218) {
+                            $componentRequest.stage_id = 68
+                        }
+                        if ($effect -eq 219) {
+                            $componentRequest.stage_id = 121
                         }
                         if ($effect -eq 137) {
                             $componentRequest.stage_id = 98
