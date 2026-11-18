@@ -50,7 +50,7 @@ public sealed class NativeBattleModelResourceCompletionTests
     {
         NativeBattleModelDatSource source = Body();
         ImmutableArray<NativeBattleModelCpuResourceRow> rows = Rows();
-        NativeBattleModelResourceCompletion result = NativeBattleModelResourceCopies.Complete(Bind(callback, source), NativeBattleModelCpuBanks.Unknown(), rows, 4, null);
+        NativeBattleModelResourceCompletion result = NativeBattleModelResourceCopies.Complete(Bind(callback, source), Cpu(), rows, 4, null);
         NativeBattleModelCpuResourceRow body = result.Rows[4];
         Assert.Equal(16, body.Lengths[12]);
         Assert.Equal(32, body.Lengths[16]);
@@ -72,7 +72,7 @@ public sealed class NativeBattleModelResourceCompletionTests
     [Fact]
     public void Replacing_a_linked_rig_replaces_its_extents_and_preserves_the_body_geometry_extent()
     {
-        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(Bind(0x5077B0, Body()), NativeBattleModelCpuBanks.Unknown(), Rows(), 4, null);
+        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(Bind(0x5077B0, Body()), Cpu(), Rows(), 4, null);
         NativeBattleModelDatSource linked = Source([64, 80, 112, 128, 144, 160, 176, 192, 208]);
         NativeBattleModelResourceCompletion result = NativeBattleModelResourceCopies.Complete(Bind(0x507BF0, linked), first.Cpu, first.Rows, 4, 5);
         NativeBattleModelCpuResourceRow rig = result.Rows[5];
@@ -89,10 +89,11 @@ public sealed class NativeBattleModelResourceCompletionTests
     [Fact]
     public void Appended_weapon_geometry_is_readable_through_the_patched_body_directory_and_survives_a_snapshot()
     {
-        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(Bind(0x5077B0, Body()), NativeBattleModelCpuBanks.Unknown(), Rows(), 4, null);
+        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(Bind(0x5077B0, Body()), Cpu(), Rows(), 4, null);
         NativeBattleModelDatSource weapon = Source([64, 88, 104, 120]);
         NativeBattleModelResourceCompletion result = NativeBattleModelResourceCopies.Complete(Bind(0x507E20, weapon), first.Cpu, first.Rows, 4, null);
-        result = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelResourceCompletion>(NativeBattleTestSnapshots.Json(result))!;
+        result = NativeBattleTestSnapshots.Independent(result);
+        Assert.Equal(0, result.Cpu.PartyBankIndex((BattlePartyModelOwner)OriginalOwner(0)));
         NativeBattleModelCpuResourceRow body = result.Rows[4];
         Assert.Equal(first.Rows[4].Require(16), body.Require(16));
         Assert.Equal(120, body.Lengths[16]);
@@ -122,6 +123,8 @@ public sealed class NativeBattleModelResourceCompletionTests
     }
 
     private static NativeBattleModelResourceBind Bind(uint callback, NativeBattleModelDatSource source) => new(new(0, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 0, callback, 2), source, new([]));
+
+    private static NativeBattleModelCpuBanks Cpu() => NativeBattleModelCpuBanks.Unknown().BindPartyOwner((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(0));
 
     private static NativeBattleModelDatSource Body()
     {
