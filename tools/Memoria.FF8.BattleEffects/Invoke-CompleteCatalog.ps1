@@ -35,8 +35,23 @@ function Read-ComponentPreparation([string]$Path, [int]$Effect) {
     return $receipt
 }
 
+function Get-WindowsGpuSessionContext {
+    try {
+        if ($null -eq ('Memoria.FF8.BattleEffects.WindowsGpuSessionProbe' -as [type])) {
+            Add-Type -Path (Join-Path $PSScriptRoot 'WindowsGpuSessionProbe.cs') -ErrorAction Stop
+        }
+        $session = [Memoria.FF8.BattleEffects.WindowsGpuSessionProbe]::Observe()
+        return [pscustomobject]@{ status=$session.Validity.Status; reason=$session.Validity.Reason; current_session=$session.CurrentSession; reported_session=$session.ReportedSession; level=$session.Level; connection_state=$session.ConnectionState; session_flags=$session.SessionFlags; current_desktop=$session.CurrentDesktop; input_desktop=$session.InputDesktop; session_error=$session.SessionError; desktop_error=$session.DesktopError }
+    }
+    catch {
+        return [pscustomobject]@{ status='unknown'; reason='windows-session-probe-failed'; error=$_.Exception.Message }
+    }
+}
+
 function Get-GpuProcessContext([string]$Stage, [int]$OwnedRoot = 0) {
-    $observation = [ordered]@{ utc=[DateTimeOffset]::UtcNow.ToString('O'); stage=$Stage; status='observed'; foreign_processes=@(); error=$null }
+    $session = Get-WindowsGpuSessionContext
+    $sessionStatus = if ($session.status -eq 'invalid') { 'invalid' } elseif ($session.status -eq 'unknown') { 'unknown' } else { 'observed' }
+    $observation = [ordered]@{ utc=[DateTimeOffset]::UtcNow.ToString('O'); stage=$Stage; status=$sessionStatus; windows_session=$session; foreign_processes=@(); error=$null }
     try {
         $candidates = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'Memoria.FF8%'" -Property ProcessId,ParentProcessId,Name,ExecutablePath,CreationDate -ErrorAction Stop)
         foreach ($candidate in $candidates) {
@@ -58,13 +73,16 @@ function Get-GpuProcessContext([string]$Stage, [int]$OwnedRoot = 0) {
         }
     }
     catch {
-        $observation.status = 'unknown'
+        if ($observation.status -ne 'invalid') { $observation.status = 'unknown' }
         $observation.error = $_.Exception.Message
     }
     return [pscustomobject]$observation
 }
 
 function Assert-GpuProcessContext([object]$Observation) {
+    if ($performanceRequested -and $Observation.windows_session.status -in @('invalid','unknown')) {
+        throw "GPU performance deferred: $($Observation.windows_session.reason). Unlock an active session with an available current input desktop, or explicitly select -FunctionalOnly without FPS certification. No session or window state was changed."
+    }
     if ($performanceRequested -and ($Observation.status -ne 'observed' -or $Observation.foreign_processes.Count -ne 0)) {
         throw 'GPU performance requires a verified exclusive Memoria.FF8 process context. Other processes were not stopped; defer performance or explicitly select -FunctionalOnly.'
     }
@@ -151,7 +169,7 @@ function Invoke-OwnedProcess([string]$Executable, [string[]]$Arguments, [string]
                 $observation = Get-GpuProcessContext 'during-gpu-invocation' $process.Id
                 if ($observation.status -ne 'observed' -or $observation.foreign_processes.Count -ne 0) {
                     if ($script:CurrentPerformanceContext.observations.Count -lt 16) { $script:CurrentPerformanceContext.observations.Add($observation) }
-                    $script:CurrentPerformanceContext.status = if ($observation.foreign_processes.Count) { 'invalid' } elseif ($script:CurrentPerformanceContext.status -ne 'invalid') { 'unknown' } else { 'invalid' }
+                    $script:CurrentPerformanceContext.status = if ($observation.status -eq 'invalid' -or $observation.foreign_processes.Count) { 'invalid' } elseif ($script:CurrentPerformanceContext.status -ne 'invalid') { 'unknown' } else { 'invalid' }
                 }
             }
             if ([DateTimeOffset]::UtcNow -ge $deadline) { break }
@@ -416,12 +434,15 @@ try {
         $script:CurrentPerformanceContext.observations.Add($afterContext)
         if ($performanceRequested) {
             $foreign = @($script:CurrentPerformanceContext.observations | Where-Object { $_.foreign_processes.Count -gt 0 })
-            $unknown = @($script:CurrentPerformanceContext.observations | Where-Object { $_.status -ne 'observed' })
+            $invalidSession = @($script:CurrentPerformanceContext.observations | Where-Object { $_.windows_session.status -eq 'invalid' })
+            $unknown = @($script:CurrentPerformanceContext.observations | Where-Object { $_.status -eq 'unknown' })
+            $unknownSession = @($script:CurrentPerformanceContext.observations | Where-Object { $_.windows_session.status -eq 'unknown' })
+            $unknownProcess = @($unknown | Where-Object { $null -ne $_.error })
             $inactive = @($script:CurrentPerformanceContext.entries | Where-Object { $null -ne $_.active -and -not $_.active })
             $missingActivity = @($script:CurrentPerformanceContext.entries | Where-Object { $null -eq $_.active })
-            if ($foreign.Count -or $inactive.Count -or $script:CurrentPerformanceContext.status -eq 'invalid') { $script:CurrentPerformanceContext.status = 'invalid' }
+            if ($foreign.Count -or $invalidSession.Count -or $inactive.Count -or $script:CurrentPerformanceContext.status -eq 'invalid') { $script:CurrentPerformanceContext.status = 'invalid' }
             elseif ($unknown.Count -or $missingActivity.Count -or $script:CurrentPerformanceContext.entries.Count -ne 2 -or $script:CurrentPerformanceContext.status -eq 'unknown') { $script:CurrentPerformanceContext.status = 'unknown' }
-            $script:CurrentPerformanceContext.reasons = @($(if ($foreign.Count) { 'competing_memoria_process' }); $(if ($unknown.Count) { 'process_metadata_unavailable' }); $(if ($inactive.Count) { 'inactive_presentations' }); $(if ($missingActivity.Count -or $script:CurrentPerformanceContext.entries.Count -ne 2) { 'activity_metadata_unavailable' }))
+            $script:CurrentPerformanceContext.reasons = @($(if ($foreign.Count) { 'competing_memoria_process' }); @($invalidSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); @($unknownSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); $(if ($unknownProcess.Count) { 'process_metadata_unavailable' }); $(if ($inactive.Count) { 'inactive_presentations' }); $(if ($missingActivity.Count -or $script:CurrentPerformanceContext.entries.Count -ne 2) { 'activity_metadata_unavailable' }))
         }
         $result.performance_status = $script:CurrentPerformanceContext.status
         $results.Add([pscustomobject]$result)
