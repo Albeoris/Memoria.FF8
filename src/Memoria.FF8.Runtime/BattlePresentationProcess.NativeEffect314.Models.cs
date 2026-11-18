@@ -20,9 +20,9 @@ public sealed partial class BattlePresentationProcess
         return new(row.Require(12), null, row.Lengths.TryGetValue(12, out int length) ? length : null);
     }
 
-    private NativeBattlePackedMatrix32 ReadNativeEffect314BoneMatrix(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, int bone)
+    private NativeBattlePackedMatrix32 ReadNativeEffect314BoneMatrix(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, int bone, NativeBattlePoseSource? observedSource = null)
     {
-        NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect314 requires its current rig.");
+        NativeBattlePoseSource source = observedSource ?? NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Effect314 requires its current rig.");
         ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(actor), source);
         if ((uint)bone >= (uint)matrices.Length)
         {
@@ -34,19 +34,27 @@ public sealed partial class BattlePresentationProcess
         return packed with { Bytes = packed.Bytes.SetItem(18, data[0]).SetItem(19, data[1]), Known = packed.Known.SetItem(18, known[0]).SetItem(19, known[1]) };
     }
 
-    private NativeBattleModelGeometrySource ReadNativeEffect314Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, bool mutable = false)
+    private NativeBattleModelGeometrySource ReadNativeEffect314Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, bool mutable = false, NativeBattleEffect314GeometryReadScope? readScope = null)
     {
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its current CPU owner.");
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
         if (mutable && pointer.Cpu is { IsOwnedResource: true })
         {
-            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, pointer, (offset, length) => NativeBattleModelResourceView.Open(NativeModelCpuResources!, frame.Staging!, pointer, checked(offset + length)).Read(offset, length));
+            NativeBattleModelGeometrySource initial = NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer, (_, _) => throw new InvalidOperationException());
+            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, pointer, (offset, length) => readScope is null
+                ? NativeBattleModelResourceView.Open(NativeModelCpuResources!, frame.Staging!, pointer, checked(offset + length)).Read(offset, length)
+                : readScope.Read(NativeModelCpuResources!, frame.Staging!, pointer, initial.Owner.Length!.Value, offset, length));
         }
-        return NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer.Pin(cpu), (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+        NativeBattleModelGeometrySource selected = NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer.Pin(cpu), (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
+        if (readScope is not null && selected.Owner.Cpu is { IsOwnedResource: true })
+        {
+            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, selected.Owner, (offset, length) => readScope.Read(NativeModelCpuResources!, frame.Staging!, selected.Owner, selected.Owner.Length!.Value, offset, length));
+        }
+        return selected;
     }
 
-    private NativeBattleEffect314Frame WriteNativeEffect314Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, int offset, byte[] bytes)
+    private NativeBattleEffect314Frame WriteNativeEffect314Geometry(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, BattleModelOwner actor, int offset, byte[] bytes, NativeBattleEffect314GeometryReadScope? readScope = null)
     {
         NativeDeformedBodyBridge bridge = new(frame.Memory, frame.Effect, frame.Random, graphics, graphics.ActorModels.Get(actor), frame.Staging!, NativeBattleEffectArena.Clear(), 0);
         NativeBattleResourcePointer pointer = NativeDeformedGeometryPointer(bridge, false);
@@ -56,7 +64,9 @@ public sealed partial class BattlePresentationProcess
         }
         if (pointer.Cpu is { IsOwnedResource: true })
         {
-            NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(NativeModelCpuResources!, frame.Staging!, pointer, offset, bytes);
+            NativeBattleModelCpuResources original = NativeModelCpuResources!;
+            NativeModelCpuResources = NativeBattleModelResourceView.WritePartySection(original, frame.Staging!, pointer, offset, bytes);
+            readScope?.ObserveWrite(original, NativeModelCpuResources, pointer, offset, bytes);
             return frame;
         }
         uint address = checked((pointer.Cpu?.TryPhysicalAddress() ?? pointer.StagingAddress ?? throw new NotSupportedException("Effect314 shared geometry requires its actual addressed owner.")) + (uint)offset);

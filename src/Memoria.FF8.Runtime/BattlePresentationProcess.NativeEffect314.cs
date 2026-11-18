@@ -15,7 +15,8 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect314 requires its current process memory.");
         NativeBattleEffect314Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect314 requires its current CRT stream."), memory.Effect314 ?? throw new NotSupportedException("Effect314 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect314 requires its current addressed memory."), CapturePresentation = true };
         Dictionary<BattleModelOwner, long> presentationResources = [];
-        NativeBattleEffect314Inputs inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.ActorModels.Get(address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute, (_, owner) => ResolveNativeEffectCompanion(graphics, owner), ReadModelField) { ReadGeometrySource = GeometrySource, ReadBoneMatrix = (current, address, bone) => ReadNativeEffect314BoneMatrix(graphics, current, address, bone), WriteBoneMatrix = (current, address, bone, packed) => WriteNativeEffect314BoneMatrix(ref graphics, current, address, bone, packed), WriteGeometry = (current, address, offset, bytes) => WriteNativeEffect314Geometry(graphics, current, address, offset, bytes), PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(pointer).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
+        NativeBattleEffect314GeometryReadScope geometryReads = new();
+        NativeBattleEffect314Inputs inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.ActorModels.Get(address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute, (_, owner) => ResolveNativeEffectCompanion(graphics, owner), ReadModelField) { ReadGeometrySource = GeometrySource, ReadBoneMatrix = (current, address, bone) => ReadNativeEffect314BoneMatrix(graphics, current, address, bone), WriteBoneMatrix = (current, address, bone, packed) => WriteNativeEffect314BoneMatrix(ref graphics, current, address, bone, packed), WriteGeometry = (current, address, offset, bytes) => WriteNativeEffect314Geometry(graphics, current, address, offset, bytes, geometryReads), PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(pointer).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
         frame = initialize ? NativeBattleEffect314Controller.Initialize(frame, resources, inputs) : NativeBattleEffect314Controller.Advance(frame, resources, inputs);
         PublishNativeEffect314Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
@@ -35,7 +36,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect314Frame Release(NativeBattleEffect314Frame current, int length) => current with { Staging = NativeBattleTemporaryMemory.Release5082D0(current.Staging!, length) };
         NativeBattleModelGeometrySource GeometrySource(NativeBattleEffect314Frame current, BattleModelOwner address)
         {
-            NativeBattleModelGeometrySource source = ReadNativeEffect314Geometry(graphics, current, address);
+            NativeBattleModelGeometrySource source = ReadNativeEffect314Geometry(graphics, current, address, readScope: geometryReads);
             presentationResources[address] = NativeBattleEffect32Presentation.ResourceEpoch(source.Owner);
             return source;
         }
@@ -74,9 +75,9 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattlePackedMatrix32>.Builder bones = ImmutableArray.CreateBuilder<NativeBattlePackedMatrix32>(pose.BoneCount);
             for (int bone = 0; bone < pose.BoneCount; bone++)
             {
-                bones.Add(ReadNativeEffect314BoneMatrix(graphics, current, pointer, bone));
+                bones.Add(ReadNativeEffect314BoneMatrix(graphics, current, pointer, bone, pose));
             }
-            NativeBattleModelGeometrySource geometry = ReadNativeEffect314Geometry(graphics, current, pointer, true);
+            NativeBattleModelGeometrySource geometry = ReadNativeEffect314Geometry(graphics, current, pointer, true, geometryReads);
             presentationResources[pointer] = geometry.PresentationIdentity;
             int length = checked((Cpu().ScratchMaximum ?? throw new NotSupportedException("Effect314 requires its current loaded projection capacity.")) * 8);
             return new(pose, decoded, bones.MoveToImmutable(), geometry) { VertexScratchAddress = checked(0x196B018u - (uint)length), VertexScratchLength = length, PresentationResourceGeneration = presentationResources.TryGetValue(pointer, out long epoch) ? epoch : null };
@@ -186,8 +187,8 @@ public sealed partial class BattlePresentationProcess
                 case NativeBattleEffect314ClearGeometryMarkers6E5D20 clear:
                     NativeBattleEffect314AddressStep markerAllocation = Allocate(current, 8);
                     current = markerAllocation.Frame;
-                    NativeBattleModelGeometrySource geometry = ReadNativeEffect314Geometry(graphics, current, clear.Model, true);
-                    NativeBattleEffectArena temporary = NativeBattleEffect64GeometryCleanup.Clear(geometry, (offset, value) => current = WriteNativeEffect314Geometry(graphics, current, clear.Model, offset, BitConverter.GetBytes(value)), ReadArena(current, markerAllocation.Address, 8));
+                    NativeBattleModelGeometrySource geometry = ReadNativeEffect314Geometry(graphics, current, clear.Model, true, geometryReads);
+                    NativeBattleEffectArena temporary = NativeBattleEffect64GeometryCleanup.Clear(geometry, (offset, value) => current = WriteNativeEffect314Geometry(graphics, current, clear.Model, offset, BitConverter.GetBytes(value), geometryReads), ReadArena(current, markerAllocation.Address, 8));
                     return Release(WriteNativeEffect314Arena(current, markerAllocation.Address, temporary, 8), 8);
                 case NativeBattleEffect314Shadow5088A0 shadow:
                     BattleModelOwner shadowActor = shadow.Model;
