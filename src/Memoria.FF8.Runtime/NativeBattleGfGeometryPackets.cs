@@ -10,6 +10,7 @@ internal sealed record NativeBattleMeshPacketContext(uint Flags, uint? FarColor,
 internal sealed record NativeBattleMeshPacketVariant(uint? UniformFlatColor, uint? GouraudTint, bool DeferInitialGouraudColor, bool RejectZeroArea)
 {
     public bool SkipOffscreenRejection { get; init; }
+    public bool NativeAxisOffscreenRejection { get; init; }
     public Action<uint>? ObserveFlags { get; init; }
     public Action<int>? ObserveArea { get; init; }
     public Action<uint>? ObserveFourthScreen { get; init; }
@@ -268,7 +269,10 @@ public static class NativeBattleGfGeometryPackets
             writes.Word(ScreenWord(3), vertices[3].Screen);
             variant?.ObserveFourthScreen?.Invoke(vertices[3].Screen);
         }
-        if (variant?.SkipOffscreenRejection != true && (BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen))))
+        bool outside = variant?.SkipOffscreenRejection != true && (variant?.NativeAxisOffscreenRejection == true
+            ? BattleSceneVisibleArea.Current.RejectNative(vertices.Select(vertex => new BattleSceneScreenPoint(unchecked((short)vertex.Screen), unchecked((short)(vertex.Screen >> 16)))))
+            : BattleSceneVisibleArea.RejectPacked(vertices.Select(vertex => vertex.Screen)));
+        if (outside)
         {
             return writes.Finish(null);
         }

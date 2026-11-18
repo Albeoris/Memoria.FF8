@@ -208,7 +208,7 @@ public static class NativeBattleTheEnd85Drawing
                 packet.Word16(8 + corner * 4, (ushort)((corner & 1) == 0 ? 0 : 320));
                 packet.Word16(10 + corner * 4, unchecked((ushort)(corner < 2 ? top : bottom)));
             }
-            packets.Add(packet.Attempt(new(5, packet.Words(), [0, 0, 0, 0])));
+            packets.Add(packet.Attempt(new(5, packet.Words(), [0, 0, 0, 0]) { ScreenCoverage = new(0, top / 216f, 1, bottom / 216f) }));
         }
         return Empty(task, staging) with { Packets = new(packets.ToImmutable(), 48), LinkFlags = 1 };
     }

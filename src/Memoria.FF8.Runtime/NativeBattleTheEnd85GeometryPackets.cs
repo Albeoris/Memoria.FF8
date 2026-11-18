@@ -9,6 +9,17 @@ public sealed record NativeBattleTheEnd85MeshStep(NativeBattleFileStaging Stagin
 public static class NativeBattleTheEnd85GeometryPackets
 {
     private static readonly int[] Lengths = [12, 12, 20, 24, 20, 24, 28, 36];
+    private static readonly NativeBattleMeshPacketVariant FlatClipping = new(null, null, false, false) { NativeAxisOffscreenRejection = true };
+
+    internal static NativeBattleGfGeometryBatch EmitF3_785BC0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleRestorationMeshPackets.EmitF3_88E370(face, readCorner, context, colors, byteOffset, FlatClipping);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitF4_785DE0(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
+    {
+        return NativeBattleRestorationMeshPackets.EmitF4_88E590(face, readCorner, context, colors, byteOffset, FlatClipping);
+    }
 
     public static NativeBattleTheEnd85MeshStep Emit785A90(NativeBattleFileStaging staging, uint context, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleSummonColors colors, Func<uint, int, byte[]> read, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
@@ -77,8 +88,8 @@ public static class NativeBattleTheEnd85GeometryPackets
                 }
                 NativeBattleGfGeometryBatch emitted = group switch
                 {
-                    0 => NativeBattleRestorationMeshPackets.EmitF3_88E370(face, Corner, operands, colors, allocation),
-                    1 => NativeBattleRestorationMeshPackets.EmitF4_88E590(face, Corner, operands, colors, allocation),
+                    0 => EmitF3_785BC0(face, Corner, operands, colors, allocation),
+                    1 => EmitF4_785DE0(face, Corner, operands, colors, allocation),
                     2 => NativeBattleRestorationMeshPackets.EmitFt3_88E820(face, Corner, operands, colors, allocation),
                     3 => NativeBattleRestorationMeshPackets.EmitFt4_88ECA0(face, Corner, operands, colors, allocation),
                     4 => NativeBattleRestorationMeshPackets.EmitG3_88F220(face, Corner, operands, colors, allocation),

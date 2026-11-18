@@ -143,10 +143,10 @@ internal static class NativeBattleEffectMeshPackets
         }
     }
 
-    internal static NativeBattleGfGeometryBatch EmitFlat(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset)
+    internal static NativeBattleGfGeometryBatch EmitFlat(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, bool quad, NativeBattleEffectMeshPacketContext context, NativeBattleSummonColors? colors, int byteOffset, NativeBattleMeshPacketVariant? variant = null)
     {
         int bias = context.DepthBias ?? throw new NotSupportedException("Native flat stage mesh requires its actual signed depth bias.");
-        NativeBattleGfGeometryAttempt flat = NativeBattleGfGeometryPackets.EmitAttempt(face, new FlatCorners(quad ? 4 : 3, readCorner), quad ? 1 : 0, new(context.Flags, context.FarColor, context.Fade, null, null, 0, bias, context.TableBaseBucket, context.DepthShift), colors, byteOffset);
+        NativeBattleGfGeometryAttempt flat = NativeBattleGfGeometryPackets.EmitAttempt(face, new FlatCorners(quad ? 4 : 3, readCorner), quad ? 1 : 0, new(context.Flags, context.FarColor, context.Fade, null, null, 0, bias, context.TableBaseBucket, context.DepthShift), colors, byteOffset, variant: variant);
         return new([flat], flat.Primitive is null ? 0 : flat.PacketLength);
     }
 

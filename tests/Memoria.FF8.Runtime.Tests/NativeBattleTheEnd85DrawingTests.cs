@@ -42,6 +42,11 @@ public sealed class NativeBattleTheEnd85DrawingTests
         Assert.Equal(new[] { 0, 24 }, result.Packets.Attempts.Select(packet => packet.ByteOffsetRelative));
         NativeBattleGfGeometryAttempt first = result.Packets.Attempts[0];
         NativeBattleGfGeometryAttempt last = result.Packets.Attempts[1];
+        Assert.Equal(new NativeBattleScreenCoverage(0, 0, 1, height / 216f), first.Primitive!.ScreenCoverage);
+        Assert.Equal(new NativeBattleScreenCoverage(0, unchecked((short)(216 - height)) / 216f, 1, 1), last.Primitive!.ScreenCoverage);
+        Assert.Equal(new uint[] { 0x05000000, 0x29000000, 0, 320, unchecked((uint)(ushort)height << 16), unchecked(((uint)(ushort)height << 16) | 320) }, first.Primitive.Words);
+        uint lower = unchecked((uint)(ushort)(216 - height) << 16);
+        Assert.Equal(new uint[] { 0x05000000, 0x29000000, lower, lower | 320, 216u << 16, (216u << 16) | 320 }, last.Primitive.Words);
         Assert.Equal(height, BinaryPrimitives.ReadInt16LittleEndian(first.Data.AsSpan().Slice(18)));
         Assert.Equal(unchecked((short)(216 - height)), BinaryPrimitives.ReadInt16LittleEndian(last.Data.AsSpan().Slice(10)));
         Assert.All(result.Packets.Attempts, packet =>

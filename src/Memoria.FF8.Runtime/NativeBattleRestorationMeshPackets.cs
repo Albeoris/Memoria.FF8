@@ -54,6 +54,16 @@ public static class NativeBattleRestorationMeshPackets
         return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, true, Normalize(context), colors, byteOffset);
     }
 
+    internal static NativeBattleGfGeometryBatch EmitF3_88E370(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors, int byteOffset, NativeBattleMeshPacketVariant variant)
+    {
+        return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, false, Normalize(context), colors, byteOffset, variant);
+    }
+
+    internal static NativeBattleGfGeometryBatch EmitF4_88E590(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors, int byteOffset, NativeBattleMeshPacketVariant variant)
+    {
+        return NativeBattleEffectMeshPackets.EmitFlat(face, readCorner, true, Normalize(context), colors, byteOffset, variant);
+    }
+
     public static NativeBattleGfGeometryBatch EmitG3_88F220(ReadOnlySpan<byte> face, Func<int, NativeBattleModuleProjectedVertex> readCorner, NativeBattleEsunaMeshContext context, NativeBattleSummonColors? colors = null, int byteOffset = 0)
     {
         return NativeBattleEffectMeshPackets.EmitGouraud(face, readCorner, false, Normalize(context), colors, byteOffset);
