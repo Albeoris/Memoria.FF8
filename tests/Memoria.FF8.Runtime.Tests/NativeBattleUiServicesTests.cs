@@ -90,6 +90,59 @@ public sealed class NativeBattleUiServicesTests
         Assert.Equal((ushort)0x48, state.SetFlags(0, 0x1800).Flags942);
     }
 
+    [Fact]
+    public void Vitals_opening_tail_queues_once_and_survives_save_before_next_dispatch()
+    {
+        NativeBattleUiServices state = NativeBattleUiServices.Initialize().SetFlags(8).DispatchCommands4AD400();
+        state = state with { Commands = state.Commands.Enqueue(0, 64) };
+        state = state.QueueVitalsOpening4A84E0();
+        Assert.Equal((ushort)0x40, state.Flags942);
+        Assert.Equal(new ushort[] { 64, 80 }, state.Commands.Queue.Select(slot => state.Commands.Packets[slot].Command));
+        Assert.Equal(1, state.Windows!.VitalsState6868);
+        Assert.Equal(0, state.Windows.VitalsProgress686C);
+        Assert.False(state.Windows.DrawsVitals4B1740(state.Flags942));
+        Assert.Same(state, state.QueueVitalsOpening4A84E0());
+
+        state = JsonSerializer.Deserialize<NativeBattleUiServices>(JsonSerializer.Serialize(state))!;
+        state.Validate();
+        Assert.Equal(new ushort[] { 64, 80 }, state.Commands.Queue.Select(slot => state.Commands.Packets[slot].Command));
+        Assert.Equal(1, state.Windows!.VitalsState6868);
+        state = state.DispatchCommands4AD400();
+        Assert.Empty(state.Commands.Queue);
+        Assert.Equal(2, state.Windows!.VitalsState6868);
+        Assert.Equal(0, state.Windows.VitalsProgress686C);
+        Assert.Same(state, state.QueueVitalsOpening4A84E0());
+
+        for (int callback = 0; callback < 32; callback++)
+        {
+            state = state with { Windows = state.Windows!.AdvanceVitals4B0450().CommitDraw4B9DB0(true, state.Flags942) };
+            Assert.Equal(callback == 31, state.Windows.DrawsVitals4B1740(state.Flags942));
+        }
+        Assert.Equal(4096, state.Windows!.VitalsProgress686C);
+        Assert.Equal(5, state.Windows.VitalsState6868);
+        Assert.All(Enumerable.Range(0, 3), row => Assert.True(state.Windows.IsVitalsRowVisible4B1740(row)));
+        NativeBattleUiServices repeated = state.SetFlags(8).QueueVitalsOpening4A84E0().DispatchCommands4AD400();
+        Assert.Equal(state.Windows, repeated.Windows);
+        Assert.Empty(repeated.Commands.Queue);
+    }
+
+    [Theory]
+    [InlineData(0x41)]
+    [InlineData(0x840)]
+    [InlineData(0)]
+    public void Open_vitals_remain_hidden_under_native_ui_suppression(ushort flags)
+    {
+        NativeBattleUiServices state = NativeBattleUiServices.Initialize().SetFlags(8).QueueVitalsOpening4A84E0().DispatchCommands4AD400();
+        for (int callback = 0; callback < 32; callback++)
+        {
+            state = state with { Windows = state.Windows!.AdvanceVitals4B0450().CommitDraw4B9DB0(true, state.Flags942) };
+        }
+        Assert.True(state.Windows!.DrawsVitals4B1740(state.Flags942));
+        state = state with { Flags942 = flags };
+        Assert.False(state.Windows.DrawsVitals4B1740(state.Flags942));
+        Assert.True(state.Windows.DrawsVitals4B1740(0x40));
+    }
+
     [Theory]
     [InlineData(0, true)]
     [InlineData(1, false)]

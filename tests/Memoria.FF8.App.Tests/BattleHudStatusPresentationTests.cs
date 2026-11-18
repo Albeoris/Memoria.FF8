@@ -60,7 +60,7 @@ public sealed class BattleHudStatusPresentationTests
     public void TargetRowsShowStatusNameAndOriginalIcon(ushort saved, uint transient, string name, int icon)
     {
         BattleSession battle = CreateBattle(0, true, saved, transient);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Choose(0);
         Assert.True(hud.SelectingTarget);
 

@@ -66,6 +66,22 @@ public sealed record NativeBattleUiServices([property: JsonRequired] uint Counte
         throw new ArgumentOutOfRangeException(nameof(command));
     }
 
+    internal NativeBattleUiServices DispatchCommands4AD400()
+    {
+        NativeBattleUiServices state = this;
+        var dispatched = Commands.Dispatch(ReadyMask, flags => state = state.SetFlags(0, flags), command => state = state.ApplyWindowCommand4AD400(command));
+        return state with { Commands = dispatched.Commands, ReadyMask = dispatched.ReadyMask, Menu957 = dispatched.SelectMenu ? (sbyte)4 : state.Menu957 };
+    }
+
+    internal NativeBattleUiServices QueueVitalsOpening4A84E0()
+    {
+        if ((Flags942 & 8) == 0)
+        {
+            return this;
+        }
+        return SetFlags(0, 8) with { Commands = Commands.Enqueue(0, 80) };
+    }
+
     public bool AllowsAtb(ushort? savedOptions)
     {
         return AllowsAtb(savedOptions, ReadyMask != 0);

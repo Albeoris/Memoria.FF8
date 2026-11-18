@@ -155,6 +155,10 @@ public sealed partial class BattlePresentationProcess
         if (NativeGraphics is { UiServices: { } ui } graphics)
         {
             ui = ui.AdvancePublication().ApplySelect4A8C50();
+            if (!ui.PauseDE9)
+            {
+                ui = ui.DispatchCommands4AD400();
+            }
             ushort scanButtons = PublishNativeScanUiButtons() ?? 0;
             NativeGraphics = graphics with { UiServices = ui with { HeldButtons16 = (ushort)(scanButtons | hostedGuardianBoostMappedButtons) } };
             if (!ui.PauseDE9 && (ui.Flags942 & 0x40) != 0)
@@ -170,6 +174,10 @@ public sealed partial class BattlePresentationProcess
                 }
             }
             clockPoll?.Invoke(NativeGraphics!.UiServices!);
+            if (!ui.PauseDE9)
+            {
+                NativeGraphics = NativeGraphics! with { UiServices = NativeGraphics.UiServices!.QueueVitalsOpening4A84E0() };
+            }
         }
     }
 }
