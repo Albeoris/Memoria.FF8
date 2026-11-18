@@ -53,6 +53,7 @@ public sealed class ScenarioImplementationDiscoveryTests
     {
         ImplementationDiscoveryEvidence result = ScenarioImplementationDiscovery.Discover([new(226, 0x694520, 0), new(399, uint.MaxValue, 0)]);
         Assert.Equal("compiled_dispatch_registration_evidence_only", result.Scope);
+        Assert.Equal($"{typeof(BattlePresentationProcess).FullName}.InvokeNativeOriginalEffectEntry", result.Dispatcher);
         Assert.Contains(result.Bindings[0].Registrations, registration => registration.CalledMethod.EndsWith(".EnterNativeWhiteWind226", StringComparison.Ordinal));
         Assert.Equal("unknown", result.Bindings[1].Disposition);
         Assert.NotEmpty(result.OpaqueCalledMethods);

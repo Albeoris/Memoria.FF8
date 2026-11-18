@@ -17,7 +17,7 @@ public static class ScenarioImplementationDiscovery
 
     public static ImplementationDiscoveryEvidence Discover(IEnumerable<NativeBattleEffectBinding> bindings)
     {
-        MethodInfo dispatcher = typeof(BattleSession).GetMethod("InvokeNativeOriginalEffectEntry", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new InvalidDataException("Compiled native entry dispatcher is unavailable.");
+        MethodInfo dispatcher = typeof(BattlePresentationProcess).GetMethod("InvokeNativeOriginalEffectEntry", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new InvalidDataException("Compiled native entry dispatcher is unavailable.");
         return Inspect(dispatcher, bindings);
     }
 
