@@ -11,6 +11,7 @@ param(
     [int[]]$EffectId = @(),
     [switch]$PrepareSourcesOnly,
     [switch]$FunctionalOnly,
+    [switch]$AllowConcurrentGameProcesses,
     [switch]$DisableVSync,
     [ValidateRange(1, 1000)][double]$BelowFps = 50,
     [ValidateRange(1, 16384)][int]$MaximumRetainedMiB = 1024
@@ -83,9 +84,33 @@ function Assert-GpuProcessContext([object]$Observation) {
     if ($performanceRequested -and $Observation.windows_session.status -in @('invalid','unknown')) {
         throw "GPU performance deferred: $($Observation.windows_session.reason). Unlock an active session with an available current input desktop, or explicitly select -FunctionalOnly without FPS certification. No session or window state was changed."
     }
-    if ($performanceRequested -and ($Observation.status -ne 'observed' -or $Observation.foreign_processes.Count -ne 0)) {
+    if ($performanceRequested -and ($Observation.status -ne 'observed' -or $Observation.foreign_processes.Count -ne 0 -and -not $AllowConcurrentGameProcesses)) {
         throw 'GPU performance requires a verified exclusive Memoria.FF8 process context. Other processes were not stopped; defer performance or explicitly select -FunctionalOnly.'
     }
+}
+
+function Complete-GpuPerformanceContext([object]$Context) {
+    $foreign = @($Context.observations | Where-Object { $_.foreign_processes.Count -gt 0 })
+    $invalidSession = @($Context.observations | Where-Object { $_.windows_session.status -eq 'invalid' })
+    $unknown = @($Context.observations | Where-Object { $_.status -eq 'unknown' })
+    $unknownSession = @($Context.observations | Where-Object { $_.windows_session.status -eq 'unknown' })
+    $unknownProcess = @($unknown | Where-Object { $null -ne $_.error })
+    $inactive = @($Context.entries | Where-Object { $null -ne $_.active -and -not $_.active })
+    $missingActivity = @($Context.entries | Where-Object { $null -eq $_.active })
+    if ($foreign.Count -and -not $AllowConcurrentGameProcesses -or $invalidSession.Count -or $inactive.Count -or $Context.status -eq 'invalid') { $Context.status = 'invalid' }
+    elseif ($unknown.Count -or $missingActivity.Count -or $Context.entries.Count -ne 2 -or $Context.status -eq 'unknown') { $Context.status = 'unknown' }
+    elseif ($foreign.Count -and $AllowConcurrentGameProcesses) { $Context.status = 'concurrent-authorized' }
+    $Context.reasons = @($(if ($foreign.Count) { if ($AllowConcurrentGameProcesses) { 'concurrent_game_processes_authorized' } else { 'competing_memoria_process' } }); @($invalidSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); @($unknownSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); $(if ($unknownProcess.Count) { 'process_metadata_unavailable' }); $(if ($inactive.Count) { 'inactive_presentations' }); $(if ($missingActivity.Count -or $Context.entries.Count -ne 2) { 'activity_metadata_unavailable' }))
+    $Context.comparison_qualified = -not $AllowConcurrentGameProcesses -and $Context.status -eq 'valid'
+}
+
+function Get-CatalogPerformanceStatus([object[]]$Results) {
+    if ($FunctionalOnly) { return 'deferred' }
+    if ($PrepareSourcesOnly) { return 'not_requested' }
+    if (@($Results | Where-Object { $_.performance_context.status -eq 'invalid' }).Count) { return 'invalid' }
+    if (@($Results | Where-Object { $_.performance_context.status -notin @('valid','concurrent-authorized') }).Count) { return 'unknown' }
+    if (@($Results | Where-Object { $_.performance_context.status -eq 'concurrent-authorized' }).Count) { return 'measured-concurrent' }
+    return 'measured'
 }
 
 function Get-OrdinaryPerformanceEntries([object]$Fps) {
@@ -169,7 +194,9 @@ function Invoke-OwnedProcess([string]$Executable, [string[]]$Arguments, [string]
                 $observation = Get-GpuProcessContext 'during-gpu-invocation' $process.Id
                 if ($observation.status -ne 'observed' -or $observation.foreign_processes.Count -ne 0) {
                     if ($script:CurrentPerformanceContext.observations.Count -lt 16) { $script:CurrentPerformanceContext.observations.Add($observation) }
-                    $script:CurrentPerformanceContext.status = if ($observation.status -eq 'invalid' -or $observation.foreign_processes.Count) { 'invalid' } elseif ($script:CurrentPerformanceContext.status -ne 'invalid') { 'unknown' } else { 'invalid' }
+                    if ($observation.status -ne 'observed' -or -not $AllowConcurrentGameProcesses) {
+                        $script:CurrentPerformanceContext.status = if ($observation.status -eq 'invalid' -or $observation.foreign_processes.Count -and -not $AllowConcurrentGameProcesses) { 'invalid' } elseif ($script:CurrentPerformanceContext.status -ne 'invalid') { 'unknown' } else { 'invalid' }
+                    }
                 }
             }
             if ([DateTimeOffset]::UtcNow -ge $deadline) { break }
@@ -250,7 +277,7 @@ foreach ($file in Get-ChildItem -LiteralPath (Split-Path -Parent $HostExecutable
 }
 if ($selected.Count -eq 0) { throw 'The selected catalog contains no native effects.' }
 $preflightContext = Get-GpuProcessContext 'preflight'
-Write-Json (Join-Path $OutputRoot 'inputs.json') @{ performance_requested=$performanceRequested; functional_only=[bool]$FunctionalOnly; process_context=$preflightContext; process_context_policy='Metadata-only pre/post case and five-second owned-GPU wait sampling; no foreign process control; gaps remain unsampled.'; prepare_sources_only=[bool]$PrepareSourcesOnly; disable_v_sync=[bool]$DisableVSync; execution_stack_profile=$profileIdentity; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; executable_sha256=$catalog.executable_sha256; kernel_sha256=$catalog.kernel_sha256; binaries=$binaryHashes; tool_sha256=(Get-FileHash -LiteralPath $ToolAssembly -Algorithm SHA256).Hash.ToLowerInvariant(); source_test_sha256=(Get-FileHash -LiteralPath $TestExecutable -Algorithm SHA256).Hash.ToLowerInvariant(); pacing='normal-real-time'; presentation_v_sync=$presentationVSync; resolution='1920x1080'; target_fps=60; below_fps=$BelowFps }
+Write-Json (Join-Path $OutputRoot 'inputs.json') @{ performance_requested=$performanceRequested; functional_only=[bool]$FunctionalOnly; allow_concurrent_game_processes=[bool]$AllowConcurrentGameProcesses; process_context=$preflightContext; process_context_policy='Metadata-only pre/post case and five-second owned-GPU wait sampling; no foreign process control; gaps remain unsampled.'; prepare_sources_only=[bool]$PrepareSourcesOnly; disable_v_sync=[bool]$DisableVSync; execution_stack_profile=$profileIdentity; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; executable_sha256=$catalog.executable_sha256; kernel_sha256=$catalog.kernel_sha256; binaries=$binaryHashes; tool_sha256=(Get-FileHash -LiteralPath $ToolAssembly -Algorithm SHA256).Hash.ToLowerInvariant(); source_test_sha256=(Get-FileHash -LiteralPath $TestExecutable -Algorithm SHA256).Hash.ToLowerInvariant(); pacing='normal-real-time'; presentation_v_sync=$presentationVSync; resolution='1920x1080'; target_fps=60; below_fps=$BelowFps }
 Assert-GpuProcessContext $preflightContext
 $oldEnvironment = @{}
 foreach ($name in @('MEMORIA_FF8_GAME_DIR', 'MEMORIA_FF8_COMPONENT_EFFECT_ID', 'MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT', 'MEMORIA_FF8_COMPONENT_PREVIEW_PATH', 'MEMORIA_FF8_EXECUTION_STACK_PROFILE')) {
@@ -264,7 +291,7 @@ try {
         [IO.Directory]::CreateDirectory($caseRoot) | Out-Null
         $result = [ordered]@{ effect_id=$effect; route=$null; prepared=$false; completed=$false; executions=0; minimum_cast_fps=$null; below_threshold=$null; error=$null }
         $componentLease = $null
-        $script:CurrentPerformanceContext = @{ status=$(if ($performanceRequested) { 'valid' } elseif ($FunctionalOnly) { 'deferred' } else { 'not_requested' }); observations=[Collections.Generic.List[object]]::new(); poll_count=0; entries=@(); sampling='pre/post case and five-second waits; not continuous process history' }
+        $script:CurrentPerformanceContext = @{ status=$(if ($performanceRequested) { 'valid' } elseif ($FunctionalOnly) { 'deferred' } else { 'not_requested' }); observations=[Collections.Generic.List[object]]::new(); poll_count=0; entries=@(); allow_concurrent_game_processes=[bool]$AllowConcurrentGameProcesses; comparison_qualified=$false; sampling='pre/post case and five-second waits; not continuous process history' }
         $result.performance_requested = $performanceRequested
         $result.performance_context = $script:CurrentPerformanceContext
         $beforeContext = Get-GpuProcessContext 'before-case'
@@ -445,16 +472,7 @@ try {
         $afterContext = Get-GpuProcessContext 'after-case'
         $script:CurrentPerformanceContext.observations.Add($afterContext)
         if ($performanceRequested) {
-            $foreign = @($script:CurrentPerformanceContext.observations | Where-Object { $_.foreign_processes.Count -gt 0 })
-            $invalidSession = @($script:CurrentPerformanceContext.observations | Where-Object { $_.windows_session.status -eq 'invalid' })
-            $unknown = @($script:CurrentPerformanceContext.observations | Where-Object { $_.status -eq 'unknown' })
-            $unknownSession = @($script:CurrentPerformanceContext.observations | Where-Object { $_.windows_session.status -eq 'unknown' })
-            $unknownProcess = @($unknown | Where-Object { $null -ne $_.error })
-            $inactive = @($script:CurrentPerformanceContext.entries | Where-Object { $null -ne $_.active -and -not $_.active })
-            $missingActivity = @($script:CurrentPerformanceContext.entries | Where-Object { $null -eq $_.active })
-            if ($foreign.Count -or $invalidSession.Count -or $inactive.Count -or $script:CurrentPerformanceContext.status -eq 'invalid') { $script:CurrentPerformanceContext.status = 'invalid' }
-            elseif ($unknown.Count -or $missingActivity.Count -or $script:CurrentPerformanceContext.entries.Count -ne 2 -or $script:CurrentPerformanceContext.status -eq 'unknown') { $script:CurrentPerformanceContext.status = 'unknown' }
-            $script:CurrentPerformanceContext.reasons = @($(if ($foreign.Count) { 'competing_memoria_process' }); @($invalidSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); @($unknownSession | ForEach-Object { $_.windows_session.reason } | Select-Object -Unique); $(if ($unknownProcess.Count) { 'process_metadata_unavailable' }); $(if ($inactive.Count) { 'inactive_presentations' }); $(if ($missingActivity.Count -or $script:CurrentPerformanceContext.entries.Count -ne 2) { 'activity_metadata_unavailable' }))
+            Complete-GpuPerformanceContext $script:CurrentPerformanceContext
         }
         $result.performance_status = $script:CurrentPerformanceContext.status
         $results.Add([pscustomobject]$result)
@@ -473,16 +491,18 @@ try {
         $summary.error_effect_ids = @($results | Where-Object { $null -ne $_.error } | ForEach-Object effect_id)
         $summary.observed_below_threshold_effect_ids = $summary.below_threshold_effect_ids
         $summary.performance_requested = $performanceRequested
-        $summary.performance_status = if ($FunctionalOnly) { 'deferred' } elseif ($PrepareSourcesOnly) { 'not_requested' } elseif (@($results | Where-Object { $_.performance_context.status -eq 'invalid' }).Count) { 'invalid' } elseif (@($results | Where-Object { $_.performance_context.status -ne 'valid' }).Count) { 'unknown' } else { 'measured' }
+        $summary.performance_status = Get-CatalogPerformanceStatus $results.ToArray()
+        $summary.allow_concurrent_game_processes = [bool]$AllowConcurrentGameProcesses
+        $summary.comparison_qualified = -not $AllowConcurrentGameProcesses -and $summary.performance_status -eq 'measured'
         $summary.performance_invalid_effect_ids = @($results | Where-Object { $_.performance_context.status -eq 'invalid' } | ForEach-Object effect_id)
         $summary.performance_unknown_effect_ids = @($results | Where-Object { $_.performance_context.status -eq 'unknown' } | ForEach-Object effect_id)
-        $summary.accepted_below_threshold_effect_ids = @($results | Where-Object { $_.completed -and $null -eq $_.error -and $_.below_threshold -and $_.performance_context.status -eq 'valid' } | ForEach-Object effect_id)
-        $summary.selected_performance_passed = $performanceRequested -and $summary.performance_status -eq 'measured' -and $summary.selected_execution_complete -and $summary.fps_available_count -eq $selected.Count -and $summary.below_threshold_effect_ids.Count -eq 0
+        $summary.accepted_below_threshold_effect_ids = @($results | Where-Object { $_.completed -and $null -eq $_.error -and $_.below_threshold -and $_.performance_context.status -in @('valid','concurrent-authorized') } | ForEach-Object effect_id)
+        $summary.selected_performance_passed = $performanceRequested -and $summary.performance_status -in @('measured','measured-concurrent') -and $summary.selected_execution_complete -and $summary.fps_available_count -eq $selected.Count -and $summary.below_threshold_effect_ids.Count -eq 0
         $summary.full_catalog_performance_passed = $summary.full_execution_complete -and $summary.selected_performance_passed
         Write-Json (Join-Path $OutputRoot 'summary.json') $summary
         Write-Host ("Effect {0}: prepared={1}, completed={2}, route={3}, minimum cast FPS={4}, error={5}" -f $effect,$result.prepared,$result.completed,$result.route,$result.minimum_cast_fps,$result.error)
         $retainedBytes = (Get-ChildItem -LiteralPath $OutputRoot -File -Recurse | Measure-Object Length -Sum).Sum
-        if ($performanceRequested -and @($script:CurrentPerformanceContext.observations | Where-Object { $_.foreign_processes.Count -gt 0 -or $_.status -ne 'observed' }).Count -gt 0) { throw 'GPU performance context became contaminated or unverifiable; functional case evidence was retained and no foreign process was stopped. Defer performance or select -FunctionalOnly.' }
+        if ($performanceRequested -and @($script:CurrentPerformanceContext.observations | Where-Object { $_.foreign_processes.Count -gt 0 -and -not $AllowConcurrentGameProcesses -or $_.status -ne 'observed' }).Count -gt 0) { throw 'GPU performance context became contaminated or unverifiable; functional case evidence was retained and no foreign process was stopped. Defer performance or select -FunctionalOnly.' }
         if ($retainedBytes -gt $MaximumRetainedMiB * 1MB) { throw "Retained data exceeded $MaximumRetainedMiB MiB; catalog capture stopped after confirmed child exit." }
     }
 }
