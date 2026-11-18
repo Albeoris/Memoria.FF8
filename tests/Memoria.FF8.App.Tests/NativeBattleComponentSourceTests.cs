@@ -180,6 +180,10 @@ public sealed partial class NativeBattleComponentSourceTests
         {
             return PrepareOriginalEffect141Component(world, request);
         }
+        if (effect == 165)
+        {
+            return PrepareOriginalEffect165Component(world, request);
+        }
         if (effect == 308)
         {
             return PrepareOriginalEffect308Component(world);
