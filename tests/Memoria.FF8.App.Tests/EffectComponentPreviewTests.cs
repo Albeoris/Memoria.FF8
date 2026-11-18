@@ -8,6 +8,64 @@ namespace Memoria.FF8.Tests;
 
 public sealed class EffectComponentPreviewTests
 {
+    [Theory]
+    [InlineData(8)]
+    [InlineData(9)]
+    public void Raw_component_private_handoff_retains_declared_scheduling_through_natural_gauge_readiness(ushort effect)
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession producerSession = GameWorld.CreateColdProcess(directory);
+        producerSession.StartNewGame();
+        using GameWorld producer = new(producerSession, directory);
+        BattleSession source = producer.StartEffectPreview(new(0, 0, effect));
+        source.PublishDiagnosticEffectPreview(effect);
+        BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, effect);
+        string hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(admission)));
+        BattleSession.DiagnosticTransportContinuation declared = Assert.IsType<BattleSession.DiagnosticTransportContinuation>(source.CaptureForContinuation().LogicalContinuation!.DiagnosticTransport);
+        Assert.True(declared.HoldEnemyCommands);
+        Assert.True(declared.EffectPreview);
+        Assert.NotNull(declared.PreviewToken);
+        BattleSnapshot invalid = source.CaptureForContinuation();
+        invalid = invalid with { LogicalContinuation = invalid.LogicalContinuation! with { DiagnosticTransport = declared with { ReadinessActorId = "missing-owner" } } };
+        BattleSession rejected = BattleSession.Restore(invalid);
+        Assert.Throws<InvalidDataException>(() => rejected.AttachRestoredPresentation(invalid.PresentationContinuation!.Resources, invalid));
+        string before = JsonSerializer.Serialize(source.Capture());
+        int sourceDispatches = 0;
+        source.DiagnosticEffectDispatched += _ => sourceDispatches++;
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        using GameWorld world = new(session, directory);
+        BattleSession active = world.StartEffectPreview(new(0, 0, effect), new(source, hash));
+        Assert.Equal(declared, active.CaptureForContinuation().LogicalContinuation!.DiagnosticTransport);
+        BattleCombatant enemy = Assert.Single(active.Combatants, actor => !actor.IsPlayer);
+        Assert.Null(enemy.NativeAi);
+        for (int frame = 0; frame < 1800; frame++)
+        {
+            active.AdvanceNativeGraphicsPresentation(PresentationTiming.SimulationStep);
+            if (enemy.NativeAtb!.Current >= enemy.NativeAtb.Maximum)
+            {
+                break;
+            }
+        }
+        Assert.Equal(enemy.NativeAtb!.Maximum, enemy.NativeAtb.Current);
+        Assert.Equal(0, sourceDispatches);
+        Assert.Equal(before, JsonSerializer.Serialize(source.Capture()));
+    }
+
+    [Fact]
+    public void Private_fork_retains_the_transport_settings_declared_by_its_source()
+    {
+        string directory = TestResources.GameDirectory;
+        GameSession session = GameWorld.CreateColdProcess(directory);
+        session.StartNewGame();
+        using GameWorld world = new(session, directory);
+        BattleSession source = world.StartDiagnosticBattle(new(462, 4, 0x80, 0, 0) { BattleMusic = 5, PrimaryMusicChannel = -1, Fixture = new([], [], false) });
+        BattleSession.DiagnosticTransportContinuation declared = Assert.IsType<BattleSession.DiagnosticTransportContinuation>(source.CaptureForContinuation().LogicalContinuation!.DiagnosticTransport);
+        Assert.False(declared.HoldEnemyCommands);
+        Assert.True(declared.InstantGuardianForceCharge);
+        Assert.False(declared.EffectPreview);
+        Assert.Equal(declared, source.ForkForContinuation().CaptureForContinuation().LogicalContinuation!.DiagnosticTransport);
+    }
+
     [Fact]
     public void Effect_preview_json_rejects_legacy_live_source_fields()
     {
@@ -33,7 +91,7 @@ public sealed class EffectComponentPreviewTests
         using GameWorld producer = new(producerSession, directory);
         BattleSession source = PrepareOriginalEnemyComponent(producer);
         BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, 219);
-        Assert.False(admission.ModuleLoaded);
+        Assert.True(admission.ModuleLoaded);
         Assert.Equal((byte)8, admission.Command);
         Assert.Equal((byte)3, admission.OriginalActorIndex);
         string hash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(admission)));
@@ -68,6 +126,7 @@ public sealed class EffectComponentPreviewTests
         {
             BattleMusic = 5,
             PrimaryMusicChannel = -1,
+            AtbMode = BattleAtbMode.Normal,
             Fixture = new([], [], true)
         });
         ExpandedBattleInstalledEntry.WaitForEntry(world, battle);
@@ -76,11 +135,11 @@ public sealed class EffectComponentPreviewTests
         var selected = Assert.Single(ai.Abilities.Skip(16 * ai.LevelBand).Take(16).Select((row, slot) => (Row: row, Slot: slot)),
             entry => entry.Row.Command == 8 && world.BattleResources.NativeActions.Any(action => action.Command == entry.Row.Command && action.ActionId == entry.Row.Id && action.MagicId == effect));
         BattleDiagnosticEnemyAbility ability = new(actor.ModelId, actor.SceneSlot!.Value, ai.LevelBand, selected.Slot, selected.Row.Command, selected.Row.Id, selected.Row.Sequence, 201);
-        actor.Atb = BattleSession.AtbMaximum;
-        for (int callback = 0; callback < 360 && !battle.CanSubmitDiagnosticEnemyAbility(actor.Id, ability); callback++)
+        for (int callback = 0; callback < 1200 && !battle.CanSubmitDiagnosticEnemyAbility(actor.Id, ability); callback++)
         {
             battle.Tick();
         }
+        Assert.True(battle.CanSubmitDiagnosticEnemyAbility(actor.Id, ability));
         battle.SubmitDiagnosticEnemyAbility(actor.Id, ability, effect);
         BattlePresentationProcess process = Assert.IsType<BattlePresentationProcess>(battle.Presentation);
         for (int callback = 0; callback < 360 && process.ActiveActionToken is null; callback++)

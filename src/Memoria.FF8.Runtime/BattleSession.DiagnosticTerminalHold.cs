@@ -123,8 +123,9 @@ public sealed partial class BattleSession
             AppendDiagnosticTerminalHoldReceipt("expired", false);
             return;
         }
+        // Without a native presentation owner, logical release cannot certify graphical drain.
+        bool drained = Presentation is not null && ObserveDiagnosticDrainBlockers().Count == 0;
         DiagnosticTerminalHold = hold with { Phase = BattleDiagnosticTerminalHoldPhase.Released };
-        bool drained = false;
         AppendDiagnosticTerminalHoldReceipt("released", drained);
     }
 

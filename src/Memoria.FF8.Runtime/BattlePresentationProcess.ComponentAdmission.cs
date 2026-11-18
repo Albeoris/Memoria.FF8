@@ -30,17 +30,21 @@ public sealed partial class BattlePresentationProcess
             throw new InvalidDataException("The component descriptor and action header must identify the declared effect and actor.");
         }
 
+        uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
+        if (callback == 0x50A9A0 && descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.PacketSlot == invocation.DescriptorSlot && task.Phase >= 6))
+        {
+            throw new InvalidDataException("The casting component has already entered its native effect.");
+        }
         bool loaded = graphics.OriginalEffect is { ReturnedDescriptor: null };
         if (loaded)
         {
             NativeBattleOriginalEffectState effect = graphics.OriginalEffect!;
             NativeBattleActionGraphicsState? context = graphics.ActionGraphics;
-            uint callback = NativeBattleActionGraphics.SelectService(header).Callback;
             bool contextMatches = effect.Parameters is { } parameters
                 ? parameters.Header == invocation.Header && parameters.Source == header.Source
                 : context is not null && context.Header == invocation.Header && context.ResolveActor(graphics) == header.Source && context.Callback == callback;
             bool taskMatches = descriptors.Tasks.Any(task => (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.Action104 &&
-                task.PacketSlot == invocation.DescriptorSlot && (callback == 0x50BC20 && task.Phase is 1 or 2 || callback == 0x50B190 && task.Phase is 2 or 3));
+                task.PacketSlot == invocation.DescriptorSlot && (callback == 0x50BC20 && task.Phase is 1 or 2 || callback == 0x50B190 && task.Phase is 2 or 3 || callback == 0x50A9A0 && task.Phase is 3 or 4 or 5));
             if (!contextMatches || !taskMatches || !effect.Pools.IsEmpty || effect.RequestedEffect != expectedEffect || effect.Binding.Effect != expectedEffect)
             {
                 throw new InvalidDataException("The loaded component has passed its unstarted invocation boundary.");

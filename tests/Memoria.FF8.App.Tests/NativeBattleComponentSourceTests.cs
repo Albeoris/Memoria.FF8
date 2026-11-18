@@ -7,6 +7,28 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleComponentSourceTests
 {
+    private static readonly JsonSerializerOptions RequestJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(9)]
+    public void Component_preparation_reads_the_graphical_request_transport(ushort effect)
+    {
+        string json = $$"""{"effect_id":{{effect}},"enemy_id":0,"ally_id":0,"duration_seconds":300}""";
+        EffectPreviewRequest request = ReadRequest(json);
+        request.Validate();
+        Assert.Equal(effect, request.EffectId);
+        Assert.Equal(0, request.EnemyId);
+        Assert.Equal((byte)0, request.AllyId);
+        Assert.Equal(300d, request.DurationSeconds);
+        Assert.Throws<JsonException>(() => ReadRequest(json.Replace("duration_seconds", "unknown_setting", StringComparison.Ordinal)));
+    }
+
+    private static EffectPreviewRequest ReadRequest(string json)
+    {
+        return JsonSerializer.Deserialize<EffectPreviewRequest>(json, RequestJson) ?? throw new InvalidDataException("The component arena request is empty.");
+    }
+
     [Fact]
     public void Prepare_or_render_one_selected_existing_component()
     {
@@ -19,7 +41,7 @@ public sealed class NativeBattleComponentSourceTests
         string? requestPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_PREVIEW_PATH");
         EffectPreviewRequest request = requestPath is null
             ? new(1, 0, effect)
-            : JsonSerializer.Deserialize<EffectPreviewRequest>(File.ReadAllText(requestPath)) ?? throw new InvalidDataException("The component arena request is empty.");
+            : ReadRequest(File.ReadAllText(requestPath));
         if (request.EffectId != effect)
         {
             throw new InvalidDataException("The selected effect and preview arena request differ.");
@@ -70,6 +92,7 @@ public sealed class NativeBattleComponentSourceTests
                 using IDisposable? backgroundWindow = DiagnosticBackgroundWindow.FromEnvironment(options);
                 using RecreateGame host = new(options, session, effectComponentSource: source);
                 host.RunWithErrorCapture();
+                Assert.Null(typeof(RecreateGame).GetField("error", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(host));
             }
             catch (Exception exception)
             {

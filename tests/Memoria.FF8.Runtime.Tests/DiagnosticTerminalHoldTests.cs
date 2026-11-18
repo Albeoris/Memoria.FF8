@@ -6,6 +6,61 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class DiagnosticTerminalHoldTests
 {
     [Theory]
+    [InlineData("none", true)]
+    [InlineData("descriptor", false)]
+    [InlineData("sound", false)]
+    public void Release_receipt_observes_actual_native_graphical_owners_without_clearing_them(string outstanding, bool drained)
+    {
+        BattleSession session = Create();
+        session.ConfigureDiagnosticTerminalHold(new("Observed graphical release", ["party"], 100));
+        NativeBattleHostedTestFixture.BindProcess(session);
+        BattlePresentationProcess process = session.Presentation!;
+        NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
+        if (outstanding == "sound")
+        {
+            memory = memory with { SoundPublishedFlags = 1 };
+        }
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeCamera), NativeBattleCameraState.Initialize());
+        NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeFileIo), NativeBattleFileIoState.FromColdProcess());
+        if (outstanding == "descriptor")
+        {
+            (NativeBattleDescriptorState descriptors, _) = process.Graphics.Descriptors.Enqueue(8, 128, 0);
+            NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeGraphics), process.Graphics with { Descriptors = descriptors });
+        }
+        NativeBattleGraphicsState graphics = process.Graphics;
+        session.ReleaseDiagnosticTerminalHold(session.NativeHostCallbacks ?? session.Frame);
+        BattleDiagnosticTerminalHoldReceipt receipt = Assert.Single(session.DiagnosticTerminalHoldReceipts);
+        Assert.Equal("released", receipt.Kind);
+        Assert.Equal(drained, receipt.Drained);
+        Assert.Same(graphics, process.Graphics);
+        Assert.Same(memory, process.NativeEffectMemory);
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Released, session.DiagnosticTerminalHold!.Phase);
+    }
+
+    [Fact]
+    public void Logical_release_without_native_presentation_does_not_certify_graphical_drain()
+    {
+        BattleSession session = Create();
+        session.ConfigureDiagnosticTerminalHold(new("Logical release", ["party"], 100));
+        Assert.Null(session.Presentation);
+        session.ReleaseDiagnosticTerminalHold(session.Frame);
+        Assert.False(Assert.Single(session.DiagnosticTerminalHoldReceipts).Drained);
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Released, session.DiagnosticTerminalHold!.Phase);
+    }
+
+    [Fact]
+    public void Unknown_native_file_owner_cannot_publish_a_released_drain_receipt()
+    {
+        BattleSession session = Create();
+        session.ConfigureDiagnosticTerminalHold(new("Unknown graphical owner", ["party"], 100));
+        NativeBattleHostedTestFixture.BindProcess(session);
+        Assert.Throws<NotSupportedException>(() => session.ReleaseDiagnosticTerminalHold(session.Frame));
+        Assert.Equal(BattleDiagnosticTerminalHoldPhase.Armed, session.DiagnosticTerminalHold!.Phase);
+        Assert.Empty(session.DiagnosticTerminalHoldReceipts);
+    }
+
+    [Theory]
     [InlineData((ushort)1, 0)]
     [InlineData((ushort)4, 100)]
     public void Explicit_hold_preserves_the_actual_defeat_and_repeated_admission_has_no_owner_mutations(ushort status, int hp)

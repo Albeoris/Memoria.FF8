@@ -21,8 +21,7 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("A private component preview requires its native effect and scenario input SHA256.");
         }
         _ = ValidateEffectComponentSource(component.Battle, effect);
-        BattleSnapshot source = component.Battle.CaptureForContinuation();
-        string executable = source.Definition.NativeRetainedMemory?.ColdExecutableSha256 ?? throw new InvalidDataException("The component source lacks its authenticated executable owner.");
+        string executable = component.Battle.ReadDefinition().NativeRetainedMemory?.ColdExecutableSha256 ?? throw new InvalidDataException("The component source lacks its authenticated executable owner.");
         if (!string.Equals(executable, assets.NativeExecutableHash, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("The component source executable differs from the installed resources.");
@@ -33,7 +32,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("The component source differs from the installed native effect binding and resources.");
         }
-        BattleSession active = InstalledBattlePresentation.Restore(source, assets, BattleResources);
+        BattleSession active = component.Battle.ForkForContinuation();
         BattleDiagnosticComponentAdmission admission = ValidateEffectComponentSource(active, effect);
         long callbacks = active.NativeHostCallbacks ?? throw new NotSupportedException("Component preview requires its restored native callback ledger.");
         IsEffectComponentPreview = true;

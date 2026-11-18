@@ -4,11 +4,16 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    internal sealed record DiagnosticTransportContinuation(bool HoldEnemyCommands, bool InstantGuardianForceCharge, string? ReadinessActorId, bool EffectPreview, long? PreviewToken);
+
     internal sealed record BattleLogicalContinuation(ExpandedHostedEvent? Event, ExpandedOperationCursor Operations, long? ActionToken,
         ImmutableArray<int> Contacts, int RoutedContacts, BattlePendingEnemyDraw? EnemyDraw, HostedBattleTerminal? Terminal, bool TerminalEntered,
         ImmutableDictionary<string, NativeBattlePartyPresentedVital>? PartyVitals,
         ImmutableDictionary<string, NativeBattleStatusMirror>? PartyReadyStatuses, BattleSnapshot? AllocationRollback,
-        ImmutableArray<BattlePresentationProcess.HostedModelLoadAdmission> EncounterLoadAdmissions);
+        ImmutableArray<BattlePresentationProcess.HostedModelLoadAdmission> EncounterLoadAdmissions)
+    {
+        internal DiagnosticTransportContinuation? DiagnosticTransport { get; init; }
+    }
 
     public BattleSnapshot CaptureForContinuation()
     {
@@ -17,7 +22,12 @@ public sealed partial class BattleSession
         ExpandedInvocationProgress? progress = expandedInvocationProgress;
         BattleLogicalContinuation logical = new(expandedHostedEvent, expandedOperationCursor, expandedHostedActionToken,
             progress?.Occurrences.ToImmutableArray() ?? [], progress?.PresentedRoutedContacts ?? 0, progress?.EnemyDraw,
-            expandedHostedTerminal, expandedTerminalEntered, expandedPartyPresentation, expandedPartyReadyStatusMirrors, encounterAllocationRollback, hostedEncounterLoadAdmissions);
+            expandedHostedTerminal, expandedTerminalEntered, expandedPartyPresentation, expandedPartyReadyStatusMirrors, encounterAllocationRollback, hostedEncounterLoadAdmissions)
+        {
+            DiagnosticTransport = diagnosticHoldEnemyCommands || diagnosticInstantGuardianForceCharge || diagnosticReadinessActor is not null || diagnosticEffectPreview || diagnosticPreviewToken is not null
+                ? new(diagnosticHoldEnemyCommands, diagnosticInstantGuardianForceCharge, diagnosticReadinessActor?.Id, diagnosticEffectPreview, diagnosticPreviewToken)
+                : null
+        };
         BattlePresentationSnapshot presentation = process.CaptureSnapshot();
         ValidateEncounterAllocationContinuation(encounterAllocation, logical, presentation);
         return NativeBattleStorageSnapshots.CapturePrivate(CaptureState() with { PresentationContinuation = presentation, LogicalContinuation = logical });
@@ -50,12 +60,23 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Battle continuation requires its restored logical state and matching presentation callback boundary.");
         }
         ValidateEncounterAllocationContinuation(encounterAllocation, logical, presentation);
+        DiagnosticTransportContinuation? diagnosticTransport = logical.DiagnosticTransport;
+        BattleCombatant? readinessActor = null;
+        if (diagnosticTransport is not null && ((!diagnosticTransport.EffectPreview && diagnosticTransport.PreviewToken is not null) || diagnosticTransport.PreviewToken is <= 0 || diagnosticTransport.ReadinessActorId is { } actorId && !byId.TryGetValue(actorId, out readinessActor)))
+        {
+            throw new InvalidDataException("Private diagnostic continuation changed its declared preview or scheduling owner.");
+        }
         BattlePresentationProcess process = BattlePresentationProcess.Restore(resources, presentation, CreateBattlePresentationServices(), nativeEffectResourceResolver);
         if (process.EntryReady && process.Graphics.UiServices is null)
         {
             throw new InvalidDataException("An entered battle continuation requires its current native UI clock services.");
         }
         expandedHostedEvent = logical.Event;
+        diagnosticHoldEnemyCommands = diagnosticTransport?.HoldEnemyCommands ?? false;
+        diagnosticInstantGuardianForceCharge = diagnosticTransport?.InstantGuardianForceCharge ?? false;
+        diagnosticReadinessActor = readinessActor;
+        diagnosticEffectPreview = diagnosticTransport?.EffectPreview ?? false;
+        diagnosticPreviewToken = diagnosticTransport?.PreviewToken;
         expandedOperationCursor = logical.Operations;
         expandedHostedActionToken = logical.ActionToken;
         expandedHostedTerminal = logical.Terminal;
