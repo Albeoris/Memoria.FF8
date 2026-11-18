@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class NativeBattleComponentSourceTests
+public sealed partial class NativeBattleComponentSourceTests
 {
     private static readonly JsonSerializerOptions RequestJson = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, PropertyNameCaseInsensitive = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 
@@ -40,7 +40,7 @@ public sealed class NativeBattleComponentSourceTests
         string receiptPath = Path.GetFullPath(output!);
         string? requestPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_COMPONENT_PREVIEW_PATH");
         EffectPreviewRequest request = requestPath is null
-            ? new(1, 0, effect)
+            ? CreateComponentRequest(effect)
             : ReadRequest(File.ReadAllText(requestPath));
         if (request.EffectId != effect)
         {
@@ -49,10 +49,10 @@ public sealed class NativeBattleComponentSourceTests
         GameSession session = GameWorld.CreateColdProcess(game!);
         session.StartNewGame();
         using GameWorld world = new(session, game!);
-        BattleSession source = world.StartEffectPreview(request);
-        source.PublishDiagnosticEffectPreview(effect);
+        BattleSession source = PrepareComponentSource(world, request);
         BattleDiagnosticComponentAdmission admission = GameWorld.ValidateEffectComponentSource(source, effect);
         BattleDefinition definition = source.ReadDefinition();
+        NativeBattleActionHeaderSlot header = source.Presentation!.ActionPackets.ReadHeader(new(admission.HeaderIndex));
         string boundary = admission.ModuleLoaded ? "module-loaded-before-entry" : "queued-action104";
         var inputs = new
         {
@@ -63,6 +63,7 @@ public sealed class NativeBattleComponentSourceTests
             Combatants = definition.Combatants.Select(actor => new { actor.Id, actor.ModelId, actor.SceneSlot, actor.IsPlayer }).ToArray(),
             admission.Command,
             admission.Action,
+            header.Sequence,
             Header = admission.HeaderIndex,
             source.Frame,
             NativeCallback = admission.Callback
@@ -77,6 +78,108 @@ public sealed class NativeBattleComponentSourceTests
         {
             RunGraphicalComponent(game!, requestPath, new(source, hash));
         }
+    }
+
+    internal static int OriginalComponentEnemy(ushort effect)
+    {
+        return effect switch
+        {
+            17 => 91,
+            20 => 68,
+            167 => 70,
+            308 => 105,
+            314 => 103,
+            315 => 75,
+            318 => 38,
+            _ => 0
+        };
+    }
+
+    internal static EffectPreviewRequest CreateComponentRequest(ushort effect)
+    {
+        return new(OriginalComponentEnemy(effect), 0, effect);
+    }
+
+    internal static BattleSession PrepareComponentSource(GameWorld world, EffectPreviewRequest request)
+    {
+        ushort effect = request.EffectId ?? throw new InvalidDataException("A component source requires its selected effect.");
+        int enemy = OriginalComponentEnemy(effect);
+        if (enemy != 0 && request.EnemyId != enemy)
+        {
+            throw new InvalidDataException("The selected component requires its original caster model.");
+        }
+        if (effect == 17)
+        {
+            return PrepareOriginalLandingComponent(world);
+        }
+        if (effect == 20)
+        {
+            return PrepareOriginalEffect20Component(world);
+        }
+        if (effect == 308)
+        {
+            return PrepareOriginalEffect308Component(world);
+        }
+        if (effect is 314 or 315)
+        {
+            return PrepareOriginalCompanionContext(world, effect);
+        }
+        BattleSession source = world.StartEffectPreview(request);
+        if (enemy == 0)
+        {
+            source.PublishDiagnosticEffectPreview(effect);
+            return source;
+        }
+        BattlePresentationProcess process = source.Presentation ?? throw new InvalidOperationException("Component preparation requires its initialized presentation process.");
+        BattleModelOwner caster = process.FindOriginalActor(NativeBattleModelSlot.Decode(3)) ?? throw new InvalidDataException("The original component caster is absent.");
+        BattleModelOwner target = process.FindOriginalActor(NativeBattleModelSlot.Decode(0)) ?? throw new InvalidDataException("The component recipient is absent.");
+        (byte command, ushort action, byte sequence) = effect switch
+        {
+            167 => ((byte)8, (ushort)274, (byte)12),
+            318 => ((byte)8, (ushort)278, (byte)13),
+            _ => throw new InvalidOperationException("The original component source is unsupported.")
+        };
+        // These carriers retain the selected original caster and sequence without evaluating an AI turn.
+        NativeBattleActionHeaderPreparation header = new(caster, command, sequence, -1, action, effect, null);
+        NativeBattleContactPacket contact = new(new(target, 0, 1, 0, 0, 0, 0), null);
+        process.BeginDiagnosticAction(header, [contact]);
+        return source;
+    }
+
+    private static BattleSession PrepareOriginalLandingComponent(GameWorld world)
+    {
+        BattleSession source = world.StartDiagnosticBattle(new(29, 0, 0x80, 0, 0)
+        {
+            BattleMusic = 5,
+            PrimaryMusicChannel = -1,
+            AtbMode = BattleAtbMode.Normal,
+            Fixture = new([], [], true) { CombatParty = [0, 1, 5] }
+        });
+        BattleCombatant biggs = source.Combatants.Single(actor => !actor.IsPlayer && actor.ModelId == 74);
+        int attacks = 0;
+        for (int callback = 0; callback < 18000 && source.Outcome == BattleOutcome.Active; callback++)
+        {
+            BattlePresentationProcess process = source.Presentation!;
+            if (process.ActiveActionToken is not null && process.ActionPackets.PublishedHeaders().Any(entry => entry.Slot.Effect == 17))
+            {
+                _ = GameWorld.ValidateEffectComponentSource(source, 17);
+                return source;
+            }
+            if (source.NativeEntryReady && source.ActiveAction is null && source.QueuedActions.Count == 0 && biggs.IsActive && biggs.IsAlive && !biggs.Untargetable && !biggs.Suspended)
+            {
+                BattleCombatant? ready = source.Combatants.FirstOrDefault(actor => actor.IsPlayer && source.CanChoosePlayerCommand(actor.Id));
+                if (ready is not null)
+                {
+                    if (++attacks > 256)
+                    {
+                        throw new InvalidDataException("The original landing source exceeded its bounded ordinary attack preparation.");
+                    }
+                    source.QueueAttack(ready.Id, biggs.Id);
+                }
+            }
+            source.Tick();
+        }
+        throw new InvalidDataException("The original encounter did not publish its unstarted landing component within the preparation budget.");
     }
 
     private static void RunGraphicalComponent(string game, string request, EffectComponentPreviewSource source)

@@ -317,7 +317,18 @@ try {
                         [IO.Directory]::CreateDirectory((Join-Path $entryRoot 'settings')) | Out-Null
                         Write-Json (Join-Path $entryRoot 'settings/ui-settings.json') @{ MusicVolume=0; SoundVolume=0; VoiceVolume=0; VSync=$presentationVSync }
                         $requestPath = Join-Path $entryRoot 'request.json'
-                        Write-Json $requestPath @{ enemy_id=0; ally_id=0; effect_id=$effect; duration_seconds=300 }
+                        $componentEnemy = switch ($effect) {
+                            17 { 91 }
+                            20 { 68 }
+                            167 { 70 }
+                            308 { 105 }
+                            314 { 103 }
+                            315 { 75 }
+                            318 { 38 }
+                            default { 0 }
+                        }
+                        $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
+                        Write-Json $requestPath $componentRequest
                         $control = Join-Path $entryRoot 'control'
                         $env:MEMORIA_FF8_COMPONENT_PREVIEW_PATH = $requestPath
                         $env:MEMORIA_FF8_COMPONENT_PREPARATION_RECEIPT = Join-Path $entryRoot 'preparation.json'
