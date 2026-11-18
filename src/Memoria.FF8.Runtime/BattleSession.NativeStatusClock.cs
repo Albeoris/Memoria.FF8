@@ -16,7 +16,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        ObserveNativeUnknownStackCallback(0x483470, "admitted status clock");
+        ObserveMegaSpark279StatusClockStack();
         // The caller already admitted the earlier DEB/UI gates.
         const int originalCount = NativeBattleSlots.Count;
         const int addedEnemyStart = originalCount + ExpandedBattleFormation.MaximumAllies;

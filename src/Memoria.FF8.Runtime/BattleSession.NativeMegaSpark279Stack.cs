@@ -4,8 +4,63 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private bool ObservesMegaSpark279ClockStack => Presentation?.ObservesNativeMegaSpark279ClockStack == true;
 
+    private void ObserveMegaSpark279AtbClockStack()
+    {
+        bool preserved = ObservesMegaSpark279ClockStack && NativeBattleMegaSpark279ClockStack.AtbContextHasNoHelper(guardianForceCasts.Count, nativeEscape.Held, nativeEscape.PresentationHeld);
+        NativeBattleMegaSpark279ClockPath path = preserved ? NativeBattleMegaSpark279ClockPath.AtbWithoutHelper : NativeBattleMegaSpark279ClockPath.Unknown;
+        if (preserved)
+        {
+            foreach (BattleCombatant actor in combatants)
+            {
+                if (actor.NativeAtb is not { } gauge || !NativeBattleAtbState.CanAdvance(actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor)))
+                {
+                    continue;
+                }
+                NativeBattleMegaSpark279ClockPath participant = NativeBattleMegaSpark279ClockStack.AtbParticipantPath(gauge, actor.NativeAtbSpeed, definition.NativeClockRules!.AtbSpeedMultiplier, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+                path = NativeBattleMegaSpark279ClockStack.CombineAtbPaths(path, participant);
+                if (path == NativeBattleMegaSpark279ClockPath.Unknown)
+                {
+                    break;
+                }
+            }
+        }
+        ObserveMegaSpark279ClockStack(0x4842B0, "admitted ATB update", path);
+    }
 
+    private void ObserveMegaSpark279StatusClockStack()
+    {
+        bool preserved = ObservesMegaSpark279ClockStack;
+        if (preserved)
+        {
+            foreach (BattleCombatant actor in combatants)
+            {
+                if (actor.IsActive && !NativeBattleMegaSpark279ClockStack.StatusHasNoTimer(NativeSavedStatusBits(actor), actor.NativeStatusTimers))
+                {
+                    preserved = false;
+                    break;
+                }
+            }
+        }
+        ObserveMegaSpark279ClockStack(0x483470, "admitted status clock", preserved ? NativeBattleMegaSpark279ClockPath.StatusWithoutTimer : NativeBattleMegaSpark279ClockPath.Unknown);
+    }
+
+    private void ObserveMegaSpark279SupportClockStack()
+    {
+        bool preserved = ObservesMegaSpark279ClockStack && NativeBattleMegaSpark279ClockStack.SupportHasCooldown(nativeSupport);
+        ObserveMegaSpark279ClockStack(0x482F80, "admitted support clock", preserved ? NativeBattleMegaSpark279ClockPath.SupportCooldown : NativeBattleMegaSpark279ClockPath.Unknown);
+    }
+
+    private void ObserveMegaSpark279ClockStack(uint callback, string phase, NativeBattleMegaSpark279ClockPath path)
+    {
+        if (path == NativeBattleMegaSpark279ClockPath.Unknown)
+        {
+            ObserveNativeUnknownStackCallback(callback, phase);
+            return;
+        }
+        Presentation?.ObserveLogicalMegaSpark279ClockCall(callback, phase, path);
+    }
 }
 
 

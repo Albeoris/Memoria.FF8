@@ -93,7 +93,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        ObserveNativeUnknownStackCallback(0x4842B0, "admitted ATB update");
+        ObserveMegaSpark279AtbClockStack();
         foreach (BattleCombatant actor in combatants.ToArray())
         {
             AdvanceNativeAtbParticipant(actor, null);

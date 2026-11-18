@@ -4,7 +4,6 @@ public sealed partial class BattleSession
 {
     private void AdvanceNativeSupportCallbacks()
     {
-        ObserveNativeUnknownStackCallback(0x482F80, "admitted support clock");
         if (nativeSupport is null)
         {
             return;
@@ -13,6 +12,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native482F80 was admitted before47CCB0 case3 initialized its support owners.");
         }
+        ObserveMegaSpark279SupportClockStack();
         if (nativeSupport.Cooldown != 0)
         {
             nativeSupport = nativeSupport with { Cooldown = (ushort)(nativeSupport.Cooldown - 1) };

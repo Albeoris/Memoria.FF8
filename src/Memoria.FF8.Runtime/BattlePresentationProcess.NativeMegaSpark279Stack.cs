@@ -6,6 +6,20 @@ public sealed partial class BattlePresentationProcess
 {
     private NativeBattleStackBytes? nativeMegaSpark279Stack;
 
+    internal bool ObservesNativeMegaSpark279ClockStack => nativeMegaSpark279Stack is not null && NativeGraphics?.OriginalEffect?.Binding.MegaSpark279Resources is not null;
+
+    internal void ObserveLogicalMegaSpark279ClockCall(uint callback, string phase, NativeBattleMegaSpark279ClockPath path)
+    {
+        if (nativeMegaSpark279Stack is { } stack)
+        {
+            nativeMegaSpark279Stack = NativeBattleMegaSpark279ClockStack.Observe(stack, callback, phase, NativeGraphics?.EntryLifecycle, path);
+        }
+        if (nativePreRootStack is { } other)
+        {
+            nativePreRootStack = NativeBattlePreRootStackObserver.ObserveUnknownCall(other, callback, phase);
+        }
+    }
+
     private void BeginNativeMegaSpark279Stack(long callback)
     {
         nativeMegaSpark279Stack = NativeBattleStackBytes.Unknown($"mega-spark279:common47CF60:{callback}", -0xAC, 8);
