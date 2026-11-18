@@ -122,7 +122,7 @@ internal static class DirectBackgroundScrollCertificate
         return HasSelectedDirectBaseline(field, scene);
     }
 
-    private static bool HasSelectedDirectBaseline(FieldAssets field, SceneEventState scene, bool allowInitialization = false)
+    internal static bool HasSelectedDirectBaseline(FieldAssets field, SceneEventState scene, bool allowInitialization = false)
     {
         //475480/476450 consume the selected record. Camera1 cancels PAN for both
         //raw pairs0/1; only subsequent layers use their independent parallax rows.

@@ -8,7 +8,9 @@ internal static class NativeNonselectedBackgroundScrollCertificate
 {
     public static bool CanSetDirect(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
-        return layer is >= 0 and <= 7 && layer != scene.CameraIndex && (layer < scene.CameraIndex || field.Background.Any(tile => tile.Layer == layer)) && HasBaseline(field, scene) && ValidPositions(field, scene) && SupportsEndpoint(field, scene, layer, x, y);
+        //520FA0 issues targets during52C650 without consuming current words.
+        //Only direct admission shares the authenticated allocation baseline.
+        return layer is >= 0 and <= 7 && layer != scene.CameraIndex && (layer < scene.CameraIndex || field.Background.Any(tile => tile.Layer == layer)) && HasBaseline(field, scene, allowInitialization: true) && ValidPositions(field, scene) && SupportsEndpoint(field, scene, layer, x, y);
     }
 
     public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)
@@ -23,7 +25,7 @@ internal static class NativeNonselectedBackgroundScrollCertificate
 
     public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        if (duration < 0 || !CanSetDirect(field, scene, layer, x, y))
+        if (duration < 0 || !HasBaseline(field, scene) || !CanSetDirect(field, scene, layer, x, y))
         {
             return false;
         }
@@ -73,9 +75,9 @@ internal static class NativeNonselectedBackgroundScrollCertificate
         return position.X is short currentX && position.Y is short currentY && SupportsEndpoint(field, scene, layer, currentX, currentY) && (position.Mode is not (4 or 5) || SupportsEndpoint(field, scene, layer, position.TargetX, position.TargetY) && (position.Status == 0 || SupportsEndpoint(field, scene, layer, position.PreviousX!.Value, position.PreviousY!.Value)));
     }
 
-    private static bool HasBaseline(FieldAssets field, SceneEventState scene)
+    private static bool HasBaseline(FieldAssets field, SceneEventState scene, bool allowInitialization = false)
     {
-        return field.Information is { BackgroundWrapMask: 0 } && DirectBackgroundScrollCertificate.HasSelectedBaseline(field, scene);
+        return field.Information is { BackgroundWrapMask: 0 } && DirectBackgroundScrollCertificate.HasSelectedDirectBaseline(field, scene, allowInitialization);
     }
 
     private static bool ValidPositions(FieldAssets field, SceneEventState scene)
