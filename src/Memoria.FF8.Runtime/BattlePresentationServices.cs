@@ -45,7 +45,11 @@ internal sealed record BattlePresentationServices(
     Func<NativeBattleShotWidgetFacts?> ReadShotWidget,
     Action<NativeBattleShotWidgetUpdated> PublishShotWidget,
     Func<NativeBattleDuelWidgetFacts?> ReadDuelWidget,
-    Action<NativeBattleDuelWidgetUpdated> PublishDuelWidget);
+    Action<NativeBattleDuelWidgetUpdated> PublishDuelWidget)
+{
+    internal Func<bool>? ObservesFollowupTextures { get; init; }
+    internal Action<NativeBattleGraphicsState, int, NativeBattleAuxiliaryTask, NativeBattleGraphicsModel>? TextureAnimationReleased { get; init; }
+}
 
 internal readonly record struct BattlePresentationEffectObservation(
     NativeBattleOriginalEffectState Effect,

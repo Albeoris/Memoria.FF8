@@ -72,6 +72,78 @@ public sealed class DiagnosticInvocationReleaseTests
         return new(retirement, drain, [new(actor, 2, 2, 4, 5)]);
     }
 
+    [Fact]
+    public void Followup_texture_release_keeps_the_actual_blocked_focal_frame_and_requires_real_later_cleanup()
+    {
+        BattleDiagnosticInvocationFollowupRelease release = TextureFollowupReceipt();
+        BattleDiagnosticInvocationRelease focal = release.FocalRetirement;
+        DiagnosticInvocationReleaseValidation.ValidateFollowupFocalRetirement(focal, focal.Dispatch, focal.LifecycleId);
+        DiagnosticInvocationReleaseValidation.ValidateFollowup(release, focal.Dispatch, focal.LifecycleId);
+        Assert.True(focal.Owners.AuxiliaryHead);
+        Assert.False(focal.Released);
+        Assert.Equal(new[] { "effect-or-auxiliary-task", "action-or-reaction" }, focal.Blockers);
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.Validate(focal, focal.Dispatch, focal.LifecycleId));
+    }
+
+    [Theory]
+    [InlineData("missing-release")]
+    [InlineData("duplicate-release")]
+    [InlineData("foreign-owner")]
+    [InlineData("foreign-slot")]
+    [InlineData("unknown-program")]
+    [InlineData("changed-program")]
+    [InlineData("nonterminal-program")]
+    [InlineData("not-sequence-held")]
+    [InlineData("early-release")]
+    [InlineData("stale-frame")]
+    [InlineData("late-release")]
+    [InlineData("no-release-predicate")]
+    [InlineData("no-texture-reset")]
+    [InlineData("no-blink-restore")]
+    [InlineData("extra-effect")]
+    [InlineData("missing-auxiliary-owner")]
+    public void Followup_texture_release_rejects_missing_foreign_or_unproved_native_lifetimes(string fault)
+    {
+        BattleDiagnosticInvocationFollowupRelease release = TextureFollowupReceipt();
+        BattleDiagnosticInvocationRelease focal = release.FocalRetirement;
+        BattleDiagnosticInvocationPendingTexture pending = focal.PendingTextures[0];
+        BattleDiagnosticInvocationTextureRelease witness = release.TextureReleases[0];
+        BattleDiagnosticInvocationFollowupRelease invalid = fault switch
+        {
+            "missing-release" => release with { TextureReleases = [] },
+            "duplicate-release" => release with { TextureReleases = [witness, witness] },
+            "foreign-owner" => release with { FocalRetirement = focal with { PendingTextures = [pending with { Actor = new("party-1") }] } },
+            "foreign-slot" => release with { TextureReleases = [witness with { Texture = pending with { Slot = 1 } }] },
+            "unknown-program" => release with { FocalRetirement = focal with { PendingTextures = [pending with { ProgramSha256 = "unknown" }] } },
+            "changed-program" => release with { TextureReleases = [witness with { Texture = pending with { ProgramSha256 = new string('b', 64) } }] },
+            "nonterminal-program" => release with { FocalRetirement = focal with { PendingTextures = [pending with { Deadline = 254 }] } },
+            "not-sequence-held" => release with { FocalRetirement = focal with { PendingTextures = [pending with { Sequence = 12 }] } },
+            "early-release" => release with { TextureReleases = [witness with { Callback = focal.Callback }] },
+            "stale-frame" => release with { TextureReleases = [witness with { GraphicsCallback = focal.GraphicsCallback!.Value - 1 }] },
+            "late-release" => release with { TextureReleases = [witness with { Timestamp = release.FinalDrain.Timestamp + 1 }] },
+            "no-release-predicate" => release with { TextureReleases = [witness with { Sequence = pending.CapturedSequence }] },
+            "no-texture-reset" => release with { TextureReleases = [witness with { TextureReset = false }] },
+            "no-blink-restore" => release with { TextureReleases = [witness with { BlinkRestored = false }] },
+            "extra-effect" => release with { FocalRetirement = focal with { Owners = focal.Owners with { Effects = 1 } } },
+            _ => release with { FocalRetirement = focal with { Owners = focal.Owners with { AuxiliaryHead = false } } }
+        };
+        Assert.Throws<InvalidDataException>(() => DiagnosticInvocationReleaseValidation.ValidateFollowup(invalid, focal.Dispatch, focal.LifecycleId));
+    }
+
+    private static BattleDiagnosticInvocationFollowupRelease TextureFollowupReceipt()
+    {
+        BattleDiagnosticInvocationFollowupRelease release = FollowupReceipt();
+        BattleDiagnosticInvocationPendingTexture pending = new(0, new("party-0"), 0, 11, 754, 1552, new string('a', 64), 255, 3, 10, 11);
+        BattleDiagnosticInvocationRelease focal = release.FocalRetirement with
+        {
+            Owners = release.FocalRetirement.Owners with { AuxiliaryHead = true },
+            Blockers = ["effect-or-auxiliary-task", "action-or-reaction"],
+            PendingTextures = [pending]
+        };
+        BattleDiagnosticInvocationTextureRelease witness = new(pending, 4, focal.SimulationFrame, focal.GraphicsCallback!.Value, focal.Timestamp + 1, 3, 10, 12, true, true);
+        return release with { FocalRetirement = focal, TextureReleases = [witness] };
+    }
+
     [Theory]
     [InlineData("unaliased-enemies", true)]
     [InlineData("maximum-occupied-roster", true)]

@@ -7,11 +7,15 @@ public static class DiagnosticInvocationReleaseValidation
     public static void ValidateFollowupFocalRetirement(BattleDiagnosticInvocationRelease retirement, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
         ValidateIdentity(retirement, focal, lifecycle);
-        if (retirement.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || retirement.TerminalTextures is not null || !retirement.PacketRemoved || retirement.Released || retirement.Blockers is not ["action-or-reaction"] || !retirement.Owners.ActionOrCommand || HasOutstandingOwners(retirement.Owners with { ActionOrCommand = false }, 0) || retirement.HeaderReference is null || retirement.EventSlot is null || retirement.CompletionToken <= 0 || retirement.PendingFollowups.IsDefaultOrEmpty || retirement.PendingFollowups.Length > 64)
+        bool textures = !retirement.PendingTextures.IsDefaultOrEmpty;
+        if (retirement.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || retirement.TerminalTextures is not null || !retirement.PacketRemoved || retirement.Released ||
+            (textures ? retirement.Blockers is not ["effect-or-auxiliary-task", "action-or-reaction"] : retirement.Blockers is not ["action-or-reaction"]) ||
+            retirement.Owners.AuxiliaryHead != textures || !retirement.Owners.ActionOrCommand || HasOutstandingOwners(retirement.Owners with { ActionOrCommand = false, AuxiliaryHead = false }, 0) || retirement.HeaderReference is null || retirement.EventSlot is null || retirement.CompletionToken <= 0 || retirement.PendingFollowups.IsDefaultOrEmpty || retirement.PendingFollowups.Length > 64)
         {
             throw new InvalidDataException("Follow-up retirement requires exact focal packet removal and only proved queued native player callbacks.");
         }
         ValidateGraphicsFrameCertificate(retirement, focal, lifecycle);
+        ValidateFollowupPendingTextures(retirement, focal);
         HashSet<(BattleActorReference Actor, byte Stage)> pending = [];
         foreach (BattleDiagnosticInvocationPendingCallback callback in retirement.PendingFollowups)
         {
@@ -38,6 +42,44 @@ public static class DiagnosticInvocationReleaseValidation
             if (callback is null || callback.Actor is not BattlePartyActorReference || callback.Stage is not (2 or 3) || !completed.Add((callback.Actor, callback.Stage)) || !retirement.PendingFollowups.Any(pending => pending.Actor == callback.Actor && pending.Stage == callback.Stage && pending.QueuedCallback == callback.QueuedCallback) || callback.StartedCallback < retirement.Callback || callback.CompletedCallback < callback.StartedCallback || callback.CompletedCallback > drain.Callback)
             {
                 throw new InvalidDataException("Follow-up drain lacks the actual once-queued, started and completed native callback witnesses.");
+            }
+        }
+        ValidateFollowupTextureReleases(release);
+    }
+
+    private static void ValidateFollowupPendingTextures(BattleDiagnosticInvocationRelease retirement, BattleDiagnosticEffectDispatch focal)
+    {
+        if (retirement.PendingTextures.IsDefault || retirement.PendingTextures.Length > 16)
+        {
+            throw new InvalidDataException("Follow-up textures require a bounded original auxiliary owner inventory.");
+        }
+        HashSet<int> slots = [];
+        foreach (BattleDiagnosticInvocationPendingTexture texture in retirement.PendingTextures)
+        {
+            if (texture is null || texture.Slot is < 0 or >= 16 || !slots.Add(texture.Slot) || texture.Actor is null || texture.Actor.ActorId != focal.ActorId || focal.ActorSlot is not { Side: BattleSide.Allies } || texture.NativeActorIndex != focal.NativeActorIndex || texture.NativeActorIndex > 2 ||
+                texture.ProgramOffset < 0 || texture.ProgramOffset >= texture.ProgramLength || texture.ProgramSha256 is not { Length: 64 } || texture.ProgramSha256.Any(character => !Uri.IsHexDigit(character)) || texture.Deadline != 255 ||
+                (texture.ModelFlags0 & 2) == 0 || (texture.ResourceFlags44 & 0x40) != 0 || texture.Sequence != texture.CapturedSequence)
+            {
+                throw new InvalidDataException("Follow-up texture is not an exact focal-caster-owned sequence-held native animation.");
+            }
+        }
+    }
+
+    private static void ValidateFollowupTextureReleases(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        BattleDiagnosticInvocationRelease retirement = release.FocalRetirement;
+        BattleDiagnosticInvocationFinalDrain drain = release.FinalDrain;
+        if (release.TextureReleases.IsDefault || release.TextureReleases.Length != retirement.PendingTextures.Length)
+        {
+            throw new InvalidDataException("Follow-up texture drain lacks its actual retirement witnesses.");
+        }
+        HashSet<int> released = [];
+        foreach (BattleDiagnosticInvocationTextureRelease texture in release.TextureReleases)
+        {
+            if (texture is null || texture.Texture is null || !released.Add(texture.Texture.Slot) || !retirement.PendingTextures.Contains(texture.Texture) || texture.Callback <= retirement.Callback || texture.Callback > drain.Callback || texture.SimulationFrame < retirement.SimulationFrame || texture.SimulationFrame > drain.SimulationFrame || texture.GraphicsCallback < retirement.GraphicsCallback || texture.GraphicsCallback >= drain.GraphicsCallback || texture.Timestamp <= retirement.Timestamp || texture.Timestamp > drain.Timestamp ||
+                !texture.TextureReset || !texture.BlinkRestored || (texture.ModelFlags0 & 2) != 0 && (texture.ResourceFlags44 & 0x40) == 0 && texture.Sequence == texture.Texture.CapturedSequence)
+            {
+                throw new InvalidDataException("Follow-up texture lacks its exact actual native release and cleanup within the focal lineage.");
             }
         }
     }

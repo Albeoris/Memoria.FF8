@@ -6,7 +6,10 @@ namespace Memoria.FF8.Runtime;
 public sealed record BattleDiagnosticInvocationFollowupCallback(BattleActorReference Actor, byte Stage, long QueuedCallback, long StartedCallback, long CompletedCallback);
 public sealed record BattleDiagnosticInvocationPendingCallback(BattleActorReference Actor, byte Stage, long QueuedCallback);
 public sealed record BattleDiagnosticInvocationFinalDrain(Guid LifecycleId, long Callback, long SimulationFrame, long GraphicsCallback, long Timestamp, BattleDiagnosticEffectDispatch FocalDispatch, BattleDiagnosticInvocationOwners Owners);
-public sealed record BattleDiagnosticInvocationFollowupRelease(BattleDiagnosticInvocationRelease FocalRetirement, BattleDiagnosticInvocationFinalDrain FinalDrain, ImmutableArray<BattleDiagnosticInvocationFollowupCallback> Callbacks);
+public sealed record BattleDiagnosticInvocationFollowupRelease(BattleDiagnosticInvocationRelease FocalRetirement, BattleDiagnosticInvocationFinalDrain FinalDrain, ImmutableArray<BattleDiagnosticInvocationFollowupCallback> Callbacks)
+{
+    public ImmutableArray<BattleDiagnosticInvocationTextureRelease> TextureReleases { get; init; } = [];
+}
 
 public sealed partial class BattleSession
 {
@@ -63,7 +66,10 @@ public sealed partial class BattleSession
 
     private void ObserveDiagnosticFollowupRetirement(BattleDiagnosticInvocationRelease retirement)
     {
-        if (!ObservingDiagnosticInvocationFollowup || diagnosticFollowupRetirement is not null || diagnosticFollowupAmbiguous || diagnosticFollowupCallbacks is not { Count: > 0 } callbacks || retirement.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !retirement.NativeEventCompleted || !retirement.PresentationAcknowledged || !retirement.HeaderCapturedBeforeReset || !retirement.CurrentCompletionPacketGuaranteedRemoval || !retirement.PacketRemoved || retirement.ExecutingCompletion is null || retirement.TerminalTextures is not null || retirement.Blockers is not ["action-or-reaction"] || !retirement.Owners.ActionOrCommand || !DiagnosticFollowupOwnersEmpty(retirement.Owners with { ActionOrCommand = false }) || ActiveAction is not null || actions.Count == 0 || actions.Count != callbacks.Count)
+        bool textures = retirement.Owners.AuxiliaryHead;
+        if (!ObservingDiagnosticInvocationFollowup || diagnosticFollowupRetirement is not null || diagnosticFollowupAmbiguous || diagnosticFollowupCallbacks is not { Count: > 0 } callbacks || retirement.Boundary != BattleDiagnosticInvocationRelease.GraphicsFrameBoundary || !retirement.NativeEventCompleted || !retirement.PresentationAcknowledged || !retirement.HeaderCapturedBeforeReset || !retirement.CurrentCompletionPacketGuaranteedRemoval || !retirement.PacketRemoved || retirement.ExecutingCompletion is null || retirement.TerminalTextures is not null ||
+            (textures ? retirement.Blockers is not ["effect-or-auxiliary-task", "action-or-reaction"] : retirement.Blockers is not ["action-or-reaction"]) ||
+            !retirement.Owners.ActionOrCommand || !DiagnosticFollowupOwnersEmpty(retirement.Owners with { ActionOrCommand = false, AuxiliaryHead = false }) || ActiveAction is not null || actions.Count == 0 || actions.Count != callbacks.Count)
         {
             return;
         }
@@ -74,14 +80,18 @@ public sealed partial class BattleSession
                 return;
             }
         }
-        diagnosticFollowupRetirement = retirement with { PendingFollowups = callbacks.Select(pair => new BattleDiagnosticInvocationPendingCallback(pair.Key.Actor, pair.Key.Stage, pair.Value.Queued)).ToImmutableArray() };
+        if (!TryCaptureDiagnosticFollowupTextures(retirement, out ImmutableArray<BattleDiagnosticInvocationPendingTexture> pendingTextures))
+        {
+            return;
+        }
+        diagnosticFollowupRetirement = retirement with { PendingFollowups = callbacks.Select(pair => new BattleDiagnosticInvocationPendingCallback(pair.Key.Actor, pair.Key.Stage, pair.Value.Queued)).ToImmutableArray(), PendingTextures = pendingTextures };
         LastDiagnosticInvocationCompletion = diagnosticFollowupRetirement;
         DiagnosticInvocationFocalRetired?.Invoke(diagnosticFollowupRetirement);
     }
 
     private void ObserveDiagnosticFollowupDrain(BattlePresentationProcess process)
     {
-        if (!ObservingDiagnosticInvocationFollowup || diagnosticFollowupRetirement is not { } retirement || diagnosticFollowupAmbiguous || retirement.LifecycleId != DiagnosticLifecycleId || !ReferenceEquals(retirement.Dispatch, diagnosticInvocationDispatch) || diagnosticFollowupCallbacks is not { Count: > 0 } pending || pending.Values.Any(callback => callback.Started is null || callback.Completed is null) || (NativeHostCallbacks ?? Frame) <= retirement.Callback || process.Graphics.Callback <= retirement.GraphicsCallback || Frame < retirement.SimulationFrame)
+        if (!ObservingDiagnosticInvocationFollowup || diagnosticFollowupRetirement is not { } retirement || diagnosticFollowupAmbiguous || retirement.LifecycleId != DiagnosticLifecycleId || !ReferenceEquals(retirement.Dispatch, diagnosticInvocationDispatch) || diagnosticFollowupCallbacks is not { Count: > 0 } pending || pending.Values.Any(callback => callback.Started is null || callback.Completed is null) || diagnosticFollowupTextures?.Values.Any(texture => texture.Release is null) == true || (NativeHostCallbacks ?? Frame) <= retirement.Callback || process.Graphics.Callback <= retirement.GraphicsCallback || Frame < retirement.SimulationFrame)
         {
             return;
         }
@@ -91,7 +101,10 @@ public sealed partial class BattleSession
             return;
         }
         ImmutableArray<BattleDiagnosticInvocationFollowupCallback> callbacks = pending.Select(pair => new BattleDiagnosticInvocationFollowupCallback(pair.Key.Actor, pair.Key.Stage, pair.Value.Queued, pair.Value.Started!.Value, pair.Value.Completed!.Value)).ToImmutableArray();
-        LastDiagnosticInvocationFollowupRelease = new(retirement, new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, process.Graphics.Callback, Stopwatch.GetTimestamp(), retirement.Dispatch, owners), callbacks);
+        LastDiagnosticInvocationFollowupRelease = new(retirement, new(DiagnosticLifecycleId, NativeHostCallbacks ?? Frame, Frame, process.Graphics.Callback, Stopwatch.GetTimestamp(), retirement.Dispatch, owners), callbacks)
+        {
+            TextureReleases = diagnosticFollowupTextures?.Values.Select(texture => texture.Release!).ToImmutableArray() ?? []
+        };
         DiagnosticInvocationFollowupReleased?.Invoke(LastDiagnosticInvocationFollowupRelease);
     }
 

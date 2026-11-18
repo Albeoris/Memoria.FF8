@@ -33,7 +33,7 @@ public sealed partial record NativeBattleAuxiliaryState
         return this with { Slots = slots, Head = Tail is null ? slot : Head, Tail = slot };
     }
 
-    private static (NativeBattleAuxiliaryTask Task, bool Release) AdvanceTextureAnimation(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs)
+    private static (NativeBattleAuxiliaryTask Task, bool Release) AdvanceTextureAnimation(NativeBattleAuxiliaryTask task, NativeBattleAuxiliaryInputs? inputs, int slot)
     {
         NativeBattleAuxiliaryProgram program = task.Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline list.");
         program.Validate();
@@ -60,6 +60,7 @@ public sealed partial record NativeBattleAuxiliaryState
         }
         (inputs?.ApplyTexture ?? throw new NotSupportedException("Native5057D0 release requires its50C780 copy callback."))(model, 0, 0);
         (inputs?.RestoreTextureBlink ?? throw new NotSupportedException("Native5057D0 release requires model flag0x400 restoration."))(model);
+        inputs?.TextureAnimationReleased?.Invoke(slot, task, current);
         return (task, true);
     }
 }

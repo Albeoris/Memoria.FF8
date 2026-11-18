@@ -65,7 +65,11 @@ public sealed partial class BattleSession
             () => (Frame, GuardianAnimationSkipPending), () => NativeHostCallbacks ?? Frame, ReadPreparedActor, ReadPreparedScanActor, ReadPreparedScanExtra,
             () => DiagnosticEffectDispatched is not null || ObservingDiagnosticCounter, ObservePresentationEffect,
             ObservePresentationDescriptorRemoved, ObservePresentationFrameEnded, ReadPresentationStackVitals, MatchesDiagnosticVisualEntry, AdmitDiagnosticVisualEntry,
-            ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate, ReadNativeDuelWidgetFacts, ApplyNativeDuelWidgetUpdate);
+            ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate, ReadNativeDuelWidgetFacts, ApplyNativeDuelWidgetUpdate)
+        {
+            ObservesFollowupTextures = () => diagnosticFollowupRetirement is not null && diagnosticFollowupTextures is { Count: > 0 } && !diagnosticFollowupAmbiguous,
+            TextureAnimationReleased = ObserveDiagnosticFollowupTextureReleased
+        };
     }
 
     private void RequireExpandedPresentationDispatchIdle()

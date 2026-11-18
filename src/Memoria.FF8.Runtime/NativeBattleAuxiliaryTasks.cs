@@ -200,7 +200,7 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             }
             else if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
             {
-                (task, release) = AdvanceTextureAnimation(task, inputs);
+                (task, release) = AdvanceTextureAnimation(task, inputs, index);
             }
             else if (task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830)
             {

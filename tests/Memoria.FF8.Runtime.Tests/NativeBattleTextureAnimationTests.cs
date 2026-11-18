@@ -1,7 +1,6 @@
 using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -60,8 +59,9 @@ public sealed class NativeBattleTextureAnimationTests
         for (int frame = 1; frame <= 5; frame++)
         {
             state = state.Advance(inputs).State;
-            state = JsonSerializer.Deserialize<NativeBattleAuxiliaryState>(JsonSerializer.Serialize(state))!;
+            state = NativeBattleTestSnapshots.Independent(state);
             state.Validate();
+            Assert.Equal(OriginalOwner(0), state.Slots[0].ModelOwner);
             Assert.Equal(Math.Min(3, Math.Max(0, frame - 1)), variants.Count);
         }
         Assert.Equal(new byte[] { 1, 0, 1 }, variants);

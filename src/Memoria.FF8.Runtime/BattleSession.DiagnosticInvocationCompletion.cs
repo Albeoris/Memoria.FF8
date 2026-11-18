@@ -53,6 +53,7 @@ public sealed record BattleDiagnosticInvocationRelease(Guid LifecycleId, long Ca
     public NativeBattleDescriptorPacket? RemovedCompletionPacket { get; init; }
     public BattleDiagnosticInvocationRelease? ExecutingCompletion { get; init; }
     public ImmutableArray<BattleDiagnosticInvocationPendingCallback> PendingFollowups { get; init; } = [];
+    public ImmutableArray<BattleDiagnosticInvocationPendingTexture> PendingTextures { get; init; } = [];
     public bool Released => NativeEventCompleted && PresentationAcknowledged && HeaderCapturedBeforeReset && CurrentCompletionPacketGuaranteedRemoval && (Blockers.IsEmpty || TerminalTextures is not null);
 }
 

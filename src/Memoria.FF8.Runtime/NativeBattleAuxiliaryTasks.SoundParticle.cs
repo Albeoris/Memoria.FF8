@@ -18,6 +18,7 @@ public sealed record NativeBattleAuxiliaryProgram([property: JsonRequired] Immut
 public sealed record NativeBattleAuxiliaryEmission(BattleModelOwner Model, byte Bone, byte Size, bool Particle, ushort? Sound, NativeBattleVector? SoundAnchor, byte? Pan);
 public sealed record NativeBattleAuxiliaryInputs
 {
+    internal Action<int, NativeBattleAuxiliaryTask, NativeBattleGraphicsModel>? TextureAnimationReleased { get; init; }
     public Action<NativeBattleAuxiliaryKind, BattleModelOwner, uint>? ApplyModelRing { get; init; }
     public Action? InitializeTimerDisplay47D910 { get; init; }
     public Action<byte, bool>? ApplyScreenFade501D10 { get; init; }

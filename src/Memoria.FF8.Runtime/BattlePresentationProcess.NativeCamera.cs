@@ -96,6 +96,7 @@ public sealed partial class BattlePresentationProcess
     {
         NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new()
         {
+            TextureAnimationReleased = services?.ObservesFollowupTextures?.Invoke() == true ? (slot, task, model) => services.TextureAnimationReleased?.Invoke(graphics, slot, task, model) : null,
             ApplyScreenFade501D10 = (fade, complete) => graphics = PublishNativeScreenFade501D10(graphics, fade, complete),
             ApplyScreenBlend501E80 = color => graphics = PublishNativeScreenBlend501E80(graphics, color),
             ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
