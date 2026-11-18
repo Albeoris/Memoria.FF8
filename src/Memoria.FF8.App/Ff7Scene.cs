@@ -40,6 +40,8 @@ internal sealed partial class Ff7Scene : IDisposable
     private Ff7FieldRenderer? renderer;
     private long renderedGeneration = -1;
     private double tickRemainder;
+    private static readonly string[] TitleChoices = ["New Game", "Continue", "Config"];
+    private static readonly string[] TitleChoicesWithReturn = ["New Game", "Continue", "Config", "Return to FFVIII"];
     private int titleSelection;
     private bool debugMenu;
     private int debugSelection;
@@ -360,7 +362,7 @@ internal sealed partial class Ff7Scene : IDisposable
         {
             if (Session is null)
             {
-                DrawTitle(batch, bounds, windowBounds);
+                DrawTitle(batch, windowBounds);
             }
             else
             {
@@ -665,18 +667,27 @@ internal sealed partial class Ff7Scene : IDisposable
         }
     }
 
-    private void DrawTitle(SpriteBatch batch, Rectangle bounds, Rectangle windowBounds)
+    private void DrawTitle(SpriteBatch batch, Rectangle windowBounds)
     {
-        bounds.Y = windowBounds.Y + (int)Math.Round(windowBounds.Height * 0.725 - bounds.Height * 174d / 240d);
-        DrawPlain(batch, "New Game", 122, 174, bounds);
-        int rowStep = CanResumeMixedOrigin ? 16 : 20;
-        DrawPlain(batch, "Continue", 122, 174 + rowStep, bounds);
-        DrawPlain(batch, "Config", 122, 174 + rowStep * 2, bounds);
-        if (CanResumeMixedOrigin)
+        SystemTextRenderer text = dialogueText ?? throw new InvalidOperationException("FFVII title requires shared text presentation.");
+        string[] choices = CanResumeMixedOrigin ? TitleChoicesWithReturn : TitleChoices;
+        float size = Math.Min(windowBounds.Height * 0.044f, windowBounds.Width * 0.06f);
+        float rowHeight = windowBounds.Height * (CanResumeMixedOrigin ? 0.058f : 0.074f);
+        // The FFVII wordmark underline ends at y = 568 in the artwork's 900-unit design height.
+        float blackAreaTop = windowBounds.Y + windowBounds.Height * (568f / 900f);
+        float groupHeight = rowHeight * (choices.Length - 1) + text.MeasureWrapped(choices[^1], size, float.PositiveInfinity, "Times New Roman").Y;
+        float top = (blackAreaTop + windowBounds.Bottom - groupHeight) / 2;
+        for (int index = 0; index < choices.Length; index++)
         {
-            DrawPlain(batch, "Return to FFVIII", 122, 174 + rowStep * 3, bounds);
+            Vector2 measured = text.MeasureWrapped(choices[index], size, float.PositiveInfinity, "Times New Roman");
+            float y = top + rowHeight * index;
+            text.DrawCentered(batch, choices[index], size, new Vector2(windowBounds.Center.X, y), Color.White, "Times New Roman");
+            if (index == titleSelection)
+            {
+                float pointerHeight = size * 0.85f;
+                dialogueCanvas?.MenuPointer(new UiRect(windowBounds.Center.X - measured.X / 2 - pointerHeight * 1.8f, y + (measured.Y - pointerHeight) / 2, pointerHeight * 1.5f, pointerHeight));
+            }
         }
-        DrawPlain(batch, ">", 108, 174 + titleSelection * rowStep, bounds);
     }
 
     private void DrawDebugMenu(SpriteBatch batch, Rectangle bounds)
