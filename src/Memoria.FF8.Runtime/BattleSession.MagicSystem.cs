@@ -6,6 +6,33 @@ public sealed partial class BattleSession
     public NativeCharacterVitals? MagicVitals => magicVitals?.DeepCopy();
     public bool InfiniteMagic => magicVitals?.MagicSystem.InfiniteMagic == true && !UnlimitedMagic;
     public bool UnlimitedMagic => magicVitals?.MagicSystem.UnlimitedMagic ?? definition.Tuning.UnlimitedMagic;
+
+    public int GetMagicStockCapacity(string actorId, int spellId)
+    {
+        BattleCombatant actor = GetActor(actorId);
+        if (magicVitals is not null && actor.MagicRecordId is int row)
+        {
+            return MagicInventoryResolver.Resolve(magicVitals, row).Capacity(spellId);
+        }
+        IReadOnlyList<NativeMagicStock> inventory = actor.NativeMagicSlots;
+        NativeMagicStock? entry = inventory.FirstOrDefault(stock => stock.SpellId == spellId);
+        if (entry is not null)
+        {
+            return Math.Max(0, 100 - entry.Count);
+        }
+        return inventory.Any(stock => stock.SpellId == 0) ? 100 : 0;
+    }
+
+    public int? GetSharedMagicJunctionOwnerCharacterId(string actorId, int spellId)
+    {
+        if (magicVitals?.MagicSystem.SharedMagicStock != true)
+        {
+            return null;
+        }
+        int? owner = GetMagicJunctionOwner(actorId, spellId);
+        return owner is int row ? magicVitals.Records[row].CharacterId : null;
+    }
+
     public int? GetMagicJunctionOwner(string actorId, int spellId)
     {
         if (magicVitals is null)

@@ -28,17 +28,7 @@ public sealed partial class BattleHudController
         {
             return 0;
         }
-        if (session.MagicVitals is { } vitals && actor.MagicRecordId is int row)
-        {
-            return MagicInventoryResolver.Resolve(vitals, row).Capacity(id);
-        }
-        IReadOnlyList<NativeMagicStock> inventory = actor.NativeMagicSlots;
-        NativeMagicStock? entry = inventory.FirstOrDefault(stock => stock.SpellId == id);
-        if (entry is not null)
-        {
-            return Math.Max(0, 100 - entry.Count);
-        }
-        return inventory.Any(stock => stock.SpellId == 0) ? 100 : 0;
+        return session.GetMagicStockCapacity(actor.Id, id);
     }
 
     private int DrawSourceScore(BattleCombatant source, int id, bool cast)

@@ -64,6 +64,8 @@ public sealed class BattlePresentationResources
         {
             throw new InvalidDataException("Battle presentation requires its 256-entry native software primitive dispatch table.");
         }
+        // Prepare immutable handler tables before the first interactive graphics callback.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(NativeBattleCinematicDispatch).TypeHandle);
         return graphics;
     }
 

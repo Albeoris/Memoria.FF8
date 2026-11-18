@@ -130,6 +130,46 @@ public sealed class NativeBattleCinematicActorContextTests
     }
 
     [Fact]
+    public void SuccessfulValidationDoesNotChangeRecordEqualityOrAcceptInvalidCopies()
+    {
+        NativeBattleCinematicActorContext context = Create().CaptureCurrentContacts([Enemy, Ally], Caster).WithSavedActors([Caster]);
+        NativeBattleCinematicActorContext equalCopy = context with { };
+        int hash = context.GetHashCode();
+        Assert.Equal(context, equalCopy);
+        context.Validate();
+        context.Validate();
+        Assert.Equal(context, equalCopy);
+        Assert.Equal(hash, context.GetHashCode());
+
+        NativeBattleCinematicActorContext[] invalidCopies =
+        [
+            context with { CachedActors = context.CachedActors.Remove(Enemy) },
+            context with { CachedActors = context.CachedActors.SetItem(Enemy, null!) },
+            context with { ActorOrdinals = context.ActorOrdinals.Remove(Enemy) },
+            context with { ActorOrdinals = context.ActorOrdinals.SetItem(Enemy, -1) },
+            context with { CurrentActors = default },
+            context with { CurrentActors = [Unbound] },
+            context with { SavedActors = [Unbound] },
+            context with { FirstActor = Ally },
+            context with { ContactsProcessed = -1 }
+        ];
+        foreach (NativeBattleCinematicActorContext invalid in invalidCopies)
+        {
+            Assert.Throws<InvalidDataException>(invalid.Validate);
+            Assert.Throws<InvalidDataException>(invalid.Validate);
+        }
+
+        NativeBattleCinematicActorContext validCopy = context with { ContactsProcessed = 1, SavedActors = [Ally, Ally] };
+        validCopy.Validate();
+        validCopy.Validate();
+        Assert.Equal(1, validCopy.ContactsProcessed);
+        Assert.Equal<BattleModelOwner>([Ally, Ally], validCopy.ReadSavedActors());
+        equalCopy.Validate();
+        Assert.Equal(context, equalCopy);
+        Assert.Equal(hash, equalCopy.GetHashCode());
+    }
+
+    [Fact]
     public void ContactCaptureDeduplicatesWhileAuthoredListsRetainRepeatsAndOlderOrdinals()
     {
         NativeBattleCinematicActorContext context = Create().WithSavedActors([]).WithContactsProcessed(49);

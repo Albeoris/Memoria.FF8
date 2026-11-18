@@ -36,8 +36,8 @@ public sealed partial class BattleHudController
 
     internal UiImageSource? MagicOwnerIcon(BattleActionDefinition action)
     {
-        int? owner = session.GetMagicJunctionOwner(SelectedActor!.Id, action.Id);
-        return owner is int row && session.MagicVitals is { MagicSystem.SharedMagicStock: true } vitals ? new UiImageSource(UiImageKind.CharacterPortrait, vitals.Records[row].CharacterId) : null;
+        int? character = session.GetSharedMagicJunctionOwnerCharacterId(SelectedActor!.Id, action.Id);
+        return character is int id ? new UiImageSource(UiImageKind.CharacterPortrait, id) : null;
     }
 
     private void ChangeMagicCastCount(int direction)

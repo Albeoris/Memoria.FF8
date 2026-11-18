@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -15,6 +16,7 @@ public sealed record NativeBattleCinematicActorCache(
 /// <summary>Actor fields and retained selection state for the scripted-effect header.</summary>
 public sealed record NativeBattleCinematicActorContext
 {
+    private static readonly ConditionalWeakTable<NativeBattleCinematicActorContext, object> validated = new();
     private readonly ImmutableArray<BattleModelOwner> ownerOrder;
 
     private NativeBattleCinematicActorContext(BattleActorModels models)
@@ -41,6 +43,16 @@ public sealed record NativeBattleCinematicActorContext
 
     public void Validate()
     {
+        // Owners, lists and cached values are immutable; record copies have distinct validation identities.
+        _ = validated.GetValue(this, static context =>
+        {
+            context.ValidateCore();
+            return new object();
+        });
+    }
+
+    private void ValidateCore()
+    {
         if (CachedActors is null || ActorOrdinals is null || CachedActors.Count != ownerOrder.Length || ActorOrdinals.Count != ownerOrder.Length)
         {
             throw new InvalidDataException("Cinematic actor cache and ordinals must cover the model owners.");
@@ -48,7 +60,7 @@ public sealed record NativeBattleCinematicActorContext
         foreach (BattleModelOwner owner in ownerOrder)
         {
             if (!CachedActors.TryGetValue(owner, out NativeBattleCinematicActorCache? cached) || cached is null ||
-                !ActorOrdinals.TryGetValue(owner, out int? ordinal) || ordinal is < 0)
+                !ActorOrdinals.TryGetValue(owner, out int? ordinal) || ordinal is int value && (value < 0 || value >= ownerOrder.Length))
             {
                 throw new InvalidDataException("Cinematic actor cache or ordinal disagrees with its model owner.");
             }

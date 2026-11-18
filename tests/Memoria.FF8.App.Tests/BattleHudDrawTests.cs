@@ -9,6 +9,60 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudDrawTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StockCapacityProjectionTracksCurrentPersonalOrSharedInventoryWithoutBorrowingSnapshot(bool shared)
+    {
+        BattleSession battle = CreateWithMagicPool(99, false, shared);
+        BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == "party");
+        Assert.Equal(1, battle.GetMagicStockCapacity(actor.Id, 2));
+        Assert.Equal(100, battle.GetMagicStockCapacity(actor.Id, 3));
+        Assert.Equal(1, actor.RemoveMagicStock(2, 1));
+        Assert.Equal(2, battle.GetMagicStockCapacity(actor.Id, 2));
+        NativeCharacterVitals detached = battle.MagicVitals!;
+        int row = shared ? 0 : actor.MagicRecordId!.Value;
+        int slot = Array.FindIndex(detached.Records[row].MagicInventory, stock => stock.SpellId == 2);
+        detached.Records[row].MagicInventory[slot] = new(2, 100);
+        Assert.Equal(2, battle.GetMagicStockCapacity(actor.Id, 2));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OwnerPortraitProjectionTracksReassignmentAndStockRemovalOnlyInSharedMode(bool shared)
+    {
+        BattleSession battle = CreateWithMagicPool(10, false, shared);
+        BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == "party");
+        BattleHudController hud = CreateHud(battle);
+        BattleActionDefinition spell = battle.GetActionDefinition(BattleAbility.Magic, 2)!;
+        Assert.Null(hud.MagicOwnerIcon(spell));
+        actor.SetMagicOwner!(MagicJunctionPolicy.Assign(actor.MagicOwner!(), 0, 0, 2));
+        Assert.Equal(shared ? new UiImageSource(UiImageKind.CharacterPortrait, 0) : (UiImageSource?)null, hud.MagicOwnerIcon(spell));
+        if (shared)
+        {
+            actor.SetMagicOwner(MagicJunctionPolicy.Assign(actor.MagicOwner!(), 1, 0, 2, reassign: true));
+            Assert.Equal(new UiImageSource(UiImageKind.CharacterPortrait, 1), hud.MagicOwnerIcon(spell));
+            Assert.Null(hud.MagicOwnerIcon(new(BattleAbility.Draw, 65, "GF", BattleActionEffect.Native, 0, false)));
+        }
+        Assert.Equal(10, actor.RemoveMagicStock(2, 10));
+        Assert.Null(hud.MagicOwnerIcon(spell));
+    }
+
+    [Fact]
+    public void AuthoredStockCapacityUsesPhysicalSlotsWhenNoNativeMagicOwnerExists()
+    {
+        BattleSession battle = Create(false);
+        BattleCombatant actor = battle.Combatants.Single(actor => actor.Id == "party");
+        Assert.Null(battle.MagicVitals);
+        Assert.Equal(100, battle.GetMagicStockCapacity(actor.Id, 2));
+        Assert.Equal(99, actor.AddMagic(2, 99));
+        Assert.Equal(1, battle.GetMagicStockCapacity(actor.Id, 2));
+        Assert.Equal(1, actor.AddMagic(2, 1));
+        Assert.Equal(0, battle.GetMagicStockCapacity(actor.Id, 2));
+        Assert.Null(battle.GetSharedMagicJunctionOwnerCharacterId(actor.Id, 2));
+    }
+
+    [Theory]
     [InlineData(0, false, false)]
     [InlineData(99, false, false)]
     [InlineData(100, false, false)]
@@ -287,7 +341,7 @@ public sealed class BattleHudDrawTests
 
     private static BattleHudController CreateHud(BattleSession battle, List<BattleInput>? inputs = null)
     {
-        return new(battle, (_, _) => { }, () => { }, () => { }, execute: input => inputs?.Add(input));
+        return new(battle, (_, _) => { }, () => { }, () => { }, execute: input => inputs?.Add(input), readPresentationUi: BattleHudTestPresentation.Visible);
     }
 
     private static void ConsumeSourceMagic(BattleSession battle)

@@ -136,6 +136,7 @@ public sealed class BattleMeteorPartyPerformanceTests
                     Assert.True(caster.IsReady, "The stocked Meteor caster did not become ready during warmup and idle measurement.");
                     eventStart = battle.Events.Count;
                     eventCursor = eventStart;
+                    Console.WriteLine("meteor-measurement: cast-start");
                     castStart = Capture();
                     castTimestamp = end;
                     castPacer = pacer;
