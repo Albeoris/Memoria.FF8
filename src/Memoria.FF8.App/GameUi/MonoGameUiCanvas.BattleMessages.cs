@@ -66,7 +66,7 @@ internal sealed partial class MonoGameUiCanvas
 
     private void DrawNativeBattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
     {
-        float lineHeight = size;
+        float lineHeight = MeasureNativeText("M", size, bounds.Width, NativeBattleTextContext).Height;
         DialogueVisualLine[] lines = (document.Pages.FirstOrDefault()?.Lines ?? []).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, value => NativeTextAdvance(value, size, NativeBattleTextContext), false, lineHeight)).ToArray();
         float y = bounds.Y + Math.Max(0, (bounds.Height - lines.Length * lineHeight) / 2);
         foreach (DialogueVisualLine line in lines)

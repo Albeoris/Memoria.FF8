@@ -96,7 +96,7 @@ internal sealed partial class BattleHudElement : UiElement
         if (!controller.CommandMenuHidden && controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
             theme.Panel(canvas, Layout.MessagePanel);
-            float messageSize = (controller.BattleMessageIsEnemyActionTitle ? 26 : 20) * Scale * controller.TextScale;
+            float messageSize = (controller.BattleMessageIsActionTitle ? 26 : 20) * Scale * controller.TextScale;
             if (canvas is IBattleMessageCanvas rich)
             {
                 rich.BattleMessage(battleMessage, messageSize, Layout.MessageText, controller.BattlePresentationSeconds);
