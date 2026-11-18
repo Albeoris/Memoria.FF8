@@ -1180,7 +1180,12 @@ public sealed partial class BattlePresentationProcess
             {
                 NativeBattleModelLifecycleServices services = hostedFrameServices ?? throw new InvalidDataException("Hosted command title requires the current frame services.");
                 NativeBattleModelActorFacts actor = services.Facts.GetValueOrDefault(context.ResolveActor(graphics)) ?? throw new InvalidDataException("Hosted command title requires its current source model owner.");
-                services.EmitDescriptorText(Title(actor.ActorId, actor.IsParty));
+                byte command = nativeActionPackets.ReadHeader(context.Header).Command;
+                bool isPlayerLimitTitle = actor.IsParty && (actor.OriginalModelId == 0 && command == 5 || actor.OriginalModelId == 4 && command == 19);
+                if (!actor.IsParty || isPlayerLimitTitle)
+                {
+                    services.EmitDescriptorText(Title(actor.ActorId, actor.IsParty));
+                }
             }
 
             BattleEvent Title(string actorId, bool isParty) => new(Frame, "NativeText", actorId, null, duration, text) { NativeMessageMode = 1, IsEnemyActionTitle = !isParty, NativeTextIdentity = identity };

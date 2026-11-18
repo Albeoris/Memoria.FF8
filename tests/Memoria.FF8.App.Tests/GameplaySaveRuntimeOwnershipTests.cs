@@ -112,6 +112,14 @@ public sealed class GameplaySaveRuntimeOwnershipTests
     }
 
     [Fact]
+    public void Victory_camera_selector_comes_from_the_selected_cold_process()
+    {
+        GameplayRuntimeMemberOwnership authority = GameplaySaveRuntimeOwnership.Members[typeof(NativeBattleRetainedMemory)][nameof(NativeBattleRetainedMemory.VictoryCameraActorSlot)];
+        Assert.Equal(GameplayRuntimeRestoration.SelectedResources, authority.Restoration);
+        Assert.Equal<byte?>(0, NativeBattleRetainedMemory.FromColdProcess().VictoryCameraActorSlot);
+    }
+
+    [Fact]
     public void Logical_projections_obey_every_declared_member_partition()
     {
         NativeMusicPlaybackState music = new(83, 51, 43, 3) { Mode0 = NativeMusicPlaybackMode.Midi, Mode1 = NativeMusicPlaybackMode.Wave, ConcertMask = 0x1234, BattleFirstLoadB8B7D4 = false };
@@ -152,6 +160,10 @@ public sealed class GameplaySaveRuntimeOwnershipTests
         Assert.Same(cold.ActionMemory, restored.ActionMemory);
         Assert.Same(cold.ActionPackets, restored.ActionPackets);
         Assert.Null(cold.SceneReplaySources);
+        IReadOnlyDictionary<string, string> schema = DiscoverSchema();
+        Assert.Contains(nameof(NativeBattleSceneReplaySource), schema.Keys);
+        Assert.Contains(nameof(BattleSceneScreenPoint), schema.Keys);
+        Assert.DoesNotContain(nameof(NativeBattleEffectMemory), schema.Keys);
     }
 
     [Fact]
