@@ -1349,8 +1349,8 @@ public sealed partial class BattleSession
             }
         }
         nativeReactionOrder = snapshot.NativeReactionOrder;
-        RestoreNativeTimedAction(snapshot.NativeTimedAction, expandedHostedEvent);
         ActiveAction = snapshot.ActiveAction;
+        RestoreNativeTimedAction(snapshot.NativeTimedAction, expandedHostedEvent);
         nativeEscape = snapshot.Escape;
         nativeEscape.Validate();
         RestoreDebugOutcome(snapshot, preparedTerminal);

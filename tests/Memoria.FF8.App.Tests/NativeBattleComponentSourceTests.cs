@@ -93,6 +93,7 @@ public sealed partial class NativeBattleComponentSourceTests
             77 => 126,
             79 => 122,
             110 => 74,
+            137 => 99,
             167 => 70,
             308 => 105,
             314 => 103,
@@ -104,7 +105,7 @@ public sealed partial class NativeBattleComponentSourceTests
 
     internal static EffectPreviewRequest CreateComponentRequest(ushort effect)
     {
-        return new(OriginalComponentEnemy(effect), effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 ? 142 : effect == 110 ? 3 : 0 };
+        return new(OriginalComponentEnemy(effect), effect == 112 ? (byte)1 : effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 ? 142 : effect == 110 ? 3 : effect == 137 ? 98 : 0 };
     }
 
     internal static BattleSession PrepareComponentSource(GameWorld world, EffectPreviewRequest request)
@@ -166,6 +167,18 @@ public sealed partial class NativeBattleComponentSourceTests
         if (effect == 110)
         {
             return PrepareOriginalEffect110Component(world, request);
+        }
+        if (effect == 112)
+        {
+            return PrepareOriginalEffect112Component(world, request);
+        }
+        if (effect == 137)
+        {
+            return PrepareOriginalEffect137Component(world, request);
+        }
+        if (effect is 141 or 159 or 160 or 161)
+        {
+            return PrepareOriginalEffect141Component(world, request);
         }
         if (effect == 308)
         {
