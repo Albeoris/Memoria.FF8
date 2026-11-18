@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using static Memoria.FF8.Runtime.NativeBattleEffect314Controller;
 using static Memoria.FF8.Runtime.NativeBattleEffect314Profile;
 
@@ -6,6 +8,70 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleDeferredArenaReadTests
 {
+    [Fact]
+    public void Factory_reads_share_one_validated_version_marker_and_hydration_removes_only_that_marker()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateOwnedRead([1, 2, 3, 4], new[] { true, true, true, true }, null, 2);
+        ConditionalWeakTable<NativeBattleEffectArena, object> validations = (ConditionalWeakTable<NativeBattleEffectArena, object>)typeof(NativeBattleEffectArena).GetField("ValidatedSnapshots", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        Assert.True(HasDeferredMarker(arena));
+        Assert.False(validations.TryGetValue(arena, out _));
+        for (int index = 0; index < 32; index++)
+        {
+            arena.Validate();
+            Assert.Equal((ushort)0x0201, arena.ReadUInt16(0));
+            Assert.Equal(2, arena.Version);
+        }
+        Assert.False(validations.TryGetValue(arena, out _));
+        Assert.Throws<InvalidDataException>(() => arena.Write(-1, new byte[] { 99 }));
+        Assert.True(HasDeferredMarker(arena));
+        NativeBattleEffectArena clone = arena with { };
+        Assert.False(HasDeferredMarker(arena));
+        Assert.False(HasDeferredMarker(clone));
+        Assert.Same(arena.Working, clone.Working);
+        Assert.Equal(2, clone.Version);
+        clone.WriteByte(0, 99);
+        Assert.Equal((byte)99, arena.ReadByte(0));
+        Assert.Equal(3, arena.Version);
+        NativeBattleEffectArena ordinary = new([new(0, [5])]);
+        ordinary.Validate();
+        Assert.True(validations.TryGetValue(ordinary, out _));
+        Assert.False(HasDeferredMarker(ordinary));
+    }
+
+    [Fact]
+    public void Factory_validation_rejects_contradictory_descriptors_and_clones_cannot_replace_validated_mutable_facts()
+    {
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectArena.CreateOwnedRead([1, 2, 3, 4], new[] { true, true, true, true }, ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty.Add(0, null), 2));
+        NativeBattleEffectArena invalid = new(default(ImmutableArray<NativeBattleEffectMemoryRegion>));
+        Assert.Throws<InvalidDataException>(() => invalid.ReadByte(0));
+        NativeBattleEffectArena invalidRegion = new([null!]);
+        Assert.Throws<InvalidDataException>(() => invalidRegion.Validate());
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateOwnedRead([1, 2, 3, 4], new[] { true, true, true, true }, null, 2);
+        arena.Validate();
+        Assert.Throws<InvalidOperationException>(() => arena with { UnknownRegions = [new(0, 1)] });
+        Assert.False(HasDeferredMarker(arena));
+        Assert.Equal((byte)1, arena.ReadByte(0));
+        Assert.Equal(2, arena.Version);
+    }
+
+    [Fact]
+    public void Failed_first_hydration_retains_the_validated_version_marker_and_can_retry_without_partial_changes()
+    {
+        NativeBattleEffectArena arena = NativeBattleEffectArena.CreateOwnedRead([1, 2, 3, 4], new[] { true, true, true, true }, null, 2);
+        using (NativeBattleTelemetry.BeginScope(new FailingHydrationSink()))
+        {
+            Assert.Throws<InvalidOperationException>(() => arena.WriteByte(0, 99));
+        }
+        Assert.True(arena.HasUnhydratedImport);
+        Assert.True(HasDeferredMarker(arena));
+        Assert.Equal(2, arena.Version);
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, arena.Read(0, 4));
+        arena.WriteByte(0, 99);
+        Assert.False(HasDeferredMarker(arena));
+        Assert.Equal(3, arena.Version);
+        Assert.Equal(new byte[] { 99, 2, 3, 4 }, arena.Read(0, 4));
+    }
+
     [Fact]
     public void Owned_import_reads_keep_raw_unknown_bytes_without_materializing_and_first_write_preserves_history()
     {
@@ -131,6 +197,24 @@ public sealed class NativeBattleDeferredArenaReadTests
         Assert.Equal(expected.StoredLength, actual.StoredLength);
         Assert.Equal(expected.EnumerateResourcePointers().OrderBy(pair => pair.Key).ToArray(), actual.EnumerateResourcePointers().OrderBy(pair => pair.Key).ToArray());
         Assert.Equal(expected.EnumerateExecutionReferences().OrderBy(pair => pair.Key).ToArray(), actual.EnumerateExecutionReferences().OrderBy(pair => pair.Key).ToArray());
+    }
+
+    private static bool HasDeferredMarker(NativeBattleEffectArena arena)
+    {
+        object table = typeof(NativeBattleEffectArena).GetField("DeferredImports", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        object?[] arguments = [arena, null];
+        return (bool)table.GetType().GetMethod("TryGetValue")!.Invoke(table, arguments)!;
+    }
+
+    private sealed class FailingHydrationSink : INativeBattleTelemetrySink
+    {
+        public void Record(int siteId, NativeBattleTrafficKind kind, long payloadBytes)
+        {
+            if (siteId == 1013 && kind == NativeBattleTrafficKind.ZeroFill)
+            {
+                throw new InvalidOperationException("Hydration allocation telemetry failed.");
+            }
+        }
     }
 
     private static NativeBattleEffectArena PreviousReadBytes(NativeBattleEffect314Frame frame, uint address, int length)

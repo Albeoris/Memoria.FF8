@@ -74,7 +74,8 @@ public sealed class NativeBattleEffect314GeometryReadScopeTests
             cpu = NativeBattleModelResourceView.WritePartySection(cpu, staging, pointer, face + 15, [marker]);
             scope.ObserveWrite(before, cpu, pointer, face + 15, [marker]);
             NativeBattleModelGeometrySource live = NativeBattleModelGeometrySource.OpenEditor(cpu, staging, pointer, (offset, length) => NativeBattleModelResourceView.Open(cpu, staging, pointer, bytes.Length).Read(offset, length));
-            NativeBattleModelGeometrySource scoped = NativeBattleModelGeometrySource.OpenEditor(cpu, staging, pointer, (offset, length) => scope.Read(cpu, staging, pointer, bytes.Length, offset, length));
+            byte[] ReadScoped(int offset, int length) => scope.Read(cpu, staging, pointer, bytes.Length, offset, length);
+            NativeBattleModelGeometrySource scoped = NativeBattleModelGeometrySource.OpenEditor(cpu, staging, pointer, ReadScoped, (offset, length) => NativeBattleEffect314TemporaryReads.Known(ReadScoped(offset, length)));
             NativeBattleEffect314MorphBodyStep expected = Draw(live);
             NativeBattleEffect314MorphBodyStep actual = Draw(scoped);
             Assert.Equal(NativeBattleTestSnapshots.Json(expected.Batch), NativeBattleTestSnapshots.Json(actual.Batch));

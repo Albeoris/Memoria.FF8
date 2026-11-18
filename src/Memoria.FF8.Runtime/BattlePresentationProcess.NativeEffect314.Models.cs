@@ -42,14 +42,16 @@ public sealed partial class BattlePresentationProcess
         if (mutable && pointer.Cpu is { IsOwnedResource: true })
         {
             NativeBattleModelGeometrySource initial = NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer, (_, _) => throw new InvalidOperationException());
-            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, pointer, (offset, length) => readScope is null
+            byte[] ReadMutable(int offset, int length) => readScope is null
                 ? NativeBattleModelResourceView.Open(NativeModelCpuResources!, frame.Staging!, pointer, checked(offset + length)).Read(offset, length)
-                : readScope.Read(NativeModelCpuResources!, frame.Staging!, pointer, initial.Owner.Length!.Value, offset, length));
+                : readScope.Read(NativeModelCpuResources!, frame.Staging!, pointer, initial.Owner.Length!.Value, offset, length);
+            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, pointer, ReadMutable, (offset, length) => NativeBattleEffect314TemporaryReads.Known(ReadMutable(offset, length)));
         }
         NativeBattleModelGeometrySource selected = NativeBattleModelGeometrySource.Open(cpu, frame.Staging!, pointer.Pin(cpu), (offset, length) => ReadNativeDeformedGeometry(bridge, pointer, offset, length));
         if (readScope is not null && selected.Owner.Cpu is { IsOwnedResource: true })
         {
-            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, selected.Owner, (offset, length) => readScope.Read(NativeModelCpuResources!, frame.Staging!, selected.Owner, selected.Owner.Length!.Value, offset, length));
+            byte[] ReadPinned(int offset, int length) => readScope.Read(NativeModelCpuResources!, frame.Staging!, selected.Owner, selected.Owner.Length!.Value, offset, length);
+            return NativeBattleModelGeometrySource.OpenEditor(cpu, frame.Staging!, selected.Owner, ReadPinned, (offset, length) => NativeBattleEffect314TemporaryReads.Known(ReadPinned(offset, length)));
         }
         return selected;
     }

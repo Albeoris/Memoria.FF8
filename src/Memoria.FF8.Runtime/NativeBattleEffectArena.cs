@@ -166,6 +166,10 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
         else if (snapshot || HasUnhydratedImport)
         {
+            if (!snapshot && DeferredImports.TryGetValue(this, out _))
+            {
+                return;
+            }
             _ = ValidatedSnapshots.GetValue(this, static arena =>
             {
                 arena.ValidateImport();
@@ -526,6 +530,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             throw new InvalidOperationException("Frozen arena snapshots cannot acquire working authority implicitly.");
         }
         ValidateImport();
+        bool hasDeferredImport = DeferredImports.TryGetValue(this, out DeferredImport? deferredImport);
         NativeBattleWorkingMemory result;
         if (initialRegions.IsEmpty && initialUnknown.IsEmpty && (initialPointers is null || initialPointers.Count == 0) && initialTextureFiles is null)
         {
@@ -534,13 +539,16 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
         else
         {
-            result = NativeBattleWorkingMemory.RestoreAtVersion(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles), DeferredImportVersion);
+            result = NativeBattleWorkingMemory.RestoreAtVersion(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles), deferredImport?.Version ?? 0);
         }
         initialRegions = [];
         initialUnknown = [];
         initialPointers = null;
         initialTextureFiles = null;
-        DeferredImports.Remove(this);
+        if (hasDeferredImport)
+        {
+            DeferredImports.Remove(this);
+        }
         return result;
     }
 
@@ -611,7 +619,21 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
     }
 
-    private bool IntersectsUnknown(int offset, int count) => count > 0 && initialUnknown.Any(region => region.Offset < offset + count && region.Offset + region.Length > offset);
+    private bool IntersectsUnknown(int offset, int count)
+    {
+        if (count <= 0)
+        {
+            return false;
+        }
+        foreach (NativeBattleEffectUnknownRegion region in initialUnknown)
+        {
+            if (region.Offset < offset + count && region.Offset + region.Length > offset)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private void RequireSnapshotEnumeration()
     {

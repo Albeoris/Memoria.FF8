@@ -62,10 +62,14 @@ public partial record NativeBattleEffectArena
             UnknownRegions = unknown?.ToImmutable() ?? [],
             ResourcePointers = pointers
         };
-        result.Validate();
-        if (version != 0)
+        if (result.HasUnhydratedImport)
         {
+            result.ValidateImport();
             DeferredImports.Add(result, new(version));
+        }
+        else
+        {
+            result.Validate();
         }
         return result;
     }

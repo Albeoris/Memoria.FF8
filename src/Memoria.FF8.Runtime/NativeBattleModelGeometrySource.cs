@@ -65,8 +65,13 @@ public readonly struct NativeBattleModelGeometrySource
 
     internal static NativeBattleModelGeometrySource OpenEditor(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, Func<int, int, byte[]> readCurrent)
     {
+        return OpenEditor(cpu, staging, pointer, readCurrent, null);
+    }
+
+    internal static NativeBattleModelGeometrySource OpenEditor(NativeBattleModelCpuResources cpu, NativeBattleFileStaging staging, NativeBattleResourcePointer pointer, Func<int, int, byte[]> readCurrent, Func<int, int, NativeBattleEffectArena>? readCurrentArena)
+    {
         NativeBattleModelGeometrySource initial = Open(cpu, staging, pointer, readCurrent);
-        return new(initial.Owner, readCurrent, initial.PresentationIdentity);
+        return new(initial.Owner, readCurrent, initial.PresentationIdentity, readCurrentArena);
     }
 
     public static NativeBattleModelGeometrySource OpenShared(NativeBattleResourcePointer pointer, Func<int, int, byte[]> read)

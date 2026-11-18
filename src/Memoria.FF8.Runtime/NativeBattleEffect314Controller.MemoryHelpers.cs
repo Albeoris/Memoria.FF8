@@ -124,7 +124,7 @@ public static partial class NativeBattleEffect314Controller
         {
             uint current = checked(address + (uint)copied);
             int count = RegionLength(frame, current, length - copied, out int poolIndex, out int stateKind);
-            NativeBattleEffectArena selected = CopyBytes(source, copied, NativeBattleEffectArena.Clear().MarkUnknown(0, count), 0, count);
+            NativeBattleEffectArena selected = NativeBattleEffect314TemporaryReads.Copy(source, copied, count);
             if (poolIndex >= 0)
             {
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];

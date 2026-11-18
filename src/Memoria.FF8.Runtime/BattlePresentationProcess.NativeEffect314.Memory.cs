@@ -88,7 +88,7 @@ public sealed partial class BattlePresentationProcess
             {
                 NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its physical CPU bank.");
                 (byte[] data, bool[] known) = NativeBattleModelResourceView.Open(cpu, frame.Staging!, new NativeBattleModelCpuReference((byte)bank, checked((int)(address - first))) { Layout = layout }, length).ReadSnapshot(0, length);
-                return NativeBattleEffectArena.Clear().WriteWithKnownness(0, data, known);
+                return NativeBattleEffectArena.CreateOwnedRead(data, known, null, length == 0 ? 0 : 1);
             }
         }
         return NativeBattleEffect314Controller.ReadBytes(frame, address, length);
