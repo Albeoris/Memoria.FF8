@@ -1,5 +1,6 @@
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Events;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -22,13 +23,16 @@ public static class NativeWeaponShopMenuProjection
                 data.SupportedActions.Add($"weapon-character:{id}");
             }
         }
-        foreach (byte offer in shop.AvailableRecipes)
+        foreach (byte offer in shop.AvailableRecipes.OrderByDescending(offer => offer & 0x3F))
         {
             int id = offer & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
             string availability = vitals is not null && vitals.Records[shop.SelectedCharacter].Weapon == id ? Text("shop.weapon.equipped", "Currently equipped") : shop.MissingMagazine(id) ? Text("shop.weapon.magazine-required", "Weapons Monthly recipe not read") : shop.MissingPreviousUpgrade(id) ? Text("shop.weapon.previous-required", "Previous weapon upgrade not obtained") : (offer & 0x80) != 0 ? Text("shop.weapon.available", "Materials and gil available") : Text("shop.weapon.unavailable", "Materials or gil missing");
             string itemId = $"weapon-{id}";
-            MenuItem item = new() { Id = itemId, Name = catalog?.WeaponName(id) ?? recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + "." };
+            int? equipped = vitals?.Records[shop.SelectedCharacter].Weapon;
+            bool available = (offer & 0x80) != 0 && !shop.MissingMagazine(id) && !shop.MissingPreviousUpgrade(id);
+            UiColor? color = equipped == id ? new UiColor(244, 244, 244) : !available || equipped is null ? null : id < equipped ? new UiColor(232, 184, 96) : new UiColor(112, 232, 144);
+            MenuItem item = new() { Id = itemId, Name = catalog?.WeaponName(id) ?? recipe.Name, Price = checked((int)shop.Price(id)), Description = availability + ".", TextColor = color };
             foreach (NativeItemStock material in recipe.Materials.Where(material => material.ItemId != 0))
             {
                 item.Materials.Add(new MenuMaterial(catalog?.ItemName(material.ItemId) ?? Format("fallback.item.name", "Item {0}", material.ItemId), catalog?.ItemIcon(material.ItemId), shop.Counts[material.ItemId], material.Count));

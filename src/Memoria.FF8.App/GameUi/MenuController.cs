@@ -602,6 +602,10 @@ public sealed partial class MenuController
         int next = count == 0 ? start : start + ((index - start) % count + count) % count;
         if (next != SelectedIndex)
         {
+            if (ScreenId == "shop-junk")
+            {
+                Message = "";
+            }
             SoundRequested?.Invoke(MenuSound.Move);
         }
         _selections[ScreenId] = next;

@@ -193,6 +193,7 @@ public sealed partial class MenuController
         Place(choices, Panel(SystemText("ui.buildweaponshop.panel.character", "CHARACTER"), characters), 0);
         UiList weapons = SecondaryCommands();
         weapons.Items = Data.Items.Select(item => item.Name).ToList();
+        weapons.ItemTextColor = index => Data.Items[index].TextColor;
         weapons.EnabledItems = Entries.Skip(characterCount).Select(entry => entry.Enabled).ToList();
         weapons.SecondaryItems = Data.Items.Select(item => Number(item.Price) + " G").ToList();
         weapons.AutoSecondaryWidth = true;

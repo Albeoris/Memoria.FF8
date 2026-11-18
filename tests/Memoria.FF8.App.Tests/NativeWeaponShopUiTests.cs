@@ -60,7 +60,7 @@ public sealed class NativeWeaponShopUiTests
         Assert.Equal(checked((int)shop.Gil), data.Currency);
         for (int index = 0; index < shop.AvailableRecipes.Length; index++)
         {
-            int id = shop.AvailableRecipes[index] & 0x3F;
+            int id = shop.AvailableRecipes.OrderByDescending(offer => offer & 0x3F).ElementAt(index) & 0x3F;
             NativeWeaponRecipe recipe = shop.Definitions.Recipes[id];
             MenuItem item = data.Items[index];
             Assert.Equal($"weapon-{id}", item.Id);
@@ -311,6 +311,74 @@ public sealed class NativeWeaponShopUiTests
         {
             Assert.Equal(remodeled.Shop.Counts[material.ItemId] - material.Count, returned.Shop.Counts[material.ItemId]);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WorkshopHelpFollowsSelectionAfterRejectedRemodel(bool pointer)
+    {
+        MenuData data = new();
+        data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Squall", InParty = true });
+        data.SupportedActions.Add("weapon-character:character-0");
+        data.Items.Add(new MenuItem { Id = "weapon-1", Name = "Shear Trigger", Description = "Materials or gil missing." });
+        data.Items.Add(new MenuItem { Id = "weapon-0", Name = "Revolver", Description = "Currently equipped." });
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => data, actions.Add);
+        controller.Open("shop-junk");
+        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(data.Items[0].Description, controller.Message);
+        if (pointer)
+        {
+            UiList weapons = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "commands");
+            weapons.SelectionChanged!(1);
+        }
+        else
+        {
+            controller.Navigate(MenuInput.Down);
+        }
+        Assert.Equal("weapon-0", controller.SelectedEntry!.Id);
+        Assert.Empty(controller.Message);
+        UiLabel[] labels = Descendants(controller.BuildView().Root).OfType<UiLabel>().ToArray();
+        Assert.Contains(labels, label => label.Text == data.Items[1].Description);
+        Assert.DoesNotContain(labels, label => label.Text == data.Items[0].Description);
+        Assert.Single(actions);
+    }
+
+    [Fact]
+    public void WorkshopColorsDistinguishEquippedAvailableUpgradesDowngradesAndUnavailableRecipes()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeWeaponShopDefinitions definitions = assets.ReadNativeWeaponShopDefinitions();
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy() with { Gil = 100000 };
+        int row = 0;
+        foreach (byte item in definitions.Recipes.Take(7).SelectMany(recipe => recipe.Materials).Where(material => material.ItemId != 0).Select(material => material.ItemId).Distinct())
+        {
+            economy.Items[row++] = new(item, 100);
+        }
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.Records[0] = vitals.Records[0] with { Weapon = 1 };
+        NativeWeaponRecipes recipes = assets.ReadNewGameWeaponRecipes() with { Bits = 0x7F };
+        var prepared = NativeWeaponShopTransaction.Begin(34, definitions, economy, vitals, recipes);
+        MenuData data = NativeWeaponShopMenuProjection.Build(prepared.Shop, prepared.Vitals);
+        Assert.Equal(Enumerable.Range(0, 7).Reverse().Select(id => $"weapon-{id}"), data.Items.Select(item => item.Id));
+        Assert.Equal(new UiColor(244, 244, 244), data.Items.Single(item => item.Id == "weapon-1").TextColor);
+        Assert.Equal(new UiColor(232, 184, 96), data.Items.Single(item => item.Id == "weapon-0").TextColor);
+        Assert.Equal(new UiColor(112, 232, 144), data.Items.Single(item => item.Id == "weapon-2").TextColor);
+        MenuController controller = new(() => data);
+        controller.Open("shop-junk");
+        UiList weapons = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "commands");
+        for (int index = 0; index < data.Items.Count; index++)
+        {
+            Assert.Equal(data.Items[index].TextColor, weapons.ItemTextColor!(index));
+        }
+        var poor = NativeWeaponShopTransaction.Begin(34, definitions, assets.ReadNewGameEconomy() with { Gil = 0 }, vitals, recipes);
+        MenuData unavailable = NativeWeaponShopMenuProjection.Build(poor.Shop, poor.Vitals);
+        Assert.Null(unavailable.Items.Single(item => item.Id == "weapon-0").TextColor);
+        Assert.Null(unavailable.Items.Single(item => item.Id == "weapon-2").TextColor);
+        Assert.Equal(new UiColor(244, 244, 244), unavailable.Items.Single(item => item.Id == "weapon-1").TextColor);
+        Assert.DoesNotContain("weapon-remodel:weapon-1", unavailable.SupportedActions);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

@@ -141,6 +141,7 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 
 public sealed class MenuItem
 {
+    public UiColor? TextColor { get; init; }
     public int MaximumQuantity { get; set; } = 100;
     public bool CanSell { get; set; } = true;
     public Dictionary<string, int> RecoveryTargetScores { get; set; } = new(StringComparer.Ordinal);
