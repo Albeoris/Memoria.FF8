@@ -75,14 +75,7 @@ public sealed partial class Ff7AutoPlayPolicy
             facts = projected;
             componentGuards[navigation.Key] = facts;
         }
-        AutoPlayEventAvailability availability = ReadComponentAvailability(State, navigation, observed, facts!);
-        if (remoteNavigationProbe is { } probe && navigation.Key != observation.NavigationKey && navigation.Key == probe.NavigationKey && observed.Id == probe.EventId && observed.ConditionSignature == probe.Condition)
-        {
-            // This provisional planner capability exists only in a detached
-            // candidate. Native physical admission remains unchanged.
-            return new(false, [], "detached-native-continuation:" + observed.ConditionSignature);
-        }
-        return availability;
+        return ReadComponentAvailability(State, navigation, observed, facts!);
     }
 
     internal static AutoPlayEventAvailability? ReadRetainedNavigationAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed)

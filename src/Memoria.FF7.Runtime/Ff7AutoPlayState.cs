@@ -16,6 +16,8 @@ public sealed record Ff7AutoPlayNavigationGuard(string VisitId, int Entity, int[
 public sealed record Ff7AutoPlayGatewayTopology(string NavigationKey, string EventId, string? ConditionSignature, int Revision, int SourceTriangle, int TargetTriangle);
 
 /// <summary>Observational planner state; native progress and execution remain owned by the session.</summary>
+public sealed record Ff7AutoPlaySourceRevalidationTask(string NavigationKey, string EventId, string Condition, string DepartureReceiptKey, bool ArrivalAcknowledged = false);
+
 public sealed class Ff7AutoPlayState
 {
     public int Version { get; set; } = 1;
@@ -28,6 +30,8 @@ public sealed class Ff7AutoPlayState
     public Dictionary<string, Ff7AutoPlayNavigationGuard> NavigationGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayGatewayTopology> GatewayTopology { get; set; } = new(StringComparer.Ordinal);
     public HashSet<string> NavigationProbes { get; set; } = new(StringComparer.Ordinal);
+    public Ff7AutoPlaySourceRevalidationTask? NativeRevalidation { get; set; }
+    public HashSet<string> SourceRevalidationAttempts { get; set; } = new(StringComparer.Ordinal);
     public AutoPlayTravelGoal? NavigationGoal { get; set; }
     public Dictionary<string, Ff7AutoPlayVisitGuard> VisitGuards { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, Ff7AutoPlayWorldVisitState> WorldVisits { get; set; } = new(StringComparer.Ordinal);
@@ -44,6 +48,15 @@ public sealed class Ff7AutoPlayState
 
     public void Validate()
     {
+        SourceRevalidationAttempts ??= new(StringComparer.Ordinal);
+        if (NativeRevalidation is { } task && (string.IsNullOrEmpty(task.NavigationKey) || string.IsNullOrEmpty(task.EventId) || task.Condition is null || task.DepartureReceiptKey is not { Length: 64 } || !task.DepartureReceiptKey.All(Uri.IsHexDigit)))
+        {
+            throw new InvalidDataException("The native source revalidation task is corrupt.");
+        }
+        if (SourceRevalidationAttempts.Count > 65536 || SourceRevalidationAttempts.Any(key => key is null || key.Length != 64 || !key.All(Uri.IsHexDigit)))
+        {
+            throw new InvalidDataException("The native source revalidation cache is corrupt.");
+        }
         if (Version != 1 || Coverage is null || Coverage.Visits.Count > 4096 || Coverage.Choices.Count > 4096 || Coverage.Visits.Any(visit => visit.Events.Count > 4096) || FrontierIdleSteps is < 0 or > Ff7AutoPlayPolicy.FrontierIdleLimit)
         {
             throw new InvalidDataException("The automatic play observation state is unsupported or corrupt.");

@@ -16,7 +16,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
     private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private string? movementEvent;
-    private AutoPlayPlanStep? latestNavigationPlan;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
     {
@@ -229,14 +228,48 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
+            if (State.NativeRevalidation is { } pendingTask && (State.DestinationField is not null || !observation.Events.Any(target => target.Id == pendingTask.EventId && target.ConditionFingerprint == pendingTask.Condition && target.AnalysisComplete) || !State.NavigationGuards.Values.Any(guard => guard.NavigationKey == pendingTask.NavigationKey && guard.EventId == pendingTask.EventId && guard.MovementFailure is not null)))
+            {
+                State.NativeRevalidation = null;
+                Publish();
+            }
+            if (CancelReleasedSourceRevalidation(State, observation, physicalGuards))
+            {
+                Publish();
+            }
+            if (!nativeProofCompleted && HasArrivedSourceRevalidation(State, observation))
+            {
+                if (!Ff7AutoplayDriver.HasNativeRouteClockContract(session))
+                {
+                    throw new NotSupportedException("The arrived native source cannot be revalidated without its exact clock contract.");
+                }
+                resumedNativePlan = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
+                if (driver.PlanningPending)
+                {
+                    return default;
+                }
+                nativeProofCompleted = true;
+            }
             bool CanSelectDestination(Ff7AutoPlayTarget target)
             {
                 AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
                 return ReadNavigationAvailability(currentNavigation, native, observation, driver, componentGuards)?.Unavailable != true;
             }
             string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections);
-            AutoPlayPlanStep? next = resumedNativePlan ?? planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
-            next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
+            string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
+            bool NeedsSourceRefresh(AutoPlayVisit visit) => revalidations.Any(item => item.NavigationKey == visit.Key) || NeedsVisitRefresh(visit);
+            bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);
+            AutoPlayPlanStep? next = resumedNativePlan;
+            if (!continuingRefresh)
+            {
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            }
+            if (refreshSource is not null)
+            {
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsSourceRefresh, refreshNavigationKey: refreshSource, allowRemoteConditionRoutes: true, preferredGoal: new(refreshSource), readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            }
             if (!IsDestinationPlan(State, next, observation.NavigationKey))
             {
                 next = null;
@@ -270,8 +303,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 ApplyNativePlanningAvailability(State, observation.VisitId, target.Id, resumedNativeAvailability);
             }
+            if (next is { RefreshVisitKey: string refreshKey, Goal.EventId: null } && revalidations.FirstOrDefault(item => item.NavigationKey == refreshKey) is { } selectedDebt)
+            {
+                State.NativeRevalidation ??= new(selectedDebt.NavigationKey, selectedDebt.EventId, selectedDebt.Condition, selectedDebt.ReceiptKey);
+            }
             planner.BeginEvent(observation.VisitId, target.Id);
-            latestNavigationPlan = next;
             RetainDestinationGoal(next, observation.NavigationKey, target.ConditionFingerprint);
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
             State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, SpatialOwner: target.SpatialOwner, DirectEffectOwner: target.DirectEffectOwner, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : [], EntryGuardFingerprints: physicalGuards.Where(entry => State.NavigationGuards.TryGetValue(entry.Key, out var guard) && guard.NavigationKey == observation.NavigationKey && guard.EventId == target.Id).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal));
@@ -456,6 +492,10 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         State.Active = null;
         if (State.NavigationGoal is { } goal && IsNavigationGoalCompleted(goal, active, observation.NavigationKey))
         {
+            if (goal.EventId is null && State.NativeRevalidation is { } task && task.NavigationKey == observation.NavigationKey)
+            {
+                State.NativeRevalidation = task with { ArrivalAcknowledged = true };
+            }
             State.NavigationGoal = null;
         }
         State.Status = "Native event completed; selecting the next frontier";

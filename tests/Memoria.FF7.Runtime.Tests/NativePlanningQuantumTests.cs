@@ -1,7 +1,5 @@
 using Memoria.AutoPlay;
 using Memoria.FF7.Runtime;
-using Memoria.FF7.Resources;
-using System.Text.Json;
 
 internal static class NativePlanningQuantumTests
 {
@@ -54,76 +52,6 @@ internal static class NativePlanningQuantumTests
         planner.Completed("source", transport.Id, entrySignature: "source", entrySignatureAuthoritative: true, entryAvailabilityFingerprint: coverage.AvailabilityFingerprint, availabilityFingerprintAuthoritative: true);
         Check(coverage.CompletedAvailabilityFingerprints.Contains(admitted.Fingerprint!) && !coverage.CompletedAvailabilityFingerprints.Contains("old-negative"), "Resumed admission consumed the pre-proof availability instead of its stable capability.");
         Console.WriteLine("Native planning quantum checks passed.");
-    }
-
-    internal static void RunOriginal()
-    {
-        string root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Original resources are required.");
-        string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_PLANNING_SAVE") ?? throw new InvalidOperationException("An external planning fixture is required.");
-        byte[] original = File.ReadAllBytes(path);
-        using MemoryStream input = new(original);
-        Ff7Installation installation = Ff7Installation.Discover(root);
-        using Ff7Session session = Ff7Session.Restore(installation, CombinedSessionCodec.Read(input).Ff7!);
-        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("A planning-only check requested a choice checkpoint."));
-        Ff7AutoplayDriver driver = new(session);
-        Ff7AutoPlayController controller = new(session, policy.ChooseInput, readPlanningProgress: () => policy.WorkProgress);
-        controller.Start();
-        for (int readiness = 0; readiness < 32 && !policy.NativePlanningPending && controller.Running; readiness++)
-        {
-            controller.Advance(1);
-        }
-        Check(policy.NativePlanningPending, "The fixture did not reach a native planning boundary: " + controller.Error + "; " + policy.Status);
-        string before = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
-        double maxResumeMilliseconds = 0;
-        for (int slice = 0; slice < 16; slice++)
-        {
-            driver.BeginPlanningStep();
-            long started = System.Diagnostics.Stopwatch.GetTimestamp();
-            policy.ChooseInput(driver);
-            maxResumeMilliseconds = Math.Max(maxResumeMilliseconds, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            Check(driver.PlanningPending && policy.NativePlanningPending, "The native search did not yield cooperatively.");
-            Check(before == Ff7AutoplayDriver.ReadNativeRouteFingerprint(session), "A pending search changed its live native source.");
-        }
-        long generation = policy.NativePlanningGeneration;
-        policy.State.DestinationField = 1;
-        driver.BeginPlanningStep();
-        policy.ChooseInput(driver);
-        Check(policy.NativePlanningGeneration > generation, "An intent change resumed a stale proof cursor.");
-        generation = policy.NativePlanningGeneration;
-        session.SetInput(0x1000, 0x1000);
-        driver.BeginPlanningStep();
-        policy.ChooseInput(driver);
-        Check(policy.NativePlanningGeneration > generation, "A native source change resumed a stale proof cursor.");
-        generation = policy.NativePlanningGeneration;
-        policy.State.PendingRestore = new("unused-planning-cancellation-fixture");
-        driver.BeginPlanningStep();
-        policy.ChooseInput(driver);
-        Check(!policy.NativePlanningPending && policy.NativePlanningGeneration == generation && policy.State.NativeRoute is null, "A pending restore resumed or installed an old native proof.");
-        policy.State.PendingRestore = null;
-        driver.BeginPlanningStep();
-        policy.ChooseInput(driver);
-        Check(policy.NativePlanningPending, "Clearing a cancelled intent did not start a fresh ephemeral search.");
-        Ff7SessionSave saved = session.Capture();
-        Check(!JsonSerializer.Serialize(saved).Contains("nativePlanning", StringComparison.Ordinal), "An ephemeral planning job entered the save contract.");
-        generation = policy.NativePlanningGeneration;
-        policy.State.NativeRoute = new("external-route", "external-condition", session.FieldGeneration, [new(Ff7AutoplayDriver.ReadNativeRouteFingerprint(session), default)], "unreached-terminal");
-        driver.BeginPlanningStep();
-        try
-        {
-            policy.ChooseInput(driver);
-        }
-        catch (NotSupportedException)
-        {
-            // Existing route admission rejects its unrelated absent owner.
-        }
-        Check(!policy.NativePlanningPending && policy.NativePlanningGeneration == generation, "An externally installed route was overwritten by an old proof cursor.");
-        policy.Dispose();
-        Check(!policy.NativePlanningPending, "Disposal retained a detached native planning branch.");
-        using Ff7Session cold = Ff7Session.Restore(installation, saved);
-        using Ff7AutoPlayPolicy coldPolicy = new(cold, (_, _) => throw new InvalidOperationException("A cold planning-only check requested a choice checkpoint."));
-        Check(!coldPolicy.NativePlanningPending, "A cold save reconstructed an ephemeral search cursor.");
-        Check(original.SequenceEqual(File.ReadAllBytes(path)), "Planning checks changed the external fixture.");
-        Console.WriteLine($"Native planning source/intent/restore cancellation, pending immutability, disposal and cold restart passed; 16 pending ChooseInput resumptions max {maxResumeMilliseconds:F3} ms. Atomic callback/setup/hash work is not preempted.");
     }
 
     private static void Check(bool value, string reason)

@@ -3,10 +3,20 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-event-frontier-original-only", StringComparer.Ordinal))
+{
+    throw new ArgumentException("The remote future-proof selector has been retired; use --native-source-revalidation-only or --native-upper-frontier-original-only.");
+}
+
+if (args.Contains("--native-source-revalidation-only", StringComparer.Ordinal))
+{
+    NativeSourceRevalidationTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-planning-original-only", StringComparer.Ordinal))
 {
-    NativePlanningQuantumTests.Run();
-    NativePlanningQuantumTests.RunOriginal();
+    Console.WriteLine("SKIP retired remote-search scheduling fixture; use --native-planning-quantum-only for cooperative scheduling or --native-upper-frontier-original-only for current source-refresh continuation.");
     return 0;
 }
 
@@ -25,12 +35,6 @@ if (args.Contains("--native-upper-frontier-original-only", StringComparer.Ordina
 if (args.Contains("--native-cycle-frontier-original-only", StringComparer.Ordinal))
 {
     NativeCycleFrontierTests.RunOriginal();
-    return 0;
-}
-
-if (args.Contains("--native-event-frontier-original-only", StringComparer.Ordinal))
-{
-    NativeEventFrontierTests.RunOriginal();
     return 0;
 }
 
