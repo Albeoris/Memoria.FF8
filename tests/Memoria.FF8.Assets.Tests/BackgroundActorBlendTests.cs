@@ -12,7 +12,7 @@ public sealed class BackgroundActorBlendTests
     [Theory]
     [InlineData(MapBlendMode.Average, 35, 5, 110)]
     [InlineData(MapBlendMode.Add, 70, 10, 220)]
-    [InlineData(MapBlendMode.Subtract, 0, 0, 180)]
+    [InlineData(MapBlendMode.Subtract, 0, 0, 187)]
     [InlineData(MapBlendMode.QuarterAdd, 17, 2, 205)]
     public void NearStpTexelsBlendOverActorsWhileOpaqueAndTransparentTexelsKeepTheirNativeMeaning(MapBlendMode mode, byte red, byte green, byte blue)
     {
@@ -27,7 +27,7 @@ public sealed class BackgroundActorBlendTests
         FieldRenderer renderer = new(field);
         Assert.Equal(new byte[] { red, green, blue, 255 }, Sample(renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
         fog[1, 1] = new Rgba32(70, 10, 20);
-        Assert.Equal(new byte[] { 70, 10, 20, 255 }, Sample(renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
+        Assert.Equal(mode == MapBlendMode.Subtract ? new byte[] { 0, 0, 187, 255 } : new byte[] { 70, 10, 20, 255 }, Sample(renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
         fog[1, 1] = default;
         Assert.Equal(new byte[] { 0, 0, 200, 255 }, Sample(renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero)));
         fog[1, 1] = new Rgba32(70, 10, 20, 128);

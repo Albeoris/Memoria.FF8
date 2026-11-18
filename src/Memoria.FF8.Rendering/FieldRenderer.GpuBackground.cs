@@ -12,7 +12,7 @@ public sealed partial class FieldRenderer
         long generation = backgroundPublication?.Generation ?? 0;
         if (backgroundAtlasGeneration != generation || !backgroundAtlas.ContainsKey(image))
         {
-            backgroundAtlas = BackgroundTextureAtlas.Build(background.Select(raster => raster.Tile.ResolvedImage));
+            backgroundAtlas = BackgroundTextureAtlas.Build(BackgroundAtlasImages());
             backgroundAtlasGeneration = generation;
         }
         return backgroundAtlas[image];

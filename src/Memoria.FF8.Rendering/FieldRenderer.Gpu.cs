@@ -37,6 +37,11 @@ public sealed partial class FieldRenderer
     {
         BackgroundTile tile = raster.Tile;
         bool blended = tile.Blend && tile.BlendMode != MapBlendMode.None;
+        bool subtractive = UsesSubtractivePalette(tile);
+        if (subtractive && !translucentPass)
+        {
+            return;
+        }
         if (translucentPass && !blended)
         {
             return;
@@ -45,15 +50,15 @@ public sealed partial class FieldRenderer
         {
             MapBlendMode.Average => TriangleBlend.HalfAdd,
             MapBlendMode.Add => TriangleBlend.Add,
-            MapBlendMode.Subtract => TriangleBlend.Subtract,
+            MapBlendMode.Subtract => TriangleBlend.Alpha,
             MapBlendMode.QuarterAdd => TriangleBlend.QuarterAdd,
             _ => TriangleBlend.Replace
         };
-        BackgroundAtlasRegion region = GpuBackgroundRegion(tile.ResolvedImage);
+        BackgroundAtlasRegion region = GpuBackgroundRegion(subtractive ? SubtractiveImage(tile) : tile.ResolvedImage);
         TriangleMaterial material = GpuMaterial(region.Image, blend, !translucentPass) with
         {
             MinimumAlpha = blended && !translucentPass ? 0.75f : 1f / 255,
-            MaximumAlpha = translucentPass ? 0.75f : 1
+            MaximumAlpha = translucentPass && !subtractive ? 0.75f : 1
         };
         Vector4 color = new(shade / 128, 1);
         if (inspection is { } quad)

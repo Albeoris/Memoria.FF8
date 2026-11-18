@@ -43,7 +43,7 @@ public sealed class BackgroundTileCoverageTests
                 {
                     MapBlendMode.Average => [52, 66, 80, 255],
                     MapBlendMode.Add => [104, 132, 160, 255],
-                    MapBlendMode.Subtract => [56, 68, 80, 255],
+                    MapBlendMode.Subtract => [75, 93, 112, 255],
                     MapBlendMode.QuarterAdd => [86, 108, 130, 255],
                     _ => [24, 32, 40, 255]
                 };

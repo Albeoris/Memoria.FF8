@@ -8,6 +8,48 @@ namespace Memoria.FF8.Assets;
 /// <summary>Preserves the original CLUT STP bit for textured primitive composition.</summary>
 public static class FieldBackgroundTileDecoder
 {
+    /// <summary>Retains source indices so a PC page's captured alpha palette can differ from the primitive CLUT.</summary>
+    public static FieldBackgroundIndexedSource? IndexedSource(MimFile mim, MapTile tile)
+    {
+        int texturePage = tile.PackedTexture | tile.Unknown << 8;
+        int depth = texturePage >> 7 & 3;
+        if (depth > 1)
+        {
+            return null;
+        }
+        byte[] indices = new byte[MimFile.TileSize * MimFile.TileSize];
+        int pageOffset = checked(tile.TextureId * 128);
+        int sourceX = depth == 1 ? tile.SourceX : tile.SourceX / 2;
+        int sourceWidth = depth == 1 ? MimFile.TileSize : (MimFile.TileSize + (tile.SourceX & 1) + 1) / 2;
+        for (int y = 0; y < MimFile.TileSize; y++)
+        {
+            int source = checked(pageOffset + (tile.SourceY + y) * mim.TextureStride + sourceX);
+            if (source < 0 || sourceWidth > mim.TextureData.Length - source)
+            {
+                throw new InvalidDataException("Original MAP tile addresses outside its MIM atlas.");
+            }
+            for (int x = 0; x < MimFile.TileSize; x++)
+            {
+                int nibble = x + (tile.SourceX & 1);
+                byte packed = mim.TextureData[source + (depth == 1 ? x : nibble / 2)];
+                indices[y * MimFile.TileSize + x] = depth == 1 ? packed : (byte)(packed >> (4 * (nibble & 1)) & 15);
+            }
+        }
+        return new((ushort)(texturePage & 0x19F), indices, mim.Colors);
+    }
+
+    /// <summary>4677D0's black RGB and exact ARGB4444 alpha for the PC alpha-only texture profile.</summary>
+    public static Rgba32 SubtractiveColor(ushort word, byte shift)
+    {
+        if (shift > 1)
+        {
+            throw new NotSupportedException("Native field alpha texture preparation requires the observed palette shift0 or1.");
+        }
+        int sum = (word & 31) + (word >> 5 & 31) + (word >> 10 & 31);
+        byte alpha = (byte)(17 * Math.Min(15, sum >> (shift + 3)));
+        return new(0, 0, 0, alpha);
+    }
+
     public static bool SupportsAtlas(IReadOnlyList<MapTile> tiles)
     {
         foreach (MapTile tile in tiles)

@@ -186,6 +186,7 @@ public sealed partial class FieldRenderer
         PrepareLighting(preparedActors);
         List<(float Depth, Action Draw)> translucent = [];
         QueueLightingReceivers(translucent);
+        List<TileRaster> visibleBackground = [];
         foreach (TileRaster raster in renderBackground)
         {
             BackgroundTile tile = raster.Tile;
@@ -203,6 +204,12 @@ public sealed partial class FieldRenderer
             {
                 continue;
             }
+            visibleBackground.Add(raster);
+        }
+        PrepareSubtractivePalettes(visibleBackground);
+        foreach (TileRaster raster in visibleBackground)
+        {
+            BackgroundTile tile = raster.Tile;
             if (InspectionCamera is not null)
             {
                 DrawInspectionBackdropTile(raster, translucent);
@@ -393,6 +400,11 @@ public sealed partial class FieldRenderer
     {
         BackgroundTile tile = raster.Tile;
         PixelImage image = tile.ResolvedImage;
+        bool subtractive = UsesSubtractivePalette(tile);
+        if (subtractive && !translucentPass)
+        {
+            return;
+        }
         // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
         Vector3 shade = BackgroundTileShade(tile);
         float tileDepth = raster.Depth;
@@ -407,12 +419,12 @@ public sealed partial class FieldRenderer
             int sourceRow = row.Source * image.Width;
             foreach (RasterRun column in raster.Columns)
             {
-                Rgba32 color = Shade(image.Pixels[sourceRow + column.Source], shade);
+                Rgba32 color = subtractive ? SubtractiveColor(tile, image, sourceRow + column.Source) : Shade(image.Pixels[sourceRow + column.Source], shade);
                 if (color.A == 0)
                 {
                     continue;
                 }
-                MapBlendMode blend = tile.Blend && color.A == 128 ? tile.BlendMode : MapBlendMode.None;
+                MapBlendMode blend = subtractive || tile.Blend && color.A == 128 ? tile.BlendMode : MapBlendMode.None;
                 if (translucentPass != (blend != MapBlendMode.None))
                 {
                     continue;
@@ -449,7 +461,14 @@ public sealed partial class FieldRenderer
                         {
                             if (tileDepth <= depth[index + x])
                             {
-                                WritePixel(index + x, color, blend);
+                                if (subtractive)
+                                {
+                                    WriteSubtractivePixel(index + x, color.A);
+                                }
+                                else
+                                {
+                                    WritePixel(index + x, color, blend);
+                                }
                             }
                         }
                     }

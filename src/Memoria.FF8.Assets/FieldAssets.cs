@@ -36,8 +36,30 @@ public sealed record FieldAssets(int Id, string Name, byte[] Jsm, IReadOnlyList<
 public sealed record BackgroundTile(int X, int Y, int Z, int AnimationId, int AnimationState, int Layer, MapBlendMode BlendMode, bool Blend, bool Draw, PixelImage Image)
 {
     public ushort PackedPalette { get; init; }
+    public FieldBackgroundIndexedSource? IndexedSource { get; init; }
     public Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>? Texture { get; init; }
     public PixelImage ResolvedImage => Texture?.Value.Image ?? Image;
+}
+
+/// <summary>Original indexed texels and shared MIM palettes, before PC texture preparation.</summary>
+public sealed record FieldBackgroundIndexedSource(ushort TexturePage, byte[] Indices, ushort[] PaletteWords)
+{
+    public ushort ReadColor(int texel, ushort clut)
+    {
+        clut &= 0x7FFF;
+        int row = (clut >> 6) - 240;
+        int column = (clut & 63) * 16 + Indices[texel];
+        if ((uint)row >= 16 || (uint)column >= 256)
+        {
+            throw new InvalidDataException("Field CLUT addresses outside the original MIM palettes.");
+        }
+        int index = checked(row * 256 + column);
+        if ((uint)index >= PaletteWords.Length)
+        {
+            throw new InvalidDataException("Field MIM palette words are incomplete.");
+        }
+        return PaletteWords[index];
+    }
 }
 public readonly record struct ProjectedPoint(float X, float Y, float Depth);
 
