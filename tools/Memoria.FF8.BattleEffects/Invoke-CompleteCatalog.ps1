@@ -321,6 +321,8 @@ try {
                             17 { 91 }
                             20 { 68 }
                             44 { 83 }
+                            64 { 124 }
+                            66 { 124 }
                             167 { 70 }
                             308 { 105 }
                             314 { 103 }
@@ -329,6 +331,9 @@ try {
                             default { 0 }
                         }
                         $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
+                        if ($effect -in @(64, 66)) {
+                            $componentRequest.stage_id = 142
+                        }
                         Write-Json $requestPath $componentRequest
                         $control = Join-Path $entryRoot 'control'
                         $env:MEMORIA_FF8_COMPONENT_PREVIEW_PATH = $requestPath

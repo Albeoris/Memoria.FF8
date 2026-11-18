@@ -87,6 +87,8 @@ public sealed partial class NativeBattleComponentSourceTests
             17 => 91,
             20 => 68,
             44 => 83,
+            64 => 124,
+            66 => 124,
             167 => 70,
             308 => 105,
             314 => 103,
@@ -98,7 +100,7 @@ public sealed partial class NativeBattleComponentSourceTests
 
     internal static EffectPreviewRequest CreateComponentRequest(ushort effect)
     {
-        return new(OriginalComponentEnemy(effect), 0, effect);
+        return new(OriginalComponentEnemy(effect), 0, effect) { StageId = effect is 64 or 66 ? 142 : 0 };
     }
 
     internal static BattleSession PrepareComponentSource(GameWorld world, EffectPreviewRequest request)
@@ -120,6 +122,14 @@ public sealed partial class NativeBattleComponentSourceTests
         if (effect == 44)
         {
             return PrepareOriginalEffect44Component(world, request);
+        }
+        if (effect == 64)
+        {
+            return PrepareOriginalEffect64Component(world, request);
+        }
+        if (effect == 66)
+        {
+            return PrepareOriginalEffect66Component(world, request);
         }
         if (effect == 308)
         {
