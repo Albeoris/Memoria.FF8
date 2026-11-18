@@ -34,9 +34,13 @@ public partial record NativeBattleEffectArena
         {
             return transaction!.TryReadExecutionReference(translated, width, out reference);
         }
-        if (!IsSnapshot)
+        if (!IsSnapshot && !HasUnhydratedImport)
         {
             return Working.TryReadExecutionReference(checked(workingOffset + offset), width, out reference);
+        }
+        if (HasUnhydratedImport)
+        {
+            Validate();
         }
         reference = null;
         int absolute = checked(capturedOffset + offset);
@@ -58,9 +62,13 @@ public partial record NativeBattleEffectArena
 
     internal IEnumerable<KeyValuePair<int, BattleExecutionReferenceEntry>> EnumerateCommittedExecutionReferences()
     {
-        if (!IsSnapshot)
+        if (!IsSnapshot && !HasUnhydratedImport)
         {
             return ProjectExecutionReferences(Working.EnumerateExecutionReferences(), workingOffset, bound);
+        }
+        if (HasUnhydratedImport)
+        {
+            Validate();
         }
         return ProjectExecutionReferences(capturedAuthority?.ExecutionReferences ?? ImmutableDictionary<int, BattleExecutionReferenceEntry>.Empty, capturedOffset, bound);
     }

@@ -57,7 +57,14 @@ public static partial class NativeBattleEffect314Controller
     public static NativeBattleEffectArena ReadBytes(NativeBattleEffect314Frame frame, uint address, int length)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
-        NativeBattleEffectArena result = NativeBattleEffectArena.Clear().MarkUnknown(0, length);
+        if (length > NativeBattleEffectArena.Length)
+        {
+            throw new InvalidDataException("Native effect memory access exceeds20DFAB8..21DFAB8.");
+        }
+        byte[] data = new byte[length];
+        Span<bool> known = length <= 512 ? stackalloc bool[length] : new bool[length];
+        ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder? pointers = null;
+        long version = length == 0 ? 0 : 1;
         int copied = 0;
         while (copied < length)
         {
@@ -91,10 +98,22 @@ public static partial class NativeBattleEffect314Controller
                 source = NativeBattleOffsetBodyContextMemory.Read(RequireStaging(frame), current, count);
                 offset = 0;
             }
-            result = CopyBytes(source, offset, result, copied, count);
+            source.ReadWithKnownness(offset, data.AsSpan(copied, count), known.Slice(copied, count));
+            version++;
+            if (source.MayHaveResourcePointers())
+            {
+                foreach ((int pointerOffset, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
+                {
+                    if (pointerOffset >= offset && pointerOffset - offset <= count - 4)
+                    {
+                        (pointers ??= ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>()).Add(copied + pointerOffset - offset, pointer);
+                        version++;
+                    }
+                }
+            }
             copied += count;
         }
-        return result;
+        return NativeBattleEffectArena.CreateOwnedRead(data, known, pointers?.ToImmutable(), version);
     }
 
     public static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena source, int length)

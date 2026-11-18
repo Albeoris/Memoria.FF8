@@ -665,7 +665,13 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
 
     public static NativeBattleWorkingMemory Restore(NativeBattleWorkingMemorySnapshot snapshot)
     {
+        return RestoreAtVersion(snapshot, 0);
+    }
+
+    internal static NativeBattleWorkingMemory RestoreAtVersion(NativeBattleWorkingMemorySnapshot snapshot, long initialVersion)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentOutOfRangeException.ThrowIfNegative(initialVersion);
         if (snapshot.LogicalLength < 0 || snapshot.StoredLength < 0 || snapshot.StoredLength > snapshot.LogicalLength || snapshot.Regions.IsDefault || snapshot.UnknownRegions.IsDefault || snapshot.ResourcePointers is null)
         {
             throw new InvalidDataException("Native working snapshot lacks its bounded detached storage.");
@@ -732,6 +738,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
             (result.pointers ??= new()).Add(entry.Key, pointer);
         }
         result.RestoreExecutionReferences(snapshot.ExecutionReferences);
+        result.version = initialVersion;
         return result;
     }
 

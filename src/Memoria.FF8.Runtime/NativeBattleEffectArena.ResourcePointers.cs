@@ -28,7 +28,7 @@ public partial record NativeBattleEffectArena
         {
             return transaction!.TryGetResourcePointer(routedOffset, out pointer);
         }
-        if (!IsSnapshot)
+        if (!IsSnapshot && !HasUnhydratedImport)
         {
             return Working.TryGetResourcePointer(workingOffset + offset, out pointer);
         }
@@ -73,7 +73,7 @@ public partial record NativeBattleEffectArena
         {
             return true;
         }
-        if (IsSnapshot)
+        if (IsSnapshot || HasUnhydratedImport)
         {
             Validate();
             return initialPointers is { Count: > 0 };
@@ -94,7 +94,7 @@ public partial record NativeBattleEffectArena
                 }
             }
         }
-        else if (IsSnapshot)
+        else if (IsSnapshot || HasUnhydratedImport)
         {
             Validate();
             if (initialPointers is not null)

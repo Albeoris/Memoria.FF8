@@ -96,7 +96,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
     [JsonIgnore] internal NativeBattleWorkingMemory Working => RetainedWorking();
     [JsonIgnore] internal int WorkingOffset => workingOffset;
     [JsonIgnore] internal int Bound => bound;
-    [JsonIgnore] internal int CommittedStoredLength => snapshot ? ImportExtent() : Math.Clamp(Working.StoredLength - workingOffset, 0, bound);
+    [JsonIgnore] internal int CommittedStoredLength => snapshot ? ImportExtent() : HasUnhydratedImport ? ValidatedImportExtent : Math.Clamp(Working.StoredLength - workingOffset, 0, bound);
     [JsonIgnore] public int StoredLength
     {
         get
@@ -108,7 +108,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
             return CommittedStoredLength;
         }
     }
-    [JsonIgnore] public long Version => snapshot ? 0 : Working.Version;
+    [JsonIgnore] public long Version => snapshot ? 0 : HasUnhydratedImport ? ValidatedImportVersion : Working.Version;
 
     public ImmutableArray<NativeBattleEffectMemoryRegion> Regions
     {
@@ -164,7 +164,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         {
             transaction.RequireActive();
         }
-        else if (snapshot)
+        else if (snapshot || HasUnhydratedImport)
         {
             _ = ValidatedSnapshots.GetValue(this, static arena =>
             {
@@ -252,7 +252,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         {
             transaction!.ReadInto(routedOffset, destination);
         }
-        else if (!snapshot)
+        else if (!snapshot && !HasUnhydratedImport)
         {
             Working.ReadInto(workingOffset + offset, destination);
         }
@@ -278,7 +278,7 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         {
             transaction!.ReadWithKnownness(routedOffset, destination, known);
         }
-        else if (!snapshot)
+        else if (!snapshot && !HasUnhydratedImport)
         {
             Working.ReadWithKnownness(workingOffset + offset, destination, known);
         }
@@ -534,12 +534,13 @@ public partial record NativeBattleEffectArena : INativeBattleStorageNode
         }
         else
         {
-            result = NativeBattleWorkingMemory.Restore(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles));
+            result = NativeBattleWorkingMemory.RestoreAtVersion(new(bound, true, ImportExtent(), initialRegions, initialUnknown, initialPointers ?? ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty, TextureFiles: initialTextureFiles), DeferredImportVersion);
         }
         initialRegions = [];
         initialUnknown = [];
         initialPointers = null;
         initialTextureFiles = null;
+        DeferredImports.Remove(this);
         return result;
     }
 
