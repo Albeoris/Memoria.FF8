@@ -381,6 +381,70 @@ public sealed class NativeWeaponShopUiTests
         Assert.DoesNotContain("weapon-remodel:weapon-1", unavailable.SupportedActions);
     }
 
+    [Theory]
+    [InlineData(300, 23)]
+    [InlineData(600, 46)]
+    public void MaterialShortagesMuteNamesAndColorOnlyOwnedCountsInAlignedColumns(float width, float fontSize)
+    {
+        MenuData data = new();
+        data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Squall", InParty = true });
+        data.SupportedActions.Add("weapon-character:character-0");
+        MenuItem weapon = new() { Id = "weapon-4", Name = "Twin Lance" };
+        weapon.Materials.AddRange([new("Dino Bone", null, 100, 1), new("Red Fang", null, 1, 2), new("Screw", null, 33, 12), new("Empty material", null, 0, 1), new("Exact material", null, 2, 2)]);
+        data.Items.Add(weapon);
+        MenuController controller = new(() => data, _ => { });
+        controller.Open("shop-junk");
+        controller.Navigate(MenuInput.Confirm);
+        UiList materials = Descendants(controller.BuildView().Root).OfType<UiList>().Single(list => list.Id == "weapon-materials");
+        materials.FontSize = fontSize;
+        materials.RowHeight = fontSize * 2;
+        materials.Arrange(new UiRect(0, 0, width, fontSize * 12));
+        BattleUiTests.TestCanvas canvas = new();
+        UiTheme theme = new();
+        materials.Draw(canvas, theme);
+        var separators = canvas.TextDraws.Where(draw => draw.Text == "/").ToArray();
+        Assert.Equal(weapon.Materials.Count, separators.Length);
+        Assert.Single(separators.Select(draw => draw.Bounds.X).Distinct());
+        float? ownedRight = null;
+        float? requiredLeft = null;
+        for (int index = 0; index < weapon.Materials.Count; index++)
+        {
+            MenuMaterial material = weapon.Materials[index];
+            bool enough = material.Owned >= material.Required;
+            var name = Assert.Single(canvas.TextDraws, draw => draw.Text == material.Name);
+            Assert.Equal(enough ? theme.Foreground : theme.Muted, name.Color);
+            var row = canvas.TextDraws.Where(draw => draw.Bounds.Y == separators[index].Bounds.Y && draw.Text != material.Name).ToArray();
+            Assert.Equal(3, row.Length);
+            Assert.Equal(enough ? new UiColor(112, 232, 144) : new UiColor(240, 96, 96), row[0].Color);
+            Assert.Equal(theme.Foreground, row[1].Color);
+            Assert.Equal(theme.Foreground, row[2].Color);
+            Assert.Equal(material.Owned.ToString(), row[0].Text);
+            Assert.Equal(material.Required.ToString(), row[2].Text);
+            ownedRight ??= row[0].Bounds.Right;
+            requiredLeft ??= row[2].Bounds.X;
+            Assert.Equal(ownedRight.Value, row[0].Bounds.Right, 3);
+            Assert.Equal(requiredLeft.Value, row[2].Bounds.X, 3);
+            Assert.True(row[0].Bounds.Right <= row[1].Bounds.X);
+            Assert.True(row[1].Bounds.Right <= row[2].Bounds.X);
+            Assert.True(row[2].Bounds.Right <= materials.Bounds.Right);
+            Assert.True(name.Bounds.Right <= row[0].Bounds.X);
+        }
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_MENU_UI_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            Directory.CreateDirectory(output);
+            using SkiaSharp.SKBitmap bitmap = new((int)width, (int)materials.Bounds.Height);
+            using (BattlePreviewCanvas preview = new(bitmap))
+            {
+                materials.Draw(preview, theme);
+            }
+            using SkiaSharp.SKImage image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using SkiaSharp.SKData png = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using FileStream file = File.Create(Path.Combine(output, $"workshop-materials-{width}.png"));
+            png.SaveTo(file);
+        }
+    }
+
     private static IEnumerable<UiElement> Descendants(UiElement root)
     {
         yield return root;

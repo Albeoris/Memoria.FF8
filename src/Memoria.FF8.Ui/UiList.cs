@@ -197,6 +197,9 @@ public sealed class UiList : UiElement
     public IList<string> SecondaryItems { get; set; } = new List<string>();
 
     public Func<int, UiColor?>? ItemTextColor { get; set; }
+    /// <summary>Optional measured secondary content, retaining SecondaryItems as the text representation.</summary>
+    public Func<IUiCanvas, int, float, UiSize>? MeasureSecondaryItem { get; set; }
+    public Action<IUiCanvas, int, float, UiRect, UiColor>? DrawSecondaryItem { get; set; }
     /// <summary>The fraction of the text area reserved for the secondary column.</summary>
     public float SecondaryWidth
     {
@@ -294,7 +297,7 @@ public sealed class UiList : UiElement
                 {
                     UiRect secondaryClip = new(secondaryLeft, row.Y, Math.Max(0, textRight - secondaryLeft), row.Height);
                     UiRect secondaryBounds = new(secondaryLeft, row.Y, textFlow == UiTextFlow.Wrap ? Math.Max(secondaryClip.Width, columns.SecondaryWrapWidth) : secondaryClip.Width, row.Height);
-                    if (SecondaryAlignment is UiAlignment.End or UiAlignment.Center)
+                    if (DrawSecondaryItem is null && SecondaryAlignment is UiAlignment.End or UiAlignment.Center)
                     {
                         UiSize? measured = TryMeasureText(canvas, SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, textFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : secondaryBounds.Width);
                         if (measured.HasValue)
@@ -313,7 +316,14 @@ public sealed class UiList : UiElement
                     canvas.PushClip(secondaryClip);
                     try
                     {
-                        canvas.Text(SecondaryItems[index], FontSize > 0 ? FontSize : theme.FontSize, secondaryBounds, textColor, UiAlignment.Center, textFlow);
+                        if (DrawSecondaryItem is { } drawSecondary)
+                        {
+                            drawSecondary(canvas, index, fontSize, secondaryClip, theme.Foreground);
+                        }
+                        else
+                        {
+                            canvas.Text(SecondaryItems[index], fontSize, secondaryBounds, textColor, UiAlignment.Center, textFlow);
+                        }
                     }
                     finally
                     {
@@ -606,9 +616,10 @@ public sealed class UiList : UiElement
             float maximumWidth = Math.Max(0, available - trailingWidth - leadingWidth - imageWidth);
             float measuredWidth = 0;
             bool measuredAll = true;
-            foreach (string secondary in SecondaryItems.Take(Items.Count))
+            for (int index = 0; index < Math.Min(SecondaryItems.Count, Items.Count); index++)
             {
-                UiSize? measured = TryMeasureText(canvas, secondary, FontSize > 0 ? FontSize : theme.FontSize, TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : maximumWidth);
+                float fontSize = FontSize > 0 ? FontSize : theme.FontSize;
+                UiSize? measured = MeasureSecondaryItem?.Invoke(canvas, index, fontSize) ?? TryMeasureText(canvas, SecondaryItems[index], fontSize, TextFlow == UiTextFlow.SingleLine ? float.PositiveInfinity : maximumWidth);
                 if (!measured.HasValue)
                 {
                     measuredAll = false;
@@ -691,7 +702,7 @@ public sealed class UiList : UiElement
             if (measurements[index] != measurement)
             {
                 UiSize? primary = TryMeasureText(canvas, measurement.Text, measurement.FontSize, measurement.PrimaryWidth);
-                UiSize? value = measurement.Secondary is null ? null : TryMeasureText(canvas, measurement.Secondary, measurement.FontSize, measurement.SecondaryWidth);
+                UiSize? value = measurement.Secondary is null ? null : MeasureSecondaryItem?.Invoke(canvas, index, measurement.FontSize) ?? TryMeasureText(canvas, measurement.Secondary, measurement.FontSize, measurement.SecondaryWidth);
                 textHeights[index] = Math.Max((primary?.Height ?? (measurement.IconCount > 0 ? measurement.FontSize : 0)) + (measurement.IconCount > 0 ? measurement.FontSize * 0.75f + 2 : 0), value?.Height ?? 0);
                 if (primary.HasValue && (measurement.Secondary is null || value.HasValue))
                 {

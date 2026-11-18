@@ -210,6 +210,7 @@ public sealed partial class MenuController
         weapons.Confirmed = index => Activate(index + characterCount);
         Place(choices, Panel(SystemText("ui.buildweaponshop.panel.weapon", "WEAPON"), weapons), 1);
         Place(page, choices, 1);
+        WeaponShopMaterialCounts counts = new(selected?.Materials ?? []);
         var materials = new UiList
         {
             Id = "weapon-materials",
@@ -217,6 +218,9 @@ public sealed partial class MenuController
             Items = selected?.Materials.Select(material => material.Name).ToList() ?? [],
             Images = selected?.Materials.Select(material => material.Icon).ToList() ?? [],
             SecondaryItems = selected?.Materials.Select(material => $"{material.Owned} / {material.Required}").ToList() ?? [],
+            EnabledItems = selected?.Materials.Select(material => material.Owned >= material.Required).ToList() ?? [],
+            MeasureSecondaryItem = counts.Measure,
+            DrawSecondaryItem = counts.Draw,
             AutoSecondaryWidth = true,
             ShowSelection = false,
             RowHeight = 42 * TextScale,
