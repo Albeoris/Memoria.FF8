@@ -63,13 +63,21 @@ public sealed class MeteorMotionTests
         for (int slot = 0; slot < 128; slot++)
         {
             MeteorMotionImpulse impulse = MeteorMotion.DescribeImpulse(slot);
-            Vector2 forward = ToFlight(MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.25));
-            Vector2 backward = ToFlight(MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.6));
-            Assert.InRange(forward.X, -0.003001f * 0.24f, -0.001999f * 0.24f);
-            Assert.InRange(backward.X, 0.003999f * 0.24f, 0.005001f * 0.24f);
+            Vector2 forwardScreen = MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.25);
+            Vector2 backwardScreen = MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds * 0.6);
+            Vector2 forward = ToFlight(forwardScreen);
+            Vector2 backward = ToFlight(backwardScreen);
+            Assert.InRange(forward.X, -0.060001f * 0.24f, -0.039999f * 0.24f);
+            Assert.InRange(backward.X, 0.079999f * 0.24f, 0.100001f * 0.24f);
+            Assert.True(forwardScreen.X < 0 && forwardScreen.Y > 0);
+            Assert.True(backwardScreen.X > 0 && backwardScreen.Y < 0);
+            Assert.InRange(forwardScreen.Length() / 0.24f * 200, 7.999f, 12.002f);
+            Assert.InRange(backwardScreen.Length() / 0.24f * 200, 15.999f, 20.002f);
             Assert.True(backward.X > -forward.X);
-            Assert.InRange(Math.Abs(forward.X + impulse.ForwardDistance), 0, 0.000000001);
-            Assert.InRange(Math.Abs(backward.X - impulse.BackwardDistance), 0, 0.000000001);
+            Assert.InRange(Math.Abs(forward.X + impulse.ForwardDistance), 0, 0.00000001);
+            Assert.InRange(Math.Abs(backward.X - impulse.BackwardDistance), 0, 0.00000001);
+            AssertFlightBounds(forwardScreen);
+            AssertFlightBounds(backwardScreen);
             Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(impulse.StartSeconds - 0.01));
             Assert.Equal(Vector2.Zero, MeteorMotion.SampleScreenOffset(impulse.StartSeconds + impulse.ExcursionDurationSeconds + 0.01));
         }
@@ -201,7 +209,7 @@ public sealed class MeteorMotionTests
     private static void AssertFlightBounds(Vector2 screen)
     {
         Vector2 flight = ToFlight(screen);
-        Assert.InRange(flight.X, -0.003001f * 0.24f, 0.005001f * 0.24f);
-        Assert.InRange(Math.Abs(flight.Y), 0, 0.001001f * 0.24f);
+        Assert.InRange(flight.X, -0.060001f * 0.24f, 0.100001f * 0.24f);
+        Assert.InRange(Math.Abs(flight.Y), 0, 0.00000001f);
     }
 }

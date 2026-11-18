@@ -17,7 +17,7 @@ public static class MeteorMotion
     {
         MeteorMotionImpulse impulse = CurrentImpulse(seconds, out double age);
         double response = AngularResponse(age, impulse.AngularDurationSeconds);
-        Vector2 offset = ScreenOffset(impulse, age, response);
+        Vector2 offset = ScreenOffset(impulse, age);
         float spin = (float)(seconds % 450 * 0.8 * DegreesToRadians);
         float tiltY = (float)(impulse.PeakTiltRadians * response * impulse.TiltDirection.X);
         float tiltZ = (float)(impulse.PeakTiltRadians * response * impulse.TiltDirection.Y);
@@ -28,7 +28,7 @@ public static class MeteorMotion
     public static Vector2 SampleScreenOffset(double seconds)
     {
         MeteorMotionImpulse impulse = CurrentImpulse(seconds, out double age);
-        return ScreenOffset(impulse, age, AngularResponse(age, impulse.AngularDurationSeconds));
+        return ScreenOffset(impulse, age);
     }
 
     /// <summary>Describes one isolated impulse. Slot indices extend in both time directions; event parameters repeat after 4096 slots.</summary>
@@ -40,9 +40,8 @@ public static class MeteorMotion
             0.4 + 0.4 * Hash(seed, 1), 1.6 + 0.4 * Hash(seed, 2),
             (0.15 + 0.15 * Hash(seed, 4)) * DegreesToRadians,
             new((float)Math.Cos(direction), (float)Math.Sin(direction)),
-            (0.002 + 0.001 * Hash(seed, 5)) * Radius,
-            (0.004 + 0.001 * Hash(seed, 6)) * Radius,
-            (2 * Hash(seed, 7) - 1) * 0.001 * Radius);
+            (0.04 + 0.02 * Hash(seed, 5)) * Radius,
+            (0.08 + 0.02 * Hash(seed, 6)) * Radius);
     }
 
     private static MeteorMotionImpulse CurrentImpulse(double seconds, out double age)
@@ -77,7 +76,7 @@ public static class MeteorMotion
         return decayTime * Math.Exp(1 - decayTime) * fade;
     }
 
-    private static Vector2 ScreenOffset(MeteorMotionImpulse impulse, double age, double angularResponse)
+    private static Vector2 ScreenOffset(MeteorMotionImpulse impulse, double age)
     {
         if (age <= 0 || age >= impulse.ExcursionDurationSeconds)
         {
@@ -97,9 +96,9 @@ public static class MeteorMotion
         {
             u = impulse.BackwardDistance * (1 - Smooth((phase - 0.6) / 0.4));
         }
-        double v = impulse.TransverseDistance * angularResponse;
+        // Chase lag follows the visible flight diagonal, with no transverse or depth component.
         const double determinant = 0.94 * 0.94 + 0.341 * 0.341;
-        return new((float)((0.94 * u + 0.341 * v) / determinant), (float)((-0.341 * u + 0.94 * v) / determinant));
+        return new((float)(0.94 * u / determinant), (float)(-0.341 * u / determinant));
     }
 
     private static double Smooth(double value)
@@ -138,4 +137,4 @@ public static class MeteorMotion
 public readonly record struct MeteorMotionSample(Vector2 ScreenOffset, Vector3 AxisX, Vector3 AxisY, Vector3 AxisZ);
 
 /// <summary>Immutable event parameters for inspecting the sparse angular impulse and its longer catch-up excursion.</summary>
-public readonly record struct MeteorMotionImpulse(double StartSeconds, double AngularDurationSeconds, double ExcursionDurationSeconds, double PeakTiltRadians, Vector2 TiltDirection, double ForwardDistance, double BackwardDistance, double TransverseDistance);
+public readonly record struct MeteorMotionImpulse(double StartSeconds, double AngularDurationSeconds, double ExcursionDurationSeconds, double PeakTiltRadians, Vector2 TiltDirection, double ForwardDistance, double BackwardDistance);
