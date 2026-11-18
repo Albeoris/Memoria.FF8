@@ -236,6 +236,65 @@ public sealed class NativeBattleGeometryRegistersTests
     }
 
     [Fact]
+    public void Projection_accumulator_defers_input_validation_until_the_first_projection()
+    {
+        NativeBattleGeometryRegisterStep invalid = Seed() with { Colors = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [] } };
+        NativeBattleGeometry.LoadedVector0ProjectionAccumulator accumulator = new(invalid, Identity());
+        Assert.Same(invalid, accumulator.Publish());
+        Assert.Throws<InvalidDataException>(() => accumulator.Project(new(0, 0, 1), Projection(100), 0, 0));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(37)]
+    public void Projection_accumulator_matches_public_steps_FIFO_unknowns_overflow_and_sequential_scale_feedback(int count)
+    {
+        foreach (bool scaled in new[] { false, true })
+        {
+            NativeBattleGeometryRegisterStep original = Seed();
+            NativeBattleActionMatrix matrix = new([8192, -4096, 1024, -2048, 4096, short.MinValue, 4096, 0, 8192], int.MaxValue, int.MinValue, 70000, 4096);
+            original = original with
+            {
+                Geometry = NativeBattleGeometry.LoadMatrix(original.Geometry, matrix, true, true, null) with { Sxy = [null, 2, null], Sz = [1, null, 3, null], Lzcs = 0x80000000, Lzcr = null },
+                Colors = original.Colors with { Rgb = [null, 2, null], Material = null, Ir0 = null }
+            };
+            string before = JsonSerializer.Serialize(original);
+            NativeBattleGeometryRegisterStep sequential = original;
+            NativeBattleGeometry.LoadedVector0ProjectionAccumulator accumulator = new(original, NativeBattleGeometry.CaptureMatrix(original.Geometry));
+            NativeBattleVector[] points = [new(0, 0, 0), new(short.MinValue, short.MaxValue, -1), new(short.MaxValue, short.MinValue, short.MinValue), new(1, -2, short.MaxValue)];
+            int sequentialScaleX = 8192;
+            int accumulatedScaleX = sequentialScaleX;
+            short dqa = scaled ? short.MinValue : short.MaxValue;
+            int dqb = scaled ? int.MaxValue : int.MinValue;
+            for (int index = 0; index < count; index++)
+            {
+                NativeBattleVector point = points[index % points.Length];
+                NativeBattleVector sequentialPoint = scaled ? Scale(point, sequentialScaleX) : point;
+                NativeBattleVector accumulatedPoint = scaled ? Scale(point, accumulatedScaleX) : point;
+                sequential = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(sequential, 0, sequentialPoint, 0), Projection(511), dqa, dqb);
+                NativeBattleModuleDepthCueVertex projected = accumulator.Project(accumulatedPoint, Projection(511), dqa, dqb);
+                Assert.Equal(sequential.Geometry.Sxy[2], projected.Projected.Screen);
+                Assert.Equal(sequential.Geometry.Sz[3], projected.Projected.Depth);
+                Assert.Equal(sequential.Colors.Flags, projected.Projected.Flags);
+                Assert.Equal(sequential.Colors.Ir0, projected.Cue);
+                sequentialScaleX = unchecked((int)(sequential.Colors.Flags!.Value << 4));
+                accumulatedScaleX = unchecked((int)(projected.Projected.Flags << 4));
+            }
+            Assert.Equal(sequentialScaleX, accumulatedScaleX);
+            Assert.Equal(JsonSerializer.Serialize(sequential), JsonSerializer.Serialize(accumulator.Publish()));
+            Assert.Equal(before, JsonSerializer.Serialize(original));
+        }
+
+        static NativeBattleVector Scale(NativeBattleVector point, int scaleX)
+        {
+            return new(unchecked((short)(unchecked(point.X * scaleX) >> 12)), unchecked((short)(unchecked(point.Y * -2048) >> 12)), unchecked((short)(unchecked(point.Z * 8192) >> 12)));
+        }
+    }
+
+    [Fact]
     public void Triple_projection_keeps_only_final_vertex_IR_saturation_but_accumulates_screen_flags()
     {
         NativeBattleGeometryRegisterStep original = Seed();

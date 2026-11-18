@@ -94,6 +94,7 @@ public static class NativeBattleScriptedMeshPreparation
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
         System.Numerics.Vector3[]? pilotVertices = pilotIdentity is null ? null : new System.Numerics.Vector3[vertices];
         NativeBattleActionMatrix projectionMatrix = NativeBattleGeometry.CaptureMatrix(step.Geometry);
+        NativeBattleGeometry.LoadedVector0ProjectionAccumulator projectedVertices = new(step, projectionMatrix);
         for (int index = 0; index < vertices; index++)
         {
             byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(source + (uint)(index * 8)), 6), 6);
@@ -106,10 +107,9 @@ public static class NativeBattleScriptedMeshPreparation
             {
                 pilotVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(prepared.Matrix, point), projection);
             }
-            step = NativeBattleGeometry.ProjectLoadedVector0(step, projectionMatrix, point, projection, dqa, dqb);
-            registers = step.Colors;
-            NativeBattleModuleProjectedVertex projected = new(step.Geometry.Sxy[2]!.Value, unchecked((ushort)step.Geometry.Sz[3]!.Value), registers.Flags ?? throw new NotSupportedException("Native mesh projection requires its current flags."));
-            uint cue = registers.Ir0 ?? throw new NotSupportedException("Native mesh projection requires its current depth cue.");
+            NativeBattleModuleDepthCueVertex projectedVertex = projectedVertices.Project(point, projection, dqa, dqb);
+            NativeBattleModuleProjectedVertex projected = projectedVertex.Projected;
+            uint cue = projectedVertex.Cue;
             uint mode = frame.ReadTemporaryDword(0x90) & 0x60;
             int bias = unchecked((int)frame.ReadTemporaryDword(0x94));
             int bucket = mode == 0 ? projected.Depth >> 2 : (mode & 0x20) != 0 ? bias : unchecked((projected.Depth >> 2) + bias);
@@ -134,9 +134,11 @@ public static class NativeBattleScriptedMeshPreparation
                 scaleX = unchecked((int)shiftedFlags);
             }
             BinaryPrimitives.WriteUInt16LittleEndian(record.AsSpan(4), unchecked((ushort)bucket));
-            frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(work + (uint)(index * 8)), 8), record).Write(ArenaOffset(unchecked(cueWork + (uint)(index * 8)), 4), BitConverter.GetBytes(cue)) };
+            frame.Arena.Write(ArenaOffset(unchecked(work + (uint)(index * 8)), 8), record).Write(ArenaOffset(unchecked(cueWork + (uint)(index * 8)), 4), BitConverter.GetBytes(cue));
             depthOwner = depthOwner.Write(index * 4, BitConverter.GetBytes((uint)projected.Depth));
         }
+        step = projectedVertices.Publish();
+        registers = step.Colors;
         if (ReadSlot(frame, 0xE1, 1)[0] != 0)
         {
             if (normals == 0)
@@ -163,7 +165,7 @@ public static class NativeBattleScriptedMeshPreparation
                 }
                 registers = NativeBattleScriptedNormalColor.Transform4601B0(normalLighting, Vector(raw), material, registers, normalInput);
                 uint color = registers.Rgb[2] ?? throw new NotSupportedException("Native cinematic normal shader did not publish RGB2.");
-                frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color)) };
+                frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color));
             }
         }
         if (arenaTransaction is not null)

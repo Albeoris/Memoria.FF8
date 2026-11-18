@@ -7,6 +7,71 @@ namespace Memoria.FF8.Runtime;
 public static class NativeBattleGeometry
 {
     private readonly record struct LoadedVector0(ImmutableArray<byte> Data, ImmutableArray<bool> Known);
+    private readonly record struct ProjectionControls(uint Mac0, uint Ir0, uint Flags);
+
+    internal struct LoadedVector0ProjectionAccumulator
+    {
+        private readonly NativeBattleGeometryRegisterStep initial;
+        private readonly NativeBattleActionMatrix matrix;
+        private bool projected;
+        private uint? sxy0;
+        private uint? sxy1;
+        private uint? sxy2;
+        private uint? sz0;
+        private uint? sz1;
+        private uint? sz2;
+        private uint? sz3;
+        private NativeBattleVector lastVector;
+        private NativeBattleModuleProjectionObservation lastObservation;
+        private ProjectionControls lastControls;
+
+        internal LoadedVector0ProjectionAccumulator(NativeBattleGeometryRegisterStep initial, NativeBattleActionMatrix matrix)
+        {
+            this = default;
+            this.initial = initial;
+            this.matrix = matrix;
+        }
+
+        internal NativeBattleModuleDepthCueVertex Project(NativeBattleVector vector, NativeBattleCameraProjection projection, short dqa, int dqb)
+        {
+            if (!projected)
+            {
+                Validate(initial);
+                sxy0 = initial.Geometry.Sxy[0];
+                sxy1 = initial.Geometry.Sxy[1];
+                sxy2 = initial.Geometry.Sxy[2];
+                sz0 = initial.Geometry.Sz[0];
+                sz1 = initial.Geometry.Sz[1];
+                sz2 = initial.Geometry.Sz[2];
+                sz3 = initial.Geometry.Sz[3];
+            }
+            NativeBattleModuleProjectionObservation observed = NativeBattleModuleProjection.Observe45FE10(matrix, vector, projection);
+            ProjectionControls controls = CalculateProjectionControls(observed, observed.Projected.Flags, dqa, dqb);
+            sxy0 = sxy1;
+            sxy1 = sxy2;
+            sxy2 = observed.Projected.Screen;
+            sz0 = sz1;
+            sz1 = sz2;
+            sz2 = sz3;
+            sz3 = observed.Projected.Depth;
+            lastVector = vector;
+            lastObservation = observed;
+            lastControls = controls;
+            projected = true;
+            return new(observed.Projected with { Flags = controls.Flags }, controls.Ir0) { Ir2 = (short)Math.Clamp(observed.Y, short.MinValue, short.MaxValue) };
+        }
+
+        internal readonly NativeBattleGeometryRegisterStep Publish()
+        {
+            if (!projected)
+            {
+                return initial;
+            }
+            Span<byte?> bytes = stackalloc byte?[8];
+            PackVector(bytes, lastVector, 0);
+            return PublishProjectionState(initial, lastObservation, lastControls, [sxy0, sxy1, sxy2], [sz0, sz1, sz2, sz3], CaptureVector0(bytes));
+        }
+    }
 
     public static NativeBattleGeometryRegisterStep LoadDiagonal45DC70(NativeBattleGeometryRegisterStep step, NativeBattleVector vector)
     {
@@ -210,6 +275,11 @@ public static class NativeBattleGeometry
 
     private static NativeBattleGeometryRegisterStep PublishProjection(NativeBattleGeometryRegisterStep step, NativeBattleModuleProjectionObservation observed, uint flags, short dqa, int dqb, ImmutableArray<uint?> sxy, ImmutableArray<uint?> sz, LoadedVector0? loadedVector = null)
     {
+        return PublishProjectionState(step, observed, CalculateProjectionControls(observed, flags, dqa, dqb), sxy, sz, loadedVector);
+    }
+
+    private static ProjectionControls CalculateProjectionControls(NativeBattleModuleProjectionObservation observed, uint flags, short dqa, int dqb)
+    {
         double cue = (double)dqa * observed.Factor;
         cue *= 65536d;
         cue += dqb;
@@ -218,11 +288,21 @@ public static class NativeBattleGeometry
         {
             flags |= 0x1000;
         }
-        NativeBattleScriptedColorRegisters colors = PublishMac(step.Colors, observed.X, observed.Y, observed.Z, flags, (uint)Math.Clamp(ir0, 0, 4095), loadedVector);
-        return new(step.Geometry with { Sxy = sxy, Sz = sz, Mac0 = unchecked((uint)NativePrecision53.RoundInteger(cue)) }, colors);
+        return new(unchecked((uint)NativePrecision53.RoundInteger(cue)), (uint)Math.Clamp(ir0, 0, 4095), CalculateMacFlags(observed.X, observed.Y, observed.Z, flags));
+    }
+
+    private static NativeBattleGeometryRegisterStep PublishProjectionState(NativeBattleGeometryRegisterStep step, NativeBattleModuleProjectionObservation observed, ProjectionControls controls, ImmutableArray<uint?> sxy, ImmutableArray<uint?> sz, LoadedVector0? loadedVector)
+    {
+        NativeBattleScriptedColorRegisters colors = PublishMacState(step.Colors, observed.X, observed.Y, observed.Z, controls.Flags, controls.Ir0, loadedVector);
+        return new(step.Geometry with { Sxy = sxy, Sz = sz, Mac0 = controls.Mac0 }, colors);
     }
 
     private static NativeBattleScriptedColorRegisters PublishMac(NativeBattleScriptedColorRegisters colors, int x, int y, int z, uint flags, uint? ir0 = null, LoadedVector0? loadedVector = null)
+    {
+        return PublishMacState(colors, x, y, z, CalculateMacFlags(x, y, z, flags), ir0, loadedVector);
+    }
+
+    private static uint CalculateMacFlags(int x, int y, int z, uint flags)
     {
         ReadOnlySpan<int> values = stackalloc int[] { x, y, z };
         ReadOnlySpan<uint> limits = stackalloc uint[] { 0x81000000, 0x80800000, 0x00400000 };
@@ -233,6 +313,11 @@ public static class NativeBattleGeometry
                 flags |= limits[lane];
             }
         }
+        return flags;
+    }
+
+    private static NativeBattleScriptedColorRegisters PublishMacState(NativeBattleScriptedColorRegisters colors, int x, int y, int z, uint flags, uint? ir0, LoadedVector0? loadedVector)
+    {
         return colors with
         {
             Mac = [(int?)x, y, z],
