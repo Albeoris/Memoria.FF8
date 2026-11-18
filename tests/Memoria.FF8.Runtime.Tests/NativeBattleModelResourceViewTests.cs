@@ -102,6 +102,7 @@ public sealed class NativeBattleModelResourceViewTests
     {
         NativeBattlePartyCpuLayout layout = remastered ? NativeBattlePartyCpuLayout.Remastered : NativeBattlePartyCpuLayout.Classic;
         NativeBattleModelCpuResources cpu = NativeBattleModelCpuResources.Unknown() with { Cpu = NativeBattleModelCpuBanks.Unknown(layout) };
+        cpu = cpu.BindPartyOwner((BattlePartyModelOwner)OriginalOwner(1), NativeBattleModelSlot.Decode(1));
         NativeBattleFileStaging staging = NativeBattleFileStaging.Unknown();
         (cpu, staging) = Load(cpu, staging, Source(false, 2, 11), 0, null);
         (cpu, staging) = Load(cpu, staging, Source(true, 3, 22), 0, 1);
@@ -117,7 +118,7 @@ public sealed class NativeBattleModelResourceViewTests
         NativeBattleGraphicsModel model = new(2) { ModelId4 = 0, Flags2 = 4, ActiveResourceRow100 = 0, OriginalResourceRow104 = 0, LinkedTextureResourceIndex = 1, LinkedTransform = new(new(0, 0, 0), new(0, 0, 0)), SequenceState = new() { Default2 = 6 } };
         NativeBattleVictoryResourceBinding bound = NativeBattleVictoryResources.Bind5022C0(staging, cpu, model, row, directory);
         NativeBattleGraphicsResource original = new([0, 0]) { AnimationFrames = [], Geometry = [new([], [])], LinkedGeometry = [new([], [])] };
-        Pilot restored = NativeBattleTestSnapshots.RestoreJson<Pilot>(NativeBattleTestSnapshots.Json(new Pilot(cpu, bound.Staging, bound.Model)));
+        Pilot restored = NativeBattleTestSnapshots.Independent(new Pilot(cpu, bound.Staging, bound.Model));
         NativeBattleGraphicsResource resolved = NativeBattleVictoryResources.Resolve(restored.Staging, restored.Cpu, restored.Model, original);
         Assert.Equal((byte)11, resolved.PoseSource!.Skeleton[2]);
         Assert.Equal((byte)22, resolved.LinkedPoseSource!.Skeleton[2]);

@@ -169,55 +169,78 @@ internal sealed record NativeBattleModelResourceStorage(ImmutableArray<NativeBat
 
     private NativeBattleModelResourceStorage Replace(int offset, int length, ReadOnlySpan<NativeBattleModelResourceSegment> replacements)
     {
+        int count = LayoutReplacement(offset, length, replacements, null);
+        NativeBattleModelResourceSegment[] result = new NativeBattleModelResourceSegment[count];
+        LayoutReplacement(offset, length, replacements, result);
+        return new(ImmutableCollectionsMarshal.AsImmutableArray(result));
+    }
+
+    private int LayoutReplacement(int offset, int length, ReadOnlySpan<NativeBattleModelResourceSegment> replacements, NativeBattleModelResourceSegment[]? destination)
+    {
         int end = offset + length;
         bool inserted = false;
-        ImmutableArray<NativeBattleModelResourceSegment>.Builder result = ImmutableArray.CreateBuilder<NativeBattleModelResourceSegment>();
+        SegmentLayout result = new(destination);
         foreach (NativeBattleModelResourceSegment segment in Segments)
         {
             int segmentEnd = segment.Offset + segment.Length;
             if (segmentEnd <= offset)
             {
-                Append(segment);
+                result.Append(segment);
                 continue;
             }
             if (!inserted)
             {
                 if (segment.Offset < offset)
                 {
-                    Append(segment with { Length = offset - segment.Offset });
+                    result.Append(segment with { Length = offset - segment.Offset });
                 }
                 foreach (NativeBattleModelResourceSegment replacement in replacements)
                 {
-                    Append(replacement);
+                    result.Append(replacement);
                 }
                 inserted = true;
             }
             if (segment.Offset >= end)
             {
-                Append(segment);
+                result.Append(segment);
             }
             else if (segmentEnd > end)
             {
-                Append(segment with { Offset = end, SourceOffset = segment.SourceOffset + end - segment.Offset, Length = segmentEnd - end });
+                result.Append(segment with { Offset = end, SourceOffset = segment.SourceOffset + end - segment.Offset, Length = segmentEnd - end });
             }
         }
         if (!inserted)
         {
             foreach (NativeBattleModelResourceSegment replacement in replacements)
             {
-                Append(replacement);
+                result.Append(replacement);
             }
         }
-        return new(result.ToImmutable());
+        return result.Count;
+    }
 
-        void Append(NativeBattleModelResourceSegment segment)
+    private struct SegmentLayout(NativeBattleModelResourceSegment[]? destination)
+    {
+        private NativeBattleModelResourceSegment previous;
+        internal int Count { get; private set; }
+
+        internal void Append(NativeBattleModelResourceSegment segment)
         {
-            if (result.Count > 0 && result[^1] is var previous && previous.Offset + previous.Length == segment.Offset && previous.Source.Equals(segment.Source) && previous.SourceOffset + previous.Length == segment.SourceOffset)
+            if (Count > 0 && previous.Offset + previous.Length == segment.Offset && previous.Source.Equals(segment.Source) && previous.SourceOffset + previous.Length == segment.SourceOffset)
             {
-                result[^1] = previous with { Length = previous.Length + segment.Length };
+                previous = previous with { Length = previous.Length + segment.Length };
+                if (destination is not null)
+                {
+                    destination[Count - 1] = previous;
+                }
                 return;
             }
-            result.Add(segment);
+            previous = segment;
+            if (destination is not null)
+            {
+                destination[Count] = segment;
+            }
+            Count++;
         }
     }
 
