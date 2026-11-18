@@ -326,6 +326,7 @@ try {
                             76 { 126 }
                             77 { 126 }
                             79 { 122 }
+                            110 { 74 }
                             167 { 70 }
                             308 { 105 }
                             314 { 103 }
@@ -334,7 +335,10 @@ try {
                             default { 0 }
                         }
                         $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
-                        if ($effect -eq 84) {
+                        if ($effect -eq 110) {
+                            $componentRequest.stage_id = 3
+                        }
+                        if ($effect -in @(84, 92) -or ($effect -ge 86 -and $effect -le 89)) {
                             $componentRequest.ally_id = 4
                         }
                         if ($effect -in @(64, 66, 76, 77, 79)) {
