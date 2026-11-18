@@ -50,6 +50,25 @@ public sealed class PilotResumeTests : IDisposable
         Assert.Equal(1, plan.PreviouslyTested);
     }
 
+    [Fact]
+    public void Functional_history_reconciles_against_its_authenticated_source_manifest_and_raw_fps_failure()
+    {
+        PilotManifest functional = requested with { FunctionalOnly = true };
+        string attempt = Attempt("01", functional, slow: true);
+        PilotResumePlan plan = PilotResume.Plan(functional, root);
+        PilotReusedCase reused = Assert.Single(plan.ReusedCases);
+        Assert.Empty(plan.PendingCases);
+        Assert.Equal("PASS", reused.PreviousResult.Verdict);
+        Assert.Equal("deferred", reused.PreviousResult.PerformanceStatus);
+        Assert.Equal(new[] { "PRESENTATION_BELOW_30_FPS" }, reused.PreviousResult.PerformanceIssues);
+        PilotManifest source = Read<PilotManifest>(Path.Combine(attempt, "manifest.json"));
+        Write(Path.Combine(attempt, "manifest.json"), source with { FunctionalOnly = false });
+        PilotResumePlan tampered = PilotResume.Plan(functional, root);
+        Assert.Empty(tampered.ReusedCases);
+        Assert.Single(tampered.PendingCases);
+        Assert.Contains(tampered.Diagnostics, diagnostic => diagnostic.Message.Contains("does not reconcile", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("focus")]
     [InlineData("malformed")]
@@ -262,7 +281,7 @@ public sealed class PilotResumeTests : IDisposable
         Write(Path.Combine(output, "candidate.json"), new { status = "CANDIDATE_COMPLETED", reason = (string?)null, telemetry_report = "telemetry-report.json", telemetry_sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes)), battle_instance_id = report["battle_instance_id"]!.GetValue<string>() });
         LiveEvidenceVerdict validation = LiveEvidenceValidation.Validate(JsonSerializer.SerializeToElement(report));
         PilotCaseSummary summary = PilotRunner.Summarize(manifest.Cases[0].Id, validation.Verdict, validation.Errors, 2, overhead ? 11000 : 100, 12, "untrusted-path-ignored", true, validation.Executions.Sum(item => item.DurationMs));
-        Write(Path.Combine(caseDirectory, "pilot-result.json"), summary with { EffectId = 1 });
+        Write(Path.Combine(caseDirectory, "pilot-result.json"), PilotRunner.ApplyAcceptance(summary, manifest.FunctionalOnly) with { EffectId = 1 });
         return attempt;
     }
 

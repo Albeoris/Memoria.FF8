@@ -26,6 +26,7 @@ public sealed record PilotBudgets(double InitializationMs, double ActionOneMs, d
 public sealed record PilotManifest(int SchemaVersion, string Executable, string WorkingDirectory, string GameDir, string OutputRoot, PilotBudgets Budgets, PilotCase[] Cases, string? BuildFingerprint = null)
 {
     public bool MuteOutput { get; init; }
+    public bool FunctionalOnly { get; init; }
     public bool? PresentationVSync { get; init; }
     public string? ExecutionStackProfile { get; init; }
 }
@@ -34,6 +35,9 @@ public sealed record PilotCaseSummary(string Id, string Verdict, string[] Errors
 {
     public string ExecutionProtocol { get; init; } = "same-battle-repeat";
     public string? PairPinsPath { get; init; }
+    public bool FunctionalOnly { get; init; }
+    public string PerformanceStatus { get; init; } = "not_certified";
+    public string[] PerformanceIssues { get; init; } = [];
 }
 public sealed record PilotBatchSummary(int SchemaVersion, string Verdict, string BuildFingerprint, int Requested, int Passed, int Failed, int Errors, double TotalMs, PilotCaseSummary[] Cases);
 
@@ -205,7 +209,26 @@ public static partial class PilotRunner
         double supervisionMs = (supervisionEnded - stagingEnded) * millisecondsPerTick;
         double validationMs = (validationEnded - supervisionEnded) * millisecondsPerTick;
         PilotStageDurations stages = new(stagingMs, supervisionMs, validationMs, totalMs - stagingMs - supervisionMs - validationMs);
-        return Summarize(item.Id, verdict, errors.ToArray(), executions, totalMs, effectMs, directory, exited, executionWindowMs, stages, diagnosticIssues, copyTrafficScope);
+        return ApplyAcceptance(Summarize(item.Id, verdict, errors.ToArray(), executions, totalMs, effectMs, directory, exited, executionWindowMs, stages, diagnosticIssues, copyTrafficScope), manifest.FunctionalOnly);
+    }
+
+    public static PilotCaseSummary ApplyAcceptance(PilotCaseSummary summary, bool functionalOnly)
+    {
+        if (!functionalOnly)
+        {
+            return summary;
+        }
+        string[] performanceIssues = summary.Errors.Where(error => error == "PRESENTATION_BELOW_30_FPS").ToArray();
+        string[] errors = summary.Errors.Where(error => error != "PRESENTATION_BELOW_30_FPS").ToArray();
+        bool functionalPass = summary.Verdict == "FAIL" && performanceIssues.Length > 0 && errors.Length == 0 && summary.Executions == 2 && summary.ProcessExited && summary.OverheadWithinBudget;
+        return summary with
+        {
+            Verdict = functionalPass ? "PASS" : summary.Verdict,
+            Errors = errors,
+            FunctionalOnly = true,
+            PerformanceStatus = "deferred",
+            PerformanceIssues = performanceIssues
+        };
     }
 
     public static PilotCaseSummary Summarize(string id, string verdict, string[] errors, int executions, double totalMs, double effectDurationMs, string directory, bool processExited, double? executionWindowMs = null, PilotStageDurations? stages = null, string[]? diagnosticIssues = null, string? copyTrafficScope = null)

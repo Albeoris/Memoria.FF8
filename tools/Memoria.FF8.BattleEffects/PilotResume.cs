@@ -167,10 +167,14 @@ public static class PilotResume
                             }
                             validation = LiveEvidenceValidation.Validate(report);
                         }
-                        PilotCaseSummary recomputed = PilotRunner.Summarize(item.Id, validation.Verdict, validation.Errors, validation.Executions.Length, result.TotalMs, validation.EffectDurationsMs.Sum(), caseDirectory, true, validation.Executions.Sum(execution => execution.DurationMs), result.Stages);
+                        PilotCaseSummary recomputed = PilotRunner.ApplyAcceptance(PilotRunner.Summarize(item.Id, validation.Verdict, validation.Errors, validation.Executions.Length, result.TotalMs, validation.EffectDurationsMs.Sum(), caseDirectory, true, validation.Executions.Sum(execution => execution.DurationMs), result.Stages), manifest.FunctionalOnly);
                         if (validation.Verdict == "ERROR" || validation.EffectDurationsMs.Length != 2 || recomputed.Verdict != result.Verdict || !recomputed.Errors.Order(StringComparer.Ordinal).SequenceEqual(result.Errors.Order(StringComparer.Ordinal)) || recomputed.EffectDurationMs != result.EffectDurationMs || recomputed.ExecutionWindowMs != result.ExecutionWindowMs || recomputed.OverheadMs != result.OverheadMs || recomputed.OverheadWithinBudget != result.OverheadWithinBudget)
                         {
                             throw new InvalidDataException("Historical summary does not reconcile with complete raw telemetry.");
+                        }
+                        if (result.FunctionalOnly != recomputed.FunctionalOnly || result.PerformanceStatus != recomputed.PerformanceStatus || !result.PerformanceIssues.SequenceEqual(recomputed.PerformanceIssues))
+                        {
+                            throw new InvalidDataException("Historical acceptance scope does not reconcile with its manifest and raw telemetry.");
                         }
                     }
                     else if (item.Status is not ("PLANNED_BLOCKED" or "UNRESOLVED") || result.Verdict != "ERROR" || result.Executions != 0 || !result.Errors.SequenceEqual(new[] { "SCENARIO_" + item.Status }.Concat(item.Blockers ?? [])))

@@ -282,7 +282,7 @@ try {
                 }
                 else {
                     $manifestPath = Join-Path $caseRoot 'manifest.json'
-                    $manifest = @{ schema_version=1; executable=$HostExecutable; working_directory=(Split-Path -Parent $HostExecutable); game_dir=$GameDirectory; output_root=(Join-Path $caseRoot 'results'); mute_output=$true; presentation_v_sync=$presentationVSync; budgets=@{ initialization_ms=180000; action_one_ms=180000; cleanup_rearm_ms=60000; action_two_ms=180000; teardown_ms=15000; total_ms=600000; no_progress_ms=60000 }; cases=$ordinary }
+                    $manifest = @{ schema_version=1; executable=$HostExecutable; working_directory=(Split-Path -Parent $HostExecutable); game_dir=$GameDirectory; output_root=(Join-Path $caseRoot 'results'); mute_output=$true; functional_only=[bool]$FunctionalOnly; presentation_v_sync=$presentationVSync; budgets=@{ initialization_ms=180000; action_one_ms=180000; cleanup_rearm_ms=60000; action_two_ms=180000; teardown_ms=15000; total_ms=600000; no_progress_ms=60000 }; cases=$ordinary }
                     if ($ExecutionStackProfile) { $manifest.execution_stack_profile = $ExecutionStackProfile }
                     Write-Json $manifestPath $manifest
                     $runExit = Invoke-OwnedProcess 'dotnet' @($ToolAssembly, 'run', '--input', $manifestPath) (Join-Path $caseRoot 'run-log') -GpuWork

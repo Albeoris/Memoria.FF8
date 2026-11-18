@@ -153,7 +153,7 @@ public static partial class PilotRunner
         elapsed.Stop();
         double factor = 1000.0 / Stopwatch.Frequency;
         PilotStageDurations stages = new(stagingTicks * factor, supervisionTicks * factor, validationTicks * factor, (elapsed.ElapsedTicks - stagingTicks - supervisionTicks - validationTicks) * factor);
-        return Summarize(item.Id, verdict, errors.Distinct().ToArray(), validations.Sum(validation => validation.Executions.Length), elapsed.ElapsedTicks * factor, validations.Sum(validation => validation.EffectDurationsMs.Sum()), directory, exited, validations.Sum(validation => validation.Executions.Sum(execution => execution.DurationMs)), stages, validations.SelectMany(validation => validation.DiagnosticIssues).Distinct().ToArray(), validations.Select(validation => validation.CopyTrafficScope).FirstOrDefault()) with { ExecutionProtocol = "fresh-entry-pair", PairPinsPath = pinsPath };
+        return ApplyAcceptance(Summarize(item.Id, verdict, errors.Distinct().ToArray(), validations.Sum(validation => validation.Executions.Length), elapsed.ElapsedTicks * factor, validations.Sum(validation => validation.EffectDurationsMs.Sum()), directory, exited, validations.Sum(validation => validation.Executions.Sum(execution => execution.DurationMs)), stages, validations.SelectMany(validation => validation.DiagnosticIssues).Distinct().ToArray(), validations.Select(validation => validation.CopyTrafficScope).FirstOrDefault()), manifest.FunctionalOnly) with { ExecutionProtocol = "fresh-entry-pair", PairPinsPath = pinsPath };
     }
 
     public static string ResolveFreshEntryExecutionStack(string? selected)
