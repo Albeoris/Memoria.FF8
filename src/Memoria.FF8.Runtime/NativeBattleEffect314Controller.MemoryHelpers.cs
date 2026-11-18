@@ -90,13 +90,42 @@ public static partial class NativeBattleEffect314Controller
             }
             else if (stateKind == 3)
             {
-                source = frame.State.ReadView(current, count);
-                offset = 0;
+                frame.State.ReadWithKnownness(current, data.AsSpan(copied, count), known.Slice(copied, count));
+                version++;
+                copied += count;
+                continue;
             }
             else
             {
-                source = NativeBattleOffsetBodyContextMemory.Read(RequireStaging(frame), current, count);
-                offset = 0;
+                NativeBattleFileStaging staging = RequireStaging(frame);
+                NativeBattleTemporaryMemory.ReadWithKnownness(staging, current, data.AsSpan(copied, count), known.Slice(copied, count));
+                int previousPointers = pointers?.Count ?? 0;
+                foreach ((uint field, NativeBattleResourcePointer? pointer) in staging.EnumerateResourcePointers())
+                {
+                    if (field >= current && (ulong)field + 4 <= (ulong)current + (uint)count)
+                    {
+                        NativeBattleEffectArena.ValidatePointer(pointer);
+                        int destination = checked(copied + (int)(field - current));
+                        pointers ??= ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>();
+                        for (int candidate = Math.Max(copied, destination - 3); candidate <= destination + 3; candidate++)
+                        {
+                            pointers.Remove(candidate);
+                        }
+                        pointers.Add(destination, pointer);
+                        if (pointer?.NativeByteValue is uint numeric)
+                        {
+                            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(destination, 4), numeric);
+                            known.Slice(destination, 4).Fill(true);
+                        }
+                        else
+                        {
+                            known.Slice(destination, 4).Clear();
+                        }
+                    }
+                }
+                version += 1 + (pointers?.Count ?? 0) - previousPointers;
+                copied += count;
+                continue;
             }
             source.ReadWithKnownness(offset, data.AsSpan(copied, count), known.Slice(copied, count));
             version++;
@@ -124,27 +153,27 @@ public static partial class NativeBattleEffect314Controller
         {
             uint current = checked(address + (uint)copied);
             int count = RegionLength(frame, current, length - copied, out int poolIndex, out int stateKind);
-            NativeBattleEffectArena selected = NativeBattleEffect314TemporaryReads.Copy(source, copied, count);
+            NativeBattleEffect314WriteSourceSnapshot selected = NativeBattleEffect314WriteSourceSnapshot.Capture(source, copied, count);
             if (poolIndex >= 0)
             {
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];
-                frame = WithPool(frame, poolIndex, NativeBattleEffectTaskMemory.WriteBankSpan(pool, checked((int)(current - pool.BankAddress)), selected, count));
+                frame = WithPool(frame, poolIndex, NativeBattleEffectTaskMemory.WriteBankSpan(pool, checked((int)(current - pool.BankAddress)), selected));
             }
             else if (stateKind == 1)
             {
-                frame = frame with { Memory = frame.Memory with { Arena = CopyBytes(selected, 0, frame.Memory.Arena ?? throw new NotSupportedException("Effect314 requires its current COMMON owner."), checked((int)(current - CommonAddress)), count) } };
+                frame = frame with { Memory = frame.Memory with { Arena = selected.CopyTo(frame.Memory.Arena ?? throw new NotSupportedException("Effect314 requires its current COMMON owner."), checked((int)(current - CommonAddress))) } };
             }
             else if (stateKind == 2)
             {
-                frame = frame with { State = frame.State with { FixedBanks = frame.State.FixedBanks.SetItem(RootBank, CopyBytes(selected, 0, frame.State.ReadBank(RootBank), checked((int)(current - RootBank)), count)) } };
+                frame = frame with { State = frame.State with { FixedBanks = frame.State.FixedBanks.SetItem(RootBank, selected.CopyTo(frame.State.ReadBank(RootBank), checked((int)(current - RootBank)))) } };
             }
             else if (stateKind == 3)
             {
-                frame = frame with { State = frame.State.WriteView(current, selected, count) };
+                frame = frame with { State = frame.State.WriteView(current, selected) };
             }
             else
             {
-                frame = frame with { Staging = NativeBattleOffsetBodyContextMemory.Publish(RequireStaging(frame), current, selected, count) };
+                frame = frame with { Staging = NativeBattleOffsetBodyContextMemory.Publish(RequireStaging(frame), current, selected) };
             }
             copied += count;
         }

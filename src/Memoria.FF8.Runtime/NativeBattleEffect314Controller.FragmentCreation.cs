@@ -39,21 +39,31 @@ public static partial class NativeBattleEffect314Controller
 
     public static (NativeBattleEffect314Frame Frame, bool CapacityAvailable) CreateFragment6646A0(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint main, NativeBattleEffectArena face, ImmutableArray<NativeBattleEffectArena> vertices, uint rotationBank, short velocityMask, ushort texturePageAddition, ushort clutAddition, Func<NativeBattleEffect314Frame, byte, NativeBattleEffect314Frame> writeMarker)
     {
-        int count = vertices.Length;
+        return CreateFragmentCore(frame, inputs, main, new FragmentReadInputs(face, vertices), rotationBank, velocityMask, texturePageAddition, clutAddition, writeMarker);
+    }
+
+    internal static (NativeBattleEffect314Frame Frame, bool CapacityAvailable) CreateCapturedFragment6646A0(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint main, NativeBattleEffect314ReadOnlyCapture face, ReadOnlySpan<NativeBattleEffect314ReadOnlyCapture> vertices, uint rotationBank, short velocityMask, ushort texturePageAddition, ushort clutAddition, Func<NativeBattleEffect314Frame, byte, NativeBattleEffect314Frame> writeMarker)
+    {
+        return CreateFragmentCore(frame, inputs, main, new FragmentReadInputs(face, vertices), rotationBank, velocityMask, texturePageAddition, clutAddition, writeMarker);
+    }
+
+    private static (NativeBattleEffect314Frame Frame, bool CapacityAvailable) CreateFragmentCore(NativeBattleEffect314Frame frame, NativeBattleEffect314Inputs inputs, uint main, FragmentReadInputs fragment, uint rotationBank, short velocityMask, ushort texturePageAddition, ushort clutAddition, Func<NativeBattleEffect314Frame, byte, NativeBattleEffect314Frame> writeMarker)
+    {
+        int count = fragment.VertexCount;
         if (count is not (3 or 4))
         {
             throw new InvalidDataException("Effect314 fragment requires its actual triangle or quad corners.");
         }
-        if ((face.Read(15, 1)[0] & 0x80) != 0)
+        if ((fragment.FaceByte(15) & 0x80) != 0)
         {
             return (frame, true);
         }
-        ushort flag = U16(vertices[0], 6);
+        ushort flag = fragment.VertexUInt16(0, 6);
         int combined = 0xFF;
-        foreach (NativeBattleEffectArena vertex in vertices)
+        for (int corner = 0; corner < count; corner++)
         {
-            combined &= vertex.Read(6, 1)[0];
-            if (U16(vertex, 6) != flag)
+            combined &= fragment.VertexByte(corner, 6);
+            if (fragment.VertexUInt16(corner, 6) != flag)
             {
                 return (frame, true);
             }
@@ -71,7 +81,12 @@ public static partial class NativeBattleEffect314Controller
         int[] center = new int[3];
         for (int axis = 0; axis < 3; axis++)
         {
-            center[axis] = vertices.Sum(vertex => (int)I16(vertex, axis * 2)) / count;
+            int sum = 0;
+            for (int corner = 0; corner < count; corner++)
+            {
+                sum += fragment.VertexInt16(corner, axis * 2);
+            }
+            center[axis] = sum / count;
             row = row.Write(axis * 2, BitConverter.GetBytes(unchecked((short)center[axis])));
         }
         row = row.Write(6, BitConverter.GetBytes((ushort)(count == 3 ? 1 : 2)));
@@ -79,7 +94,7 @@ public static partial class NativeBattleEffect314Controller
         {
             for (int axis = 0; axis < 3; axis++)
             {
-                row = row.Write(0x14 + corner * 6 + axis * 2, BitConverter.GetBytes(unchecked((short)(I16(vertices[corner], axis * 2) - center[axis]))));
+                row = row.Write(0x14 + corner * 6 + axis * 2, BitConverter.GetBytes(unchecked((short)(fragment.VertexInt16(corner, axis * 2) - center[axis]))));
             }
         }
         int Draw()
@@ -94,8 +109,8 @@ public static partial class NativeBattleEffect314Controller
         int velocityY = -(Draw() & velocityMask);
         row = row.Write(10, BitConverter.GetBytes(unchecked((short)(count == 3 ? velocityY >> 1 : velocityY))));
         row = row.Write(14, BitConverter.GetBytes((ushort)((Draw() & 7) + 4)));
-        row = NativeBattleEffectNodeContextMemory.Copy(face, 8, row, 0x2C, 8);
-        row = NativeBattleEffectNodeContextMemory.Copy(face, count == 3 ? 6 : 16, row, 0x34, count == 3 ? 2 : 4);
+        row = fragment.CopyFace(8, row, 0x2C, 8);
+        row = fragment.CopyFace(count == 3 ? 6 : 16, row, 0x34, count == 3 ? 2 : 4);
         row = row.Write(0x32, BitConverter.GetBytes(unchecked((ushort)(U16(row, 0x32) + texturePageAddition))));
         row = row.Write(0x2E, BitConverter.GetBytes(unchecked((ushort)(U16(row, 0x2E) + clutAddition))));
         row = row.Write(0x10, BitConverter.GetBytes(checked(rotationBank + (uint)((Draw() & 63) * 20))));
@@ -104,8 +119,7 @@ public static partial class NativeBattleEffect314Controller
         {
             NativeBattleEffect32Presentation.Allocated(frame.Effect, main, main + FragmentOffset, checked((int)((address - main - FragmentOffset) / FragmentStride)));
         }
-        face = face.Write(15, [(byte)(face.Read(15, 1)[0] | 0x80)]);
-        frame = writeMarker(frame, face.Read(15, 1)[0]);
+        frame = writeMarker(frame, fragment.MarkFace());
         if (Draw() < 0x2000)
         {
             (frame, uint spark) = AllocateSpark6643D0(frame, main);
@@ -123,5 +137,49 @@ public static partial class NativeBattleEffect314Controller
             }
         }
         return (frame, true);
+    }
+
+    private readonly ref struct FragmentReadInputs
+    {
+        private readonly bool captured;
+        private readonly NativeBattleEffectArena face;
+        private readonly ImmutableArray<NativeBattleEffectArena> vertices;
+        private readonly NativeBattleEffect314ReadOnlyCapture capturedFace;
+        private readonly ReadOnlySpan<NativeBattleEffect314ReadOnlyCapture> capturedVertices;
+
+        internal FragmentReadInputs(NativeBattleEffectArena face, ImmutableArray<NativeBattleEffectArena> vertices)
+        {
+            captured = false;
+            this.face = face;
+            this.vertices = vertices;
+            capturedFace = default;
+            capturedVertices = default;
+        }
+
+        internal FragmentReadInputs(NativeBattleEffect314ReadOnlyCapture face, ReadOnlySpan<NativeBattleEffect314ReadOnlyCapture> vertices)
+        {
+            captured = true;
+            this.face = null!;
+            this.vertices = default;
+            capturedFace = face;
+            capturedVertices = vertices;
+        }
+
+        internal int VertexCount => captured ? capturedVertices.Length : vertices.Length;
+        internal byte FaceByte(int offset) => captured ? capturedFace.ReadByte(offset) : face.Read(offset, 1)[0];
+        internal byte VertexByte(int corner, int offset) => captured ? capturedVertices[corner].ReadByte(offset) : vertices[corner].Read(offset, 1)[0];
+        internal ushort VertexUInt16(int corner, int offset) => captured ? capturedVertices[corner].ReadUInt16(offset) : U16(vertices[corner], offset);
+        internal short VertexInt16(int corner, int offset) => captured ? capturedVertices[corner].ReadInt16(offset) : I16(vertices[corner], offset);
+
+        internal NativeBattleEffectArena CopyFace(int offset, NativeBattleEffectArena destination, int destinationOffset, int count)
+        {
+            return captured ? capturedFace.CopyTo(offset, destination, destinationOffset, count) : NativeBattleEffectNodeContextMemory.Copy(face, offset, destination, destinationOffset, count);
+        }
+
+        internal byte MarkFace()
+        {
+            byte marked = (byte)(FaceByte(15) | 0x80);
+            return captured ? marked : face.Write(15, [marked]).Read(15, 1)[0];
+        }
     }
 }

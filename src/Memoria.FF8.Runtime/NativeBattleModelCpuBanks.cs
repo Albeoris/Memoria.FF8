@@ -114,7 +114,7 @@ public sealed record NativeBattleModelCpuBank(ImmutableArray<NativeBattleEffectM
     public const int Length = 0x10000;
     public int Capacity { get; init; } = Length;
     internal bool HasResourceStorage => resourceStorage is not null;
-    internal int ResourceCapacity => resourceStorage is { Segments.IsDefaultOrEmpty: false } logical ? Math.Max(Capacity, checked(logical.Segments[^1].Offset + logical.Segments[^1].Length)) : Capacity;
+    internal int ResourceCapacity => resourceStorage is { IsEmpty: false } logical ? Math.Max(Capacity, logical.Extent) : Capacity;
     internal ImmutableArray<NativeBattleModelResourceSegment> ResourceSegments => resourceStorage?.Segments ?? storage.Segments;
     internal ImmutableArray<NativeBattleModelResourceSegment> GuestSegments => storage.Segments;
     public static NativeBattleModelCpuBank Unknown(int capacity = Length) => new([]) { Capacity = capacity };

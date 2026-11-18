@@ -6,7 +6,7 @@ using static Memoria.FF8.Runtime.NativeBattleEffect314Profile;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-public sealed class NativeBattleDeferredArenaReadTests
+public sealed partial class NativeBattleDeferredArenaReadTests
 {
     [Fact]
     public void Factory_reads_share_one_validated_version_marker_and_hydration_removes_only_that_marker()

@@ -45,6 +45,12 @@ public static class NativeBattleTemporaryMemory
         return CopyToArenaValidated(staging, address, destination, destinationOffset, length);
     }
 
+    internal static void ReadWithKnownness(NativeBattleFileStaging staging, uint address, Span<byte> data, Span<bool> known)
+    {
+        ValidateViewRange(staging, address, data.Length);
+        staging.ReadWithKnownness(address, data, known);
+    }
+
     private static void ValidateViewRange(NativeBattleFileStaging staging, uint address, int length)
     {
         if (length < 0 || length > NativeBattleEffectArena.Length || (ulong)address + (uint)length > (ulong)uint.MaxValue + 1)
@@ -69,6 +75,11 @@ public static class NativeBattleTemporaryMemory
             throw new ArgumentOutOfRangeException(nameof(length));
         }
         (byte[] data, bool[] known) = view.ReadSnapshot(0, length);
+        return PublishView(staging, address, data, known);
+    }
+
+    internal static NativeBattleFileStaging PublishView(NativeBattleFileStaging staging, uint address, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
+    {
         return staging.WriteWithKnownness(address, data, known);
     }
 

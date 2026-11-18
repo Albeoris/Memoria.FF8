@@ -18,6 +18,22 @@ public static partial class NativeBattleEffectTaskMemory
         (byte[] bytes, bool[] known) = source.ReadSnapshot(0, length);
         KeyValuePair<int, NativeBattleResourcePointer?>[] sourcePointers = source.EnumerateResourcePointers().ToArray();
         KeyValuePair<int, BattleExecutionReferenceEntry>[] sourceExecution = source.EnumerateExecutionReferences().ToArray();
+        return WriteBankSpan(pool, owner, offset, bytes, known, sourcePointers, sourceExecution);
+    }
+
+    internal static NativeBattleEffectTaskPool WriteBankSpan(NativeBattleEffectTaskPool pool, int offset, NativeBattleEffect314WriteSourceSnapshot source)
+    {
+        NativeBattleTaskBankOwner owner = pool.RequireOwner();
+        if (offset < 0 || offset > owner.BankLength - source.Data.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset));
+        }
+        return WriteBankSpan(pool, owner, offset, source.Data, source.Known, source.Pointers.ToArray(), []);
+    }
+
+    private static NativeBattleEffectTaskPool WriteBankSpan(NativeBattleEffectTaskPool pool, NativeBattleTaskBankOwner owner, int offset, byte[] bytes, bool[] known, KeyValuePair<int, NativeBattleResourcePointer?>[] sourcePointers, KeyValuePair<int, BattleExecutionReferenceEntry>[] sourceExecution)
+    {
+        int length = bytes.Length;
         List<(int Offset, BattleExecutionReferenceEntry Entry, ImmutableArray<byte>? Encoding)> execution = [];
         Dictionary<int, TaskHeader> headers = [];
         List<(int Offset, NativeBattleResourcePointer Pointer)> pointers = [];

@@ -49,10 +49,24 @@ public sealed record NativeBattleEffect314State([property: JsonRequired] NativeB
         return NativeBattleEffectNodeContextMemory.Copy(Storage, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
     }
 
+    internal void ReadWithKnownness(uint address, Span<byte> data, Span<bool> known)
+    {
+        int offset = Require(address, data.Length);
+        Storage.RequireRange(offset, data.Length);
+        Storage.ReadWithKnownness(offset, data, known);
+    }
+
     public NativeBattleEffect314State WriteView(uint address, NativeBattleEffectArena source, int length)
     {
         int offset = Require(address, length);
         NativeBattleEffectNodeContextMemory.Copy(source, 0, Storage, offset, length);
+        return this;
+    }
+
+    internal NativeBattleEffect314State WriteView(uint address, NativeBattleEffect314WriteSourceSnapshot source)
+    {
+        int offset = Require(address, source.Data.Length);
+        Storage.WriteWithKnownness(offset, source.Data, source.Known);
         return this;
     }
 

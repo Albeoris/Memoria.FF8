@@ -150,26 +150,39 @@ public partial record NativeBattleEffectArena
             return;
         }
         Span<byte> bytes = stackalloc byte[4];
+        Span<bool> known = stackalloc bool[4];
         foreach ((int offset, NativeBattleResourcePointer? pointer) in initialPointers)
         {
             RequireRange(offset, 4);
             ValidatePointer(pointer);
-            if (pointer?.NativeByteValue is uint numeric)
+            if (pointer?.NativeByteValue is not null)
             {
                 ReadImportData(offset, bytes);
-                if (IntersectsUnknown(offset, 4) || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric)
-                {
-                    throw new InvalidDataException("Native arena resource pointer differs from its physical bytes.");
-                }
             }
-            else
+            for (int index = 0; index < 4; index++)
             {
-                for (int index = 0; index < 4; index++)
+                known[index] = !IntersectsUnknown(offset + index, 1);
+            }
+            ValidateResourcePointerBytes(pointer, bytes, known);
+        }
+    }
+
+    internal static void ValidateResourcePointerBytes(NativeBattleResourcePointer? pointer, ReadOnlySpan<byte> bytes, ReadOnlySpan<bool> known)
+    {
+        if (pointer?.NativeByteValue is uint numeric)
+        {
+            if (!known[0] || !known[1] || !known[2] || !known[3] || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != numeric)
+            {
+                throw new InvalidDataException("Native arena resource pointer differs from its physical bytes.");
+            }
+        }
+        else
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                if (known[index])
                 {
-                    if (!IntersectsUnknown(offset + index, 1))
-                    {
-                        throw new InvalidDataException("Native symbolic arena resource pointer must retain unknown numeric bytes.");
-                    }
+                    throw new InvalidDataException("Native symbolic arena resource pointer must retain unknown numeric bytes.");
                 }
             }
         }

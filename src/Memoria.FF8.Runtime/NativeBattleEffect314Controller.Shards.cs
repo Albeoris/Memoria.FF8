@@ -35,6 +35,7 @@ public static partial class NativeBattleEffect314Controller
         frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
         NativeBattleModelGeometryCursor geometry = new(source.GeometrySource);
         int objects = unchecked((int)Dword(geometry));
+        Span<NativeBattleEffect314ReadOnlyCapture> vertices = stackalloc NativeBattleEffect314ReadOnlyCapture[4];
         for (int objectIndex = 0; objectIndex < objects; objectIndex++)
         {
             if ((unchecked((uint)I32(context, 0x10)) & (1u << (objectIndex & 31))) == 0)
@@ -70,8 +71,8 @@ public static partial class NativeBattleEffect314Controller
                     ushort flags = 0;
                     if (state < 2)
                     {
-                        NativeBattleEffectArena input = cursor.Read(6);
-                        NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(Registers(frame), 0, new(I16(input, 0), I16(input, 2), I16(input, 4)), 0));
+                        NativeBattleEffect314ReadOnlyCapture input = NativeBattleEffect314ReadOnlyCapture.Known(source.GeometrySource.Read(cursor.Offset, 6));
+                        NativeBattleGeometryRegisterStep registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(Registers(frame), 0, new(input.ReadInt16(0), input.ReadInt16(2), input.ReadInt16(4)), 0));
                         scratch = StoreIr(scratch, destination, registers);
                         frame = Publish(frame, registers);
                         flags = state == 1 ? unchecked((ushort)(bone << 8)) : (ushort)0;
@@ -101,22 +102,21 @@ public static partial class NativeBattleEffect314Controller
                 frame = inputs.Execute(frame, new NativeBattleEffect314WriteArena(temporaryAddress, context, 88));
                 for (int faceIndex = 0; faceIndex < faces; faceIndex++)
                 {
-                    NativeBattleEffectArena face = cursor.Read(kind == 0 ? 16 : 20);
-                    var vertices = ImmutableArray.CreateBuilder<NativeBattleEffectArena>(corners);
+                    NativeBattleEffect314ReadOnlyCapture face = NativeBattleEffect314ReadOnlyCapture.Known(source.GeometrySource.Read(cursor.Offset, kind == 0 ? 16 : 20));
                     for (int corner = 0; corner < corners; corner++)
                     {
-                        int vertex = U16(face, corner * 2) & 0xFFF;
+                        int vertex = face.ReadUInt16(corner * 2) & 0xFFF;
                         if (vertex >= vertexCount)
                         {
                             throw new InvalidDataException("Effect314 shard face leaves its actual current vertex bank.");
                         }
-                        NativeBattleEffectArena point = NativeBattleEffectNodeContextMemory.Copy(scratch, vertex * 8, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
-                        vertices.Add(point);
-                        context = NativeBattleEffectNodeContextMemory.Copy(point, 0, context, 0x24 + corner * 8, 8);
+                        NativeBattleEffect314ReadOnlyCapture point = NativeBattleEffect314ReadOnlyCapture.Capture(scratch, vertex * 8, 8);
+                        vertices[corner] = point;
+                        context = point.CopyTo(0, context, 0x24 + corner * 8, 8);
                     }
                     if (capacity)
                     {
-                        (frame, capacity) = CreateFragment6646A0(frame, inputs, main, face, vertices.MoveToImmutable(), rotationBank, velocityMask, texturePageAddition, clutAddition, (current, value) => inputs.WriteGeometry is { } write ? write(current, model, checked(cursor.Offset + 15), [value]) : inputs.Execute(current, new NativeBattleEffect314WriteArena(checked((cursor.NumericAddress ?? throw new NotSupportedException("Logical shard markers require their selected resource writer.")) + 15), NativeBattleEffectArena.Clear().Write(0, [value]), 1)));
+                        (frame, capacity) = CreateCapturedFragment6646A0(frame, inputs, main, face, vertices[..corners], rotationBank, velocityMask, texturePageAddition, clutAddition, (current, value) => inputs.WriteGeometry is { } write ? write(current, model, checked(cursor.Offset + 15), [value]) : inputs.Execute(current, new NativeBattleEffect314WriteArena(checked((cursor.NumericAddress ?? throw new NotSupportedException("Logical shard markers require their selected resource writer.")) + 15), NativeBattleEffectArena.Clear().Write(0, [value]), 1)));
                     }
                     if (!capacity)
                     {

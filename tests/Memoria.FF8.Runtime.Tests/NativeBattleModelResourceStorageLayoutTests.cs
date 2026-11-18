@@ -144,6 +144,140 @@ public sealed class NativeBattleModelResourceStorageLayoutTests
         }
     }
 
+    [Fact]
+    public void Supplied_array_identity_and_publication_equality_survive_diagnostic_materialization_and_global_initial_coalescing()
+    {
+        ImmutableArray<byte> source = Enumerable.Range(0, 32).Select(value => (byte)value).ToImmutableArray();
+        ImmutableArray<NativeBattleModelResourceSegment> supplied = [new(0, source, 0, 4), new(4, source, 4, 4), new(16, source, 16, 4), new(20, source, 20, 4)];
+        NativeBattleModelResourceStorage original = new(supplied);
+        NativeBattleModelResourceStorage equal = new(supplied);
+        Assert.True(original.Segments.Equals(supplied));
+        Assert.Equal(original, equal);
+        Assert.Equal(unchecked(EqualityComparer<Type>.Default.GetHashCode(typeof(NativeBattleModelResourceStorage)) * -1521134295 + supplied.GetHashCode()), original.GetHashCode());
+        Assert.NotEqual(original, new NativeBattleModelResourceStorage(supplied.ToArray().ToImmutableArray()));
+        ImmutableArray<byte> patch = [99];
+        NativeBattleModelResourceStorage changed = original.Bind(12, patch, 0, 1, 32);
+        NativeBattleModelResourceStorage expected = PreviousReplace(original, 12, 1, [new(12, patch, 0, 1)]);
+        Assert.Equal(expected.Segments.ToArray(), changed.Segments.ToArray());
+        Assert.Equal(3, changed.Segments.Length);
+        Assert.Equal(4, original.Segments.Length);
+        NativeBattleModelResourceStorage next = changed.Bind(13, patch, 0, 1, 32);
+        int hash = next.GetHashCode();
+        ImmutableArray<NativeBattleModelResourceSegment> materialized = next.Segments;
+        Assert.True(materialized.Equals(next.Segments));
+        Assert.Equal(hash, next.GetHashCode());
+        NativeBattleModelResourceStorage fromMaterialized = new(materialized);
+        NativeBattleModelResourceStorage initializedFromMaterialized = next with { Segments = materialized };
+        Assert.Equal(next, fromMaterialized);
+        Assert.Equal(next, initializedFromMaterialized);
+        Assert.Equal(hash, fromMaterialized.GetHashCode());
+        Assert.Equal(hash, initializedFromMaterialized.GetHashCode());
+        Assert.True(materialized.Equals(fromMaterialized.Segments));
+        Assert.Equal(hash, next.GetHashCode());
+        NativeBattleModelResourceStorage clone = next with { };
+        Assert.Equal(next, clone);
+        Assert.True(materialized.Equals(clone.Segments));
+        NativeBattleModelResourceStorage rebound = next with { Segments = supplied };
+        Assert.Equal(original, rebound);
+        Assert.True(supplied.Equals(rebound.Segments));
+        NativeBattleModelResourceStorage corrupt = next with { Segments = [new(0, default, 0, 1)] };
+        Assert.Throws<InvalidDataException>(() => corrupt.Validate(32));
+        Assert.Equal(hash, next.GetHashCode());
+        CheckBytes(original, supplied, 32);
+    }
+
+    [Fact]
+    public void Independent_empty_publications_keep_distinct_identity_and_record_clones_share_their_published_layout()
+    {
+        ImmutableArray<byte> source = [1];
+        NativeBattleModelResourceStorage original = new([new(0, source, 0, 1)]);
+        NativeBattleModelResourceStorage first = original.Copy(4, 0, 1, 8);
+        NativeBattleModelResourceStorage second = original.Copy(4, 0, 1, 8);
+        int hash = first.GetHashCode();
+        Assert.Empty(first.Segments);
+        Assert.Empty(second.Segments);
+        Assert.NotEqual(first, second);
+        Assert.False(first.Segments.Equals(second.Segments));
+        NativeBattleModelResourceStorage clone = first with { };
+        Assert.Equal(first, clone);
+        Assert.True(first.Segments.Equals(clone.Segments));
+        Assert.Equal(first, new NativeBattleModelResourceStorage(first.Segments));
+        Assert.Equal(first, first with { Segments = first.Segments });
+        Assert.Equal(hash, first.GetHashCode());
+        Assert.Equal(new byte[] { 1 }, original.Read(0, 1, 8));
+    }
+
+    [Fact]
+    public void Persistent_publications_match_the_previous_layout_through_a_long_retained_patch_and_clear_chain()
+    {
+        const int capacity = 512;
+        ImmutableArray<byte> source = Enumerable.Range(0, capacity).Select(value => (byte)value).ToImmutableArray();
+        NativeBattleModelResourceStorage actual = new([new(0, source, 0, capacity)]);
+        NativeBattleModelResourceStorage expected = new(actual.Segments);
+        List<(NativeBattleModelResourceStorage Storage, ImmutableArray<NativeBattleModelResourceSegment> Expected)> retained = [];
+        for (int index = 0; index < 1024; index++)
+        {
+            int offset = index < capacity ? index : index - capacity;
+            ImmutableArray<byte> patch = [index < capacity ? (byte)(source[offset] ^ 0x80) : source[offset]];
+            expected = PreviousReplace(expected, offset, 1, [new(offset, patch, 0, 1)]);
+            actual = actual.Bind(offset, patch, 0, 1, capacity);
+            if ((index & 31) == 0)
+            {
+                Assert.Equal(expected.Segments.ToArray(), actual.Segments.ToArray());
+                retained.Add((actual, expected.Segments));
+            }
+        }
+        Assert.Equal(source.ToArray(), actual.Read(0, capacity, capacity));
+        foreach (var publication in retained)
+        {
+            Assert.Equal(publication.Expected.ToArray(), publication.Storage.Segments.ToArray());
+            CheckBytes(publication.Storage, publication.Expected, capacity);
+        }
+    }
+
+    [Fact]
+    public void Invalid_immutable_layouts_and_capacity_changes_are_rejected_before_publication()
+    {
+        ImmutableArray<byte> source = [1, 2, 3, 4];
+        NativeBattleModelResourceStorage[] invalid = [new(default(ImmutableArray<NativeBattleModelResourceSegment>)), new([new(0, default, 0, 1)]), new([new(-1, source, 0, 1)]), new([new(0, source, -1, 1)]), new([new(0, source, 0, -1)]), new([new(0, source, 0, 5)]), new([new(2, source, 0, 2), new(3, source, 0, 1)])];
+        foreach (NativeBattleModelResourceStorage storage in invalid)
+        {
+            Assert.Throws<InvalidDataException>(() => storage.Validate(16));
+            Assert.Throws<InvalidDataException>(() => storage.Bind(0, source, 0, 1, 16));
+        }
+        NativeBattleModelResourceStorage valid = new([new(4, source, 0, 4)]);
+        valid.Validate(8);
+        Assert.Throws<InvalidDataException>(() => valid.Validate(7));
+        Assert.Throws<InvalidDataException>(() => valid.Validate(-1));
+        Assert.Equal(8, valid.Extent);
+        Assert.Equal(source.ToArray(), valid.Read(4, 4, 8));
+    }
+
+    [Fact]
+    public void Warm_patch_allocation_grows_with_the_persistent_path_rather_than_the_whole_layout()
+    {
+        long small = AllocatedFor(512);
+        long large = AllocatedFor(8192);
+        Assert.True(large < small * 3, $"512 segments allocated {small} bytes; 8192 segments allocated {large} bytes.");
+
+        static long AllocatedFor(int count)
+        {
+            ImmutableArray<byte> source = new byte[count * 2].ToImmutableArray();
+            NativeBattleModelResourceStorage storage = new(Enumerable.Range(0, count).Select(index => new NativeBattleModelResourceSegment(index * 2, source, index * 2, 1)).ToImmutableArray());
+            ImmutableArray<byte> patch = [99];
+            for (int index = 0; index < 16; index++)
+            {
+                _ = storage.Bind(count + 1, patch, 0, 1, count * 2);
+            }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 128; index++)
+            {
+                _ = storage.Bind(count + 1, patch, 0, 1, count * 2);
+            }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+    }
+
     private static NativeBattleModelResourceStorage PreviousReplace(NativeBattleModelResourceStorage storage, int offset, int length, ReadOnlySpan<NativeBattleModelResourceSegment> replacements)
     {
         int end = offset + length;

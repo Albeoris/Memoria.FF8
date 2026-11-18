@@ -19,6 +19,17 @@ internal static class NativeBattleOffsetBodyContextMemory
     {
         KeyValuePair<int, NativeBattleResourcePointer?>[] pointers = view.EnumerateResourcePointers().Where(entry => entry.Key >= 0 && entry.Key <= length - 4).ToArray();
         staging = NativeBattleTemporaryMemory.PublishView(staging, address, view, length);
+        return PublishPointers(staging, address, pointers);
+    }
+
+    internal static NativeBattleFileStaging Publish(NativeBattleFileStaging staging, uint address, NativeBattleEffect314WriteSourceSnapshot source)
+    {
+        staging = NativeBattleTemporaryMemory.PublishView(staging, address, source.Data, source.Known);
+        return PublishPointers(staging, address, source.Pointers);
+    }
+
+    private static NativeBattleFileStaging PublishPointers(NativeBattleFileStaging staging, uint address, IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>> pointers)
+    {
         foreach ((int field, NativeBattleResourcePointer? pointer) in pointers)
         {
             staging = staging.SetResourcePointerMetadata(checked(address + (uint)field), pointer);
