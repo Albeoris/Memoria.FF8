@@ -6,6 +6,8 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleGeometry
 {
+    private readonly record struct LoadedVector0(ImmutableArray<byte> Data, ImmutableArray<bool> Known);
+
     public static NativeBattleGeometryRegisterStep LoadDiagonal45DC70(NativeBattleGeometryRegisterStep step, NativeBattleVector vector)
     {
         Validate(step);
@@ -77,11 +79,16 @@ public static class NativeBattleGeometry
     public static NativeBattleGeometryRegisterStep LoadVector(NativeBattleGeometryRegisterStep step, int slot, NativeBattleVector vector, short? w)
     {
         Span<byte?> bytes = stackalloc byte?[8];
+        PackVector(bytes, vector, w);
+        return LoadPackedVector(step, slot, bytes);
+    }
+
+    private static void PackVector(Span<byte?> bytes, NativeBattleVector vector, short? w)
+    {
         PutWord(bytes, 0, unchecked((short)vector.X));
         PutWord(bytes, 2, unchecked((short)vector.Y));
         PutWord(bytes, 4, unchecked((short)vector.Z));
         PutWord(bytes, 6, w);
-        return LoadPackedVector(step, slot, bytes);
     }
 
     public static NativeBattleGeometryRegisters LoadAnchorScratchXYZ(NativeBattleGeometryRegisters geometry, NativeBattleVector vector)
@@ -123,13 +130,29 @@ public static class NativeBattleGeometry
     public static NativeBattleGeometryRegisterStep ProjectSingle(NativeBattleGeometryRegisterStep step, NativeBattleCameraProjection projection, short dqa, int dqb)
     {
         Validate(step);
-        NativeBattleModuleProjectionObservation observed = NativeBattleModuleProjection.Observe45FE10(ReadMatrix(step.Geometry, true), ReadVector(step, 0), projection);
-        NativeBattleGeometryRegisters geometry = step.Geometry with
-        {
-            Sxy = [step.Geometry.Sxy[1], step.Geometry.Sxy[2], observed.Projected.Screen],
-            Sz = [step.Geometry.Sz[1], step.Geometry.Sz[2], step.Geometry.Sz[3], observed.Projected.Depth]
-        };
-        return PublishProjection(step with { Geometry = geometry }, observed, observed.Projected.Flags, dqa, dqb);
+        return ProjectSingleCore(step, ReadMatrix(step.Geometry, true), ReadVector(step, 0), projection, dqa, dqb);
+    }
+
+    internal static NativeBattleGeometryRegisterStep ProjectSingle(NativeBattleGeometryRegisterStep step, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, short dqa, int dqb)
+    {
+        Validate(step);
+        return ProjectSingleCore(step, matrix, ReadVector(step, 0), projection, dqa, dqb);
+    }
+
+    internal static NativeBattleGeometryRegisterStep ProjectLoadedVector0(NativeBattleGeometryRegisterStep step, NativeBattleActionMatrix matrix, NativeBattleVector vector, NativeBattleCameraProjection projection, short dqa, int dqb)
+    {
+        Validate(step);
+        Span<byte?> bytes = stackalloc byte?[8];
+        PackVector(bytes, vector, 0);
+        return ProjectSingleCore(step, matrix, vector, projection, dqa, dqb, CaptureVector0(bytes));
+    }
+
+    private static NativeBattleGeometryRegisterStep ProjectSingleCore(NativeBattleGeometryRegisterStep step, NativeBattleActionMatrix matrix, NativeBattleVector vector, NativeBattleCameraProjection projection, short dqa, int dqb, LoadedVector0? loadedVector = null)
+    {
+        NativeBattleModuleProjectionObservation observed = NativeBattleModuleProjection.Observe45FE10(matrix, vector, projection);
+        return PublishProjection(step, observed, observed.Projected.Flags, dqa, dqb,
+            [step.Geometry.Sxy[1], step.Geometry.Sxy[2], observed.Projected.Screen],
+            [step.Geometry.Sz[1], step.Geometry.Sz[2], step.Geometry.Sz[3], observed.Projected.Depth], loadedVector);
     }
 
     public static NativeBattleGeometryRegisterStep ProjectTriple(NativeBattleGeometryRegisterStep step, NativeBattleCameraProjection projection, short dqa, int dqb)
@@ -139,12 +162,9 @@ public static class NativeBattleGeometry
         NativeBattleModuleProjectionObservation first = NativeBattleModuleProjection.Observe45FE10(matrix, ReadVector(step, 0), projection);
         NativeBattleModuleProjectionObservation second = NativeBattleModuleProjection.Observe45FE10(matrix, ReadVector(step, 1), projection);
         NativeBattleModuleProjectionObservation third = NativeBattleModuleProjection.Observe45FE10(matrix, ReadVector(step, 2), projection);
-        NativeBattleGeometryRegisters geometry = step.Geometry with
-        {
-            Sxy = [first.Projected.Screen, second.Projected.Screen, third.Projected.Screen],
-            Sz = [step.Geometry.Sz[3], first.Projected.Depth, second.Projected.Depth, third.Projected.Depth]
-        };
-        return PublishProjection(step with { Geometry = geometry }, third, first.Projected.Flags | second.Projected.Flags | third.Projected.Flags, dqa, dqb);
+        return PublishProjection(step, third, first.Projected.Flags | second.Projected.Flags | third.Projected.Flags, dqa, dqb,
+            [first.Projected.Screen, second.Projected.Screen, third.Projected.Screen],
+            [step.Geometry.Sz[3], first.Projected.Depth, second.Projected.Depth, third.Projected.Depth]);
     }
 
     public static NativeBattleGeometryRegisterStep Clip45EE10(NativeBattleGeometryRegisterStep step)
@@ -188,7 +208,7 @@ public static class NativeBattleGeometry
         return step with { Geometry = step.Geometry with { Mac0 = result, Otz = result }, Colors = step.Colors with { Flags = 0 } };
     }
 
-    private static NativeBattleGeometryRegisterStep PublishProjection(NativeBattleGeometryRegisterStep step, NativeBattleModuleProjectionObservation observed, uint flags, short dqa, int dqb)
+    private static NativeBattleGeometryRegisterStep PublishProjection(NativeBattleGeometryRegisterStep step, NativeBattleModuleProjectionObservation observed, uint flags, short dqa, int dqb, ImmutableArray<uint?> sxy, ImmutableArray<uint?> sz, LoadedVector0? loadedVector = null)
     {
         double cue = (double)dqa * observed.Factor;
         cue *= 65536d;
@@ -198,11 +218,11 @@ public static class NativeBattleGeometry
         {
             flags |= 0x1000;
         }
-        NativeBattleScriptedColorRegisters colors = PublishMac(step.Colors, observed.X, observed.Y, observed.Z, flags) with { Ir0 = (uint)Math.Clamp(ir0, 0, 4095) };
-        return new(step.Geometry with { Mac0 = unchecked((uint)NativePrecision53.RoundInteger(cue)) }, colors);
+        NativeBattleScriptedColorRegisters colors = PublishMac(step.Colors, observed.X, observed.Y, observed.Z, flags, (uint)Math.Clamp(ir0, 0, 4095), loadedVector);
+        return new(step.Geometry with { Sxy = sxy, Sz = sz, Mac0 = unchecked((uint)NativePrecision53.RoundInteger(cue)) }, colors);
     }
 
-    private static NativeBattleScriptedColorRegisters PublishMac(NativeBattleScriptedColorRegisters colors, int x, int y, int z, uint flags)
+    private static NativeBattleScriptedColorRegisters PublishMac(NativeBattleScriptedColorRegisters colors, int x, int y, int z, uint flags, uint? ir0 = null, LoadedVector0? loadedVector = null)
     {
         ReadOnlySpan<int> values = stackalloc int[] { x, y, z };
         ReadOnlySpan<uint> limits = stackalloc uint[] { 0x81000000, 0x80800000, 0x00400000 };
@@ -213,7 +233,15 @@ public static class NativeBattleGeometry
                 flags |= limits[lane];
             }
         }
-        return colors with { Mac = [(int?)x, y, z], Ir = [(int?)Math.Clamp(x, short.MinValue, short.MaxValue), Math.Clamp(y, short.MinValue, short.MaxValue), Math.Clamp(z, short.MinValue, short.MaxValue)], Flags = flags };
+        return colors with
+        {
+            Mac = [(int?)x, y, z],
+            Ir = [(int?)Math.Clamp(x, short.MinValue, short.MaxValue), Math.Clamp(y, short.MinValue, short.MaxValue), Math.Clamp(z, short.MinValue, short.MaxValue)],
+            Flags = flags,
+            Ir0 = ir0 ?? colors.Ir0,
+            NormalInput = loadedVector?.Data ?? colors.NormalInput,
+            NormalInputKnown = loadedVector?.Known ?? colors.NormalInputKnown
+        };
     }
 
     private static NativeBattleGeometryRegisterStep LoadPackedVector(NativeBattleGeometryRegisterStep step, int slot, ReadOnlySpan<byte?> bytes)
@@ -225,14 +253,8 @@ public static class NativeBattleGeometry
         }
         if (slot == 0)
         {
-            byte[] normal = new byte[8];
-            bool[] known = new bool[8];
-            for (int index = 0; index < bytes.Length; index++)
-            {
-                normal[index] = bytes[index] ?? 0;
-                known[index] = bytes[index].HasValue;
-            }
-            return step with { Colors = step.Colors with { NormalInput = ImmutableCollectionsMarshal.AsImmutableArray(normal), NormalInputKnown = ImmutableCollectionsMarshal.AsImmutableArray(known) } };
+            LoadedVector0 loaded = CaptureVector0(bytes);
+            return step with { Colors = step.Colors with { NormalInput = loaded.Data, NormalInputKnown = loaded.Known } };
         }
         return slot switch
         {
@@ -240,6 +262,18 @@ public static class NativeBattleGeometry
             2 => step with { Geometry = step.Geometry with { V2 = bytes.ToImmutableArray() } },
             _ => throw new ArgumentOutOfRangeException(nameof(slot))
         };
+    }
+
+    private static LoadedVector0 CaptureVector0(ReadOnlySpan<byte?> bytes)
+    {
+        byte[] normal = new byte[8];
+        bool[] known = new bool[8];
+        for (int index = 0; index < bytes.Length; index++)
+        {
+            normal[index] = bytes[index] ?? 0;
+            known[index] = bytes[index].HasValue;
+        }
+        return new(ImmutableCollectionsMarshal.AsImmutableArray(normal), ImmutableCollectionsMarshal.AsImmutableArray(known));
     }
 
     private static NativeBattleVector ReadVector(NativeBattleGeometryRegisterStep step, int slot)

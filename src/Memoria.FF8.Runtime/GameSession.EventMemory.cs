@@ -7,10 +7,10 @@ public sealed partial class GameSession
         ValidateEventMemoryOwners(state, memory, NativeEventSceneMemoryOwners.None);
     }
 
-    private static void ValidateEventMemoryOwners(GameState state, NativeEventMemory memory, NativeEventSceneMemoryOwners liveOwners)
+    private static void ValidateEventMemoryOwners(GameState state, NativeEventMemory memory, NativeEventSceneMemoryOwners liveOwners, CapturedEventSceneProjectionCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(memory);
-        NativeEventSceneMemoryOwners sceneOwners = SavedEventMemorySceneOwners(state) | liveOwners;
+        NativeEventSceneMemoryOwners sceneOwners = SavedEventMemorySceneOwners(state, cache) | liveOwners;
         List<NativeEventMemoryRegion> regions = [.. NativeEventMemoryOwnership.RootRegions(state), .. NativeEventMemoryOwnership.SceneRegions(sceneOwners)];
         NativeEventMemoryOwnership.Validate(memory, regions);
     }

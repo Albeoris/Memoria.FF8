@@ -22,11 +22,14 @@ public sealed class NativeBattleSceneReplayMemoTests
         BattleRenderer renderer = Renderer(capture);
         NativeBattlePreparedPresentation earlier = Presentation(fixture.Frame, 1);
         NativeBattlePreparedPresentation later = Presentation(fixture.Frame, 2);
+        PixelImage? firstImage = null;
         foreach (float alpha in new[] { 0.25f, 0.5f, 0.75f })
         {
             Assert.True(renderer.CanSampleNativePilotInterval(earlier, later));
             renderer.RenderNativePilotPrimitiveFrame(earlier, later, alpha, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: source);
             PixelImage warm = capture.Image!;
+            firstImage ??= warm;
+            Assert.Same(firstImage, warm);
             Capture coldCapture = new();
             Renderer(coldCapture).RenderNativePilotPrimitiveFrame(earlier, later, alpha, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8(), effectTextureSource: new CountingSource(fixture.SourceTextures));
             Assert.Equal(coldCapture.Image!.Pixels, warm.Pixels);

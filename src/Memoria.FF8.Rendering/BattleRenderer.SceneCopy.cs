@@ -7,6 +7,7 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class BattleRenderer
 {
+    private const long SceneCopyImageBudget = 64L * 1024 * 1024;
     private sealed record SceneReplayBuffer(byte[] Pixels, float[] Depth);
 
     private sealed class SceneReplayContext
@@ -27,6 +28,27 @@ public sealed partial class BattleRenderer
         internal required long[] Dependencies;
         internal readonly Dictionary<long, (ushort[] Words, long[] Dependencies)> Roots = [];
         internal readonly Queue<long> Order = [];
+        internal readonly Dictionary<SceneCopyTextureKey, PixelImage> Images = [];
+        private readonly Queue<(SceneCopyTextureKey Key, long Bytes)> imageOrder = [];
+        private long imageBytes;
+
+        internal void AddImage(SceneCopyTextureKey key, PixelImage image, long bytes)
+        {
+            long retained = checked(bytes * 2);
+            if (retained > SceneCopyImageBudget || Images.ContainsKey(key))
+            {
+                return;
+            }
+            while (Images.Count >= 64 || imageBytes > SceneCopyImageBudget - retained)
+            {
+                var oldest = imageOrder.Dequeue();
+                Images.Remove(oldest.Key);
+                imageBytes -= oldest.Bytes;
+            }
+            Images.Add(key, image);
+            imageOrder.Enqueue((key, retained));
+            imageBytes += retained;
+        }
 
         internal void Add(long id, ushort[] words)
         {
@@ -49,7 +71,7 @@ public sealed partial class BattleRenderer
     private bool[]? sceneReplaySampleRows;
     private bool isSceneReplay;
     private Func<int, int, bool, PixelImage>? sceneCopyUiTexture;
-    private readonly record struct SceneCopyTextureKey(PixelImage Image, ImmutableArray<NativeBattleSceneCopyRegion> Regions, NativeBattlePcTextureWindowSelection Window, ushort Page, ImmutableArray<ushort> Palette, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift);
+    private readonly record struct SceneCopyTextureKey(PixelImage Image, ImmutableArray<NativeBattleSceneCopyRegion> Regions, NativeBattlePcTextureWindowSelection Window, ushort Page, ImmutableArray<ushort> Palette, int? Blend, NativeBattlePcDirectTextureFormat? Format, byte? PaletteShift, bool SubtractUsesNormalizedColor);
     private readonly Dictionary<SceneCopyTextureKey, PixelImage> sceneCopyImages = [];
     private long sceneCopyImageBytes;
 
@@ -135,7 +157,7 @@ public sealed partial class BattleRenderer
         int bits = 16 / pixelsPerWord;
         int mask = (1 << bits) - 1;
         ImmutableArray<ushort> palette = drawMode.SceneCopyPalette ?? throw new InvalidDataException("Scene texture sampling requires its ordered native palette receipt.");
-        SceneCopyTextureKey key = new(image, regions.Value, window, page, palette, drawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift);
+        SceneCopyTextureKey key = new(image, regions.Value, window, page, palette, drawMode.BlendMode, capabilities?.DirectTextureFormat, colors.AlternatePaletteShift, colors.SubtractUsesNormalizedColor);
         if (sceneCopyImages.TryGetValue(key, out PixelImage? cached))
         {
             return cached;
@@ -145,11 +167,24 @@ public sealed partial class BattleRenderer
             throw new InvalidDataException("Scene texture sampling requires a complete palette for its native depth.");
         }
         long imageBytes = checked((long)image.Width * image.Height * 4);
-        if (sceneCopyImageBytes > 64L * 1024 * 1024 - imageBytes)
+        if (sceneCopyImageBytes > SceneCopyImageBudget - imageBytes)
         {
             throw new NotSupportedException("Scene texture sampling exceeds its bounded decoded image budget.");
         }
+        SceneReplayMemo? imageMemo = sceneReplayContext.Active.Count == 0 ? sceneReplayContext.Memo : null;
+        if (imageMemo is { } memo && memo.Images.TryGetValue(key, out PixelImage? retainedImage))
+        {
+            sceneReplayContext.Requested.UnionWith(memo.Dependencies);
+            if (sceneReplayContext.Requested.Count > 64)
+            {
+                throw new InvalidDataException("Scene replay requires an acyclic bounded source graph.");
+            }
+            sceneCopyImages.Add(key, retainedImage);
+            sceneCopyImageBytes += imageBytes;
+            return retainedImage;
+        }
         Rgba32[] pixels = image.Pixels.ToArray();
+        NativeBattleSceneCopyRegion? validatedRegion = null;
         for (int y = 0; y < image.Height; y++)
         {
             int physicalY = (page & 16) * 16 + ((window.Y + y) & 255);
@@ -170,7 +205,11 @@ public sealed partial class BattleRenderer
                 {
                     continue;
                 }
-                selected.Validate();
+                if (!ReferenceEquals(selected, validatedRegion))
+                {
+                    selected.Validate();
+                    validatedRegion = selected;
+                }
                 int sourceX = selected.SourceX + physicalX - selected.X;
                 int sourceY = selected.SourceY + physicalY - selected.Y;
                 // The extra copied rows outside the native scene retain their canonical VRAM words.
@@ -206,6 +245,7 @@ public sealed partial class BattleRenderer
         PixelImage result = new(image.Width, image.Height, pixels);
         sceneCopyImages.Add(key, result);
         sceneCopyImageBytes += imageBytes;
+        imageMemo?.AddImage(key, result, imageBytes);
         return result;
     }
 

@@ -13,13 +13,17 @@ public static class NativeBattleIfritResourcesReader
 
     public static NativeBattleScriptedInitializationDirectories Read(byte[] executable, NativeBattleCinematicProfile profile)
     {
-        NativeBattleEffectBinding binding = NativeBattleEffectCatalogReader.Read(executable)[profile.Effect - 1];
+        return Read(new NativeExecutableMemory(executable), profile);
+    }
+
+    internal static NativeBattleScriptedInitializationDirectories Read(NativeExecutableMemory memory, NativeBattleCinematicProfile profile)
+    {
+        NativeBattleEffectBinding binding = NativeBattleEffectCatalogReader.Read(memory)[profile.Effect - 1];
         ImmutableArray<NativeBattleEffectInitializerResource> operands = NativeBattleEffectInitializerPolicy.Resources(binding);
         if (binding.Effect != profile.Effect || binding.Entry != profile.Entry || binding.Initializer != profile.Initializer || operands.Length != 2 || operands[0].Name != profile.InitialFile || operands[0].GlobalAddress != profile.File0Publication || operands[1].Name != Path.ChangeExtension(profile.InitialFile, "01") || operands[1].GlobalAddress != profile.File1Publication)
         {
             throw new InvalidDataException("Native cinematic initialization requires its original ordered two-file initializer.");
         }
-        NativeExecutableMemory memory = new(executable);
         NativeBattleScriptedInitializationDirectories directories = new(new($"FF8_EN:{profile.InitializationAddress:X}", memory.Read(profile.InitializationAddress, 0x1C).ToImmutableArray()), new($"FF8_EN:{profile.OwnerDirectoryAddress:X}", memory.Read(profile.OwnerDirectoryAddress, 0x14).ToImmutableArray()));
         directories.Validate();
         return directories;
@@ -31,7 +35,9 @@ public sealed partial class GameAssets
     private readonly Dictionary<int, NativeBattleScriptedInitializationDirectories> nativeCinematicInitializationDirectories = [];
     private readonly Dictionary<int, NativeBattleCinematicResources> nativeCinematicResources = [];
     private readonly Dictionary<int, NativeBattleCinematicModelOperands> nativeCinematicModelOperands = [];
-    private NativeExecutableMemory? nativeCinematicOperandImage;
+    private NativeExecutableMemory? nativeCinematicImage;
+
+    private NativeExecutableMemory NativeCinematicImage => nativeCinematicImage ??= new(GameDataResources.ReadNativeExecutable(resources));
 
     public NativeBattleCinematicModelOperands ReadNativeCinematicModelOperands(NativeBattleEffectBinding binding)
     {
@@ -48,7 +54,7 @@ public sealed partial class GameAssets
         if (!nativeCinematicModelOperands.TryGetValue(profile.Effect, out NativeBattleCinematicModelOperands? operands))
         {
             using var magic = OpenArchive("magic");
-            NativeExecutableMemory image = nativeCinematicOperandImage ??= new(GameDataResources.ReadNativeExecutable(resources));
+            NativeExecutableMemory image = NativeCinematicImage;
             byte[] instructionTable = image.Read(profile.InstructionTable, 0x200 * sizeof(uint));
             operands = NativeBattleCinematicOperandReader.Read(Read(magic, files[0].Name).ToImmutableArray(), profile, opcode => BinaryPrimitives.ReadUInt32LittleEndian(instructionTable.AsSpan(opcode * sizeof(uint))));
             nativeCinematicModelOperands.Add(profile.Effect, operands);
@@ -70,7 +76,7 @@ public sealed partial class GameAssets
     {
         if (!nativeCinematicInitializationDirectories.TryGetValue(effect, out NativeBattleScriptedInitializationDirectories? directories))
         {
-            directories = NativeBattleIfritResourcesReader.Read(GameDataResources.ReadNativeExecutable(resources), NativeBattleCinematicProfile.ForEffect(effect));
+            directories = NativeBattleIfritResourcesReader.Read(NativeCinematicImage, NativeBattleCinematicProfile.ForEffect(effect));
             nativeCinematicInitializationDirectories.Add(effect, directories);
         }
         return directories;
@@ -82,9 +88,9 @@ public sealed partial class GameAssets
         {
             using var magic = OpenArchive("magic");
             using var battle = OpenArchive("battle");
-            byte[] executable = GameDataResources.ReadNativeExecutable(resources);
+            NativeExecutableMemory image = NativeCinematicImage;
             NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect);
-            cinematic = NativeBattleCinematicResourcesReader.Read(executable, Read(magic, profile.InitialFile).ToImmutableArray(), profile) with { Files = NativeBattleCinematicFilesReader.Read(executable, profile, name => Read(battle, name).ToImmutableArray()) };
+            cinematic = NativeBattleCinematicResourcesReader.Read(image, Read(magic, profile.InitialFile).ToImmutableArray(), profile) with { Files = NativeBattleCinematicFilesReader.Read(image, profile, name => Read(battle, name).ToImmutableArray()) };
             nativeCinematicResources.Add(effect, cinematic);
         }
         return cinematic;

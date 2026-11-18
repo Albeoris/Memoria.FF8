@@ -17,6 +17,17 @@ public sealed class BattleMeteorPartyPerformanceTests
     [Fact]
     public void Saved_world_party_measures_idle_and_ordinary_meteor_in_the_graphics_host()
     {
+        string? requested = Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_REPETITIONS");
+        int repetitions = requested is null ? 1 : int.Parse(requested, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(repetitions, 1, 3);
+        for (int iteration = 0; iteration < repetitions; iteration++)
+        {
+            MeasureSavedWorld(iteration, repetitions);
+        }
+    }
+
+    private static void MeasureSavedWorld(int iteration, int repetitions)
+    {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_SAVE");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_HOST_PERFORMANCE") == "1" && source is not null && File.Exists(source), "An optional standalone world save and interactive graphics diagnostic opt-in are required.");
         byte[] originalHash = SHA256.HashData(File.ReadAllBytes(source!));
@@ -126,7 +137,7 @@ public sealed class BattleMeteorPartyPerformanceTests
                 }
                 return;
             }
-            samples[count++] = new(stage, presented, begin, end, pacer, phases, game.IsActive);
+            samples[count++] = new(stage, presented, begin, end, pacer, phases, game.IsActive, DiagnosticGcPauseObservation.Capture());
             if (stage == 1)
             {
                 idleCount++;
@@ -183,12 +194,17 @@ public sealed class BattleMeteorPartyPerformanceTests
             Released = released,
             Damages = battle.Events.Skip(eventStart).Where(entry => entry.Kind == "Damage" && entry.ActorId == caster.Id).Select(entry => new { entry.TargetId, entry.Amount }).Take(64).ToArray(),
             Graphics = new { Backend = "Vulkan", Width = game.GraphicsDevice.PresentationParameters.BackBufferWidth, Height = game.GraphicsDevice.PresentationParameters.BackBufferHeight, Samples = game.GraphicsDevice.PresentationParameters.MultiSampleCount, PresentInterval = game.GraphicsDevice.PresentationParameters.PresentationInterval.ToString() },
+            Runtime = new { Version = Environment.Version.ToString(), System.Runtime.GCSettings.IsServerGC, LatencyMode = System.Runtime.GCSettings.LatencyMode.ToString(), Environment.ProcessorCount },
             Presented = presented,
             Seconds = duration.Elapsed.TotalSeconds,
             Idle = Summarize(1, idleTimestamp, idlePacer, idleStart, idleEnd),
             Meteor = Summarize(2, castTimestamp, castPacer, castStart, castEnd)
         };
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_METEOR_PERFORMANCE_OUTPUT") ?? Path.Combine(directory, "summary.json");
+        if (repetitions > 1)
+        {
+            output = Path.Combine(Path.GetDirectoryName(output)!, $"{Path.GetFileNameWithoutExtension(output)}-{iteration + 1}{Path.GetExtension(output)}");
+        }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
         File.WriteAllText(output, JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
         Assert.Equal(originalHash, SHA256.HashData(File.ReadAllBytes(source!)));
@@ -204,10 +220,10 @@ public sealed class BattleMeteorPartyPerformanceTests
                 return null;
             }
             FrameSample[] selected = samples.Take(count).Where(sample => sample.Stage == selectedStage).ToArray();
-            DiagnosticPresentationPacing pacing = new(Stopwatch.Frequency, Math.Max(1, selected.Length), preceding, baseline);
+            DiagnosticPresentationPacing pacing = new(Stopwatch.Frequency, Math.Max(1, selected.Length), preceding, baseline, start.GcPause);
             foreach (FrameSample sample in selected)
             {
-                pacing.Record(sample.Frame, sample.End, sample.Begin, sample.End, sample.Pacer, sample.Phases);
+                pacing.Record(sample.Frame, sample.End, sample.Begin, sample.End, sample.Pacer, sample.Phases, sample.GcPause);
             }
             DiagnosticPacingSummary timing = pacing.Complete();
             return new
@@ -221,7 +237,8 @@ public sealed class BattleMeteorPartyPerformanceTests
                 AllocatedBytes = finish.Allocated - start.Allocated,
                 Collections = finish.Collections.Zip(start.Collections, (last, first) => last - first).ToArray(),
                 MainThreadCpuMilliseconds = (finish.ThreadCpu - start.ThreadCpu) / 10000d,
-                ProcessCpuMilliseconds = finish.ProcessCpu - start.ProcessCpu
+                ProcessCpuMilliseconds = finish.ProcessCpu - start.ProcessCpu,
+                ReportedGcPauseMilliseconds = (finish.GcPause.TotalPauseTimeSpanTicks - start.GcPause.TotalPauseTimeSpanTicks) / (double)TimeSpan.TicksPerMillisecond
             };
         }
     }
@@ -257,11 +274,11 @@ public sealed class BattleMeteorPartyPerformanceTests
     {
         Assert.True(GetThreadTimes(GetCurrentThread(), out _, out _, out long kernel, out long user));
         using Process process = Process.GetCurrentProcess();
-        return new(GC.GetTotalAllocatedBytes(), [GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2)], kernel + user, process.TotalProcessorTime.TotalMilliseconds);
+        return new(GC.GetTotalAllocatedBytes(), [GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2)], kernel + user, process.TotalProcessorTime.TotalMilliseconds, DiagnosticGcPauseObservation.Capture());
     }
 
-    private sealed record StagePoint(long Allocated, int[] Collections, long ThreadCpu, double ProcessCpu);
-    private readonly record struct FrameSample(int Stage, long Frame, long Begin, long End, PresentationPacerObservation Pacer, DiagnosticHostFramePhases? Phases, bool Active);
+    private sealed record StagePoint(long Allocated, int[] Collections, long ThreadCpu, double ProcessCpu, DiagnosticGcPauseObservation GcPause);
+    private readonly record struct FrameSample(int Stage, long Frame, long Begin, long End, PresentationPacerObservation Pacer, DiagnosticHostFramePhases? Phases, bool Active, DiagnosticGcPauseObservation GcPause);
     private static T Get<T>(RecreateGame game, string name) => (T)typeof(RecreateGame).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(game)!;
     private static void Set(RecreateGame game, string name, object value) => typeof(RecreateGame).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(game, value);
 

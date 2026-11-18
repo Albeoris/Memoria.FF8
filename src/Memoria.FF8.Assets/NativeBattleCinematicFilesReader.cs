@@ -15,7 +15,12 @@ public static class NativeBattleCinematicFilesReader
     public static ImmutableArray<NativeBattleArchiveFile> Read(byte[] executable, NativeBattleCinematicProfile profile, Func<string, ImmutableArray<byte>> readBattleFile)
     {
         ArgumentNullException.ThrowIfNull(readBattleFile);
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable), profile, readBattleFile);
+    }
+
+    internal static ImmutableArray<NativeBattleArchiveFile> Read(NativeExecutableMemory memory, NativeBattleCinematicProfile profile, Func<string, ImmutableArray<byte>> readBattleFile)
+    {
+        ArgumentNullException.ThrowIfNull(readBattleFile);
         ImmutableArray<NativeBattleArchiveFile>.Builder files = ImmutableArray.CreateBuilder<NativeBattleArchiveFile>();
         foreach (ushort id in Enumerable.Range(profile.SourceBase, profile.LastSource - profile.SourceBase + 1).Concat(Enumerable.Range(0x16B, 3)).Distinct().Select(id => checked((ushort)id)))
         {

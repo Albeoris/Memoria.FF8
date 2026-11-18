@@ -14,7 +14,11 @@ public static class NativeBattleCinematicResourcesReader
 
     public static NativeBattleCinematicResources Read(byte[] executable, ImmutableArray<byte> initialFile0, NativeBattleCinematicProfile profile)
     {
-        NativeExecutableMemory memory = new(executable);
+        return Read(new NativeExecutableMemory(executable), initialFile0, profile);
+    }
+
+    internal static NativeBattleCinematicResources Read(NativeExecutableMemory memory, ImmutableArray<byte> initialFile0, NativeBattleCinematicProfile profile)
+    {
         if (initialFile0.IsDefault || initialFile0.Length < 0x28)
         {
             throw new InvalidDataException("Native cinematic vibration requires its complete original first resource header.");

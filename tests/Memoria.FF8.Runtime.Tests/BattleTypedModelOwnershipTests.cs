@@ -1,7 +1,59 @@
+using System.Text.Json;
+
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class BattleTypedModelOwnershipTests
 {
+    [Fact]
+    public void Actor_hashes_preserve_record_formula_copies_and_external_equality_contracts()
+    {
+        string firstId = new("actor".ToCharArray());
+        string secondId = new("actor".ToCharArray());
+        Assert.NotSame(firstId, secondId);
+        BattlePartyActorReference party = new(firstId);
+        BattlePartyActorReference equalParty = new(secondId);
+        BattleEnemyActorReference enemy = new(firstId);
+        Assert.Equal(party, equalParty);
+        Assert.Equal(party.GetHashCode(), equalParty.GetHashCode());
+        Assert.Equal(party, party with { });
+        Assert.Equal(party.GetHashCode(), (party with { }).GetHashCode());
+        Assert.Equal(enemy, enemy with { });
+        Assert.Equal(enemy.GetHashCode(), (enemy with { }).GetHashCode());
+        Assert.NotEqual<BattleActorReference>(party, enemy);
+        Assert.Equal(OriginalHash(typeof(BattlePartyActorReference), firstId, BattleSide.Allies), party.GetHashCode());
+        Assert.Equal(OriginalHash(typeof(BattleEnemyActorReference), firstId, BattleSide.Enemies), enemy.GetHashCode());
+
+        CopiedActorReference copied = new(party);
+        CopiedActorReference equalCopied = new(equalParty);
+        Assert.Equal(copied, equalCopied);
+        Assert.Equal(copied, copied with { });
+        Assert.Equal(OriginalHash(typeof(CopiedActorReference), firstId, BattleSide.Allies), copied.GetHashCode());
+        Assert.Equal(copied.GetHashCode(), (copied with { }).GetHashCode());
+
+        BattlePartyActorReference restoredParty = JsonSerializer.Deserialize<BattlePartyActorReference>(JsonSerializer.Serialize(party))!;
+        BattleEnemyActorReference restoredEnemy = JsonSerializer.Deserialize<BattleEnemyActorReference>(JsonSerializer.Serialize(enemy))!;
+        Assert.Equal(party, restoredParty);
+        Assert.Equal(enemy, restoredEnemy);
+        Assert.Equal(party.GetHashCode(), restoredParty.GetHashCode());
+        Assert.Equal(enemy.GetHashCode(), restoredEnemy.GetHashCode());
+        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(party));
+        Assert.Equal(new[] { "ActorId", "Side" }, document.RootElement.EnumerateObject().Select(property => property.Name));
+
+        static int OriginalHash(Type equalityContract, string actorId, BattleSide side)
+        {
+            return unchecked((EqualityComparer<Type>.Default.GetHashCode(equalityContract) * -1521134295 + EqualityComparer<string>.Default.GetHashCode(actorId)) * -1521134295 + EqualityComparer<BattleSide>.Default.GetHashCode(side));
+        }
+    }
+
+    private sealed record CopiedActorReference : BattleActorReference
+    {
+        internal CopiedActorReference(BattleActorReference source) : base(source)
+        {
+        }
+
+        protected override Type EqualityContract => typeof(CopiedActorReference);
+    }
+
     [Fact]
     public void Actor_and_model_identities_have_fixed_sides_and_ordinal_equality()
     {

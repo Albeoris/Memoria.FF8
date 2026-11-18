@@ -5,22 +5,24 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class GameSession
 {
     private Func<NativeEventSceneMemoryOwners>? eventMemorySceneOwners;
+    private readonly CapturedEventSceneProjectionCache capturedEventSceneProjections = new();
 
     /// <summary>Binds the active engine's canonical scene layout without copying scalar values or persisting a second memory owner.</summary>
     public void BindEventMemorySceneOwners(Func<NativeEventSceneMemoryOwners> provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
-        ValidateEventMemoryOwners(State, State.EventMemory, provider());
+        ValidateEventMemoryOwners(State, State.EventMemory, provider(), capturedEventSceneProjections);
         eventMemorySceneOwners = provider;
     }
 
     private void ValidateLiveEventMemoryOwners(GameState state, NativeEventMemory memory)
     {
-        ValidateEventMemoryOwners(state, memory, eventMemorySceneOwners?.Invoke() ?? NativeEventSceneMemoryOwners.None);
+        ValidateEventMemoryOwners(state, memory, eventMemorySceneOwners?.Invoke() ?? NativeEventSceneMemoryOwners.None, capturedEventSceneProjections);
     }
 
-    private static NativeEventSceneMemoryOwners SavedEventMemorySceneOwners(GameState state)
+    private static NativeEventSceneMemoryOwners SavedEventMemorySceneOwners(GameState state, CapturedEventSceneProjectionCache? cache = null)
     {
+        cache?.ReleaseAbsentSnapshots(state);
         NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
         if (state.WorldEventState is JsonElement world)
         {
@@ -28,7 +30,7 @@ public sealed partial class GameSession
             {
                 throw new InvalidDataException("World event process requires its version, field identity and unallocated Scene.");
             }
-            NativeEventSceneMemoryOwners worldOwners = CapturedEventMemorySceneOwners(state, world);
+            NativeEventSceneMemoryOwners worldOwners = CapturedEventMemorySceneOwners(state, world, cache, 0);
             if (state.EventState is null && state.DepartingFieldState is null)
             {
                 owners |= worldOwners;
@@ -36,16 +38,16 @@ public sealed partial class GameSession
         }
         if (state.EventState is JsonElement current)
         {
-            owners |= CapturedEventMemorySceneOwners(state, current);
+            owners |= CapturedEventMemorySceneOwners(state, current, cache, 1);
         }
         if (state.DepartingFieldState is JsonElement departing)
         {
-            owners |= CapturedEventMemorySceneOwners(state, departing);
+            owners |= CapturedEventMemorySceneOwners(state, departing, cache, 2);
         }
         return owners;
     }
 
-    private static NativeEventSceneMemoryOwners CapturedEventMemorySceneOwners(GameState state, JsonElement snapshot)
+    private static NativeEventSceneMemoryOwners CapturedEventMemorySceneOwners(GameState state, JsonElement snapshot, CapturedEventSceneProjectionCache? cache, int slot)
     {
         if (snapshot.ValueKind != JsonValueKind.Object)
         {
@@ -54,16 +56,53 @@ public sealed partial class GameSession
         if (!snapshot.TryGetProperty("Scene", out JsonElement scene))
         {
             // Owner-only Runtime checkpoint components do not contain an executable Scene.
+            if (cache is not null)
+            {
+                cache.Entries[slot] = null;
+            }
             return NativeEventSceneMemoryOwners.None;
         }
-        NativeEventSceneMemoryOwners owners = NativeEventMemoryOwnership.SceneOwners(scene);
-        if (!snapshot.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
+        CapturedEventSceneProjection? projection = cache?.Entries[slot];
+        if (projection is null || !projection.Snapshot.Equals(snapshot))
         {
-            throw new InvalidDataException("Captured executable Scene requires its explicit typed event memory.");
+            NativeEventSceneMemoryOwners parsedOwners = NativeEventMemoryOwnership.SceneOwners(scene);
+            if (!snapshot.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
+            {
+                throw new InvalidDataException("Captured executable Scene requires its explicit typed event memory.");
+            }
+            NativeEventMemory parsedMemory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Captured executable Scene has empty event memory.");
+            projection = new(snapshot, parsedOwners, parsedMemory);
         }
-        NativeEventMemory memory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Captured executable Scene has empty event memory.");
-        List<NativeEventMemoryRegion> regions = [.. NativeEventMemoryOwnership.RootRegions(state), .. NativeEventMemoryOwnership.SceneRegions(owners)];
-        NativeEventMemoryOwnership.Validate(memory, regions);
-        return owners;
+        // JsonElement equality identifies the same immutable document element; never reuse a validation result against a different root or live owner set.
+        List<NativeEventMemoryRegion> regions = [.. NativeEventMemoryOwnership.RootRegions(state), .. NativeEventMemoryOwnership.SceneRegions(projection.Owners)];
+        NativeEventMemoryOwnership.Validate(projection.Memory, regions);
+        if (cache is not null)
+        {
+            cache.Entries[slot] = projection;
+        }
+        return projection.Owners;
+    }
+
+    private sealed record CapturedEventSceneProjection(JsonElement Snapshot, NativeEventSceneMemoryOwners Owners, NativeEventMemory Memory);
+
+    private sealed class CapturedEventSceneProjectionCache
+    {
+        internal CapturedEventSceneProjection?[] Entries { get; } = new CapturedEventSceneProjection?[3];
+
+        internal void ReleaseAbsentSnapshots(GameState state)
+        {
+            if (state.WorldEventState is null)
+            {
+                Entries[0] = null;
+            }
+            if (state.EventState is null)
+            {
+                Entries[1] = null;
+            }
+            if (state.DepartingFieldState is null)
+            {
+                Entries[2] = null;
+            }
+        }
     }
 }

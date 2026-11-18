@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using static Memoria.FF8.Runtime.NativeBattleWaterExecutionFields;
 
 namespace Memoria.FF8.Runtime;
@@ -92,6 +93,7 @@ public static class NativeBattleScriptedMeshPreparation
         }
         projection = projection with { FocalLength = unchecked((ushort)prepared.Focal) };
         System.Numerics.Vector3[]? pilotVertices = pilotIdentity is null ? null : new System.Numerics.Vector3[vertices];
+        NativeBattleActionMatrix projectionMatrix = NativeBattleGeometry.CaptureMatrix(step.Geometry);
         for (int index = 0; index < vertices; index++)
         {
             byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(source + (uint)(index * 8)), 6), 6);
@@ -104,7 +106,7 @@ public static class NativeBattleScriptedMeshPreparation
             {
                 pilotVertices[index] = NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(prepared.Matrix, point), projection);
             }
-            step = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(step with { Colors = registers }, 0, point, 0), projection, dqa, dqb);
+            step = NativeBattleGeometry.ProjectLoadedVector0(step, projectionMatrix, point, projection, dqa, dqb);
             registers = step.Colors;
             NativeBattleModuleProjectedVertex projected = new(step.Geometry.Sxy[2]!.Value, unchecked((ushort)step.Geometry.Sz[3]!.Value), registers.Flags ?? throw new NotSupportedException("Native mesh projection requires its current flags."));
             uint cue = registers.Ir0 ?? throw new NotSupportedException("Native mesh projection requires its current depth cue.");
@@ -147,11 +149,19 @@ public static class NativeBattleScriptedMeshPreparation
             }
             uint material = (frame.ReadTemporaryDword(0x84) & 0xFF808080) | 0x00808080;
             frame = frame.WriteTemporaryDword(0xF0, material);
+            NativeBattleScriptedNormalColor.PreparedLighting? normalLighting = null;
             for (int index = 0; index < normals; index++)
             {
                 byte[] raw = frame.Arena.Read(ArenaOffset(unchecked(normalSource + (uint)(index * 8)), 8), 8);
-                registers = registers with { NormalInput = raw.ToImmutableArray(), NormalInputKnown = null, Material = material };
-                registers = NativeBattleScriptedNormalColor.Transform4601B0(lighting, Vector(raw), material, registers);
+                ImmutableArray<byte> normalInput = ImmutableCollectionsMarshal.AsImmutableArray(raw);
+                if (normalLighting is null)
+                {
+                    registers = registers with { NormalInput = normalInput, NormalInputKnown = null, Material = material };
+                    lighting.Validate();
+                    registers.Validate();
+                    normalLighting = NativeBattleScriptedNormalColor.Prepare(lighting);
+                }
+                registers = NativeBattleScriptedNormalColor.Transform4601B0(normalLighting, Vector(raw), material, registers, normalInput);
                 uint color = registers.Rgb[2] ?? throw new NotSupportedException("Native cinematic normal shader did not publish RGB2.");
                 frame = frame with { Arena = frame.Arena.Write(ArenaOffset(unchecked(normalWork + (uint)(index * 8)), 4), BitConverter.GetBytes(color)) };
             }

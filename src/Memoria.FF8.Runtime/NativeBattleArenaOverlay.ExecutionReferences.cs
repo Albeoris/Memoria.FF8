@@ -110,6 +110,11 @@ internal sealed partial class NativeBattleArenaOverlay
             return;
         }
 
+        InvalidateExecutionReferencesByEnumeration(offset, length);
+    }
+
+    private void InvalidateExecutionReferencesByEnumeration(int offset, int length)
+    {
         int[] offsets = [.. EnumerateExecutionReferences().Where(pair => pair.Key < (long)offset + length && pair.Key + (long)pair.Value.Width > offset).Select(pair => pair.Key)];
         Remove(offsets);
 

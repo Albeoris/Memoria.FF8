@@ -172,6 +172,70 @@ public sealed class NativeBattleGeometryRegistersTests
     }
 
     [Fact]
+    public void Captured_matrix_projection_preserves_sequential_FIFOs_flags_and_unknown_retained_fields()
+    {
+        NativeBattleGeometryRegisterStep original = Seed();
+        NativeBattleActionMatrix matrix = new([8192, -4096, 1024, -2048, 4096, short.MinValue, 4096, 0, 8192], 40000, -40000, 70000, 4096);
+        original = original with
+        {
+            Geometry = NativeBattleGeometry.LoadMatrix(original.Geometry, matrix, true, true, null) with { Sxy = [null, 2, null], Sz = [1, null, 3, null], Lzcs = 0x80000000, Lzcr = null },
+            Colors = original.Colors with { Rgb = [null, 2, null], Material = null, Ir0 = null }
+        };
+        string before = JsonSerializer.Serialize(original);
+        NativeBattleActionMatrix captured = NativeBattleGeometry.CaptureMatrix(original.Geometry);
+        NativeBattleGeometryRegisterStep sequential = original;
+        NativeBattleGeometryRegisterStep reused = original;
+        NativeBattleVector[] points = [new(0, 0, 0), new(short.MinValue, short.MaxValue, -1), new(short.MaxValue, short.MinValue, short.MinValue), new(1, -2, short.MaxValue)];
+        foreach (NativeBattleVector point in points)
+        {
+            sequential = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(sequential, 0, point, null), Projection(511), short.MinValue, -4096);
+            reused = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(reused, 0, point, null), captured, Projection(511), short.MinValue, -4096);
+            Assert.Equal(JsonSerializer.Serialize(sequential), JsonSerializer.Serialize(reused));
+            Assert.Equal(original.Geometry.Rotation20, reused.Geometry.Rotation20);
+            Assert.Equal(original.Geometry.Translation, reused.Geometry.Translation);
+            Assert.Equal(original.Geometry.V1, reused.Geometry.V1);
+            Assert.Equal(original.Geometry.V2, reused.Geometry.V2);
+            Assert.Equal(original.Geometry.AnchorScratch8, reused.Geometry.AnchorScratch8);
+            Assert.Equal(original.Geometry.Otz, reused.Geometry.Otz);
+            Assert.Equal(original.Geometry.Lzcs, reused.Geometry.Lzcs);
+            Assert.Null(reused.Geometry.Lzcr);
+            Assert.Equal(original.Colors.Rgb, reused.Colors.Rgb);
+            Assert.Null(reused.Colors.Material);
+            Assert.False(reused.Colors.NormalInputKnown!.Value[6]);
+            Assert.False(reused.Colors.NormalInputKnown!.Value[7]);
+        }
+        Assert.Equal(before, JsonSerializer.Serialize(original));
+    }
+
+    [Fact]
+    public void Fused_known_V0_projection_matches_sequential_load_projection_and_retained_bytes()
+    {
+        NativeBattleGeometryRegisterStep original = Seed();
+        original = original with
+        {
+            Geometry = NativeBattleGeometry.LoadMatrix(original.Geometry, Identity() with { X = 40000, Y = -40000, Z = 1000 }, true, true, null) with { Sxy = [null, 2, null], Sz = [null, 2, null, 4] },
+            Colors = NativeBattleScriptedColorRegisters.Unknown()
+        };
+        string before = JsonSerializer.Serialize(original);
+        NativeBattleActionMatrix captured = NativeBattleGeometry.CaptureMatrix(original.Geometry);
+        NativeBattleGeometryRegisterStep sequential = original;
+        NativeBattleGeometryRegisterStep fused = original;
+        (int X, int Y, int Z)[] inputs = [(0, 0, 0), (short.MinValue, short.MaxValue, -1), (short.MaxValue, short.MinValue, short.MinValue), (65536, -65537, 98303), (1, -2, short.MaxValue)];
+        foreach ((int x, int y, int z) in inputs)
+        {
+            NativeBattleVector point = new(unchecked((short)x), unchecked((short)y), unchecked((short)z));
+            sequential = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(sequential, 0, point, 0), Projection(511), short.MaxValue, 4096);
+            fused = NativeBattleGeometry.ProjectLoadedVector0(fused, captured, point, Projection(511), short.MaxValue, 4096);
+            Assert.Equal(JsonSerializer.Serialize(sequential), JsonSerializer.Serialize(fused));
+            Assert.Equal((byte)0, fused.Colors.NormalInput!.Value[6]);
+            Assert.Equal((byte)0, fused.Colors.NormalInput!.Value[7]);
+            Assert.All(fused.Colors.NormalInputKnown!.Value, value => Assert.True(value));
+        }
+        Assert.Equal(new byte[] { 1, 0, 0xFE, 0xFF, 0xFF, 0x7F, 0, 0 }, fused.Colors.NormalInput!.Value);
+        Assert.Equal(before, JsonSerializer.Serialize(original));
+    }
+
+    [Fact]
     public void Triple_projection_keeps_only_final_vertex_IR_saturation_but_accumulates_screen_flags()
     {
         NativeBattleGeometryRegisterStep original = Seed();

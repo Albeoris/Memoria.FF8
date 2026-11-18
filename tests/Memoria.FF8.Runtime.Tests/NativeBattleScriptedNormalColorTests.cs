@@ -40,6 +40,42 @@ public sealed class NativeBattleScriptedNormalColorTests
     }
 
     [Fact]
+    public void Prepared_lighting_fused_inputs_match_sequential_public_normals_and_RGB_FIFO()
+    {
+        foreach (int background in new[] { -16, 16777217 })
+        {
+            NativeBattleScriptedLightingMemory lighting = Lighting([23615, 21693, -6562, -4096, 8192, 1024, 4096, 0, 32767], [30772, -512, 1024, 0, 4096, -8192, -2048, 1024, 8192], new(background, background, background));
+            lighting = lighting with { LightMatrix = lighting.LightMatrix! with { Known = lighting.LightMatrix!.Known.SetItem(18, false).SetItem(19, false) } };
+            NativeBattleScriptedColorRegisters original = NativeBattleScriptedColorRegisters.Unknown() with { Rgb = [null, 0x12345678, 0xABCDEF01], Ir0 = 1234, Material = 0x12345678 };
+            string lightingBefore = JsonSerializer.Serialize(lighting);
+            string originalBefore = JsonSerializer.Serialize(original);
+            NativeBattleScriptedNormalColor.PreparedLighting prepared = NativeBattleScriptedNormalColor.Prepare(lighting);
+            NativeBattleScriptedColorRegisters sequential = original;
+            NativeBattleScriptedColorRegisters fused = original;
+            NativeBattleVector[] normals = [new(27013, 483, 31076), new(-4096, -2048, -1024), new(0, 0, 0), new(short.MinValue, short.MaxValue, -1)];
+            foreach (NativeBattleVector normal in normals)
+            {
+                byte[] raw = new byte[8];
+                BinaryPrimitives.WriteInt16LittleEndian(raw, normal.X);
+                BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(2), normal.Y);
+                BinaryPrimitives.WriteInt16LittleEndian(raw.AsSpan(4), normal.Z);
+                raw[6] = 0xAD;
+                raw[7] = 0xDE;
+                const uint material = 0x7FD18181;
+                sequential = sequential with { NormalInput = raw.ToImmutableArray(), NormalInputKnown = null, Material = material };
+                sequential = NativeBattleScriptedNormalColor.Transform4601B0(lighting, normal, material, sequential);
+                fused = NativeBattleScriptedNormalColor.Transform4601B0(prepared, normal, material, fused, raw.ToImmutableArray());
+                Assert.Equal(JsonSerializer.Serialize(sequential), JsonSerializer.Serialize(fused));
+                Assert.Equal(raw, fused.NormalInput!.Value);
+                Assert.Null(fused.NormalInputKnown);
+                Assert.Null(fused.Ir0);
+            }
+            Assert.Equal(lightingBefore, JsonSerializer.Serialize(lighting));
+            Assert.Equal(originalBefore, JsonSerializer.Serialize(original));
+        }
+    }
+
+    [Fact]
     public void Identity_lighting_modulates_each_material_byte_and_advances_actual_RGB_FIFO()
     {
         NativeBattleScriptedLightingMemory lighting = Lighting(Identity(), Identity(), new(0, 0, 0));
