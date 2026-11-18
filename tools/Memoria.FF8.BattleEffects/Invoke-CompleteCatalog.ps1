@@ -320,6 +320,7 @@ try {
                         $componentEnemy = switch ($effect) {
                             17 { 91 }
                             20 { 68 }
+                            44 { 83 }
                             167 { 70 }
                             308 { 105 }
                             314 { 103 }

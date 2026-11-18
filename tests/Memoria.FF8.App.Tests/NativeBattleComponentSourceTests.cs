@@ -86,6 +86,7 @@ public sealed partial class NativeBattleComponentSourceTests
         {
             17 => 91,
             20 => 68,
+            44 => 83,
             167 => 70,
             308 => 105,
             314 => 103,
@@ -115,6 +116,10 @@ public sealed partial class NativeBattleComponentSourceTests
         if (effect == 20)
         {
             return PrepareOriginalEffect20Component(world);
+        }
+        if (effect == 44)
+        {
+            return PrepareOriginalEffect44Component(world, request);
         }
         if (effect == 308)
         {
