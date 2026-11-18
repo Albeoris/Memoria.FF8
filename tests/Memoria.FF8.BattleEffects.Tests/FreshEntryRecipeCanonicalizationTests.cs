@@ -6,6 +6,32 @@ namespace Memoria.FF8.BattleEffects.Tests;
 public sealed class FreshEntryRecipeCanonicalizationTests
 {
     [Fact]
+    public void Omitted_command_saved_slot_preparation_matches_its_explicit_false_serialization()
+    {
+        JsonObject omitted = Recipe();
+        omitted["fixture"]!["characters"]![0]!["commands"] = JsonNode.Parse("""[{"slot":1,"ability":21}]""");
+        JsonObject explicitDefault = omitted.DeepClone().AsObject();
+        explicitDefault["fixture"]!["characters"]![0]!["commands"]![0]!["prepare_saved_slot"] = false;
+        JsonObject canonical = FreshEntryRecipeCanonicalization.Canonicalize(omitted);
+        Assert.True(JsonNode.DeepEquals(canonical, FreshEntryRecipeCanonicalization.Canonicalize(explicitDefault)));
+        Assert.False(omitted["fixture"]!["characters"]![0]!["commands"]![0]!.AsObject().ContainsKey("prepare_saved_slot"));
+        Assert.False(canonical["fixture"]!["characters"]![0]!["commands"]![0]!["prepare_saved_slot"]!.GetValue<bool>());
+        Assert.True(JsonNode.DeepEquals(canonical, FreshEntryRecipeCanonicalization.Canonicalize(canonical)));
+    }
+
+    [Fact]
+    public void Command_saved_slot_preparation_and_unknown_authored_fields_are_preserved()
+    {
+        JsonObject submitted = Recipe();
+        submitted["fixture"]!["characters"]![0]!["commands"] = JsonNode.Parse("""[{"slot":1,"ability":21,"prepare_saved_slot":true,"unsupported_owner":7}]""");
+        JsonObject canonical = FreshEntryRecipeCanonicalization.Canonicalize(submitted);
+        Assert.True(JsonNode.DeepEquals(submitted["fixture"]!["characters"]![0]!["commands"], canonical["fixture"]!["characters"]![0]!["commands"]));
+        JsonObject explicitFalse = submitted.DeepClone().AsObject();
+        explicitFalse["fixture"]!["characters"]![0]!["commands"]![0]!["prepare_saved_slot"] = false;
+        Assert.False(JsonNode.DeepEquals(canonical, FreshEntryRecipeCanonicalization.Canonicalize(explicitFalse)));
+    }
+
+    [Fact]
     public void Omitted_optional_preparation_defaults_match_the_actual_initialized_serialization()
     {
         JsonObject submitted = Recipe();

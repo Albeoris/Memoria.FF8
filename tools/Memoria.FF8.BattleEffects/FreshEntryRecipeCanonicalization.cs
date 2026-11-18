@@ -60,6 +60,10 @@ public static class FreshEntryRecipeCanonicalization
             foreach (JsonObject character in fixture["characters"]!.AsArray().OfType<JsonObject>())
             {
                 Defaults(character, """{"magic_command":null,"commands":[],"magic_junctions":[],"hit_points":null,"knocked_out":false,"level":null,"weapon":null}""");
+                foreach (JsonObject command in character["commands"]!.AsArray().OfType<JsonObject>())
+                {
+                    Defaults(command, """{"prepare_saved_slot":false}""");
+                }
             }
         }
         return recipe;

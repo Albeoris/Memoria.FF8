@@ -173,7 +173,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        presentationPacer.BeginUpdate(appliedFrameLimit ?? 60, Stopwatch.GetTimestamp());
+        presentationPacer.BeginUpdate(appliedSoftwareFrameLimit ?? appliedFrameLimit ?? 60, Stopwatch.GetTimestamp());
         using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
@@ -1817,6 +1817,9 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+#if !MEMORIA_NATIVE
+            displayRefreshRate?.Dispose();
+#endif
             applicationWindowIcon?.Dispose();
             ff7Scene?.Dispose();
             crossoverSetup?.Dispose();

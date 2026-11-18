@@ -1,5 +1,6 @@
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
@@ -7,7 +8,11 @@ internal sealed partial class RecreateGame
 {
     private readonly PresentationTiming presentationTiming = new();
     private readonly PresentationPacer presentationPacer = new();
+#if !MEMORIA_NATIVE
+    private WindowsDisplayRefreshRate? displayRefreshRate;
+#endif
     private int? appliedFrameLimit;
+    private int? appliedSoftwareFrameLimit;
     private int appliedMsaaSamples;
     private bool battlePresentationUpdated;
     private bool CanAdvanceBattleRenderPhase => !focusPaused && !discardFocusElapsed && !updateSave.Paused && !userPaused && !dialogContext.IsBusy && !dialogInputBlocked && pendingCapture is null && battleEntryTransition is null && !capturingControls && !fieldFaulted && autoPlay?.Paused != true;
@@ -32,10 +37,12 @@ internal sealed partial class RecreateGame
             appliedFrameLimit = frameLimit;
             presentationPacer.Reset();
         }
-        presentationPacer.RequestFrameLimit(frameLimit);
         bool samplesChanged = appliedMsaaSamples != uiPreferences.Graphics.MsaaSamples;
         if (GraphicsDeviceSettings.Apply(graphics, uiPreferences, ref appliedMsaaSamples))
         {
+#if !MEMORIA_NATIVE
+            displayRefreshRate?.Invalidate();
+#endif
             if (samplesChanged)
             {
                 fieldGpu?.InvalidatePresentation();
@@ -43,6 +50,17 @@ internal sealed partial class RecreateGame
                 ff7Scene?.InvalidateGraphicsPresentation();
             }
         }
+        int softwareFrameLimit = frameLimit;
+#if !MEMORIA_NATIVE
+        if (uiPreferences.VSync && GraphicsDevice.PresentationParameters.PresentationInterval == PresentInterval.One)
+        {
+            displayRefreshRate ??= new WindowsDisplayRefreshRate(Window.Handle);
+            // VSync owns the display deadline when its rate already satisfies the requested cap.
+            softwareFrameLimit = PresentationPacingPolicy.SoftwareFrameLimit(frameLimit, true, displayRefreshRate.RefreshRate);
+        }
+#endif
+        appliedSoftwareFrameLimit = softwareFrameLimit;
+        presentationPacer.RequestFrameLimit(softwareFrameLimit);
     }
 
     private void UpdateDisplayFrame(GameTime gameTime)

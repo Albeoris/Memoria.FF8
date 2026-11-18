@@ -57,7 +57,32 @@ internal sealed class GraphicsHostReadiness
             throw new NotSupportedException($"The {Backend} device cannot provide the required HalfVector4 title render target (actual {titleTarget.Format}).");
         }
         string identity = string.IsNullOrWhiteSpace(device.Adapter.Description) ? device.Adapter.DeviceName : device.Adapter.Description;
-        capabilities = new(identity, device.Adapter.VendorId, device.Adapter.DeviceId, device.GraphicsProfile.ToString(), target.Format.ToString(), target.DepthStencilFormat.ToString(), titleTarget.Format.ToString(), device.PresentationParameters.MultiSampleCount, target.MultiSampleCount);
+        string frameworkIdentity = identity;
+        int vendorId = device.Adapter.VendorId;
+        int deviceId = device.Adapter.DeviceId;
+        string? renderAdapterLuid = null;
+        string identitySource = "FrameworkAdapter";
+#if !MEMORIA_NATIVE
+        // The display's adapter can differ from the device that actually renders.
+        SharpDX.Direct3D11.Device renderDevice = (SharpDX.Direct3D11.Device)device.Handle;
+        using (SharpDX.DXGI.Device dxgi = renderDevice.QueryInterface<SharpDX.DXGI.Device>())
+        using (SharpDX.DXGI.Adapter adapter = dxgi.Adapter)
+        {
+            SharpDX.DXGI.AdapterDescription description = adapter.Description;
+            identity = description.Description;
+            vendorId = description.VendorId;
+            deviceId = description.DeviceId;
+            renderAdapterLuid = description.Luid.ToString();
+            identitySource = "D3D11Device";
+        }
+#endif
+        capabilities = new(identity, vendorId, deviceId, device.GraphicsProfile.ToString(), target.Format.ToString(), target.DepthStencilFormat.ToString(), titleTarget.Format.ToString(), device.PresentationParameters.MultiSampleCount, target.MultiSampleCount)
+        {
+            FrameworkDevice = frameworkIdentity,
+            RenderAdapterIdentitySource = identitySource,
+            RenderAdapterLuid = renderAdapterLuid,
+            PresentationInterval = device.PresentationParameters.PresentationInterval.ToString()
+        };
         Console.WriteLine($"graphics-backend={Backend} device={capabilities.Device} profile={capabilities.Profile} target={capabilities.ColorFormat}/{capabilities.DepthFormat} samples={capabilities.SceneSamples}");
     }
 
@@ -76,7 +101,7 @@ internal sealed class GraphicsHostReadiness
             {
                 PresentationParameters presentation = device.PresentationParameters;
                 Viewport viewport = device.Viewport;
-                GraphicsHostCapabilities actualCapabilities = capabilities with { BackBufferSamples = presentation.MultiSampleCount, BackBufferWidth = presentation.BackBufferWidth, BackBufferHeight = presentation.BackBufferHeight, ViewportWidth = viewport.Width, ViewportHeight = viewport.Height, ClientWidth = window?.ClientBounds.Width, ClientHeight = window?.ClientBounds.Height };
+                GraphicsHostCapabilities actualCapabilities = capabilities with { BackBufferSamples = presentation.MultiSampleCount, BackBufferWidth = presentation.BackBufferWidth, BackBufferHeight = presentation.BackBufferHeight, ViewportWidth = viewport.Width, ViewportHeight = viewport.Height, ClientWidth = window?.ClientBounds.Width, ClientHeight = window?.ClientBounds.Height, PresentationInterval = presentation.PresentationInterval.ToString() };
                 string json = JsonSerializer.Serialize(new { schemaVersion = 1, backend = Backend, processId = Environment.ProcessId, capabilities = actualCapabilities }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                 File.WriteAllText(temporary, json);
                 File.Move(temporary, destination);
@@ -89,7 +114,13 @@ internal sealed class GraphicsHostReadiness
         reported = true;
     }
 
-    private sealed record GraphicsHostCapabilities(string Device, int VendorId, int DeviceId, string Profile, string ColorFormat, string DepthFormat, string TitleColorFormat, int BackBufferSamples, int SceneSamples, int BackBufferWidth = 0, int BackBufferHeight = 0, int ViewportWidth = 0, int ViewportHeight = 0, int? ClientWidth = null, int? ClientHeight = null);
+    private sealed record GraphicsHostCapabilities(string Device, int VendorId, int DeviceId, string Profile, string ColorFormat, string DepthFormat, string TitleColorFormat, int BackBufferSamples, int SceneSamples, int BackBufferWidth = 0, int BackBufferHeight = 0, int ViewportWidth = 0, int ViewportHeight = 0, int? ClientWidth = null, int? ClientHeight = null)
+    {
+        public string? FrameworkDevice { get; init; }
+        public string? RenderAdapterIdentitySource { get; init; }
+        public string? RenderAdapterLuid { get; init; }
+        public string? PresentationInterval { get; init; }
+    }
 }
 
 internal sealed class GraphicsInitializationException(string message, Exception innerException) : Exception(message, innerException);
