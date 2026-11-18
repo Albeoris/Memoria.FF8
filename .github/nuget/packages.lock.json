@@ -27,6 +27,11 @@
       "sha512": "825a9b5dfafe4e8fc1c47217a5f58b1905bc554cfb25b0a71dccad098383067909f643981ae248e8acf550336e1fd11dc1f273c7e65e4598356b67077efaa2f0"
     },
     {
+      "id": "avalonia.headless",
+      "version": "11.3.9",
+      "sha512": "8c3b1fcd9277db09dbbd2a84436fb1a8af30e0c0f5582c5a62b4b36f2b2cc95afa42561565e7676f57d3c9e70f6b6af530d0f11984ba3905062e4c61169e67e6"
+    },
+    {
       "id": "avalonia.native",
       "version": "11.3.9",
       "sha512": "4e475c045418ae8b0a725401275ac68655bf911c53e7976d691814bc316eac4f35fb4e96af43e1fefcf4f4702f32c055d13b380bc25fc2a96115d506f394945c"

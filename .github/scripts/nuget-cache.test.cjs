@@ -34,3 +34,16 @@ test('the shared dependency lock has one version and archive hash per package ID
     }
     assert.ok(ids.includes('dotnet-mgfxc'));
 });
+
+test('the shared dependency lock covers every centrally pinned package version', () => {
+    const lock = require('../nuget/packages.lock.json');
+    const lockedVersions = new Map(lock.packages.map(({ id, version }) => [id, version]));
+    for (const file of ['Directory.Packages.props', 'Directory.TransitivePackages.props']) {
+        const contents = fs.readFileSync(file, 'utf8');
+        const pins = [...contents.matchAll(/<PackageVersion\s+Include="([^"]+)"\s+Version="\[([^\]]+)\]"\s*\/>/g)];
+        assert.ok(pins.length > 0, `No central package versions found in ${file}`);
+        for (const [, id, version] of pins) {
+            assert.equal(lockedVersions.get(id.toLowerCase()), version, `${id} ${version} from ${file} is missing from the shared dependency lock`);
+        }
+    }
+});
