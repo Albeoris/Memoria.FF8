@@ -6,16 +6,18 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleBio22ActorPacketTests
 {
-    [Fact]
-    public void Original_party_body_uses_current_decoded_bones_plain_materials_and_retained_work_JSON_next()
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 52)]
+    public void Original_body_uses_current_decoded_bones_plain_materials_and_retained_work_JSON_next(bool player, int modelId)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
-        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "player", IsPlayer = true, ModelId = 0, WeaponId = 0 });
+        NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "target", IsPlayer = player, ModelId = modelId, WeaponId = 0 });
         NativeBattlePoseSource source = resource.PoseSource!;
         NativeBattleDecodedPose pose = NativeBattlePoseDecoder.DecodeFirst509440(source.Animations.AsSpan(), source.BoneCount, 0).Pose;
         NativeBattleActionMatrix identity = NativeBattleCuragaMatrices.Identity8DD770();
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattlePoseMatrices.ComposeCurrentPose(source, pose, identity);
-        NativeBattleModelTextureLoad texture = NativeBattleModelTextures.Prepare507400(resource.BodyTexturePack!, 0xFFFC);
+        NativeBattleModelTextureLoad texture = NativeBattleModelTextures.Prepare507400(resource.BodyTexturePack!, 0);
         NativeBattleEffectArena work = NativeBattleEffectArena.Clear().MarkUnknown(0x10000, 0x10000);
         int packets = 0;
         foreach (NativeBattleRawMesh mesh in resource.Geometry!.Value)

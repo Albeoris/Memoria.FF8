@@ -123,6 +123,7 @@ public sealed partial class BattlePresentationProcess
                         return drawn.Packets;
                     }
                 }
+                NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Bio body requires its actual skeleton.");
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
@@ -143,7 +144,7 @@ public sealed partial class BattlePresentationProcess
                     owner.Validate();
                     actual = actual with { Memory = actual.Memory with { Bio22ActorMemory = owner } };
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Bio body requires its initialized ordering table.");
-                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(actual.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Bio body requires its actual COMMON cursor."), primitive.Pending, drawn.Packets);
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(actual.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Bio body requires its actual COMMON cursor."), primitive.Pending, BindNativeModelMaterial(drawn.Packets, material));
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     actual = actual with { Memory = actual.Memory with { PrimitiveProcess = written.Process } };
                 }
