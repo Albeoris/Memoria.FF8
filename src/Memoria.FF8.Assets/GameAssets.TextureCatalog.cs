@@ -53,7 +53,7 @@ public sealed partial class GameAssets
                 {
                     List<string> aliases = [usage];
                     usageAliases[target] = aliases;
-                    string name = context.Layout == "native-field-model-sheet" ? $"{Path.GetFileName(target.Owner)} Â· {target.Subresource}{(target.Variant.Length == 0 ? "" : " Â· " + target.Variant)}" : $"{model.Name} Â· texture {index}{(target.Variant.Length == 0 ? "" : " Â· " + target.Variant)}";
+                    string name = context.Layout == "native-field-model-sheet" ? $"{Path.GetFileName(target.Owner)} / {target.Subresource}{(target.Variant.Length == 0 ? "" : " / " + target.Variant)}" : $"{model.Name} / texture {index}{(target.Variant.Length == 0 ? "" : " / " + target.Variant)}";
                     yield return Entry(context, name, model.Category) with { Reader = "model", Model = model, Index = index, UsedBy = aliases.AsReadOnly() };
                 }
                 else if (usageAliases.TryGetValue(target, out List<string>? aliases) && !aliases.Contains(usage, StringComparer.Ordinal))
@@ -77,7 +77,7 @@ public sealed partial class GameAssets
                     {
                         int width = Math.Abs(map.Tiles.Min(tile => (int)tile.X)) + Math.Abs(map.Tiles.Max(tile => (int)tile.X)) + 16;
                         int height = Math.Abs(map.Tiles.Min(tile => (int)tile.Y)) + Math.Abs(map.Tiles.Max(tile => (int)tile.Y)) + 16;
-                        workspace = new(TextureTarget.FromKey(new(owner, "workspace")), field + " Â· layered background", "Field background", "field-workspace", width, height) { Reader = "field-workspace" };
+                        workspace = new(TextureTarget.FromKey(new(owner, "workspace")), field + " / layered background", "Field background", "field-workspace", width, height) { Reader = "field-workspace" };
                     }
                 }
                 catch (Exception exception) when (TextureCatalogError(exception))
@@ -103,7 +103,7 @@ public sealed partial class GameAssets
             for (int index = 0; index < contexts.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return Entry(contexts[index], $"{field} Â· tile {index}", "Field background") with { Reader = "field", Index = index };
+                yield return Entry(contexts[index], $"{field} / tile {index}", "Field background") with { Reader = "field", Index = index };
             }
         }
         foreach (string archiveName in new[] { "menu", "main" })
@@ -139,7 +139,7 @@ public sealed partial class GameAssets
                     }
                     foreach (TextureBuildContext context in contexts)
                     {
-                        string name = owner.Path == "menu/magita.tex" ? "Magazine paper palette (mean colour only)" : $"{Path.GetFileName(owner.Path)} Â· palette {context.Key.Palette}";
+                        string name = owner.Path == "menu/magita.tex" ? "Magazine paper palette (mean colour only)" : $"{Path.GetFileName(owner.Path)} / palette {context.Key.Palette}";
                         yield return Entry(context, name, archiveName == "main" ? "System artwork" : "Menu and cards") with { Reader = "tex" };
                     }
                 }
@@ -163,7 +163,7 @@ public sealed partial class GameAssets
                 cancellationToken.ThrowIfCancellationRequested();
                 if (seen.Add(TextureTarget.FromContext(context)))
                 {
-                    string name = section == 42 ? $"World static shape {64 + int.Parse(context.Key.Subresource.Split('/')[^1], System.Globalization.CultureInfo.InvariantCulture)} Â· palette {context.Key.Palette}" : $"World {context.Key.Subresource} Â· palette {context.Key.Palette}";
+                    string name = section == 42 ? $"World static shape {64 + int.Parse(context.Key.Subresource.Split('/')[^1], System.Globalization.CultureInfo.InvariantCulture)} / palette {context.Key.Palette}" : $"World {context.Key.Subresource} / palette {context.Key.Palette}";
                     yield return Entry(context, name, section == 42 ? "World static" : "World textures") with { Reader = "world-section", Section = section };
                 }
             }
@@ -181,7 +181,7 @@ public sealed partial class GameAssets
         foreach (TextureBuildContext context in menuSlots)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return Entry(context, $"Tutorial {context.Key.Subresource} Â· palette {context.Key.Palette}", "Tutorial artwork") with { Reader = "menu-slots" };
+            yield return Entry(context, $"Tutorial {context.Key.Subresource} / palette {context.Key.Palette}", "Tutorial artwork") with { Reader = "menu-slots" };
         }
         for (int page = 0; page < 20; page++)
         {
@@ -198,7 +198,7 @@ public sealed partial class GameAssets
             }
             foreach (TextureBuildContext context in contexts)
             {
-                yield return Entry(context, $"Terrain page {page} Â· palette {context.Key.Palette}", "World terrain") with { Reader = "texl", Index = page };
+                yield return Entry(context, $"Terrain page {page} / palette {context.Key.Palette}", "World terrain") with { Reader = "texl", Index = page };
             }
         }
         for (int index = 4; index <= 33; index++)
@@ -266,7 +266,7 @@ public sealed partial class GameAssets
         {
             cancellationToken.ThrowIfCancellationRequested();
             int index = int.Parse(context.Key.Subresource.AsSpan(5), System.Globalization.CultureInfo.InvariantCulture);
-            yield return Entry(context, $"{parts[1]} Â· tile {index}", "Field background") with { Reader = "field", Index = index };
+            yield return Entry(context, $"{parts[1]} / tile {index}", "Field background") with { Reader = "field", Index = index };
         }
     }
 

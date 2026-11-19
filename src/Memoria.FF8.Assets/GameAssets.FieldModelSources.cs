@@ -86,7 +86,7 @@ public sealed partial class GameAssets
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 string model = directory[index].Name;
-                yield return new($"field/{name}/{index}", $"{model} Â· {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index)
+                yield return new($"field/{name}/{index}", $"{model} / {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index)
                 {
                     ModelLibraryResource = directory[index].Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
                 };
@@ -111,7 +111,7 @@ public sealed partial class GameAssets
         }
         NativeFieldOneModelEntry entry = directory[modelIndex];
         string model = entry.Name;
-        return new($"field/{fieldName}/{modelIndex}", $"{model} Â· {fieldName}/{modelIndex}", "Field", path, $"field {fieldId} {fieldName} {modelIndex} {model} {path}", fieldId, modelIndex)
+        return new($"field/{fieldName}/{modelIndex}", $"{model} / {fieldName}/{modelIndex}", "Field", path, $"field {fieldId} {fieldName} {modelIndex} {model} {path}", fieldId, modelIndex)
         {
             ModelLibraryResource = entry.Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
         };

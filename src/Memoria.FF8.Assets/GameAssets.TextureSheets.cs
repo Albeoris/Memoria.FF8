@@ -22,7 +22,7 @@ public sealed partial class GameAssets
                 return null;
             }
             TextureBuildContext? context = ReadMainCharacterAuthoringSheets(owner[3], member.Length == 3).SingleOrDefault(context => TextureTarget.FromContext(context) == target);
-            return context is null ? null : Entry(context, $"{owner[3]} Â· {target.Subresource} Â· {target.Variant}", "Field") with { Reader = "main-sheet" };
+            return context is null ? null : Entry(context, $"{owner[3]} / {target.Subresource} / {target.Variant}", "Field") with { Reader = "main-sheet" };
         }
         foreach (ModelCatalogEntry model in EnumerateFieldModelSources(cancellationToken))
         {
@@ -34,7 +34,7 @@ public sealed partial class GameAssets
             TextureBuildContext? context = ReadAuthoringModelTextures(model).SingleOrDefault(context => TextureTarget.FromContext(context) == target);
             if (context is not null)
             {
-                return Entry(context, $"{owner[3]} Â· {target.Subresource} Â· {target.Variant}", "Field") with { Reader = "model", Model = model, UsedBy = [model.ResourcePath + "#model/" + model.ModelIndex] };
+                return Entry(context, $"{owner[3]} / {target.Subresource} / {target.Variant}", "Field") with { Reader = "model", Model = model, UsedBy = [model.ResourcePath + "#model/" + model.ModelIndex] };
             }
         }
         return null;

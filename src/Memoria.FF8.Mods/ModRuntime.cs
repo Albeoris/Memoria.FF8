@@ -215,7 +215,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, lockReason);
             }
-            if (enabled && (package.Status == ModEffectiveStatus.IncompatibleEdition || !isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly))
+            if (!isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly || enabled && package.Status == ModEffectiveStatus.IncompatibleEdition)
             {
                 return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
