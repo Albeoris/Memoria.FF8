@@ -120,6 +120,13 @@ internal static class NativeTemporalPlanningTests
         Check(summaries.ReadPoseKey() != moved, "A new active candidate was absent from semantic health.");
         summaries.Remove(4);
         Check(summaries.ReadPoseKey() == moved, "Disposed sibling metadata remained in the native pose key.");
+        Ff7Line actualLine = new(0, 14, -100, 20, 0, 100, 20, 0, 0);
+        Ff7AutoPlayNativeIdleFacts idle = new(false, false, false, false, true, default, actualLine);
+        summaries.Set(3, new(Ff7NativePlanningWait.AdvanceNativeTime, false, "three", 20, 26, new(500, 600, 0, 3, 96), true, false, 5, idle));
+        Ff7AutoPlayNativePlanningGroup idleGroup = summaries.Read().Single(group => group.WaitMode == nameof(Ff7NativePlanningWait.AdvanceNativeTime));
+        Check(idleGroup.NativeWaitReasons.GetValueOrDefault("selected-line-disabled") == 1 && idleGroup.ClosestState?.SelectedLine == actualLine && idleGroup.ClosestState.NativeInputDemands is null, "Idle health lost actual selected LINE facts or fabricated a native input analysis result.");
+        string idleView = JsonSerializer.Serialize(idleGroup);
+        Check(JsonSerializer.Serialize(summaries.Read().Single(group => group.WaitMode == nameof(Ff7NativePlanningWait.AdvanceNativeTime))) == idleView, "Reading idle facts changed candidate work.");
         summaries.Remove(2);
         Check(summaries.Read().Single(group => group.WaitMode == nameof(Ff7NativePlanningWait.RetainPhysicalSearch)).Candidates == 1, "Retired candidate health remained active.");
         summaries.Remove(1);

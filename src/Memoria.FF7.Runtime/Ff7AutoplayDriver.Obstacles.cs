@@ -77,26 +77,33 @@ public sealed partial class Ff7AutoplayDriver
         obstacleSearchContext = null;
     }
 
+    internal void UpdatePhysicalApproachContext(string context)
+    {
+        if (obstacleSearchContext == context)
+        {
+            return;
+        }
+        CancelObstacleSearch();
+        obstacleSearchContext = context;
+    }
+
     private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, int destination, int nextTriangle, int[] routeDistance, bool blockedForward, IReadOnlyList<int> blockingEntities, Ff7NativeMovement movement, out Ff7AutoplayInput input)
     {
         input = default;
-        if (obstacleGeneration != session.FieldGeneration || obstacleTarget != target)
+        if (obstacleGeneration != session.FieldGeneration)
         {
             ResetObstacleEscape();
             obstacleGeneration = session.FieldGeneration;
-            obstacleTarget = target;
         }
+        obstacleTarget = target;
         if (obstacleSpeed != player.MoveSpeed)
         {
             obstacleEscape.Clear();
             CancelObstacleSearch();
             obstacleSpeed = player.MoveSpeed;
         }
-        string context = $"{ReadApproachGuideContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
-        if (obstacleSearchContext != context)
-        {
-            CancelObstacleSearch();
-        }
+        string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
+        UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
             return true;

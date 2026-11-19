@@ -37,9 +37,19 @@ public sealed partial class Ff7AutoplayDriver
 
     internal Ff7AutoplayInput ChooseTargetInput(Ff7AutoPlayTarget target, Func<Ff7AutoplayInput> choose)
     {
-        return ChooseBoundaryInput(choose, ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways));
+        Ff7AutoPlayTarget? previous = navigationSelectedTarget;
+        navigationSelectedTarget = target;
+        try
+        {
+            return ChooseBoundaryInput(choose, ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways));
+        }
+        finally
+        {
+            navigationSelectedTarget = previous;
+        }
     }
 
+    private Ff7AutoPlayTarget? navigationSelectedTarget;
     private Ff7AutoPlayTarget[]? navigationLineTargets;
     private FieldInputState? navigationLineInput;
     private readonly Dictionary<(int Entity, int Script, FieldInputState Input, bool Talk), bool> navigationLineSkips = [];
@@ -96,6 +106,8 @@ public sealed partial class Ff7AutoplayDriver
         FieldInputState? retainedInput = navigationLineInput;
         bool retainedTalk = navigationLineTalk;
         IReadOnlySet<int>? retainedGateways = admittedGateways;
+        Ff7AutoPlayTarget? retainedSelectedTarget = navigationSelectedTarget;
+        navigationSelectedTarget = target;
         navigationLineTargets = offeredTargets.Where(candidate => candidate.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (candidate.ChangesField || candidate.MayChangeNavigation) && candidate.Entity != selectedLine && !(target.Kind == Ff7AutoPlayTargetKind.Gateway && target.DestinationField == candidate.DestinationField)).ToArray();
         navigationLineSkips.Clear();
         admittedGateways = ReadTargetGatewayIndices(target, session.Field.Triggers.Gateways);
@@ -187,6 +199,7 @@ public sealed partial class Ff7AutoplayDriver
             navigationLineInput = retainedInput;
             navigationLineTalk = retainedTalk;
             admittedGateways = retainedGateways;
+            navigationSelectedTarget = retainedSelectedTarget;
         }
     }
 

@@ -146,11 +146,14 @@ public sealed partial class Ff7AutoplayDriver
             Ff7AutoPlayDiscovery branchDiscovery = new(branch);
             driver.ConfigureSpatialBoundaries(targets, target);
             List<Ff7AutoPlayRouteStep> steps = [];
-            void UpdateSummary(bool physicalPending)
+            void UpdateSummary(bool physicalPending, Ff7AutoplayInput lastInput = default)
             {
                 Ff7Actor pose = branch.Host.Process.Actors.FirstOrDefault(actor => actor.PlayerControlled) ?? player;
+                Ff7Line? line = branch.Host.Process.Lines.LastOrDefault(line => line.Entity == target.Entity);
+                bool lineTarget = target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave;
+                Ff7AutoPlayNativeIdleFacts idle = new(branch.Host.Process.PlayerLocked, branch.Host.Process.Join is not null, pose.Ladder is { Completed: false }, pose.Ladder is { Completed: true }, lineTarget && line?.Enabled != 1, lastInput, lineTarget ? line : null);
                 float distance = System.Numerics.Vector3.Distance(new(pose.X4096 / 4096f, pose.Y4096 / 4096f, pose.Z4096 / 4096f), target.Position);
-                nativeCandidateSummaries.Set(candidateId, new(pendingWait, requireIntermediate, target.Id, steps.Count, branch.Host.Process.Tick, new(pose.X4096, pose.Y4096, pose.Z4096, pose.Triangle, pose.Direction), pose.X4096 != player.X4096 || pose.Y4096 != player.Y4096 || pose.Z4096 != player.Z4096 || pose.Triangle != player.Triangle, physicalPending, distance));
+                nativeCandidateSummaries.Set(candidateId, new(pendingWait, requireIntermediate, target.Id, steps.Count, branch.Host.Process.Tick, new(pose.X4096, pose.Y4096, pose.Z4096, pose.Triangle, pose.Direction), pose.X4096 != player.X4096 || pose.Y4096 != player.Y4096 || pose.Z4096 != player.Z4096 || pose.Triangle != player.Triangle, physicalPending, distance, idle));
             }
             UpdateSummary(false);
             bool accepted = false;
@@ -197,6 +200,7 @@ public sealed partial class Ff7AutoplayDriver
             {
                 long physicalBefore = driver.PhysicalPlanningWork;
                 bool physicalPendingBeforeTime = false;
+                Ff7AutoplayInput resolvedInput = default;
                 try
                 {
                     driver.BeginPlanningStep();
@@ -264,6 +268,7 @@ public sealed partial class Ff7AutoplayDriver
                         driver.BeginPlanningStep();
                     }
                     input = resolved.Value;
+                    resolvedInput = input;
                     steps.Add(new(ReadNativeRouteFingerprint(branch), input));
                     if (queuedLineWait)
                     {
@@ -323,7 +328,7 @@ public sealed partial class Ff7AutoplayDriver
                 finally
                 {
                     DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physicalBefore;
-                    UpdateSummary(physicalPendingBeforeTime);
+                    UpdateSummary(physicalPendingBeforeTime, resolvedInput);
                 }
             }
             for (long callback = 0;;)
