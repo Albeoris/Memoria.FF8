@@ -158,6 +158,6 @@ internal sealed partial class WorldMapScene
         camera = camera with { ParticleProjection = projection };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         bool avatarVisible = foot is null || state.GroundType is null or > 5;
-        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest, AnimatedModels: animated);
+        return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest ?? runtime.Forest, AnimatedModels: animated);
     }
 }

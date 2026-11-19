@@ -11,6 +11,41 @@ public sealed class NativeRagnarokSceneTests
     private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
+    [InlineData(33, 15)]
+    [InlineData(9, 20)]
+    public void FlightRendersTheSharedSurfaceSprayAndThrustPoolAcrossRestore(byte groundType, byte sprayType)
+    {
+        GameSession session = Fixture();
+        using (WorldMapScene initialization = new(session, GameDirectory))
+        {
+            Assert.True(initialization.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        }
+        using WorldAssets assets = new(GameDirectory);
+        WorldState state = session.State.World!;
+        NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
+        NativeRagnarokWorldObject body = runtime.Objects[runtime.Allocation.RagnarokIndex];
+        // Isolate both original surface emitters at zero ground clearance with deterministic random bytes.
+        NativeWorldForestState forest = NativeWorldForestState.Create(0, 0).AdvanceRagnarok(groundType, body, body.Position.Y, 256, new(0, 0, 0), 0, assets.ForestTables.RagnarokThrustOffsets, new byte[256], assets.ForestTables.Effects);
+        Assert.Equal(2, forest.Particles.Count(particle => particle.Type == sprayType && particle.Visible));
+        Assert.Equal(4, forest.Particles.Count(particle => particle.Type is 12 or 13 && particle.Visible));
+        session.SetWorldState(state with { NativeRagnarokRuntime = runtime with { Forest = forest } });
+        using WorldMapScene scene = new(session, GameDirectory);
+        byte[] rendered = scene.Render(320, 224);
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, GameDirectory);
+        Assert.Equal(rendered, restored.Render(320, 224));
+        restoredSession.SetWorldState(restored.State with { NativeRagnarokRuntime = restored.State.NativeRagnarokRuntime! with { Forest = forest with { Particles = [] } } });
+        using WorldMapScene withoutParticles = new(restoredSession, GameDirectory);
+        byte[] empty = withoutParticles.Render(320, 224);
+        Assert.False(rendered.SequenceEqual(empty));
+        restoredSession.SetWorldState(restored.State with { NativeRagnarokRuntime = restored.State.NativeRagnarokRuntime! with { Forest = forest with { Particles = forest.Particles.Where(particle => particle.Type == sprayType).ToArray() } } });
+        using WorldMapScene onlySpray = new(restoredSession, GameDirectory);
+        Assert.False(empty.SequenceEqual(onlySpray.Render(320, 224)));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.NotEmpty(scene.Render(320, 224, interpolation: 0.5f));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public void DormantChocoboSlotsNearTheLandingSiteRemainHiddenAcrossRestore(byte chocoboFlags)
