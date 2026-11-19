@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text.Json;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
@@ -62,7 +62,8 @@ internal static class TalkRegionGeometryTests
         int entity = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_GEOMETRIC_ROUTE_ENTITY") ?? throw new InvalidOperationException("Select an external actor entity."));
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream stream = new(bytes);
-        Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
+        var envelope = CombinedSessionCodec.Read(stream);
+        Ff7SessionSave saved = envelope.Ff7!;
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(root), saved);
         string before = JsonSerializer.Serialize(session.Capture());
         Ff7AutoplayDriver driver = new(session);
@@ -73,7 +74,15 @@ internal static class TalkRegionGeometryTests
         Console.WriteLine($"PASS original zero-callback contact geometry: {contacts.Contacts.Count} native-valid contacts, source unchanged.");
         if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_GRAPH") == "1")
         {
+            if (Environment.GetEnvironmentVariable("MEMORIA_FF7_GRAPH_AFTER_NEUTRAL") == "1")
+            {
+                driver.Apply(default);
+                session.AdvanceTick(false);
+            }
+            string graphBefore = JsonSerializer.Serialize(session.Capture());
             Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
+            Ff7NativeGraphDebt? debt = Ff7AutoplayDriver.ReadRootNativeDebt(session, observation.Events);
+            Console.WriteLine($"SOURCE graph debt: {JsonSerializer.Serialize(debt is null ? null : new { Roots = debt.Roots.Select(item => item.Id), debt.Pending, debt.Owners, debt.LadderRequest })}");
             Ff7AutoPlayTarget target = observation.Events.Single(item => item.Kind == Ff7AutoPlayTargetKind.ActorTalk && item.Entity == entity);
             Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => Ff7AutoPlayPolicy.CanReleaseNativeSource(saved.AutoPlay!, observation, target, branch, actual) };
             var graphWall = System.Diagnostics.Stopwatch.StartNew();
@@ -82,7 +91,7 @@ internal static class TalkRegionGeometryTests
             {
             }
             Console.WriteLine($"GRAPH bounded source release: wall={graphWall.Elapsed.TotalSeconds:F3}s, callbacks={driver.DetachedNativeCallbacks}, proof={probe.Result?.Steps.Length}, released={probe.Result?.SourceReleased}, phase={probe.Progress}.");
-            Check(before == JsonSerializer.Serialize(session.Capture()) && bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded graph changed its source session/file.");
+            Check(graphBefore == JsonSerializer.Serialize(session.Capture()) && bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded graph changed its source session/file.");
             if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_REPLAY") == "1" && probe.Result is { } proof)
             {
                 foreach (Ff7AutoPlayRouteStep step in proof.Steps)
@@ -121,6 +130,10 @@ internal static class TalkRegionGeometryTests
             return;
         }
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded route diagnostic cannot create choice checkpoints."));
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_DESTINATION") is { Length: > 0 } destination)
+        {
+            policy.SetDestinationField(ushort.Parse(destination, System.Globalization.CultureInfo.InvariantCulture));
+        }
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
         long start = session.Host.Process.Tick;
         bool accepted = false;
@@ -129,13 +142,26 @@ internal static class TalkRegionGeometryTests
         var wall = System.Diagnostics.Stopwatch.StartNew();
         string? previousOwner = null;
         int reported = 0;
+        int calls = 0;
+        double longestCall = 0;
         var deferred = (Dictionary<(string Navigation, string Event), (string Condition, string Physical)>)typeof(Ff7AutoPlayPolicy).GetField("ordinaryDeferredGoals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(policy)!;
         double seconds = double.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_SECONDS") ?? "60", System.Globalization.CultureInfo.InvariantCulture);
         controller.Start();
         while (controller.Running && !completed && wall.Elapsed < TimeSpan.FromSeconds(seconds))
         {
+            string? priorTarget = policy.State.Active?.EventId;
+            long callStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             controller.Advance(1);
+            longestCall = Math.Max(longestCall, System.Diagnostics.Stopwatch.GetElapsedTime(callStarted).TotalSeconds);
+            calls++;
             player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+            if (Environment.GetEnvironmentVariable("MEMORIA_FF7_DROPPED_ROUTE_SAVE") is { Length: > 0 } terminalSave && priorTarget == $"actor:{entity}:script:1" && policy.State.Active is null)
+            {
+                using FileStream output = new(terminalSave, FileMode.CreateNew);
+                CombinedSessionCodec.Write(output, envelope with { Ff7 = session.Capture() with { AutoPlay = policy.State.Clone() } });
+                Console.WriteLine($"DROPPED native target: {policy.State.Status}, pose=({player.X4096},{player.Y4096},{player.Z4096})/tri{player.Triangle}/dir{player.Direction}.");
+                break;
+            }
             completed = accepted && policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Any(item => item.Event.Id == $"actor:{entity}:script:1" && item.Completed);
             string? goalNavigation = policy.State.NavigationGoal?.NavigationKey;
             string owner = $"{policy.State.Active?.EventId}/goal:{policy.State.NavigationGoal?.EventId}@{goalNavigation?[(goalNavigation.LastIndexOf(':') + 1)..]}/ladder:{player.Ladder is not null}/battle:{session.Battle is not null}";
@@ -150,9 +176,20 @@ internal static class TalkRegionGeometryTests
             {
                 break;
             }
+            if (session.Host.Process.Transition is { } transition)
+            {
+                Console.WriteLine($"TRANSITION native route: map={transition.Map}, gateway={session.GatewayDeparture?.GatewayIndex}, authenticated={session.GatewayDeparture is { } departure && session.HasNativeGatewayDeparture(departure)}.");
+                break;
+            }
         }
         Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The planned-input route check changed its source file.");
-        Console.WriteLine($"Policy route ended: native={session.Host.Process.Tick - start}, accepted={accepted}, completed={completed}, battle={session.Battle is not null}, wall={wall.Elapsed.TotalSeconds:F3}s, pose=({player.X4096}, {player.Y4096}, {player.Z4096})/tri{player.Triangle}/dir{player.Direction}, active={policy.State.Active?.EventId}, goal={policy.State.NavigationGoal}, work={policy.WorkProgress}, error={controller.Error}.");
+        var alternativeDrivers = (Dictionary<string, Ff7AutoplayDriver>)typeof(Ff7AutoPlayPolicy).GetField("ordinaryAlternativeDrivers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(policy)!;
+        var controllerDriver = (Ff7AutoplayDriver)typeof(Ff7AutoPlayController).GetField("driver", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(controller)!;
+        object summaries = typeof(Ff7AutoplayDriver).GetField("nativeCandidateSummaries", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(controllerDriver)!;
+        var entries = (Dictionary<long, Ff7NativeCandidateSummary>)summaries.GetType().GetField("entries", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(summaries)!;
+        Console.WriteLine($"Selected graph state: {JsonSerializer.Serialize(entries.Values.Where(item => item.EventId == $"actor:{entity}:script:1"))}");
+        Console.WriteLine($"Scheduling diagnostics: noReadyCache={typeof(Ff7AutoPlayPolicy).GetField("ordinaryNoReadySource", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(policy) is not null}, alternativeCursors={alternativeDrivers.Count}, pending={string.Join(',', alternativeDrivers.Where(item => item.Value.PlanningPending).Select(item => item.Key))}.");
+        Console.WriteLine($"Policy route ended: native={session.Host.Process.Tick - start}, accepted={accepted}, completed={completed}, battle={session.Battle is not null}, wall={wall.Elapsed.TotalSeconds:F3}s, calls={calls}, longestCall={longestCall:F3}s, generation={policy.NativePlanningGeneration}, cancellation={policy.NativePlanningCancellation}, publication={policy.NativePlanningPublication}, phase={policy.NativePlanningPhase}, pose=({player.X4096}, {player.Y4096}, {player.Z4096})/tri{player.Triangle}/dir{player.Direction}, active={policy.State.Active?.EventId}, goal={policy.State.NavigationGoal}, work={policy.WorkProgress}, error={controller.Error}.");
     }
 
     private static void Check(bool value, string reason)

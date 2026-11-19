@@ -1,4 +1,4 @@
-using Memoria.AutoPlay;
+﻿using Memoria.AutoPlay;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
@@ -16,7 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy
         state.NavigationGoal = next.Goal ?? retained;
     }
 
-    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null)
+    internal static string? ResolveFieldDestinationGoal(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<ushort, int[]>? readConnections = null, Func<Ff7AutoPlayTarget, bool>? canSelect = null, Func<Ff7AutoPlayTarget, Ff7AutoPlayTarget, bool>? canUnblockGateway = null, Func<int, int[]>? readWorldConnections = null, Func<Ff7AutoPlayTarget, string?>? readDepartureSource = null)
     {
         if (state.DestinationField is not ushort destination)
         {
@@ -58,7 +58,7 @@ public sealed partial class Ff7AutoPlayPolicy
         }
         if (selected is not null)
         {
-            state.NavigationGoal = new(observation.NavigationKey, selected.Id, selected.ConditionFingerprint);
+            state.NavigationGoal = new(readDepartureSource?.Invoke(selected) ?? observation.NavigationKey, selected.Id, selected.ConditionFingerprint);
             AutoPlayEventCoverage<Ff7AutoPlayDeferral>? coverage = state.Coverage.Visits.SingleOrDefault(visit => visit.Visit.Key == observation.VisitId)?.Events.SingleOrDefault(item => item.Event.Id == selected.Id);
             if (coverage is { Completed: true } && coverage.Conditions?.HasExecutedEntry(selected.ConditionFingerprint) == true)
             {
@@ -71,6 +71,39 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             state.NavigationGoal = null;
             return limited ? $"Native field connectivity advice to field {destination} reached its bounded search limit." : $"No currently admitted native field connectivity route to field {destination} is established from this navigation component.";
+        }
+        return null;
+    }
+
+    internal static string? ReadKnownFieldDepartureSource(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
+    {
+        Dictionary<string, AutoPlayNavigationVisit> visits = state.Coverage.NavigationVisits.ToDictionary(visit => visit.Key, StringComparer.Ordinal);
+        HashSet<string> reached = [observation.NavigationKey];
+        Queue<string> pending = new();
+        pending.Enqueue(observation.NavigationKey);
+        var read = CreateRetainedNavigationAvailabilityReader(state);
+        while (pending.TryDequeue(out string? source))
+        {
+            foreach (AutoPlayNavigationRoute route in state.Coverage.NavigationRoutes.Where(route => route.SourceKey == source))
+            {
+                if (!visits.TryGetValue(route.SourceKey, out var origin) || !visits.TryGetValue(route.DestinationKey, out var destination))
+                {
+                    continue;
+                }
+                AutoPlayEvent? entry = origin.Events.SingleOrDefault(item => item.Id == route.EventId && item.ConditionSignature == route.Route.ConditionSignature);
+                if (entry is null || read(origin, entry)?.Unavailable == true)
+                {
+                    continue;
+                }
+                if (route.EventId == target.Id && route.Route.ConditionSignature == target.ConditionFingerprint && TargetDestinations(target).Contains(ReadVisitField(destination.VisitKey)))
+                {
+                    return source;
+                }
+                if (origin.VisitKey == observation.VisitId && destination.VisitKey == observation.VisitId && reached.Add(destination.Key))
+                {
+                    pending.Enqueue(destination.Key);
+                }
+            }
         }
         return null;
     }

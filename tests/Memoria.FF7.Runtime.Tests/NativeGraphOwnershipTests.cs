@@ -131,6 +131,8 @@ internal static class NativeGraphOwnershipTests
         Ff7SessionSave native = new() { ResourceProfile = "authored-graph", Language = "en", FieldName = "authored", FieldGeneration = 1, Progress = new() { InitialKernelData = [1], Characters = [], Party = [255, 255, 255], Inventory = [], Materia = [], Clock = new(ElapsedSeconds: 2) }, Vm = machine.Capture(), Process = new() };
         string supervisor = JsonSerializer.Serialize(new { Debt = pending, Recovery = (Ff7NativeGraphDebt?)null });
         string exact = Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(native, supervisor);
+        Ff7SessionSave publicationOnly = native with { Progress = native.Progress with { Clock = new(ElapsedSeconds: 3) }, Process = native.Process with { SoundVolumeClockSubmillisecondTicks = 1 } };
+        Check(Ff7AutoplayDriver.ReadNativeRouteFingerprint(native) == Ff7AutoplayDriver.ReadNativeRouteFingerprint(publicationOnly) && exact != Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(publicationOnly, supervisor), "Ephemeral scheduling normalization changed the exact graph identity or failed to ignore independent clock/audio publication.");
         byte[] publication = native.Vm.PersistentVariables.ToArray();
         publication[16] ^= 1;
         foreach (Ff7SessionSave changed in new[] { native with { Vm = native.Vm with { Tick = native.Vm.Tick + 1 } }, native with { Vm = native.Vm with { PersistentVariables = publication } }, native with { Progress = native.Progress with { Clock = new(ElapsedSeconds: 3) } }, native with { Progress = native.Progress with { FieldRandomIndex = 1 } } })

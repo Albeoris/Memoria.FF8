@@ -31,7 +31,11 @@ public sealed record AutoPlayChoiceSelection(string Key, int Selection);
 public sealed record AutoPlayEventRoute(string DestinationVisitKey, string? ConditionSignature, bool? ObservedStoryChanged, IReadOnlyList<AutoPlayChoiceSelection>? Selections, string? TargetId = null);
 public sealed record AutoPlayRetiredRoute(AutoPlayEventRoute Route, string ActualChoiceKey, int FirstChoice, int LastChoice, IReadOnlyList<AutoPlayChoiceSelection> ExecutedPrefix);
 public sealed record AutoPlayTravelGoal(string NavigationKey, string? EventId = null, string? Conditions = null);
-public sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null);
+public sealed record AutoPlayPlanStep(string VisitKey, AutoPlayEvent Event, bool IsTravel, AutoPlayEventRoute? Route = null, string? RefreshVisitKey = null, AutoPlayTravelGoal? Goal = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DestinationNavigationKey { get; init; }
+}
 public sealed record AutoPlayEventAvailability(bool Unavailable, HashSet<string> UnavailableVariants, string? Fingerprint);
 public sealed record AutoPlayUnavailableAttempt(string SourceConditionSignature, string DestinationVisitKey, string GuardKey, string GuardFingerprint, string? TargetId = null);
 

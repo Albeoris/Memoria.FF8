@@ -9,7 +9,7 @@ namespace Memoria.FF7.Runtime;
 internal enum Ff7NativeGraphEdgeKind { Wait, Primitive, Portal, Goal, OwnedEvent, OwnerSettlement }
 internal sealed record Ff7NativeGraphOwner(int Entity, int Priority, int Root, bool Returned, int Script = -1, int ParentEntity = -1, int ParentPriority = -1);
 internal sealed record Ff7NativeGraphDebt(Ff7AutoPlayTarget[] Roots, bool[] Pending, Ff7NativeGraphOwner[] Owners, long? LadderRequest = null, int LadderEntity = -1, int LadderPriority = -1, bool BackwardCompleted = false, int LadderRoot = -1, bool[]? AdmissionObserved = null);
-internal sealed record Ff7NativeGraphState(Ff7SessionSave Native, Ff7NativeGraphDebt? Debt, Ff7NativeGraphDebt? Recovery = null);
+internal sealed record Ff7NativeGraphState(Ff7SessionSave Native, Ff7NativeGraphDebt? Debt, Ff7NativeGraphDebt? Recovery = null, bool GoalAdmitted = false);
 internal sealed record Ff7NativeGraphEdge(Ff7NativeGraphEdgeKind Kind, Vector3 Point, int? Triangle = null, Ff7AutoPlayTarget? Event = null, bool Run = true, Ff7AutoplayInput? Input = null);
 
 public sealed partial class Ff7AutoplayDriver
@@ -19,7 +19,7 @@ public sealed partial class Ff7AutoplayDriver
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Native = native with { AutoPlay = null, EventCoverage = null }, Supervision = supervision })));
     }
 
-    private static string NativeGraphKey(Ff7NativeGraphState state) => ReadExactNativeGraphFingerprint(state.Native, JsonSerializer.Serialize(new { state.Debt, state.Recovery }));
+    private static string NativeGraphKey(Ff7NativeGraphState state) => ReadExactNativeGraphFingerprint(state.Native, JsonSerializer.Serialize(new { state.Debt, state.Recovery, state.GoalAdmitted }));
 
     private IEnumerable<int> EnumerateNativeStateGraph(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Ff7NativeRouteProbe probe)
     {
@@ -96,9 +96,9 @@ public sealed partial class Ff7AutoplayDriver
                 Ff7AutoPlayDiscovery discovery = new(branch);
                 Ff7AutoPlayObservation current = discovery.Observe();
                 Ff7AutoPlayTarget[] protectedEvents = current.Events.Where(IsNativeGraphProtectedLine).ToArray();
-                bool selected = false;
+                bool selected = source.GoalAdmitted;
                 bool selectedActorEligible = current.Events.Any(item => item.Id == goal.Id && item.Kind == goal.Kind && item.Entity == goal.Entity && item.Script == goal.Script && item.ConditionFingerprint == goal.ConditionFingerprint && item.AnalysisComplete);
-                NativeGraphOwnership selectedOwner = new(null, goal);
+                NativeGraphOwnership selectedOwner = new(source.GoalAdmitted ? source.Debt : null, goal);
                 bool unexpected = false;
                 HashSet<(int Entity, int Script)> startedRoots = [];
                 Ff7Actor startingPlayer = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
@@ -117,6 +117,10 @@ public sealed partial class Ff7AutoplayDriver
                     if (accepted && forcedSettlement && !ownership.Allows(entity, script) && protectedEvents.FirstOrDefault(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)) is { } forcedRoot)
                     {
                         ownership.AdoptForcedRoot(forcedRoot);
+                    }
+                    if (probe.ExpectedNavigationKey is not null && accepted && entity == goal.Entity && script == goal.Script)
+                    {
+                        ownership.AdoptForcedRoot(goal);
                     }
                     bool owned = ownership.Requested(entity, script, accepted, admission.Started);
                     if (goal.Kind != Ff7AutoPlayTargetKind.ActorTalk && accepted && entity == goal.Entity && script == goal.Script)
@@ -219,9 +223,16 @@ public sealed partial class Ff7AutoplayDriver
                     }
                     yield break;
                 }
-                if (selected)
+                if (selected && (probe.ExpectedNavigationKey is null || settled))
                 {
-                    SetNativeGraphProof(graph, parent, segment, branch, goal, probe);
+                    if (probe.ExpectedNavigationKey is null || current.NavigationKey == probe.ExpectedNavigationKey)
+                    {
+                        SetNativeGraphProof(graph, parent, segment, branch, goal, probe);
+                    }
+                    yield break;
+                }
+                if (selected && probe.ExpectedNavigationKey is not null && !ownership.HasDebt)
+                {
                     yield break;
                 }
                 if (settled && ownership.OwnsLadder)
@@ -235,7 +246,7 @@ public sealed partial class Ff7AutoplayDriver
                     yield break;
                 }
                 Ff7NativeGraphDebt? debt = settled ? null : ownership.Capture();
-                work = new(branch.CaptureAutoPlayNavigation(), debt, recovery);
+                work = new(branch.CaptureAutoPlayNavigation(), debt, recovery, selected);
                 graph.AddSuccessor(parent, work, NativeGraphKey(work), segment, NativeGraphAdvisory(branch, goal, current.Events));
                 if (edge.Kind == Ff7NativeGraphEdgeKind.Primitive && edge.Input == input && debt is null)
                 {
@@ -485,7 +496,7 @@ public sealed partial class Ff7AutoplayDriver
         return distance / Math.Max(1, movementSpeed / 256f);
     }
 
-    private static Ff7NativeGraphDebt? ReadRootNativeDebt(Ff7Session branch, IReadOnlyList<Ff7AutoPlayTarget> targets)
+    internal static Ff7NativeGraphDebt? ReadRootNativeDebt(Ff7Session branch, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
         // Already queued native owners are obligations, even if their LINE was disabled after latching.
         Ff7AutoPlayTarget[] roots = Ff7Session.ReadNativeLineScriptRequests(() => branch.Host).Select(request => targets.FirstOrDefault(target => target.Entity == request.Entity && target.Script == request.Script) ?? new Ff7AutoPlayTarget($"queued-line:{request.Entity}:{request.Script}", request.Entity, request.Script, request.Script switch { 1 => Ff7AutoPlayTargetKind.LineTalk, 2 => Ff7AutoPlayTargetKind.LinePush, 3 => Ff7AutoPlayTargetKind.LineCross, 4 => Ff7AutoPlayTargetKind.LineTouch, 5 => Ff7AutoPlayTargetKind.LineEnter, 6 => Ff7AutoPlayTargetKind.LineLeave, _ => throw new InvalidDataException("Invalid queued native LINE owner.") }, "queued-native-owner", false, default)).ToArray();

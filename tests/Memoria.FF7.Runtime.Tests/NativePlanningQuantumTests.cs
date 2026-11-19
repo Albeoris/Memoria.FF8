@@ -5,6 +5,14 @@ internal static class NativePlanningQuantumTests
 {
     internal static void Run()
     {
+        Ff7NativePlanningQuantum ordinaryPhase = new(8, TimeSpan.Zero);
+        Check(ordinaryPhase.TryBeginOperation() && !ordinaryPhase.TryBeginOperation(), "The elapsed ordinary allowance did not model a spent planning phase.");
+        Ff7NativePlanningQuantum nativePhase = new(8, TimeSpan.FromHours(1));
+        for (int operation = 0; operation < 8; operation++)
+        {
+            Check(nativePhase.TryBeginOperation(), "A new native phase inherited the spent ordinary phase allowance.");
+        }
+        Check(!nativePhase.TryBeginOperation() && ordinaryPhase.Operations == 1, "Native phase work escaped its own shared quantum or rewrote the ordinary budget.");
         List<int> visited = [];
         bool disposed = false;
         IEnumerable<AutoPlayPlanStep?> Search()

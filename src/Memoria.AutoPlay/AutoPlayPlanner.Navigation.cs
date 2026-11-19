@@ -157,7 +157,7 @@ public sealed partial class AutoPlayPlanner<TDeferral> where TDeferral : class, 
         AutoPlayEvent observed = source.Events.Single(item => item.Id == planned.Event.Id);
         AutoPlayNavigationVisit destination = FindNavigationVisit(planned.Route!.DestinationVisitKey);
         AutoPlayEventRoute actual = planned.Route with { DestinationVisitKey = destination.VisitKey };
-        return planned with { VisitKey = source.VisitKey, Event = observed with { DestinationVisitKey = destination.VisitKey }, Route = actual };
+        return planned with { VisitKey = source.VisitKey, Event = observed with { DestinationVisitKey = destination.VisitKey }, Route = actual, DestinationNavigationKey = destination.Key };
     }
 
     /// <summary>Counts genuine gameplay frontiers, excluding navigation probes that only confirm map connectivity.</summary>

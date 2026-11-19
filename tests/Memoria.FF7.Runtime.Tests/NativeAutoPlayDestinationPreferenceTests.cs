@@ -13,7 +13,7 @@ internal static class NativeAutoPlayDestinationPreferenceTests
         Dictionary<string, int> destinations = new() { [back.Id] = 200, [forward.Id] = 300 };
         AutoPlayPlanner<Ff7AutoPlayDeferral> Create(Ff7AutoPlayState current)
         {
-            return Ff7AutoPlayPolicy.CreatePlanner(current, (_, item) => destinations.TryGetValue(item.Id, out int destination) ? Ff7AutoPlayPolicy.NativeDestinationPhase(current, destination) : 0);
+            return Ff7AutoPlayPolicy.CreatePlanner(current, (_, item) => destinations.TryGetValue(item.Id, out int destination) ? Ff7AutoPlayPolicy.NativeDestinationPhase(current, destination) : 0, (_, item) => destinations.TryGetValue(item.Id, out int destination) && destination > 64 && destination != short.MaxValue && Ff7AutoPlayPolicy.NativeDestinationPhase(current, destination) == 0);
         }
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Create(state);
         planner.Observe(new("ff7:200:visited", "region"), []);
@@ -27,6 +27,12 @@ internal static class NativeAutoPlayDestinationPreferenceTests
         AutoPlayEvent talk = new("talk", AutoPlayEventKind.Interaction, Order: 80, ConditionSignature: "talk");
         planner.Observe(source, [back, forward, talk]);
         Check(planner.Plan(source.Key)?.Event.Id == talk.Id, "Ordinary interactions must retain their existing precedence over novel gateways.");
+        var local = state.Coverage.Visits.Single(visit => visit.Visit.Key == source.Key);
+        local.Events.Single(item => item.Event.Id == talk.Id).UnavailableAttempts.Add(new(talk.ConditionSignature!, source.Key, "physical-advice", "same-geometry", talk.Id));
+        local.Events.Single(item => item.Event.Id == forward.Id).UnavailableAttempts.Add(new(forward.ConditionSignature!, source.Key, "physical-advice", "same-geometry", forward.Id));
+        string unchanged = JsonSerializer.Serialize(state);
+        Check(planner.Plan(source.Key)?.Event.Id == forward.Id, "Repeated optional approaches outranked an equally attempted exit to an unseen native field.");
+        Check(JsonSerializer.Serialize(state) == unchanged && !local.Events.Single(item => item.Event.Id == talk.Id).Completed, "Exploration scheduling consumed or rewrote the deferred local objective.");
         planner.Observe(source, [back, forward]);
         string before = JsonSerializer.Serialize(state);
         Ff7AutoPlayState restored = JsonSerializer.Deserialize<Ff7AutoPlayState>(before)!;

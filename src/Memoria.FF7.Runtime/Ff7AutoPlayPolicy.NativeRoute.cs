@@ -30,6 +30,8 @@ public sealed partial class Ff7AutoPlayPolicy
     private string? completedActiveNativeIntent;
     internal bool NativePlanningPending => nativePlanning is not null;
     internal long NativePlanningGeneration { get; private set; }
+    internal string? NativePlanningCancellation { get; private set; }
+    internal string? NativePlanningPublication { get; private set; }
     internal string? NativePlanningPhase => nativePlanningPhase;
 
     private void BeginActiveNativePlanning(Ff7AutoplayDriver driver)
@@ -98,13 +100,18 @@ public sealed partial class Ff7AutoPlayPolicy
         bool installed = false;
         IEnumerable<int> Search(Ff7AutoPlayTarget candidate, Ff7NativeSiblingCandidate? sibling)
         {
-            Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, candidate, branch, actual) };
+            Ff7NativeRouteProbe probe = new() { ExpectedNavigationKey = ReadExpectedNativeTransportNavigation(State, planner, observation, active, sibling), SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, candidate, branch, actual) };
             foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(driver.EnumerateNativeRouteModes(candidate, observation.Events, probe), () => probe.Result is not null))
             {
                 nativePlanningPhase = probe.Progress;
                 yield return 0;
             }
-            if (!CanResumeNativePlanning(validateIntent: true) || State.Active != active || State.NavigationGoal != goal || probe.Result is not { } proof)
+            bool authentic = CanResumeNativePlanning(validateIntent: true);
+            if (probe.Result is { } observedProof)
+            {
+                NativePlanningPublication = $"{candidate.Id}:steps:{observedProof.Steps.Length}:sourceReleased:{observedProof.SourceReleased}:authenticated:{authentic}";
+            }
+            if (!authentic || State.Active != active || State.NavigationGoal != goal || probe.Result is not { } proof)
             {
                 yield break;
             }
@@ -128,10 +135,9 @@ public sealed partial class Ff7AutoPlayPolicy
             {
                 Publish();
             }
+            NativePlanningPublication += $":installed:{installed}";
         }
-        List<IEnumerable<int>> jobs = [Search(target, null)];
-        jobs.AddRange(siblings.Select(sibling => Search(sibling.Target, sibling)));
-        foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(jobs, () => installed))
+        foreach (int _ in EnumerateNativeGoalFamilies(Search(target, null), siblings.Select(sibling => Search(sibling.Target, sibling)), () => installed))
         {
             yield return null;
         }
@@ -140,6 +146,13 @@ public sealed partial class Ff7AutoPlayPolicy
             completedActiveNativeSource = nativePlanningSource;
             completedActiveNativeIntent = nativePlanningIntent;
         }
+    }
+
+    internal static IEnumerable<int> EnumerateNativeGoalFamilies(IEnumerable<int> current, IEnumerable<IEnumerable<int>> siblings, Func<bool> completed)
+    {
+        IEnumerable<int>[] alternatives = siblings.ToArray();
+        IEnumerable<int>[] families = alternatives.Length == 0 ? [current] : [current, Ff7AutoplayDriver.EnumerateFairNativeCandidates(alternatives, completed)];
+        return Ff7AutoplayDriver.EnumerateFairNativeCandidates(families, completed);
     }
 
     internal static Ff7NativeSiblingCandidate[] ReadNativeSiblingCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Func<AutoPlayVisit, bool>? needsRefresh = null)
@@ -212,9 +225,39 @@ public sealed partial class Ff7AutoPlayPolicy
             : sharedPlanner.PlanNavigation(observation.NavigationKey, needsRefresh: needsRefresh, allowRemoteConditionRoutes: true, avoidFirstEvents: avoid, preferredGoal: state.NavigationGoal, readAvailability: read);
     }
 
+    internal static string? ReadExpectedNativeTransportNavigation(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, Ff7NativeSiblingCandidate? sibling)
+    {
+        Ff7AutoPlayTargetKind kind = sibling?.Target.Kind ?? active.Kind;
+        if (kind is < Ff7AutoPlayTargetKind.LineTalk or > Ff7AutoPlayTargetKind.LineLeave)
+        {
+            return null;
+        }
+        if (sibling is not null)
+        {
+            return sibling.Plan.IsTravel ? sibling.Plan.DestinationNavigationKey : null;
+        }
+        if (active.TravelRoute is not { } route)
+        {
+            return null;
+        }
+        var availability = CreateRetainedNavigationAvailabilityReader(state);
+        AutoPlayPlanStep? fresh = sharedPlanner.PlanNavigation(observation.NavigationKey, allowRemoteConditionRoutes: true, preferredGoal: state.NavigationGoal, readAvailability: availability);
+        if (fresh is { IsTravel: true, DestinationNavigationKey: not null } && fresh.Event.Id == active.EventId && fresh.Event.ConditionSignature == active.ConditionFingerprint && SameNativeTravelRoute(route, fresh.Route))
+        {
+            return fresh.DestinationNavigationKey;
+        }
+        string[] destinations = state.Coverage.NavigationRoutes.Where(item => item.SourceKey == observation.NavigationKey && item.EventId == active.EventId && SameNativeTravelRoute(route, item.Route)).Select(item => item.DestinationKey).Distinct(StringComparer.Ordinal).ToArray();
+        return destinations.Length == 1 ? destinations[0] : null;
+    }
+
+    private static bool SameNativeTravelRoute(AutoPlayEventRoute expected, AutoPlayEventRoute? actual)
+    {
+        return actual is not null && expected.DestinationVisitKey == actual.DestinationVisitKey && expected.ConditionSignature == actual.ConditionSignature && expected.ObservedStoryChanged == actual.ObservedStoryChanged && expected.TargetId == actual.TargetId && (expected.Selections ?? []).SequenceEqual(actual.Selections ?? []);
+    }
+
     internal static bool MatchesNativePlan(AutoPlayPlanStep expected, AutoPlayPlanStep? actual)
     {
-        return actual is not null && expected.VisitKey == actual.VisitKey && expected.Event.Id == actual.Event.Id && expected.Event.ConditionSignature == actual.Event.ConditionSignature && expected.Event.DestinationVisitKey == actual.Event.DestinationVisitKey && expected.IsTravel == actual.IsTravel && expected.RefreshVisitKey == actual.RefreshVisitKey && expected.Goal == actual.Goal && (expected.Route is null ? actual.Route is null : actual.Route is { } route && expected.Route.DestinationVisitKey == route.DestinationVisitKey && expected.Route.ConditionSignature == route.ConditionSignature && expected.Route.ObservedStoryChanged == route.ObservedStoryChanged && expected.Route.TargetId == route.TargetId && (expected.Route.Selections ?? []).SequenceEqual(route.Selections ?? []));
+        return actual is not null && expected.VisitKey == actual.VisitKey && expected.Event.Id == actual.Event.Id && expected.Event.ConditionSignature == actual.Event.ConditionSignature && expected.Event.DestinationVisitKey == actual.Event.DestinationVisitKey && expected.IsTravel == actual.IsTravel && expected.RefreshVisitKey == actual.RefreshVisitKey && expected.Goal == actual.Goal && expected.DestinationNavigationKey == actual.DestinationNavigationKey && (expected.Route is null ? actual.Route is null : SameNativeTravelRoute(expected.Route, actual.Route));
     }
 
     internal static bool TryAdoptSiblingNativeRoute(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent expected, AutoPlayTravelGoal? expectedGoal, Ff7AutoPlayObservation observation, Ff7NativeSiblingCandidate sibling, AutoPlayPlanStep? fresh, Ff7AutoPlayNativeRoute proof, string source, AutoPlayEventAvailability availability, IReadOnlyDictionary<string, string> facts, int story, string witness)
@@ -318,7 +361,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool CanWaitForNativeAlternatives()
     {
-        return nativePlanningForActive && nativePlanning is not null && nativePhysicalFailure is { } failure && failure.Matches(State, Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:1"), session.GetPlayerMovementSpeed(true), session.GetPlayerMovementSpeed(false));
+        return nativePlanningForActive && nativePlanning is not null && nativePhysicalFailure is { } failure && Ff7AutoplayDriver.HasNativeRouteClockContract(session) && failure.Matches(State, Ff7AutoplayDriver.ReadNativeRouteFingerprint(session), session.GetPlayerMovementSpeed(true), session.GetPlayerMovementSpeed(false));
     }
 
     internal static bool TryRetainFailedOrdinaryTarget(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent owner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, IReadOnlyDictionary<string, string> facts)
@@ -365,8 +408,12 @@ public sealed partial class Ff7AutoPlayPolicy
         }
     }
 
-    private void CancelNativePlanning()
+    private void CancelNativePlanning([System.Runtime.CompilerServices.CallerMemberName] string member = "", [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
     {
+        if (nativePlanning is not null)
+        {
+            NativePlanningCancellation = $"{member}:{line}";
+        }
         nativePlanning?.Dispose();
         nativePlanning = null;
         nativePlanningSource = null;

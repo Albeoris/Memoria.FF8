@@ -11,6 +11,7 @@ internal static class NativeGoalFairnessTests
         Fixture fixture = Create();
         CheckSelectionAndAdoption(fixture);
         CheckFairPendingWinner();
+        CheckFamilyFairness();
         CheckStaleWinner();
         CheckIntentFences();
         Console.WriteLine("Native multi-goal selection, retained fairness, atomic owner/goal/proof and intent checks passed.");
@@ -54,8 +55,9 @@ internal static class NativeGoalFairnessTests
     private static void CheckSelectionAndAdoption(Fixture fixture)
     {
         string original = JsonSerializer.Serialize(fixture.State);
-        Check(fixture.Sibling.Target.Id == "bridge" && fixture.Sibling.Plan is { IsTravel: true, Goal.NavigationKey: "remote", Goal.EventId: "frontier" }, "A guarded-only filter lost an unguarded consumed transport toward a real shared frontier.");
+        Check(fixture.Sibling.Target.Id == "bridge" && fixture.Sibling.Plan is { IsTravel: true, Goal.NavigationKey: "remote", Goal.EventId: "frontier", DestinationNavigationKey: "remote", Route.DestinationVisitKey: "visit" }, "A guarded-only filter lost an unguarded consumed transport toward a real shared frontier.");
         Check(Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(fixture.State, fixture.Planner, fixture.Observation).Length == 1 && original == JsonSerializer.Serialize(fixture.State), "Sibling discovery changed coverage, selected owner, goal or native evidence.");
+        Check(Ff7AutoPlayPolicy.ReadExpectedNativeTransportNavigation(fixture.State, fixture.Planner, fixture.Observation, fixture.State.Active!, fixture.Sibling) == "remote", "A native transport proof received its aggregate field key instead of exact component destination.");
         string guards = JsonSerializer.Serialize(fixture.State.NavigationGuards);
         Check(Adopt(fixture), "A complete freshly selected sibling proof was not adopted.");
         Check(fixture.State.Active is { EventId: "bridge", Accepted: false, Returned: false, EntryAvailabilityFingerprint: "actual-entry", TravelRoute: not null } && fixture.State.NavigationGoal == fixture.Sibling.Plan.Goal && fixture.State.NativeRoute == fixture.Proof, "Sibling admission lost its exact shared goal, fresh owner, route, entry availability or proof.");
@@ -115,9 +117,47 @@ internal static class NativeGoalFairnessTests
         Check(slow >= 3 && fast == 3 && disposed && fixture.State.NavigationGoal == fixture.Sibling.Plan.Goal, "Native multi-goal fairness or winner cancellation lost an open workset/goal.");
     }
 
+    private static void CheckFamilyFairness()
+    {
+        int current = 0;
+        int[] siblings = new int[20];
+        int disposed = 0;
+        IEnumerable<int> Search(int index)
+        {
+            try
+            {
+                while (true)
+                {
+                    if (index < 0)
+                    {
+                        current++;
+                    }
+                    else
+                    {
+                        siblings[index]++;
+                    }
+                    yield return 0;
+                }
+            }
+            finally
+            {
+                disposed++;
+            }
+        }
+        using (IEnumerator<int> cursor = Ff7AutoPlayPolicy.EnumerateNativeGoalFamilies(Search(-1), Enumerable.Range(0, siblings.Length).Select(Search), () => false).GetEnumerator())
+        {
+            for (int turn = 0; turn < 40; turn++)
+            {
+                Check(cursor.MoveNext(), "An infinite family unexpectedly exhausted.");
+            }
+            Check(current == 20 && siblings.Sum() == 20 && siblings.All(count => count == 1), "The current goal lost its half share or a sibling was starved by grouped native scheduling.");
+        }
+        Check(disposed == 21, "Cancelling grouped native families retained a current or sibling cursor.");
+    }
+
     private static void CheckStaleWinner()
     {
-        foreach (Func<Fixture, bool> stale in new Func<Fixture, bool>[] { fixture => Adopt(fixture, fixture.Sibling.Plan with { Goal = new("elsewhere") }), fixture => Adopt(fixture, proof: fixture.Proof with { ConditionFingerprint = "changed" }), fixture => Adopt(fixture, proof: fixture.Proof with { Steps = [new(new('C', 64), default)] }) })
+        foreach (Func<Fixture, bool> stale in new Func<Fixture, bool>[] { fixture => Adopt(fixture, fixture.Sibling.Plan with { Goal = new("elsewhere") }), fixture => Adopt(fixture, fixture.Sibling.Plan with { DestinationNavigationKey = "wrong-component" }), fixture => Adopt(fixture, proof: fixture.Proof with { ConditionFingerprint = "changed" }), fixture => Adopt(fixture, proof: fixture.Proof with { Steps = [new(new('C', 64), default)] }) })
         {
             Fixture fixture = Create();
             string before = JsonSerializer.Serialize(fixture.State);

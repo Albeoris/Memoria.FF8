@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Runtime;
 
@@ -27,6 +27,17 @@ internal static class AdmittedCycleApproachTests
                 state.NavigationGuards[key] = new("visit", 1, EventId: item.Id, NavigationKey: navigation.Key, MovementFailure: region, MovementSourceInside: true, ObservedFingerprint: "observed");
                 Ff7AutoPlayActiveEvent active = new("visit", item.Id, "entry", 1, 1, 1, target.Kind, null, 1, "before", NavigationKey: navigation.Key);
                 state.Active = active;
+                coverage.Conditions = new() { ActiveEntry = "entry" };
+                AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
+                string intent = Ff7AutoPlayPolicy.ReadNativePlanningIntent(state);
+                for (int refresh = 0; refresh < 3; refresh++)
+                {
+                    Ff7AutoPlayNavigationGuard captured = Ff7AutoPlayPolicy.CaptureMovementGuardObservation(state.NavigationGuards[key], "observed");
+                    Check(captured == state.NavigationGuards[key], "Capturing the unchanged failure fingerprint recreated a changed native planning fence.");
+                    state.NavigationGuards[key] = captured;
+                    Ff7AutoPlayPolicy.RefreshObservedNavigationRefusal(planner, "visit", target, key, captured, "observed", currentFailure: true);
+                    Check(state.Active == active && coverage.Conditions.ActiveEntry == "entry" && intent == Ff7AutoPlayPolicy.ReadNativePlanningIntent(state), "Refreshing retained movement advice erased the pending entry or changed its authenticated planning intent.");
+                }
                 string history = JsonSerializer.Serialize(state);
                 AutoPlayEventAvailability actual = Ff7AutoPlayPolicy.ReadComponentAvailability(state, navigation, item, new Dictionary<string, string> { [key] = "observed" });
                 Check(!actual.Unavailable && history == JsonSerializer.Serialize(state), "A sampled physical refusal/cycle AABB remained a region-wide event certificate or history was erased.");
@@ -39,6 +50,8 @@ internal static class AdmittedCycleApproachTests
                 cold.NavigationGuards["native-refusal"] = new("visit", 1, EventId: item.Id, NavigationKey: navigation.Key, ObservedFingerprint: "actual-native");
                 cold.Coverage.Visits[0].Events[0].UnavailableAttempts.Add(new("entry", "visit", "native-refusal", "actual-native", item.Id));
                 Check(Ff7AutoPlayPolicy.ReadComponentAvailability(cold, navigation, item, new Dictionary<string, string> { [key] = "observed", ["native-refusal"] = "actual-native" }).Unavailable, "Removing heuristic certificates erased an independent native refusal.");
+                Ff7AutoPlayPolicy.RefreshObservedNavigationRefusal(new(cold.Coverage), "visit", target, "native-refusal", cold.NavigationGuards["native-refusal"], "actual-native", currentFailure: true);
+                Check(cold.Coverage.Visits[0].Events[0].Conditions?.ActiveEntry is null && cold.Coverage.Visits[0].Events[0].Unavailable, "Refreshing a certifying native refusal no longer cancels its unavailable entry.");
             }
         }
         Console.WriteLine("PASS retained physical/cycle advice, ordinary active continuity without waiver, cold history and independent native refusals.");

@@ -61,14 +61,14 @@ internal static class PhysicalFailureReceiptTests
         state.NavigationGuards[structuralKey] = guard with { MovementFailure = null };
         coverage.UnavailableAttempts.Add(new("condition", "visit", structuralKey, "structural", target.Id));
         facts[structuralKey] = "structural";
-        Check(Ff7AutoPlayPolicy.ReadComponentAvailability(state, source, target, facts).Unavailable, "A structural no-contact failure lost its native eligibility contract.");
+        Check(!Ff7AutoPlayPolicy.ReadComponentAvailability(state, source, target, facts).Unavailable, "A guide's no-contact observation became a native component-wide impossibility certificate.");
         state.NavigationGuards.Remove(structuralKey);
         coverage.UnavailableAttempts.RemoveAt(1);
         string cycleKey = Ff7AutoPlayPolicy.ReadMovementFailureGuardKey("source", target.Id, "movement-cycle", region);
         state.NavigationGuards[cycleKey] = guard;
         coverage.UnavailableAttempts.Add(new("condition", "visit", cycleKey, "cycle", target.Id));
         facts[cycleKey] = "cycle";
-        Check(Ff7AutoPlayPolicy.ReadComponentAvailability(state, source, target, facts).Unavailable, "A different movement-cycle observation was discarded with local physical hints.");
+        Check(!Ff7AutoPlayPolicy.ReadComponentAvailability(state, source, target, facts).Unavailable, "A movement-cycle observation became a native component-wide impossibility certificate.");
         Ff7AutoPlayState cold = state.Clone();
         Check(cold.NavigationGuards[key].PhysicalFailure == receipt, "Cold observation cloning lost an exact local receipt.");
     }

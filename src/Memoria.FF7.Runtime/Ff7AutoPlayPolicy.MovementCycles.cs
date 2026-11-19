@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Memoria.AutoPlay;
@@ -7,6 +7,19 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
+    internal static Ff7AutoPlayNavigationGuard CaptureMovementGuardObservation(Ff7AutoPlayNavigationGuard guard, string fingerprint)
+    {
+        return guard with { ObservedFingerprint = fingerprint };
+    }
+
+    internal static void RefreshObservedNavigationRefusal(AutoPlayPlanner<Ff7AutoPlayDeferral> planner, string visitId, Ff7AutoPlayTarget target, string key, Ff7AutoPlayNavigationGuard guard, string fingerprint, bool currentFailure)
+    {
+        if (currentFailure && !IsUncertifiedMovementAdvice(key, guard))
+        {
+            planner.MarkUnavailable(visitId, target.Id, new(target.ConditionFingerprint, visitId, key, fingerprint, target.Id));
+        }
+    }
+
     internal static bool DeferUnavailableActiveNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         if (state.Active is not { Accepted: false } active || active.VisitId != observation.VisitId || active.Generation != observation.Generation)

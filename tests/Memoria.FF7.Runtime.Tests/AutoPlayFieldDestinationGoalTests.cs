@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Formats;
@@ -10,6 +10,7 @@ internal static class AutoPlayFieldDestinationGoalTests
     internal static void Run()
     {
         RunWorldBridge();
+        CheckKnownComponentDeparture();
         Ff7AutoPlayTarget entrance = new("entrance", 1, 3, Ff7AutoPlayTargetKind.LineCross, "current", false, Vector3.Zero, DestinationField: 300, ChangesField: true);
         Ff7AutoPlayTarget optional = entrance with { Id = "optional", Entity = 2, DestinationField = 200 };
         Ff7AutoPlayObservation observation = new("source", "native", 1, [optional, entrance], true, true) { NavigationKey = "component" };
@@ -163,6 +164,31 @@ internal static class AutoPlayFieldDestinationGoalTests
             planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native]);
             Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [changed] }, _ => []) is null && state.NavigationGoal?.Conditions == changed.ConditionFingerprint, "A genuinely unconsumed changed native guard must remain eligible without requiring an earlier successful transfer.");
         }
+    }
+
+    private static void CheckKnownComponentDeparture()
+    {
+        Ff7AutoPlayTarget gateway = new("exit", -1, -1, Ff7AutoPlayTargetKind.Gateway, "gate", false, Vector3.Zero, DestinationField: 200);
+        Ff7AutoPlayObservation observation = new("ff7:100:native", "native", 1, [gateway], true, true) { NavigationKey = "upper" };
+        AutoPlayEvent transport = new("ladder", AutoPlayEventKind.Transition, ConditionSignature: "ladder-entry");
+        AutoPlayEvent departure = new(gateway.Id, AutoPlayEventKind.Transition, ConditionSignature: gateway.ConditionFingerprint);
+        Ff7AutoPlayState state = new() { DestinationField = 300 };
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
+        planner.Observe(new(observation.VisitId, "native"), [transport, departure]);
+        planner.ObserveNavigation(observation.VisitId, "upper", [transport, departure]);
+        planner.ObserveNavigation(observation.VisitId, "lower", [transport, departure]);
+        planner.Observe(new("ff7:200:native", "native"), []);
+        planner.ObserveNavigation("ff7:200:native", "outside", []);
+        state.Coverage.NavigationRoutes.Add(new("upper", "lower", transport.Id, new(observation.VisitId, "ladder-entry", false, null)));
+        state.Coverage.NavigationRoutes.Add(new("lower", "outside", departure.Id, new("ff7:200:native", "gate", false, null)));
+        string? ReadSource(Ff7AutoPlayTarget target) => Ff7AutoPlayPolicy.ReadKnownFieldDepartureSource(state, observation, target);
+        Check(ReadSource(gateway) == "lower", "A known departure behind a recorded same-field ladder was lost because the current component has no contact.");
+        Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation, field => field == 200 ? [300] : [], target => ReadSource(target) is not null, readDepartureSource: ReadSource);
+        Check(state.NavigationGoal == new AutoPlayTravelGoal("lower", gateway.Id, "gate") && state.DestinationField == 300, "Field advice bound the departure to the current floor instead of its recorded source or discarded the explicit destination.");
+        state.Coverage.NavigationRoutes.RemoveAt(0);
+        Check(ReadSource(gateway) is null, "An unreachable recorded departure invented a same-field prerequisite route.");
+        state.Coverage.NavigationRoutes.Insert(0, new("upper", "lower", transport.Id, new(observation.VisitId, "changed-entry", false, null)));
+        Check(ReadSource(gateway) is null, "A mismatched current first-action condition authorized a historical departure source.");
     }
 
     private static void CheckRemoteDestinationAdvice()
