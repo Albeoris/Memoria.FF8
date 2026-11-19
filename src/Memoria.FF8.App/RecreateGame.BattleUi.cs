@@ -473,13 +473,15 @@ internal sealed partial class RecreateGame
         }
         _ = ReadLiveMenuData();
         BattleAssets resources = PresentationBattleResources;
+        using GameAssets game = new(options.GameDirectory, resources: resourceHost?.Resources, modelOverrides: resourceHost);
+        NativeCharacterVitals defaults = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         return presentationBattleCatalog = new BattleDebugCatalog
         {
-            Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = LiveMenuData.CharacterName(session.State, checked((byte)id), events?.Scene.Names, liveMenuCatalog), IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
+            Players = resources.PlayerCharacterIds.Select(id => InstalledBattlePractice.PreparePlayer(new BattleCombatantDefinition { Id = $"player-{id}", Name = LiveMenuData.CharacterName(session.State, checked((byte)id), events?.Scene.Names, liveMenuCatalog), IsPlayer = true, ModelId = id }, defaults, resources, initializeDefaults: true)).ToArray(),
             Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
             Weapons = resources.WeaponDefinitions.Select(weapon => new BattleDebugEquipment(weapon.Id, weapon.Name, weapon.CharacterId)).ToArray(),
             LimitFamilies = Enum.GetValues<BattleLimitFamily>().Select(resources.ReadNativeLimitFamily).ToArray(),
-            ResolveWeapon = resources.ApplyBattleWeapon,
+            ResolveWeapon = (actor, weaponId) => InstalledBattlePractice.PreparePlayer(actor with { WeaponId = weaponId }, defaults, resources),
             Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
             StageIds = resources.StageIds.ToArray(),
             PlayerCostumes = resources.PlayerCharacterIds.ToDictionary(id => id, id => Enumerable.Range(0, resources.PlayerModelNames(id).Count).ToArray())
@@ -535,7 +537,7 @@ internal sealed partial class RecreateGame
         }
         BattleActionDefinition[] actions = BattlePartyProjection.CreateActions(currentVitals, PresentationBattleResources.ActionDefinitions);
         BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
-        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy ?? catalog.Enemies.First(), stageId, world?.Battle, actions, items);
+        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy ?? catalog.Enemies.First(), stageId, world?.Battle, actions, items) with { LimitProgress = session.State.LimitProgress, NativeShotAvailability = session.State.ShotAvailability, NativeSavedBattleFlags = session.State.SavedBattleFlags?.Value, NativeSavedBattleFlagsKnownMask = session.State.SavedBattleFlags?.EffectiveKnownMask ?? 0 };
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
         battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, CloseBattleDebug, battleDebugPresets);
         battleDebug.LocalizeText = LocalizeUiText;
@@ -678,7 +680,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, active.CanAdmitDebugOutcome, active.CanReturnToField, NativePresentation = active.Presentation is { } presentation ? new { presentation.EntryReady, presentation.HasActiveAction, Outcome = presentation.Graphics.NativeOutcome, Party = presentation.Graphics.ActorModels.Party.Entries.Select(entry => new { entry.State.ModelId4, entry.State.Phase6, entry.State.Sequence, entry.State.SequenceFrame, entry.State.ActiveAnimationBank, Pose = entry.State.SequenceState?.Pose, PoseFrame = entry.State.SequenceState?.PoseFrame114, PoseLimit = entry.State.SequenceState?.PoseLimit115 }).ToArray(), DescriptorTasks = presentation.Graphics.Descriptors.Tasks.Where(task => task.Flags != 0).Select(task => new { task.Kind, task.Phase }).ToArray() } : null, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)

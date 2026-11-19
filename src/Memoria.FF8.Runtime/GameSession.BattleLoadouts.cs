@@ -9,7 +9,7 @@ public sealed partial class GameSession
     private string BattleLoadoutBaseline()
     {
         NativeCharacterVitals? vitals = State.CharacterVitals;
-        return JsonSerializer.Serialize(new { SessionEpoch = battleLoadoutSessionEpoch, State.BattleLoadouts, Records = vitals?.Records.Select(record => new { record.CharacterId, record.Weapon, record.MemberFlags }), vitals?.DreamWeapons, vitals?.DreamEnabled, vitals?.ExtendedRosterEnabled, State.LimitProgress });
+        return JsonSerializer.Serialize(new { SessionEpoch = battleLoadoutSessionEpoch, State.BattleLoadouts, Records = vitals?.Records.Select(record => new { record.CharacterId, record.Weapon, record.MemberFlags }), vitals?.DreamWeapons, vitals?.DreamEnabled, vitals?.ExtendedRosterEnabled, State.LimitProgress, State.SavedBattleFlags, State.CharacterAppearance });
     }
 
     public string? BattleLoadoutMutationUnavailableReason

@@ -90,7 +90,15 @@ public sealed partial class BattleSession
         BattleWeaponCapabilities required = BattleLimitFamilyRules.RequiredWeapon(family.Family);
         if (required != BattleWeaponCapabilities.None && (actor.WeaponProfile is { } weapon ? (weapon.Capabilities & required) != required : actor.NativeLimitFamilies is not null))
         {
-            return $"Requires {required}.";
+            return required switch
+            {
+                BattleWeaponCapabilities.Gunblade => "Requires a gunblade.",
+                BattleWeaponCapabilities.MachineGun => "Requires a compatible machine gun.",
+                BattleWeaponCapabilities.PairedBlades => "Requires paired blades.",
+                BattleWeaponCapabilities.ThrowingSpear => "Requires a compatible throwing spear.",
+                BattleWeaponCapabilities.ShotFirearm => "Requires a Shot-compatible firearm.",
+                _ => throw new InvalidDataException("Limit family has an unsupported weapon requirement.")
+            };
         }
         if (family.Family == BattleLimitFamily.Combine && ((definition.NativeSavedBattleFlagsKnownMask & 0x10) == 0 || (CurrentNativeSavedBattleFlags() & 0x10) != 0 || definition.LimitProgress is not { AngeloFlags: >= 0x10 }))
         {
@@ -103,6 +111,10 @@ public sealed partial class BattleSession
         if (family.Family == BattleLimitFamily.Shot && !nativeItems.Any(stock => stock.ItemId is >= 101 and <= 108 && stock.Count > 0))
         {
             return "No compatible ammunition.";
+        }
+        if (family.Family == BattleLimitFamily.BlueMagic && definition.LimitProgress is { BlueMagicFlags: 0 })
+        {
+            return "No Blue Magic has been learned.";
         }
         return null;
     }
@@ -130,6 +142,10 @@ public sealed partial class BattleSession
         if (NativeLimitFamilyUnavailable(actor, selected) is { } reason)
         {
             throw new InvalidOperationException(reason);
+        }
+        if (family != BattleLimitFamily.Slot)
+        {
+            nativeSlotsRolls.Remove(actorId);
         }
         actor.SelectedNativeLimitFamily = family;
     }

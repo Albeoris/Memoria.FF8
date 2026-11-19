@@ -13,6 +13,36 @@ public sealed record NativeBattleSemanticBonePair(string Joint, int Source, int 
 public sealed record NativeBattlePoseRetargetBinding(NativeBattlePoseSource SourceMotion, int SourceHand, int RecipientHand)
 {
     public ImmutableArray<ImmutableArray<NativeBattleVector>> SourceHandFrames { get; init; } = [];
+
+    public NativeBattleVector ReadSourceHand(byte animation, byte counter, byte flags)
+    {
+        if ((flags & 1) == 0 && !SourceHandFrames.IsDefaultOrEmpty)
+        {
+            if (animation >= SourceHandFrames.Length || counter == 0 || counter > SourceHandFrames[animation].Length)
+            {
+                int frames = animation < SourceHandFrames.Length ? SourceHandFrames[animation].Length : 0;
+                throw new InvalidDataException($"A transferred weapon contact frame exceeds its source animation: pose {animation}, frame {counter}, source frames {frames}, flags {flags}.");
+            }
+            return SourceHandFrames[animation][counter - 1];
+        }
+        NativeBattleDecodedPose pose = SourceMotion.Sample(animation, counter, flags);
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(SourceMotion, pose);
+        if ((uint)SourceHand >= matrices.Length)
+        {
+            throw new InvalidDataException("A transferred weapon contact requires its admitted source hand.");
+        }
+        NativeBattleActionMatrix hand = matrices[SourceHand];
+        return new(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
+    }
+}
+
+public sealed record NativeBattleContactVertex(int Bone, NativeBattleVector Position);
+public sealed record NativeBattleFootContactCalibration(ImmutableArray<NativeBattleContactVertex> Source, ImmutableArray<NativeBattleContactVertex> Recipient);
+public sealed record NativeBattleTwoHandContactCalibration(int SourcePrimary, int SourceSecondary, int RecipientPrimary, int RecipientUpperArm, int RecipientForearm, int RecipientSecondary, float MaximumNativeError);
+public enum NativeBattleRootTranslationMode
+{
+    RecipientNeutral,
+    SourceAbsolute
 }
 
 /// <summary>Compiles calibrated semantic motion into recipient-rig native animation bytes before battle execution.</summary>
@@ -24,8 +54,14 @@ public sealed class NativeBattlePoseRetargeter
     private readonly IReadOnlyDictionary<int, NativeBattleSemanticBonePair> bindings;
     private readonly float rootScale;
     private readonly NativeBattleVector sourceOrigin;
+    private readonly NativeBattleFootContactCalibration? feet;
+    private readonly float sourceFloor;
+    private readonly float recipientFloor;
+    private readonly NativeBattleTwoHandContactCalibration? hands;
+    private readonly string? primaryContactJoint;
+    private readonly NativeBattleRootTranslationMode translationMode;
 
-    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale)
+    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale, NativeBattleFootContactCalibration? footContact = null, NativeBattleTwoHandContactCalibration? twoHandContact = null, string? primaryContactJoint = "hand-a", NativeBattleRootTranslationMode translationMode = NativeBattleRootTranslationMode.RecipientNeutral)
     {
         sourceNeutral.Validate();
         recipientNeutral.Validate();
@@ -48,10 +84,31 @@ public sealed class NativeBattlePoseRetargeter
             throw new InvalidDataException("A semantic profile requires a finite positive calibrated root-motion scale.");
         }
         rootScale = rootMotionScale;
+        this.primaryContactJoint = primaryContactJoint;
+        if (!Enum.IsDefined(translationMode))
+        {
+            throw new InvalidDataException("A native motion compilation requires a supported root translation coordinate contract.");
+        }
+        this.translationMode = translationMode;
         foreach (NativeBattleSemanticBonePair pair in pairs)
         {
             ValidateAxes(pair.SourceBindAxes);
             ValidateAxes(pair.RecipientBindAxes);
+        }
+        feet = footContact;
+        if (feet is not null)
+        {
+            if (feet.Source.IsDefaultOrEmpty || feet.Recipient.IsDefaultOrEmpty || feet.Source.Any(vertex => (uint)vertex.Bone >= source.BoneCount) || feet.Recipient.Any(vertex => (uint)vertex.Bone >= recipient.BoneCount))
+            {
+                throw new InvalidDataException("A foot contact calibration requires actual source and recipient mesh vertices on admitted foot bones.");
+            }
+            sourceFloor = FootFloor(source, sourcePose, feet.Source);
+            recipientFloor = FootFloor(recipient, recipientRest, feet.Recipient);
+        }
+        hands = twoHandContact;
+        if (hands is not null && ((uint)hands.SourcePrimary >= source.BoneCount || (uint)hands.SourceSecondary >= source.BoneCount || (uint)hands.RecipientPrimary >= recipient.BoneCount || (uint)hands.RecipientUpperArm >= recipient.BoneCount || (uint)hands.RecipientForearm >= recipient.BoneCount || (uint)hands.RecipientSecondary >= recipient.BoneCount || Parent(recipient, hands.RecipientForearm) != hands.RecipientUpperArm || Parent(recipient, hands.RecipientSecondary) != hands.RecipientForearm || !float.IsFinite(hands.MaximumNativeError) || hands.MaximumNativeError <= 0))
+        {
+            throw new InvalidDataException("A two-hand contact requires admitted source hands, a direct recipient arm chain and a positive finite native error tolerance.");
         }
     }
 
@@ -63,19 +120,29 @@ public sealed class NativeBattlePoseRetargeter
             throw new InvalidDataException("The motion bank must be bound to the calibrated source skeleton.");
         }
         ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> decoded = NativeBattlePoseDecoder.DecodeFrames(motion.Animations.AsSpan(), motion.BoneCount);
-        ImmutableArray<NativeBattleDecodedPose>[] converted = decoded.Select(animation => animation.Select(Transfer).ToImmutableArray()).ToArray();
+        ImmutableArray<NativeBattleDecodedPose>[] converted = decoded.Select((animation, animationIndex) => animation.Select((pose, frameIndex) =>
+        {
+            try
+            {
+                return Transfer(pose);
+            }
+            catch (NotSupportedException exception)
+            {
+                throw new NotSupportedException($"Native retarget animation {animationIndex}, frame {frameIndex + 1}: {exception.Message}", exception);
+            }
+        }).ToImmutableArray()).ToArray();
         byte[] aliases = Enumerable.Repeat(byte.MaxValue, source.BoneCount).ToArray();
         foreach (NativeBattleSemanticBonePair pair in bindings.Values)
         {
             aliases[pair.Source] = checked((byte)pair.Recipient);
         }
-        NativeBattleSemanticBonePair? primary = bindings.Values.SingleOrDefault(pair => pair.Joint == "hand-a");
+        NativeBattleSemanticBonePair? primary = bindings.Values.SingleOrDefault(pair => pair.Joint == primaryContactJoint);
         NativeBattlePoseRetargetBinding? contact = primary is null ? null : new(motion, primary.Source, primary.Recipient)
         {
             SourceHandFrames = decoded.Select(animation => animation.Select(pose =>
             {
                 NativeBattleActionMatrix hand = NativeBattlePoseMatrices.StageBoneMatrices(motion, pose)[primary.Source];
-                return new NativeBattleVector(checked((short)hand.X), checked((short)hand.Y), checked((short)hand.Z));
+                return new NativeBattleVector(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
             }).ToImmutableArray()).ToImmutableArray()
         };
         return recipient with { Animations = NativeBattleAnimationEncoder.Encode(converted), ActionBoneAliases = aliases.ToImmutableArray(), RetargetBinding = contact };
@@ -103,9 +170,28 @@ public sealed class NativeBattlePoseRetargeter
             targetCurrent[bone] = local * parentCurrent;
             bones.Add(new(Angles(local), recipientRest.Bones[bone].Scale));
         }
-        short Coordinate(short position, short origin, short target) => checked((short)Math.Clamp(target + MathF.Round((position - origin) * rootScale), short.MinValue, short.MaxValue));
+        short Coordinate(short position, short origin, short target) => translationMode == NativeBattleRootTranslationMode.SourceAbsolute ? checked((short)MathF.Round(position * rootScale)) : checked((short)(target + MathF.Round((position - origin) * rootScale)));
         NativeBattleVector translation = new(Coordinate(pose.Translation.X, sourceOrigin.X, recipientRest.Translation.X), Coordinate(pose.Translation.Y, sourceOrigin.Y, recipientRest.Translation.Y), Coordinate(pose.Translation.Z, sourceOrigin.Z, recipientRest.Translation.Z));
-        return new(translation, bones.MoveToImmutable(), recipientRest.HasScale);
+        NativeBattleDecodedPose result = new(translation, bones.MoveToImmutable(), recipientRest.HasScale);
+        if (hands is not null)
+        {
+            result = ApplyTwoHandContact(pose, result, hands);
+        }
+        if (feet is not null)
+        {
+            int sourceScale = BinaryPrimitives.ReadInt16LittleEndian(source.Skeleton.AsSpan()[2..]);
+            int targetScale = BinaryPrimitives.ReadInt16LittleEndian(recipient.Skeleton.AsSpan()[2..]);
+            if (sourceScale <= 0 || targetScale <= 0)
+            {
+                throw new NotSupportedException("Foot contact requires positive source and recipient native skeleton scales.");
+            }
+            float currentSourceFloor = FootFloor(source, pose, feet.Source);
+            float desiredFloor = recipientFloor + (currentSourceFloor - sourceFloor) * rootScale * targetScale / sourceScale;
+            float currentFloor = FootFloor(recipient, result, feet.Recipient);
+            short correctedY = checked((short)(result.Translation.Y + MathF.Round((desiredFloor - currentFloor) * 256 / targetScale)));
+            result = result with { Translation = result.Translation with { Y = correctedY } };
+        }
+        return result;
     }
 
     private static Matrix4x4[] GlobalRotations(NativeBattlePoseSource rig, NativeBattleDecodedPose pose)
@@ -143,6 +229,94 @@ public sealed class NativeBattlePoseRetargeter
         {
             throw new InvalidDataException("Semantic bind axes require a finite orthonormal positive rotation.");
         }
+    }
+
+    private static float FootFloor(NativeBattlePoseSource rig, NativeBattleDecodedPose pose, ImmutableArray<NativeBattleContactVertex> vertices)
+    {
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, pose);
+        int floor = int.MinValue;
+        foreach (NativeBattleContactVertex vertex in vertices)
+        {
+            NativeBattleActionMatrix bone = matrices[vertex.Bone];
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(bone, vertex.Position);
+            floor = Math.Max(floor, rotated.Y + bone.Y);
+        }
+        return floor;
+    }
+
+    private NativeBattleDecodedPose ApplyTwoHandContact(NativeBattleDecodedPose sourcePose, NativeBattleDecodedPose targetPose, NativeBattleTwoHandContactCalibration contact)
+    {
+        ImmutableArray<NativeBattleActionMatrix> donor = NativeBattlePoseMatrices.StageBoneMatrices(source, sourcePose);
+        ImmutableArray<NativeBattleActionMatrix> target = NativeBattlePoseMatrices.StageBoneMatrices(recipient, targetPose);
+        Vector3 Point(NativeBattleActionMatrix matrix) => new(matrix.X, matrix.Y, matrix.Z);
+        Vector3 desired = Point(target[contact.RecipientPrimary]) + Point(donor[contact.SourceSecondary]) - Point(donor[contact.SourcePrimary]);
+        Matrix4x4[] rotations = GlobalRotations(recipient, targetPose);
+        Vector3 pole = Vector3.TransformNormal(Vector3.UnitX, rotations[contact.RecipientUpperArm]);
+        Vector3 toward = desired - Point(target[contact.RecipientUpperArm]);
+        if (toward.LengthSquared() > 0 && Vector3.Cross(pole, toward).LengthSquared() < 0.00000001f)
+        {
+            pole = Vector3.TransformNormal(Vector3.UnitY, rotations[contact.RecipientUpperArm]);
+        }
+        NativeBattleTwoBoneContactSolution solution = NativeBattleTwoBoneContact.Solve(Point(target[contact.RecipientUpperArm]), Point(target[contact.RecipientForearm]), Point(target[contact.RecipientSecondary]), desired, pole, LimbLength(targetPose, contact.RecipientUpperArm), LimbLength(targetPose, contact.RecipientForearm));
+        Matrix4x4 handRotation = rotations[contact.RecipientSecondary];
+        ImmutableArray<NativeBattleBonePose>.Builder bones = targetPose.Bones.ToBuilder();
+        Matrix4x4 upper = Aim(rotations[contact.RecipientUpperArm], solution.Elbow - Point(target[contact.RecipientUpperArm]), Length(recipient, contact.RecipientUpperArm));
+        int upperParent = Parent(recipient, contact.RecipientUpperArm);
+        bones[contact.RecipientUpperArm] = bones[contact.RecipientUpperArm] with { Rotation = Angles(upper * Matrix4x4.Transpose(upperParent < 0 ? Matrix4x4.Identity : rotations[upperParent])) };
+        targetPose = targetPose with { Bones = bones.ToImmutable() };
+        target = NativeBattlePoseMatrices.StageBoneMatrices(recipient, targetPose);
+        rotations = GlobalRotations(recipient, targetPose);
+        Matrix4x4 lower = Aim(rotations[contact.RecipientForearm], desired - Point(target[contact.RecipientForearm]), Length(recipient, contact.RecipientForearm));
+        bones[contact.RecipientForearm] = bones[contact.RecipientForearm] with { Rotation = Angles(lower * Matrix4x4.Transpose(rotations[contact.RecipientUpperArm])) };
+        targetPose = targetPose with { Bones = bones.ToImmutable() };
+        rotations = GlobalRotations(recipient, targetPose);
+        bones[contact.RecipientSecondary] = bones[contact.RecipientSecondary] with { Rotation = Angles(handRotation * Matrix4x4.Transpose(rotations[contact.RecipientForearm])) };
+        targetPose = targetPose with { Bones = bones.ToImmutable() };
+        target = NativeBattlePoseMatrices.StageBoneMatrices(recipient, targetPose);
+        float error = Vector3.Distance(Point(target[contact.RecipientSecondary]), desired);
+        if (!float.IsFinite(error) || error > contact.MaximumNativeError)
+        {
+            throw new NotSupportedException($"The native secondary hand contact error {error:R} exceeds its profile tolerance {contact.MaximumNativeError:R} native units.");
+        }
+        return targetPose;
+    }
+
+    private static Matrix4x4 Aim(Matrix4x4 current, Vector3 desired, short length)
+    {
+        if (length == 0 || desired.LengthSquared() == 0)
+        {
+            throw new NotSupportedException("A native hand contact requires a nonzero limb and direction.");
+        }
+        Vector3 first = Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitZ, current) * Math.Sign(length));
+        Vector3 second = Vector3.Normalize(desired);
+        Vector3 cross = Vector3.Cross(first, second);
+        float sine = cross.Length();
+        float cosine = Math.Clamp(Vector3.Dot(first, second), -1, 1);
+        if (sine < 0.0000001f)
+        {
+            return cosine >= 0 ? current : current * Matrix4x4.CreateFromAxisAngle(Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitX, current)), MathF.PI);
+        }
+        return current * Matrix4x4.CreateFromAxisAngle(cross / sine, MathF.Atan2(sine, cosine));
+    }
+
+    private static short Length(NativeBattlePoseSource rig, int bone) => BinaryPrimitives.ReadInt16LittleEndian(rig.Skeleton.AsSpan().Slice(18 + bone * 48, 2));
+
+    private float LimbLength(NativeBattleDecodedPose pose, int bone)
+    {
+        float scale = BinaryPrimitives.ReadInt16LittleEndian(recipient.Skeleton.AsSpan()[2..]) / 4096f;
+        if (pose.HasScale)
+        {
+            for (int ancestor = bone; ancestor >= 0; ancestor = Parent(recipient, ancestor))
+            {
+                NativeBattleVector local = pose.Bones[ancestor].Scale;
+                if (local.X <= 0 || local.X != local.Y || local.X != local.Z)
+                {
+                    throw new NotSupportedException("Two-hand contact requires positive uniform recipient arm scales.");
+                }
+                scale *= local.X / 1024f;
+            }
+        }
+        return MathF.Abs(Length(recipient, bone)) * scale;
     }
 
 }

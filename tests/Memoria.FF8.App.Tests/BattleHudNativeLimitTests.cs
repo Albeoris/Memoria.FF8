@@ -9,6 +9,48 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudNativeLimitTests
 {
     [Fact]
+    public void One_incompatible_family_can_be_inspected_with_reason_without_readiness_or_resource_changes()
+    {
+        BattleSnapshot snapshot = Create().Capture();
+        BattleCombatantDefinition actor = snapshot.Definition.Combatants[0];
+        BattleDefinition definition = snapshot.Definition with { Combatants = [actor with { NativeLimitFamilies = [new(BattleLimitFamily.Renzokuken, actor.NativeLimit!)], WeaponProfile = new(0, 8, 0, BattleWeaponCapabilities.MachineGun, 0) }, snapshot.Definition.Combatants[1]] };
+        BattleSession battle = BattleSession.Restore(snapshot with { Definition = definition });
+        BattleHudController hud = Hud(battle);
+        string before = JsonSerializer.Serialize(battle.Capture());
+
+        Assert.False(hud.NativeLimitAvailable);
+        hud.Navigate(MenuInput.Right);
+        Assert.Equal(BattleAbility.LimitBreak, hud.SelectedCommand);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingNativeLimitFamilies);
+        Assert.Contains("Requires a gunblade", Assert.Single(hud.ChoiceLabels));
+        Assert.False(Assert.Single(hud.ActionChoices).Available);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.False(hud.SelectingTarget);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.False(hud.SelectingAction);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+    }
+
+    [Fact]
+    public void Explicit_zero_families_cannot_reveal_a_native_fallback_command()
+    {
+        BattleSnapshot snapshot = Create().Capture();
+        BattleCombatantDefinition actor = snapshot.Definition.Combatants[0];
+        BattleDefinition definition = snapshot.Definition with { Combatants = [actor with { NativeLimitFamilies = [] }, snapshot.Definition.Combatants[1]] };
+        BattleSession battle = BattleSession.Restore(snapshot with { Definition = definition, NativeLimits = [] });
+        BattleHudController hud = Hud(battle);
+        string before = JsonSerializer.Serialize(battle.Capture());
+
+        hud.Navigate(MenuInput.Right);
+
+        Assert.Equal(BattleAbility.Attack, hud.SelectedCommand);
+        Assert.False(hud.NativeLimitAvailable);
+        Assert.False(hud.SelectingNativeLimitFamilies);
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+    }
+
+    [Fact]
     public void Five_family_selector_scrolls_enters_native_flow_and_cancels_without_crisis_roll()
     {
         BattleSnapshot snapshot = Create().Capture();

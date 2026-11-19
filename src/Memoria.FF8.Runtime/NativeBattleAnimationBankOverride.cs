@@ -37,7 +37,7 @@ public sealed partial record NativeBattleGraphicsResource
             {
                 if (source.Animations.AsSpan().SequenceEqual(replacement.Animations.AsSpan()))
                 {
-                    return source;
+                    return source with { ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
                 }
                 throw new InvalidDataException("An animation bank override no longer matches its bound source revision.");
             }

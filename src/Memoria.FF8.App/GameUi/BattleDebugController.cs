@@ -132,7 +132,18 @@ public sealed class BattleDebugController
     public static BattleDefinition InitializeParty(BattleDefinition scenario, IReadOnlyList<BattleCombatantDefinition> currentParty, BattleSession? currentBattle = null)
     {
         Dictionary<string, BattleCombatant>? current = currentBattle?.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id);
-        return BattleSession.CloneDefinition(scenario with { Combatants = [.. currentParty.Select(actor => current is not null && current.TryGetValue(actor.Id, out BattleCombatant? live) ? actor with { CurrentHp = live.CurrentHp, MagicStocks = live.MagicStocks.ToArray() } : actor), .. scenario.Combatants.Where(actor => !actor.IsPlayer)] });
+        return BattleSession.CloneDefinition(scenario with { Combatants = [.. currentParty.Select(CopyActor), .. scenario.Combatants.Where(actor => !actor.IsPlayer)] });
+
+        BattleCombatantDefinition CopyActor(BattleCombatantDefinition actor)
+        {
+            if (current is null || !current.TryGetValue(actor.Id, out BattleCombatant? live))
+            {
+                return actor;
+            }
+            BattleStock[] stocks = live.MagicStocks.ToArray();
+            NativeMagicStock[]? native = actor.NativeMagicInventory is null ? null : stocks.Select(stock => new NativeMagicStock(checked((byte)stock.Id), checked((byte)stock.Count))).Concat(Enumerable.Repeat(new NativeMagicStock(0, 0), 32 - stocks.Length)).ToArray();
+            return actor with { CurrentHp = live.CurrentHp, MagicStocks = stocks, NativeMagicInventory = native };
+        }
     }
 
     public UiView BuildView()
@@ -429,14 +440,14 @@ public sealed class BattleDebugController
             foreach (BattleNativeLimitFamilyDefinition family in catalog.LimitFamilies)
             {
                 bool enabled = assigned.Any(entry => entry.Family == family.Family);
-                rows.Add(new(prefix + "Limit: " + family.Family, enabled ? "Assigned" : "Absent", "Toggle this family in the isolated scenario. Native unlock and weapon requirements still apply.", _ =>
+                rows.Add(new(prefix + "Limit: " + BattleLoadoutLabels.Family(family.Family, LocalizeText), enabled ? "Assigned" : "Absent", "Toggle this family in the isolated scenario. Native unlock and weapon requirements still apply.", _ =>
                 {
                     actors[index] = actor with { NativeLimitFamilies = enabled ? assigned.Where(entry => entry.Family != family.Family).ToArray() : [.. assigned, family] };
                 }));
             }
             foreach (BattleNativeLimitFamilyDefinition family in assigned)
             {
-                rows.Add(new(prefix + "Limit order: " + family.Family, (Array.IndexOf(assigned, family) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), "Left / right changes this family's selector order in the isolated scenario.", direction =>
+                rows.Add(new(prefix + "Limit order: " + BattleLoadoutLabels.Family(family.Family, LocalizeText), (Array.IndexOf(assigned, family) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), "Left / right changes this family's selector order in the isolated scenario.", direction =>
                 {
                     int source = Array.IndexOf(assigned, family);
                     int target = Math.Clamp(source + direction, 0, assigned.Length - 1);

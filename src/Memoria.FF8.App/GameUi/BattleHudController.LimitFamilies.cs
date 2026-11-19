@@ -8,7 +8,11 @@ public sealed partial class BattleHudController
     public bool SelectingNativeLimitFamilies { get; private set; }
     private bool nativeLimitFamilyChosen;
 
-    private IReadOnlyList<BattleActionDefinition> NativeLimitFamilyActions => SelectedActor is { } actor ? session.GetNativeLimitFamilies(actor.Id).Select(entry => new BattleActionDefinition(BattleAbility.LimitBreak, (int)entry.Family, entry.UnavailableReason is null ? entry.Name : entry.Name + " · " + entry.UnavailableReason, BattleActionEffect.Native, 0, false) { Available = entry.Available }).ToArray() : [];
+    private IReadOnlyList<BattleActionDefinition> NativeLimitFamilyActions => SelectedActor is { } actor ? session.GetNativeLimitFamilies(actor.Id).Select(entry =>
+    {
+        string? reason = entry.UnavailableReason ?? (session.GetNativeLimitLevel(actor.Id) == 0 ? SystemText("battle.ui.limitfamilies.notready", "Limit is not ready.") : null);
+        return new BattleActionDefinition(BattleAbility.LimitBreak, (int)entry.Family, reason is null ? entry.Name : entry.Name + " · " + reason, BattleActionEffect.Native, 0, false) { Available = entry.Available && reason is null };
+    }).ToArray() : [];
 
     private bool PrepareNativeLimitFamilySelection(BattleCombatant actor)
     {
@@ -36,7 +40,7 @@ public sealed partial class BattleHudController
             return false;
         }
         IReadOnlyList<BattleNativeLimitFamilyChoice> families = session.GetNativeLimitFamilies(actor.Id);
-        if (families.Count == 1)
+        if (families.Count == 1 && families[0].Available && session.GetNativeLimitLevel(actor.Id) > 0)
         {
             session.SelectNativeLimitFamily(actor.Id, families[0].Family);
             nativeLimitFamilyChosen = true;
@@ -52,7 +56,7 @@ public sealed partial class BattleHudController
 
     private bool CancelNativeLimitFamilySelection()
     {
-        if (SelectedCommand != BattleAbility.LimitBreak || SelectedActor?.NativeLimitFamilies is not { Count: > 1 })
+        if (SelectedCommand != BattleAbility.LimitBreak || SelectedActor?.NativeLimitFamilies is not { Count: > 0 } families)
         {
             return false;
         }
@@ -64,7 +68,7 @@ public sealed partial class BattleHudController
             nativeLimitFamilyChosen = false;
             SetSystemMessage(() => "Choose a command.");
         }
-        else if (SelectingAction && (!SelectingTarget || NativeLimitDirectTarget))
+        else if (families.Count > 1 && SelectingAction && (!SelectingTarget || NativeLimitDirectTarget))
         {
             SelectingNativeLimitFamilies = true;
             SelectingTarget = false;

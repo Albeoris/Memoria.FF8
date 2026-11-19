@@ -9,10 +9,12 @@ public sealed record NativeBattleCinematicBonePose(NativeBattleWaterExecutionFra
     public Func<int, int, byte[]>? ReadMetadata { get; init; }
     public int MetadataLength { get; init; }
     public NativeBattlePosedActor? Pose { get; init; }
+    public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
     public int BoneCount => Pose is { } pose ? pose.Endpoints.Length / 2 : Skeleton[0];
 
-    public NativeBattleWaterActorAnchorResult Evaluate(NativeBattleWaterActorAnchorServices services, NativeBattleWaterExecutionFrame frame, short selector, int fraction, NativeBattleActionMatrix basis)
+    public NativeBattleWaterActorAnchorResult Evaluate(NativeBattleWaterActorAnchorServices services, NativeBattleWaterExecutionFrame frame, short selector, int fraction, NativeBattleActionMatrix basis, bool actionBinding = true)
     {
+        selector = actionBinding ? NativeBattleActionBoneAliases.Resolve(ActionBoneAliases, selector) : selector;
         return Pose is { } pose ? services.Evaluate(frame, pose, selector, fraction, basis) : ReadMetadata is { } read ? services.EvaluateB66B80(frame, MetadataLength, read, Bones, selector, fraction, basis) : services.EvaluateB66B80(frame, Skeleton, Bones, selector, fraction, basis);
     }
 }
@@ -82,7 +84,7 @@ public static class NativeBattleCinematicBone5B
         NativeBattleCinematicBonePose pose = actor is { } owner ? services.RestoreActorPose(frame, owner) : services.RestoreNodePose(frame, reference);
         frame = pose.Frame;
         NativeBattleActionMatrix selectedBasis = basis ?? pose.PhysicalBasis ?? throw new NotSupportedException("Native bone positioning requires its actual physical actor matrix.");
-        NativeBattleWaterActorAnchorResult result = pose.ReadMetadata is { } readMetadata ? services.ActorAnchor.EvaluateB66B80(frame, pose.MetadataLength, readMetadata, pose.Bones, selector, fraction, selectedBasis) : services.ActorAnchor.EvaluateB66B80(frame, pose.Skeleton, pose.Bones, selector, fraction, selectedBasis);
+        NativeBattleWaterActorAnchorResult result = pose.Evaluate(services.ActorAnchor, frame, selector, fraction, selectedBasis, (ControlByte(0x4B) & 8) != 0);
         frame = result.Frame;
         frame = services.PublishInput(frame, frame.TemporaryFrame.Address + 0xC0);
         int mode = ControlWord(0x4A) >> 12;

@@ -13,7 +13,8 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
     public void PhysicalCommandRestoresTheSelectedRigThenTransformsTheCachedSignedPoint(ushort instruction, bool linked)
     {
         NativeBattleWaterExecutionFrame frame = Fixture(instruction);
-        frame = frame with { Arena = frame.Arena.Write(0x201B, [5]).Write(0x2094, [0xFE, 0xFF, 3, 0, 0xFC, 0xFF]) };
+        frame = frame with { Arena = frame.Arena.Write(0x2094, [0xFE, 0xFF, 3, 0, 0xFC, 0xFF]) };
+        frame = NativeBattleCinematicActorAccess.WriteSlotActor(frame, OriginalOwner(5), OriginalAliases);
         uint owner = WaterSchedulerFixture.ReadCoreDword(frame, 0x279744C);
         frame = WaterSchedulerFixture.CoreDword(frame, owner + 0x60 + 5 * 4, 0x1D975CC);
         int updates = 0;
@@ -54,6 +55,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         frame = frame with { Core = frame.Core.Write(owner + 0x41, [2]).Write(owner + 0x48, [0, 1]), Arena = frame.Arena.Write(0x2060, BitConverter.GetBytes(123)).Write(0x2064, BitConverter.GetBytes(456)) };
         frame = WaterSchedulerFixture.CoreDword(frame, owner + 0x60, 0x1D972C0);
         frame = WaterSchedulerFixture.CoreDword(frame, owner + 0x64, 0x1D9735C);
+        frame = frame with { Core = frame.Core with { PresentationActors = frame.Core.PresentationActors! with { CurrentActors = [OriginalOwner(0), OriginalOwner(1)], FirstActor = OriginalOwner(0) } } };
         List<uint> actors = [];
         NativeBattleCinematicActorAnchorServices services = new((current, actor, restore, linked) =>
         {
@@ -103,7 +105,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         {
             ReadScale38 = _ => 4096
         };
-        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 8, 0x1000), services);
         NativeBattleWaterExecutionFrame continued = NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 8, 0x1000), services);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(continued));
@@ -145,7 +147,7 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
             Assert.Equal(current.TemporaryFrame.Address + 0xC0, address);
             return current;
         }, NativeBattleActorAnchorRegisterFixture.Services());
-        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleWaterExecutionFrame>(NativeBattleTestSnapshots.Json(frame))!;
+        NativeBattleWaterExecutionFrame restored = NativeBattleTestSnapshots.Independent(frame);
         NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, 2, 0x1000), services);
         Assert.Equal(NativeBattleTestSnapshots.Json(result), NativeBattleTestSnapshots.Json(NativeBattleCinematicActorAnchorCommands.Execute(restored, new(0x1000, 2, 0x1000), services)));
         Assert.Equal(expected, result.Random);
@@ -203,9 +205,27 @@ public sealed class NativeBattleCinematicActorAnchorCommandsTests
         }
     }
 
+    [Theory]
+    [InlineData(0x60, true)]
+    [InlineData(0xB4, false)]
+    public void Transferred_literal_uses_source_joint_while_random_anchor_keeps_physical_index(ushort instruction, bool literal)
+    {
+        NativeBattleWaterExecutionFrame frame = NativeBattleCinematicTypedTestFixture.BindActor(Fixture(instruction), OriginalOwner(0));
+        frame = frame with { Arena = literal ? frame.Arena.Write(0x1002, [35, 0]) : frame.Arena.MarkUnknown(0x1002, 2) };
+        byte[] aliases = Enumerable.Repeat(byte.MaxValue, 36).ToArray();
+        aliases[35] = 0;
+        NativeBattleCinematicActorAnchorServices services = new((current, _, _, _) => Pose(current, 7, 8, 9) with { ActionBoneAliases = aliases.ToImmutableArray() }, (current, _) => current, (current, _) => current, NativeBattleActorAnchorRegisterFixture.Services());
+        NativeBattleWaterExecutionFrame result = NativeBattleCinematicActorAnchorCommands.Execute(frame, new(0x1000, literal ? 4 : 2, 0x1000), services);
+        Assert.Equal(7 << 16, Position(result, 0));
+        Assert.Equal(8 << 16, Position(result, 1));
+        Assert.Equal(9 << 16, Position(result, 2));
+        Assert.Equal(literal ? frame.Random : frame.Random.Draw(out _), result.Random);
+        Assert.Equal(literal ? 0x1004u : 0x1002u, WaterSchedulerFixture.ReadCoreDword(result, 0x2797450));
+    }
+
     private static NativeBattleWaterExecutionFrame Fixture(ushort instruction)
     {
-        NativeBattleWaterExecutionFrame frame = WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction);
+        NativeBattleWaterExecutionFrame frame = NativeBattleCinematicTypedTestFixture.BindActor(WaterSchedulerFixture.Create().WriteTemporaryWord(0x14A, instruction), OriginalOwner(0));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797450, 0x1000);
         return frame with { Arena = frame.Arena.Write(0x2018, [9]) };
     }

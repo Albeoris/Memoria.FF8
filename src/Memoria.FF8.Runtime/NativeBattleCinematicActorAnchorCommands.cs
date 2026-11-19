@@ -28,7 +28,7 @@ public static class NativeBattleCinematicActorAnchorCommands
             {
                 selected = count - 1;
             }
-            NativeBattleWaterActorAnchorResult result = pose.Evaluate(services.ActorAnchor, frame, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."));
+            NativeBattleWaterActorAnchorResult result = pose.Evaluate(services.ActorAnchor, frame, unchecked((short)selected), 4096, pose.PhysicalBasis ?? throw new NotSupportedException("Native random anchor requires the actor's actual world matrix."), false);
             frame = services.PublishInput(result.Frame, result.Frame.TemporaryFrame.Address + 0xC0);
             Store(0, result.Anchor.X);
             Store(1, result.Anchor.Y);

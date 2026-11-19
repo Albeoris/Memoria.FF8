@@ -29,7 +29,23 @@ public sealed partial class BattleAssets
             {
                 replacements[1] = geometry;
             }
+            int maximumVertices = (resource.Geometry ?? []).Concat(resource.LinkedGeometry ?? []).Select(mesh => mesh.Vertices.Length).DefaultIfEmpty(0).Max();
+            if (maximumVertices > ushort.MaxValue)
+            {
+                throw new NotSupportedException("The composed battle geometry exceeds the native projected-vertex scratch contract.");
+            }
+            byte[] boundedGeometry = replacements.TryGetValue(1, out var selectedGeometry) ? selectedGeometry.ToArray() : bodySource.Bytes.AsSpan().Slice(bodySource.Section(1), bodySource.Section(2) - bodySource.Section(1)).ToArray();
+            if (boundedGeometry.Length < 4)
+            {
+                throw new InvalidDataException("The composed battle geometry lacks its native scratch maximum trailer.");
+            }
+            BinaryPrimitives.WriteInt32LittleEndian(boundedGeometry.AsSpan()[^4..], maximumVertices);
+            replacements[1] = System.Collections.Immutable.ImmutableArray.CreateRange(boundedGeometry);
             int sections = BinaryPrimitives.ReadInt32LittleEndian(bodySource.Bytes.AsSpan());
+            if (composed.NativeBodyTexturePack is { } textures)
+            {
+                replacements[sections is 9 or 10 ? 8 : 5] = textures.Data;
+            }
             if (sections is 9 or 10)
             {
                 replacements[5] = resource.SequenceSection;
@@ -40,11 +56,33 @@ public sealed partial class BattleAssets
         if (linked is byte selector && style != 7)
         {
             NativeBattleModelDatSource equipment = ReadNativeModelDatSource(checked((byte)style), true, selector);
-            if (style != actor.ModelId && style is 1 or 9 && actor.WeaponId is int sharedWeapon)
+            if (style != actor.ModelId && actor.WeaponId is int sharedWeapon)
             {
                 BattleModel composed = LoadPlayerForWeapon(actor.ModelId, actor.Costume, actor.WeaponId);
                 BattleModel model = ResolvePlayerRenderWeapon(actor.ModelId, sharedWeapon, composed) ?? throw new InvalidDataException("A shared weapon has no admitted equipment geometry.");
-                equipment = ReplaceNativeDatSections(equipment, new Dictionary<int, System.Collections.Immutable.ImmutableArray<byte>> { [0] = model.NativeGeometryBytes ?? throw new InvalidDataException("A shared weapon requires its rewritten native bone groups.") });
+                bool reduced = model.NativeWeaponUsesBodySkeleton == true;
+                Dictionary<int, System.Collections.Immutable.ImmutableArray<byte>> replacements = [];
+                if (model.NativeGeometryBytes is { } geometry)
+                {
+                    replacements[reduced ? 0 : 1] = geometry;
+                }
+                else if (reduced)
+                {
+                    throw new InvalidDataException("A shared weapon requires its rewritten native bone groups.");
+                }
+                if (model.NativeWeaponTexturePack is { } textures)
+                {
+                    replacements[reduced ? 4 : 6] = textures.Data;
+                }
+                if (!reduced && model.NativePoseSource is { } pose)
+                {
+                    replacements[0] = pose.Skeleton;
+                    replacements[2] = pose.Animations;
+                }
+                if (replacements.Count != 0)
+                {
+                    equipment = ReplaceNativeDatSections(equipment, replacements);
+                }
             }
             sources.Add(equipment with { ModelId = checked((byte)actor.ModelId) });
         }

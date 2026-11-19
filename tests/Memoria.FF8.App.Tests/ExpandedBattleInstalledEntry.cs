@@ -40,10 +40,15 @@ internal static class ExpandedBattleInstalledEntry
     public static void AdmitDebugVictory(GameWorld world)
     {
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
-        for (int callback = 0; callback < 1200 && !battle.CanAdmitDebugOutcome; callback++)
+        for (int callback = 0; callback < 1200 && battle.Outcome == BattleOutcome.Active && !battle.CanAdmitDebugOutcome; callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
         }
+        if (battle.Outcome == BattleOutcome.Victory)
+        {
+            return;
+        }
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.True(battle.CanAdmitDebugOutcome);
         world.ApplyBattleInput(new(BattleInputKind.InstantVictory));
     }

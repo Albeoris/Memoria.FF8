@@ -35,9 +35,14 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(0x11223344u, request.State.Task.Argument);
         Assert.Equal(request.State, request.State.Poll507070(-1, [source], request.Staging).State);
         Assert.Equal(request.State, request.State.Poll507070(int.MinValue, [source], request.Staging).State);
-        string json = NativeBattleTestSnapshots.Json(request.State);
-        NativeBattleModelLoader restored = NativeBattleTestSnapshots.RestoreJson<NativeBattleModelLoader>(json)!;
-        NativeBattleFileStaging restoredStaging = NativeBattleTestSnapshots.RestoreJson<NativeBattleFileStaging>(NativeBattleTestSnapshots.Json(request.Staging))!;
+        NativeBattleRetainedMemory retained = NativeBattleRetainedMemory.FromColdProcess() with { ModelLoader = request.State, FileStaging = request.Staging };
+        string json = NativeBattleTestSnapshots.Json(retained);
+        NativeBattleRetainedMemory roundTrip = NativeBattleTestSnapshots.RestoreJson<NativeBattleRetainedMemory>(json);
+        Assert.Null(Assert.IsType<NativeBattleModelLoader>(roundTrip.ModelLoader).Task);
+        // The retained-memory JSON stores reusable file storage; the active loader owner is a transient process field.
+        NativeBattleModelLoader restored = NativeBattleTestSnapshots.Independent(request.State);
+        Assert.Equal(request.State.Task, restored.Task);
+        NativeBattleFileStaging restoredStaging = Assert.IsType<NativeBattleFileStaging>(roundTrip.FileStaging);
         NativeBattleModelLoadStep texture = restored.Poll507070(source.Bytes.Length, [source], restoredStaging);
         Assert.NotNull(texture.TextureUpload);
         Assert.Null(texture.Bind);
@@ -104,7 +109,8 @@ public sealed class NativeBattleModelLoaderTests
         NativeBattleModelDatSource weapon = Source(1, true, 0);
         NativeBattleModelResourceBind bodyBind = Complete(1, body);
         ImmutableArray<NativeBattleModelCpuResourceRow> rows = Enumerable.Range(0, 11).Select(_ => NativeBattleModelCpuResourceRow.Unknown()).ToImmutableArray();
-        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(bodyBind, NativeBattleModelCpuBanks.Unknown(), rows, 4, null);
+        NativeBattleModelCpuBanks cpu = NativeBattleModelCpuBanks.Unknown().BindPartyOwner((BattlePartyModelOwner)OriginalOwner(0), NativeBattleModelSlot.Decode(0));
+        NativeBattleModelResourceCompletion first = NativeBattleModelResourceCopies.Complete(bodyBind, cpu, rows, 4, null);
         Assert.Equal(new NativeBattleModelCpuReference(0, 0), first.Rows[4].Require(16));
         Assert.Equal(new NativeBattleModelCpuReference(0, 16), first.Rows[4].Require(8));
         NativeBattleModelResourceBind linkedBind = Complete(0x1001, weapon);

@@ -465,6 +465,7 @@ public sealed partial class BattleCombatant
     private uint nativeCombatantFlags;
     private int currentHp;
     private BattleCombatantDefinition definition;
+    private readonly IReadOnlyList<BattleNativeLimitFamilyDefinition>? nativeLimitFamilies;
     internal BattleCombatantDefinition SourceDefinition => definition;
     internal ushort NativeStatus0 { get; set; }
     internal uint NativeStatus1 { get; set; }
@@ -475,6 +476,7 @@ public sealed partial class BattleCombatant
     {
         MutableGuardianForceCompatibility = definition.GuardianForceCompatibility?.ToArray();
         this.definition = definition;
+        nativeLimitFamilies = definition.NativeLimitFamilies is { } families ? Array.AsReadOnly(families) : null;
         ExpandedEnemyLevels = enemyLevels;
         NativePendingReaction = definition.InitialActive ? new(0, 0) : new(null, null);
         MutableNativeStatusResistances = InitialNativeStatusResistances();
@@ -514,7 +516,7 @@ public sealed partial class BattleCombatant
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands => definition.NativeCommands;
     public ImmutableArray<byte> NativeCommandSlots => definition.NativeCommandSlots;
     public BattleNativeLimitDefinition? NativeLimitReadiness => definition.NativeLimit;
-    public IReadOnlyList<BattleNativeLimitFamilyDefinition>? NativeLimitFamilies => definition.NativeLimitFamilies;
+    public IReadOnlyList<BattleNativeLimitFamilyDefinition>? NativeLimitFamilies => nativeLimitFamilies;
     public BattleWeaponProfile? WeaponProfile => definition.WeaponProfile;
     public BattleLimitFamily? SelectedNativeLimitFamily { get; internal set; }
     public BattleLimitFamily? ActiveNativeLimitFamily => SelectedNativeLimitFamily ?? definition.NativeLimitFamilies?.FirstOrDefault()?.Family;

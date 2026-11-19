@@ -400,7 +400,7 @@ public static class NativeBattleGeometry
         return unchecked((short)(low | (high << 8)));
     }
 
-    private static T Require<T>(T? value) where T : struct => value ?? throw new NotSupportedException("Native geometry requires the actual retained input lane.");
+    private static T Require<T>(T? value, [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(value))] string? lane = null) where T : struct => value ?? throw new NotSupportedException($"Native geometry requires the actual retained input lane: {lane}.");
 
     private static void Validate(NativeBattleGeometryRegisterStep step)
     {

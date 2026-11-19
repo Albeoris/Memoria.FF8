@@ -28,7 +28,13 @@ public sealed partial class BattleSession
 
     public string GetNativeLimitCommandName(string actorId)
     {
-        BattleNativeLimitDefinition limit = GetActor(actorId).NativeLimit ?? throw new InvalidOperationException("Character has no native Limit command.");
+        BattleCombatant actor = GetActor(actorId);
+        BattleNativeLimitDefinition limit = actor.NativeLimit ?? throw new InvalidOperationException("Character has no native Limit command.");
+        if (actor.ActiveNativeLimitFamily is BattleLimitFamily.Combine or BattleLimitFamily.AngelWing)
+        {
+            int choice = actor.ActiveNativeLimitFamily == BattleLimitFamily.Combine ? 0 : 1;
+            return limit.InvocationChoices.ElementAtOrDefault(choice)?.Name ?? throw new InvalidDataException("The selected Rinoa Limit family requires its original invocation name.");
+        }
         return definition.NativeCommandNames.ElementAtOrDefault(limit.Command) ?? limit.InvocationChoices.FirstOrDefault()?.Name ?? throw new NotSupportedException("Limit command text requires the original kernel command name.");
     }
 

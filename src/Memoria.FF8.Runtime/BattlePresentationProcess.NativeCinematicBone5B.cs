@@ -53,7 +53,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native bone positioning requires its actual physical rig source.");
             NativeBattleGraphicsModel actor = NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
-            return new(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native bone positioning requires its actual physical actor matrix."));
+            return new(current, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native bone positioning requires its actual physical actor matrix.")) { ActionBoneAliases = ReadCinematicActionBoneAliases(graphics, index, source) };
         }
     }
 }

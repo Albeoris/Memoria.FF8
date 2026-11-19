@@ -5,6 +5,65 @@ namespace Memoria.FF8;
 
 internal static class InstalledBattlePractice
 {
+    internal static BattleCombatantDefinition PreparePlayer(BattleCombatantDefinition actor, NativeCharacterVitals nativeDefaults, BattleAssets assets, bool initializeDefaults = false)
+    {
+        int row = Array.FindIndex(nativeDefaults.Records, record => record.CharacterId == actor.ModelId);
+        if (!actor.IsPlayer || row < 0)
+        {
+            throw new InvalidDataException($"Practice character {actor.ModelId} has no installed player data.");
+        }
+        NativeCharacterVital native = nativeDefaults.Records[row];
+        BattleNativePlayerStatRules rules = actor.NativePlayerStatRules is { } existing && existing.CharacterId == actor.ModelId ? existing : assets.ReadPlayerNativeStatRules(nativeDefaults, row);
+        NativeMagicStock[] inventory;
+        if (actor.NativeMagicInventory is { } stocks)
+        {
+            inventory = stocks.ToArray();
+        }
+        else if (initializeDefaults)
+        {
+            inventory = nativeDefaults.GetMagicInventory(row).ToArray();
+        }
+        else
+        {
+            inventory = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+            if (actor.MagicStocks.Length > inventory.Length)
+            {
+                throw new InvalidDataException("Practice magic stock exceeds thirty-two native slots.");
+            }
+            for (int index = 0; index < actor.MagicStocks.Length; index++)
+            {
+                BattleStock stock = actor.MagicStocks[index];
+                inventory[index] = new(checked((byte)stock.Id), checked((byte)stock.Count));
+            }
+        }
+        BattleLimitFamily[]? families = actor.NativeLimitFamilies?.Select(entry => entry.Family).ToArray();
+        if (families is null && actor.NativeLimit is { } legacy)
+        {
+            families = BattleLimitFamilyRules.NativeFamilies(legacy.CharacterId);
+        }
+        BattleLoadoutOverrides assignments = new()
+        {
+            Characters = System.Collections.Immutable.ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride>.Empty.Add(actor.ModelId, new() { WeaponId = actor.WeaponId, LimitFamilies = families })
+        };
+        BattleResolvedLoadout resolved = assets.ResolveBattleLoadout(new() { BattleLoadouts = assignments }, actor.ModelId, nativeDefaults.GetBattleWeapon(row));
+        BattleCombatantDefinition initialized = actor with
+        {
+            Level = actor.NativePlayerStatRules is null ? rules.Level : actor.Level,
+            MaximumHp = initializeDefaults ? nativeDefaults.GetMagicMaximumHitPoints(row) : actor.MaximumHp,
+            CurrentHp = initializeDefaults ? native.HitPoints.Minimum : actor.CurrentHp,
+            NativePlayerStatRules = rules,
+            NativeGrowth = actor.NativeGrowth ?? native.Growth,
+            NativeMagicInventory = inventory,
+            NativeAttack = actor.NativeAttack is { } attack && attack.CharacterId == actor.ModelId ? attack : assets.ReadPlayerNativeAttackData(nativeDefaults, row),
+            NativeLimit = actor.NativeLimit ?? assets.ReadNativeLimitDefinition(actor.ModelId),
+            NativeLimitFamilies = actor.NativeLimitFamilies ?? resolved.Families,
+            NativeCharacterFlag100 = actor.NativeCharacterFlag100 ?? assets.ReadCharacterNativeConditionFlag100(actor.ModelId),
+            NativeDeathCount = actor.NativeDeathCount ?? native.DeathCount,
+            NativeStatusResistances = actor.NativeStatusResistances.Length == 40 ? actor.NativeStatusResistances.ToArray() : assets.ReadPlayerNativeStatusData(nativeDefaults, row).Resistances.ToArray()
+        };
+        return assets.ApplyBattleWeapon(initialized, resolved.Weapon.Id);
+    }
+
     internal static BattleSession Create(BattleDefinition source, BattleAtbMode mode, GameAssets game, BattleAssets assets, bool useEncounter = false)
     {
         if (source.Combatants.Any(actor => actor.ModelId < 0))
@@ -24,6 +83,7 @@ internal static class InstalledBattlePractice
         NativeCharacterVitals playerDefaults = game.ReadNewGameCharacterVitals().WithGuestBattleRecords();
         NativeBattleRetainedMemory retained = game.ReadColdProcessNativeBattleMemory();
         NativeBattleMusicProcessState music = source.NativeMusicProcess ?? new(new NativeMusicProcessState(1, false, 0, 1, 0, 0), 1, null);
+        NativeSavedBattleFlags savedFlags = game.ReadNewGameSavedBattleFlags();
         BattleDefinition definition = source with
         {
             EncounterId = null,
@@ -45,6 +105,10 @@ internal static class InstalledBattlePractice
             NativeInputButtonMap = input.ButtonMap,
             NativeMessageSpeed = input.BattleMessageSpeed,
             NativeSavedOptions = input.Options,
+            LimitProgress = source.LimitProgress ?? game.ReadNewGameLimitProgress(),
+            NativeShotAvailability = source.NativeShotAvailability ?? game.ReadNewGameShotAvailability(),
+            NativeSavedBattleFlags = source.NativeSavedBattleFlags ?? savedFlags.Value,
+            NativeSavedBattleFlagsKnownMask = source.NativeSavedBattleFlags.HasValue ? source.NativeSavedBattleFlagsKnownMask : savedFlags.EffectiveKnownMask,
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
             NativeCommandNames = assets.ReadNativeCommandNames(),
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -70,27 +134,7 @@ internal static class InstalledBattlePractice
         {
             if (actor.IsPlayer)
             {
-                int row = Array.FindIndex(playerDefaults.Records, record => record.CharacterId == actor.ModelId);
-                if (row < 0)
-                {
-                    throw new InvalidDataException($"Practice character {actor.ModelId} has no installed player data.");
-                }
-                int weaponId = actor.WeaponId ?? playerDefaults.GetBattleWeapon(row);
-                BattleWeaponDefinition weapon = assets.WeaponDefinitions.SingleOrDefault(item => item.Id == weaponId && item.CharacterId == actor.ModelId)
-                    ?? throw new InvalidDataException($"Weapon {weaponId} does not belong to practice character {actor.ModelId}.");
-                NativeCharacterVital[] records = playerDefaults.Records.ToArray();
-                records[row] = records[row] with { Weapon = checked((byte)weaponId) };
-                NativeCharacterVitals vitals = playerDefaults with { Records = records };
-                bool currentEquipment = actor.NativeAttack is { } attack && attack.KernelIndex == weaponId && attack.CharacterId == actor.ModelId;
-                return actor with
-                {
-                    WeaponId = weaponId,
-                    WeaponName = weapon.Name,
-                    NativeAttack = currentEquipment ? actor.NativeAttack : assets.ReadPlayerNativeAttackData(vitals, row),
-                    NativePlayerStatRules = currentEquipment && actor.NativePlayerStatRules is not null ? actor.NativePlayerStatRules : assets.ReadPlayerNativeStatRules(vitals, row),
-                    NativeLimit = actor.NativeLimit ?? assets.ReadNativeLimitDefinition(actor.ModelId),
-                    NativeStatusResistances = actor.NativeStatusResistances.Length == 40 ? actor.NativeStatusResistances : assets.ReadPlayerNativeStatusData(vitals, row).Resistances.ToArray()
-                };
+                return PreparePlayer(actor, playerDefaults, assets);
             }
             NativeBattleStatusAllocation statuses = assets.ReadEnemyNativeStatusData(actor.ModelId);
             return actor with

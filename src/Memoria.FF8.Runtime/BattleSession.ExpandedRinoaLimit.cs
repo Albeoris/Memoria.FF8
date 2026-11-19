@@ -5,14 +5,14 @@ public sealed partial class BattleSession
     private bool HasExpandedCombine(BattleCombatant actor)
     {
         return actor.NativeLimit is { Command: 19, InvocationChoices.Length: 2 } &&
-            (definition.NativeSavedBattleFlagsKnownMask & 0x30) == 0x30 && (CurrentNativeSavedBattleFlags() & 0x10) == 0 &&
+            (definition.NativeSavedBattleFlagsKnownMask & 0x10) != 0 && (CurrentNativeSavedBattleFlags() & 0x10) == 0 &&
             definition.LimitProgress is { AngeloFlags: >= 0x10 };
     }
 
     private bool HasExpandedAngelWing(BattleCombatant actor)
     {
         return actor.NativeLimit is { Command: 19, InvocationChoices.Length: 2 } &&
-            (definition.NativeSavedBattleFlagsKnownMask & 0x30) == 0x30 && (CurrentNativeSavedBattleFlags() & 0x20) != 0 &&
+            (definition.NativeSavedBattleFlagsKnownMask & 0x20) != 0 && (CurrentNativeSavedBattleFlags() & 0x20) != 0 &&
             IsExpandedAngelWingLimit(FindInstalledNativeAction(19, 4)) && CanCastExpandedAngelWingStock(actor);
     }
 

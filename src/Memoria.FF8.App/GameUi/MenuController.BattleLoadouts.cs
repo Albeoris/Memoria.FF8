@@ -3,8 +3,8 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.GameUi;
 
 internal sealed record BattleLoadoutEditorCharacter(int CharacterId, string Name, string Summary);
-internal sealed record BattleLoadoutEditorWeapon(int WeaponId, string Name, string Owner, string Description);
-internal sealed record BattleLoadoutEditorContext(BattleLoadoutDraft Draft, BattleLoadoutEditorCharacter[] Characters, BattleLoadoutEditorWeapon[] Weapons);
+internal sealed record BattleLoadoutEditorWeapon(int WeaponId, string Name, string Owner, string Description, string Family = "");
+internal sealed record BattleLoadoutEditorContext(BattleLoadoutDraft Draft, BattleLoadoutEditorCharacter[] Characters, BattleLoadoutEditorWeapon[] Weapons, Func<int, int, string?>? WeaponReason = null);
 
 public sealed partial class MenuController
 {
@@ -13,6 +13,7 @@ public sealed partial class MenuController
     private Func<string?>? battleLoadoutEditorBoundary;
     private Func<bool>? canOpenBattleLoadoutEditor;
     private Func<BattleLoadoutDraft, int, string[]>? describeBattleLoadout;
+    private Func<BattleLoadoutDraft, int, BattleLimitFamily, string[]>? describeBattleLoadoutFamily;
     private BattleLoadoutEditorContext? battleLoadoutEditor;
     private int battleLoadoutCharacter;
     private BattleLimitFamily battleLoadoutFamily;
@@ -20,13 +21,16 @@ public sealed partial class MenuController
 
     internal bool BattleLoadoutEditorAvailable => readBattleLoadoutEditor is not null && !IsFixtureContext && (canOpenBattleLoadoutEditor?.Invoke() ?? true);
 
-    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<BattleLoadoutDraft, int, string[]> describe, Func<bool>? available = null)
+    internal string BattleLoadoutEditorEntryHelp => BattleLoadoutEditorAvailable ? LoadoutText("open-help", "Edit current FFVIII weapons and ordered Limit families with Apply and Cancel.") : battleLoadoutEditorBoundary?.Invoke() ?? LoadoutText("unavailable", "A current FFVIII game is required; the laboratory stays isolated.");
+
+    internal void ConnectBattleLoadoutEditor(Func<BattleLoadoutEditorContext> read, Action<BattleLoadoutDraft> apply, Func<string?> boundary, Func<BattleLoadoutDraft, int, string[]> describe, Func<bool>? available = null, Func<BattleLoadoutDraft, int, BattleLimitFamily, string[]>? familyStatus = null)
     {
         readBattleLoadoutEditor = read;
         canOpenBattleLoadoutEditor = available;
         applyBattleLoadoutEditor = apply;
         battleLoadoutEditorBoundary = boundary;
         describeBattleLoadout = describe;
+        describeBattleLoadoutFamily = familyStatus;
     }
 
     private string LoadoutText(string key, string original)
@@ -40,7 +44,7 @@ public sealed partial class MenuController
         {
             Id = "debug-loadouts",
             Title = "Weapons & Limit Breaks",
-            Help = "Current game · Stage changes, then Apply or Cancel.",
+            Help = "Current FFVIII game · Stage changes, then Apply or Cancel.",
             Entries = c => c.BattleLoadoutRosterEntries(),
             Details = c => c.BattleLoadoutReviewDetails()
         });
@@ -58,7 +62,7 @@ public sealed partial class MenuController
             Id = "debug-loadout-weapons",
             Title = "Weapons & Limit Breaks · Weapon catalog",
             Help = "Choose a source weapon and its combat style.",
-            Entries = c => c.battleLoadoutEditor?.Weapons.OrderBy(weapon => weapon.Owner).ThenBy(weapon => weapon.WeaponId).Select(weapon => new MenuEntry("weapon-" + weapon.WeaponId, weapon.Owner + " · " + weapon.Name, weapon.Description, Action: new("loadout-weapon", Value: weapon.WeaponId.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToArray() ?? [],
+            Entries = c => c.battleLoadoutEditor?.Weapons.OrderBy(weapon => weapon.Family).ThenBy(weapon => weapon.Owner).ThenBy(weapon => weapon.WeaponId).Select(weapon => new MenuEntry("weapon-" + weapon.WeaponId, (weapon.Family.Length == 0 ? "" : weapon.Family + " · ") + weapon.Owner + " · " + weapon.Name, weapon.Description + " " + (c.battleLoadoutEditor!.WeaponReason?.Invoke(c.battleLoadoutCharacter, weapon.WeaponId) ?? ""), Action: new("loadout-weapon", Value: weapon.WeaponId.ToString(System.Globalization.CultureInfo.InvariantCulture)))).ToArray() ?? [],
             Details = c => c.BattleLoadoutCharacterDetails()
         });
         Register(new()
@@ -66,8 +70,8 @@ public sealed partial class MenuController
             Id = "debug-loadout-families",
             Title = "Weapons & Limit Breaks · Families",
             Help = "Choose a family to add, remove, move or reorder.",
-            Entries = c => Enum.GetValues<BattleLimitFamily>().Select(family => new MenuEntry(family.ToString(), c.FamilyLabel(family) + (c.battleLoadoutEditor?.Draft.ResolveFamilies(c.battleLoadoutCharacter).Contains(family) == true ? " ✓" : ""), c.FamilyRequirement(family), Action: new("loadout-family", Value: family.ToString()))).ToArray(),
-            Details = c => c.BattleLoadoutCharacterDetails()
+            Entries = c => c.BattleLoadoutFamilyCatalog(),
+            Details = c => c.BattleLoadoutFamilyDetails()
         });
         Register(new()
         {
@@ -75,7 +79,7 @@ public sealed partial class MenuController
             Title = "Weapons & Limit Breaks · Family actions",
             Help = "Assignments reference shared learning; removing a family keeps its progress.",
             Entries = c => c.BattleLoadoutFamilyEntries(),
-            Details = c => c.BattleLoadoutCharacterDetails()
+            Details = c => c.BattleLoadoutFamilyDetails()
         });
         Register(new()
         {
@@ -105,7 +109,34 @@ public sealed partial class MenuController
     private string FamilyRequirement(BattleLimitFamily family)
     {
         BattleWeaponCapabilities requirement = BattleLimitFamilyRules.RequiredWeapon(family);
-        return requirement == BattleWeaponCapabilities.None ? LoadoutText("weapon-independent", "No weapon requirement. Native unlock and action rules still apply.") : FormatSystemText("debug.loadout.requirement", "Required weapon capability: {0}. Native unlock and action rules still apply.", requirement);
+        return requirement == BattleWeaponCapabilities.None ? LoadoutText("weapon-independent", "No weapon requirement. Crisis and action rules apply in battle.") : FormatSystemText("debug.loadout.requirement", "Required weapon: {0}. Crisis and action rules apply in battle.", BattleLoadoutLabels.Capabilities(requirement, localizeInterface));
+    }
+
+    private IReadOnlyList<MenuEntry> BattleLoadoutFamilyCatalog()
+    {
+        BattleLoadoutEditorContext? editor = battleLoadoutEditor;
+        if (editor is null)
+        {
+            return [];
+        }
+        BattleLimitFamily[] assigned = editor.Draft.ResolveFamilies(battleLoadoutCharacter);
+        return assigned.Concat(Enum.GetValues<BattleLimitFamily>().Except(assigned)).Select(family =>
+        {
+            int order = Array.IndexOf(assigned, family);
+            string label = FamilyLabel(family) + (order >= 0 ? FormatSystemText("debug.loadout.order", " · #{0}", order + 1) : "");
+            string help = FamilyRequirement(family) + " " + string.Join(" ", (describeBattleLoadoutFamily?.Invoke(editor.Draft, battleLoadoutCharacter, family) ?? []).Take(2));
+            return new MenuEntry(family.ToString(), label, help, Action: new("loadout-family", Value: family.ToString()));
+        }).ToArray();
+    }
+
+    private string[] BattleLoadoutFamilyDetails()
+    {
+        if (battleLoadoutEditor is null)
+        {
+            return [];
+        }
+        BattleLimitFamily selected = ScreenId == "debug-loadout-families" && SelectedEntry?.Action is { } action && Enum.TryParse(action.Value, out BattleLimitFamily family) ? family : battleLoadoutFamily;
+        return [FamilyLabel(selected), FamilyRequirement(selected), .. describeBattleLoadoutFamily?.Invoke(battleLoadoutEditor.Draft, battleLoadoutCharacter, selected) ?? []];
     }
 
     private IReadOnlyList<MenuEntry> BattleLoadoutRosterEntries()
@@ -150,7 +181,7 @@ public sealed partial class MenuController
             return [];
         }
         BattleLoadoutEditorCharacter? character = battleLoadoutEditor.Characters.FirstOrDefault(entry => entry.CharacterId == battleLoadoutCharacter);
-        return [LoadoutText("current", "Current game · Draft"), character?.Name ?? "", .. describeBattleLoadout?.Invoke(battleLoadoutEditor.Draft, battleLoadoutCharacter) ?? []];
+        return [LoadoutText("current", "Current FFVIII game · Draft"), character?.Name ?? "", .. describeBattleLoadout?.Invoke(battleLoadoutEditor.Draft, battleLoadoutCharacter) ?? []];
     }
 
     private string[] BattleLoadoutReviewDetails()
@@ -160,12 +191,21 @@ public sealed partial class MenuController
             return [];
         }
         string changed = string.Join(", ", battleLoadoutEditor.Characters.Where(character => battleLoadoutEditor.Draft.ChangedCharacters.Contains(character.CharacterId)).Select(character => character.Name));
-        List<string> details = [LoadoutText("current", "Current game · Draft"), changed.Length == 0 ? LoadoutText("unchanged", "No staged changes.") : FormatSystemText("debug.loadout.changed", "Changed: {0}", changed)];
+        List<string> details = [LoadoutText("current", "Current FFVIII game · Draft"), changed.Length == 0 ? LoadoutText("unchanged", "No staged changes.") : FormatSystemText("debug.loadout.changed", "Changed: {0}", changed)];
         int selectedCharacter = SelectedEntry?.Action is { Kind: "loadout-character" } action && int.TryParse(action.Value, out int identity) ? identity : battleLoadoutCharacter;
         BattleLoadoutEditorCharacter? selected = battleLoadoutEditor.Characters.FirstOrDefault(character => character.CharacterId == selectedCharacter);
         details.Add(selected?.Name ?? "");
         details.AddRange(describeBattleLoadout?.Invoke(battleLoadoutEditor.Draft, selectedCharacter) ?? []);
         return details.ToArray();
+    }
+
+    private void PreserveBattleLoadoutFamilyFocus()
+    {
+        int index = BattleLoadoutFamilyCatalog().ToList().FindIndex(entry => entry.Id == battleLoadoutFamily.ToString());
+        if (index >= 0)
+        {
+            _selections["debug-loadout-families"] = index;
+        }
     }
 
     private bool ExecuteBattleLoadoutAction(MenuAction action)
@@ -174,8 +214,18 @@ public sealed partial class MenuController
         {
             return false;
         }
+        if (action.Kind == "loadout-cancel")
+        {
+            battleLoadoutEditor = null;
+            if (ScreenId.StartsWith("debug-loadout", StringComparison.Ordinal))
+            {
+                Back();
+            }
+            return true;
+        }
         if (!BattleLoadoutEditorAvailable)
         {
+            Message = BattleLoadoutEditorEntryHelp;
             return true;
         }
         try
@@ -204,7 +254,11 @@ public sealed partial class MenuController
                     Back();
                     break;
                 case "loadout-family":
-                    battleLoadoutFamily = Enum.Parse<BattleLimitFamily>(action.Value);
+                    if (!Enum.TryParse(action.Value, out BattleLimitFamily selectedFamily) || !Enum.IsDefined(selectedFamily))
+                    {
+                        throw new InvalidDataException("Unknown Limit family.");
+                    }
+                    battleLoadoutFamily = selectedFamily;
                     Push("debug-loadout-family");
                     break;
                 case "loadout-toggle-family":
@@ -257,6 +311,10 @@ public sealed partial class MenuController
                     battleLoadoutEditor = null;
                     Back();
                     break;
+            }
+            if (action.Kind is "loadout-toggle-family" or "loadout-order" or "loadout-exchange-target" or "loadout-remove-all" or "loadout-reset")
+            {
+                PreserveBattleLoadoutFamilyFocus();
             }
         }
         catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException)

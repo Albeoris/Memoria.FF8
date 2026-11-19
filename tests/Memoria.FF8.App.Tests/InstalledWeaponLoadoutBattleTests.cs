@@ -8,17 +8,27 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Installed native host checks from an externally selected standalone field save.</summary>
 public sealed class InstalledWeaponLoadoutBattleTests
 {
+    private const ushort Formation = 87;
     public static IEnumerable<object[]> StylePairs()
     {
         foreach (int recipient in new[] { 0, 6 })
         {
-            foreach (int donor in new[] { 0, 1, 2, 3, 4, 5, 6, 8, 9, 10 })
+            foreach (int donor in Enumerable.Range(0, NativeCharacterVitals.ExtendedRecordCount))
             {
                 yield return [recipient, donor];
             }
         }
         yield return [4, 1];
         yield return [10, 9];
+    }
+
+    [Fact]
+    public void Independent_style_rows_cover_every_actual_installed_weapon_owner()
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int[] actual = assets.WeaponDefinitions.Select(weapon => weapon.CharacterId).Distinct().Order().ToArray();
+        int[] tested = StylePairs().Where(pair => (int)pair[0] == 0).Select(pair => (int)pair[1]).Distinct().Order().ToArray();
+        Assert.Equal(actual, tested);
     }
 
     [Theory]
@@ -36,7 +46,22 @@ public sealed class InstalledWeaponLoadoutBattleTests
         Run(recipient, recipient, assignOverride: false);
     }
 
-    private static void Run(int recipient, int donor, bool assignOverride = true)
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(8)]
+    [InlineData(10)]
+    public void Native_ready_grip_probe_when_requested(int character)
+    {
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_READY_PROBE")), "Set MEMORIA_FF8_LOADOUT_READY_PROBE to an external compact grip-probe output directory.");
+        Run(character, character, assignOverride: false, readyProbeOnly: true);
+    }
+
+    private static void Run(int recipient, int donor, bool assignOverride = true, bool readyProbeOnly = false)
     {
         string directory = TestResources.GameDirectory;
         string source = TestResources.FixturePath("weapon-limit-field-source");
@@ -75,11 +100,11 @@ public sealed class InstalledWeaponLoadoutBattleTests
             if (encounter == 0 && Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PREPARE_DIRECTORY") is { Length: > 0 } preparedDirectory)
             {
                 Directory.CreateDirectory(preparedDirectory);
-                string preparedPath = Path.Combine(preparedDirectory, $"recipient-{recipient:00}-style-{donor:00}{(assignOverride ? "" : "-native")}.ff8save");
+                string preparedPath = Path.Combine(preparedDirectory, $"recipient-{recipient:00}-style-{donor:00}{(assignOverride ? "" : "-native")}-encounter-{Formation:000}.ff8save");
                 if (!File.Exists(preparedPath))
                 {
                     session.Save(preparedPath, compact: true);
-                    File.WriteAllText(Path.ChangeExtension(preparedPath, ".json"), System.Text.Json.JsonSerializer.Serialize(new { SourceResource = "weapon-limit-field-source", SourceSha256 = Convert.ToHexString(sourceHash), StandalonePath = Path.GetFullPath(preparedPath), Recipient = recipient, Donor = donor, WeaponId = weapon, NativeBaseline = !assignOverride, Field = session.State.FieldId, FieldFrame = world.Events.Frame, Boundary = "Standalone prepared field with one pending ordinary native encounter; StartEncounter is the next control command.", Resume = $"Memoria.FF8.exe --state \"{Path.GetFullPath(preparedPath)}\" --game-dir \"{directory}\"" }));
+                    File.WriteAllText(Path.ChangeExtension(preparedPath, ".json"), System.Text.Json.JsonSerializer.Serialize(new { SourceResource = "weapon-limit-field-source", SourceSha256 = Convert.ToHexString(sourceHash), StandalonePath = Path.GetFullPath(preparedPath), Formation, Recipient = recipient, Donor = donor, WeaponId = weapon, NativeBaseline = !assignOverride, Field = session.State.FieldId, FieldFrame = world.Events.Frame, Boundary = "Standalone prepared field with one pending ordinary native encounter; StartEncounter is the next control command.", Resume = $"Memoria.FF8.exe --state \"{Path.GetFullPath(preparedPath)}\" --game-dir \"{directory}\"" }));
                 }
             }
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
@@ -103,6 +128,14 @@ public sealed class InstalledWeaponLoadoutBattleTests
             TickUntil(world, () => battle.NativeEntryReady, $"recipient {recipient}, donor {donor}, weapon {weapon}: native entry");
             actor.Atb = BattleSession.AtbMaximum;
             TickUntil(world, () => battle.CanChoosePlayerCommand(actor.Id), $"recipient {recipient}, donor {donor}, weapon {weapon}: player readiness");
+            if (readyProbeOnly)
+            {
+                world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 8));
+                Assert.True(battle.CanChoosePlayerCommand(actor.Id));
+                EmitReadyGripProbe(battle, actor, definition, resources);
+                Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
+                return;
+            }
             BattleCombatant target = battle.Combatants.First(candidate => !candidate.IsPlayer && candidate.IsAlive && candidate.IsActive && !candidate.Untargetable);
             int eventStart = battle.Events.Count;
             long commandFrame = battle.Frame;
@@ -135,11 +168,57 @@ public sealed class InstalledWeaponLoadoutBattleTests
         Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
     }
 
+    private static void EmitReadyGripProbe(BattleSession battle, BattleCombatant actor, BattleCombatantDefinition definition, BattleAssets resources)
+    {
+        NativeBattleGraphicsState graphics = battle.Presentation!.NativeGraphics!;
+        BattlePartyActorModel owner = graphics.ActorModels.Owners.OfType<BattlePartyActorModel>().Single(candidate => candidate.Actor.ActorId == actor.Id);
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
+        BattleModel body = resources.LoadPlayerForWeapon(definition.ModelId, definition.Costume, definition.WeaponId);
+        BattleModel weapon = resources.ResolvePlayerRenderWeapon(definition.ModelId, definition.WeaponId!.Value, body) ?? throw new InvalidDataException("READY grip probe requires a rendered native weapon model.");
+        ImmutableArray<NativeBattleActionMatrix> bodyBones = NativeBattleBodyBoneMatrices.Require(model, body.NativePoseSource!);
+        NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new InvalidDataException("READY grip probe requires the actual native actor world matrix.");
+        NativeBattleActionMatrix identity = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        ImmutableArray<NativeBattleActionMatrix> weaponBones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(model, weapon.NativePoseSource!, identity);
+        IReadOnlyList<NativeBattleSemanticBonePair> semantics = BattleHumanoidRigProfiles.SemanticPairs(definition.ModelId, body, definition.ModelId, body);
+        BattleVertex[] bodyVertices = (body.NativeControlMeshes ?? body.Meshes).SelectMany(mesh => mesh.Vertices).ToArray();
+        BattleVertex[] weaponVertices = (weapon.NativeControlMeshes ?? weapon.Meshes).SelectMany(mesh => mesh.Vertices).ToArray();
+        System.Numerics.Vector3[] weaponPoints = weaponVertices.Select(vertex => Transform(weaponBones[vertex.Bone], vertex)).ToArray();
+        Assert.NotEmpty(weaponPoints);
+        string[] chainNames = ["shoulder-a", "shoulder-tip-a", "upper-arm-a", "forearm-a", "hand-a", "shoulder-b", "shoulder-tip-b", "upper-arm-b", "forearm-b", "hand-b"];
+        var pivots = chainNames.Select(joint =>
+        {
+            int bone = semantics.Single(pair => pair.Joint == joint).Recipient;
+            NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(world, bodyBones[bone]);
+            return new { Joint = joint, Bone = bone, matrix.X, matrix.Y, matrix.Z };
+        }).ToArray();
+        var distances = new[] { "forearm-a", "hand-a", "forearm-b", "hand-b" }.Select(joint =>
+        {
+            int bone = semantics.Single(pair => pair.Joint == joint).Recipient;
+            NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(world, bodyBones[bone]);
+            System.Numerics.Vector3[] hand = bodyVertices.Where(vertex => vertex.Bone == bone).Select(vertex => Transform(matrix, vertex)).ToArray();
+            float? nearest = hand.Length == 0 ? null : hand.Min(point => weaponPoints.Min(weaponPoint => System.Numerics.Vector3.Distance(point, weaponPoint)));
+            return new { Joint = joint, Bone = bone, Vertices = hand.Length, MinimumVertexDistance = nearest };
+        }).ToArray();
+        var observation = new { Character = definition.ModelId, definition.WeaponId, Formation, battle.Frame, model.Sequence, model.SequenceFrame, Pose = model.SequenceState?.Pose, PoseFrame = model.SequenceState?.PoseFrame114, PoseFlags = model.SequenceState?.PoseFlags109, BodyBones = bodyBones.Length, WeaponBones = weaponBones.Length, WeaponVertices = weaponPoints.Length, EffectiveLinkedTransform = model.ReadEffectiveLinkedTransform(), model.LinkedContactOffset, Pivots = pivots, HandMeshDistances = distances };
+        string json = System.Text.Json.JsonSerializer.Serialize(observation);
+        Console.WriteLine("READY-GRIP " + json);
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_READY_PROBE")!;
+        Directory.CreateDirectory(output);
+        File.WriteAllText(Path.Combine(output, $"ready-native-{definition.ModelId:00}.json"), json);
+
+        static System.Numerics.Vector3 Transform(NativeBattleActionMatrix matrix, BattleVertex vertex)
+        {
+            NativeBattleVector point = vertex.NativePosition ?? throw new InvalidDataException("READY grip probe requires an original native vertex.");
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, point);
+            return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+    }
+
     private static void RequestEncounter(GameWorld world, GameSession session)
     {
         string program = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
-        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, 94, program)));
+        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, Formation, program)));
     }
 
     private static void TickUntil(GameWorld world, Func<bool> complete, string boundary)

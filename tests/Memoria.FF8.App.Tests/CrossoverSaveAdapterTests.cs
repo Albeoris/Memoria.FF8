@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.Assets;
@@ -167,7 +168,17 @@ public sealed class CrossoverSaveAdapterTests
     public void Combined_player_slot_preserves_native_FF8_components_and_uses_the_normal_loader(bool world)
     {
         using GameAssets assets = new(TestResources.GameDirectory);
-        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, world);
+        using BattleAssets battleAssets = new(assets.GameDirectory);
+        int borrowedWeapon = battleAssets.WeaponDefinitions.First(weapon => weapon.CharacterId == 8).Id;
+        GameplaySaveComponentDocument document = GameplaySaveSessionLoaderTests.Document(assets, world) with
+        {
+            BattleLoadouts = new()
+            {
+                Characters = ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride>.Empty
+                    .Add(0, new() { WeaponId = borrowedWeapon, LimitFamilies = [] })
+                    .Add(8, new() { LimitFamilies = [BattleLimitFamily.Combine, BattleLimitFamily.Duel, BattleLimitFamily.Slot] })
+            }
+        };
         using MemoryStream payload = new();
         GameplaySaveCodec.Write(payload, document);
         CombinedSessionSave combined = new() { ActiveGame = SessionGame.Ff8, Ff8Payload = payload.ToArray(), Ff8PayloadFormat = CrossoverSaveAdapter.Ff8Codec };
@@ -186,11 +197,21 @@ public sealed class CrossoverSaveAdapterTests
             GameState state = store.Load(1);
             Assert.Equal(world ? SceneKind.WorldMap : SceneKind.Field, state.Scene);
             Assert.Equal(document.Economy.Gil, state.Economy!.Gil);
+            Assert.Equal(borrowedWeapon, state.BattleLoadouts!.Get(0)!.WeaponId);
+            Assert.Empty(state.BattleLoadouts.Get(0)!.LimitFamilies!);
+            Assert.Equal(document.Characters.Records[0].Weapon, state.CharacterVitals!.Records[0].Weapon);
             PlayerSaveEntry entry = Assert.Single(store.ReadEntries(false), item => item.Slot == 1);
             Assert.True(entry.CanLoad);
             Assert.Equal(document.Progression!.Clocks.Playtime!.Seconds, entry.PlayTime!.Value.TotalSeconds);
             CombinedSessionSave ff7Active = combined with { ActiveGame = SessionGame.Ff7, Ff7 = Ff7Fixture() };
             CombinedSessionCodec.Save(path, ff7Active);
+            CombinedSessionSave ff7Restored = Assert.IsType<CombinedSessionSave>(CrossoverSaveAdapter.ReadEnvelope(path));
+            Assert.Equal(combined.Ff8Payload, ff7Restored.Ff8Payload);
+            GameplaySaveComponentDocument dormant = CrossoverSaveAdapter.ReadFf8ForResume(ff7Restored with { TurnBasedBattle = true });
+            Assert.Equal(borrowedWeapon, dormant.BattleLoadouts!.Get(0)!.WeaponId);
+            Assert.Empty(dormant.BattleLoadouts.Get(0)!.LimitFamilies!);
+            Assert.Equal([BattleLimitFamily.Combine, BattleLimitFamily.Duel, BattleLimitFamily.Slot], dormant.BattleLoadouts.Get(8)!.LimitFamilies!);
+            Assert.Equal(document.Characters.Records[0].Weapon, dormant.Characters.Records[0].Weapon);
             PlayerSaveEntry ff7Entry = Assert.Single(store.ReadEntries(false), item => item.Slot == 1);
             Assert.False(ff7Entry.CanLoad);
             Assert.False(ff7Entry.CanCopy);

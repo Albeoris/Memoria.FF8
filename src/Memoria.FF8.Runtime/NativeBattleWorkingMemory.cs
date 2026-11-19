@@ -812,7 +812,7 @@ internal sealed partial class NativeBattleWorkingMemory : IDisposable
         int count = Math.Min(length, Math.Max(0, known.Length - offset));
         if (known.AsSpan(Math.Min(offset, known.Length), count).Contains(false) || count < length && !initialKnownZero)
         {
-            throw new NotSupportedException("Native working memory read intersects unknown physical bytes.");
+            throw new NotSupportedException($"Native working memory read intersects unknown physical bytes. Offset 0x{offset:X}, length {length}.");
         }
     }
 

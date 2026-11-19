@@ -14,7 +14,18 @@ public sealed partial class BattlePresentationProcess
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(actorIndex);
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, actorIndex).PoseSource ?? throw new NotSupportedException("Native cinematic entity anchor requires its actual current rig.");
         NativeBattleActionMatrix basis = actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native cinematic entity anchor requires its current entity matrix.");
+        selector = NativeBattleActionBoneAliases.Resolve(ReadCinematicActionBoneAliases(graphics, actorIndex, source), selector);
         NativeBattleWaterActorAnchorResult result = CreateNativeActorAnchorServices().EvaluateB66B80(frame, source.Skeleton, NativeBattleBodyBoneMatrices.Require(actor, source), selector, 4096, basis);
         return new(result.Frame, result.Anchor);
+    }
+
+    private System.Collections.Immutable.ImmutableArray<byte> ReadCinematicActionBoneAliases(NativeBattleGraphicsState graphics, BattleModelOwner actor, NativeBattlePoseSource source)
+    {
+        if (source.ActionBoneAliases.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+        bool performer = presentationSourceOwner == actor || graphics.ActionContext?.ResolveSource(graphics.ActorModels, graphics.NativeBindings) == actor || graphics.ActionGraphics?.ResolveActor(graphics) == actor;
+        return performer ? source.ActionBoneAliases : [];
     }
 }

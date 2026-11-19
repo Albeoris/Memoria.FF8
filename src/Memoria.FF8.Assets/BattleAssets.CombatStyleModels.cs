@@ -39,9 +39,22 @@ public sealed partial class BattleAssets
         {
             BattleMesh empty = new([], []) { NativeBoneGroups = [], NativePackedVertexGroups = [] };
             meshes = [recipient.Meshes[0], empty];
-            NativeBattleModelDatSource original = ReadNativeModelDatSource(checked((byte)character), false, checked((byte)costume));
-            int start = original.Section(1);
-            geometry = ReplaceEquipmentBodyObject(original.Bytes.AsSpan().Slice(start, original.Section(2) - start));
+            if (recipient.NativeGeometryBytes is { } selectedGeometry)
+            {
+                geometry = ReplaceEquipmentBodyObject(selectedGeometry.AsSpan(), recipient.Meshes[0].Vertices.Count);
+            }
+            else
+            {
+                NativeBattleModelDatSource original = ReadNativeModelDatSource(checked((byte)character), false, checked((byte)costume));
+                int start = original.Section(1);
+                geometry = ReplaceEquipmentBodyObject(original.Bytes.AsSpan().Slice(start, original.Section(2) - start), recipient.Meshes[0].Vertices.Count);
+            }
+        }
+        if (sourceCharacter == 1 && character != 1)
+        {
+            int[] hands = BattleHumanoidRigProfiles.SemanticPairs(character, recipient, character, recipient).Where(pair => pair.Joint is "hand-a" or "hand-b").Select(pair => pair.Recipient).ToArray();
+            meshes = meshes.Select(mesh => MaskBodyHands(mesh, hands)).ToArray();
+            geometry = EncodeNativeBodyGeometry(meshes);
         }
         BattleModel result = recipient with { NativePoseSource = motion, Animations = animations, NativeActionCameraBank = source.NativeActionCameraBank, Sequences = source.Sequences, Meshes = meshes, NativeControlMeshes = meshes, NativeRenderGeometry = NativeBattleGeometryMetadata.FromMeshes(meshes), NativeGeometryBytes = geometry };
         combatStyleModels.Add((character, costume, sourceCharacter, recipient, source), result);
@@ -59,17 +72,26 @@ public sealed partial class BattleAssets
 
     private BattleModel RebindSharedWeapon(int weaponId, int sourceCharacter, BattleModel sourceBody, int recipientCharacter, BattleModel recipient, BattleModel weapon)
     {
+        if (weapon.EditableOverride is not null)
+        {
+            throw new NotSupportedException("The shared equipment override requires an explicit semantic attachment profile.");
+        }
         Dictionary<int, int> joints = BattleHumanoidRigProfiles.SemanticPairs(sourceCharacter, sourceBody, recipientCharacter, recipient).ToDictionary(pair => pair.Source, pair => pair.Recipient);
         int Bone(int sourceBone) => joints.TryGetValue(sourceBone, out int targetBone) ? targetBone : throw new NotSupportedException("The shared weapon reaches a bone outside the admitted semantic equipment joints.");
-        BattleMesh[] meshes = weapon.Meshes.Select(mesh => mesh with
+        float sourceScale = sourceBody.NativePoseSource!.ReadModelScale5027D0();
+        float recipientScale = recipient.NativePoseSource!.ReadModelScale5027D0();
+        if (sourceScale <= 0 || recipientScale <= 0)
         {
-            Vertices = mesh.Vertices.Select(vertex => vertex with { Bone = Bone(vertex.Bone) }).ToArray(),
-            NativeBoneGroups = mesh.NativeBoneGroups?.Select(bone => checked((short)Bone(bone))).ToImmutableArray(),
-            NativePackedVertexGroups = mesh.NativePackedVertexGroups?.Select(group => group with { Bone = checked((ushort)Bone(group.Bone)) }).ToImmutableArray()
-        }).ToArray();
+            throw new NotSupportedException("Shared equipment unit conversion requires positive source and recipient skeleton scales.");
+        }
+        float units = sourceScale / recipientScale;
         NativeBattleModelDatSource original = ReadNativeModelDatSource(checked((byte)sourceCharacter), true, checked((byte)WeaponDefinitions[weaponId].Tier));
         int start = original.Section(0);
-        byte[] bytes = original.Bytes.AsSpan().Slice(start, original.Section(1) - start).ToArray();
+        byte[] bytes = weapon.NativeGeometryBytes is { } selectedGeometry ? selectedGeometry.ToArray() : original.Bytes.AsSpan().Slice(start, original.Section(1) - start).ToArray();
+        if (sourceCharacter == 9 && recipientCharacter != 9)
+        {
+            bytes = EncodeNativeBodyGeometry(weapon.Meshes.Select(mesh => SelectKirosHandComponents(mesh, false)).ToArray()).ToArray();
+        }
         int objects = BinaryPrimitives.ReadInt32LittleEndian(bytes);
         for (int index = 0; index < objects; index++)
         {
@@ -81,13 +103,29 @@ public sealed partial class BattleAssets
                 int sourceBone = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(cursor));
                 int vertices = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(cursor + 2));
                 BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor), checked((ushort)Bone(sourceBone)));
+                for (int vertex = 0; vertex < vertices; vertex++)
+                {
+                    for (int lane = 0; lane < 3; lane++)
+                    {
+                        int offset = cursor + 4 + vertex * 6 + lane * 2;
+                        short coordinate = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
+                        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), checked((short)MathF.Round(coordinate * units)));
+                    }
+                }
                 cursor = checked(cursor + 4 + vertices * 6);
             }
         }
-        return weapon with { Bones = recipient.Bones, Animations = recipient.Animations, NativePoseSource = recipient.NativePoseSource, Scale = recipient.Scale, Meshes = meshes, NativeControlMeshes = meshes, NativeRenderGeometry = NativeBattleGeometryMetadata.FromMeshes(meshes), NativeGeometryBytes = bytes.ToImmutableArray() };
+        Dictionary<int, ImmutableArray<byte>> selectedSections = new() { [0] = bytes.ToImmutableArray() };
+        if (weapon.NativeWeaponTexturePack is { } selectedTextures)
+        {
+            selectedSections[4] = selectedTextures.Data;
+        }
+        NativeBattleModelDatSource rewritten = ReplaceNativeDatSections(original, selectedSections);
+        BattleModel rebound = BattleResourceReader.ReadWeapon(weapon.Name, rewritten.Bytes.ToArray(), recipient);
+        return rebound with { Textures = weapon.Textures, TextureRegions = weapon.TextureRegions, TextureSourceAddresses = weapon.TextureSourceAddresses, TextureSourceDescriptor = weapon.TextureSourceDescriptor, Sequences = weapon.Sequences, NativeRenderGeometry = NativeBattleGeometryMetadata.FromMeshes(rebound.Meshes), NativeGeometryBytes = bytes.ToImmutableArray() };
     }
 
-    private static ImmutableArray<byte> ReplaceEquipmentBodyObject(ReadOnlySpan<byte> original)
+    private static ImmutableArray<byte> ReplaceEquipmentBodyObject(ReadOnlySpan<byte> original, int maximumVertices)
     {
         int count = BinaryPrimitives.ReadInt32LittleEndian(original);
         if (count is < 1 or > 2)
@@ -104,6 +142,7 @@ public sealed partial class BattleAssets
         writer.Write(original[start..end]);
         writer.Write(0);
         writer.Write(0);
+        writer.Write(maximumVertices);
         return output.ToArray().ToImmutableArray();
     }
 

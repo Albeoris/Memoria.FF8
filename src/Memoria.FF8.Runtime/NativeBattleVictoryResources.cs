@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
@@ -23,7 +24,8 @@ public static class NativeBattleVictoryResources
         Copy(source, row, 12);
         uint next = checked(row + 16);
         uint? linkedRow = model.LinkedStagedResourceRow;
-        if (independentLinked ?? (model.LinkedTransform is not null))
+        bool hasLinkedAnimationSection = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan()) == 3;
+        if (hasLinkedAnimationSection && model.EquipmentPresentationRole != NativeBattleEquipmentPresentationRole.FreeHands && (independentLinked ?? (model.LinkedTransform is not null)))
         {
             NativeBattleResourceRowReference linkedSource = linkedRow is uint previous ? new(null, previous) : new(model.LinkedTextureResourceIndex ?? throw new NotSupportedException("Native5022C0 requires the actual linked object's resource row."), null);
             writePointer(checked(next + 8), new(null, checked(directory + (uint)linked), bytes.Length - linked));
@@ -81,7 +83,7 @@ public static class NativeBattleVictoryResources
     {
         uint row = model.ActiveStagedResourceRow100 ?? throw new InvalidOperationException("No staged resource row is selected.");
         NativeBattlePoseSource pose = new(Skeleton(row), Block(checked(row + 8))) { ActionBoneAliases = original.PoseSource?.ActionBoneAliases ?? [], RetargetBinding = original.PoseSource?.RetargetBinding };
-        NativeBattlePoseSource? linked = model.LinkedStagedResourceRow is uint linkedRow ? new(Skeleton(linkedRow), Block(checked(linkedRow + 8))) : original.LinkedPoseSource;
+        NativeBattlePoseSource? linked = original.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands ? null : model.LinkedStagedResourceRow is uint linkedRow ? new(Skeleton(linkedRow), Block(checked(linkedRow + 8))) : original.LinkedPoseSource;
         NativeBattleGraphicsResource resource = original with { SequenceSection = Block(checked(row + 12)), PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), LinkedPoseSource = linked, LinkedAnimationFrames = linked is null ? [] : NativeBattlePoseDecoder.ReadFrameCounts(linked.Animations.AsSpan()) };
         resource = resource.ApplyAnimationBankOverrides(model.ActiveAnimationBank, model.ActiveAnimationDirectory);
         resource.Validate();

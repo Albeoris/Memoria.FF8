@@ -69,6 +69,16 @@ public sealed class BattleLoadoutDraftTests
     }
 
     [Fact]
+    public void Adding_existing_or_removing_absent_family_keeps_native_default_projection_unmodified()
+    {
+        BattleLoadoutDraft draft = new(null, Defaults);
+        draft.AddLimit(0, BattleLimitFamily.Renzokuken);
+        draft.RemoveLimit(0, BattleLimitFamily.Shot);
+        Assert.Empty(draft.ChangedCharacters);
+        Assert.Empty(draft.Overrides.Characters);
+    }
+
+    [Fact]
     public void Invalid_families_and_weapons_fail_before_changing_the_draft()
     {
         BattleLoadoutDraft draft = new(null, Defaults);
@@ -103,6 +113,20 @@ public sealed class BattleLoadoutDraftTests
         Assert.Same(before.CharacterVitals, session.State.CharacterVitals);
         Assert.Same(before.CrtRandom, session.State.CrtRandom);
         Assert.Throws<InvalidOperationException>(() => session.ApplyBattleLoadoutDraft(draft, "resources-1"));
+    }
+
+    [Fact]
+    public void Applying_an_available_character_keeps_dormant_roster_assignments()
+    {
+        GameSession initial = Session();
+        BattleLoadoutOverrides stored = new() { Characters = ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride>.Empty.Add(10, new() { LimitFamilies = [] }) };
+        GameSession session = new(initial.State with { BattleLoadouts = stored });
+        BattleLoadoutDraft draft = session.CreateBattleLoadoutDraft(Defaults);
+        Assert.DoesNotContain(10, draft.Characters);
+        draft.AssignWeapon(0, 33);
+        session.ApplyBattleLoadoutDraft(draft);
+        Assert.Empty(session.State.BattleLoadouts!.Get(10)!.LimitFamilies!);
+        Assert.Null(session.State.BattleLoadouts.Get(10)!.WeaponId);
     }
 
     [Fact]

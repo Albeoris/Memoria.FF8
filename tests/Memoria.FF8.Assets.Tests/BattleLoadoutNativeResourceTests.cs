@@ -5,6 +5,32 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class BattleLoadoutNativeResourceTests
 {
     [Theory]
+    [InlineData(0, 6, BattleLimitFamily.Renzokuken)]
+    [InlineData(6, 0, BattleLimitFamily.FireCross)]
+    public void Cross_gunblade_limits_keep_equipped_rig_and_source_weapon_clocks(int recipient, int style, BattleLimitFamily family)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int weapon = assets.WeaponDefinitions.First(definition => definition.CharacterId == style).Id;
+        BattleCombatantDefinition actor = new() { Id = "recipient", IsPlayer = true, ModelId = recipient, WeaponId = weapon, WeaponProfile = assets.ReadWeaponProfile(weapon) };
+        NativeBattleGraphicsResource equipment = assets.ReadNativeGraphicsResource(actor);
+        NativeBattleGraphicsResource action = assets.ReadNativeLimitPresentationResource(actor, family, equipment);
+        int sourceCharacter = BattleLimitFamilyRules.SourceCharacter(family);
+        int sourceWeapon = assets.WeaponDefinitions.First(definition => definition.CharacterId == sourceCharacter).Id;
+        BattleModel source = assets.ResolvePlayerRenderWeapon(sourceCharacter, sourceWeapon, assets.LoadPlayer(sourceCharacter))!;
+        Assert.Equal(equipment.LinkedPoseSource!.Skeleton, action.LinkedPoseSource!.Skeleton);
+        Assert.Equal(NativeBattlePoseDecoder.ReadFrameCounts(source.NativePoseSource!.Animations.AsSpan()), action.LinkedAnimationFrames);
+        Assert.NotEqual(source.NativePoseSource.Skeleton, action.LinkedPoseSource.Skeleton);
+        Assert.Equal(equipment.LinkedGeometry, action.LinkedGeometry);
+        Assert.Contains(action.AnimationBankOverrides, bank => bank.Linked);
+        foreach (NativeBattleAnimationBankOverride bank in action.AnimationBankOverrides.Where(bank => bank.Linked))
+        {
+            NativeBattlePoseSource external = action.LinkedPoseSource with { Animations = bank.Animations };
+            external.Validate();
+            Assert.All(NativeBattlePoseDecoder.ReadFrameCounts(external.Animations.AsSpan()), count => Assert.True(count > 0));
+        }
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(6)]
     [InlineData(4)]

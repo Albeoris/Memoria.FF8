@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -44,6 +45,7 @@ public sealed class BattleLoadoutEditorTests
         Select(menu, nameof(BattleLimitFamily.Duel));
         Select(menu, "toggle");
         menu.Navigate(MenuInput.Cancel);
+        Assert.Equal(nameof(BattleLimitFamily.Duel), menu.SelectedEntry!.Id);
         Select(menu, nameof(BattleLimitFamily.Combine));
         Select(menu, "toggle");
         Select(menu, "up");
@@ -80,12 +82,41 @@ public sealed class BattleLoadoutEditorTests
     }
 
     [Fact]
+    public void Dormant_FF8_editor_is_disabled_while_FF7_is_active_and_laboratory_stays_available()
+    {
+        bool ff7 = true;
+        BattleLoadoutOverrides? live = null;
+        MenuController menu = Create(() => live, draft => live = draft.Overrides, () => BattleLoadoutLabels.CurrentWorldUnavailableReason(ff7), () => !ff7);
+        menu.BattleDebugRequested += () => { };
+        menu.Open("debug-battle");
+        MenuEntry liveEditor = menu.Entries.Single(entry => entry.Id == "weapons-limits");
+        Assert.False(liveEditor.Enabled);
+        Assert.Contains("FFVIII is dormant", liveEditor.Help, StringComparison.Ordinal);
+        Assert.True(menu.Entries.Single(entry => entry.Id == "battle-laboratory").Enabled);
+        menu.Execute(new("loadout-open"));
+        Assert.Contains("FFVIII is dormant", menu.Message, StringComparison.Ordinal);
+        ff7 = false;
+        Open(menu);
+        menu.Execute(new("loadout-character", Value: "0"));
+        menu.Execute(new("loadout-remove-all"));
+        menu.Navigate(MenuInput.Cancel);
+        ff7 = true;
+        menu.Execute(new("loadout-apply"));
+        Assert.Null(live);
+        Assert.Contains("FFVIII is dormant", menu.Message, StringComparison.Ordinal);
+        menu.Execute(new("loadout-cancel"));
+        Assert.Equal("debug-battle", menu.ScreenId);
+    }
+
+    [Fact]
     public void Render_editor_pages_when_output_is_requested()
     {
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MENU_OUTPUT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(output), "Set MEMORIA_FF8_LOADOUT_MENU_OUTPUT for loadout editor previews.");
         string gameDirectory = TestResources.GameDirectory;
-        MenuController menu = Create(() => null, _ => { });
+        using BattleAssets assets = new(gameDirectory);
+        BattleLoadoutEditorWeapon[] weapons = assets.WeaponDefinitions.Select(weapon => new BattleLoadoutEditorWeapon(weapon.Id, weapon.Name, LiveMenuData.CharacterName(new(), checked((byte)weapon.CharacterId), null, null), "Fighting style: " + BattleLoadoutLabels.Style(weapon.CharacterId), BattleLoadoutLabels.Style(weapon.CharacterId))).ToArray();
+        MenuController menu = Create(() => null, _ => { }, weapons: weapons);
         Directory.CreateDirectory(output!);
         Open(menu);
         Render("roster");
@@ -99,6 +130,19 @@ public sealed class BattleLoadoutEditorTests
         menu.Navigate(MenuInput.Cancel);
         Select(menu, "weapon");
         Render("weapons");
+        Assert.Equal(weapons.Length, menu.Entries.Count);
+        HashSet<string> visited = [];
+        for (int index = 0; index < weapons.Length; index++)
+        {
+            visited.Add(menu.SelectedEntry!.Id);
+            if (index + 1 < weapons.Length)
+            {
+                menu.Navigate(MenuInput.Down);
+            }
+        }
+        Assert.Equal(weapons.Select(weapon => "weapon-" + weapon.WeaponId).Order(), visited.Order());
+        Render("weapons-scrolled");
+        Assert.Contains(menu.CurrentScreen.Details(menu), line => line == "Weapon: Revolver");
 
         void Render(string name)
         {
@@ -111,10 +155,10 @@ public sealed class BattleLoadoutEditorTests
         }
     }
 
-    private static MenuController Create(Func<BattleLoadoutOverrides?> read, Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null)
+    private static MenuController Create(Func<BattleLoadoutOverrides?> read, Action<BattleLoadoutDraft> apply, Func<string?>? boundary = null, Func<bool>? available = null, BattleLoadoutEditorWeapon[]? weapons = null)
     {
         MenuController menu = new(() => MenuDemoData.Create());
-        menu.ConnectBattleLoadoutEditor(() => new(new(read(), [new(0, 0, [BattleLimitFamily.Renzokuken]), new(8, 33, [BattleLimitFamily.Desperado])]), [new(0, "Squall", "Squall"), new(8, "Laguna", "Laguna")], [new(0, "Revolver", "Squall", "Gunblade"), new(33, "Machine Gun", "Laguna", "MachineGun")]), apply, boundary ?? (() => null), (draft, character) => ["Weapon: " + draft.ResolveWeapon(character), string.Join(", ", draft.ResolveFamilies(character))]);
+        menu.ConnectBattleLoadoutEditor(() => new(new(read(), [new(0, 0, [BattleLimitFamily.Renzokuken]), new(8, 33, [BattleLimitFamily.Desperado])]), [new(0, "Squall", "Squall"), new(8, "Laguna", "Laguna")], weapons ?? [new(0, "Revolver", "Squall", "Gunblade", "Gunblade"), new(33, "Machine Gun", "Laguna", "Machine gun", "Machine gun")]), apply, boundary ?? (() => null), (draft, character) => ["Weapon: " + (draft.ResolveWeapon(character) == 0 ? "Revolver" : "Machine Gun"), string.Join(", ", draft.ResolveFamilies(character))], available: available, familyStatus: (_, _, family) => BattleLoadoutLabels.CanonicalFacts(new() { LimitProgress = new(new string('0', 64), 3, 1, 0x11, 0, [0, 0, 0, 0, 0, 0, 0, 0]), SavedBattleFlags = new(NativeInputConfiguration.OriginalInitHash, 0) }, family));
         return menu;
     }
 

@@ -52,6 +52,7 @@ public sealed partial class BattleHudController
     public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && PresentationUi.CommandMenuHidden;
 
     public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.SupportsPlayerLimitSelection(actor.Id) && session.GetNativeLimitFamilies(actor.Id).Any(family => family.Available) && session.GetNativeLimitLevel(actor.Id) > 0;
+    private bool NativeLimitInspectable => !HasGuardianFormCommands && (NativeLimitAvailable || SelectedActor?.NativeLimitFamilies is { Count: > 0 });
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
 
     public void SetNativeCommandButtons(ushort buttons)
@@ -70,7 +71,7 @@ public sealed partial class BattleHudController
 
     private void SelectNativeLimit(bool selected)
     {
-        bool next = selected && commandIndex == 0 && NativeLimitAvailable;
+        bool next = selected && commandIndex == 0 && NativeLimitInspectable;
         if (next != nativeLimitCommandSelected)
         {
             nativeLimitCommandSelected = next;
@@ -91,6 +92,14 @@ public sealed partial class BattleHudController
 
     private string CommandLabel(BattleCommandPresentation command)
     {
+        if (command.Ability == BattleAbility.LimitBreak && SelectedActor?.NativeLimitFamilies is { Count: > 1 } && (SelectingNativeLimitFamilies || !SelectingAction && !SelectingTarget))
+        {
+            return SystemText("battle.ui.limitfamilies.command", "Limit Break");
+        }
+        if (command.Ability == BattleAbility.LimitBreak && SelectedActor is { NativeLimitFamilies: not null, NativeLimit.Command: 19 } rinoaFamily)
+        {
+            return FormatBattleText(session.GetNativeLimitCommandName(rinoaFamily.Id));
+        }
         string original = command.Ability == BattleAbility.LimitBreak && SelectedActor is { } actor ? session.GetNativeLimitCommandName(actor.Id) : command.Name;
         string formatted = FormatBattleText(localizedCommandName?.Invoke(command.Command, original) ?? original);
         if (command.Ability == BattleAbility.Draw && !DrawStockAvailable && DrawAvailable)
@@ -215,7 +224,7 @@ public sealed partial class BattleHudController
             choice.Ability is BattleAbility.Attack or BattleAbility.Magic or BattleAbility.Item or BattleAbility.Draw or BattleAbility.GuardianForce ||
             choice.Ability == BattleAbility.NativeCommand && session.GetNativePlayerActionChoices(actor.Id, limits: false, command: choice.Command).Count > 0);
         BattleCommandPresentation[] commands = choices.Select(choice => choice.Ability == BattleAbility.LimitBreak ? LimitCommand(actor) : choice).ToArray();
-        if (nativeLimitCommandSelected && NativeLimitAvailable && commands.Length > 0)
+        if (nativeLimitCommandSelected && NativeLimitInspectable && commands.Length > 0)
         {
             commands[0] = LimitCommand(actor);
         }

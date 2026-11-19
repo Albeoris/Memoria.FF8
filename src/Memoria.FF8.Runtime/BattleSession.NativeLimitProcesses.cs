@@ -4,9 +4,10 @@ public sealed partial class BattleSession
 {
     private IEnumerable<BattleNativeAction> GetNativeRinoaLimitActions(BattleCombatant actor, byte crisis)
     {
-        if ((definition.NativeSavedBattleFlagsKnownMask & 0x30) != 0x30)
+        byte requiredFlags = actor.ActiveNativeLimitFamily switch { BattleLimitFamily.Combine => 0x10, BattleLimitFamily.AngelWing => 0x20, _ => 0 };
+        if ((definition.NativeSavedBattleFlagsKnownMask & requiredFlags) != requiredFlags)
         {
-            throw new NotSupportedException("Native Rinoa Limit menu requires the saved1CFE97A bits0x10 and0x20.");
+            throw new NotSupportedException("The selected Rinoa Limit family requires its actual saved story flag.");
         }
         byte flags = CurrentNativeSavedBattleFlags();
         BattleNativeLimitDefinition limit = actor.NativeLimit!;

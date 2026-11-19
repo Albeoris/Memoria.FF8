@@ -2,7 +2,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattlePresentationProcess
 {
-    private sealed record LimitPresentationScope(BattleLimitFamily Family, bool WeaponWasHidden);
+    private sealed record LimitPresentationScope(BattleLimitFamily Family, bool WeaponWasHidden, bool SuppressEquipment);
     private readonly Dictionary<BattleModelOwner, LimitPresentationScope> limitPresentationScopes = [];
 
     private NativeBattleLimitPresentationBinding? ReadLimitPresentationBinding(BattleModelOwner owner)
@@ -26,9 +26,11 @@ public sealed partial class BattlePresentationProcess
         {
             if (ReadLimitPresentationBinding(owner) is { } binding)
             {
-                limitPresentationScopes[owner] = new(binding.Family, false);
+                limitPresentationScopes[owner] = new(binding.Family, false, binding.Resource.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands || binding.Family == BattleLimitFamily.Duel);
+                graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, graphics.ActorModels.Get(owner) with { EquipmentPresentationRole = binding.Resource.EquipmentPresentationRole }) };
             }
         }
+        NativeGraphics = graphics;
     }
 
     private NativeBattleGraphicsState SynchronizeLimitPresentationScopes(NativeBattleGraphicsState graphics)
@@ -47,14 +49,14 @@ public sealed partial class BattlePresentationProcess
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         if (binding?.Family == previous?.Family)
         {
-            if (binding?.Family == BattleLimitFamily.Duel)
+            model = model with { EquipmentPresentationRole = binding?.Resource.EquipmentPresentationRole ?? NativeBattleEquipmentPresentationRole.Equipped };
+            if (previous?.SuppressEquipment == true)
             {
                 model = model with { Flags0 = (ushort)(model.Flags0 | 0x200) };
-                graphics = graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
             }
-            return graphics;
+            return graphics with { ActorModels = graphics.ActorModels.Set(owner, model) };
         }
-        if (previous?.Family == BattleLimitFamily.Duel)
+        if (previous?.SuppressEquipment == true)
         {
             model = model with { Flags0 = previous.WeaponWasHidden ? (ushort)(model.Flags0 | 0x200) : (ushort)(model.Flags0 & ~0x200) };
         }
@@ -64,7 +66,7 @@ public sealed partial class BattlePresentationProcess
         }
         else
         {
-            limitPresentationScopes[owner] = new(binding.Family, (model.Flags0 & 0x200) != 0);
+            limitPresentationScopes[owner] = new(binding.Family, (model.Flags0 & 0x200) != 0, binding.Resource.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands || binding.Family == BattleLimitFamily.Duel);
         }
         if ((model.Flags0 & 2) == 0)
         {
@@ -84,7 +86,8 @@ public sealed partial class BattlePresentationProcess
         };
         model = model with
         {
-            Flags0 = binding?.Family == BattleLimitFamily.Duel ? (ushort)(model.Flags0 | 0x200) : model.Flags0,
+            Flags0 = binding is not null && (binding.Family == BattleLimitFamily.Duel || binding.Resource.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands) ? (ushort)(model.Flags0 | 0x200) : model.Flags0,
+            EquipmentPresentationRole = resource.EquipmentPresentationRole,
             Flags2 = (ushort)((model.Flags2 ?? 0) & ~8),
             Sequence = standing,
             SequenceFrame = 0,

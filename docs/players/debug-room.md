@@ -47,9 +47,9 @@ Choose **Battle / Weapons & Limit Breaks** for the **Current game** editor. Sele
 
 **Swap Weapons**, **Move Limit** and **Swap Limit Sets** stage both participants together. Choose a different destination; a family already on the destination is kept once. Asterisks identify changed characters. Review each changed recipient's equipment, key statistics and family requirements before applying. An incompatible family stays assigned with an explanation.
 
-**Apply** validates the complete draft and publishes it together. **Cancel** discards it. Apply is unavailable during active/pending battles, field transitions, scripted party changes and tutorials. Reopen stale drafts after session or resource changes. Opening the editor does not save or advance the game. Save normally to retain applied assignments. At Title, use the isolated laboratory instead.
+**Apply** validates the complete draft and publishes it together. **Cancel** discards it. Apply is unavailable during active/pending battles, field transitions, scripted party changes and tutorials. Reopen stale drafts after session or resource changes. Opening the editor does not save or advance the game. Save normally to retain applied assignments. At Title, use the isolated laboratory instead. While the FFVII world is active, FFVIII loadouts stay dormant and the live editor is disabled; return to FFVIII to edit them.
 
-The laboratory's **Equipment and abilities** group has its own weapon and family controls. Initialized native actors recompute weapon contributions while retaining recipient statistics; a scenario without the required native inputs explains why a weapon edit is unavailable. Laboratory changes and explicit presets remain separate from the current game.
+The laboratory's **Equipment and abilities** group has its own weapon and family controls. Installed character prototypes initialize native statistics, and weapon changes recompute equipment contributions while retaining the recipient's own stat inputs. Laboratory changes and explicit presets remain separate from the current game.
 
 ## Battle settings and laboratory
 

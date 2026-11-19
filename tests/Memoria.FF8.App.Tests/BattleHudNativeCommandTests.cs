@@ -166,8 +166,27 @@ public sealed class BattleHudNativeCommandTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 }, Items = [new(101, 2)], NativeLimitsDisabled = false, Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(2) }, new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
-        session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("irvine", 4)] });
+        BattleDefinition definition = new()
+        {
+            StageId = assets.StageIds.First(),
+            NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 },
+            Items = [new(101, 2)],
+            NativeLimitsDisabled = false,
+            Combatants =
+            [
+                new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == 2).Id, MaximumHp = 1000, CurrentHp = 1, InitialAtb = BattleSession.AtbMaximum },
+                new() { Id = "ally", Name = "Ally", IsPlayer = true, ModelId = 0, MaximumHp = 1000, CurrentHp = 1, InitialAtb = BattleSession.AtbMaximum },
+                new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 10000, CurrentHp = 10000, Speed = 1 }
+            ]
+        };
+        BattleSession session = InstalledBattlePractice.Create(definition, BattleAtbMode.TurnBased, game, assets);
+        session.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: "irvine");
+        for (int frame = 0; frame < 1800 && !session.CanChoosePlayerCommand("irvine"); frame++)
+        {
+            session.Tick();
+        }
+        Assert.True(session.CanChoosePlayerCommand("irvine"));
+        Assert.InRange(session.RefreshNativeLimit("irvine"), (byte)1, (byte)4);
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId), readPresentationUi: BattleHudTestPresentation.Visible);
         hud.BuildView();
         hud.Navigate(MenuInput.Right);
@@ -179,7 +198,7 @@ public sealed class BattleHudNativeCommandTests
         Assert.Empty(hud.Commands);
         hud.Attack();
         Assert.Single(session.QueuedActions);
-        for (int frame = 0; frame < 25; frame++)
+        for (int frame = 0; frame < 1800 && session.GetNativeShot("irvine")?.Phase != BattleNativeShotPhase.Ready; frame++)
         {
             session.Tick();
         }

@@ -8,12 +8,13 @@ public sealed partial class BattleAssets
     public NativeBattleGraphicsResource ReadNativeLimitPresentationResource(BattleCombatantDefinition actor, BattleLimitFamily family, NativeBattleGraphicsResource equipment)
     {
         int sourceCharacter = BattleLimitFamilyRules.SourceCharacter(family);
-        BattleModel sourceBody = LoadPlayer(sourceCharacter);
+        BattleModel sourceBody = LoadPlayer(sourceCharacter, sourceCharacter == actor.ModelId ? actor.Costume : 0);
         BattleModel motion = LoadPlayerForStyle(actor.ModelId, actor.Costume, sourceCharacter);
         int? sourceWeapon = WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == sourceCharacter)?.Id;
         BattleModel sourceSequenceOwner = LoadPlayerSequenceOwner(sourceCharacter, sourceWeapon, sourceBody);
         NativeBattleGraphicsResource source = (sourceSequenceOwner.Sequences ?? throw new InvalidDataException("The selected Limit family has no original body sequence owner.")).NativeResource;
-        bool unarmed = family == BattleLimitFamily.Duel;
+        int equippedStyle = actor.WeaponProfile?.ResourceOwner ?? (actor.WeaponId is int weapon ? ReadWeaponProfile(weapon).ResourceOwner : actor.ModelId);
+        bool unarmed = family == BattleLimitFamily.Duel || BattleLimitFamilyRules.RequiredWeapon(family) == BattleWeaponCapabilities.None && sourceCharacter != equippedStyle;
         ImmutableArray<NativeBattleRawMesh>? geometry = equipment.Geometry;
         if (unarmed && equipment.LinkedGeometryUsesBodySkeleton == true && geometry is { } body)
         {
@@ -23,6 +24,11 @@ public sealed partial class BattleAssets
                 throw new InvalidDataException("The unarmed action's embedded equipment object exceeds its body geometry.");
             }
             geometry = body.SetItem(weaponObject, new([], []) { PackedVertexGroups = [], BoneGroups = [] });
+        }
+        if (unarmed && geometry is { } unarmedBody)
+        {
+            BattleModel ownBody = LoadPlayer(actor.ModelId, actor.Costume);
+            geometry = unarmedBody.SetItem(0, (ownBody.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(ownBody.Meshes))[0]);
         }
         NativeBattleGraphicsResource presentation = equipment with
         {
@@ -34,12 +40,17 @@ public sealed partial class BattleAssets
             ActionCameraBank = sourceBody.NativeActionCameraBank,
             Geometry = geometry,
             LinkedGeometry = unarmed ? [] : equipment.LinkedGeometry,
-            LinkedGeometryUsesBodySkeleton = unarmed ? false : equipment.LinkedGeometryUsesBodySkeleton
+            LinkedGeometryUsesBodySkeleton = unarmed ? false : equipment.LinkedGeometryUsesBodySkeleton,
+            LinkedPoseSource = unarmed ? null : equipment.LinkedPoseSource,
+            LinkedAnimationFrames = unarmed ? [] : equipment.LinkedAnimationFrames,
+            EquipmentPresentationRole = unarmed ? NativeBattleEquipmentPresentationRole.FreeHands : NativeBattleEquipmentPresentationRole.Equipped
         };
-        return presentation;
+        presentation = BindIntrinsicHands(presentation, actor, unarmed);
+        presentation = BindLoadoutAnimationBanks(presentation, actor, LoadPlayer(actor.ModelId, actor.Costume), family);
+        return BindLimitGunbladeMotion(presentation, actor, family, sourceCharacter, equippedStyle);
     }
 
-    private ImmutableArray<NativeBattleLimitPresentationBinding> ReadNativeLimitPresentations(IReadOnlyList<BattleCombatantDefinition> actors, ImmutableArray<NativeBattleGraphicsBinding> standing)
+    public ImmutableArray<NativeBattleLimitPresentationBinding> ReadNativeLimitPresentations(IReadOnlyList<BattleCombatantDefinition> actors, ImmutableArray<NativeBattleGraphicsBinding> standing)
     {
         ImmutableArray<NativeBattleLimitPresentationBinding>.Builder bindings = ImmutableArray.CreateBuilder<NativeBattleLimitPresentationBinding>();
         foreach (BattleCombatantDefinition actor in actors.Where(actor => actor.IsPlayer && (actor.NativeLimitFamilies is not null || actor.WeaponProfile is { } weapon && weapon.ResourceOwner != actor.ModelId)))

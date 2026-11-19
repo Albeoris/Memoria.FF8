@@ -138,6 +138,7 @@ public sealed partial class BattlePresentationProcess
             AdvanceNativeScanText537A30();
             PublishNativeScanInputFrame();
             CompleteNativeHostPause();
+            NativeGraphics = SynchronizeLimitPresentationScopes(NativeGraphics!);
             PublishNativePcUiFrame();
             NativeExamTimerState.RequireSameClock(NativeExamTimer, clockPoll is null ? timerObservation : host.ReadTimer());
         }

@@ -29,7 +29,7 @@ public sealed class NativeBattlePartyLoadPlanTests
         Assert.True(cpu.Rows[0].Require(12).ResourceOnly);
         Assert.Equal(new byte[] { 11, 22, 33, 44 }, pinned.Read(0, 4));
         Assert.Equal(new byte[] { 11, 22, 33, 44 }, cpu.Cpu.Banks[1].ReadGuest(0, 4));
-        string json = NativeBattleTestSnapshots.Json(loader);
+        string json = System.Text.Json.JsonSerializer.Serialize(loader.PartyPlan);
         Assert.Contains("Sha256", json);
         Assert.DoesNotContain("Bytes", json);
         loader = NativeBattleStorageSnapshots.Restore(NativeBattleStorageSnapshots.Capture(loader));

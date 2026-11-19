@@ -20,6 +20,10 @@ public sealed partial class BattlePresentationProcess
             actor = NativeBattleBodyBoneMatrices.Compose5095B0(actor, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native trail requires the current actor world matrix."));
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             int bone = selector;
+            if (selector < 240)
+            {
+                bone = NativeBattleActionBoneAliases.Resolve(ReadCinematicActionBoneAliases(graphics, actorIndex, source), checked((short)selector));
+            }
             if (selector >= 240)
             {
                 int alias = selector - 236;

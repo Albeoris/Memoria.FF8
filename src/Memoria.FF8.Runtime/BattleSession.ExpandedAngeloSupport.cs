@@ -127,6 +127,6 @@ public sealed partial class BattleSession
 
     private BattleCombatant? FirstPeriodicAngeloHolder(byte learnedFlag, Func<BattleCombatant, bool> eligible)
     {
-        return allies.FirstOrDefault(actor => (ExpandedAngeloLearned(actor) & learnedFlag) != 0 && eligible(actor));
+        return allies.Where(actor => (ExpandedAngeloLearned(actor) & learnedFlag) != 0 && eligible(actor)).OrderBy(actor => actor.Slot?.Position ?? int.MaxValue).FirstOrDefault();
     }
 }

@@ -1,12 +1,18 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace Memoria.FF8.Runtime;
 
 public readonly record struct NativeBattleVector(short X, short Y, short Z);
 public readonly record struct NativeBattleBonePose(NativeBattleVector Rotation, NativeBattleVector Scale);
-public sealed record NativeBattleDecodedPose(NativeBattleVector Translation, ImmutableArray<NativeBattleBonePose> Bones, bool HasScale);
+public sealed record NativeBattleDecodedHandContact(NativeBattleVector SourcePosition, int RecipientHand);
+public sealed record NativeBattleDecodedPose(NativeBattleVector Translation, ImmutableArray<NativeBattleBonePose> Bones, bool HasScale)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDecodedHandContact? HandContact { get; init; }
+}
 public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, ushort ByteOffset, ushort BitOffset);
 
 /// <summary>Original skeleton and compressed animation bytes consumed by508F90/508C90.</summary>
@@ -68,7 +74,18 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
         {
             throw new InvalidDataException("Native pose has not decoded its first frame.");
         }
-        return NativeBattlePoseDecoder.Sample(Animations.AsSpan(), BoneCount, animation, counter, (poseFlags & 1) != 0);
+        NativeBattleDecodedPose pose;
+        try
+        {
+            pose = NativeBattlePoseDecoder.Sample(Animations.AsSpan(), BoneCount, animation, counter, (poseFlags & 1) != 0);
+        }
+        catch (InvalidDataException exception)
+        {
+            int handFrames = RetargetBinding is { } binding && !binding.SourceHandFrames.IsDefaultOrEmpty && animation < binding.SourceHandFrames.Length ? binding.SourceHandFrames[animation].Length : -1;
+            string fingerprint = Convert.ToHexString(SHA256.HashData(Animations.AsSpan()));
+            throw new InvalidDataException($"Native pose decode failed: bones {BoneCount}, animation {animation}, counter {counter}, flags {poseFlags}, bank bytes {Animations.Length}, SHA256 {fingerprint}, contact frames {handFrames}. {exception.Message}", exception);
+        }
+        return RetargetBinding is { } contact ? pose with { HandContact = new(contact.ReadSourceHand(animation, counter, poseFlags), contact.RecipientHand) } : pose;
     }
 }
 

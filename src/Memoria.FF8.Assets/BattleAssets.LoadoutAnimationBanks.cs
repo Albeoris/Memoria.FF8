@@ -9,25 +9,26 @@ public sealed partial class BattleAssets
 {
     private readonly Dictionary<(NativeBattlePoseSource Source, NativeBattlePoseSource Recipient, string Bank, string Revision), NativeBattleAnimationBankOverride> loadoutAnimationBanks = [];
 
-    private NativeBattleGraphicsResource BindLoadoutAnimationBanks(NativeBattleGraphicsResource resource, BattleCombatantDefinition actor, BattleModel recipient)
+    private NativeBattleGraphicsResource BindLoadoutAnimationBanks(NativeBattleGraphicsResource resource, BattleCombatantDefinition actor, BattleModel recipient, BattleLimitFamily? selectedFamily = null)
     {
         int style = actor.WeaponProfile?.ResourceOwner ?? (actor.WeaponId is int weapon ? ReadWeaponProfile(weapon).ResourceOwner : actor.ModelId);
         resource = resource with { CombatStyleModelId = checked((byte)style) };
-        if (style != actor.ModelId)
+        if (selectedFamily is null && style != actor.ModelId)
         {
             resource = BindLoadoutVictoryBank(resource, style, actor.ModelId, recipient);
         }
-        if (actor.NativeLimitFamilies is null)
+        if (selectedFamily is null)
         {
             return resource;
         }
         List<NativeBattleAnimationBankOverride> overrides = resource.AnimationBankOverrides.ToList();
-        foreach (int sourceCharacter in actor.NativeLimitFamilies.Select(family => BattleLimitFamilyRules.SourceCharacter(family.Family)).Distinct().Where(source => source != actor.ModelId))
+        foreach (int sourceCharacter in new[] { BattleLimitFamilyRules.SourceCharacter(selectedFamily.Value) }.Where(source => source != actor.ModelId))
         {
             BattleModel source = LoadPlayer(sourceCharacter);
             NativeBattlePoseRetargeter compiler = BattleHumanoidRigProfiles.CreateRetargeter(sourceCharacter, source, actor.ModelId, recipient);
-            foreach (ModelBoundExternalBank binding in ModelExternalBankCatalog.ForCharacter(sourceCharacter, NativeActions).Where(binding => binding.UnsupportedReason is null))
+            foreach (ModelBoundExternalBank binding in ModelExternalBankCatalog.ForCharacter(sourceCharacter, NativeActions).Where(binding => binding.ActorRole != ModelExternalBankActorRole.ContactTarget))
             {
+                // Replacements live only on this active performer's resource. Script-selected targets and companions retain their own banks.
                 byte[] bank = ModelAssetDiscoveryBindings.ReadExternalBank(GameDataResources.ReadNativeMemory(resources), binding.Descriptor.Address, binding.SectionCount);
                 BattleModel external = BattleResourceReader.ReadLinkedAnimationBank(source, bank, false);
                 NativeBattlePoseSource motion = external.NativePoseSource ?? throw new InvalidDataException("A transferred family animation bank requires its actual source skeleton.");

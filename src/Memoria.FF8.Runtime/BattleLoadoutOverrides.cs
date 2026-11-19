@@ -131,12 +131,20 @@ public sealed class BattleLoadoutDraft
 
     public void AddLimit(int character, BattleLimitFamily family)
     {
-        SetLimits(character, ResolveFamilies(character).Append(family).Distinct());
+        BattleLimitFamily[] families = ResolveFamilies(character);
+        if (!families.Contains(family))
+        {
+            SetLimits(character, families.Append(family));
+        }
     }
 
     public void RemoveLimit(int character, BattleLimitFamily family)
     {
-        SetLimits(character, ResolveFamilies(character).Where(existing => existing != family));
+        BattleLimitFamily[] families = ResolveFamilies(character);
+        if (families.Contains(family))
+        {
+            SetLimits(character, families.Where(existing => existing != family));
+        }
     }
 
     public void RemoveAllLimits(int character)

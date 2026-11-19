@@ -449,7 +449,8 @@ public sealed partial class BattlePresentationProcess
             {
                 throw new NotSupportedException("Native5027D0 requires its completed507080 resource load; no materialized substitute is available.");
             }
-            model = model with { OriginalResourceRow104 = model.ActiveResourceRow100, LinkedTransform = binding.ModelId is 1 or 7 or 9 ? null : new(new(0, 0, 0), new(0, 0, 0)) };
+            int equipmentStyle = binding.Resource.CombatStyleModelId ?? binding.ModelId;
+            model = model with { OriginalResourceRow104 = model.ActiveResourceRow100, LinkedTransform = equipmentStyle is 1 or 7 or 9 ? null : new(new(0, 0, 0), new(0, 0, 0)) };
         }
         NativeBattleStageColors colors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native5027D0 requires the actual stage500EA0 color DWORD producers.");
         model = model with { Color40 = colors.Color40, Color44 = colors.Color44 };

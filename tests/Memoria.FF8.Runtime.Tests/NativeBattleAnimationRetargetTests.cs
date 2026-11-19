@@ -68,7 +68,7 @@ public sealed class NativeBattleAnimationRetargetTests
         NativeBattlePoseSource source = Source([neutral], 512);
         NativeBattlePoseSource recipient = Source([neutral], 1024);
         NativeBattlePoseSource compiled = new NativeBattlePoseRetargeter(source, recipient, [new("root", 0, 0), new("hand-a", 1, 1)], 1).Compile(source);
-        NativeBattleGraphicsModel model = new()
+        NativeBattleGraphicsModel model = new(2)
         {
             SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = compiled.Sample(0, 1, 0) },
             LinkedTransform = new(default, new(10, 20, 30))
@@ -81,7 +81,75 @@ public sealed class NativeBattleAnimationRetargetTests
         Assert.Equal(first.LinkedContactOffset, second.LinkedContactOffset);
         Assert.Equal(model.LinkedTransform, first.LinkedTransform);
         Assert.Same(model.SequenceState, first.SequenceState);
-        Assert.Null(NativeBattleLinkedContact.Publish(first, recipient).LinkedContactOffset);
+        NativeBattleGraphicsModel restored = first with { SequenceState = first.SequenceState! with { DecodedPose = recipient.Sample(0, 1, 0) } };
+        Assert.Null(NativeBattleLinkedContact.Publish(restored, recipient).LinkedContactOffset);
+    }
+
+    [Fact]
+    public void Already_compiled_external_bank_restores_its_own_contact_metadata_after_native_row_resolution()
+    {
+        NativeBattlePoseSource source = Source([Pose(0, 0)], 512);
+        NativeBattlePoseSource recipient = Source([Pose(0, 0)], 1024);
+        NativeBattlePoseRetargeter compiler = new(source, recipient, [new("root", 0, 0), new("hand-a", 1, 1)], 1);
+        NativeBattlePoseSource standing = compiler.Compile(source);
+        NativeBattlePoseSource external = source with { Animations = NativeBattleAnimationEncoder.Encode([[Pose(0, 0), Pose(1, 10), Pose(2, 20)]]) };
+        NativeBattlePoseSource compiled = compiler.Compile(external);
+        NativeBattlePoseSource resolved = compiled with { RetargetBinding = standing.RetargetBinding };
+        string fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(external.Animations.AsSpan()));
+        NativeBattleGraphicsResource resource = new([1])
+        {
+            PoseSource = resolved,
+            AnimationBankOverrides = [new("external", 1, false, fingerprint, compiled.Animations) { ActionBoneAliases = compiled.ActionBoneAliases, RetargetBinding = compiled.RetargetBinding }]
+        };
+        NativeBattlePoseSource active = resource.ApplyAnimationBankOverrides("external").PoseSource!;
+        Assert.Same(compiled.RetargetBinding, active.RetargetBinding);
+        NativeBattleGraphicsModel model = new(2)
+        {
+            SequenceState = new() { Pose = 0, PoseFrame114 = 3, DecodedPose = active.Sample(0, 3, 0) },
+            LinkedTransform = new(default, default)
+        };
+        model = NativeBattleBodyBoneMatrices.Publish508C90(model, active);
+        Assert.NotNull(NativeBattleLinkedContact.Publish(model, active).LinkedContactOffset);
+    }
+
+    [Fact]
+    public void Foot_floor_uses_mesh_contacts_and_native_units_without_changing_recipient_bone_lengths()
+    {
+        NativeBattleBonePose unit = new(default, new(1024, 1024, 1024));
+        NativeBattleDecodedPose first = new(default, [unit with { Rotation = new(1024, 0, 0) }, unit], false);
+        NativeBattleDecodedPose second = new(default, [unit, unit], false);
+        NativeBattlePoseSource source = Source([first, second], 512);
+        NativeBattlePoseSource recipient = Source([first, second], 1024);
+        NativeBattleFootContactCalibration feet = new([new(1, default)], [new(1, default)]);
+        NativeBattlePoseSource compiled = new NativeBattlePoseRetargeter(source, recipient, [new("root", 0, 0), new("foot-a", 1, 1)], 1, feet).Compile(source);
+        NativeBattleDecodedPose pose = compiled.Sample(0, 2, 0);
+        Assert.Equal(-32, pose.Translation.Y);
+        Assert.Equal(-512, NativeBattlePoseMatrices.StageBoneMatrices(compiled, pose)[1].Y);
+        Assert.Equal(recipient.Skeleton, compiled.Skeleton);
+        Assert.Equal(new byte[] { 2 }, NativeBattlePoseDecoder.ReadFrameCounts(compiled.Animations.AsSpan()).ToArray());
+    }
+
+    [Fact]
+    public void Retained_pose_contact_keeps_its_original_bank_provenance_until_a_new_pose_is_decoded()
+    {
+        NativeBattlePoseSource source = Source([Pose(0, 0)], 512);
+        NativeBattlePoseSource recipient = Source([Pose(0, 0)], 1024);
+        NativeBattlePoseRetargeter compiler = new(source, recipient, [new("root", 0, 0), new("hand-a", 1, 1)], 1);
+        NativeBattlePoseSource standing = compiler.Compile(source);
+        NativeBattlePoseSource external = compiler.Compile(source with { Animations = NativeBattleAnimationEncoder.Encode([[Pose(0, 0), Pose(2, 100), Pose(4, 200)]]) });
+        NativeBattleGraphicsModel model = new(2)
+        {
+            SequenceState = new() { Pose = 0, PoseFrame114 = 1, DecodedPose = standing.Sample(0, 1, 0) },
+            LinkedTransform = new(default, default)
+        };
+        model = NativeBattleBodyBoneMatrices.Publish508C90(model, standing);
+        NativeBattleGraphicsModel first = NativeBattleLinkedContact.Publish(model, standing);
+        NativeBattleGraphicsModel retained = first with { SequenceState = first.SequenceState! with { PoseFrame114 = 3 } };
+        Assert.Equal(first.LinkedContactOffset, NativeBattleLinkedContact.Publish(retained, external).LinkedContactOffset);
+        NativeBattleGraphicsModel decoded = retained with { SequenceState = retained.SequenceState! with { DecodedPose = external.Sample(0, 3, 0) } };
+        decoded = NativeBattleBodyBoneMatrices.Publish508C90(decoded, external);
+        Assert.Equal(external.Sample(0, 3, 0).HandContact, decoded.SequenceState!.DecodedPose!.HandContact);
+        Assert.NotNull(NativeBattleLinkedContact.Publish(decoded, external).LinkedContactOffset);
     }
 
     private static NativeBattleDecodedPose Pose(short translation, short angle) => new(new(translation, -30, 60), [new(new(angle, 170, -100), new(1024, 1024, 1024)), new(new(-70, angle, 20), new(1024, 1024, 1024))], false);

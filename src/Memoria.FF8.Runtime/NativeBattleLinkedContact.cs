@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial record NativeBattleGraphicsModel
@@ -19,35 +21,34 @@ public static class NativeBattleLinkedContact
 {
     public static NativeBattleGraphicsModel Publish(NativeBattleGraphicsModel model, NativeBattlePoseSource body)
     {
-        if (model.LinkedTransform is null || body.RetargetBinding is not { } binding)
+        if (model.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands || model.LinkedTransform is null)
         {
             return model with { LinkedContactOffset = null };
         }
         NativeBattleSequenceState state = model.SequenceState ?? throw new InvalidDataException("A transferred weapon contact requires its current body pose clock.");
-        byte animation = state.Pose ?? throw new InvalidDataException("A transferred weapon contact requires its current body animation.");
-        byte frame = state.PoseFrame114 ?? throw new InvalidDataException("A transferred weapon contact requires its current body frame.");
-        System.Collections.Immutable.ImmutableArray<NativeBattleActionMatrix> recipientBones = NativeBattleBodyBoneMatrices.Require(model, body);
-        if ((uint)binding.SourceHand >= binding.SourceMotion.BoneCount || (uint)binding.RecipientHand >= recipientBones.Length)
+        NativeBattleDecodedHandContact? contact = state.DecodedPose?.HandContact;
+        if (contact is null)
         {
-            throw new InvalidDataException("A transferred weapon contact requires its admitted semantic hands.");
-        }
-        NativeBattleVector sourceHand;
-        if ((state.PoseFlags109 & 1) == 0 && !binding.SourceHandFrames.IsDefaultOrEmpty)
-        {
-            if (animation >= binding.SourceHandFrames.Length || frame == 0 || frame > binding.SourceHandFrames[animation].Length)
+            if (body.RetargetBinding is null)
             {
-                throw new InvalidDataException("A transferred weapon contact frame exceeds its source animation.");
+                return model with { LinkedContactOffset = null };
             }
-            sourceHand = binding.SourceHandFrames[animation][frame - 1];
+            if (state.DecodedPose is not null)
+            {
+                return model;
+            }
+            byte animation = state.Pose ?? throw new InvalidDataException("A transferred weapon contact requires its current body animation.");
+            byte frame = state.PoseFrame114 ?? throw new InvalidDataException("A transferred weapon contact requires its current body frame.");
+            contact = body.Sample(animation, frame, state.PoseFlags109).HandContact ?? throw new InvalidDataException("A transferred weapon contact lost its sampled pose provenance.");
         }
-        else
+        ImmutableArray<NativeBattleActionMatrix> recipientBones = NativeBattleBodyBoneMatrices.Require(model, body);
+        if ((uint)contact.RecipientHand >= recipientBones.Length)
         {
-            NativeBattleDecodedPose donor = binding.SourceMotion.Sample(animation, frame, state.PoseFlags109);
-            NativeBattleActionMatrix hand = NativeBattlePoseMatrices.StageBoneMatrices(binding.SourceMotion, donor)[binding.SourceHand];
-            sourceHand = new(checked((short)hand.X), checked((short)hand.Y), checked((short)hand.Z));
+            throw new InvalidDataException("A transferred weapon contact requires its admitted recipient hand.");
         }
-        NativeBattleActionMatrix targetHand = recipientBones[binding.RecipientHand];
-        NativeBattleVector offset = new(checked((short)(targetHand.X - sourceHand.X)), checked((short)(targetHand.Y - sourceHand.Y)), checked((short)(targetHand.Z - sourceHand.Z)));
+        NativeBattleVector sourceHand = contact.SourcePosition;
+        NativeBattleActionMatrix targetHand = recipientBones[contact.RecipientHand];
+        NativeBattleVector offset = new(unchecked((short)(targetHand.X - sourceHand.X)), unchecked((short)(targetHand.Y - sourceHand.Y)), unchecked((short)(targetHand.Z - sourceHand.Z)));
         return model with { LinkedContactOffset = offset };
     }
 }

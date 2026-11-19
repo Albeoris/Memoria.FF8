@@ -41,7 +41,7 @@ public sealed partial class MenuController
 
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
-        return [new MenuEntry("weapons-limits", LoadoutText("title", "Weapons & Limit Breaks"), LoadoutText("open-help", "Edit current-game weapons and ordered Limit families with Apply and Cancel."), Action: new("loadout-open"), Enabled: BattleLoadoutEditorAvailable), new MenuEntry("battle-laboratory", SystemText("ui.battlesettingsentries.entry.label.battle.laboratory", "Battle laboratory…"), SystemText("ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly", "Edit an isolated scenario; Start launches it explicitly."), Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
+        return [new MenuEntry("weapons-limits", LoadoutText("title", "Weapons & Limit Breaks"), BattleLoadoutEditorEntryHelp, Action: new("loadout-open"), Enabled: BattleLoadoutEditorAvailable), new MenuEntry("battle-laboratory", SystemText("ui.battlesettingsentries.entry.label.battle.laboratory", "Battle laboratory…"), SystemText("ui.battlesettingsentries.entry.help.edit.an.isolated.scenario.start.launches.it.explicitly", "Edit an isolated scenario; Start launches it explicitly."), Action: new("open-battle-debug"), Enabled: BattleDebugAvailable),
             .. HostSettingsEntries("Battle policy", "Random encounters")];
     }
 

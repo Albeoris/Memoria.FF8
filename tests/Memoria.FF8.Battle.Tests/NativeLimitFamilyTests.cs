@@ -7,6 +7,28 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class NativeLimitFamilyTests
 {
     [Fact]
+    public void Single_Angel_Wing_assignment_uses_its_own_invocation_name_instead_of_shared_command_name()
+    {
+        BattleNativeLimitDefinition rinoa = Limit(4, 19) with { InvocationChoices = [new(19, "Combine", 0, 0), new(19, "Angel Wing", 0, 1)] };
+        BattleSession battle = CreateBattle([new(BattleLimitFamily.AngelWing, rinoa)]);
+
+        Assert.Equal("Angel Wing", battle.GetNativeLimitCommandName("recipient"));
+    }
+
+    [Fact]
+    public void Assignment_arrays_are_detached_from_callers_and_definition_inspection()
+    {
+        BattleNativeLimitFamilyDefinition[] families = [new(BattleLimitFamily.IceStrike, Limit(7, 22))];
+        BattleSession battle = CreateBattle(families);
+        families[0] = new(BattleLimitFamily.Duel, Limit(1, 11));
+        BattleDefinition inspected = battle.ReadDefinition();
+        inspected.Combatants[0].NativeLimitFamilies![0] = families[0];
+
+        Assert.True(battle.HasNativeLimitFamily("recipient", BattleLimitFamily.IceStrike));
+        Assert.False(battle.HasNativeLimitFamily("recipient", BattleLimitFamily.Duel));
+    }
+
+    [Fact]
     public void Invalid_duplicate_or_wrong_source_family_definitions_fail_before_battle_state_exists()
     {
         BattleNativeLimitFamilyDefinition ice = new(BattleLimitFamily.IceStrike, Limit(7, 22));

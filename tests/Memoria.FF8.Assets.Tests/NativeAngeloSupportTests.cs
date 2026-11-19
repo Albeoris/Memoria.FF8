@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Reflection;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -23,11 +24,12 @@ public sealed class NativeAngeloSupportTests
         int nativeRinoa = Array.FindIndex(actors, actor => actor.Id == "rinoa");
         actors[nativeRinoa] = actors[nativeRinoa] with { NativeLimitFamilies = [] };
         BattleSession initial = new(source with { Combatants = actors }, BattleAtbMode.Normal);
+        typeof(BattleSession).GetMethod("InitializeNativeSupportCallbacks", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(initial, null);
         BattleSnapshot before = initial.Capture();
         BattleSession battle = BattleSession.Restore(before with { NativeSupport = before.NativeSupport! with { Cooldown = 0 } });
         NativeBattleRandomState expected = before.Random!.Draw(out _);
 
-        battle.Tick();
+        typeof(BattleSession).GetMethod("AdvanceNativeSupportCallbacks", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(battle, null);
 
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions, action => action.NativePlayerReaction == BattleNativePlayerReaction.AngeloPeriodic);
         Assert.Equal(firstBlocked ? "ally-1" : "ally-0", queued.TargetId);

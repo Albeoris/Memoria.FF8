@@ -41,7 +41,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleRenzokuken160Inputs Inputs(NativeBattleRenzokuken160Frame current) => new(graphics.Flags, NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments.IsEmpty ? graphics.TriggerWidget?.Block.Segments ?? [] : NativeBattleRenzokukenVariantController.ReadState(current).Core.AbSegments, actor => graphics.ActorModels.Get(actor), Execute)
         {
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native Renzokuken variant requires its actual body skeleton.")).BoneCount,
-            ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
+            ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction, actionBinding: false),
             ReadWeaponTip = actor => ReadNativeRenzokuken160WeaponTip(graphics, actor),
             CapturePresentation = NativeBattleRenzokukenVisualLifetimes.Owns(current.Effect.Binding.Effect)
         };

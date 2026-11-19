@@ -112,6 +112,11 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte selector, short fraction)
     {
+        return ReadNativeGraphicsBone(graphics, owner, selector, fraction, true);
+    }
+
+    private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, BattleModelOwner owner, byte selector, short fraction, bool actionBinding)
+    {
         if (NativeGraphicsUsesForeignPose(graphics, owner) && presentationForeignActors?.TryGetValue(owner, out NativeBattleForeignActor? foreign) == true)
         {
             return NativeBattleGfMatrices.Transform460840(NativeBattleForeignPlacement.Delta(foreign, graphics.ActorModels.Get(owner)), foreign.ReadBone(selector, fraction));
@@ -122,7 +127,8 @@ public sealed partial class BattlePresentationProcess
             return (model.Transform ?? throw new NotSupportedException("Native502170 requires its model position WORDs.")).Position28;
         }
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Native bone projection requires its original skeleton and compressed animation source.");
-        return NativeBattlePoseMatrices.ReadBone(model, source, selector, fraction, true);
+        bool sourceOperand = actionBinding && !ReadCinematicActionBoneAliases(graphics, owner, source).IsDefaultOrEmpty;
+        return NativeBattlePoseMatrices.ReadBone(model, source, selector, fraction, sourceOperand);
     }
 
     internal NativeBattleCameraPoint TransformNativeGraphicsCameraPoint(BattleModelOwner owner, byte lowNibble, NativeBattleCameraPoint local, bool mirror)

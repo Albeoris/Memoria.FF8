@@ -61,7 +61,8 @@ internal sealed class InstalledBattlePresentation(GameAssets game, BattleAssets 
             PrimitiveTables = tables,
             SoftwarePrimitiveTable = softwareTable,
             PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(),
-            PcUiIcons = assets.ReadNativePcUiIcons().Binding
+            PcUiIcons = assets.ReadNativePcUiIcons().Binding,
+            LimitPresentations = assets.ReadNativeLimitPresentations(bindings.Select(binding => owner.GetCombatantDefinition(binding.ActorId)).ToArray(), bindings)
         };
         return new BattlePresentationResources(definition, graphics, game.ReadNativeCinematicModelOperands);
     }

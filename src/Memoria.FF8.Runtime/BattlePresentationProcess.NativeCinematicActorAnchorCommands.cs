@@ -45,7 +45,7 @@ public sealed partial class BattlePresentationProcess
             }
             NativeBattleBodyBoneMatrices.RequirePublication(publication, source);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, actor) };
-            return new NativeBattleCinematicBonePose(current, source.Skeleton, publication.Matrices, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor anchor requires the caller's actual world matrix."));
+            return new NativeBattleCinematicBonePose(current, source.Skeleton, publication.Matrices, actor.GeometryWorldMatrix ?? throw new NotSupportedException("Native actor anchor requires the caller's actual world matrix.")) { ActionBoneAliases = linked ? [] : ReadCinematicActionBoneAliases(graphics, index, source) };
         }, update, (current, address) =>
         {
             NativeBattleEffectMemory memory = RequireWaterMemory();

@@ -3,18 +3,18 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Stable assignment identities; subactions and learned progress remain owned by their native family.</summary>
 public enum BattleLimitFamily
 {
-    Renzokuken,
-    FireCross,
-    Desperado,
-    BloodPain,
-    MassiveAnchor,
-    Shot,
-    Combine,
-    AngelWing,
-    IceStrike,
-    Slot,
-    BlueMagic,
-    Duel
+    Renzokuken = 0,
+    FireCross = 1,
+    Desperado = 2,
+    BloodPain = 3,
+    MassiveAnchor = 4,
+    Shot = 5,
+    Combine = 6,
+    AngelWing = 7,
+    IceStrike = 8,
+    Slot = 9,
+    BlueMagic = 10,
+    Duel = 11
 }
 
 [Flags]
