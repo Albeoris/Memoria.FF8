@@ -146,7 +146,12 @@ public static partial class NativeBattleAuxiliaryContactSolver
             }
             foreach (int bone in variables)
             {
-                double angle = 2 * Math.Acos(Math.Min(1, Math.Abs(Quaternion.Dot(state.Local[bone], canonical[bone]))));
+                Quaternion current = state.Local[bone];
+                Quaternion original = canonical[bone];
+                double dot = (double)current.X * original.X + (double)current.Y * original.Y + (double)current.Z * original.Z + (double)current.W * original.W;
+                double firstNorm = (double)current.X * current.X + (double)current.Y * current.Y + (double)current.Z * current.Z + (double)current.W * current.W;
+                double secondNorm = (double)original.X * original.X + (double)original.Y * original.Y + (double)original.Z * original.Z + (double)original.W * original.W;
+                double angle = 2 * Math.Acos(Math.Min(1, Math.Abs(dot) / Math.Sqrt(firstNorm * secondNorm)));
                 facts.RestRotation += angle * angle;
             }
             return facts;
@@ -164,6 +169,49 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 }
             }
             return false;
+        }
+
+        public double[] RestDirection(NativeState state)
+        {
+            double[] result = new double[variables.Length * 3];
+            for (int variable = 0; variable < variables.Length; variable++)
+            {
+                int bone = variables[variable];
+                Matrix4x4 current = Matrix4x4.CreateFromQuaternion(state.Local[bone]);
+                Matrix4x4 desired = Matrix4x4.CreateFromQuaternion(canonical[bone]);
+                Quaternion relative = Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(Matrix4x4.Transpose(current) * desired));
+                if (relative.W < 0 || relative.W == 0 && (relative.X < 0 || relative.X == 0 && (relative.Y < 0 || relative.Y == 0 && relative.Z < 0)))
+                {
+                    relative = new(-relative.X, -relative.Y, -relative.Z, -relative.W);
+                }
+                double length = Math.Sqrt((double)relative.X * relative.X + (double)relative.Y * relative.Y + (double)relative.Z * relative.Z);
+                if (length == 0)
+                {
+                    continue;
+                }
+                double factor = 2 * Math.Atan2(length, relative.W) / length;
+                result[variable * 3] = relative.X * factor;
+                result[variable * 3 + 1] = relative.Y * factor;
+                result[variable * 3 + 2] = relative.Z * factor;
+            }
+            return result;
+        }
+
+        public Constraint? ContactAt(Constraint witness, NativeState state)
+        {
+            int[] face = witness.Cloth;
+            Vector3 cross = Vector3.Cross(state.Points[face[1]] - state.Points[face[0]], state.Points[face[2]] - state.Points[face[0]]);
+            if (cross.LengthSquared() == 0)
+            {
+                return null;
+            }
+            Vector3 normal = Vector3.Normalize(cross);
+            if (Vector3.Dot(normal, witness.Normal) < 0)
+            {
+                normal = -normal;
+            }
+            Vector3 body = state.Points[witness.Body];
+            return new Constraint { Body = witness.Body, Cloth = face, Weights = PlaneProjectionWeights(body, state.Points[face[0]], state.Points[face[1]], state.Points[face[2]]), Normal = normal, Value = Vector3.Dot(state.Points[face[0]] - body, normal), Kind = witness.Kind };
         }
 
         private bool ImmutableBoundaryCrossing(Vector3[] points, int[] cloth, int[] body)
@@ -214,36 +262,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 }
             }
             return row;
-        }
-
-        public List<(double Residual, double[] Derivative)> EdgeRows(NativeState state)
-        {
-            List<(double, double[])> rows = new List<(double, double[])>();
-            for (int index = 0; index < orderedEdges.Length; index++)
-            {
-                var edge = orderedEdges[index];
-                Vector3 line = state.Points[edge.A] - state.Points[edge.B];
-                float length = line.Length();
-                if (length == 0 || restLengths[index] == 0)
-                {
-                    continue;
-                }
-                Vector3 direction = line / length;
-                double[] row = new double[variables.Length * 3];
-                for (int variable = 0; variable < variables.Length; variable++)
-                {
-                    int bone = variables[variable];
-                    Matrix4x4 parent = parents[bone] < 0 ? Matrix4x4.Identity : state.Globals[parents[bone]];
-                    for (int axis = 0; axis < 3; axis++)
-                    {
-                        Vector3 rotation = Vector3.TransformNormal(axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ, parent);
-                        Vector3 derivative = (influences[variable, edge.A] ? Vector3.Cross(rotation, state.Points[edge.A] - state.Pivots[bone]) : Vector3.Zero) - (influences[variable, edge.B] ? Vector3.Cross(rotation, state.Points[edge.B] - state.Pivots[bone]) : Vector3.Zero);
-                        row[variable * 3 + axis] = Vector3.Dot(derivative, direction) / restLengths[index];
-                    }
-                }
-                rows.Add(((length - restLengths[index]) / restLengths[index], row));
-            }
-            return rows;
         }
 
         public Quaternion[] Apply(Quaternion[] original, double[] delta, double fraction)

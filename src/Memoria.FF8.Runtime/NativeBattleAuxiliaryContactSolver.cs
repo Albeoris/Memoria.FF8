@@ -256,16 +256,11 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 }
                 double[][] rows = active.Select(constraint => Jacobian(constraint, state)).ToArray();
                 double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out double[] dual);
-                // Improve normalized shared-edge strain only in the active contact tangent space.
-                double[] gradient = new double[variables.Length * 3];
-                List<(double Residual, double[] Derivative)> edgeRows = facts.Constraints.Where(item => !item.Hard && item.Value < 0).Select(item => (item.Value, Jacobian(item, state))).ToList();
-                if (edgeRows.Count == 0)
+                // Select the canonical-rest solution within the active hard-contact tangent space.
+                double[] gradient = geometry.RestDirection(state);
+                for (int coordinate = 0; coordinate < gradient.Length; coordinate++)
                 {
-                    edgeRows = EdgeRows(state);
-                }
-                foreach (var edge in edgeRows)
-                {
-                    Add(gradient, edge.Derivative, edge.Residual);
+                    gradient[coordinate] -= delta[coordinate];
                 }
                 for (int sweep = 0; sweep < MaximumLinearSweeps; sweep++)
                 {
@@ -278,33 +273,25 @@ public static partial class NativeBattleAuxiliaryContactSolver
                         }
                     }
                 }
-                double numerator = 0;
-                double denominator = 0;
-                foreach (var edge in edgeRows)
-                {
-                    double direction = Dot(edge.Derivative, gradient);
-                    numerator += (edge.Residual + Dot(edge.Derivative, delta)) * direction;
-                    denominator += direction * direction;
-                }
-                if (denominator > 0)
-                {
-                    Add(delta, gradient, -numerator / denominator);
-                }
+                Add(delta, gradient, 1);
                 bool improved = false;
+                NativeState lineState = state;
+                Facts lineFacts = facts;
                 for (double fraction = 1; fraction >= 1.0 / 4096 && evaluations < nonlinearLimit; fraction /= 2)
                 {
                     NativeState candidate = evaluate(next, Apply(trialLocal, delta, fraction));
                     evaluations++;
                     Facts candidateFacts = ReadFacts(candidate);
-                    if (Better(candidateFacts, facts))
+                    if (Better(candidateFacts, lineFacts))
                     {
-                        state = candidate;
-                        facts = candidateFacts;
-                        trialLocal = (Quaternion[])state.Local.Clone();
+                        lineState = candidate;
+                        lineFacts = candidateFacts;
                         improved = true;
-                        break;
                     }
                 }
+                state = lineState;
+                facts = lineFacts;
+                trialLocal = (Quaternion[])state.Local.Clone();
                 if (!improved && evaluations < nonlinearLimit)
                 {
                     NativeState bestState = state;
@@ -378,11 +365,12 @@ public static partial class NativeBattleAuxiliaryContactSolver
         {
             throw Unsupported($"fixed compilation budget at body progress {progress:R}", acceptedFacts);
         }
+        MinimizeRest(ref acceptedState, ref acceptedFacts);
         return Finish(acceptedState, acceptedFacts);
 
         Solution Finish(NativeState state, Facts facts) => new(state.Local, Report(facts));
 
-        NotSupportedException Unsupported(string reason, Facts facts) => new($"Auxiliary contact compilation cannot satisfy {reason}; native evaluations {evaluations}, crossings {facts.Crossings}, squared layer/contact residual {facts.Violation:R}; witnesses {string.Join("; ", facts.Constraints.Where(item => item.Value < 0).Take(3).Select(item => $"{item.Kind} body {item.Body}, cloth [{string.Join(',', item.Cloth)}], signed {item.Value:R}"))}.");
+        NotSupportedException Unsupported(string reason, Facts facts) => new($"Auxiliary contact compilation cannot satisfy {reason}; native evaluations {evaluations}, total/immutable/correctable crossings {facts.Crossings}/{facts.ImmutableCrossings}/{facts.CorrectableCrossings}, hard/soft layer violations {facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Hard && item.Value < 0)}/{facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && !item.Hard && item.Value < 0)}, invalid corrected geometry {facts.InvalidGeometry}, squared HARD residual {facts.Violation:R}; hard witnesses {string.Join("; ", facts.Constraints.Where(item => item.Hard && item.Value < 0).Take(3).Select(item => $"{item.Kind} body {item.Body}, cloth [{string.Join(',', item.Cloth)}], signed {item.Value:R}"))}.");
 
         bool Feasible(Facts facts) => !facts.InvalidGeometry && facts.CorrectableCrossings == 0 && facts.Violation == 0;
 
@@ -405,6 +393,70 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 }
             }
             return delta;
+        }
+
+        void MinimizeRest(ref NativeState state, ref Facts facts)
+        {
+            int limit = Math.Min(MaximumEvaluations, evaluations + 256);
+            for (int iteration = 0; iteration < MaximumNonlinearIterations && evaluations < limit; iteration++)
+            {
+                NativeState original = state;
+                Facts originalFacts = facts;
+                double[] desired = geometry.RestDirection(original);
+                NativeState? blocked = null;
+                Facts? blockedFacts = null;
+                for (int pass = 0; pass < 2 && evaluations < limit; pass++)
+                {
+                    double[] direction = desired;
+                    if (pass == 1)
+                    {
+                        if (blocked is null || blockedFacts is null)
+                        {
+                            break;
+                        }
+                        List<Constraint> barriers = originalFacts.Constraints.Where(item => item.Hard && item.Kind == "OwnRestOutwardLayer").ToList();
+                        foreach (Constraint witness in blockedFacts.Constraints.Where(item => item.Hard && item.Kind == "CurrentSignedVertexFace"))
+                        {
+                            if (geometry.ContactAt(witness, original) is Constraint barrier)
+                            {
+                                barriers.Add(barrier);
+                            }
+                        }
+                        if (barriers.Count == 0)
+                        {
+                            break;
+                        }
+                        double[][] rows = barriers.Select(item => Jacobian(item, original)).ToArray();
+                        double[] correction = Project(rows, barriers.Select((item, index) => -item.Value - Dot(rows[index], desired)).ToArray(), out _);
+                        direction = (double[])desired.Clone();
+                        Add(direction, correction, 1);
+                    }
+                    for (double fraction = 1; fraction >= 1.0 / 4096 && evaluations < limit; fraction /= 2)
+                    {
+                        NativeState candidate = evaluate(1, Apply(original.Local, direction, fraction));
+                        evaluations++;
+                        Facts candidateFacts = ReadFacts(candidate);
+                        if (Feasible(candidateFacts) && candidateFacts.RestRotation < facts.RestRotation)
+                        {
+                            state = candidate;
+                            facts = candidateFacts;
+                        }
+                        else if (!Feasible(candidateFacts))
+                        {
+                            blocked = candidate;
+                            blockedFacts = candidateFacts;
+                        }
+                    }
+                    if (!ReferenceEquals(state, original))
+                    {
+                        break;
+                    }
+                }
+                if (ReferenceEquals(state, original))
+                {
+                    break;
+                }
+            }
         }
 
         void RepairLattice(double at, ref NativeState state, ref Facts facts)
@@ -471,7 +523,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
         Facts ReadFacts(NativeState state) => ReferenceEquals(state, initialTarget) ? initialFacts : geometry.ReadFacts(state);
         double[] Jacobian(Constraint constraint, NativeState state) => geometry.Jacobian(constraint, state);
-        List<(double Residual, double[] Derivative)> EdgeRows(NativeState state) => geometry.EdgeRows(state);
         Quaternion[] Apply(Quaternion[] original, double[] delta, double fraction) => geometry.Apply(original, delta, fraction);
     }
 
@@ -516,6 +567,10 @@ public static partial class NativeBattleAuxiliaryContactSolver
         {
             return candidate.CorrectableCrossings < current.CorrectableCrossings;
         }
+        if (candidate.RestRotation != current.RestRotation)
+        {
+            return candidate.RestRotation < current.RestRotation;
+        }
         if (candidate.SoftViolation != current.SoftViolation)
         {
             return candidate.SoftViolation < current.SoftViolation;
@@ -524,7 +579,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
         {
             return candidate.Strain < current.Strain;
         }
-        return candidate.RestRotation < current.RestRotation;
+        return false;
     }
 
     private static double Dot(double[] a, double[] b)

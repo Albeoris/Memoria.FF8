@@ -55,6 +55,7 @@ public sealed class BattleLoadoutAuxiliaryContactTests
     [InlineData(9, 29, 8)]
     [InlineData(10, 28, 7)]
     [InlineData(10, 12, 11)]
+    [InlineData(10, 12, 16)]
     public void Cold_original_motion_preserves_physical_joints_and_clears_auxiliary_contacts(int owner, byte animation, byte frame)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);

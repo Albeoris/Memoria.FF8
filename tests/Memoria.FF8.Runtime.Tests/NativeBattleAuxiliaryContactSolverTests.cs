@@ -244,6 +244,9 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
         Assert.Equal(0, after.ClothBodyCrossings);
         Assert.Equal(0, after.ViolatingLayers);
         AssertPhysicalUnchanged(rig, target, solved);
+        double canonicalEnergy = AuxiliaryRotationEnergy(rest, solved);
+        double knownFeasibleEnergy = AuxiliaryRotationEnergy(rest, feasible);
+        Assert.True(canonicalEnergy <= knownFeasibleEnergy, $"Solved canonical rotation energy {canonicalEnergy:R} exceeds the explicit feasible quarter-turn energy {knownFeasibleEnergy:R}.");
     }
 
     [Fact]
@@ -328,6 +331,28 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
             Assert.Equal(expected[bone].Y, actual[bone].Y);
             Assert.Equal(expected[bone].Z, actual[bone].Z);
         }
+    }
+
+    private static double AuxiliaryRotationEnergy(NativeBattleDecodedPose rest, NativeBattleDecodedPose pose)
+    {
+        Quaternion Orientation(NativeBattleVector rotation)
+        {
+            const float radians = MathF.Tau / 4096;
+            Matrix4x4 matrix = Matrix4x4.CreateRotationZ(rotation.Z * radians) * Matrix4x4.CreateRotationX(rotation.X * radians) * Matrix4x4.CreateRotationY(rotation.Y * radians);
+            return Quaternion.CreateFromRotationMatrix(matrix);
+        }
+        double energy = 0;
+        foreach (int bone in new[] { 2, 3 })
+        {
+            Quaternion first = Orientation(rest.Bones[bone].Rotation);
+            Quaternion second = Orientation(pose.Bones[bone].Rotation);
+            double dot = (double)first.X * second.X + (double)first.Y * second.Y + (double)first.Z * second.Z + (double)first.W * second.W;
+            double firstLength = Math.Sqrt((double)first.X * first.X + (double)first.Y * first.Y + (double)first.Z * first.Z + (double)first.W * first.W);
+            double secondLength = Math.Sqrt((double)second.X * second.X + (double)second.Y * second.Y + (double)second.Z * second.Z + (double)second.W * second.W);
+            double angle = 2 * Math.Acos(Math.Clamp(Math.Abs(dot) / (firstLength * secondLength), 0, 1));
+            energy += angle * angle;
+        }
+        return energy;
     }
 
     private static NativeBattleAuxiliaryContactCalibration Calibration()
