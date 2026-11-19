@@ -335,7 +335,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections);
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             string? refreshSource = revalidations.FirstOrDefault()?.NavigationKey;
-            bool NeedsSourceRefresh(AutoPlayVisit visit) => revalidations.Any(item => item.NavigationKey == visit.Key) || NeedsVisitRefresh(visit);
             bool continuingRefresh = State.NavigationGoal is { EventId: null } goal && revalidations.Any(item => item.NavigationKey == goal.NavigationKey);
             AutoPlayPlanStep? next = resumedNativePlan;
             if (!continuingRefresh)
@@ -345,7 +344,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (refreshSource is not null)
             {
-                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsSourceRefresh, refreshNavigationKey: refreshSource, allowRemoteConditionRoutes: true, preferredGoal: new(refreshSource), readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+                next ??= SelectSourceRefreshPlan(State, planner, observation, revalidations.First(item => item.NavigationKey == refreshSource), NeedsVisitRefresh, (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
             }
             if (!IsDestinationPlan(State, next, observation.NavigationKey))
             {
@@ -382,7 +381,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (next is { RefreshVisitKey: string refreshKey, Goal.EventId: null } && revalidations.FirstOrDefault(item => item.NavigationKey == refreshKey) is { } selectedDebt)
             {
-                State.NativeRevalidation ??= new(selectedDebt.NavigationKey, selectedDebt.EventId, selectedDebt.Condition, selectedDebt.ReceiptKey);
+                RetainSourceRevalidationTask(State, next, selectedDebt);
             }
             planner.BeginEvent(observation.VisitId, target.Id);
             RetainDestinationGoal(next, observation.NavigationKey, target.ConditionFingerprint);

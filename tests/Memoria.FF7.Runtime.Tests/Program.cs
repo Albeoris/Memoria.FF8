@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-source-goal-fairness-only", StringComparer.Ordinal))
+{
+    NativeSourceGoalFairnessTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-actor-route-only", StringComparer.Ordinal))
 {
     NativeActorRouteTests.Run();

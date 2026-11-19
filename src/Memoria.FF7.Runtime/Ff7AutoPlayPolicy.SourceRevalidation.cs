@@ -38,6 +38,25 @@ public sealed partial class Ff7AutoPlayPolicy
         return pending.OrderBy(item => item.NavigationKey == state.NavigationGoal?.NavigationKey && state.NavigationGoal.EventId is null ? 0 : 1).ThenBy(item => aggregate.Events.Single(coverage => coverage.Event.Id == item.EventId).Conditions?.HasExecutedEntry(item.Condition) == true ? 1 : 0).ToArray();
     }
 
+    internal static AutoPlayPlanStep? SelectSourceRefreshPlan(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Ff7NativeSourceRevalidation debt, Func<AutoPlayVisit, bool>? needsRefresh, Func<AutoPlayNavigationVisit, AutoPlayEvent, AutoPlayEventAvailability?> readAvailability, IReadOnlySet<string>? avoidFirstEvents = null)
+    {
+        Ff7NativeSourceRevalidation[] pending = state.DestinationField is null ? ReadPendingSourceRevalidations(state, observation) : [];
+        if (!pending.Contains(debt))
+        {
+            return null;
+        }
+        AutoPlayPlanStep? plan = sharedPlanner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => pending.Any(item => item.NavigationKey == visit.Key) || needsRefresh?.Invoke(visit) == true, refreshNavigationKey: debt.NavigationKey, allowRemoteConditionRoutes: true, avoidFirstEvents: avoidFirstEvents, preferredGoal: new(debt.NavigationKey), readAvailability: readAvailability);
+        return plan;
+    }
+
+    internal static void RetainSourceRevalidationTask(Ff7AutoPlayState state, AutoPlayPlanStep plan, Ff7NativeSourceRevalidation? debt)
+    {
+        if (debt is not null && plan.RefreshVisitKey == debt.NavigationKey && plan.Goal is { EventId: null } goal && goal.NavigationKey == debt.NavigationKey)
+        {
+            state.NativeRevalidation = new(debt.NavigationKey, debt.EventId, debt.Condition, debt.ReceiptKey);
+        }
+    }
+
     internal static bool HasArrivedSourceRevalidation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         return state.NativeRevalidation is { ArrivalAcknowledged: true } task && task.NavigationKey == observation.NavigationKey && observation.Events.Any(target => target.Id == task.EventId && target.ConditionFingerprint == task.Condition && target.AnalysisComplete);
