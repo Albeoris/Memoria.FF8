@@ -59,7 +59,7 @@ public sealed partial class WorldTerrainRenderer
                 {
                     point = Vector2.Lerp(new Vector2(previousProjected[index].X, previousProjected[index].Y), point, camera.ParticleProjectionBlend);
                 }
-                return new ScreenVertex(point.X * Width / 2560f, point.Y * Height / 1792f, 1, uv, tint, reciprocal);
+                return new ScreenVertex(ParticleScreenX(point.X), point.Y * Height / 1792f, 1, uv, tint, reciprocal);
             }
             Vector2 end = new((texture.Width - 1f) / texture.Width, (texture.Height - 1f) / texture.Height);
             ScreenVertex a = Vertex(0, Vector2.Zero);
@@ -141,7 +141,7 @@ public sealed partial class WorldTerrainRenderer
             {
                 point = Vector2.Lerp(new Vector2(previous[index].X, previous[index].Y), point, blend);
             }
-            return new ScreenVertex(point.X * Width / 2560f, point.Y * Height / 1792f, 1, Vector2.Zero, NativeOrderingReciprocal: reciprocal);
+            return new ScreenVertex(ParticleScreenX(point.X), point.Y * Height / 1792f, 1, Vector2.Zero, NativeOrderingReciprocal: reciprocal);
         }
         ScreenVertex a = Vertex(0, center.X - halfSize, center.Y - halfSize);
         ScreenVertex b = Vertex(1, center.X - halfSize + size, center.Y - halfSize);
@@ -160,4 +160,8 @@ public sealed partial class WorldTerrainRenderer
             rasterTriangles.Add(new(c, b, d, texture, false));
         }
     }
+
+    // Native coordinates have eight subpixels per logical pixel. Match the
+    // models' height-based focal scale and center the wider world viewport.
+    private float ParticleScreenX(float nativeX) => Width / 2f + (nativeX - 1280) * Height / 1792f;
 }
