@@ -15,6 +15,13 @@ namespace Memoria.FF8;
 internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposable
 {
     private readonly Dictionary<(string ProfileId, string AtlasId), Texture2D> textures = [];
+    private readonly Dictionary<(string ProfileId, string AtlasId), PixelImage> textureSources = [];
+    private ResourceService? installedResources;
+    private AssetHandle<TextureValue>? installedTexture;
+    private long installedTextureRevision = -1;
+    private readonly HashSet<PixelImage> presentedTextureImages = new(ReferenceEqualityComparer.Instance);
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Texture2D> discardedTexturePublications = new();
+    public IReadOnlyCollection<PixelImage> PresentedTextureImages => presentedTextureImages;
     private NativeFontProfileCatalog? current;
     private Task<NativeFontProfileCatalog>? loading;
     private string? loadingIdentity;
@@ -33,6 +40,9 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
 
     public void Prepare(ResourceService resources, IReadOnlyList<ModPackage> packages, string profileId, string? target)
     {
+        presentedTextureImages.Clear();
+        DrainDiscardedTextures();
+        PrepareInstalledTexture(resources);
         requestedProfileId = profileId;
         targetDataset = target;
         string identity = resources.CatalogGeneration + ":" + resources.ResourceLanguage + ":" + string.Join("|", packages.Where(package => package.Status == ModEffectiveStatus.Active).Select(package => package.Id + ":" + package.Priority));
@@ -229,15 +239,22 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
         {
             NativeGlyphImage image = glyph.Image;
             var key = (entry.Profile.Id, image.AtlasId);
-            if (!textures.TryGetValue(key, out Texture2D? atlas))
+            PixelImage pixels = entry.Profile.Id.StartsWith("installed:", StringComparison.Ordinal) && image.AtlasId == "native" && installedTexture is not null ? installedTexture.Value.Image : entry.Atlases[image.AtlasId];
+            presentedTextureImages.Add(pixels);
+            if (!textures.TryGetValue(key, out Texture2D? atlas) || !textureSources.TryGetValue(key, out PixelImage? previous) || !ReferenceEquals(previous, pixels))
             {
-                PixelImage pixels = entry.Atlases[image.AtlasId];
-                atlas = new Texture2D(device, pixels.Width, pixels.Height);
-                atlas.SetData(pixels.Pixels.Select(pixel => Color.FromNonPremultiplied(pixel.R, pixel.G, pixel.B, pixel.A)).ToArray());
-                textures.Add(key, atlas);
+                Texture2D candidate = CreateTexture(pixels);
+                atlas?.Dispose();
+                atlas = candidate;
+                textures[key] = atlas;
+                textureSources[key] = pixels;
             }
+            NativeFontAtlas definition = entry.Profile.Atlases.Single(atlas => atlas.Id == image.AtlasId);
+            float physicalX = pixels.Width / (float)definition.Width;
+            float physicalY = pixels.Height / (float)definition.Height;
+            Rectangle source = new((int)(image.X * physicalX), (int)(image.Y * physicalY), (int)(image.Width * physicalX), (int)(image.Height * physicalY));
             Rectangle destination = new((int)MathF.Round(origin.X + glyph.X * scale), (int)MathF.Round(origin.Y + glyph.Y * scale), (int)MathF.Ceiling(image.Width * scale), (int)MathF.Ceiling(image.Height * scale));
-            if (NativeGlyphClipping.Clip(destination, new(image.X, image.Y, image.Width, image.Height), clip) is { } placement)
+            if (NativeGlyphClipping.Clip(destination, source, clip) is { } placement)
             {
                 batch.Draw(atlas, placement.Position, placement.Source, color, 0, Vector2.Zero, placement.Scale, SpriteEffects.None, 0);
             }
@@ -252,6 +269,7 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
             atlas.Dispose();
         }
         textures.Clear();
+        textureSources.Clear();
     }
 
     public void Dispose()
@@ -269,5 +287,104 @@ internal sealed class NativeFontPresentation(GraphicsDevice device) : IDisposabl
             loading = null;
         }
         ClearTextures();
+        DrainDiscardedTextures();
+        if (installedTexture?.TextureKey is { } key)
+        {
+            installedResources?.Release([key]);
+        }
+    }
+
+    private void PrepareInstalledTexture(ResourceService resources)
+    {
+        try
+        {
+            ResourceKey owner = new("menu/sysfnt.tex");
+            ResourceContent encoded = resources.Get(owner);
+            if (ReferenceEquals(installedResources, resources) && installedTexture is not null && installedTextureRevision == encoded.Revision)
+            {
+                return;
+            }
+            var source = Albeoris.Games.FF8.Imaging.Tex.TexFile.Read(resources.Read(owner));
+            TextureBuildContext context = new(new(owner, "atlas"), resources.Source, encoded.Revision, "native-artwork", source.Header.Width, source.Header.Height, () => source.Decode(), encodedSource: encoded);
+            if (installedTexture is not null && !ReferenceEquals(installedResources, resources) && installedTexture.TextureKey is { } old)
+            {
+                installedResources?.Release([old]);
+                installedTexture = null;
+            }
+            installedResources = resources;
+            installedTexture = resources.GetTexture(context, retain: installedTexture is null);
+            installedTextureRevision = encoded.Revision;
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
+        {
+            Diagnostic = "Installed font texture unavailable: " + exception.Message;
+        }
+    }
+
+    private Texture2D CreateTexture(PixelImage pixels)
+    {
+        Texture2D texture = new(device, pixels.Width, pixels.Height);
+        try
+        {
+            texture.SetData(pixels.Pixels.Select(pixel => Color.FromNonPremultiplied(pixel.R, pixel.G, pixel.B, pixel.A)).ToArray());
+            return texture;
+        }
+        catch
+        {
+            texture.Dispose();
+            throw;
+        }
+    }
+
+    internal TexturePublication? PrepareTexturePublication(IReadOnlyDictionary<TextureKey, TextureValue> changed)
+    {
+        if (installedTexture?.TextureKey is not { } key || !changed.TryGetValue(key, out TextureValue? value))
+        {
+            return null;
+        }
+        var keys = textures.Keys.Where(key => key.ProfileId.StartsWith("installed:", StringComparison.Ordinal) && key.AtlasId == "native").ToArray();
+        if (keys.Length == 0)
+        {
+            return null;
+        }
+        List<((string ProfileId, string AtlasId) Key, Texture2D Texture)> candidates = [];
+        try
+        {
+            foreach (var item in keys)
+            {
+                candidates.Add((item, CreateTexture(value.Image)));
+            }
+        }
+        catch
+        {
+            foreach (var candidate in candidates)
+            {
+                candidate.Texture.Dispose();
+            }
+            throw;
+        }
+        return new TexturePublication(() =>
+        {
+            foreach (var candidate in candidates)
+            {
+                textures[candidate.Key].Dispose();
+                textures[candidate.Key] = candidate.Texture;
+                textureSources[candidate.Key] = value.Image;
+            }
+        }, () =>
+        {
+            foreach (var candidate in candidates)
+            {
+                discardedTexturePublications.Enqueue(candidate.Texture);
+            }
+        });
+    }
+
+    private void DrainDiscardedTextures()
+    {
+        while (discardedTexturePublications.TryDequeue(out Texture2D? texture))
+        {
+            texture.Dispose();
+        }
     }
 }

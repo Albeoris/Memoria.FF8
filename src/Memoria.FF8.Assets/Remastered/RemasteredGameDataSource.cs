@@ -98,7 +98,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         return result;
     }
 
-    private ResourceContent? FindCore(ResourceKey key)
+    private ResourceContent? FindCore(ResourceKey key, bool authoringSnapshot = false)
     {
         if (FindNamedTable(key) is { } table)
         {
@@ -140,8 +140,16 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
                 {
                     return null;
                 }
-                nested = FlArchive.Open(new MemoryStream(Read(fl), false), new MemoryStream(Read(fi), false), new MemoryStream(Read(fs), false), false, FlArchiveRepresentation.Files);
+                if (IsTextureAuthoringSource && fs.Size > 256L * 1024 * 1024)
+                {
+                    throw new InvalidDataException("The nested authoring archive exceeds the 256 MiB source-unit limit.");
+                }
+                byte[] nestedListing = Read(fl);
+                byte[] nestedMetrics = Read(fi);
+                byte[] nestedContent = Read(fs);
+                nested = FlArchive.Open(new MemoryStream(nestedListing, false), new MemoryStream(nestedMetrics, false), new MemoryStream(nestedContent, false), false, FlArchiveRepresentation.Files);
                 archives.Add(nestedKey, nested);
+                RememberTextureAuthoringArchive(nestedKey, nestedListing.LongLength + nestedMetrics.LongLength + nestedContent.LongLength);
             }
             archive = nested;
         }
@@ -152,7 +160,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             string localized = Path.GetFileNameWithoutExtension(basename) + "_" + language + extension;
             if (Entry(archive, localized) is { } translated)
             {
-                return new ResourceContent(key, extension.TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(translated));
+                return IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, extension.TrimStart('.')) : new ResourceContent(key, extension.TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(translated));
             }
             if (extension is ".jsm" or ".msd")
             {
@@ -160,7 +168,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
             }
         }
         IFlArchiveEntry? entry = Entry(archive, basename);
-        return entry is null ? null : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(entry));
+        return entry is null ? null : IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, Path.GetExtension(parts[^1]).TrimStart('.')) : new ResourceContent(key, Path.GetExtension(parts[^1]).TrimStart('.'), 1, $"{Descriptor.Id}:{key}", () => OpenEntrySnapshot(entry));
     }
 
     private ResourceContent Content(ResourceKey key, string path)

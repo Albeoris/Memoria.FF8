@@ -132,6 +132,7 @@ internal sealed partial class RecreateGame
         gameMenus.QuitRequested += ShowWindowCloseConfirmation;
         gameMenus.ReturnToTitleRequested += ReturnToTitleScreen;
         gameMenus.ModelBrowserRequested += OpenModelBrowser;
+        gameMenus.TexturesRequested += OpenTextureBrowser;
         gameMenus.ConnectSceneInspector(() => SceneInspectorAvailable, OpenSceneInspector);
         gameMenus.ConnectWorldSwitch(Ff8WorldSwitchUnavailable, OpenCrossoverSetup);
     }
@@ -700,6 +701,7 @@ internal sealed partial class RecreateGame
             }
             else
             {
+                CaptureGameplayTextures();
                 gameMenus.Open("debug-room", true);
             }
         }
@@ -937,7 +939,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
+        bool pause = worldTransfer is not null || focusPaused || userPaused || updateSave.Paused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null || sceneInspector is not null || modelBrowser is not null || textureBrowser is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null;
         fieldAudio?.SetVoicePresentationPaused(pause);
         if (pause && !uiMovieSuspended)
         {

@@ -4,7 +4,7 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    private static TextureSourceAddress? BattleModelSheetAddress(ResourceKey owner, TextureSourceRegion region, int textureCount)
+    internal static TextureSourceAddress? BattleModelSheetAddress(ResourceKey owner, TextureSourceRegion region, int textureCount)
     {
         string name = owner.Path;
         if (region.BitsPerPixel is not (4 or 8) || region.CanvasWidth != 128 || textureCount <= 0)

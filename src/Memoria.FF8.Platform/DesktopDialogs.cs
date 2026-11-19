@@ -7,9 +7,15 @@ public enum DialogStatus
     Failed
 }
 
-public sealed record DialogResult(DialogStatus Status, string? Path = null, string? Error = null);
+public sealed record DialogResult(DialogStatus Status, string? Path = null, string? Error = null)
+{
+    public IReadOnlyList<string>? Paths { get; init; }
+}
 public sealed record FileDialogFilter(string Name, IReadOnlyList<string> Extensions);
-public sealed record FileDialogRequest(string Title, string? InitialPath = null, IReadOnlyList<FileDialogFilter>? Filters = null);
+public sealed record FileDialogRequest(string Title, string? InitialPath = null, IReadOnlyList<FileDialogFilter>? Filters = null)
+{
+    public bool AllowMultiple { get; init; }
+}
 
 /// <summary>Desktop adapters own thread dispatch, native callback lifetime and focus restoration.</summary>
 public interface IDesktopDialogs

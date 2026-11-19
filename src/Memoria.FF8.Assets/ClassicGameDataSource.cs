@@ -80,10 +80,10 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         }
     }
 
-    private ResourceContent? FindCore(ResourceKey key)
+    private ResourceContent? FindCore(ResourceKey key, bool authoringSnapshot = false)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (catalog.TryGetValue(key.Path, out ResourceContent? cached))
+        if (!authoringSnapshot && catalog.TryGetValue(key.Path, out ResourceContent? cached))
         {
             return cached;
         }
@@ -132,9 +132,14 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
                 }
                 byte[] fl = ReadEntry(archive, parts[level] + ".fl");
                 byte[] fi = ReadEntry(archive, parts[level] + ".fi");
+                if (IsTextureAuthoringSource && archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(parts[level] + ".fs", StringComparison.OrdinalIgnoreCase)).Size > 256L * 1024 * 1024)
+                {
+                    throw new InvalidDataException("The nested authoring archive exceeds the 256 MiB source-unit limit.");
+                }
                 byte[] fs = ReadEntry(archive, parts[level] + ".fs");
                 nested = FlArchive.Open(new MemoryStream(fl, false), new MemoryStream(fi, false), new MemoryStream(fs, false), false, FlArchiveRepresentation.Files);
                 archives.Add(nestedKey, nested);
+                RememberTextureAuthoringArchive(nestedKey, fl.LongLength + fi.LongLength + fs.LongLength);
             }
             archive = nested;
         }
@@ -144,8 +149,11 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         {
             throw new InvalidDataException($"Ambiguous Classic resource {key}.");
         }
-        ResourceContent? result = entries.Length == 0 ? null : new ResourceContent(key, Path.GetExtension(basename).TrimStart('.'), 1, $"classic:{key}", () => OpenEntrySnapshot(entries[0]));
-        catalog.Add(key.Path, result);
+        ResourceContent? result = entries.Length == 0 ? null : IsTextureAuthoringSource && !authoringSnapshot ? TextureAuthoringContent(key, Path.GetExtension(basename).TrimStart('.')) : new ResourceContent(key, Path.GetExtension(basename).TrimStart('.'), 1, $"classic:{key}", () => OpenEntrySnapshot(entries[0]));
+        if (!authoringSnapshot)
+        {
+            catalog.Add(key.Path, result);
+        }
         return result;
     }
 

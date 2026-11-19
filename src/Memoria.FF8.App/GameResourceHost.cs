@@ -16,10 +16,13 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly Dictionary<ModFile, string> materializedFiles = [];
     private TonberryRecognitionCache? recognition;
     private readonly string gameDirectory;
+    private readonly string? modelSourceDirectory;
+    private NativeTextureMods nativeTextureMods = NativeTextureMods.Empty;
 
     public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
     {
         this.gameDirectory = gameDirectory;
+        this.modelSourceDirectory = modelSourceDirectory;
         this.resourceLanguage = Memoria.FF8.Platform.GameResourceLanguages.Normalize(resourceLanguage);
         source = GameDataSourceFactory.Open(gameDirectory, modelSourceDirectory, this.resourceLanguage);
         Resources = new ResourceService(source, this.resourceLanguage);
@@ -52,6 +55,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
     public ResourceService Resources { get; }
+    public Func<IReadOnlyDictionary<TextureKey, TextureValue>, TexturePublication>? PrepareTexturePublication { get; set; }
     public ItemOverrideMods ItemOverrides { get; private set; } = ItemOverrideMods.Empty;
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
@@ -318,6 +322,12 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
+        if (!NativeTextureMods.TryPrepare(catalog, out NativeTextureMods nativeTextures, out IReadOnlyList<ModDiagnostic> nativeTextureDiagnostics, nativeTextureMods))
+        {
+            return new ModPreparationResult(false, Diagnostics: nativeTextureDiagnostics);
+        }
+        resolvers.Add(nativeTextures);
+        usable.AddRange(nativeTextures.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(localization!.Layers.Select(layer => layer.PackageId));
         usable.AddRange(guardianMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(encounterMods.Layers.Select(layer => layer.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
@@ -359,7 +369,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             usable.AddRange(ffnx.UsablePackageIds);
         }
         TonberryTextureResolver? tonberry = TonberryTextureResolver.Create(source.Descriptor, catalog, out IReadOnlyList<ModDiagnostic> tonberryDiagnostics, recognition);
-        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
+        IReadOnlyList<ModDiagnostic> diagnostics = encodedDiagnostics.Concat(statusDiagnostics).Concat(modelDiagnostics).Concat(fieldResourceDiagnostics).Concat(staticFileDiagnostics).Concat(tonberryDiagnostics).Concat(demaster.Diagnostics).Concat(ffnx.Diagnostics).Concat(nativeTextureDiagnostics).Concat(guardianPublication.Diagnostics ?? []).Concat(encounterPublication.Diagnostics ?? []).ToArray();
         if (diagnostics.Any(diagnostic => diagnostic.Code == "Tonberry.MalformedRow" && Mods.Catalog.Files.Any(old => old.PackageId == diagnostic.PackageId && old.RelativePath == diagnostic.RelativePath)))
         {
             return new ModPreparationResult(false, Diagnostics: diagnostics);
@@ -414,6 +424,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: statusMods.Names.Select(name => new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, name.Source.PackageId, name.Source.RelativePath)).ToArray());
         }
+        TexturePublication? texturePublication = PrepareTexturePublication?.Invoke(prepared.TextureValues);
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
             System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();
@@ -422,6 +433,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             {
                 guardianPublication.Commit?.Invoke();
                 encounterPublication.Commit?.Invoke();
+                texturePublication?.Commit();
             });
             CommittedLocalizations?.InputRevision?.Dispose();
             CommitLocalizationLanguage(localization);
@@ -430,13 +442,14 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
             EncounterMods = encounterMods;
             SceneMods = sceneMods;
             ModelMods = modelMods;
+            nativeTextureMods = nativeTextures;
             ItemOverrides = itemOverrides;
             StartupPolicy = startupPolicy;
             GameplayPolicy = gameplayPolicy;
             LastLocalizationChangedKeys = localization.ChangedKeys;
             LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
             VoiceResolver = voiceResolver;
-        }, prepared.Notify);
+        }, prepared.Notify) { Discard = texturePublication is null ? null : texturePublication.Dispose };
     }
 
     public void Dispose()

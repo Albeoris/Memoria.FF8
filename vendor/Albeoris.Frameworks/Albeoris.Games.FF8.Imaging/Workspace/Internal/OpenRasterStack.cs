@@ -13,7 +13,7 @@ internal static class OpenRasterStack
     public const String SourceMapLayerName = "FF8 Source MAP [do not edit]";
     private const String TextureLayerPrefix = "Pupu ";
 
-    public static void Write(IWorkspaceWriter output, MimMapLayout layout)
+    public static void Write(IWorkspaceWriter output, MimMapLayout layout, Int32 scale = 1)
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(layout);
@@ -23,7 +23,7 @@ internal static class OpenRasterStack
         stack.Add(new XElement("layer", new XAttribute("name", SourceMapLayerName), new XAttribute("src", MimMapWorkspacePaths.SourceMapLayer), new XAttribute("visibility", "hidden"), new XAttribute("edit-locked", "true")));
         foreach (MimMapTextureGroup group in layout.Groups.AsEnumerable().Reverse())
             stack.Add(CreateTextureLayer(group));
-        XDocument document = new(new XDeclaration("1.0", "UTF-8", null), new XElement("image", new XAttribute("version", "0.0.6"), new XAttribute("w", layout.Width), new XAttribute("h", layout.Height), stack));
+        XDocument document = new(new XDeclaration("1.0", "UTF-8", null), new XElement("image", new XAttribute("version", "0.0.6"), new XAttribute("w", checked(layout.Width * scale)), new XAttribute("h", checked(layout.Height * scale)), stack));
         output.Write(MimMapWorkspacePaths.Stack, stream => Save(document, stream));
     }
 

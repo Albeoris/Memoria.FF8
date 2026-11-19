@@ -12,14 +12,16 @@ public sealed class NativeMenuArtwork
 {
     public const int CharacterCount = 11;
     public const int GuardianForceCount = 16;
+    private readonly ResourceService? resources;
     private readonly PixelImage[] characters;
     private readonly PixelImage[] guardianForces;
     private readonly PixelImage[] iconPalettes;
     private readonly byte[] iconIndex;
     private readonly Dictionary<(int Index, int PaletteOffset), PixelImage> icons = [];
 
-    private NativeMenuArtwork(PixelImage[] characters, PixelImage[] guardianForces, PixelImage angeloPortrait, PixelImage chocoboPortrait, PixelImage grieverPortrait, PixelImage[] iconPalettes, byte[] iconIndex)
+    private NativeMenuArtwork(PixelImage[] characters, PixelImage[] guardianForces, PixelImage angeloPortrait, PixelImage chocoboPortrait, PixelImage grieverPortrait, PixelImage[] iconPalettes, byte[] iconIndex, ResourceService? resources)
     {
+        this.resources = resources;
         this.characters = characters;
         this.guardianForces = guardianForces;
         AngeloPortrait = angeloPortrait;
@@ -45,7 +47,7 @@ public sealed class NativeMenuArtwork
     {
         ArgumentOutOfRangeException.ThrowIfNegative(buttonBit);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(buttonBit, 16);
-        return DecodeIcon(iconPalettes, iconIndex, 128 + buttonBit, 0);
+        return DecodeIcon(iconPalettes, iconIndex, 128 + buttonBit, 0, resources);
     }
 
     /// <summary>Reads a physical controller glyph after the caller has resolved the current binding.</summary>
@@ -55,7 +57,7 @@ public sealed class NativeMenuArtwork
         ArgumentOutOfRangeException.ThrowIfGreaterThan(nativeIconId, 139);
         if (!icons.TryGetValue((nativeIconId, 0), out PixelImage? image))
         {
-            image = DecodeIcon(iconPalettes, iconIndex, nativeIconId, 0);
+            image = DecodeIcon(iconPalettes, iconIndex, nativeIconId, 0, resources);
             icons.Add((nativeIconId, 0), image);
         }
         return image;
@@ -87,7 +89,7 @@ public sealed class NativeMenuArtwork
         }
         if (!icons.TryGetValue((index, paletteOffset), out PixelImage? image))
         {
-            image = DecodeIcon(iconPalettes, iconIndex, index, paletteOffset);
+            image = DecodeIcon(iconPalettes, iconIndex, index, paletteOffset, resources);
             icons.Add((index, paletteOffset), image);
         }
         return image;
@@ -104,17 +106,17 @@ public sealed class NativeMenuArtwork
         NativeMenuArtworkDataReader.ValidateIconDirectory(icons);
         PixelImage[] characterAtlases = [ReadPortraitAtlas(provider, resources, "Face_b00.TEX"), ReadPortraitAtlas(provider, resources, "Face_b01.TEX")];
         PixelImage[] guardianForceAtlases = [ReadPortraitAtlas(provider, resources, "Gf_big00.TEX"), ReadPortraitAtlas(provider, resources, "Gf_big01.TEX")];
-        PixelImage[] characters = Enumerable.Range(0, CharacterCount).Select(id => DecodePortrait(characterAtlases, faces, id)).ToArray();
-        PixelImage[] guardianForces = Enumerable.Range(0, GuardianForceCount).Select(id => DecodePortrait(guardianForceAtlases, faces, 32 + id)).ToArray();
+        PixelImage[] characters = Enumerable.Range(0, CharacterCount).Select(id => DecodePortrait(characterAtlases, faces, id, resources)).ToArray();
+        PixelImage[] guardianForces = Enumerable.Range(0, GuardianForceCount).Select(id => DecodePortrait(guardianForceAtlases, faces, 32 + id, resources)).ToArray();
         byte[] iconTexture = resources.Read(new ResourceKey("menu/icon.tex"));
         NativeMenuArtworkDataReader.ValidateTexture(new ResourceKey("menu/icon.tex"), iconTexture);
         TexFile texture = TexFile.Read(iconTexture);
         PixelImage[] originals = Enumerable.Range(0, texture.Palettes.Count).Select(texture.Decode).ToArray();
         PixelImage[] palettes = Enumerable.Range(0, texture.Palettes.Count).Select(palette => NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), originals[palette], palette, resources: resources)).ToArray();
-        PixelImage angelo = DecodePortrait(characterAtlases, faces, 15);
-        PixelImage chocobo = DecodePortrait(characterAtlases, faces, 14);
-        PixelImage griever = DecodePortrait(characterAtlases, faces, 12);
-        return new NativeMenuArtwork(characters, guardianForces, angelo, chocobo, griever, palettes, icons) { HasControllerArtwork = resources.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && !ReferenceEquals(originals[4], palettes[4]) };
+        PixelImage angelo = DecodePortrait(characterAtlases, faces, 15, resources);
+        PixelImage chocobo = DecodePortrait(characterAtlases, faces, 14, resources);
+        PixelImage griever = DecodePortrait(characterAtlases, faces, 12, resources);
+        return new NativeMenuArtwork(characters, guardianForces, angelo, chocobo, griever, palettes, icons, resources) { HasControllerArtwork = resources.Source.Layouts.Contains("classic-ffnx", StringComparer.Ordinal) && !ReferenceEquals(originals[4], palettes[4]) };
     }
 
     /// <summary>Formats the original current ICON.SP1 parts for the separate native PC UI-immediate path.</summary>
@@ -129,7 +131,7 @@ public sealed class NativeMenuArtwork
         return NativeMenuIconPackets.Encode4B76A0(ReadIconParts(iconIndex, index), x, y, color, paletteOffset);
     }
 
-    private static PixelImage DecodePortrait(PixelImage[] atlases, ReadOnlySpan<byte> index, int id)
+    private static PixelImage DecodePortrait(PixelImage[] atlases, ReadOnlySpan<byte> index, int id, ResourceService? resources)
     {
         int count = ReadCount(index);
         if (id >= count)
@@ -153,10 +155,11 @@ public sealed class NativeMenuArtwork
         // Original loader 0x4B3D00 cases 9/10 splits each logical 256x128 sheet into two PC 256x256 textures, at twice the sprite resolution.
         PixelImage atlas = atlases[x / 128];
         int scale = NativeArtworkTexture.Scale(atlas, 256, 256);
-        return Crop(atlas, x % 128 * 2 * scale, y * 2 * scale, width * 2 * scale, height * 2 * scale);
+        PixelImage result = Crop(atlas, x % 128 * 2 * scale, y * 2 * scale, width * 2 * scale, height * 2 * scale);
+        return resources?.RegisterTextureImageDependencies(result, [atlas]) ?? result;
     }
 
-    private static PixelImage DecodeIcon(PixelImage[] palettes, ReadOnlySpan<byte> index, int id, int paletteOffset)
+    private static PixelImage DecodeIcon(PixelImage[] palettes, ReadOnlySpan<byte> index, int id, int paletteOffset, ResourceService? resources)
     {
         ReadOnlySpan<byte> parts = ReadIconParts(index, id);
         int count = parts.Length / 8;
@@ -176,6 +179,7 @@ public sealed class NativeMenuArtwork
         }
         int scale = palettes.Max(atlas => NativeArtworkTexture.Scale(atlas, 256, 256));
         PixelImage result = new((right - left) * scale, (bottom - top) * scale);
+        HashSet<PixelImage> sources = new(ReferenceEqualityComparer.Instance);
         for (int i = 0; i < count; i++)
         {
             ReadOnlySpan<byte> part = parts.Slice(i * 8, 8);
@@ -185,6 +189,7 @@ public sealed class NativeMenuArtwork
                 throw new ArgumentOutOfRangeException(nameof(paletteOffset), "Menu icon CLUT offset leaves the original texture palettes.");
             }
             PixelImage atlas = palettes[palette];
+            sources.Add(atlas);
             int atlasScale = NativeArtworkTexture.Scale(atlas, 256, 256);
             int x = (unchecked((sbyte)part[5]) - left) * scale;
             int y = (unchecked((sbyte)part[7]) - top) * scale;
@@ -206,7 +211,7 @@ public sealed class NativeMenuArtwork
                 }
             }
         }
-        return result;
+        return resources?.RegisterTextureImageDependencies(result, sources) ?? result;
     }
 
     private static ReadOnlySpan<byte> ReadIconParts(ReadOnlySpan<byte> index, int id)

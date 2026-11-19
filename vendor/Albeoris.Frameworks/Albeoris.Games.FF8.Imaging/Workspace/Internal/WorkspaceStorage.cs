@@ -22,7 +22,7 @@ internal static class WorkspaceStorage
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         String normalized = relativePath.Replace('\\', '/');
-        if (normalized.StartsWith('/') || normalized.Split('/').Any(part => part is "" or "." or ".."))
+        if (normalized.StartsWith('/') || normalized.Contains(':') || normalized.Any(Char.IsControl) || normalized.Split('/').Any(part => part is "" or "." or ".."))
             throw new ArgumentException($"Invalid workspace path '{relativePath}'.", nameof(relativePath));
         return normalized;
     }

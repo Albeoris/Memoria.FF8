@@ -66,6 +66,7 @@ public sealed class TextureBuildContext
     }
 
     public TextureKey Key { get; }
+    public string Game { get; init; } = "ff8";
     public ResourceSourceDescriptor Source { get; }
     public long Revision { get; }
     public string Layout { get; }
@@ -129,6 +130,7 @@ public sealed class AssetHandle<T> where T : class
 
     public T Value => Volatile.Read(ref read)();
     public long Generation => Volatile.Read(ref generation)();
+    public TextureKey? TextureKey { get; internal init; }
 
     internal void Freeze(T value)
     {

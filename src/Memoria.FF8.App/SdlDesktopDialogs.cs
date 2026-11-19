@@ -57,7 +57,7 @@ internal sealed class SdlDesktopDialogs : IDesktopDialogs, IDisposable
             return Task.FromCanceled<DialogResult>(token);
         }
         nint id = checked((nint)Interlocked.Increment(ref nextId));
-        PendingDialog pending = new(this);
+        PendingDialog pending = new(this) { Multiple = request.AllowMultiple && type == SDL.FileDialogType.OpenFile };
         Pending[id] = pending;
         pending.Cancellation = token.Register(() => pending.Completion.TrySetCanceled(token));
         try
@@ -84,6 +84,7 @@ internal sealed class SdlDesktopDialogs : IDesktopDialogs, IDisposable
             throw new IOException(SDL.GetError());
         }
         Check(SDL.SetStringProperty(pending.Properties, SDL.Props.FileDialogTitleString, request.Title));
+        Check(SDL.SetBooleanProperty(pending.Properties, SDL.Props.FileDialogManyBoolean, pending.Multiple));
         if (request.InitialPath is not null)
         {
             Check(SDL.SetStringProperty(pending.Properties, SDL.Props.FileDialogLocationString, request.InitialPath));
@@ -126,7 +127,7 @@ internal sealed class SdlDesktopDialogs : IDesktopDialogs, IDisposable
         }
         try
         {
-            pending.Completion.TrySetResult(ReadResult(fileList, SDL.GetError));
+            pending.Completion.TrySetResult(ReadResult(fileList, SDL.GetError, pending.Multiple));
         }
         catch (Exception error)
         {
@@ -138,14 +139,33 @@ internal sealed class SdlDesktopDialogs : IDesktopDialogs, IDisposable
         }
     }
 
-    internal static DialogResult ReadResult(nint fileList, Func<string> readError)
+    internal static DialogResult ReadResult(nint fileList, Func<string> readError, bool multiple = false)
     {
         if (fileList == 0)
         {
             return new(DialogStatus.Failed, Error: readError());
         }
         nint first = Marshal.ReadIntPtr(fileList);
-        return first == 0 ? new(DialogStatus.Cancelled) : new(DialogStatus.Selected, Marshal.PtrToStringUTF8(first));
+        if (first == 0)
+        {
+            return new(DialogStatus.Cancelled);
+        }
+        string firstPath = Marshal.PtrToStringUTF8(first) ?? throw new InvalidDataException("The desktop picker returned an empty path.");
+        if (!multiple)
+        {
+            return new(DialogStatus.Selected, firstPath);
+        }
+        List<string> paths = [firstPath];
+        for (int index = 1; index <= 25000; index++)
+        {
+            nint pointer = Marshal.ReadIntPtr(fileList, checked(index * IntPtr.Size));
+            if (pointer == 0)
+            {
+                return new(DialogStatus.Selected, firstPath) { Paths = paths.AsReadOnly() };
+            }
+            paths.Add(Marshal.PtrToStringUTF8(pointer) ?? throw new InvalidDataException("The desktop picker returned an empty path."));
+        }
+        throw new InvalidDataException("Select at most 25,000 texture files.");
     }
 
     public void Dispose()
@@ -166,6 +186,7 @@ internal sealed class SdlDesktopDialogs : IDesktopDialogs, IDisposable
     {
         private readonly List<nint> strings = [];
         internal SdlDesktopDialogs Owner { get; } = owner;
+        internal bool Multiple { get; init; }
         internal TaskCompletionSource<DialogResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal CancellationTokenRegistration Cancellation;
         internal uint Properties;

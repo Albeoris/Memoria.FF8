@@ -18,6 +18,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
     private readonly object encodedGate = new();
     private readonly HashSet<ResourceKey> consumedResources = [];
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Albeoris.Games.FF8.Imaging.PixelImage, Albeoris.Games.FF8.Imaging.PixelImage[]> imageDependencies = new();
     private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, [], LocalizationCatalog.Empty, ImmutableDictionary<string, LocalizedTextAlias>.Empty);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
@@ -82,6 +83,87 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     public long CatalogGeneration => Volatile.Read(ref published).CatalogGeneration;
     public int ResidentTextureCount => handles.Count;
     public event Action<TextureKey, Exception>? ReplacementFailed;
+
+    /// <summary>Capture on the resource owner thread. Derived handles expand to stable authored sources.</summary>
+    public IReadOnlyList<TextureSourceSnapshot> CaptureTextureSources(IEnumerable<TextureKey>? keys = null)
+    {
+        if (notifying)
+        {
+            throw new InvalidOperationException("Capture texture sources outside resource notifications.");
+        }
+        Publication current = Volatile.Read(ref published);
+        HashSet<TextureKey> sources = [];
+        HashSet<TextureKey> visited = [];
+        void Include(TextureKey key)
+        {
+            if (!visited.Add(key))
+            {
+                return;
+            }
+            if (contexts.ContainsKey(key))
+            {
+                sources.Add(key);
+            }
+            else if (transforms.TryGetValue(key, out TextureTransformContext? transform))
+            {
+                foreach (TextureKey dependency in transform.Dependencies)
+                {
+                    Include(dependency);
+                }
+            }
+        }
+        foreach (TextureKey key in keys ?? contexts.Keys)
+        {
+            Include(key);
+        }
+        return sources.OrderBy(key => key.Owner.Path, StringComparer.Ordinal).ThenBy(key => key.Subresource, StringComparer.Ordinal).ThenBy(key => key.Palette).Select(key => new TextureSourceSnapshot(contexts[key], current.Values[key], current.Generation)).ToArray();
+    }
+
+    /// <summary>Resolve a catalog source without making it resident. Call on its owning resource thread.</summary>
+    public TextureValue ResolveForExport(TextureBuildContext context) => Resolve(context, resolver);
+
+    public IReadOnlyList<EncodedResource> CaptureEncodedResources() => Volatile.Read(ref published).Encoded.Values.ToArray();
+
+    public IReadOnlyDictionary<TextureKey, TextureValue> CaptureTextureValues(IEnumerable<TextureKey> keys)
+    {
+        Publication current = Volatile.Read(ref published);
+        return keys.Distinct().Where(current.Values.ContainsKey).ToImmutableDictionary(key => key, key => current.Values[key]);
+    }
+
+    /// <summary>Matches presented CPU images, including packed dependencies, without treating the resident cache as scene use.</summary>
+    public IReadOnlyList<TextureSourceSnapshot> CaptureTextureSourcesForImages(IEnumerable<Albeoris.Games.FF8.Imaging.PixelImage> images)
+    {
+        HashSet<Albeoris.Games.FF8.Imaging.PixelImage> presented = new(images, ReferenceEqualityComparer.Instance);
+        Queue<Albeoris.Games.FF8.Imaging.PixelImage> pending = new(presented);
+        while (pending.TryDequeue(out var image))
+        {
+            if (imageDependencies.TryGetValue(image, out var dependencies))
+            {
+                foreach (var dependency in dependencies)
+                {
+                    if (presented.Add(dependency))
+                    {
+                        pending.Enqueue(dependency);
+                    }
+                }
+            }
+        }
+        Publication current = Volatile.Read(ref published);
+        IEnumerable<TextureKey> used = current.Values.Where(pair => presented.Contains(pair.Value.Image) || pair.Value.MipLevels?.Any(presented.Contains) == true || pair.Value.Variants?.Values.Any(presented.Contains) == true || pair.Value.Animation?.Frames.Any(presented.Contains) == true).Select(pair => pair.Key);
+        return CaptureTextureSources(used);
+    }
+
+    /// <summary>Attach authored-source provenance to a cropped/composed CPU image without retaining the image itself.</summary>
+    public Albeoris.Games.FF8.Imaging.PixelImage RegisterTextureImageDependencies(Albeoris.Games.FF8.Imaging.PixelImage image, IEnumerable<Albeoris.Games.FF8.Imaging.PixelImage> sources)
+    {
+        var dependencies = sources.Distinct<Albeoris.Games.FF8.Imaging.PixelImage>(ReferenceEqualityComparer.Instance).Where(source => !ReferenceEquals(source, image)).ToArray();
+        lock (imageDependencies)
+        {
+            imageDependencies.Remove(image);
+            imageDependencies.Add(image, dependencies);
+        }
+        return image;
+    }
 
     public StaticTextResource? FindText(ResourceKey key) => Volatile.Read(ref published).Texts.GetValueOrDefault(key);
 
@@ -218,7 +300,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         if (!handles.TryGetValue(context.Key, out AssetHandle<TextureValue>? handle))
         {
             TextureKey key = context.Key;
-            handle = new AssetHandle<TextureValue>(() => Volatile.Read(ref published).Values[key], () => Volatile.Read(ref published).Generation);
+            handle = new AssetHandle<TextureValue>(() => Volatile.Read(ref published).Values[key], () => Volatile.Read(ref published).Generation) { TextureKey = key };
             handles.Add(key, handle);
             owners.Add(key, 1);
         }
@@ -265,7 +347,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         mutationVersion++;
         Volatile.Write(ref published, published with { Values = published.Values.Add(context.Key, value) });
         TextureKey identity = context.Key;
-        AssetHandle<TextureValue> handle = new(() => Volatile.Read(ref published).Values[identity], () => Volatile.Read(ref published).Generation);
+        AssetHandle<TextureValue> handle = new(() => Volatile.Read(ref published).Values[identity], () => Volatile.Read(ref published).Generation) { TextureKey = identity };
         handles.Add(context.Key, handle);
         owners.Add(context.Key, 1);
         return handle;
@@ -285,7 +367,8 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
             exclusiveScopes = EncodedResource.ScopePrefixes(encoded.Values);
             ValidateEncodedChanges(encoded, exclusiveScopes);
         }
-        ImmutableDictionary<TextureKey, TextureValue>.Builder next = ImmutableDictionary.CreateBuilder<TextureKey, TextureValue>();
+        ImmutableDictionary<TextureKey, TextureValue>.Builder next = published.Values.ToBuilder();
+        HashSet<TextureKey> affected = [];
         ImmutableArray<(TextureKey Key, Exception Exception)>.Builder failures = ImmutableArray.CreateBuilder<(TextureKey Key, Exception Exception)>();
         foreach ((TextureKey key, TextureBuildContext context) in contexts.ToArray())
         {
@@ -299,10 +382,14 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
                 value = Resolve(context, null, nextLocalization);
                 failures.Add((key, exception));
             }
-            next.Add(key, value);
+            if (!next.TryGetValue(key, out TextureValue? previous) || previous != value)
+            {
+                next[key] = value;
+                affected.Add(key);
+            }
         }
-        BuildTransforms(next);
-        return new PreparedResources(this, version, nextResolver, next.ToImmutable(), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
+        BuildTransforms(next, affected);
+        return new PreparedResources(this, version, nextResolver, affected.ToImmutableDictionary(key => key, key => next[key]), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
     }
 
     private static ImmutableDictionary<string, LocalizedTextAlias> ValidateTextAliases(IReadOnlyDictionary<string, LocalizedTextAlias> aliases)
@@ -506,6 +593,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     public sealed class PreparedResources
     {
+        public IReadOnlyDictionary<TextureKey, TextureValue> TextureValues => values;
         private readonly ResourceService owner;
         private readonly long expectedVersion;
         private readonly ITextureReplacementResolver? resolver;

@@ -54,11 +54,11 @@ public sealed class CardArtwork
             atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/" + name), atlas, resources: resources);
             for (int cell = 0; cell < CardsPerAtlas; cell++)
             {
-                fronts[atlasIndex * CardsPerAtlas + cell] = CropCell(atlas, cell);
+                fronts[atlasIndex * CardsPerAtlas + cell] = resources.RegisterTextureImageDependencies(CropCell(atlas, cell), [atlas]);
             }
             if (atlasIndex == 0)
             {
-                back = CropCell(atlas, CardsPerAtlas);
+                back = resources.RegisterTextureImageDependencies(CropCell(atlas, CardsPerAtlas), [atlas]);
             }
         }
         return new CardArtwork(fronts, back!);

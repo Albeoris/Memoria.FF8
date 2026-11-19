@@ -40,7 +40,7 @@ internal static class MimMapPreviewRenderer
         return result;
     }
 
-    private static void Blend(PixelImage destination, PixelImage source, MapBlendMode blendMode)
+    internal static void Blend(PixelImage destination, PixelImage source, MapBlendMode blendMode)
     {
         for (Int32 index = 0; index < source.Pixels.Length; index++)
         {

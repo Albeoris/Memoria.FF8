@@ -352,6 +352,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 return false;
             }
             reloadRequested = false;
+            pendingPreparation?.Discard?.Invoke();
             pending = null;
             pendingPreparation = null;
             pendingLighting = null;
@@ -411,6 +412,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
                 {
+                    result.Discard?.Invoke();
                     deferredDiscovery = (candidate, nextAutoEnable, identity);
                     reloadRequested = true;
                     requestedAt = now;
@@ -420,6 +422,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (!result.Success)
                 {
+                    result.Discard?.Invoke();
                     diagnostics = Array.AsReadOnly(diagnostics.Append(new ModDiagnostic("reload-failed", "Mod preparation failed; the last committed generation remains active.")).ToArray());
                     updateOutcome = ModUpdateOutcome.Failed;
                     ScheduleRetry();
@@ -494,6 +497,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
             catch (Exception exception) when (IsPreparationError(exception))
             {
                 diagnostics = Array.AsReadOnly(new[] { new ModDiagnostic("reload-failed", exception.Message) });
+                pendingPreparation?.Discard?.Invoke();
                 pending = null;
                 pendingPreparation = null;
                 updateOutcome = ModUpdateOutcome.Failed;
@@ -559,6 +563,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 watcher.Dispose();
             }
             subscribers.Clear();
+            pendingPreparation?.Discard?.Invoke();
             pending = null;
             pendingPreparation = null;
         }
@@ -664,6 +669,18 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 }
                 if (format == ModFormat.Memoria)
                 {
+                    if (TextureModInstaller.ActiveTransactions.ContainsKey(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root))))
+                    {
+                        throw new IOException("A texture installation is preparing this package; discovery will retry after publication.");
+                    }
+                    try
+                    {
+                        TextureModInstaller.Recover(Path.GetDirectoryName(root)!, root);
+                    }
+                    catch (Exception exception) when (IsPreparationError(exception))
+                    {
+                        throw new PackageDescriptorException(id, "Texture installation recovery failed: " + exception.Message);
+                    }
                     try
                     {
                         descriptor = ReadPackageDescriptor(root, native?.Official, committedDescriptor is not null);

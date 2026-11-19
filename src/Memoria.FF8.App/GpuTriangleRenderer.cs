@@ -23,6 +23,8 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     internal readonly record struct GpuTriangleBatch(int First, int Count, PrimitiveType Kind, TriangleMaterial Material, int BindingStart, int BindingCount, FlushReason Reason);
 
+    private readonly HashSet<PixelImage> presentedTextureImages = new(ReferenceEqualityComparer.Instance);
+    internal IReadOnlyCollection<PixelImage> PresentedTextureImages => presentedTextureImages;
     private readonly GraphicsDevice device;
     private readonly Effect effect;
     private readonly ConditionalWeakTable<PixelImage, LinkedListNode<CachedTexture>> textures = new();
@@ -110,6 +112,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     public void Begin(int width, int height, Vector4N clearColor, float clearDepth = 1)
     {
+        DrainDiscardedPublicationTextures();
         if (active)
         {
             throw new InvalidOperationException("A triangle scene is already active.");
@@ -131,6 +134,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
         this.width = width;
         this.height = height;
         dynamicUploads.Clear();
+        presentedTextureImages.Clear();
         ClearStream();
         FrameDrawCalls = 0;
         FrameTextureUploads = 0;
@@ -639,6 +643,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     private Texture2D Texture(PixelImage image, bool refresh)
     {
+        presentedTextureImages.Add(image);
         if (textures.TryGetValue(image, out LinkedListNode<CachedTexture>? node))
         {
             recentTextures.Remove(node);
@@ -811,6 +816,7 @@ public sealed partial class GpuTriangleRenderer : ITriangleRenderer, ILineRender
 
     public void Dispose()
     {
+        DrainDiscardedPublicationTextures();
         Abort();
         target?.Dispose();
         workingTarget?.Dispose();

@@ -56,7 +56,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             Rgba32 color = original.Pixels[index];
             modulated.Pixels[index] = new((byte)Math.Min(255, color.R * source.RgbModulation >> 7), (byte)Math.Min(255, color.G * source.RgbModulation >> 7), (byte)Math.Min(255, color.B * source.RgbModulation >> 7), color.A);
         }
-        return modulated;
+        return resources?.RegisterTextureImageDependencies(modulated, [original]) ?? modulated;
     }
 
     private void Refresh()
@@ -82,7 +82,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.SilverCrest => silverCrest ??= ReadSilverCrest(),
             UiImageKind.SystemTimerDigit => ReadTimerDigit(source.Id),
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
-            UiImageKind.CharacterPortraitGrayscale => ToGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
+            UiImageKind.CharacterPortraitGrayscale => TrackGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),
             UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).AngeloPortrait,
             UiImageKind.ChocoboPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).ChocoboPortrait,
@@ -145,7 +145,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
         {
             if (grayscale)
             {
-                image = ToGrayscale(ReadCardFace(cardId, owner, fontFamily, modifier: modifier));
+                image = TrackGrayscale(ReadCardFace(cardId, owner, fontFamily, modifier: modifier));
                 cardFaces.Add((cardId, owner, modifier, true), image);
                 return image;
             }
@@ -153,10 +153,18 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             cardDefinitions ??= TripleTriadCatalog.Load(gameDirectory);
             var card = cardDefinitions.Cards[cardId];
             PixelImage? element = card.Element == TripleTriadElement.None ? null : tripleTriad.GetElement(card.Element);
-            image = cardComposer!.Compose(tripleTriad.GetFront(cardId), card, owner, element, modifier);
+            PixelImage front = tripleTriad.GetFront(cardId);
+            image = cardComposer!.Compose(front, card, owner, element, modifier);
+            resources?.RegisterTextureImageDependencies(image, element is null ? [front] : [front, element]);
             cardFaces.Add((cardId, owner, modifier, false), image);
         }
         return image;
+    }
+
+    private PixelImage TrackGrayscale(PixelImage source)
+    {
+        PixelImage result = ToGrayscale(source);
+        return resources?.RegisterTextureImageDependencies(result, [source]) ?? result;
     }
 
     internal static PixelImage ToGrayscale(PixelImage source)

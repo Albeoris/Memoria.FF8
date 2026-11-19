@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Selects complete visual model bundles while preserving the primary gameplay resources and capabilities.</summary>
-public sealed class SelectedModelResourceSource : IResourceSource, IResourceSourceProvider, IResourcePrefixSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver
+public sealed class SelectedModelResourceSource : IResourceSource, IResourceSourceProvider, IResourcePrefixSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver, ITextureAuthoringResourceSource
 {
     private readonly IResourceSource primary;
     private readonly IResourceSource models;
@@ -21,6 +21,19 @@ public sealed class SelectedModelResourceSource : IResourceSource, IResourceSour
 
     public ResourceSourceDescriptor Descriptor => primary.Descriptor;
     public ResourceSourceDescriptor ModelSourceDescriptor { get; }
+    public bool IsTextureAuthoringSource => primary is ITextureAuthoringResourceSource { IsTextureAuthoringSource: true } && models is ITextureAuthoringResourceSource { IsTextureAuthoringSource: true };
+    public int RetainedTextureAuthoringArchiveCount => ((primary as ITextureAuthoringResourceSource)?.RetainedTextureAuthoringArchiveCount ?? 0) + ((models as ITextureAuthoringResourceSource)?.RetainedTextureAuthoringArchiveCount ?? 0);
+    public long RetainedTextureAuthoringArchiveBytes => ((primary as ITextureAuthoringResourceSource)?.RetainedTextureAuthoringArchiveBytes ?? 0) + ((models as ITextureAuthoringResourceSource)?.RetainedTextureAuthoringArchiveBytes ?? 0);
+
+    public void ReleaseTextureAuthoringArchives()
+    {
+        if (!IsTextureAuthoringSource)
+        {
+            throw new InvalidOperationException("Only independent authoring sources may release their archive units.");
+        }
+        ((ITextureAuthoringResourceSource)primary).ReleaseTextureAuthoringArchives();
+        ((ITextureAuthoringResourceSource)models).ReleaseTextureAuthoringArchives();
+    }
 
     public object? GetSource(Type capability, ResourceService? resources = null)
     {

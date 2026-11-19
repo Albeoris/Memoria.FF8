@@ -56,6 +56,7 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
 public sealed class ResourceTextureList(AssetHandle<TextureValue>[] textures) : IReadOnlyList<PixelImage>
 {
     private readonly TextureValue[]? snapshot;
+    private IReadOnlyList<TextureKey>? snapshotKeys;
 
     private ResourceTextureList(TextureValue[] snapshot) : this(Array.Empty<AssetHandle<TextureValue>>())
     {
@@ -63,9 +64,10 @@ public sealed class ResourceTextureList(AssetHandle<TextureValue>[] textures) : 
     }
 
     public int Count => snapshot?.Length ?? textures.Length;
+    public IReadOnlyList<TextureKey> TextureKeys => snapshotKeys ?? textures.Select(texture => texture.TextureKey).OfType<TextureKey>().ToArray();
     public PixelImage this[int index] => GetTexture(index).Image;
     public TextureValue GetTexture(int index) => snapshot?[index] ?? textures[index].Value;
-    public ResourceTextureList Snapshot() => new(Enumerable.Range(0, Count).Select(GetTexture).ToArray());
+    public ResourceTextureList Snapshot() => new(Enumerable.Range(0, Count).Select(GetTexture).ToArray()) { snapshotKeys = TextureKeys };
     public static Vector2 LogicalSize(IReadOnlyList<PixelImage> textures, int index)
     {
         if (textures is ResourceTextureList resources)

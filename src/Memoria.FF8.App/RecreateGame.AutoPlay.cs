@@ -95,6 +95,15 @@ internal sealed partial class RecreateGame
             UpdateBattleDebugUi(input);
             return true;
         }
+        if (textureBrowser is not null)
+        {
+            if (autoPlay!.Running && !autoPlay.Paused)
+            {
+                autoPlay.Pause();
+            }
+            UpdateTextureBrowserUi(input);
+            return true;
+        }
         if (modelBrowser is not null)
         {
             if (autoPlay!.Running && !autoPlay.Paused)

@@ -22,7 +22,9 @@ public sealed record NativeMenuPointer(PixelImage Image, int SourceX, int Source
         NativeMenuArtworkDataReader.ValidateIconDirectory(index);
         PixelImage original = TexFile.Read(texture).Decode(Palette);
         PixelImage atlas = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/icon.tex"), original, Palette, resources: resources);
-        return DecodeAtlas(atlas, index);
+        NativeMenuPointer pointer = DecodeAtlas(atlas, index);
+        resources.RegisterTextureImageDependencies(pointer.Image, [atlas]);
+        return pointer;
     }
 
     public static NativeMenuPointer Decode(ReadOnlySpan<byte> texture, ReadOnlySpan<byte> index)

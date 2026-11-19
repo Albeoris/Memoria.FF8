@@ -11,6 +11,10 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Draws retained controls, system text and the original menu pointer.</summary>
 internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory, ResourceService? resources = null, Func<int, ModFile?>? findItemUseImage = null) : IUiCanvas, IControllerButtonCanvas, IBattleMessageCanvas, IDisposable
 {
+    private readonly HashSet<Albeoris.Games.FF8.Imaging.PixelImage> presentedTextureImages = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<UiImageSource, Albeoris.Games.FF8.Imaging.PixelImage> imageSources = [];
+    private Albeoris.Games.FF8.Imaging.PixelImage? pointerSource;
+    internal IReadOnlyCollection<Albeoris.Games.FF8.Imaging.PixelImage> PresentedTextureImages => presentedTextureImages;
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
     private readonly MenuArtworkProvider artwork = new(gameDirectory, resources, findItemUseImage);
@@ -25,6 +29,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void BeginFrame(TimeSpan time)
     {
+        presentedTextureImages.Clear();
         textOverflow.BeginFrame(time);
         PumpModPreview();
     }
@@ -163,6 +168,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             {
                 images[key].Dispose();
                 images.Remove(key);
+                imageSources.Remove(key);
             }
             artworkGeneration = artwork.Generation;
         }
@@ -172,6 +178,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             {
                 images[key].Dispose();
                 images.Remove(key);
+                imageSources.Remove(key);
             }
             cardFontFamily = text.FontFamily;
         }
@@ -183,6 +190,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             {
                 texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
                 images.Add(source, texture);
+                imageSources[source] = image;
             }
             catch
             {
@@ -203,6 +211,10 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             return;
         }
         Texture2D texture = GetImage(source);
+        if (imageSources.TryGetValue(source, out var presented))
+        {
+            presentedTextureImages.Add(presented);
+        }
         UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, texture.Width, texture.Height);
         Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
         Vector2 scale = new(destination.Width / texture.Width, destination.Height / texture.Height);
@@ -227,8 +239,13 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         if (menuPointer is null)
         {
             var image = NativeMenuPointer.Read(gameDirectory, resources).Image;
+            pointerSource = image;
             menuPointer = new Texture2D(device, image.Width, image.Height);
             menuPointer.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+        }
+        if (pointerSource is not null)
+        {
+            presentedTextureImages.Add(pointerSource);
         }
         float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);
         Vector2 position = new(bounds.X + (bounds.Width - menuPointer.Width * scale) / 2, bounds.Y + (bounds.Height - menuPointer.Height * scale) / 2);

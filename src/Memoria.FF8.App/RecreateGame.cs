@@ -154,6 +154,7 @@ internal sealed partial class RecreateGame : Game
             fieldGpu = GraphicsHostReadiness.Initialize(() => new GpuTriangleRenderer(GraphicsDevice));
             battleGpu = GraphicsHostReadiness.Initialize(() => new GpuTriangleRenderer(GraphicsDevice));
         }
+        resourceHost.PrepareTexturePublication = PrepareTexturePublication;
         if (options.BattleTestPath is not null)
         {
             StartDiagnosticBattleHost();
@@ -337,7 +338,7 @@ internal sealed partial class RecreateGame : Game
         UpdateMenuPresentationHotkey(keys, wasCapturing || capturing || DuelOwnsInput);
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
-        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true || gameMenus?.IsModSearchEditing == true;
+        bool typingName = gameMenus?.IsTypingName == true || modelBrowser?.SearchFocused == true || textureBrowser?.SearchFocused == true || gameMenus?.IsGuardianSearchEditing == true || gameMenus?.IsModSearchEditing == true;
         keyboard.GuardianEditorEnabled = gameMenus?.IsGuardianAbilityEditor == true;
         keyboard.ModsManagerEnabled = gameMenus?.IsModManager == true;
         bool namingNavigation = gameMenus?.IsEditingName == true;
@@ -373,7 +374,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true && sceneInspector is null && modelBrowser is null)
+        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true && sceneInspector is null && modelBrowser is null && textureBrowser is null)
         {
             if (autoPlay?.Running == true)
             {
@@ -459,7 +460,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (!BattleModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
+        if (!BattleModalBlocksGameplay && gameMenus?.IsNamePrompt != true && (UpdateTextureBrowserUi(input) || UpdateModelBrowserUi(input, gameTime.ElapsedGameTime) || UpdateSceneInspectorUi(input) || UpdateBattleDebugUi(input)))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -848,6 +849,18 @@ internal sealed partial class RecreateGame : Game
 
         if (DuelOwnsInput)
         {
+            return;
+        }
+        if (textureBrowser?.SearchFocused == true)
+        {
+            if (args.Character == '\b')
+            {
+                textureBrowser.Backspace();
+            }
+            else
+            {
+                textureBrowser.TextInput(args.Character);
+            }
             return;
         }
         if (modelBrowser?.SearchFocused == true)
@@ -1578,7 +1591,7 @@ internal sealed partial class RecreateGame : Game
         authoringHits.Clear();
         authoringDrawGroup = 0;
         uiCanvas?.BeginFrame(gameTime.TotalGameTime);
-        if (modelBrowser is not null)
+        if (modelBrowser is not null || textureBrowser is not null)
         {
             RenderModelBrowserPreview(gameTime.TotalGameTime);
             BeginMeasuredFrame();
@@ -1586,6 +1599,7 @@ internal sealed partial class RecreateGame : Game
             text.BeginFrame();
             batch.Begin(samplerState: SamplerState.LinearClamp);
             DrawModelBrowserUi(GraphicsDevice.Viewport.Bounds);
+            DrawTextureBrowserUi(GraphicsDevice.Viewport.Bounds);
             if (authoringExitRequested)
             {
                 DrawLocalizationAuthoring(GraphicsDevice.Viewport.Bounds);
@@ -1858,6 +1872,7 @@ internal sealed partial class RecreateGame : Game
             DisposeBattleEntry();
             DisposeStartup();
             DisposeModelBrowser();
+            DisposeTextureTools();
             titleArtwork?.Dispose();
             gameMenus?.DisconnectMods();
             gameMenus?.DisposeLightingAuthoring();

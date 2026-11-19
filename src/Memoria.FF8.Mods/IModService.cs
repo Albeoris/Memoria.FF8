@@ -40,5 +40,6 @@ public sealed record ModOperationResult(bool Success, string? Error = null)
 public sealed record ModPreparationResult(bool Success, IReadOnlyCollection<string>? UsablePackageIds = null, IReadOnlyList<ModDiagnostic>? Diagnostics = null, Action? Commit = null, Action? AfterCommit = null)
 {
     public bool Deferred { get; init; }
+    public Action? Discard { get; init; }
     public static ModPreparationResult Accepted { get; } = new(true);
 }

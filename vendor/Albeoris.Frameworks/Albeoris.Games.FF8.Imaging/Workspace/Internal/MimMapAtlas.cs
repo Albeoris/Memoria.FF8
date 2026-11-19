@@ -29,6 +29,18 @@ internal sealed class MimMapAtlas
         };
     }
 
+    public Rgba32 ReadNativePixel(MimMapTile tile, Int32 x, Int32 y)
+    {
+        ValidateLocalCoordinates(x, y);
+        return tile.BitsPerPixel switch
+        {
+            4 => _mim.GetColor(tile.PaletteId, Read4BitIndex(tile, x, y)),
+            8 => _mim.GetColor(tile.PaletteId, _mim.TextureData[GetByteOffset(tile, x, y)]),
+            16 => Rgba32.FromPsxBgr555(BinaryPrimitives.ReadUInt16LittleEndian(_mim.TextureData.AsSpan(GetByteOffset(tile, x, y)))),
+            _ => default,
+        };
+    }
+
     public Byte ReadPaletteIndex(MimMapTile tile, Int32 x, Int32 y)
     {
         ValidateLocalCoordinates(x, y);
