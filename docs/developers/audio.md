@@ -1,8 +1,8 @@
 # Shared music and sound
 
-`Memoria.FF8.Audio` contains the shared format readers, sample-clock scheduler, DLS synthesizer and PCM mixer. The same managed implementation runs on every supported RID. SDL3 is the device adapter; sound effects use the same PCM mixer as the music worker. The x64 music worker keeps the released Windows updater entry `Data/audio-host/Memoria.FF8.Music.exe`; the Unix executable name is `Memoria.FF8.Music`.
+`Memoria.FF8.Audio` contains the shared format readers, sample-clock scheduler, DLS synthesizer and PCM mixer. The same managed implementation runs on every supported RID. The game mixes SGT/DLS sequences and concerts on its music bus alongside streamed music, sound effects, voices, and movie audio. One SDL3 output supplies the game's PCM device. The old executable remains a standalone diagnostic tool and is included in transitional distributions for released updaters.
 
-The worker preserves the line-delimited JSON command protocol: `Play`, `Volume`, `Stop`, `Pause`, `Resume`, `Playing` and `Quit`. The worker accepts exactly one startup argument: its music directory. Music, PCM and SPU output APIs do not take window identifiers. Commands are queued outside the game update thread. Device timing never changes deterministic gameplay state.
+SGT/DLS loading and seeking run on a bounded preparation queue. The presentation thread attaches the result with current gain and pause state. Capturing a save uses the shared device's queued-frame count for the SGT/DLS cursor as well as PCM and PSF cursors. Device timing never changes deterministic gameplay state.
 
 ## Supported format contract
 
@@ -38,7 +38,7 @@ $env:MEMORIA_FF8_AUDIO_FIXTURES = '<user-selected music directory>'
 dotnet run --project tests/Memoria.FF8.Audio.Tests
 ```
 
-With legally supplied files, the actual music worker can render PCM without a device, or exercise the default device:
+With game-supplied files, the standalone music tool can render PCM without a device or exercise the default device:
 
 ```text
 Memoria.FF8.Music --render bank.dls segment.sgt output.wav [seconds] [startTick]

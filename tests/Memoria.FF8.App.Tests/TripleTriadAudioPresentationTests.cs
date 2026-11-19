@@ -51,6 +51,7 @@ public sealed class TripleTriadAudioPresentationTests
                 var deadline = Stopwatch.StartNew();
                 while (!output.IsMidiPlaying && deadline.ElapsedMilliseconds < 3000)
                 {
+                    output.Update();
                     Thread.Sleep(20);
                 }
                 Assert.Null(output.Error);

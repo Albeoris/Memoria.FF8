@@ -1,209 +1,96 @@
 using Memoria.FF8.Audio;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Memoria.FF8;
 
 internal sealed class PortableMusicOutput : IDisposable
 {
+    private readonly SegmentMusicBank bank;
     private readonly SdlAudioOutput output;
-    private readonly SegmentSynthesizer synthesizer;
-    private readonly SegmentComposition concert;
-    private readonly byte[] bankSha256;
-    private string? contentSha256;
-    private bool concertSelected;
+    private SegmentMusicSource? source;
 
     public PortableMusicOutput(string directory)
     {
-        byte[] bankBytes = File.ReadAllBytes(Path.Combine(directory, "FF8.dls"));
-        bankSha256 = SHA256.HashData(bankBytes);
-        var bank = new DlsBank(bankBytes);
+        bank = new SegmentMusicBank(File.ReadAllBytes(Path.Combine(directory, "FF8.dls")));
         output = new SdlAudioOutput();
-        synthesizer = new SegmentSynthesizer(bank, output.Mixer.SampleRate);
-        concert = new SegmentComposition(bank, output.Mixer.SampleRate);
-        output.Mixer.Add(concert);
-        output.Mixer.Add(synthesizer);
     }
 
     public bool IsPlaying
     {
         get
         {
-            output.ThrowIfFailed();
-            return synthesizer.IsPlaying || concert.IsPlaying;
+            ThrowIfFailed();
+            return source?.IsPlaying == true;
         }
     }
 
     public void Play(string path, int volume, int startPoint = 0)
     {
-        output.ThrowIfFailed();
-        (MusicSegment[] segments, string fingerprint) = Load([path]);
-        synthesizer.Play(segments[0], volume, startPoint);
-        concert.Stop();
-        contentSha256 = fingerprint;
-        concertSelected = false;
+        Start([path], volume, concert: false, startPoint);
     }
 
     public void PlayConcert(string[] paths, int volume, int previewMeasure = 0)
     {
-        output.ThrowIfFailed();
-        (MusicSegment[] segments, string fingerprint) = Load(paths);
-        concert.Play(segments, volume, ConcertStartPoint(segments, previewMeasure));
-        synthesizer.Stop();
-        contentSha256 = fingerprint;
-        concertSelected = true;
-    }
-
-    public MusicPlaybackPosition? CapturePosition()
-    {
-        output.ThrowIfFailed();
-        return output.CapturePlaybackPosition(queued =>
-        {
-            SegmentPlaybackPosition? position = concertSelected ? concert.CapturePosition(queued) : synthesizer.CapturePosition(queued);
-            return contentSha256 is null || position is null ? null : new MusicPlaybackPosition(contentSha256, position);
-        });
+        Start(paths, volume, concert: true, previewMeasure: previewMeasure);
     }
 
     public void PlayAtPosition(string[] paths, MusicPlaybackPosition saved, int volume, bool isConcert, int fallbackStartPoint = 0, int previewMeasure = 0)
     {
+        Start(paths, volume, isConcert, fallbackStartPoint, previewMeasure, saved);
+    }
+
+    private void Start(string[] paths, int volume, bool concert, int startPoint = 0, int previewMeasure = 0, MusicPlaybackPosition? saved = null)
+    {
         output.ThrowIfFailed();
-        (MusicSegment[] segments, string fingerprint) = Load(paths);
-        if (isConcert)
-        {
-            fallbackStartPoint = ConcertStartPoint(segments, previewMeasure);
-        }
-        bool compatible = string.Equals(saved.ContentSha256, fingerprint, StringComparison.Ordinal);
-        try
-        {
-            if (saved.Position is null)
-            {
-                compatible = false;
-            }
-            else
-            {
-                saved.Position.Validate();
-                compatible &= saved.Position.SampleRate == output.Mixer.SampleRate && segments.All(segment => saved.Position.StartPoint < segment.Length) && (!isConcert || saved.Position.InitialSystemGain == 1 && saved.Position.StartPoint == fallbackStartPoint);
-            }
-        }
-        catch (Exception exception) when (exception is InvalidDataException or ArgumentException)
-        {
-            compatible = false;
-        }
-        if (isConcert)
-        {
-            if (compatible && saved.Position is { } concertPosition)
-            {
-                using CancellationTokenSource budget = new(TimeSpan.FromSeconds(5));
-                try
-                {
-                    concert.PlayAtPosition(segments, concertPosition, volume, budget.Token);
-                }
-                catch (OperationCanceledException) when (budget.IsCancellationRequested)
-                {
-                    concert.Play(segments, volume, fallbackStartPoint);
-                }
-            }
-            else
-            {
-                concert.Play(segments, volume, fallbackStartPoint);
-            }
-            synthesizer.Stop();
-        }
-        else
-        {
-            if (segments.Length != 1)
-            {
-                throw new InvalidDataException("Single-segment playback requires one selected segment.");
-            }
-            if (compatible && saved.Position is { } segmentPosition)
-            {
-                using CancellationTokenSource budget = new(TimeSpan.FromSeconds(5));
-                try
-                {
-                    synthesizer.PlayAtPosition(segments[0], segmentPosition, volume, budget.Token);
-                }
-                catch (OperationCanceledException) when (budget.IsCancellationRequested)
-                {
-                    synthesizer.Play(segments[0], volume, fallbackStartPoint);
-                }
-            }
-            else
-            {
-                synthesizer.Play(segments[0], volume, fallbackStartPoint);
-            }
-            concert.Stop();
-        }
-        contentSha256 = fingerprint;
-        concertSelected = isConcert;
+        SegmentMusicSource prepared = bank.PrepareAsync(paths, output.Mixer.SampleRate, volume, concert, startPoint, previewMeasure, saved).GetAwaiter().GetResult();
+        Stop();
+        output.Mixer.Add(prepared);
+        source = prepared;
     }
 
-    private static int ConcertStartPoint(MusicSegment[] segments, int previewMeasure)
+    public MusicPlaybackPosition? CapturePosition()
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(previewMeasure);
-        if (previewMeasure == 0)
-        {
-            return 0;
-        }
-        if (segments.Length != 1)
-        {
-            throw new InvalidDataException("Instrument preview requires one selected segment.");
-        }
-        return segments[0].GetMeasureStart(previewMeasure);
-    }
-
-    private (MusicSegment[] Segments, string Fingerprint) Load(string[] paths)
-    {
-        if (paths.Length == 0)
-        {
-            throw new InvalidDataException("Music playback requires at least one segment.");
-        }
-        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        hash.AppendData(Encoding.UTF8.GetBytes(SegmentPlaybackPosition.DecoderRevision));
-        hash.AppendData(bankSha256);
-        byte[] count = new byte[4];
-        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(count, paths.Length);
-        hash.AppendData(count);
-        MusicSegment[] segments = new MusicSegment[paths.Length];
-        for (int index = 0; index < paths.Length; index++)
-        {
-            byte[] bytes = File.ReadAllBytes(paths[index]);
-            hash.AppendData(SHA256.HashData(bytes));
-            segments[index] = new MusicSegment(bytes);
-        }
-        return (segments, Convert.ToHexString(hash.GetHashAndReset()));
+        ThrowIfFailed();
+        return output.CapturePlaybackPosition(queued => source?.CapturePosition(queued));
     }
 
     public void Volume(int hundredthDecibels)
     {
-        output.ThrowIfFailed();
-        synthesizer.Volume(hundredthDecibels);
-        concert.Volume(hundredthDecibels);
+        ThrowIfFailed();
+        source?.Volume(hundredthDecibels);
     }
 
     public void Pause()
     {
-        synthesizer.Pause();
-        concert.Pause();
+        source?.Pause();
     }
 
     public void Resume()
     {
+        ThrowIfFailed();
+        source?.Resume();
+    }
+
+    private void ThrowIfFailed()
+    {
         output.ThrowIfFailed();
-        synthesizer.Resume();
-        concert.Resume();
+        if (source?.Error is Exception failure)
+        {
+            throw new InvalidOperationException(failure.Message, failure);
+        }
     }
 
     public void Stop()
     {
-        contentSha256 = null;
-        synthesizer.Stop();
-        concert.Stop();
+        if (source is { } active)
+        {
+            output.Mixer.Remove(active);
+            source = null;
+        }
     }
 
     public void Dispose()
     {
-        synthesizer.Stop();
-        concert.Stop();
+        Stop();
         output.Dispose();
     }
 }

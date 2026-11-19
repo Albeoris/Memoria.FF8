@@ -87,6 +87,7 @@ public sealed class OpeningMusicTests
                 var deadline = Stopwatch.StartNew();
                 while (!audio.IsMidiPlaying && deadline.ElapsedMilliseconds < 3000)
                 {
+                    audio.Update();
                     Thread.Sleep(20);
                 }
                 Assert.True(audio.IsMidiPlaying, "Original Garden segment must start in the corridor before classroom entry.");

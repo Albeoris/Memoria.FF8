@@ -7,7 +7,6 @@ namespace Memoria.FF8;
 
 internal sealed partial class FieldAudioPresentation
 {
-    private readonly HashSet<int> segmentPositionSlots = [];
     private readonly Dictionary<int, Func<int, GameplaySaveAudioPosition[]?>> musicPositionCaptures = [];
     private GameplaySaveAudioPresentation? playbackResumePositions;
 
@@ -20,20 +19,12 @@ internal sealed partial class FieldAudioPresentation
     {
         try
         {
-            List<GameplaySaveAudioTrack> segments = [];
-            foreach (int slot in segmentPositionSlots)
-            {
-                if (musicIds[slot] >= 0 && musicPositionCaptures.TryGetValue(slot, out var capture) && capture(0) is { Length: > 0 } position)
-                {
-                    segments.Add(new(slot, musicIds[slot], position));
-                }
-            }
             GameplaySaveAudioPresentation Capture(int queued)
             {
-                List<GameplaySaveAudioTrack> tracks = [.. segments];
+                List<GameplaySaveAudioTrack> tracks = [];
                 for (int slot = 0; slot < musicIds.Length; slot++)
                 {
-                    if (!segmentPositionSlots.Contains(slot) && musicIds[slot] >= 0 && musicPositionCaptures.TryGetValue(slot, out var capture) && capture(queued) is { Length: > 0 } positions)
+                    if (musicIds[slot] >= 0 && musicPositionCaptures.TryGetValue(slot, out var capture) && capture(queued) is { Length: > 0 } positions)
                     {
                         tracks.Add(new(slot, musicIds[slot], positions));
                     }
@@ -110,12 +101,11 @@ internal sealed partial class FieldAudioPresentation
         return new(position.Fingerprint, new(position.Position, position.SampleRate, position.StartPoint, position.InitialSystemGain, focusPaused || nativeMidiPaused));
     }
 
-    private void RegisterSegmentPosition(int slot)
+    private void RegisterSegmentPosition(int slot, SegmentMusicSource source)
     {
-        segmentPositionSlots.Add(slot);
-        musicPositionCaptures[slot] = _ =>
+        musicPositionCaptures[slot] = queued =>
         {
-            MusicPlaybackPosition? position = music?.CapturePosition();
+            MusicPlaybackPosition? position = source.CapturePosition(queued);
             return position is null ? null : [new("sgt-dls-v1", position.ContentSha256, "rendered-frames", position.Position.Frames, position.Position.SampleRate, 2, 0, 0, position.Position.StartPoint, position.Position.InitialSystemGain, position.Position.Paused)];
         };
     }

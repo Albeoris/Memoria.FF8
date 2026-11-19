@@ -14,9 +14,4 @@
     <PackageReference Include="SDL3-CS.Linux" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'linux-x64'" />
     <PackageReference Include="SDL3-CS.macOS" Condition="'$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'osx-x64' Or '$(RuntimeIdentifier)' == 'osx-arm64'" />
   </ItemGroup>
-  <Target Name="GetMusicHostFiles" Returns="@(MusicHostFile)">
-    <ItemGroup>
-      <MusicHostFile Include="$(TargetDir)**/*" />
-    </ItemGroup>
-  </Target>
 </Project>

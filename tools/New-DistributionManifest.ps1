@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$PackageRoot,
-    [ValidateSet("win-x64", "linux-x64", "osx-x64", "osx-arm64")][string]$RuntimeIdentifier = "win-x64"
+    [ValidateSet("win-x64", "linux-x64", "osx-x64", "osx-arm64")][string]$RuntimeIdentifier = "win-x64",
+    [string[]]$RemoveFiles = @(),
+    [string[]]$TransientFiles = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,5 +50,11 @@ $manifest = [ordered]@{
     Version = $version
     BuiltAt = [DateTimeOffset]::UtcNow.ToString('o')
     Files = $inventory
+}
+if ($RemoveFiles.Count -gt 0) {
+    $manifest.RemoveFiles = $RemoveFiles
+}
+if ($TransientFiles.Count -gt 0) {
+    $manifest.TransientFiles = $TransientFiles
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM

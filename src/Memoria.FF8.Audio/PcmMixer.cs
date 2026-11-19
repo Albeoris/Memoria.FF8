@@ -28,8 +28,10 @@ public sealed class PcmMixBus
 }
 
 /// <summary>One synchronized PCM clock for all sources, independent of the device's output format.</summary>
-public sealed class PcmMixer(int sampleRate = 44100)
+public sealed class PcmMixer(int sampleRate = PcmMixer.DefaultSampleRate)
 {
+    public const int DefaultSampleRate = 44100;
+
     private readonly object gate = new();
     private readonly List<Voice> voices = [];
     private readonly List<(IAudioSource Source, PcmMixBus? Bus)> sources = [];

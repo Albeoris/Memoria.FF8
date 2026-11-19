@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
@@ -109,7 +108,7 @@ public sealed class FieldAudioPresentationTests
     }
 
     [Fact]
-    public void WindowsDevicesAcceptOriginalMusicAndPcmWithSilentGain()
+    public void SharedDeviceAcceptsOriginalMusicAndPcmWithSilentGain()
     {
         string directory = InstalledGame();
         Exception? failure = null;
@@ -117,7 +116,6 @@ public sealed class FieldAudioPresentationTests
         {
             try
             {
-                nint window = GetDesktopWindow();
                 using var sound = new PcmAudioOutput();
                 PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, 69);
                 using PcmAudioOutput.Buffer buffer = sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
@@ -125,15 +123,17 @@ public sealed class FieldAudioPresentationTests
                 buffer.Pan(0);
                 buffer.Play(false);
                 buffer.Stop();
-                using var music = new MusicWorkerOutput(Path.Combine(directory, "Data", "Music", "dmusic"));
-                music.Play(Path.Combine(directory, "Data", "Music", "dmusic", "026s-garden.sgt"), -10000);
+                using FieldAudioPresentation music = new(directory, "") { OutputFactory = () => sound, OwnsSoundOutput = false };
+                music.SetOutputPreferences(0, 0);
+                music.PlayMusic(26, 0, 127, -1);
                 var deadline = Stopwatch.StartNew();
-                while (!music.IsPlaying && deadline.ElapsedMilliseconds < 3000)
+                while (!music.IsMidiPlaying && deadline.ElapsedMilliseconds < 3000)
                 {
+                    music.Update();
                     Thread.Sleep(20);
                 }
-                Assert.True(music.IsPlaying, "DirectMusic did not start the original Garden segment.");
-                music.Stop();
+                Assert.True(music.IsMidiPlaying, "The shared mixer did not start the original Garden segment.");
+                Assert.Null(music.Error);
             }
             catch (Exception exception)
             {
@@ -180,7 +180,4 @@ public sealed class FieldAudioPresentationTests
         }
         return bytes;
     }
-
-    [DllImport("user32.dll")]
-    private static extern nint GetDesktopWindow();
 }

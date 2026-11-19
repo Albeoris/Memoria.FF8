@@ -25,8 +25,20 @@ public sealed class DistributionArchiveTests
             PackageManifest.Extract(archive!, destination, rid);
             PackageManifest manifest = PackageManifest.Read(destination);
             Assert.NotEmpty(manifest.Files);
-            string runtime = rid == "win-x64" ? "coreclr.dll" : mac ? "libcoreclr.dylib" : "libcoreclr.so";
-            Assert.True(File.Exists(Path.Combine(destination, prefix + "Data/audio-host/" + runtime)));
+            PackageFile[] legacyWorkerFiles = manifest.Files.Where(file => file.Path.StartsWith(prefix + "Data/audio-host/", StringComparison.Ordinal)).ToArray();
+            if (mac)
+            {
+                Assert.Empty(manifest.TransientFiles);
+            }
+            else
+            {
+                Assert.All(legacyWorkerFiles, file => Assert.Contains(file.Path, manifest.TransientFiles));
+                Assert.All(manifest.TransientFiles, path => Assert.True(File.Exists(Path.Combine(destination, path))));
+                UpdateInstaller.RetireTransientFiles(destination);
+                UpdateInstaller.RetireTransientFiles(destination);
+                Assert.All(manifest.TransientFiles, path => Assert.False(File.Exists(Path.Combine(destination, path))));
+                PackageManifest.Verify(destination, PackageManifest.Read(destination), includeTransientFiles: false);
+            }
             if (rid == "linux-x64")
             {
                 Assert.DoesNotContain(manifest.Files, file => file.Path == "createdump");

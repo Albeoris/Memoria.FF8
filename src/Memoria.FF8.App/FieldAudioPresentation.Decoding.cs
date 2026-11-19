@@ -25,6 +25,10 @@ internal sealed partial class FieldAudioPresentation
 
     private void CancelMusicDecode(MusicKind kind)
     {
+        if (kind == MusicKind.Midi)
+        {
+            segmentDecodeQueue?.Cancel(kind);
+        }
         if (kind != MusicKind.None)
         {
             decodeQueue?.Cancel(kind);
@@ -86,6 +90,14 @@ internal sealed partial class FieldAudioPresentation
 
     private void MusicDecodeFailed(int slot, Exception exception)
     {
+        if (musicKinds[slot] == MusicKind.Midi)
+        {
+            midiRamp = null;
+            if (segmentMusicSlot == slot)
+            {
+                StopSegmentMusic();
+            }
+        }
         musicKinds[slot] = MusicKind.None;
         musicIds[slot] = -1;
         ReportOutputFailure(exception);

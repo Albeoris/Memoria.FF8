@@ -7,6 +7,11 @@ internal static class AudioFixtures
 {
     public static DlsBank Bank(int velocityLow = 1, int velocityHigh = 127, bool duplicateLocale = false, bool drum = false)
     {
+        return new DlsBank(BankBytes(velocityLow, velocityHigh, duplicateLocale, drum));
+    }
+
+    public static byte[] BankBytes(int velocityLow = 1, int velocityHigh = 127, bool duplicateLocale = false, bool drum = false)
+    {
         byte[] format = Data(w =>
         {
             w.Write((ushort)1);
@@ -78,16 +83,21 @@ internal static class AudioFixtures
             w.Write(0);
         })), Form("LIST", "lrgn", duplicateRegion));
         byte[] instruments = duplicateLocale ? Form("LIST", "lins", instrument, duplicateInstrument) : Form("LIST", "lins", instrument);
-        return new DlsBank(Form("RIFF", "DLS ", Chunk("colh", Data(w => w.Write(duplicateLocale ? 2 : 1))), instruments, Chunk("ptbl", Data(w =>
+        return Form("RIFF", "DLS ", Chunk("colh", Data(w => w.Write(duplicateLocale ? 2 : 1))), instruments, Chunk("ptbl", Data(w =>
         {
             w.Write(8);
             w.Write(1);
             w.Write(0);
-        })), Form("LIST", "wvpl", wave)));
+        })), Form("LIST", "wvpl", wave));
 
     }
 
     public static MusicSegment Segment(uint repeats = 0, int loopStart = 0, int loopEnd = 768, int length = 768, int duration = 768, int channel = 0, (int Tick, byte Beats, byte Unit)[]? timeSignatures = null)
+    {
+        return new MusicSegment(SegmentBytes(repeats, loopStart, loopEnd, length, duration, channel, timeSignatures));
+    }
+
+    public static byte[] SegmentBytes(uint repeats = 0, int loopStart = 0, int loopEnd = 768, int length = 768, int duration = 768, int channel = 0, (int Tick, byte Beats, byte Unit)[]? timeSignatures = null, byte? controller = null)
     {
         byte[] header = Data(w =>
         {
@@ -117,7 +127,21 @@ internal static class AudioFixtures
             w.Write((byte)127);
             w.Write(new byte[3]);
         });
-        List<byte[]> tracks = [Track("tetr", Chunk("tetr", tempo)), Track("seqt", Chunk("seqt", Chunk("evtl", events)))];
+        byte[] sequence = Chunk("evtl", events);
+        if (controller is byte index)
+        {
+            byte[] curve = Data(w =>
+            {
+                w.Write(28);
+                byte[] item = new byte[28];
+                item[24] = 4;
+                item[25] = 1;
+                item[26] = index;
+                w.Write(item);
+            });
+            sequence = [.. sequence, .. Chunk("curl", curve)];
+        }
+        List<byte[]> tracks = [Track("tetr", Chunk("tetr", tempo)), Track("seqt", Chunk("seqt", sequence))];
         if (timeSignatures is not null)
         {
             byte[] signatures = Data(w =>
@@ -133,7 +157,7 @@ internal static class AudioFixtures
             });
             tracks.Add(Track("tims", Chunk("tims", signatures)));
         }
-        return new MusicSegment(Form("RIFF", "DMSG", Chunk("segh", header), Form("LIST", "trkl", tracks.ToArray())));
+        return Form("RIFF", "DMSG", Chunk("segh", header), Form("LIST", "trkl", tracks.ToArray()));
 
     }
 

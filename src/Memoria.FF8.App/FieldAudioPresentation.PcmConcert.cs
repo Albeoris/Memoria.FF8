@@ -63,7 +63,6 @@ internal sealed partial class FieldAudioPresentation
         {
             output.SetGain(ExternalGain(MusicKind.Midi, Math.Clamp((int)midiVolume, 0, 127), 100));
             output.Pause(focusPaused || nativeMidiPaused);
-            music?.Stop();
             output.Start();
         }
         catch

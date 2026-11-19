@@ -33,6 +33,8 @@ internal sealed class PcmAudioOutput : IDisposable
     public PcmMixBus Voice { get; } = new();
     public PcmMixBus Movie { get; } = new();
 
+    internal int SampleRate => offlineMixer?.SampleRate ?? PcmMixer.DefaultSampleRate;
+
     public Exception? Error => Volatile.Read(ref output)?.Error;
 
     public Buffer Create(byte[] pcm, int rate, int channels, PcmMixBus? bus = null)

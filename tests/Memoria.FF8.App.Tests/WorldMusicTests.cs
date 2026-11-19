@@ -160,6 +160,7 @@ public sealed class WorldMusicTests
             var resumeDeadline = Stopwatch.StartNew();
             while (!resumedAudio.IsMidiPlaying && resumeDeadline.ElapsedMilliseconds < 3000)
             {
+                resumedAudio.Update();
                 Thread.Sleep(20);
             }
             Assert.Null(resumedAudio.Error);

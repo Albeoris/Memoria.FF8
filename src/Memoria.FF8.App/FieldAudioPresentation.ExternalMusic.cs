@@ -32,6 +32,7 @@ internal sealed partial class FieldAudioPresentation
         musicIds[slot] = track;
         if (kind == MusicKind.Midi)
         {
+            ResetMidiMusic();
             midiVolume = volume;
             midiRamp = null;
         }
@@ -85,11 +86,7 @@ internal sealed partial class FieldAudioPresentation
             restoreLoop = savedPosition.StartPoint == 1;
         }
         int volume = Math.Clamp((int)(kind == MusicKind.Midi ? midiVolume : streamVolume), 0, 127);
-        if (kind == MusicKind.Midi)
-        {
-            music?.Stop();
-        }
-        else
+        if (kind == MusicKind.Stream)
         {
             streamedMusic?.Dispose();
             streamedMusic = null;

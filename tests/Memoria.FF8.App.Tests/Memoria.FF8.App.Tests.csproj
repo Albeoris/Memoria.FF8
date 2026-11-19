@@ -28,10 +28,4 @@
     <ProjectReference Include="../../tools/Memoria.FF8.BattleEffects/Memoria.FF8.BattleEffects.csproj" />
   </ItemGroup>
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" Condition="'$(MemoriaGraphicsBackend)' == 'Vulkan'" />
-  <Target Name="CopyMusicHost" AfterTargets="Build" Condition="'$(SkipMusicHost)' != 'true'">
-    <MSBuild Projects="../../src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=$(MemoriaTargetRuntime);SelfContained=true">
-      <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
-    </MSBuild>
-    <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
 </Project>

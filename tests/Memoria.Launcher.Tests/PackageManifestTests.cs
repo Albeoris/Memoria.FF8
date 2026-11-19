@@ -2,11 +2,14 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Memoria.FF8.Platform;
 
 namespace Memoria.Launcher.Tests;
 
 public sealed class PackageManifestTests : IDisposable
 {
+    private const string GamePath = "Data/Memoria.FF8.exe";
+    private const string WorkerPath = "Data/audio-host/Memoria.FF8.Music.exe";
     private readonly string directory = Path.Combine(Path.GetTempPath(), "Memoria.Package.Tests", Guid.NewGuid().ToString("N"));
 
     public PackageManifestTests()
@@ -37,8 +40,11 @@ public sealed class PackageManifestTests : IDisposable
         string path = Path.Combine(data, "distribution.json");
         File.WriteAllText(path, "{broken");
         Assert.Throws<InvalidDataException>(() => PackageManifest.LoadOptional(directory));
-        File.WriteAllText(path, JsonSerializer.Serialize(Manifest(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
-        Assert.Equal("local-build", PackageManifest.LoadOptional(directory)!.BuildId);
+        File.WriteAllText(path, LegacyManifestJson(new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+        PackageManifest manifest = PackageManifest.LoadOptional(directory)!;
+        Assert.Equal("local-build", manifest.BuildId);
+        Assert.Empty(manifest.RemoveFiles);
+        Assert.Empty(manifest.TransientFiles);
     }
 
     [Theory]
@@ -87,13 +93,99 @@ public sealed class PackageManifestTests : IDisposable
     {
         PackageManifest manifest = Manifest();
         Assert.Throws<InvalidDataException>((manifest with { Files = [.. manifest.Files, FileRecord("data/MEMORIA.FF8.exe", "game")] }).ValidatePaths);
-        Assert.Throws<InvalidDataException>((manifest with { Files = manifest.Files[..2] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { Files = manifest.Files.Where(file => file.Path != GamePath).ToArray() }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { SchemaVersion = 2 }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { BuildId = " " }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { Files = [.. manifest.Files, FileRecord("Data/large", "") with { Size = 2L * 1024 * 1024 * 1024 + 1 }] }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { Files = [.. manifest.Files, FileRecord("Data/hash", "") with { Sha256 = new string('x', 64) }] }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { Files = [.. manifest.Files, FileRecord("Data/parent", ""), FileRecord("Data/parent/child", "")] }).ValidatePaths);
         Assert.Throws<InvalidDataException>((manifest with { Files = manifest.Files.Select(file => file with { Size = 2L * 1024 * 1024 * 1024 }).ToArray() }).ValidatePaths);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WorkerlessPackageExtractsWithOptionalRemovalRecord(bool retireWorker)
+    {
+        PackageManifest manifest = Manifest();
+        manifest = manifest with { Files = manifest.Files[..2], RemoveFiles = retireWorker ? [WorkerPath] : [] };
+        string destination = Path.Combine(directory, "workerless");
+
+        PackageManifest.Extract(CreateArchive(skipPath: WorkerPath, manifest: manifest), destination);
+
+        PackageManifest extracted = PackageManifest.Read(destination);
+        Assert.Equal(manifest.RemoveFiles, extracted.RemoveFiles);
+        Assert.DoesNotContain(extracted.GetInstalledFiles(), file => file.Path == WorkerPath);
+        Assert.False(File.Exists(Path.Combine(destination, WorkerPath)));
+    }
+
+    [Fact]
+    public void TransientArchiveBytesAreRequiredAndVerifiedBeforeInstalledVerificationCanOmitThem()
+    {
+        PackageManifest manifest = Manifest() with { TransientFiles = [WorkerPath] };
+        string destination = Path.Combine(directory, "transient");
+        Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(CreateArchive(skipPath: WorkerPath, manifest: manifest), Path.Combine(directory, "transient-missing")));
+
+        PackageManifest tampered = manifest with { Files = [.. manifest.Files[..2], FileRecord(WorkerPath, "wrong")] };
+        Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(CreateArchive(manifest: tampered), Path.Combine(directory, "transient-hash")));
+
+        PackageManifest.Extract(CreateArchive(manifest: manifest), destination);
+        PackageManifest extracted = PackageManifest.Read(destination);
+        Assert.Equal(WorkerPath, Assert.Single(extracted.TransientFiles));
+        Assert.Equal(WorkerPath, Assert.Single(extracted.GetTransientFiles()).Path);
+        Assert.DoesNotContain(extracted.GetInstalledFiles(), file => file.Path == WorkerPath);
+
+        File.Delete(Path.Combine(destination, WorkerPath));
+        Assert.Throws<FileNotFoundException>(() => PackageManifest.Verify(destination, extracted));
+        PackageManifest.Verify(destination, extracted, includeTransientFiles: false);
+        File.WriteAllText(Path.Combine(destination, GamePath), "wrong");
+        Assert.Throws<InvalidDataException>(() => PackageManifest.Verify(destination, extracted, includeTransientFiles: false));
+    }
+
+    [Theory]
+    [InlineData("../foreign.exe")]
+    [InlineData("settings.json")]
+    [InlineData("Mods/Tonberry/foreign.exe")]
+    [InlineData("Data/distribution.json")]
+    [InlineData("data/MEMORIA.FF8.exe")]
+    [InlineData("Data/audio-host")]
+    [InlineData("Data/audio-host/Memoria.FF8.Music.exe/child")]
+    public void ManifestRejectsUnsafeUnownedAndConflictingRemovalPaths(string path)
+    {
+        PackageManifest manifest = Manifest() with { RemoveFiles = [path] };
+        Assert.Throws<InvalidDataException>(manifest.ValidatePaths);
+    }
+
+    [Fact]
+    public void ManifestRejectsAmbiguousRemovalAndTransientPaths()
+    {
+        PackageManifest manifest = Manifest();
+        Assert.Throws<InvalidDataException>((manifest with { RemoveFiles = ["Data/old.dll", "data/OLD.dll"] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { RemoveFiles = ["Data/old", "Data/old/child"] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = [WorkerPath, WorkerPath] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = [WorkerPath.ToLowerInvariant()] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = ["Data/unknown.exe"] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = [PackageManifest.LauncherPath] }).ValidatePaths);
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = [GamePath] }).ValidatePaths);
+    }
+
+    [Fact]
+    public void MacManifestCanDeclareRemovedFilesAndRejectsTransientFiles()
+    {
+        PackageManifest manifest = new(3, "local-build", "1.2.3", DateTimeOffset.UtcNow,
+        [
+            FileRecord("Contents/Info.plist", "") with { UnixMode = 420 },
+            FileRecord(MacCodeSigning.Launcher, "") with { UnixMode = 493, HashKind = MacCodeSigning.UnsignedHashKind },
+            FileRecord("Contents/Resources/Memoria.Launcher", "") with { UnixMode = 493 },
+            FileRecord("Contents/Resources/Data/Memoria.FF8", "") with { UnixMode = 493 },
+            FileRecord("Contents/Resources/Data/legacy.dylib", "") with { UnixMode = 420 }
+        ])
+        {
+            RuntimeIdentifier = "osx-arm64",
+            RemoveFiles = ["Contents/Resources/Data/audio-host/Memoria.FF8.Music"]
+        };
+        manifest.ValidatePaths();
+        Assert.Throws<InvalidDataException>((manifest with { TransientFiles = ["Contents/Resources/Data/legacy.dylib"] }).ValidatePaths);
     }
 
     [Theory]
@@ -160,12 +252,24 @@ public sealed class PackageManifestTests : IDisposable
         Assert.Throws<InvalidDataException>(() => PackageManifest.Read(directory));
     }
 
+    [Theory]
+    [InlineData("\"RemoveFiles\":null")]
+    [InlineData("\"TransientFiles\":null")]
+    [InlineData("\"RemoveFiles\":[],\"removeFiles\":[\"Data/old.dll\"]")]
+    public void ManifestRejectsNullAndDuplicateJsonPathLists(string properties)
+    {
+        Directory.CreateDirectory(Path.Combine(directory, "Data"));
+        string manifest = LegacyManifestJson();
+        File.WriteAllText(Path.Combine(directory, PackageManifest.ManifestPath), manifest[..^1] + "," + properties + "}");
+        Assert.Throws<InvalidDataException>(() => PackageManifest.Read(directory));
+    }
+
     [Fact]
     public void ArchiveRejectsMissingManifestMissingPayloadAndIncorrectSizes()
     {
         string absentManifest = CreateArchive(skipPath: PackageManifest.ManifestPath);
         Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(absentManifest, Path.Combine(directory, "no-manifest")));
-        string absentPayload = CreateArchive(skipPath: "Data/Memoria.FF8.exe");
+        string absentPayload = CreateArchive(skipPath: GamePath);
         Assert.Throws<InvalidDataException>(() => PackageManifest.Extract(absentPayload, Path.Combine(directory, "no-payload")));
         PackageManifest manifest = Manifest();
         manifest.Files[0] = manifest.Files[0] with { Size = 99 };
@@ -208,8 +312,8 @@ public sealed class PackageManifestTests : IDisposable
         Dictionary<string, string> contents = new()
         {
             [PackageManifest.LauncherPath] = "launcher",
-            ["Data/Memoria.FF8.exe"] = "game",
-            ["Data/audio-host/Memoria.FF8.Music.exe"] = "music",
+            [GamePath] = "game",
+            [WorkerPath] = "music",
             [PackageManifest.ManifestPath] = JsonSerializer.Serialize(manifest ?? Manifest())
         };
         foreach ((string path, string content) in contents)
@@ -247,7 +351,13 @@ public sealed class PackageManifestTests : IDisposable
 
     private static PackageManifest Manifest()
     {
-        return new PackageManifest(1, "local-build", "1.2.3", DateTimeOffset.UtcNow, [FileRecord(PackageManifest.LauncherPath, "launcher"), FileRecord("Data/Memoria.FF8.exe", "game"), FileRecord("Data/audio-host/Memoria.FF8.Music.exe", "music")]);
+        return new PackageManifest(1, "local-build", "1.2.3", DateTimeOffset.UtcNow, [FileRecord(PackageManifest.LauncherPath, "launcher"), FileRecord(GamePath, "game"), FileRecord(WorkerPath, "music")]);
+    }
+
+    private static string LegacyManifestJson(JsonSerializerOptions? options = null)
+    {
+        PackageManifest manifest = Manifest();
+        return JsonSerializer.Serialize(new { manifest.SchemaVersion, manifest.BuildId, manifest.Version, manifest.BuiltAt, manifest.Files }, options);
     }
 
     private static PackageFile FileRecord(string path, string content)

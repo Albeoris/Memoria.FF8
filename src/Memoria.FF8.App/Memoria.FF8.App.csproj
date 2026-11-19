@@ -51,7 +51,6 @@
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
-    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" AdditionalProperties="TargetFramework=net10.0;RuntimeIdentifier=$(MemoriaTargetRuntime);SelfContained=true" Condition="'$(SkipMusicHost)' != 'true'" />
   </ItemGroup>
   <ItemGroup Condition="'$(MemoriaGraphicsBackend)' == 'Direct3D12'">
     <EmbeddedResource Include="Shaders/Triangles.dx12.mgfxo" LogicalName="Memoria.FF8.Shaders.Triangles.mgfxo" />
@@ -60,18 +59,6 @@
   <Target Name="ValidateGraphicsBackend" BeforeTargets="PrepareForBuild">
     <Error Condition="'$(MemoriaTargetRuntime)' != 'win-x64' And '$(MemoriaGraphicsBackend)' != 'Vulkan'" Text="Linux and macOS hosts support only the Vulkan backend." />
     <Error Condition="'$(MemoriaGraphicsBackend)' != 'Direct3D11' And '$(MemoriaGraphicsBackend)' != 'Vulkan' And '$(MemoriaGraphicsBackend)' != 'Direct3D12'" Text="MemoriaGraphicsBackend must be Direct3D11, Vulkan or Direct3D12. Publish hosts into separate output and intermediate directories." />
-  </Target>
-  <Target Name="CopyMusicHost" AfterTargets="Build" Condition="'$(SkipMusicHost)' != 'true'">
-    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);TargetFramework=net10.0;RuntimeIdentifier=$(MemoriaTargetRuntime);SelfContained=true">
-      <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
-    </MSBuild>
-    <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="PublishMusicHost" AfterTargets="Publish" Condition="'$(SkipMusicHost)' != 'true'">
-    <ItemGroup>
-      <MusicHostPublishFile Include="$(OutDir)audio-host/**/*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(MusicHostPublishFile)" DestinationFiles="@(MusicHostPublishFile->'$(PublishDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
   <Import Project="../../vendor/MonoGame.Native.DX12/NativeDirect3D12.targets" />
   <Import Project="../../vendor/MonoGame.Native.Vulkan/NativeVulkan.targets" />

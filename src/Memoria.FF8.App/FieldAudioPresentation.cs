@@ -14,7 +14,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     private readonly Dictionary<int, Voice> voices = [];
     private NativeMusicCatalog? catalog;
     private PcmAudioOutput? sound;
-    private MusicWorkerOutput? music;
     private PcmAudioOutput.Buffer? streamedMusic;
     private bool streamedMusicPaused;
     private EventEngine? engine;
@@ -107,7 +106,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameFiles.Resources);
     private PcmAudioOutput Sound => sound ??= OutputFactory?.Invoke() ?? new PcmAudioOutput();
-    private MusicWorkerOutput Music => music ??= new MusicWorkerOutput(Path.GetDirectoryName(gameFiles.ResolveDataFile("music/dmusic/FF8.dls"))!);
 
     public void Attach(EventEngine next)
     {
@@ -128,7 +126,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     {
         TryOutput(() => DispatchNativeMusicResume(playback, (slot, id, gain) =>
         {
-            // Loading resumes the retained musical selection from its beginning.
             PlayMusic(id, slot, gain, -1, forceRestart: true, identityResolved: true);
         }, (mask, gain) =>
         {
@@ -403,30 +400,12 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         string path = gameFiles.ResolveInstallationFile(selectedFilename);
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
-            CancelMusicDecode(MusicKind.Midi);
-            int gain = OutputGain(Catalog.MusicVolume(volume.Value), musicPreference);
-            if (ResumeSegmentPosition(slot, track) is { } savedPosition)
-            {
-                Music.PlayAtPosition(path, gain, savedPosition, startPoint);
-            }
-            else
-            {
-                Music.Play(path, gain, startPoint);
-            }
-            RegisterSegmentPosition(slot);
-            DiscardMusicResumePosition(slot);
-            nativeMidiPaused = false;
-            musicKinds[slot] = MusicKind.Midi;
-            midiVolume = volume.Value;
-            midiRamp = null;
+            QueueSegmentMusic([path], slot, track, volume.Value, startPoint: startPoint);
         }
         else
         {
             QueueStreamMusic(path, slot, track, volume.Value);
-            return;
         }
-        musicIds[slot] = track;
-        Console.WriteLine($"field-music=Playing track={track} slot={slot} file={Path.GetFileName(path)}");
     }
 
     private void SetMusicVolume(NativeMusicVolume request)
@@ -454,6 +433,10 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
         if (midi)
         {
             midiRamp = new Ramp(midiVolume, requestedVolume, duration);
+            if (focusPaused)
+            {
+                midiRamp.Pause();
+            }
         }
         if (stream)
         {
@@ -505,15 +488,11 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     public void Update()
     {
+        PumpPendingSegmentMusic();
         TryOutput(() => decodeQueue?.Pump());
         if (focusPaused)
         {
             return;
-        }
-        if (music?.Error is Exception failure)
-        {
-            midiRamp = null;
-            ReportOutputFailure(failure);
         }
         TryOutput(() =>
         {
@@ -617,7 +596,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
     private void StopMusicSlot(int slot)
     {
         musicPositionCaptures.Remove(slot);
-        segmentPositionSlots.Remove(slot);
         MusicKind kind = musicKinds[slot];
         CancelMusicDecode(kind);
         try
@@ -626,7 +604,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             // Native46C060 chooses the process-wide MIDI or WAV backend by this slot's type.
             if (kind == MusicKind.Midi)
             {
-                music?.Stop();
+                StopSegmentMusic();
             }
             else if (kind == MusicKind.Stream)
             {
@@ -648,13 +626,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
                 streamedMusicPaused = false;
                 streamRamp = null;
             }
-            if (music is { Error: not null } failed)
-            {
-                music = null;
-                nativeMidiPaused = false;
-                midiRamp = null;
-                failed.Dispose();
-            }
         }
     }
 
@@ -674,6 +645,7 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
 
     public void StopAll()
     {
+        segmentDecodeQueue?.CancelAll();
         decodeQueue?.CancelAll();
         pendingDialogueDecodes.Clear();
         StopSounds();
@@ -689,6 +661,8 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             return;
         }
         audioDisposed = true;
+        segmentDecodeQueue?.Dispose();
+        segmentDecodeQueue = null;
         decodeQueue?.Dispose();
         decodeQueue = null;
         if (engine is not null)
@@ -696,7 +670,6 @@ internal sealed partial class FieldAudioPresentation(string gameDirectory, strin
             engine.AudioCommandExecuted -= Execute;
         }
         StopAll();
-        music?.Dispose();
         if (OwnsSoundOutput)
         {
             sound?.Dispose();

@@ -272,6 +272,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
     private void UpdateGameFrame(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
+        fieldAudio?.PumpPendingSegmentMusic();
         SynchronizeMenuPresentation();
         ControllerDevice inputController = controller ?? throw new InvalidOperationException("The graphical host requires its initialized input device.");
         GamePadState pad = physicalInput.ReadController();

@@ -17,7 +17,7 @@ Memoria runs its own game session, event interpreter, simulation and presentatio
 | `Memoria.FF8.Media` | Movie/media tool integration. |
 | `Memoria.FF8.Platform` | Host OS, user paths, asynchronous desktop contracts and native dependency validation. |
 | `Memoria.FF8.Audio` | Shared SGT/DLS parsing, sequencing, synthesis, PCM decoding/mixing and SDL3 device output. |
-| `Memoria.FF8.Music` | Portable x64 music worker. The app builds and distributes the helper separately. |
+| `Memoria.FF8.Music` | Standalone SGT/DLS validation tool and temporary compatibility payload for released updaters. |
 | `Memoria.FF8.TitleScene` | Procedural title scene and its presentation resources. |
 | `Memoria.FF8.Mods` | Mod discovery, manifests, selection and resource overlays. |
 

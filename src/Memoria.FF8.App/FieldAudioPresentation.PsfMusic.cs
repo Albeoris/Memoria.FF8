@@ -38,22 +38,25 @@ internal sealed partial class FieldAudioPresentation
         {
             throw new NotSupportedException("Concert output requires a replacement for every selected instrument.");
         }
-        nativeMidiPaused = false;
-        musicKinds[0] = MusicKind.Midi;
-        musicIds[0] = 43;
         ExternalMusicSelection[] selected = selections.Select(selection => selection!).ToArray();
-        if (selected.All(selection => IsPsf(selection.File.RelativePath)))
-        {
-            QueuePsfMusic(selected, MusicKind.Midi, 0, 43, NativeConcertSelection.IsPreview(mask));
-        }
-        else if (selected.All(selection => !IsPsf(selection.File.RelativePath)))
-        {
-            QueuePcmConcert(selected, NativeConcertSelection.IsPreview(mask));
-        }
-        else
+        bool psf = IsPsf(selected[0].File.RelativePath);
+        if (selected.Any(selection => IsPsf(selection.File.RelativePath) != psf))
         {
             throw new NotSupportedException("Concert output requires one common PCM or PSF decoder route for its selected instruments.");
         }
+        ResetMidiMusic();
+        nativeMidiPaused = false;
+        bool preview = NativeConcertSelection.IsPreview(mask);
+        if (psf)
+        {
+            QueuePsfMusic(selected, MusicKind.Midi, 0, 43, preview);
+        }
+        else
+        {
+            QueuePcmConcert(selected, preview);
+        }
+        musicKinds[0] = MusicKind.Midi;
+        musicIds[0] = 43;
         return true;
     }
 
@@ -155,11 +158,7 @@ internal sealed partial class FieldAudioPresentation
             int volume = Math.Clamp((int)(kind == MusicKind.Midi ? midiVolume : streamVolume), 0, 127);
             output.SetGain(ExternalGain(kind, volume, output.Volume));
             output.Pause(focusPaused || nativeMidiPaused);
-            if (kind == MusicKind.Midi)
-            {
-                music?.Stop();
-            }
-            else
+            if (kind == MusicKind.Stream)
             {
                 streamedMusic?.Dispose();
                 streamedMusic = null;

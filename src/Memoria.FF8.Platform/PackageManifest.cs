@@ -11,6 +11,11 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 {
     public string RuntimeIdentifier { get; init; } = "win-x64";
     public int LayoutVersion { get; init; } = 1;
+    public string[] RemoveFiles { get; init; } = [];
+
+    // Older readers use Files as the complete archive inventory.
+    public string[] TransientFiles { get; init; } = [];
+
     internal string LauncherEntryPoint => RuntimeIdentifier == "win-x64" ? LauncherPath : Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/MacOS/Memoria.Launcher" : "Memoria.Launcher";
     internal static StringComparer FileSystemComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
@@ -31,7 +36,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
     private const long MaximumPackageSize = 4L * 1024 * 1024 * 1024;
     private const long MaximumManifestSize = 16L * 1024 * 1024;
     private static readonly StringComparer PathComparer = StringComparer.OrdinalIgnoreCase;
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, AllowDuplicateProperties = false };
 
     internal static PackageManifest Read(string root)
     {
@@ -62,12 +67,13 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
 
     internal void ValidatePaths()
     {
-        if ((SchemaVersion != 1 && SchemaVersion != 2 && SchemaVersion != 3) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64" or "osx-arm64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || (SchemaVersion == 3 && !HostPlatforms.IsMacRuntime(RuntimeIdentifier)) || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null)
+        if ((SchemaVersion != 1 && SchemaVersion != 2 && SchemaVersion != 3) || LayoutVersion != 1 || RuntimeIdentifier is not ("win-x64" or "linux-x64" or "osx-x64" or "osx-arm64") || (SchemaVersion == 1 && RuntimeIdentifier != "win-x64") || (SchemaVersion == 2 && RuntimeIdentifier == "win-x64") || (SchemaVersion == 3 && !HostPlatforms.IsMacRuntime(RuntimeIdentifier)) || string.IsNullOrWhiteSpace(BuildId) || string.IsNullOrWhiteSpace(Version) || BuiltAt == default || Files is null || RemoveFiles is null || TransientFiles is null)
         {
             throw new InvalidDataException("The distribution manifest has an unsupported schema or missing identity.");
         }
 
-        HashSet<string> paths = new(RuntimeIdentifier == "win-x64" ? PathComparer : StringComparer.Ordinal);
+        StringComparer comparer = RuntimeIdentifier == "win-x64" ? PathComparer : StringComparer.Ordinal;
+        HashSet<string> paths = new(comparer);
         long total = 0;
         foreach (PackageFile file in Files)
         {
@@ -76,19 +82,7 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
                 throw new InvalidDataException("The distribution manifest contains a missing file record.");
             }
 
-            ValidateFilePath(file.Path, false);
-            if (!Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path.StartsWith("Contents/", StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("Bundle paths require the macOS runtime inventory.");
-            }
-            if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && file.Path != "Contents/Info.plist" && file.Path != MacCodeSigning.Launcher && !file.Path.StartsWith("Contents/Resources/", StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
-            }
-            if (RuntimeIdentifier == "win-x64" && !PathComparer.Equals(file.Path, LauncherPath) && !file.Path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(file.Path))
-            {
-                throw new InvalidDataException("The Windows inventory contains an unowned path.");
-            }
+            ValidateOwnedFilePath(file.Path);
             if (RuntimeIdentifier != "win-x64" && file.UnixMode != (System.IO.Path.GetFileName(file.Path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder" ? 493 : 420))
             {
                 throw new InvalidDataException("The Unix inventory has an unsupported file mode.");
@@ -110,19 +104,44 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
             }
         }
 
-        string executablePrefix = Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) ? "Contents/Resources/" : "";
-        if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && !paths.Contains("Contents/Info.plist"))
+        bool mac = HostPlatforms.IsMacRuntime(RuntimeIdentifier);
+        if (mac && TransientFiles.Length != 0)
+        {
+            throw new InvalidDataException("The macOS bundle cannot contain transient inventory files.");
+        }
+
+        HashSet<string> transientPaths = new(comparer);
+        foreach (string path in TransientFiles)
+        {
+            if (!paths.TryGetValue(path, out string? inventoryPath) || path != inventoryPath || !transientPaths.Add(path))
+            {
+                throw new InvalidDataException("A transient distribution file must match a unique inventory path: " + path);
+            }
+        }
+
+        string executablePrefix = mac ? "Contents/Resources/" : "";
+        if (mac && !paths.Contains("Contents/Info.plist"))
         {
             throw new InvalidDataException("The macOS bundle has no Info.plist.");
         }
-        if (Memoria.FF8.Platform.HostPlatforms.IsMacRuntime(RuntimeIdentifier) && !paths.Contains("Contents/Resources/Memoria.Launcher"))
+        if (mac && !paths.Contains("Contents/Resources/Memoria.Launcher"))
         {
             throw new InvalidDataException("The macOS bundle has no standalone update helper launcher.");
         }
         string extension = RuntimeIdentifier == "win-x64" ? ".exe" : "";
-        if (!paths.Contains(LauncherEntryPoint) || !paths.Contains(executablePrefix + "Data/Memoria.FF8" + extension) || !paths.Contains(executablePrefix + "Data/audio-host/Memoria.FF8.Music" + extension))
+        string game = executablePrefix + "Data/Memoria.FF8" + extension;
+        if (!paths.Contains(LauncherEntryPoint) || transientPaths.Contains(LauncherEntryPoint) || !paths.Contains(game) || transientPaths.Contains(game))
         {
             throw new InvalidDataException("The distribution is missing a required executable.");
+        }
+
+        foreach (string path in RemoveFiles)
+        {
+            ValidateOwnedFilePath(path);
+            if (!paths.Add(path))
+            {
+                throw new InvalidDataException("A removed distribution file must be unique and absent from the inventory: " + path);
+            }
         }
 
         foreach (string path in paths)
@@ -135,6 +154,28 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
                 }
             }
         }
+    }
+
+    internal IEnumerable<PackageFile> GetInstalledFiles()
+    {
+        if (TransientFiles.Length == 0)
+        {
+            return Files;
+        }
+
+        HashSet<string> transientPaths = new(TransientFiles, StringComparer.Ordinal);
+        return Files.Where(file => !transientPaths.Contains(file.Path));
+    }
+
+    internal IEnumerable<PackageFile> GetTransientFiles()
+    {
+        if (TransientFiles.Length == 0)
+        {
+            return [];
+        }
+
+        HashSet<string> transientPaths = new(TransientFiles, StringComparer.Ordinal);
+        return Files.Where(file => transientPaths.Contains(file.Path));
     }
 
     internal static string ResolvePath(string root, string relative)
@@ -151,14 +192,15 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
         return fullPath;
     }
 
-    internal static void Verify(string root, PackageManifest manifest)
+    internal static void Verify(string root, PackageManifest manifest, bool includeTransientFiles = true)
     {
         manifest.ValidatePaths();
         if (manifest.SchemaVersion == 3)
         {
             MacCodeSigning.VerifyBundle(root);
         }
-        foreach (PackageFile file in manifest.Files)
+        IEnumerable<PackageFile> files = includeTransientFiles ? manifest.Files : manifest.GetInstalledFiles();
+        foreach (PackageFile file in files)
         {
             string path = ResolvePath(root, file.Path);
             EnsureNoReparsePoints(path);
@@ -313,12 +355,30 @@ internal sealed partial record PackageManifest(int SchemaVersion, string BuildId
         }
     }
 
+    private void ValidateOwnedFilePath(string path)
+    {
+        ValidateFilePath(path, false);
+        bool mac = HostPlatforms.IsMacRuntime(RuntimeIdentifier);
+        if (!mac && path.StartsWith("Contents/", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("Bundle paths require the macOS runtime inventory.");
+        }
+        if (mac && path != "Contents/Info.plist" && path != MacCodeSigning.Launcher && !path.StartsWith("Contents/Resources/", StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
+        }
+        if (RuntimeIdentifier == "win-x64" && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path))
+        {
+            throw new InvalidDataException("The Windows inventory contains an unowned path.");
+        }
+    }
+
     private static void ValidateFilePath(string path, bool allowManifest)
     {
         ValidateSegments(path);
         bool portableRoot = !path.Contains('/') && (path == "Memoria.Launcher" || path.EndsWith(".dll", StringComparison.Ordinal) || path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith(".so", StringComparison.Ordinal) || path.EndsWith(".dylib", StringComparison.Ordinal));
         bool signatureEnvelope = allowManifest && path == MacCodeSigning.ResourceEnvelope;
-        if ((!signatureEnvelope && !portableRoot && path != "Contents/Info.plist" && path != MacCodeSigning.Launcher && !path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase))
+        if ((!signatureEnvelope && !portableRoot && path != "Contents/Info.plist" && path != MacCodeSigning.Launcher && !path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !PathComparer.Equals(path, LauncherPath) && !path.StartsWith("Data/", StringComparison.OrdinalIgnoreCase) && !IsBundledModPath(path)) || (!allowManifest && (PathComparer.Equals(path, ManifestPath) || path == MacManifestPath)) || path.StartsWith(ManifestPath + "/", StringComparison.OrdinalIgnoreCase) || path.StartsWith(MacManifestPath + "/", StringComparison.Ordinal))
         {
             throw new InvalidDataException($"The path is not owned by the distribution: {path}");
         }

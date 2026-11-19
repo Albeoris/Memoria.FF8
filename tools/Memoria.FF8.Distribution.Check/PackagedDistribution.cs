@@ -1,8 +1,7 @@
 using System.Formats.Tar;
 using System.IO.Compression;
-using System.Security.Cryptography;
-using System.Text.Json;
 using Memoria.FF8.Platform;
+using Memoria.Launcher;
 
 static class PackagedDistribution
 {
@@ -145,69 +144,36 @@ static class PackagedDistribution
     public static void Validate(string root, string rid)
     {
         string prefix = HostPlatforms.IsMacRuntime(rid) ? MacCodeSigning.PayloadPrefix : "";
-        using JsonDocument json = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, prefix + "Data/distribution.json")));
-        JsonElement manifest = json.RootElement;
+        PackageManifest manifest = PackageManifest.Read(root);
         bool mac = HostPlatforms.IsMacRuntime(rid);
-        if (manifest.GetProperty("RuntimeIdentifier").GetString() != rid || manifest.GetProperty("SchemaVersion").GetInt32() != (rid == "win-x64" ? 1 : mac ? 3 : 2))
+        if (manifest.RuntimeIdentifier != rid || manifest.SchemaVersion != (rid == "win-x64" ? 1 : mac ? 3 : 2))
         {
             throw new InvalidDataException("Package descriptor RID/schema mismatch.");
         }
-        if (HostPlatforms.IsMacRuntime(rid))
-        {
-            MacBundleVersion.Validate(File.ReadAllBytes(Path.Combine(root, "Contents", "Info.plist")), manifest.GetProperty("Version").GetString()!);
-        }
-        HashSet<string> expected = new(StringComparer.Ordinal) { prefix + "Data/distribution.json" };
         if (mac)
         {
-            MacCodeSigning.VerifyBundle(root);
-            expected.Add(MacCodeSigning.ResourceEnvelope);
+            MacBundleVersion.Validate(File.ReadAllBytes(Path.Combine(root, "Contents", "Info.plist")), manifest.Version);
         }
-        foreach (JsonElement file in manifest.GetProperty("Files").EnumerateArray())
+        PackageManifest.Verify(root, manifest);
+        HashSet<string> expected = new(manifest.Files.Select(file => file.Path), StringComparer.Ordinal) { prefix + "Data/distribution.json" };
+        if (mac)
         {
-            string relative = file.GetProperty("Path").GetString()!;
-            if (!expected.Add(relative) || relative.Contains('\\') || relative.Split('/').Any(part => part is "" or "." or ".." || part.Contains(':')))
-            {
-                throw new InvalidDataException("Invalid inventory path.");
-            }
-            if (mac && relative != "Contents/Info.plist" && relative != MacCodeSigning.Launcher && !relative.StartsWith(MacCodeSigning.PayloadPrefix, StringComparison.Ordinal))
-            {
-                throw new InvalidDataException("The macOS inventory contains a file outside the fixed bundle layout.");
-            }
-            string path = Path.Combine(root, relative);
-            if (rid != "win-x64")
-            {
-                int requiredMode = Path.GetFileName(path) is "Memoria.Launcher" or "Memoria.FF8" or "Memoria.FF8.Music" or "Memoria.PsfDecoder" ? 493 : 420;
-                if (file.GetProperty("UnixMode").GetInt32() != requiredMode || (!OperatingSystem.IsWindows() && (int)File.GetUnixFileMode(path) != requiredMode))
-                {
-                    throw new InvalidDataException("Package executable modes do not match inventory: " + relative);
-                }
-            }
-            string hashKind = file.TryGetProperty("HashKind", out JsonElement kind) ? kind.GetString()! : "sha256";
-            bool canonicalLauncher = mac && relative == MacCodeSigning.Launcher;
-            if (hashKind != (canonicalLauncher ? MacCodeSigning.UnsignedHashKind : "sha256"))
-            {
-                throw new InvalidDataException("Unsupported package hash kind: " + relative);
-            }
-            using FileStream input = File.OpenRead(path);
-            (long size, string hash) = canonicalLauncher ? MacCodeSigning.UnsignedHash(path) : (input.Length, Convert.ToHexStringLower(SHA256.HashData(input)));
-            if (size != file.GetProperty("Size").GetInt64() || hash != file.GetProperty("Sha256").GetString())
-            {
-                throw new InvalidDataException("Package inventory hash mismatch: " + relative);
-            }
+            expected.Add(MacCodeSigning.ResourceEnvelope);
         }
         string extension = rid == "win-x64" ? ".exe" : "";
         if (mac && !expected.Contains(MacCodeSigning.Launcher))
         {
             throw new InvalidDataException("The macOS bundle has no native entry point.");
         }
-        foreach (string path in new[] { "Memoria.Launcher" + extension, "Data/Memoria.FF8" + extension, "Data/audio-host/Memoria.FF8.Music" + extension, "Data/Game/vulkan/Memoria.FF8" + extension, "Data/Game/vulkan/Memoria.PsfDecoder" + extension })
+        HashSet<string> installed = new(manifest.GetInstalledFiles().Select(file => file.Path), StringComparer.Ordinal);
+        foreach (string path in new[] { "Memoria.Launcher" + extension, "Data/Memoria.FF8" + extension, "Data/Game/vulkan/Memoria.FF8" + extension, "Data/Game/vulkan/Memoria.PsfDecoder" + extension })
         {
-            if (!expected.Contains(prefix + path))
+            if (!installed.Contains(prefix + path))
             {
                 throw new InvalidDataException("Package is missing a required process: " + path);
             }
         }
-        if (rid == "win-x64" && (!expected.Contains("Data/Game/dx11/Memoria.FF8.exe") || !expected.Contains("Data/Game/dx12/Memoria.FF8.exe") || !expected.Contains("Data/Game/dx11/Memoria.PsfDecoder.exe") || !expected.Contains("Data/Game/dx12/Memoria.PsfDecoder.exe")))
+        if (rid == "win-x64" && (!installed.Contains("Data/Game/dx11/Memoria.FF8.exe") || !installed.Contains("Data/Game/dx12/Memoria.FF8.exe") || !installed.Contains("Data/Game/dx11/Memoria.PsfDecoder.exe") || !installed.Contains("Data/Game/dx12/Memoria.PsfDecoder.exe")))
         {
             throw new InvalidDataException("The Windows archive must contain all three isolated backend hosts.");
         }

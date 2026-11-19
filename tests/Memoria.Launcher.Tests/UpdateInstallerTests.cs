@@ -59,6 +59,178 @@ public sealed class UpdateInstallerTests : IDisposable
         Assert.Equal("new", PackageManifest.Read(root).BuildId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExplicitRetirementRemovesOnlyUnchangedOwnedFilesAndRollsBack(bool fail)
+    {
+        const string retired = "Data/obsolete.dll";
+        const string edited = "Data/custom/edited.bin";
+        const string unowned = "Data/custom/user.bin";
+        const string replacedByDirectory = "Data/custom/directory.bin";
+        AddPackageFile(root, edited, "default");
+        Write(root, edited, "changed");
+        AddPackageFile(root, replacedByDirectory, "original file");
+        File.Delete(Path.Combine(root, replacedByDirectory));
+        Write(root, replacedByDirectory + "/user.txt", "keep");
+        WriteManifest(Staged, PackageManifest.Read(Staged) with { RemoveFiles = [retired, edited, unowned, replacedByDirectory, "Data/absent.bin"] });
+
+        if (fail)
+        {
+            Assert.Throws<IOException>(() => UpdateInstaller.Apply(root, path =>
+            {
+                if (path == PackageManifest.ManifestPath)
+                {
+                    throw new IOException("Injected failure after the retirement.");
+                }
+            }));
+            Assert.Equal("old:Data/obsolete.dll", Read(retired));
+            Assert.Equal("old", PackageManifest.Read(root).BuildId);
+        }
+        else
+        {
+            UpdateInstaller.Apply(root);
+            Assert.False(File.Exists(Path.Combine(root, retired)));
+            Assert.Equal("old:Data/obsolete.dll", File.ReadAllText(Path.Combine(Work, "backup", retired)));
+            Assert.Equal("new", PackageManifest.Read(root).BuildId);
+        }
+        Assert.Equal("changed", Read(edited));
+        Assert.Equal("keep", Read(replacedByDirectory + "/user.txt"));
+        AssertUnknownFiles();
+    }
+
+    [Fact]
+    public void RetirementRollsBackIfTheOriginalChangesDuringInstallation()
+    {
+        const string retired = "Data/obsolete.dll";
+        WriteManifest(Staged, PackageManifest.Read(Staged) with { RemoveFiles = [retired] });
+
+        Assert.Throws<IOException>(() => UpdateInstaller.Apply(root, path =>
+        {
+            if (path == retired)
+            {
+                Write(root, retired, "changed during update");
+            }
+        }));
+
+        Assert.Equal("changed during update", Read(retired));
+        Assert.Equal("old", PackageManifest.Read(root).BuildId);
+        Assert.True(File.Exists(Path.Combine(Work, "rolled-back")));
+    }
+
+    [Fact]
+    public void ApplyingBridgeAndSuccessorNeverInstallsTransientPayloads()
+    {
+        const string worker = "Data/audio-host/Memoria.FF8.Music.exe";
+        const string unowned = "Data/custom/user.bin";
+        AddPackageFile(Staged, unowned, "staged compatibility payload");
+        WriteManifest(Staged, PackageManifest.Read(Staged) with { TransientFiles = [worker, unowned] });
+
+        UpdateInstaller.Apply(root);
+
+        Assert.False(File.Exists(Path.Combine(root, worker)));
+        Assert.False(File.Exists(Path.Combine(Staged, worker)));
+        Assert.False(File.Exists(Path.Combine(Staged, unowned)));
+        AssertUnknownFiles();
+        PackageManifest.Verify(root, PackageManifest.Read(root), includeTransientFiles: false);
+        UpdateInstaller.Prepare(root);
+        WritePackage(Staged, "next", "Data/added.dll");
+        File.Delete(Path.Combine(Staged, worker));
+        PackageManifest successor = PackageManifest.Read(Staged);
+        WriteManifest(Staged, successor with { Files = [.. successor.Files.Where(file => file.Path != worker)], RemoveFiles = [worker, unowned] });
+
+        UpdateInstaller.Apply(root);
+
+        Assert.False(File.Exists(Path.Combine(root, worker)));
+        AssertUnknownFiles();
+        Assert.Equal("next", PackageManifest.Read(root).BuildId);
+        PackageManifest.Verify(root, PackageManifest.Read(root));
+    }
+
+    [Fact]
+    public void ModifiedTransientPayloadIsRejectedBeforeCreatingAJournal()
+    {
+        const string worker = "Data/audio-host/Memoria.FF8.Music.exe";
+        WriteManifest(Staged, PackageManifest.Read(Staged) with { TransientFiles = [worker] });
+        Write(Staged, worker, "changed archive payload");
+
+        Assert.Throws<InvalidDataException>(() => UpdateInstaller.Apply(root));
+
+        AssertOriginalPackage();
+        Assert.False(File.Exists(Path.Combine(Work, "journal.json")));
+    }
+
+    [Fact]
+    public void FailedBridgeRestoresTheWorkerAndKeepsTheVerifiedTransientPayload()
+    {
+        const string worker = "Data/audio-host/Memoria.FF8.Music.exe";
+        WriteManifest(Staged, PackageManifest.Read(Staged) with { TransientFiles = [worker] });
+
+        Assert.Throws<IOException>(() => UpdateInstaller.Apply(root, path =>
+        {
+            if (path == PackageManifest.ManifestPath)
+            {
+                throw new IOException("Injected failure before the bridge commits.");
+            }
+        }));
+
+        AssertOriginalPackage();
+        Assert.Equal("new:" + worker, File.ReadAllText(Path.Combine(Staged, worker)));
+    }
+
+    [Fact]
+    public void StartupRetiresOnlyExactTransientPayloadsAfterLegacyCommit()
+    {
+        const string worker = "Data/audio-host/Memoria.FF8.Music.exe";
+        const string edited = "Data/audio-host/edited.bin";
+        const string missing = "Data/audio-host/missing.bin";
+        AddPackageFile(Staged, edited, "payload");
+        AddPackageFile(Staged, missing, "payload");
+        UpdateInstaller.Apply(root);
+        string committed = Path.Combine(Work, "committed");
+        File.Delete(committed);
+        WriteManifest(root, PackageManifest.Read(root) with { TransientFiles = [worker, edited, missing] });
+        Write(root, edited, "changed");
+        File.Delete(Path.Combine(root, missing));
+
+        UpdateInstaller.RetireTransientFiles(root);
+
+        Assert.True(UpdateInstaller.NeedsRecovery(root));
+        Assert.True(File.Exists(Path.Combine(root, worker)));
+        Write(Staged, worker, Read(worker));
+        File.WriteAllBytes(committed, [1]);
+        UpdateInstaller.RetireTransientFiles(root);
+        UpdateInstaller.RetireTransientFiles(root);
+
+        Assert.False(File.Exists(Path.Combine(root, worker)));
+        Assert.False(File.Exists(Path.Combine(Staged, worker)));
+        Assert.False(File.Exists(Path.Combine(root, missing)));
+        Assert.Equal("changed", Read(edited));
+        Assert.True(File.Exists(Path.Combine(Work, "backup", worker)));
+        AssertUnknownFiles();
+        PackageManifest.Verify(root, PackageManifest.Read(root), includeTransientFiles: false);
+    }
+
+    [Fact]
+    public void StartupRetiresOtherPayloadsWhenOnePathIsLinked()
+    {
+        Assert.SkipUnless(!OperatingSystem.IsWindows(), "Windows may require a privilege to create symbolic links.");
+        const string linked = "Data/audio-host/linked.bin";
+        const string regular = "Data/audio-host/regular.bin";
+        const string external = "notes.txt";
+        AddPackageFile(root, linked, Read(external));
+        AddPackageFile(root, regular, "compatibility payload");
+        WriteManifest(root, PackageManifest.Read(root) with { TransientFiles = [linked, regular] });
+        File.Delete(Path.Combine(root, linked));
+        File.CreateSymbolicLink(Path.Combine(root, linked), Path.Combine(root, external));
+
+        UpdateInstaller.RetireTransientFiles(root);
+
+        Assert.NotNull(File.ResolveLinkTarget(Path.Combine(root, linked), returnFinalTarget: false));
+        Assert.False(File.Exists(Path.Combine(root, regular)));
+        AssertUnknownFiles();
+    }
+
     [Fact]
     public void CommittedUpdateAdoptsArtworkBeforePrepareAndPreservesWritableConfiguration()
     {
@@ -491,7 +663,7 @@ public sealed class UpdateInstallerTests : IDisposable
             return new PackageFile(path, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
         }).ToArray();
         PackageManifest manifest = new(1, buildId, "1.0", new DateTimeOffset(2026, 10, 18, 12, 0, 0, TimeSpan.Zero), files);
-        Write(directory, PackageManifest.ManifestPath, JsonSerializer.Serialize(manifest));
+        WriteManifest(directory, manifest);
     }
 
     private static void Write(string directory, string relative, string contents)
@@ -508,6 +680,11 @@ public sealed class UpdateInstallerTests : IDisposable
         byte[] bytes = Encoding.UTF8.GetBytes(content);
         PackageFile file = new(relative, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
         manifest = manifest with { Files = [.. manifest.Files.Where(existing => !existing.Path.Equals(relative, StringComparison.OrdinalIgnoreCase)), file] };
+        WriteManifest(directory, manifest);
+    }
+
+    private static void WriteManifest(string directory, PackageManifest manifest)
+    {
         Write(directory, PackageManifest.ManifestPath, JsonSerializer.Serialize(manifest));
     }
 

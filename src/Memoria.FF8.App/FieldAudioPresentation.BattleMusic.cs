@@ -25,7 +25,10 @@ internal sealed partial class FieldAudioPresentation
             streamedMusic.Play(true);
             streamedMusicPaused = false;
         }
-        music?.Resume();
+        if (!focusPaused)
+        {
+            music?.Resume();
+        }
     }
 
     public void PlayBattleMusicCommand(NativeBattleMusicCommandReceipt command)

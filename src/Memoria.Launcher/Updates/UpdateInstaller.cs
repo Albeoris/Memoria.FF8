@@ -102,6 +102,11 @@ internal static class UpdateInstaller
             MacBundleUpdate.ValidatePrepared(root, incoming);
             return new UpdateJournal([]);
         }
+        return CreateFileJournal(root, incoming, out _);
+    }
+
+    private static UpdateJournal CreateFileJournal(string root, PackageManifest incoming, out Dictionary<string, PackageFile> guardedFiles)
+    {
         PackageManifest? previous = PackageManifest.LoadOptional(root);
         if (previous is null)
         {
@@ -111,10 +116,25 @@ internal static class UpdateInstaller
         incoming.ValidateTarget(previous.RuntimeIdentifier);
         StringComparer comparer = previous.RuntimeIdentifier == "win-x64" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         Dictionary<string, PackageFile> previousFiles = previous.Files.ToDictionary(file => file.Path, comparer);
-        HashSet<string> oldPaths = new(previousFiles.Keys, comparer);
-        oldPaths.Add(PackageManifest.ManifestPath);
+        HashSet<string> guardedPaths = previous.TransientFiles.Concat(incoming.TransientFiles).Concat(incoming.RemoveFiles).ToHashSet(comparer);
+        guardedFiles = new(comparer);
+        HashSet<string> oldPaths = new(comparer) { PackageManifest.ManifestPath };
+        foreach (PackageFile file in previous.Files)
+        {
+            if (guardedPaths.Contains(file.Path))
+            {
+                string target = PackageManifest.ResolvePath(root, file.Path);
+                RejectLinks(target);
+                if (!File.Exists(target) || !MatchesFile(target, file))
+                {
+                    continue;
+                }
+                guardedFiles.Add(file.Path, file);
+            }
+            oldPaths.Add(file.Path);
+        }
         HashSet<string> paths = new(oldPaths, comparer);
-        HashSet<string> newPaths = new(incoming.Files.Select(file => file.Path), comparer);
+        HashSet<string> newPaths = incoming.GetInstalledFiles().Select(file => file.Path).ToHashSet(comparer);
         paths.UnionWith(newPaths);
         UpdateOperation[] operations = paths.Where(path => path != PackageManifest.ManifestPath && !PreserveEditedMod(root, path, previousFiles)).OrderBy(path => newPaths.Contains(path) ? 1 : 0).ThenBy(path => path, comparer).Append(PackageManifest.ManifestPath).Select(path =>
         {
@@ -149,8 +169,52 @@ internal static class UpdateInstaller
         {
             return true;
         }
-        using FileStream stream = File.OpenRead(target);
-        return stream.Length != previous.Size || !Convert.ToHexString(SHA256.HashData(stream)).Equals(previous.Sha256, StringComparison.OrdinalIgnoreCase);
+        return !MatchesFile(target, previous);
+    }
+
+    private static bool MatchesFile(string path, PackageFile file)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return stream.Length == file.Size && Convert.ToHexString(SHA256.HashData(stream)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static void RetireTransientFiles(string root)
+    {
+        if (MacBundleUpdate.IsBundleRoot(root))
+        {
+            return;
+        }
+        PackageManifest? installed = PackageManifest.LoadOptional(root);
+        if (installed is null || installed.TransientFiles.Length == 0 || NeedsRecovery(root))
+        {
+            return;
+        }
+        RetireMatchingTransientFiles(root, installed);
+        string work = Path.Combine(root, WorkDirectory);
+        if (File.Exists(Path.Combine(work, "committed")))
+        {
+            RetireMatchingTransientFiles(Path.Combine(work, "new"), installed);
+        }
+    }
+
+    private static void RetireMatchingTransientFiles(string root, PackageManifest manifest)
+    {
+        foreach (PackageFile file in manifest.GetTransientFiles())
+        {
+            try
+            {
+                string target = PackageManifest.ResolvePath(root, file.Path);
+                RejectLinks(target);
+                if (File.Exists(target) && MatchesFile(target, file))
+                {
+                    File.Delete(target);
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Console.Error.WriteLine("Compatibility payload cleanup will retry on the next start. " + exception.Message);
+            }
+        }
     }
 
     internal static void Apply(string root, Action<string>? beforeInstall = null)
@@ -165,7 +229,8 @@ internal static class UpdateInstaller
         string staged = Path.Combine(work, "new");
         PackageManifest incoming = PackageManifest.Read(staged);
         PackageManifest.Verify(staged, incoming);
-        UpdateJournal journal = CreateJournal(root, incoming);
+        UpdateJournal journal = CreateFileJournal(root, incoming, out Dictionary<string, PackageFile> guardedFiles);
+        HashSet<string> transientPaths = new(incoming.TransientFiles, incoming.RuntimeIdentifier == "win-x64" ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         string journalPath = Path.Combine(work, "journal.json");
         string pendingJournalPath = Path.Combine(work, "journal.tmp");
         using (FileStream stream = new(pendingJournalPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
@@ -183,7 +248,8 @@ internal static class UpdateInstaller
                 string source = PackageManifest.ResolvePath(staged, operation.Path);
                 RejectLinks(target);
                 beforeInstall?.Invoke(operation.Path);
-                if (operation.HadOriginal && File.Exists(source))
+                bool hasSource = !transientPaths.Contains(operation.Path) && File.Exists(source);
+                if (operation.HadOriginal && hasSource)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
                     // Replace atomically so a crash never leaves the launcher path missing.
@@ -194,7 +260,7 @@ internal static class UpdateInstaller
                     Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
                     File.Move(target, backup);
                 }
-                else if (File.Exists(source))
+                else if (hasSource)
                 {
                     if (Directory.Exists(target))
                     {
@@ -202,6 +268,10 @@ internal static class UpdateInstaller
                     }
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                     File.Move(source, target);
+                }
+                if (guardedFiles.TryGetValue(operation.Path, out PackageFile? original) && !MatchesFile(backup, original))
+                {
+                    throw new IOException("A retired package file changed during installation: " + operation.Path);
                 }
             }
             WriteMarker(work, "committed");
@@ -211,6 +281,7 @@ internal static class UpdateInstaller
             Rollback(root, journal);
             throw;
         }
+        RetireMatchingTransientFiles(staged, incoming);
     }
 
     private static void Rollback(string root, UpdateJournal journal)
@@ -307,7 +378,7 @@ internal static class UpdateInstaller
         {
             string closure = Path.Combine(work, recovery ? "recovery-runtime" : "updater-runtime");
             Directory.CreateDirectory(closure);
-            foreach (PackageFile file in installed.Files.Where(file => MacBundleUpdate.IsBundleRoot(root) ? file.Path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !file.Path.StartsWith("Contents/Resources/Data/", StringComparison.Ordinal) : !file.Path.Contains('/')))
+            foreach (PackageFile file in installed.GetInstalledFiles().Where(file => MacBundleUpdate.IsBundleRoot(root) ? file.Path.StartsWith("Contents/Resources/", StringComparison.Ordinal) && !file.Path.StartsWith("Contents/Resources/Data/", StringComparison.Ordinal) : !file.Path.Contains('/')))
             {
                 string source = PackageManifest.ResolvePath(root, file.Path);
                 RejectLinks(source);

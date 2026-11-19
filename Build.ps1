@@ -64,7 +64,7 @@ $root = $PSScriptRoot
 $artifacts = if ($ArtifactsDirectory) { [IO.Path]::GetFullPath($ArtifactsDirectory) } else { Join-Path $root 'artifacts' }
 $graphBuild = Join-Path $artifacts ('build/' + $RuntimeIdentifier + '/graph')
 $precompile = if ($Configuration -eq 'Release') { 'true' } else { 'false' }
-$graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:SkipMusicHost=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
+$graphArguments = @('--artifacts-path', $graphBuild, ('-p:MemoriaBuildRuntimeIdentifier=' + $RuntimeIdentifier), '-p:SelfContained=true', ('-p:MemoriaTargetRuntime=' + $RuntimeIdentifier), '-p:MemoriaGraphicsBackend=Vulkan', '-p:TargetFramework=net10.0', '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishTrimmed=false', '-p:ShouldUnsetParentConfigurationAndPlatform=false')
 $graphArguments += '-p:MemoriaPrecompile=' + $precompile
 if ($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY) {
     $graphArguments += @(('-p:MemoriaPsfDecoderDirectory=' + [IO.Path]::GetFullPath($env:MEMORIA_FF8_PSF_DECODER_DIRECTORY)), '-p:MemoriaPsfDecoderPrepared=true')
@@ -157,7 +157,7 @@ try {
             Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-c', $Configuration, '--no-build', '-o', $hostOutput, '-p:PublishSingleFile=false') + $graphArguments + $nativePublishArguments)
         }
         else {
-            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:SkipMusicHost=true', '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
+            Invoke-DotNet (@('publish', 'src/Memoria.FF8.App/Memoria.FF8.App.csproj', '-o', $hostOutput, '--artifacts-path', $hostBuild, ('-p:MemoriaGraphicsBackend=' + $backend.Name), '-p:PublishSingleFile=false', '-m:1') + $nativePublishArguments + $publishArguments)
         }
         if ($backend.Name -eq 'Vulkan') {
             $nativeNotices = Join-Path $data 'licenses/MonoGame.Native.Vulkan'
@@ -186,7 +186,7 @@ try {
         Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--graphics-payload', $hostOutput, $backend.Name, (Join-Path $root 'tools/shader-manifest.json'), $RuntimeIdentifier))
     }
     Invoke-DotNet (@('publish', 'src/Memoria.FF8.Bootstrap/Memoria.FF8.Bootstrap.csproj', '-c', $Configuration, '--no-build', '-o', $data, '-p:PublishSingleFile=false') + $graphArguments)
-    # Keep the released worker path with the common x64 music implementation and its complete runtime.
+    # Released updaters still verify this executable and its inventory before starting the new launcher.
     Invoke-DotNet (@('publish', 'src/Memoria.FF8.Music/Memoria.FF8.Music.csproj', '-c', $Configuration, '--no-build', '-o', (Join-Path $data 'audio-host'), '-p:PublishSingleFile=false') + $graphArguments)
     $launcherSingleFile = if ($RuntimeIdentifier -eq 'win-x64') { 'true' } else { 'false' }
     Invoke-DotNet (@('publish', 'src/Memoria.Launcher/Memoria.Launcher.csproj', '-c', $Configuration, '--no-build', '-o', $launcher, ('-p:PublishSingleFile=' + $launcherSingleFile), '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishDocumentationFile=false', '-p:PublishReferencesDocumentationFiles=false') + $graphArguments)
@@ -304,7 +304,13 @@ try {
         Copy-Item -LiteralPath (Join-Path $root 'tools/packaging/install-desktop.sh') -Destination $desktop
     }
     $manifestRoot = if ($RuntimeIdentifier -like 'osx-*') { Join-Path $staging 'Memoria.FF8.app' } else { $payload }
-    & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier
+    $transientFiles = @()
+    if ($RuntimeIdentifier -notlike 'osx-*') {
+        $transientFiles = @(Get-ChildItem -LiteralPath (Join-Path $data 'audio-host') -File -Recurse | Sort-Object FullName | ForEach-Object {
+            [IO.Path]::GetRelativePath($manifestRoot, $_.FullName).Replace('\', '/')
+        })
+    }
+    & (Join-Path $root 'tools/New-DistributionManifest.ps1') -PackageRoot $manifestRoot -RuntimeIdentifier $RuntimeIdentifier -TransientFiles $transientFiles
     if ($RuntimeIdentifier -like 'osx-*') {
         Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--sign-mac-bundle', $manifestRoot))
     }

@@ -75,9 +75,8 @@ internal sealed partial class FieldAudioPresentation
         IReadOnlyList<string> tracks = Memoria.FF8.Assets.NativeConcertSelection.Tracks(mask);
         if (tracks.Count == 0)
         {
-            CancelMusicDecode(MusicKind.Midi);
-            StopExternalMusic(MusicKind.Midi);
-            music?.Stop();
+            ResetMidiMusic();
+            musicPositionCaptures.Remove(0);
             musicKinds[0] = MusicKind.Midi;
             musicIds[0] = 43;
             nativeMidiPaused = false;
@@ -88,27 +87,8 @@ internal sealed partial class FieldAudioPresentation
             return;
         }
         string[] paths = tracks.Select(track => gameFiles.ResolveDataFile($"music/dmusic/{track}")).ToArray();
-        CancelMusicDecode(MusicKind.Midi);
-        StopExternalMusic(MusicKind.Midi);
-        int outputGain = OutputGain(Catalog.MusicVolume(gain), musicPreference);
         int previewMeasure = Memoria.FF8.Assets.NativeConcertSelection.PreviewMeasure(mask);
-        if (ResumeSegmentPosition(0, 43) is { } position)
-        {
-            Music.PlayConcertAtPosition(paths, outputGain, position, previewMeasure);
-        }
-        else
-        {
-            Music.PlayConcert(paths, outputGain, previewMeasure);
-        }
-        RegisterSegmentPosition(0);
-        DiscardMusicResumePosition(0);
-        if (focusPaused)
-        {
-            Music.Pause();
-        }
-        musicKinds[0] = MusicKind.Midi;
-        musicIds[0] = 43;
-        nativeMidiPaused = false;
+        QueueSegmentMusic(paths, 0, 43, gain, concert: true, previewMeasure: previewMeasure);
     }
 
     internal static void DispatchNativeMusicPlayback(NativeMusicPlaybackDecision? decision, Action<int> stop, Action<int, int, int> play, Action<int, int> gain, Action concert, int? initialGain = null)

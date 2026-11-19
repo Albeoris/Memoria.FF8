@@ -2,7 +2,7 @@
 
 The Windows distribution builds Direct3D11 and Vulkan from the same App, TitleScene and gameplay sources. Backend differences are limited to MonoGame package selection, shader resources and platform adapters. There is one implementation of battle effects, geometry submission, audio and gameplay.
 
-`Data/Memoria.FF8.exe` selects a host before starting it. Separate payloads under `Data/Game/dx11/` and `Data/Game/vulkan/` keep incompatible MonoGame assemblies and native libraries apart. Both hosts use the shared `Data/audio-host/`, `Data/Steam/` and bundled mods. The dispatcher forwards paths, arguments and output, waits for the actual game's exit and owns its child-process lifetime.
+`Data/Memoria.FF8.exe` selects a host before starting it. Separate payloads under `Data/Game/dx11/` and `Data/Game/vulkan/` keep incompatible MonoGame assemblies and native libraries apart. The hosts use the shared `Data/Steam/` and bundled mods. Each game process owns its SDL audio output. The dispatcher forwards paths, arguments and output, waits for the actual game's exit and owns its child-process lifetime.
 
 Choose Auto, Direct3D11 or Vulkan in the launcher or Config → Graphics. An in-game change requires restart. The command-line `--graphics-backend` override takes precedence over `Graphics.Backend` in the existing UI settings file, then Auto. Direct3D12 is recognized in the settings contract but unavailable until its own milestone. Unix launchers expose Auto/Vulkan, while complete Unix game hosts remain later milestones.
 

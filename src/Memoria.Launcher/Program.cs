@@ -55,6 +55,14 @@ internal static class Program
                 }
                 try
                 {
+                    UpdateInstaller.RetireTransientFiles(root);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    Console.Error.WriteLine("Compatibility payload cleanup will retry on the next start. " + exception.Message);
+                }
+                try
+                {
                     GirlNextDoorMigration.FromLauncher(root);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)

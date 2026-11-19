@@ -6,5 +6,6 @@
     <InternalsVisibleTo Include="Memoria.FF8.Mods" />
     <InternalsVisibleTo Include="Memoria.Launcher" />
     <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
+    <InternalsVisibleTo Include="Memoria.FF8.Distribution.Check" />
   </ItemGroup>
 </Project>

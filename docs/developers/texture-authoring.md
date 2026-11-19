@@ -162,7 +162,7 @@ The scoped implementation has no pending feature-code changes. Real editor/inter
 Current-scene capture is explicitly unavailable in software diagnostic rendering and unsupported presentation states. FFVII texture authoring is not claimed.
 
 ```powershell
-dotnet run --project tests/Memoria.FF8.App.Tests -p:SkipMusicHost=true -- --filter-class '*TexturePublicationTests'
+dotnet run --project tests/Memoria.FF8.App.Tests -- --filter-class '*TexturePublicationTests'
 ```
 
 Installed cases require explicitly configured source resources and a GPU test device. An unset installation causes skips; report configured runs separately from unconfigured runs.

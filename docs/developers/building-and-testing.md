@@ -19,7 +19,7 @@ The codec's incremental CMake build lives under `artifacts/native/psf/<key>`, ke
 ./Build.ps1 -RuntimeIdentifier osx-arm64
 ```
 
-The script publishes a self-contained launcher and dispatcher for the selected architecture, and and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the matching music worker. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
+The script publishes a self-contained launcher and dispatcher for the selected architecture, and isolated Windows DX11/Vulkan/DX12 engines built from the same source, plus the legacy music payload for update compatibility. Linux and macOS offer Vulkan. It checks the actual published dependency assemblies, native ABI and backend-specific embedded shaders before packaging, including embedded codepage and menu resources. Original game data, media tool binaries, saves and fixture inputs are not bundled. See [graphics host selection](graphics-backends.md) and [shader generation](shaders.md).
 
 Release packages enable `MemoriaPrecompile`: game hosts use ReadyToRun assemblies and server GC with two heaps while retaining `QuickJit=false`. App.Tests imports the same policy for published host measurements. Ordinary `dotnet build -c Release` retains `QuickJit=false` and the default GC policy; Debug is unchanged. To publish a matching standalone host, pass `-p:MemoriaPrecompile=true` and an explicit runtime identifier during restore/build and publish.
 
@@ -78,7 +78,7 @@ dotnet build Memoria.FF8.slnx -c Release
 For the complete Native graph, including all tool and test assemblies without executing tests:
 
 ```powershell
-dotnet build Memoria.FF8.Native.slnx -c Release -p:MemoriaTargetRuntime=linux-x64 -p:MemoriaGraphicsBackend=Vulkan -p:TargetFramework=net10.0 -p:SkipMusicHost=true -m:1 --artifacts-path artifacts/native-linux
+dotnet build Memoria.FF8.Native.slnx -c Release -p:MemoriaTargetRuntime=linux-x64 -p:MemoriaGraphicsBackend=Vulkan -p:TargetFramework=net10.0 -m:1 --artifacts-path artifacts/native-linux
 ```
 
 Use `osx-x64` for Intel Mac and `osx-arm64` for Apple Silicon. `MemoriaTargetRuntime` chooses native packages at solution level; individual publishes use `-r`. Compilation includes battle-effect test assemblies; execution still requires an authorized affected-effect selection.
@@ -216,6 +216,14 @@ Keep the command, error text, affected mode and a suitable standalone snapshot w
 ### Automatic update compatibility
 
 Every `Build.ps1` run validates the completed ZIP with the frozen first automatic updater in `tools/Memoria.FF8.Updater.Compatibility`, independently of the current updater. Extraction, installation from a minimal older inventory, rollback and preservation of user files must pass before the build succeeds. CI publishes only after this gate. Keep this baseline immutable; add additional contracts when necessary rather than replacing older supported contracts.
+
+### Retiring distribution files
+
+The manifest generator accepts optional `-RemoveFiles` and `-TransientFiles` arrays of package-relative file paths. `RemoveFiles` declares obsolete files omitted from the incoming inventory. On Windows and Linux the updater removes a declared file only when the previous inventory owns it and the live bytes still match. The removal is part of the update transaction and rolls back with it.
+
+`TransientFiles` identifies hashed inventory entries carried for an older updater. The complete payload is still verified when staged. Current Windows and Linux updaters leave it out of the installed files. After an older updater installs the payload, the new launcher removes matching transient files on startup after recovery. A changed file is preserved. macOS updates replace the whole signed bundle, so transient entries are unavailable within it.
+
+The default distribution still ships the genuine legacy worker for the released updaters that require its entry. Windows and Linux declare its payload transient. macOS keeps it inside the signed bundle. To stop shipping it altogether, first route older clients through a release that accepts an archive without it, or have those clients extract a fresh package. Keep the first-updater gate active for any archive offered directly to those clients.
 
 Schema 1 update payloads must remain under `Data/`, with `Memoria.Launcher.exe` at the root. Only the existing empty `Mods/Tonberry/`, `Mods/Demaster/` and `Mods/Junction/` scaffolding belongs outside that payload. Put future bundled resources under `Data/` and retain the schema contract so already installed launchers can update directly.
 

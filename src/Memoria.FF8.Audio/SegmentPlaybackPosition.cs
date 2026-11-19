@@ -14,5 +14,5 @@ public sealed record SegmentPlaybackPosition(long Frames, int SampleRate, int St
     }
 }
 
-/// <summary>Content identity binds a worker position to its ordered segments, DLS bank and decoder contract.</summary>
+/// <summary>Content identity binds the playback position to its ordered segments, DLS bank and decoder contract.</summary>
 public sealed record MusicPlaybackPosition(string ContentSha256, SegmentPlaybackPosition Position);
