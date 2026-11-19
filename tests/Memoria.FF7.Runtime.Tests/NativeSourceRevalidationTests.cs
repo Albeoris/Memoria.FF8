@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Memoria.AutoPlay;
 using Memoria.FF7.Runtime;
@@ -41,6 +43,16 @@ internal static class NativeSourceRevalidationTests
         Check(Ff7AutoPlayPolicy.IsNavigationGoalCompleted(plan!.Goal!, new("visit", bridge.Id, "executed", 4, 1, 2, Ff7AutoPlayTargetKind.LinePush, null, 1, "before", NavigationKey: "left"), "remote"), "Acknowledged arrival did not complete the source-only goal.");
         Check(JsonSerializer.Serialize(state.NavigationGuards) == guards && JsonSerializer.Serialize(state.Coverage) == coverage, "Planning a source refresh changed guards or event consumption.");
         Check(state.SourceRevalidationAttempts.Count == 0, "Travel planning prematurely recorded a completed local proof.");
+        Ff7AutoPlayNavigationGuard priorGuard = state.NavigationGuards["remote-cycle"];
+        var legacyFacts = new[] { new { Guard = "remote-cycle", priorGuard.Entity, priorGuard.SourceTriangle, priorGuard.MovementFailure, priorGuard.BlockingEntities, priorGuard.SpatialBoundaryTriangles, priorGuard.MovementSourceInside, Fact = "blocked" } };
+        string legacyReceipt = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Source = "remote", Event = repair.Id, Condition = "pending", Revision = 1, Facts = legacyFacts })));
+        Ff7AutoPlayState legacyAttempt = state.Clone();
+        legacyAttempt.SourceRevalidationAttempts.Add(legacyReceipt);
+        Check(legacyReceipt != debt[0].ReceiptKey && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Single().NavigationKey == "remote", "A retired prover's receipt suppressed a genuine unfinished remote source.");
+        Ff7AutoPlayPolicy.RecordSourceRevalidationAttempt(legacyAttempt, "remote", repair.Id, "pending");
+        Check(legacyAttempt.SourceRevalidationAttempts.Contains(legacyReceipt) && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Length == 0, "Current prover completion failed to suppress the same unchanged source attempt or erased its history.");
+        string positiveCapability = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("physical|native-continuation:2")));
+        Check(Ff7AutoPlayPolicy.ReadNativeContinuationAvailability("physical") == positiveCapability && JsonSerializer.Serialize(legacyAttempt.Coverage) == coverage && JsonSerializer.Serialize(legacyAttempt.NavigationGuards) == guards, "Negative-attempt versioning changed positive capability, consumed completion or refusal history.");
         pending.Conditions!.ConsumedEntries.Add("pending");
         Check(Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(state, observation).Length == 0, "All-consumed field invented maintenance debt.");
         AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction, ConditionSignature: "fresh");
