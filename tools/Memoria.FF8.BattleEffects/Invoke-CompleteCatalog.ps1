@@ -266,6 +266,14 @@ function Remove-OwnedDirectory([string]$Directory) {
     if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse }
 }
 
+function Test-OrdinaryRawRetirement([object]$Result, [bool]$PerformanceRequested, [double]$Threshold) {
+    if (-not $Result.completed -or $null -ne $Result.error) { return $false }
+    if (-not $PerformanceRequested) { return $true }
+    if ($null -eq $Result.minimum_cast_fps) { return $false }
+    $minimumFps = [double]$Result.minimum_cast_fps
+    return [double]::IsFinite($minimumFps) -and $minimumFps -ge $Threshold -and $Result.performance_context.status -in @('valid', 'concurrent-authorized')
+}
+
 foreach ($name in @('GameDirectory', 'HostExecutable', 'ToolAssembly', 'TestExecutable', 'DiscoveryDirectory')) {
     Set-Variable -Name $name -Value (Resolve-Path -LiteralPath (Get-Variable -Name $name -ValueOnly)).Path
 }
@@ -352,7 +360,6 @@ try {
                     $result.executions = 2
                     $result.completed = $true
                     $result.prepared = $true
-                    Remove-OwnedDirectory (Join-Path $caseRoot 'results')
                 }
             }
             else {
@@ -531,13 +538,16 @@ try {
             Complete-GpuPerformanceContext $script:CurrentPerformanceContext
         }
         $result.performance_status = $script:CurrentPerformanceContext.status
+        if ($result.route -eq 'ordinary-native-invocation' -and (Test-OrdinaryRawRetirement $result $performanceRequested $BelowFps)) {
+            Remove-OwnedDirectory (Join-Path $caseRoot 'results')
+        }
         $results.Add([pscustomobject]$result)
         Write-Json (Join-Path $caseRoot 'result.json') $result
         $completed = @($results | Where-Object { $_.completed -and $null -eq $_.error } | ForEach-Object effect_id)
         $prepared = @($results | Where-Object { $_.prepared -and $null -eq $_.error } | ForEach-Object effect_id)
         $unprepared = @($selected | Where-Object { $_ -notin $prepared })
         $missing = @($selected | Where-Object { $_ -notin $completed })
-        $summary = @{ schema_version=1; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; completed_effect_ids=$completed; missing_effect_ids=$missing; full_catalog_requested=($EffectId.Count -eq 0); full_execution_complete=($EffectId.Count -eq 0 -and $missing.Count -eq 0); fps_available_count=@($results | Where-Object { $null -ne $_.minimum_cast_fps }).Count; below_threshold_effect_ids=@($results | Where-Object below_threshold | ForEach-Object effect_id); ordinary_admission_count=@($results | Where-Object { $_.completed -and $_.route -eq 'ordinary-native-invocation' }).Count; controlled_component_count=@($results | Where-Object { $_.completed -and $_.route -eq 'controlled-original-component' }).Count; raw_retirement='Closed ordinary telemetry and successful component preparation scratch are retired after authentication and compact measurement extraction; inputs, hashes and measurements remain.'; results=$results.ToArray() }
+        $summary = @{ schema_version=1; catalog_effect_ids=$catalogIds; selected_effect_ids=$selected; completed_effect_ids=$completed; missing_effect_ids=$missing; full_catalog_requested=($EffectId.Count -eq 0); full_execution_complete=($EffectId.Count -eq 0 -and $missing.Count -eq 0); fps_available_count=@($results | Where-Object { $null -ne $_.minimum_cast_fps }).Count; below_threshold_effect_ids=@($results | Where-Object below_threshold | ForEach-Object effect_id); ordinary_admission_count=@($results | Where-Object { $_.completed -and $_.route -eq 'ordinary-native-invocation' }).Count; controlled_component_count=@($results | Where-Object { $_.completed -and $_.route -eq 'controlled-original-component' }).Count; raw_retirement='Ordinary telemetry is retired after authenticated completion only when performance was not requested or both measured casts meet the threshold in a valid or authorized concurrent context; unresolved evidence is retained within the data budget. Successful component preparation scratch is retired; inputs, hashes and measurements remain.'; results=$results.ToArray() }
         $summary.prepared_effect_ids = $prepared
         $summary.unprepared_effect_ids = $unprepared
         $summary.prepare_sources_only = [bool]$PrepareSourcesOnly
