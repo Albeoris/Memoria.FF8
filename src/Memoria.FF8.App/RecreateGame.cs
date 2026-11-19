@@ -1579,6 +1579,11 @@ internal sealed partial class RecreateGame : Game
             fieldTexture.SetData(pixels);
         }
         fieldGpuPresented = fieldGpu is not null;
+        texturePresentedScene = session.State.Scene;
+        texturePresentedField = world.Field?.Id ?? -1;
+        texturePresentedWorldOwner = world;
+        texturePresentedWorld = world.WorldScene;
+        texturePresentedBattle = null;
         metrics.Render(renderMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
@@ -1586,7 +1591,12 @@ internal sealed partial class RecreateGame : Game
     {
         if (DrawCrossover(gameTime))
         {
+            InvalidateTexturePresentation();
             return;
+        }
+        if (startup.Active || session.State.Scene is SceneKind.Title or SceneKind.Movie || modelBrowser is not null || textureBrowser is not null || sceneInspector is not null || lightingEditor is not null || gameMenus is { IsOpen: true, IsDemo: true })
+        {
+            InvalidateTexturePresentation();
         }
         authoringHits.Clear();
         authoringDrawGroup = 0;

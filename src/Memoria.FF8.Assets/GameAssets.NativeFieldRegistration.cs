@@ -251,8 +251,15 @@ public sealed partial class GameAssets
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
         ResourceKey owner = new($"field/{fieldName}/chara.one");
         bool nativeVariants = FieldEyeMaterial.HasNativeVariants(model);
-        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativeAlias: revision.HasValue ? new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}", 0, 0, 0, image.Width, image.Height, image.Width, image.Height) : null, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor, nativeVariants: ordinal == 0 && nativeVariants ? () => FieldEyeMaterial.NativeVariants(model) : null, projectNativeVariant: ordinal == 0 && nativeVariants ? (pixels, variant) => FieldEyeMaterial.Project(model.NativeEyes!, pixels, variant) : null)!).ToArray();
+        Func<IReadOnlyDictionary<string, PixelImage>>? variantFactory = nativeVariants ? FieldEyeMaterial.VariantFactory(model.NativeEyes!, model.Textures[0]) : null;
+        Func<PixelImage, string, PixelImage>? projector = nativeVariants ? FieldEyeMaterial.VariantProjector(model.NativeEyes!) : null;
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativeAlias: revision.HasValue ? new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}", 0, 0, 0, image.Width, image.Height, image.Width, image.Height) : null, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor, nativeVariants: ordinal == 0 ? variantFactory : null, projectNativeVariant: ordinal == 0 ? projector : null, originalForAuthoring: revision.HasValue ? RegisteredOriginalFactory(resources, new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}")) : null)!).ToArray();
         return model with { Textures = new ResourceTextureList(handles) };
+    }
+
+    private static Func<TextureValue> RegisteredOriginalFactory(ResourceService resources, TextureKey key)
+    {
+        return () => resources.CaptureTextureSources([key]).SingleOrDefault()?.InstalledOriginal ?? throw new NotSupportedException($"Registered field material {key} has no retained original source binding. Reload its source field before authoring it.");
     }
 
     private NativeFieldRegistrationLoaderInputs ReadNativeFieldRegistrationInputs(int fieldId, byte[] information, byte[] program, byte[]? colors, int? allocationPrefixBytes = null)

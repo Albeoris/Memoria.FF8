@@ -128,24 +128,24 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     /// <summary>The selected installed provider may supply HD images over native fallback bytes. User/localization mods do not participate.</summary>
     public TextureValue ResolveOriginalForExport(TextureBuildContext context)
     {
-        return installedOriginals.GetValue(context, ResolveOriginalCore);
+        TextureValue value = ResolveOriginalBase(context);
+        return context.RequestedVariant is { } variant && value.Variants?.TryGetValue(variant, out var image) == true ? value with { Image = image, MipLevels = null, Animation = null } : value;
     }
+
+    private TextureValue ResolveOriginalBase(TextureBuildContext context) => installedOriginals.GetValue(context, ResolveOriginalCore);
 
     private TextureValue ResolveOriginalCore(TextureBuildContext context)
     {
         if (context.OriginalForAuthoring is { } read)
         {
-            TextureValue sourceValue = read();
-            return context.RequestedVariant is { } requestedVariant && sourceValue.Variants?.TryGetValue(requestedVariant, out var variantImage) == true ? sourceValue with { Image = variantImage } : sourceValue;
+            return read();
         }
         TextureReplacement? replacement = (source as ITextureReplacementResolver)?.Resolve(context);
         if (replacement is null)
         {
-            TextureValue original = new(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id, Variants: context.NativeVariants?.Invoke());
-            return context.RequestedVariant is { } requested && original.Variants?.TryGetValue(requested, out var selected) == true ? original with { Image = selected } : original;
+            return new(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id, Variants: context.NativeVariants?.Invoke());
         }
-        TextureValue value = new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
-        return context.RequestedVariant is { } variant && value.Variants?.TryGetValue(variant, out var image) == true ? value with { Image = image, MipLevels = null, Animation = null } : value;
+        return new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
     }
 
     public IReadOnlyList<EncodedResource> CaptureEncodedResources() => Volatile.Read(ref published).Encoded.Values.ToArray();
@@ -419,7 +419,27 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     /// <summary>Builds every resident binding before replacing the generation, including prior no-matches.</summary>
     public PreparedResources Prepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null, IReadOnlyDictionary<string, LocalizedTextAlias>? textAliases = null)
     {
-        long version = mutationVersion;
+        using PreparationJob job = BeginPrepare(nextResolver, textResources, encodedResources, localization, textAliases);
+        while (!job.Advance(TimeSpan.MaxValue, int.MaxValue))
+        {
+        }
+        return job.Prepared!;
+    }
+
+    /// <summary>Starts owner-thread preparation without publishing. Each advance yields between complete source or transform units; one unit can exceed the time budget.</summary>
+    public PreparationJob BeginPrepare(ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources = null, IEnumerable<EncodedResource>? encodedResources = null, LocalizationCatalog? localization = null, IReadOnlyDictionary<string, LocalizedTextAlias>? textAliases = null)
+    {
+        if (notifying)
+        {
+            throw new InvalidOperationException("Prepare resources outside resource notifications.");
+        }
+        PreparationJob job = new(this, mutationVersion);
+        job.Work = PrepareUnits(job, contexts.ToArray(), new Dictionary<TextureKey, TextureTransformContext>(transforms), nextResolver, textResources?.ToArray(), encodedResources?.ToArray(), localization, textAliases?.ToImmutableDictionary()).GetEnumerator();
+        return job;
+    }
+
+    private IEnumerable<int> PrepareUnits(PreparationJob job, KeyValuePair<TextureKey, TextureBuildContext>[] sourceContexts, Dictionary<TextureKey, TextureTransformContext> transformContexts, ITextureReplacementResolver? nextResolver, IEnumerable<StaticTextResource>? textResources, IEnumerable<EncodedResource>? encodedResources, LocalizationCatalog? localization, IReadOnlyDictionary<string, LocalizedTextAlias>? textAliases)
+    {
         LocalizationCatalog nextLocalization = localization ?? published.Localization;
         ImmutableDictionary<string, LocalizedTextAlias> nextAliases = textAliases is null ? published.TextAliases : ValidateTextAliases(textAliases);
         ImmutableDictionary<ResourceKey, EncodedResource> encoded;
@@ -433,7 +453,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         ImmutableDictionary<TextureKey, TextureValue>.Builder next = published.Values.ToBuilder();
         HashSet<TextureKey> affected = [];
         ImmutableArray<(TextureKey Key, Exception Exception)>.Builder failures = ImmutableArray.CreateBuilder<(TextureKey Key, Exception Exception)>();
-        foreach ((TextureKey key, TextureBuildContext context) in contexts.ToArray())
+        foreach ((TextureKey key, TextureBuildContext context) in sourceContexts)
         {
             TextureValue value;
             try
@@ -450,9 +470,148 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
                 next[key] = value;
                 affected.Add(key);
             }
+            yield return 0;
         }
-        BuildTransforms(next, affected);
-        return new PreparedResources(this, version, nextResolver, affected.ToImmutableDictionary(key => key, key => next[key]), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
+        foreach (TextureKey key in OrderAffectedTransforms(transformContexts, affected))
+        {
+            TextureTransformContext transform = transformContexts[key];
+            next[key] = transform.Build(transform.Dependencies.Select(dependency => next.TryGetValue(dependency, out TextureValue? value) ? value : throw new InvalidOperationException($"Missing texture preparation dependency {dependency}.")).ToArray());
+            yield return 0;
+        }
+        job.Prepared = new PreparedResources(this, job.ExpectedVersion, nextResolver, affected.ToImmutableDictionary(key => key, key => next[key]), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
+    }
+
+    private static IReadOnlyList<TextureKey> OrderAffectedTransforms(Dictionary<TextureKey, TextureTransformContext> preparation, HashSet<TextureKey> affected)
+    {
+        Dictionary<TextureKey, List<TextureKey>> dependents = [];
+        foreach ((TextureKey key, TextureTransformContext transform) in preparation)
+        {
+            foreach (TextureKey dependency in transform.Dependencies)
+            {
+                if (!dependents.TryGetValue(dependency, out List<TextureKey>? list))
+                {
+                    list = [];
+                    dependents.Add(dependency, list);
+                }
+                list.Add(key);
+            }
+        }
+        Queue<TextureKey> pending = new(affected);
+        while (pending.TryDequeue(out TextureKey dependency))
+        {
+            foreach (TextureKey key in dependents.GetValueOrDefault(dependency) ?? [])
+            {
+                if (affected.Add(key))
+                {
+                    pending.Enqueue(key);
+                }
+            }
+        }
+        List<TextureKey> ordered = [];
+        HashSet<TextureKey> visiting = [];
+        HashSet<TextureKey> visited = [];
+        void Visit(TextureKey key)
+        {
+            if (!affected.Contains(key) || !preparation.TryGetValue(key, out TextureTransformContext? transform) || visited.Contains(key))
+            {
+                return;
+            }
+            if (!visiting.Add(key))
+            {
+                throw new InvalidOperationException($"Missing or cyclic texture preparation dependency {key}.");
+            }
+            foreach (TextureKey dependency in transform.Dependencies)
+            {
+                Visit(dependency);
+            }
+            visiting.Remove(key);
+            visited.Add(key);
+            ordered.Add(key);
+        }
+        foreach (TextureKey key in preparation.Keys)
+        {
+            Visit(key);
+        }
+        return ordered;
+    }
+
+    public sealed class PreparationJob : IDisposable
+    {
+        private readonly ResourceService owner;
+        private bool disposed;
+        internal readonly long ExpectedVersion;
+        internal IEnumerator<int>? Work;
+        public bool Complete { get; private set; }
+        public bool IsStale => owner.notifying || owner.mutationVersion != ExpectedVersion;
+        public int CompletedUnits { get; private set; }
+        public PreparedResources? Prepared { get; internal set; }
+
+        internal PreparationJob(ResourceService owner, long expectedVersion)
+        {
+            this.owner = owner;
+            ExpectedVersion = expectedVersion;
+        }
+
+        /// <summary>Runs indivisible units on the resource owner thread. Time is checked between units, so a single decode or atlas build may exceed the budget.</summary>
+        public bool Advance(TimeSpan budget, int maximumUnits = 1, CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            ArgumentOutOfRangeException.ThrowIfLessThan(maximumUnits, 1);
+            if (budget < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(budget));
+            }
+            if (Complete)
+            {
+                return true;
+            }
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            try
+            {
+                for (int unit = 0; unit < maximumUnits; unit++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ValidateOwner();
+                    bool moved = Work!.MoveNext();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ValidateOwner();
+                    if (!moved)
+                    {
+                        Complete = true;
+                        Work.Dispose();
+                        Work = null;
+                        return true;
+                    }
+                    CompletedUnits++;
+                    if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= budget)
+                    {
+                        break;
+                    }
+                }
+                return false;
+            }
+            catch
+            {
+                Prepared = null;
+                Dispose();
+                throw;
+            }
+        }
+
+        private void ValidateOwner()
+        {
+            if (IsStale)
+            {
+                throw new InvalidOperationException("Discard stale resource preparation and prepare the current resident set again.");
+            }
+        }
+
+        public void Dispose()
+        {
+            Work?.Dispose();
+            Work = null;
+            disposed = true;
+        }
     }
 
     private static ImmutableDictionary<string, LocalizedTextAlias> ValidateTextAliases(IReadOnlyDictionary<string, LocalizedTextAlias> aliases)
@@ -608,6 +767,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     private TextureValue? ResolveReplacement(TextureBuildContext context, ITextureReplacementResolver? replacementResolver, LocalizationCatalog? localization = null)
     {
         context.ReadInstalledOriginal ??= () => ResolveOriginalForExport(context);
+        context.ReadInstalledOriginalBase ??= () => ResolveOriginalBase(context);
         TextureReplacement? replacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
         if (replacement is null)
         {

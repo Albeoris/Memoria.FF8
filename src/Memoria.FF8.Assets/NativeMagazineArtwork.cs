@@ -84,6 +84,25 @@ public sealed class NativeMagazineArtwork
         return new Rgba32((byte)Math.Round(paper.Pixels.Average(pixel => pixel.R)), (byte)Math.Round(paper.Pixels.Average(pixel => pixel.G)), (byte)Math.Round(paper.Pixels.Average(pixel => pixel.B)), 255);
     }
 
+    /// <summary>Only mean RGB drives procedural magazine paper; authored patterns and alpha are not sampled.</summary>
+    public static Rgba32 GetPaperColor(PixelImage paper)
+    {
+        if (paper.Pixels.Length == 0)
+        {
+            throw new InvalidDataException("Magazine paper needs at least one palette sample.");
+        }
+        long red = 0;
+        long green = 0;
+        long blue = 0;
+        foreach (Rgba32 pixel in paper.Pixels)
+        {
+            red += pixel.R;
+            green += pixel.G;
+            blue += pixel.B;
+        }
+        return new((byte)Math.Round(red / (double)paper.Pixels.Length), (byte)Math.Round(green / (double)paper.Pixels.Length), (byte)Math.Round(blue / (double)paper.Pixels.Length), 255);
+    }
+
     public PixelImage GetImage(int imageId)
     {
         if (!images.TryGetValue(imageId, out PixelImage? image))

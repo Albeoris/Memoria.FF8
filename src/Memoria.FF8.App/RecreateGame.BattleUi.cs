@@ -613,6 +613,8 @@ internal sealed partial class RecreateGame
             battleScene!.SmoothCompatibleMotion = uiPreferences.BattleFps == 60;
             battleScene.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
             pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, presentationTiming.SamplePresentationPhase(active, active.PreparedPresentation, CanAdvanceBattleRenderPhase, battleScene.SmoothCompatibleMotion));
+            InvalidateTexturePresentation();
+            texturePresentedBattle = active;
             if (diagnosticTelemetry?.VisualChangesEnabled == true && battleGpu is not null)
             {
                 long frameOrdinal = diagnosticPresentedFrames + 1;
@@ -622,6 +624,7 @@ internal sealed partial class RecreateGame
         }
         catch
         {
+            texturePresentedBattle = null;
             battleGpu?.Abort();
             throw;
         }

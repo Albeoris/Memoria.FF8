@@ -144,7 +144,8 @@ public sealed partial class GameAssets
                     }
                     foreach (TextureBuildContext context in contexts)
                     {
-                        yield return Entry(context, $"{Path.GetFileName(owner.Path)} · palette {context.Key.Palette}", archiveName == "main" ? "System artwork" : "Menu and cards") with { Reader = "tex" };
+                        string name = owner.Path == "menu/magita.tex" ? "Magazine paper palette (mean colour only)" : $"{Path.GetFileName(owner.Path)} · palette {context.Key.Palette}";
+                        yield return Entry(context, name, archiveName == "main" ? "System artwork" : "Menu and cards") with { Reader = "tex" };
                     }
                 }
             }
@@ -371,7 +372,9 @@ public sealed partial class GameAssets
             string prefix = model.TextureResourceName is { } name ? $"model/{entry.ModelIndex}/{(model.MainCharacterTextures ? "main" : "second")}/{name}/texture" : $"model/{entry.ModelIndex}/texture";
             string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
             bool nativeVariants = FieldEyeMaterial.HasNativeVariants(model);
-            return model.Textures.Select((image, index) => Context(new(owner, $"{prefix}/{index}"), image, layout, model.TextureSourceDescriptor, nativeSheet: NativeFieldModelTextureSheets.Address(model, index), nativeVariants: index == 0 && nativeVariants ? () => FieldEyeMaterial.NativeVariants(model) : null, projectNativeVariant: index == 0 && nativeVariants ? (pixels, variant) => FieldEyeMaterial.Project(model.NativeEyes!, pixels, variant) : null)).ToArray();
+            Func<IReadOnlyDictionary<string, PixelImage>>? variants = nativeVariants ? FieldEyeMaterial.VariantFactory(model.NativeEyes!, model.Textures[0]) : null;
+            Func<PixelImage, string, PixelImage>? projector = nativeVariants ? FieldEyeMaterial.VariantProjector(model.NativeEyes!) : null;
+            return model.Textures.Select((image, index) => Context(new(owner, $"{prefix}/{index}"), image, layout, model.TextureSourceDescriptor, nativeSheet: NativeFieldModelTextureSheets.Address(model, index), nativeVariants: index == 0 ? variants : null, projectNativeVariant: index == 0 ? projector : null)).ToArray();
         }
         if (entry.Category is "Battle model" or "Battle enemy" or "Battle weapon" && resources.GetSource<IBattleModelSource>() is null)
         {

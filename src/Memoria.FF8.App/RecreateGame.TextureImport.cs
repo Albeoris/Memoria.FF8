@@ -128,6 +128,8 @@ internal sealed partial class RecreateGame
         SaveTextureToolPreferences();
         TextureBrowserController browser = textureBrowser!;
         browser.Matching = false;
+        browser.ImportedPreviewAvailable = false;
+        uiCanvas?.UnregisterHostImage(TextureBrowserController.ImportedPreviewImageId);
         browser.Match = null;
         browser.Unmatched = BeginTextureManualMatch;
         browser.Selection.Clear();
@@ -147,6 +149,11 @@ internal sealed partial class RecreateGame
         }
         TextureBrowserController browser = textureBrowser!;
         browser.Matching = true;
+        browser.PreviewAvailable = false;
+        texturePreviewIdentity = null;
+        texturePreviewCancellation?.Cancel();
+        browser.ImportedPreviewAvailable = false;
+        browser.ClearSearch();
         browser.Unmatched = null;
         ShowTextureCatalog();
         browser.Message = FormatAuthored("textures.match.choose", "Assign {0}: search the same catalog and confirm an exact target. The assignment is remembered after successful import.", input);
@@ -168,6 +175,7 @@ internal sealed partial class RecreateGame
             textureManualMappings[input] = target.Target;
             ReadTextureImport(review.Source, review.Destination);
         };
+        LoadImportedTexturePreview(review, review.Rows.Single(row => row.RelativePath == input));
     }
 
     private static TextureImportReview InspectTextureFolder(GameAssets assets, TextureCatalogEntry[] catalog, string source, string destination, IReadOnlyDictionary<string, TextureTarget> manual, CancellationToken token, IReadOnlySet<string>? onlyFiles = null)
@@ -605,8 +613,9 @@ internal sealed partial class RecreateGame
             {
                 bookkeepingWarning = "Installed successfully, but the working folder could not remember this import: " + exception.Message;
             }
-            IReadOnlyList<TextureSourceSnapshot> resident = resourceHost.Resources.CaptureTextureSources(selected.Select(row => row.Target!.Key));
-            int owned = resident.Count(snapshot => snapshot.Resolved.Provenance.StartsWith(package.Id + "/", StringComparison.Ordinal));
+            IReadOnlyList<TextureSourceSnapshot> resident = resourceHost.Resources.CaptureTextureSources();
+            var ownership = selected.ToDictionary(row => row.Target!, row => TextureImportOwnership.Inspect(row.Target!, resident, package.Id));
+            int owned = ownership.Count(pair => pair.Value.OwnedConsumers != 0);
             textureBrowser.Message = package.RequestedEnabled
                 ? FormatAuthored("textures.import.applied", "Installed {0} texture edits; {1} resident targets use this mod. Other targets are nonresident or overridden by priority. Refresh / reimport repeats this working folder.", selected.Length, owned)
                 : FormatAuthored("textures.import.disabled", "Saved {0} texture edits. The mod remains disabled; enable it in Mods to use them.", selected.Length);
@@ -619,14 +628,7 @@ internal sealed partial class RecreateGame
             textureBrowser.Unmatched = null;
             textureBrowser.SetRows(selected.Select(row =>
             {
-                TextureSourceSnapshot? active = resident.FirstOrDefault(snapshot => snapshot.Target == row.Target);
-                string status = !package.RequestedEnabled
-                    ? "Installed in disabled mod; enable it in Mods"
-                    : active is null
-                        ? "Installed; nonresident source loads on demand"
-                        : active.Resolved.Provenance.StartsWith(package.Id + "/", StringComparison.Ordinal)
-                            ? "Active source from " + active.Resolved.Provenance
-                            : "Imported but overridden by " + active.Resolved.Provenance;
+                string status = !package.RequestedEnabled ? "Installed in disabled mod; enable it in Mods" : ownership[row.Target!].Describe();
                 string name = textureCatalog.FirstOrDefault(entry => entry.Target == row.Target)?.Name ?? row.Target!.Subresource;
                 return new TextureBrowserRow(TextureId(row.Target!), name, row.Target!.Owner, status + " · " + row.Target.CanonicalPath());
             }));

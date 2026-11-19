@@ -27,8 +27,9 @@ internal sealed partial class MonoGameUiCanvas
         }
         bool Affected(PixelImage image) => resources.CaptureTextureSourcesForImages([image]).Any(snapshot => changed.ContainsKey(snapshot.Context.Key));
         var affected = imageSources.Where(pair => images.ContainsKey(pair.Key) && Affected(pair.Value)).ToArray();
+        bool replacePaper = paper is not null && paperSourceHandle is not null && changed.ContainsKey(PaperSourceKey);
         bool replacePointer = menuPointer is not null && pointerSource is not null && Affected(pointerSource);
-        if (affected.Length == 0 && !replacePointer)
+        if (affected.Length == 0 && !replacePointer && !replacePaper)
         {
             return new TexturePublication(() => artworkGeneration = nextGeneration, () => { });
         }
@@ -38,8 +39,12 @@ internal sealed partial class MonoGameUiCanvas
         Texture2D? stagedPointer = null;
         PixelImage? stagedPointerImage = null;
         Texture2D? previousPointer = menuPointer;
+        Texture2D? previousPaper = paper;
+        Texture2D? stagedPaper = null;
+        TextureValue? stagedPaperValue = null;
+        UiColor stagedPaperColor = default;
         HashSet<UiImageSource> replaced = affected.Select(pair => pair.Key).ToHashSet();
-        long prospectiveBytes = images.Where(pair => !replaced.Contains(pair.Key)).Sum(pair => (long)pair.Value.Width * pair.Value.Height * 4) + (!replacePointer && menuPointer is not null ? (long)menuPointer.Width * menuPointer.Height * 4 : 0);
+        long prospectiveBytes = images.Where(pair => !replaced.Contains(pair.Key)).Sum(pair => (long)pair.Value.Width * pair.Value.Height * 4) + (!replacePointer && menuPointer is not null ? (long)menuPointer.Width * menuPointer.Height * 4 : 0) + (!replacePaper && paper is not null ? (long)paper.Width * paper.Height * 4 : 0);
 
         void BindProvenance(PixelImage image)
         {
@@ -89,6 +94,15 @@ internal sealed partial class MonoGameUiCanvas
                 BindProvenance(stagedPointerImage);
                 stagedPointer = Upload(stagedPointerImage);
             }
+            if (replacePaper)
+            {
+                stagedPaperValue = changed[PaperSourceKey];
+                var mean = NativeMagazineArtwork.GetPaperColor(stagedPaperValue.Image);
+                stagedPaperColor = new(mean.R, mean.G, mean.B);
+                PixelImage image = new(previousPaper!.Width, previousPaper.Height, UiPaper.CreatePixels(previousPaper.Width, previousPaper.Height, stagedPaperColor).Select(color => new Rgba32(color.R, color.G, color.B, color.A)).ToArray());
+                resources.RegisterTextureImageDependencies(image, [stagedPaperValue.Image]);
+                stagedPaper = Upload(image);
+            }
         }
         catch
         {
@@ -97,6 +111,7 @@ internal sealed partial class MonoGameUiCanvas
                 candidate.Texture.Dispose();
             }
             stagedPointer?.Dispose();
+            stagedPaper?.Dispose();
             throw;
         }
         return new TexturePublication(() =>
@@ -112,6 +127,10 @@ internal sealed partial class MonoGameUiCanvas
             {
                 throw new InvalidOperationException("The menu pointer changed during preparation; prepare the current generation again.");
             }
+            if (replacePaper && !ReferenceEquals(paper, previousPaper))
+            {
+                throw new InvalidOperationException("The magazine paper changed during preparation; prepare the current generation again.");
+            }
             foreach (var candidate in candidates)
             {
                 images[candidate.Source] = candidate.Texture;
@@ -124,6 +143,14 @@ internal sealed partial class MonoGameUiCanvas
                 pointerSource = stagedPointerImage;
                 retiredUiPublicationTextures.Enqueue(previousPointer!);
             }
+            if (replacePaper)
+            {
+                paper = stagedPaper;
+                paperColor = stagedPaperColor;
+                boundPaperColor = stagedPaperColor;
+                boundPaperValue = stagedPaperValue;
+                retiredUiPublicationTextures.Enqueue(previousPaper!);
+            }
             artworkGeneration = nextGeneration;
         }, () =>
         {
@@ -135,6 +162,10 @@ internal sealed partial class MonoGameUiCanvas
             {
                 retiredUiPublicationTextures.Enqueue(stagedPointer);
             }
+            if (stagedPaper is not null)
+            {
+                retiredUiPublicationTextures.Enqueue(stagedPaper);
+            }
         });
     }
 
@@ -142,6 +173,10 @@ internal sealed partial class MonoGameUiCanvas
     {
         while (retiredUiPublicationTextures.TryDequeue(out Texture2D? texture))
         {
+            if (ReferenceEquals(device.Textures[0], texture))
+            {
+                device.Textures[0] = null;
+            }
             texture.Dispose();
         }
     }

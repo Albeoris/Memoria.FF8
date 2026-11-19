@@ -488,8 +488,10 @@ public sealed class NativeTextureModsTests
         Assert.Same(result, mods.Resolve(context));
     }
 
-    [Fact]
-    public void ProvedNativeCopyProjectionUsesEditedBaseAndExplicitCompanionWins()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProvedNativeCopyProjectionUsesEditedBaseAndExplicitCompanionWins(bool replaceClosed)
     {
         using InMemoryResourceSource source = new(Context().Source);
         ResourceService resources = new(source);
@@ -504,13 +506,65 @@ public sealed class NativeTextureModsTests
             }
         };
         _ = resources.GetTexture(context);
-        TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, ImagePng(Opaque(4, 4, 80))), new(Target with { Variant = "eyes-closed" }, ImagePng(Opaque(8, 8, 90)))]);
+        List<TextureModReplacement> replacements = [new(Target, ImagePng(Opaque(4, 4, 80)))];
+        if (replaceClosed)
+        {
+            replacements.Add(new(Target with { Variant = "eyes-closed" }, ImagePng(Opaque(8, 8, 90))));
+        }
+        TextureModInstallPlan plan = TextureModInstaller.Plan(replacements);
         Assert.True(NativeTextureMods.TryPrepare(new(1, [], plan.Files.Select(file => File(file.RelativePath, file.Content))), out NativeTextureMods mods, out _));
         TextureReplacement result = mods.Resolve(context)!;
-        Assert.Equal((8, 8), (result.Image.Width, result.Image.Height));
+        Assert.Equal(replaceClosed ? (8, 8) : (4, 4), (result.Image.Width, result.Image.Height));
         Assert.Equal((byte)80, result.Variants!["eyes-open"][0, 0].R);
-        Assert.Equal((byte)90, result.Variants["eyes-closed"][0, 0].R);
-        Assert.Equal(new[] { "eyes-open" }, projected);
+        Assert.Equal(replaceClosed ? (byte)90 : (byte)80, result.Variants["eyes-closed"][0, 0].R);
+        Assert.Equal(replaceClosed ? new[] { "eyes-open" } : new[] { "eyes-open", "eyes-closed" }, projected);
+        resources.Prepare(mods).Commit();
+        TextureBuildContext closedContext = new(Target.Key, source.Descriptor, 1, context.Layout, 2, 2, () => Opaque(2, 2, 1)) { RequestedVariant = "eyes-closed", NativeVariants = context.NativeVariants, ProjectNativeVariant = context.ProjectNativeVariant };
+        Assert.Equal(replaceClosed ? (byte)90 : (byte)80, resources.ResolveForExport(closedContext).Image[0, 0].R);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PackagePrecedenceGovernsDirectAndSharedSheetTargetsIndependentlyForEachVariant(bool higherPackageUsesSheet)
+    {
+        using InMemoryResourceSource source = new(Context().Source);
+        ResourceService resources = new(source);
+        TextureTarget sheetTarget = new("ff8", "field/model/main_chr/d001", "row/0");
+        TextureSourceAddress address = new(sheetTarget.Key.Owner, sheetTarget.Subresource, 0, 0, 0, 64, 64, 128, 128);
+        TextureBuildContext context = SheetContext("one", address, () => new Dictionary<string, Albeoris.Games.FF8.Imaging.PixelImage> { ["eyes-closed"] = Opaque(64, 64, 5) });
+        _ = resources.GetTexture(context);
+        TextureTarget directTarget = TextureTarget.FromContext(context);
+        TextureModReplacement direct = new(directTarget, ImagePng(Opaque(64, 64, 10)), Contract: new(context.Layout, 64, 64));
+        TextureModReplacement sheet = new(sheetTarget, ImagePng(Opaque(128, 128, 30)), Contract: new("native-field-model-sheet", 128, 128));
+        TextureModInstallPlan high = TextureModInstaller.Plan([higherPackageUsesSheet ? sheet : direct]);
+        TextureModReplacement lowerVariant = higherPackageUsesSheet ? new(directTarget with { Variant = "eyes-closed" }, ImagePng(Opaque(64, 64, 60)), Contract: new(context.Layout, 64, 64)) : new(sheetTarget with { Variant = "eyes-closed" }, ImagePng(Opaque(128, 128, 50)), Contract: new("native-field-model-sheet", 128, 128));
+        TextureModInstallPlan low = TextureModInstaller.Plan([higherPackageUsesSheet ? direct : sheet, lowerVariant]);
+        ModFile[] files = high.Files.Select(file => File(file.RelativePath, file.Content, "Memoria/high")).Concat(low.Files.Select(file => File(file.RelativePath, file.Content, "Memoria/low"))).ToArray();
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods mods, out _));
+        TextureReplacement result = mods.Resolve(context)!;
+        Assert.Equal(higherPackageUsesSheet ? (byte)30 : (byte)10, result.Image[0, 0].R);
+        Assert.StartsWith("Memoria/high/", result.Provenance);
+        Assert.Equal(higherPackageUsesSheet ? (byte)60 : (byte)50, result.Variants!["eyes-closed"][0, 0].R);
+        Assert.Contains("variant eyes-closed: Memoria/low/", result.Provenance);
+    }
+
+    [Fact]
+    public void HigherPackageCompanionDoesNotMaskIndependentLowerPackageDefault()
+    {
+        using VariantSource source = new(declareClosed: true);
+        ResourceService resources = new(source);
+        TextureBuildContext context = new(Target.Key, source.Descriptor, 1, "image", 2, 2, () => source.Open);
+        _ = resources.GetTexture(context);
+        TextureModInstallPlan closed = TextureModInstaller.Plan([new(Target with { Variant = "eyes-closed" }, Png("blue"))]);
+        TextureModInstallPlan open = TextureModInstaller.Plan([new(Target, Png("yellow"))]);
+        ModFile[] files = closed.Files.Select(file => File(file.RelativePath, file.Content, "Memoria/high")).Concat(open.Files.Select(file => File(file.RelativePath, file.Content, "Memoria/low"))).ToArray();
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods mods, out _));
+        TextureReplacement result = mods.Resolve(context)!;
+        Assert.Equal((byte)255, result.Image[0, 0].G);
+        Assert.Equal((byte)255, result.Variants!["eyes-closed"][0, 0].B);
+        Assert.StartsWith("Memoria/low/", result.Provenance);
+        Assert.Contains("variant eyes-closed: Memoria/high/", result.Provenance);
     }
 
     private static TextureBuildContext SheetContext(string field, TextureSourceAddress address, Func<IReadOnlyDictionary<string, Albeoris.Games.FF8.Imaging.PixelImage>>? variants = null, string layout = "classic-field-model") => new(new(new($"field/{field}/chara.one"), "model/0/texture/0"), Context().Source, 1, layout, address.Width, address.Height, () => Opaque(address.Width, address.Height, 1)) { NativeSheet = address, NativeVariants = variants };

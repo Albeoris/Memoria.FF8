@@ -164,6 +164,9 @@ public sealed class ResourceRejectionPublicationTests
         service.GetTexture(context);
         bool broken = false;
         AssetHandle<TextureValue> transformed = service.GetTransformedTexture(new(new(new("test/source.tim"), "derived"), [context.Key], dependencies => broken ? throw new ResourceReplacementRejectedException("Transform cannot be discarded independently.") : dependencies[0]));
+        PixelImage previous = new(4, 4);
+        service.Prepare(new Resolver(_ => Replacement(previous))).Commit();
+        long generation = service.Generation;
         int reports = 0;
         service.ReplacementFailed += (_, _) => reports++;
         broken = true;
@@ -171,8 +174,8 @@ public sealed class ResourceRejectionPublicationTests
         Assert.Throws<ResourceReplacementRejectedException>(() => service.Prepare(Rejected()));
 
         Assert.Equal(0, reports);
-        Assert.Equal(0, service.Generation);
-        Assert.Same(original, transformed.Value.Image);
+        Assert.Equal(generation, service.Generation);
+        Assert.Same(previous, transformed.Value.Image);
     }
 
     private static InMemoryResourceSource Source() => new(new("memory", GameDataEdition.Classic, ["test-layout"]));

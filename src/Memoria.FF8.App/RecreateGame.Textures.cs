@@ -15,6 +15,15 @@ internal sealed partial class RecreateGame
     private Func<TextureAuthoringSession>? textureSceneOriginalFactory;
     private Func<TextureAuthoringSession>? textureSceneResolvedFactory;
     private bool textureSceneSelectionInitialized;
+    private SceneKind? texturePresentedScene;
+    private int texturePresentedField = -1;
+    private GameWorld? texturePresentedWorldOwner;
+    private WorldMapScene? texturePresentedWorld;
+    private BattleSession? texturePresentedBattle;
+    private string? textureSceneUnavailable;
+    private readonly HashSet<TextureTarget> textureSceneCompanions = [];
+    private bool textureSceneNormalized;
+    private TextureCatalogDiagnostic[] textureSceneDiagnostics = [];
     private TextureCatalogEntry[] textureCatalog = [];
     private TextureCatalogDiagnostic[] textureDiagnostics = [];
     private readonly HashSet<TextureTarget> expandedTextureFields = [];
@@ -31,12 +40,39 @@ internal sealed partial class RecreateGame
     private string? textureExportDirectory;
     private HashSet<string>? textureImportFiles;
 
+    private void InvalidateTexturePresentation()
+    {
+        texturePresentedScene = null;
+        texturePresentedField = -1;
+        texturePresentedWorldOwner = null;
+        texturePresentedWorld = null;
+        texturePresentedBattle = null;
+    }
+
     private void CaptureGameplayTextures()
     {
         if (resourceHost is null)
         {
             return;
         }
+        bool battlePresented = ActiveBattle is not null && battleScene is not null && ReferenceEquals(ActiveBattle, texturePresentedBattle);
+        bool fieldPresented = ActiveBattle is null && world?.CanPresentCurrentField == true && field?.Id == session.State.FieldId && texturePresentedScene == SceneKind.Field && texturePresentedField == session.State.FieldId && ReferenceEquals(world, texturePresentedWorldOwner);
+        bool worldPresented = ActiveBattle is null && world?.WorldScene is { IsPresentationDeferred: false } scene && texturePresentedScene == SceneKind.WorldMap && ReferenceEquals(scene, texturePresentedWorld) && ReferenceEquals(world, texturePresentedWorldOwner);
+        bool exclusive = startup.Active || worldTransfer is not null || crossoverSetup is not null || modelBrowser is not null || textureBrowser is not null || sceneInspector is not null || battleDebug is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null || gameMenus is { IsOpen: true, IsDemo: true };
+        if (!TextureSceneEligibility.CanCapture(session.State.Scene, InFf7, battlePresented, fieldPresented, worldPresented, fieldFaulted || fieldRenderFaulted, exclusive))
+        {
+            textureScene = [];
+            textureSceneNormalized = true;
+            textureSceneDiagnostics = [];
+            textureSceneCompanions.Clear();
+            textureSceneOriginalFactory = null;
+            textureSceneResolvedFactory = null;
+            textureSceneUnavailable = LocalizeAuthored("textures.scene.unavailable", "Current scene requires an active FFVIII field, world or battle presentation. Title, movies, FFVII and authoring screens are excluded; All textures and import remain available.");
+            return;
+        }
+        textureSceneUnavailable = null;
+        textureSceneNormalized = false;
+        textureSceneDiagnostics = [];
         textureSceneOriginalFactory = resourceHost.CaptureTextureAuthoringFactory(false);
         textureSceneResolvedFactory = resourceHost.CaptureTextureAuthoringFactory(true);
         HashSet<TextureKey> keys = [];
@@ -68,6 +104,9 @@ internal sealed partial class RecreateGame
             }
         }
         textureScene = sampled.Concat(resourceHost.Resources.CaptureTextureSources(keys)).GroupBy(snapshot => snapshot.Target).Select(group => group.First()).ToArray();
+        HashSet<TextureTarget> contributors = sampled.Select(snapshot => snapshot.Target).ToHashSet();
+        textureSceneCompanions.Clear();
+        textureSceneCompanions.UnionWith(textureScene.Where(snapshot => !contributors.Contains(snapshot.Target)).Select(snapshot => snapshot.Target));
     }
 
     private void OpenTextureBrowser()
@@ -90,6 +129,76 @@ internal sealed partial class RecreateGame
         textureDialogDrain = true;
         ShowTextureScope(preferences.Scope);
         SynchronizeUiMoviePause();
+    }
+
+    private void NormalizeCapturedTextureScene()
+    {
+        TextureSourceSnapshot[] captured = textureScene.ToArray();
+        HashSet<TextureTarget> originalCompanions = new(textureSceneCompanions);
+        var createSession = textureSceneResolvedFactory!;
+        StartTextureJob(token =>
+        {
+            using var authoring = createSession();
+            Dictionary<TextureTarget, TextureSourceSnapshot> normalized = [];
+            HashSet<TextureTarget> companions = [];
+            HashSet<TextureTarget> blocked = [];
+            List<TextureCatalogDiagnostic> diagnostics = [];
+            Dictionary<(ResourceKey, long), string> sourceHashes = [];
+            bool SameImage(Albeoris.Games.FF8.Imaging.PixelImage first, Albeoris.Games.FF8.Imaging.PixelImage second) => ReferenceEquals(first, second) || first.Width == second.Width && first.Height == second.Height && first.Pixels.AsSpan().SequenceEqual(second.Pixels);
+            foreach (TextureSourceSnapshot source in captured)
+            {
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    foreach (TextureBuildContext context in authoring.Assets.LoadAuthoringTextures(source))
+                    {
+                        token.ThrowIfCancellationRequested();
+                        if (context.EncodedSource is { } encoded && context.AuthoringSourceSha256 is null)
+                        {
+                            if (!sourceHashes.TryGetValue((encoded.Key, encoded.Revision), out string? sourceHash))
+                            {
+                                using Stream input = authoring.Assets.Resources.Get(encoded.Key).OpenRead();
+                                sourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(input));
+                                sourceHashes.Add((encoded.Key, encoded.Revision), sourceHash);
+                            }
+                            context.AuthoringSourceSha256 = sourceHash;
+                        }
+                        TextureValue original = authoring.Assets.Resources.ResolveOriginalForExport(context);
+                        TextureValue resolved = authoring.Assets.Resources.ResolveForExport(context);
+                        TextureSourceSnapshot candidate = new(context, resolved, source.Generation) { InstalledOriginal = original };
+                        if (blocked.Contains(candidate.Target))
+                        {
+                            continue;
+                        }
+                        if (normalized.TryGetValue(candidate.Target, out TextureSourceSnapshot? previous) && (!SameImage(previous.Original, candidate.Original) || !SameImage(previous.Resolved.Image, candidate.Resolved.Image)))
+                        {
+                            normalized.Remove(candidate.Target);
+                            blocked.Add(candidate.Target);
+                            diagnostics.Add(new(candidate.Target.Owner, "Normalizing captured scene", "Shared source aliases have different captured pixels. Resolve the conflicting per-consumer overrides or choose an explicit installation catalog source."));
+                            continue;
+                        }
+                        normalized.TryAdd(candidate.Target, candidate);
+                        if (originalCompanions.Contains(source.Target) || candidate.Target.Variant != (source.Context.RequestedVariant ?? ""))
+                        {
+                            companions.Add(candidate.Target);
+                        }
+                    }
+                }
+                catch (Exception exception) when (IsModelBrowserError(exception))
+                {
+                    diagnostics.Add(new(source.Target.Owner, "Normalizing captured scene", exception.Message));
+                }
+            }
+            return (sources: normalized.Values.ToArray(), companions, diagnostics);
+        }, result =>
+        {
+            textureScene = result.sources;
+            textureSceneCompanions.Clear();
+            textureSceneCompanions.UnionWith(result.companions);
+            textureSceneDiagnostics = result.diagnostics.ToArray();
+            textureSceneNormalized = true;
+            ShowTextureScope(0);
+        }, LocalizeAuthored("textures.scene.normalizing", "Preparing captured scene identities and source-declared companions..."));
     }
 
     private void OpenTextureMods()
@@ -121,6 +230,7 @@ internal sealed partial class RecreateGame
         SaveTextureToolPreferences();
         texturePreviewCancellation?.Cancel();
         uiCanvas?.UnregisterHostImage(TextureBrowserController.PreviewImageId);
+        uiCanvas?.UnregisterHostImage(TextureBrowserController.ImportedPreviewImageId);
         textureBrowser = null;
         textureReview = null;
         texturePreviewIdentity = null;
@@ -138,17 +248,24 @@ internal sealed partial class RecreateGame
         browser.Scope = scope;
         SaveTextureToolPreferences();
         browser.Matching = false;
+        browser.ImportedPreviewAvailable = false;
+        uiCanvas?.UnregisterHostImage(TextureBrowserController.ImportedPreviewImageId);
         browser.Unmatched = null;
         textureReview = null;
         if (scope == 0)
         {
+            if (!textureSceneNormalized && textureSceneResolvedFactory is not null)
+            {
+                NormalizeCapturedTextureScene();
+                return;
+            }
             if (!textureSceneSelectionInitialized)
             {
                 browser.Selection.UnionWith(textureScene.Select(snapshot => TextureId(snapshot.Target)));
                 textureSceneSelectionInitialized = true;
             }
-            browser.SetRows(textureScene.Select(snapshot => new TextureBrowserRow(TextureId(snapshot.Target), snapshot.Target.Subresource + " / palette " + snapshot.Target.Palette, snapshot.Target.Owner, snapshot.Target.CanonicalPath() + " / " + snapshot.Context.Layout + " / " + snapshot.Resolved.Provenance)));
-            browser.Message = FormatAuthored("textures.scene.count", "{0} source textures captured before opening Debug Room. Shared and animation companions affect all consumers.", textureScene.Count);
+            browser.SetRows(textureScene.Select(snapshot => new TextureBrowserRow(TextureId(snapshot.Target), snapshot.Target.Subresource + " / palette " + snapshot.Target.Palette, snapshot.Target.Owner, (textureSceneCompanions.Contains(snapshot.Target) ? LocalizeAuthored("textures.scene.companion", "Included for editing / animation completeness") : LocalizeAuthored("textures.scene.contributor", "Contributing captured presentation")) + " / " + snapshot.Target.CanonicalPath() + " / " + snapshot.Context.Layout + " / " + snapshot.Resolved.Provenance)));
+            browser.Message = textureSceneUnavailable ?? FormatAuthored("textures.scene.count", "{0} source textures captured before opening Debug Room. Extra palette / animation companions are labelled; the active field background exports as one complete layered workspace.", textureScene.Count) + (textureSceneDiagnostics.Length == 0 ? "" : FormatAuthored("textures.scene.diagnostics", " {0} sources could not be normalized; the export report lists them.", textureSceneDiagnostics.Length));
         }
         else if (textureCatalog.Length != 0)
         {
@@ -351,7 +468,7 @@ internal sealed partial class RecreateGame
                 using var authoring = createSession();
                 GameAssets assets = authoring.Assets;
                 using TextureExportJournal journal = new(destination, scope switch { 0 => "current-scene", 1 => "all", _ => "selected" }, assets.Resources.Source.Edition + " / " + string.Join(", ", assets.Resources.Source.Layouts), assets.Resources.ResourceLanguage, resolved);
-                foreach (TextureCatalogDiagnostic diagnostic in textureDiagnostics)
+                foreach (TextureCatalogDiagnostic diagnostic in scope == 0 ? textureSceneDiagnostics : textureDiagnostics)
                 {
                     journal.AddDiagnostic(diagnostic);
                 }
@@ -484,6 +601,7 @@ internal sealed partial class RecreateGame
         }
         texturePendingResults.Clear();
         textureScene = [];
+        textureSceneCompanions.Clear();
         textureCatalog = [];
         textureReview = null;
         textureBrowser = null;

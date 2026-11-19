@@ -11,6 +11,7 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
     private readonly IReadOnlyList<Entry> entries;
     private readonly IReadOnlyDictionary<TextureTarget, Entry> effective;
     private readonly IReadOnlyDictionary<TextureTarget, IReadOnlyDictionary<string, Entry>> companionEntries;
+    private readonly IReadOnlyList<IReadOnlyDictionary<TextureTarget, Entry>> packageEntries;
     private readonly TextureCache cache;
 
     private NativeTextureMods(IReadOnlyList<Entry> entries, TextureCache? cache = null)
@@ -18,6 +19,7 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
         this.entries = entries;
         effective = entries.GroupBy(entry => entry.Variant.Target).ToDictionary(group => group.Key, group => group.First());
         companionEntries = effective.Values.Where(entry => entry.Variant.Target.Variant.Length != 0).GroupBy(entry => entry.Variant.Target with { Variant = "" }).ToDictionary(group => group.Key, group => (IReadOnlyDictionary<string, Entry>)group.ToDictionary(entry => entry.Variant.Target.Variant, StringComparer.Ordinal));
+        packageEntries = entries.GroupBy(entry => entry.Variant.PackageId, StringComparer.OrdinalIgnoreCase).Select(group => (IReadOnlyDictionary<TextureTarget, Entry>)group.ToDictionary(entry => entry.Variant.Target)).ToArray();
         this.cache = cache ?? new();
         Variants = Array.AsReadOnly(entries.Select(entry => entry.Variant).ToArray());
     }
@@ -170,35 +172,69 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
-        TextureReplacement? direct = ResolveFamily(context, TextureTarget.FromContext(context, context.Game));
-        if (direct is not null)
+        string requested = context.RequestedVariant ?? "";
+        Binding? requestedBinding = requested.Length == 0 ? null : SelectBinding(context, requested);
+        Binding? binding = SelectBinding(context, "");
+        Func<TextureValue>? readInstalled = context.ReadInstalledOriginalBase ?? context.ReadInstalledOriginal;
+        if (readInstalled is null)
         {
-            return direct;
+            binding = requested.Length == 0 ? binding : requestedBinding;
+            return binding is null ? null : ResolveDirect(binding.Entry, context, binding.Address, binding.Sheet);
         }
+        bool hasCompanions = Families(context, "").Any(family => companionEntries.ContainsKey(family.Target));
+        if (binding is null && requestedBinding is null && !hasCompanions)
+        {
+            return null;
+        }
+        TextureValue installed = readInstalled();
+        if (requested.Length != 0 && installed.Variants?.ContainsKey(requested) != true)
+        {
+            return requestedBinding is null ? null : ResolveDirect(requestedBinding.Entry, context, requestedBinding.Address, requestedBinding.Sheet);
+        }
+        Binding[] companions = installed.Variants?.Keys.Order(StringComparer.Ordinal).Select(variant => SelectBinding(context, variant)).OfType<Binding>().ToArray() ?? [];
+        if (binding is null && companions.Length == 0)
+        {
+            return null;
+        }
+        if (installed.Variants is null && installed.Animation is null)
+        {
+            return binding is null ? null : ResolveDirect(binding.Entry, context, binding.Address, binding.Sheet);
+        }
+        return ResolveCompanions(context, binding, companions, installed);
+    }
+
+    private sealed record Family(TextureTarget Target, TextureSourceAddress? Address = null, bool Sheet = false);
+    private sealed record Binding(Entry Entry, TextureSourceAddress? Address, bool Sheet, int Package, int Family);
+
+    private static IReadOnlyList<Family> Families(TextureBuildContext context, string variant)
+    {
+        List<Family> families = [new(TextureTarget.FromKey(context.Key, variant, context.Game))];
         if (context.NativeAlias is { } alias)
         {
-            TextureReplacement? aliased = ResolveFamily(context, AddressTarget(context, alias), alias);
-            if (aliased is not null)
-            {
-                return aliased;
-            }
+            families.Add(new(TextureTarget.FromKey(new(alias.Owner, alias.Subresource, alias.Palette), variant, context.Game), alias));
         }
         if (context.NativeSheet is { CanvasWidth: 128, CanvasHeight: 128 } sheet && context.Layout is "classic-field-model" or "classic-model")
         {
-            return ResolveFamily(context, AddressTarget(context, sheet), sheet, sheet: true);
+            families.Add(new(TextureTarget.FromKey(new(sheet.Owner, sheet.Subresource, sheet.Palette), variant, context.Game), sheet, true));
         }
-        return null;
+        return families;
     }
 
-    private static TextureTarget AddressTarget(TextureBuildContext context, TextureSourceAddress address) => TextureTarget.FromKey(new(address.Owner, address.Subresource, address.Palette), context.RequestedVariant ?? "", context.Game);
-
-    private TextureReplacement? ResolveFamily(TextureBuildContext context, TextureTarget target, TextureSourceAddress? address = null, bool sheet = false)
+    private Binding? SelectBinding(TextureBuildContext context, string variant)
     {
-        if (string.IsNullOrEmpty(context.RequestedVariant) && TryResolveCompanions(context, target, address, sheet, out TextureReplacement? composed))
+        IReadOnlyList<Family> families = Families(context, variant);
+        for (int package = 0; package < packageEntries.Count; package++)
         {
-            return composed;
+            for (int family = 0; family < families.Count; family++)
+            {
+                Family candidate = families[family];
+                if (packageEntries[package].TryGetValue(candidate.Target, out Entry? entry))
+                {
+                    return new(entry, candidate.Address, candidate.Sheet, package, family);
+                }
+            }
         }
-        return effective.TryGetValue(target, out Entry? entry) ? ResolveDirect(entry, context, address, sheet) : null;
+        return null;
     }
 
     private TextureReplacement ResolveDirect(Entry entry, TextureBuildContext context, TextureSourceAddress? address = null, bool sheet = false)
@@ -212,43 +248,22 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
         return cache.Get(key, () => Resolve(entry, context), ReplacementBytes);
     }
 
-    private bool TryResolveCompanions(TextureBuildContext context, TextureTarget target, TextureSourceAddress? address, bool sheet, out TextureReplacement? replacement)
+    private TextureReplacement ResolveCompanions(TextureBuildContext context, Binding? binding, Binding[] selected, TextureValue installed)
     {
-        replacement = null;
-        effective.TryGetValue(target, out Entry? baseEntry);
-        companionEntries.TryGetValue(target, out IReadOnlyDictionary<string, Entry>? siblings);
-        if ((baseEntry is null && siblings is null) || context.ReadInstalledOriginal is null)
+        ComposedResolveKey key = new(ContextKey(binding?.Entry ?? selected[0].Entry, context), installed, new(selected), binding?.Address, binding?.Sheet ?? false);
+        return cache.Get(key, () =>
         {
-            return false;
-        }
-        TextureValue installed = context.ReadInstalledOriginal();
-        Entry[] selected = installed.Variants?.Keys.Where(name => siblings?.ContainsKey(name) == true).Order(StringComparer.Ordinal).Select(name => siblings![name]).ToArray() ?? [];
-        if ((baseEntry is null && selected.Length == 0) || (installed.Variants is null && installed.Animation is null))
-        {
-            return false;
-        }
-        ComposedResolveKey key = new(ContextKey(baseEntry ?? selected[0], context), installed, new(selected), address, sheet);
-        replacement = cache.Get(key, () =>
-        {
-            TextureReplacement open = baseEntry is not null ? ResolveDirect(baseEntry, context, address, sheet) : new(installed.Image, installed.Provenance, installed.LogicalWidth, installed.LogicalHeight, installed.MipLevels);
+            TextureBuildContext baseContext = ImageContext(context, installed.Image, null);
+            TextureReplacement open = binding is not null ? ResolveDirect(binding.Entry, baseContext, binding.Address, binding.Sheet) : new(installed.Image, installed.Provenance, installed.LogicalWidth, installed.LogicalHeight, installed.MipLevels);
             Dictionary<string, Albeoris.Games.FF8.Imaging.PixelImage> variants = installed.Variants is null ? new(StringComparer.Ordinal) : new(installed.Variants, StringComparer.Ordinal);
             HashSet<string> explicitVariants = [];
             List<string> provenance = [open.Provenance];
-            foreach (Entry sibling in selected)
+            foreach (Binding sibling in selected)
             {
-                string name = sibling.Variant.Target.Variant;
+                string name = sibling.Entry.Variant.Target.Variant;
                 Albeoris.Games.FF8.Imaging.PixelImage original = variants[name];
-                TextureBuildContext variantContext = new(context.Key, context.Source, context.Revision, context.Layout, context.LogicalWidth, context.LogicalHeight, () => original, context.Region, context.PaletteImage, context.PaletteCount, context.EncodedSource)
-                {
-                    Game = context.Game,
-                    RequestedVariant = name,
-                    NativeAlias = context.NativeAlias,
-                    NativeSheet = context.NativeSheet,
-                    NativePage = context.NativePage,
-                    NativeUpload = context.NativeUpload,
-                    NativeAtlas = context.NativeAtlas
-                };
-                TextureReplacement variant = ResolveDirect(sibling, variantContext, address, sheet);
+                TextureBuildContext variantContext = ImageContext(context, original, name);
+                TextureReplacement variant = ResolveDirect(sibling.Entry, variantContext, sibling.Address, sibling.Sheet);
                 variants[name] = variant.Image;
                 explicitVariants.Add(name);
                 provenance.Add($"variant {name}: {variant.Provenance}");
@@ -267,8 +282,18 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
             }
             return open with { Image = baseImage, MipLevels = ReferenceEquals(baseImage, open.Image) ? open.MipLevels : null, Variants = variants.Count == 0 ? null : new System.Collections.ObjectModel.ReadOnlyDictionary<string, Albeoris.Games.FF8.Imaging.PixelImage>(variants), Animation = installed.Animation, Provenance = string.Join("; ", provenance) };
         }, ReplacementBytes);
-        return true;
     }
+
+    private static TextureBuildContext ImageContext(TextureBuildContext context, Albeoris.Games.FF8.Imaging.PixelImage original, string? variant) => new(context.Key, context.Source, context.Revision, context.Layout, context.LogicalWidth, context.LogicalHeight, () => original, context.Region, context.PaletteImage, context.PaletteCount, context.EncodedSource)
+    {
+        Game = context.Game,
+        RequestedVariant = variant,
+        NativeAlias = context.NativeAlias,
+        NativeSheet = context.NativeSheet,
+        NativePage = context.NativePage,
+        NativeUpload = context.NativeUpload,
+        NativeAtlas = context.NativeAtlas
+    };
 
     /// <summary>Runtime-only nearest expansion keeps source pixels and the shared logical canvas; authored files are untouched.</summary>
     private static Albeoris.Games.FF8.Imaging.PixelImage ProjectCompanion(Albeoris.Games.FF8.Imaging.PixelImage source, int width, int height)
@@ -391,21 +416,23 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
 
     private sealed class CompanionSet : IEquatable<CompanionSet>
     {
-        private readonly Entry[] entries;
+        private readonly Binding[] entries;
 
-        public CompanionSet(Entry[] entries)
+        public CompanionSet(Binding[] entries)
         {
             this.entries = entries;
         }
 
-        public bool Equals(CompanionSet? other) => other is not null && entries.Length == other.entries.Length && entries.Select((entry, index) => ReferenceEquals(entry, other.entries[index])).All(same => same);
+        public bool Equals(CompanionSet? other) => other is not null && entries.Length == other.entries.Length && entries.Select((entry, index) => ReferenceEquals(entry.Entry, other.entries[index].Entry) && entry.Address == other.entries[index].Address && entry.Sheet == other.entries[index].Sheet).All(same => same);
         public override bool Equals(object? other) => other is CompanionSet companions && Equals(companions);
         public override int GetHashCode()
         {
             HashCode hash = new();
-            foreach (Entry entry in entries)
+            foreach (Binding entry in entries)
             {
-                hash.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(entry));
+                hash.Add(System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(entry.Entry));
+                hash.Add(entry.Address);
+                hash.Add(entry.Sheet);
             }
             return hash.ToHashCode();
         }

@@ -42,15 +42,27 @@ public sealed partial class GameAssets
             {
                 return value;
             }
-            if (value.Variants?.TryGetValue(variant, out var image) != true)
+            if (value.Variants is not { } variants || !variants.TryGetValue(variant, out var image) || image is null)
             {
                 throw new NotSupportedException($"The selected source has no declared '{variant}' material variant.");
             }
             return value with { Image = image, MipLevels = null, Animation = null };
         }
+        TextureValue SelectResolved(TextureValue value)
+        {
+            if (variant is null || value.Variants?.ContainsKey(variant) == true)
+            {
+                return Select(value);
+            }
+            TextureValue original = source.OriginalForAuthoring?.Invoke() ?? throw new NotSupportedException("The resolved source has no declared authoring variant provider.");
+            TextureValue declared = Select(original);
+            var image = !original.IsReplacement && source.ProjectNativeVariant is { } project ? project(value.Image, variant) : declared.Image;
+            return value with { Image = image, MipLevels = null, Animation = null };
+        }
         return new(source.Key, source.Source, source.Revision, source.Layout, source.LogicalWidth, source.LogicalHeight, () => source.Original, source.Region, source.PaletteImage, source.PaletteCount, source.EncodedSource)
         {
             Game = source.Game,
+            AuthoringSourceSha256 = source.AuthoringSourceSha256,
             NativeAlias = source.NativeAlias,
             NativeSheet = source.NativeSheet,
             NativePage = source.NativePage,
@@ -60,7 +72,7 @@ public sealed partial class GameAssets
             NativeVariants = source.NativeVariants,
             ProjectNativeVariant = source.ProjectNativeVariant,
             OriginalForAuthoring = source.OriginalForAuthoring is null ? null : () => Select(source.OriginalForAuthoring()),
-            ResolvedForAuthoring = source.ResolvedForAuthoring is null ? null : () => Select(source.ResolvedForAuthoring())
+            ResolvedForAuthoring = source.ResolvedForAuthoring is null ? null : () => SelectResolved(source.ResolvedForAuthoring())
         };
     }
 }

@@ -48,9 +48,12 @@ internal sealed partial class RecreateGame
         }
         finally
         {
-            if (File.Exists(temporary))
+            try
             {
                 File.Delete(temporary);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
             }
         }
     }

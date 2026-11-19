@@ -122,6 +122,71 @@ internal sealed partial class RecreateGame
         });
     }
 
+    private void LoadImportedTexturePreview(TextureImportReview review, TextureImportRow row)
+    {
+        TextureBrowserController browser = textureBrowser!;
+        var createSession = resourceHost!.CaptureTextureAuthoringFactory(false);
+        string path = Path.Combine(review.Source, (row.Workspace ?? row.RelativePath).Replace('/', Path.DirectorySeparatorChar));
+        StartTextureJob(token =>
+        {
+            PixelImage image;
+            if (row.Workspace is not null)
+            {
+                using var authoring = createSession();
+                image = TexturePixelExchange.ToEditable(authoring.Assets.ImportFieldTextureWorkspace(path, token)[row.WorkspaceTile].Image);
+            }
+            else if (Path.GetExtension(path).Equals(".ora", StringComparison.OrdinalIgnoreCase))
+            {
+                RejectTextureReparsePath(path);
+                using System.IO.Compression.ZipArchive archive = System.IO.Compression.ZipFile.OpenRead(path);
+                var entries = archive.Entries.Where(entry => entry.FullName == "mergedimage.png").ToArray();
+                if (entries.Length != 1 || entries[0].Length > 128L * 1024 * 1024)
+                {
+                    throw new InvalidDataException("The ORA document needs one bounded mergedimage.png for visual matching. Restore its editable layers and source companion before importing.");
+                }
+                using Stream input = entries[0].Open();
+                using MemoryStream bytes = new();
+                byte[] buffer = new byte[65536];
+                int read;
+                while ((read = input.Read(buffer)) != 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (bytes.Length + read > 128L * 1024 * 1024)
+                    {
+                        throw new InvalidDataException("The imported ORA preview exceeds its decoded input budget.");
+                    }
+                    bytes.Write(buffer.AsSpan(0, read));
+                }
+                token.ThrowIfCancellationRequested();
+                image = TextureImageDecoder.Decode(bytes.ToArray(), "mergedimage.png").Image;
+            }
+            else
+            {
+                image = TextureImageDecoder.Decode(ReadStableTextureBytes(path, token), path).Image;
+            }
+            return CreateTextureThumbnail(image);
+        }, thumbnail =>
+        {
+            if (!ReferenceEquals(textureBrowser, browser) || !browser.Matching || uiCanvas is null)
+            {
+                return;
+            }
+            Texture2D texture = new(GraphicsDevice, thumbnail.Width, thumbnail.Height);
+            try
+            {
+                texture.SetData(thumbnail.Pixels.Select(pixel => Color.FromNonPremultiplied(pixel.R, pixel.G, pixel.B, pixel.A)).ToArray());
+                uiCanvas.RegisterHostImage(TextureBrowserController.ImportedPreviewImageId, texture);
+                browser.ImportedPreviewAvailable = true;
+                browser.Message = LocalizeAuthored("textures.match.compare", "Compare the imported image with the candidate Original / Resolved source. Confirm an exact texture leaf to remember its assignment.");
+            }
+            catch
+            {
+                texture.Dispose();
+                throw;
+            }
+        }, LocalizeAuthored("textures.match.preview", "Reading imported image for comparison..."));
+    }
+
     private static PixelImage CreateTextureThumbnail(PixelImage source)
     {
         float scale = Math.Min(1, Math.Min(192f / source.Width, 192f / source.Height));

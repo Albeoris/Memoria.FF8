@@ -94,6 +94,17 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IControllerButtonCanvas, 
         return true;
     }
 
+    internal void RegisterHostImage(int id, Albeoris.Games.FF8.Imaging.PixelImage image)
+    {
+        UiImageSource source = new(UiImageKind.HostArtwork, id);
+        SKBitmap bitmap = BitmapFromRgba(image.Pixels.SelectMany(pixel => new[] { pixel.R, pixel.G, pixel.B, pixel.A }).ToArray(), image.Width, image.Height);
+        if (images.Remove(source, out SKBitmap? previous))
+        {
+            previous.Dispose();
+        }
+        images.Add(source, bitmap);
+    }
+
     public void Image(UiImageSource source, UiRect bounds)
     {
         DrawImage(source, bounds, stretch: false);

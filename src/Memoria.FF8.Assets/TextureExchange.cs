@@ -19,12 +19,12 @@ public static class TextureExchange
 
     public static TextureExportResult Export(IEnumerable<TextureSourceSnapshot> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        return ExportSources(textures.Select(snapshot => (snapshot.Context, snapshot.InstalledOriginal, resolved ? snapshot.Resolved : null)), destination, cancellationToken, progress, journal);
+        return ExportSources(textures.Select(snapshot => (snapshot.Context, snapshot.InstalledOriginal, resolved ? snapshot.Resolved : null, SourceAliases(snapshot.Context), (string?)null)), destination, cancellationToken, progress, journal);
     }
 
     public static TextureExportResult Export(GameAssets assets, IEnumerable<TextureSourceSnapshot> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?)> Read()
+        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?, IReadOnlyList<string>, string?)> Read()
         {
             foreach (TextureSourceSnapshot snapshot in textures)
             {
@@ -32,7 +32,8 @@ public static class TextureExchange
                 foreach (TextureBuildContext context in assets.LoadAuthoringTextures(snapshot))
                 {
                     TextureValue original = ReferenceEquals(context, snapshot.Context) && snapshot.InstalledOriginal is { } captured ? captured : assets.Resources.ResolveOriginalForExport(context);
-                    yield return (context, original, resolved ? ReferenceEquals(context, snapshot.Context) ? snapshot.Resolved : assets.Resources.ResolveForExport(context) : null);
+                    string? role = context.RequestedVariant != snapshot.Context.RequestedVariant ? "source-declared variant companion" : null;
+                    yield return (context, original, resolved ? ReferenceEquals(context, snapshot.Context) ? snapshot.Resolved : assets.Resources.ResolveForExport(context) : null, SourceAliases(snapshot.Context), role);
                 }
             }
         }
@@ -41,7 +42,7 @@ public static class TextureExchange
 
     public static TextureExportResult Export(GameAssets assets, IEnumerable<TextureCatalogEntry> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?)> Read()
+        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?, IReadOnlyList<string>, string?)> Read()
         {
             string? previousUnit = null;
             IReadOnlyList<TextureBuildContext> unit = [];
@@ -56,13 +57,19 @@ public static class TextureExchange
                     previousUnit = locator;
                 }
                 TextureBuildContext context = unit.Single(context => TextureTarget.FromContext(context) == entry.Target);
-                yield return (context, assets.Resources.ResolveOriginalForExport(context), resolved ? assets.Resources.ResolveForExport(context) : null);
+                yield return (context, assets.Resources.ResolveOriginalForExport(context), resolved ? assets.Resources.ResolveForExport(context) : null, entry.UsedBy, context.RequestedVariant is null ? null : "editable source variant");
             }
         }
         return ExportSources(Read(), destination, cancellationToken, progress, journal);
     }
 
-    private static TextureExportResult ExportSources(IEnumerable<(TextureBuildContext Context, TextureValue? Original, TextureValue? Resolved)> sources, string destination, CancellationToken cancellationToken, IProgress<TextureExportProgress>? progress, TextureExportJournal? journal)
+    private static IReadOnlyList<string> SourceAliases(TextureBuildContext context)
+    {
+        string alias = context.Key.Owner.Path + "#" + Uri.EscapeDataString(context.Key.Subresource);
+        return alias.Length <= 1024 && !alias.Any(char.IsControl) ? [alias] : [];
+    }
+
+    private static TextureExportResult ExportSources(IEnumerable<(TextureBuildContext Context, TextureValue? Original, TextureValue? Resolved, IReadOnlyList<string> SourceAliases, string? CompanionRole)> sources, string destination, CancellationToken cancellationToken, IProgress<TextureExportProgress>? progress, TextureExportJournal? journal)
     {
         string root = Path.GetFullPath(destination);
         Directory.CreateDirectory(root);
@@ -70,7 +77,7 @@ public static class TextureExchange
         HashSet<TextureTarget> seen = [];
         Dictionary<(ResourceKey, long), string> sourceHashes = [];
         long bytesWritten = 0;
-        foreach ((TextureBuildContext context, TextureValue? installedOriginal, TextureValue? resolved) in sources)
+        foreach ((TextureBuildContext context, TextureValue? installedOriginal, TextureValue? resolved, IReadOnlyList<string> aliases, string? companionRole) in sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (context.Layout is "native-effect-texture" or "native-pc-texture-upload" or "native-battle-gf-atlas")
@@ -87,8 +94,8 @@ public static class TextureExchange
             PixelImage selected = resolved?.Image ?? original;
             bool nativeFlags = installedOriginal is null ? TexturePixelExchange.UsesNativeFlags(context) : TexturePixelExchange.UsesNativeFlags(context, installedOriginal);
             PixelImage editable = nativeFlags ? TexturePixelExchange.ToEditable(selected) : selected;
-            string? sourceHash = null;
-            if (context.EncodedSource is { } encoded)
+            string? sourceHash = context.AuthoringSourceSha256;
+            if (sourceHash is null && context.EncodedSource is { } encoded)
             {
                 if (!sourceHashes.TryGetValue((encoded.Key, encoded.Revision), out sourceHash))
                 {
@@ -105,6 +112,7 @@ public static class TextureExchange
             {
                 NativeWidth = nativeFlags ? selected.Width : null,
                 NativeHeight = nativeFlags ? selected.Height : null,
+                SourceAliases = aliases.Count == 0 ? null : aliases,
                 OriginalSemanticSha256 = TexturePixelExchange.SemanticFingerprint(originalEditable, target, contract, originalFlags, original.Width, original.Height),
                 ExportedSemanticSha256 = TexturePixelExchange.SemanticFingerprint(editable, target, contract, selectedFlags, selected.Width, selected.Height)
             };
@@ -120,7 +128,7 @@ public static class TextureExchange
             WriteAtomic(path + ".texture.json", serialized, cancellationToken);
             files.Add(path);
             bytesWritten += png.Length + serialized.Length;
-            journal?.AddImage(path, metadata, png.Length + serialized.Length);
+            journal?.AddImage(path, metadata, png.Length + serialized.Length, companionRole);
             progress?.Report(new("Writing", files.Count, bytesWritten, target.Owner));
         }
         return new(files.Count, bytesWritten, files);

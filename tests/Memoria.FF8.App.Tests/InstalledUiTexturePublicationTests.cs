@@ -41,14 +41,15 @@ public sealed class InstalledUiTexturePublicationTests
             canvas.Image(new(UiImageKind.Card, 0), new(128, 0, 64, 64));
             canvas.Image(new(UiImageKind.Magazine, 0), new(192, 0, 128, 128));
             canvas.Image(new(UiImageKind.HostArtwork, 90909), new(0, 112, 16, 16));
+            canvas.Paper(new(192, 128, 128, 32), new(240, 220, 180));
             batch.End();
             graphics.Device.SetRenderTarget(null);
             return GpuTestDevice.Read(target);
         }
 
         Color[] before = Draw();
-        TextureSourceSnapshot[] affected = resources.CaptureTextureSourcesForImages(canvas.PresentedTextureImages).Where(snapshot => snapshot.Target.Owner.StartsWith("menu/face_b", StringComparison.Ordinal) || snapshot.Target.Owner == "menu/icon.tex" && snapshot.Target.Palette == NativeMenuPointer.Palette).ToArray();
-        Assert.Equal(2, affected.Length);
+        TextureSourceSnapshot[] affected = resources.CaptureTextureSourcesForImages(canvas.PresentedTextureImages).Where(snapshot => snapshot.Target.Owner.StartsWith("menu/face_b", StringComparison.Ordinal) || snapshot.Target.Owner == "menu/icon.tex" && snapshot.Target.Palette == NativeMenuPointer.Palette || snapshot.Target.Owner == "menu/magita.tex").ToArray();
+        Assert.Equal(3, affected.Length);
         List<ModFile> files = [];
         foreach (TextureSourceSnapshot snapshot in affected)
         {
@@ -77,8 +78,10 @@ public sealed class InstalledUiTexturePublicationTests
         Assert.Equal(uploaded, canvas.ImageUploadCount);
         Assert.False(host.IsDisposed);
         Assert.Equal(Color.Cyan, after[120 * 320 + 8]);
+        Assert.NotEqual(before[144 * 320 + 256], after[144 * 320 + 256]);
         Assert.Contains(resources.CaptureTextureSourcesForImages(canvas.PresentedTextureImages), snapshot => snapshot.Target == affected[0].Target);
         Assert.Contains(resources.CaptureTextureSourcesForImages(canvas.PresentedTextureImages), snapshot => snapshot.Target == affected[1].Target);
+        Assert.Contains(resources.CaptureTextureSourcesForImages(canvas.PresentedTextureImages), snapshot => snapshot.Target.Owner == "menu/magita.tex");
         ResourceService.PreparedResources unchanged = resources.Prepare(native);
         using TexturePublication unchangedUi = Assert.IsType<TexturePublication>(canvas.PrepareTexturePublication(unchanged, unchanged.TextureValues, resources.Generation + 1));
         long retainedUploads = canvas.ImageUploadCount;

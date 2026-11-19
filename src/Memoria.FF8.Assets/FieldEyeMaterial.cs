@@ -38,8 +38,21 @@ public static class FieldEyeMaterial
         {
             throw new NotSupportedException("The selected material has no proved complete native eye-copy variants.");
         }
-        return new Dictionary<string, PixelImage> { ["eyes-open"] = Resolve(model, false), ["eyes-closed"] = Resolve(model, true) };
+        return NativeVariants(model.NativeEyes!, model.Textures[0]);
     }
+
+    public static IReadOnlyDictionary<string, PixelImage> NativeVariants(NativeFieldEyeDefinition eyes, PixelImage source)
+    {
+        if (!HasNativeVariants(eyes, source.Width, source.Height))
+        {
+            throw new NotSupportedException("The selected material has no proved complete native eye-copy variants.");
+        }
+        EyeImages selected = images.GetValue(eyes, static _ => new()).GetValue(source, image => new(Copy(image, eyes.Copy(false)), Copy(image, eyes.Copy(true))));
+        return new Dictionary<string, PixelImage> { ["eyes-open"] = selected.Open, ["eyes-closed"] = selected.Closed };
+    }
+
+    internal static Func<IReadOnlyDictionary<string, PixelImage>> VariantFactory(NativeFieldEyeDefinition eyes, PixelImage image) => () => NativeVariants(eyes, image);
+    internal static Func<PixelImage, string, PixelImage> VariantProjector(NativeFieldEyeDefinition eyes) => (image, variant) => Project(eyes, image, variant);
 
     /// <summary>Projects the existing native bank copy onto an edited complete image without advancing the eye process.</summary>
     public static PixelImage Project(NativeFieldEyeDefinition eyes, PixelImage source, string variant)

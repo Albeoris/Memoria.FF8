@@ -4,7 +4,7 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
-public sealed record TextureExportIndexEntry(string Path, TextureTarget? Target, TextureTargetContract? Contract, string Companion, string? SourceFingerprint, string? Baseline, string Kind);
+public sealed record TextureExportIndexEntry(string Path, TextureTarget? Target, TextureTargetContract? Contract, string Companion, string? SourceFingerprint, string? Baseline, string Kind, IReadOnlyList<string>? SourceAliases = null, string? CompanionRole = null);
 
 /// <summary>Bounded authoring bookkeeping. Disposal always writes an honest incomplete report unless Complete succeeded.</summary>
 public sealed class TextureExportJournal : IDisposable
@@ -37,10 +37,10 @@ public sealed class TextureExportJournal : IDisposable
         Write();
     }
 
-    public void AddImage(string path, TextureExchangeMetadata metadata, long writtenBytes)
+    public void AddImage(string path, TextureExchangeMetadata metadata, long writtenBytes, string? companionRole = null)
     {
         string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
-        entries.Add(new(relative, metadata.Target, metadata.Contract, relative + ".texture.json", metadata.SourceSha256, metadata.ExportedSemanticSha256 ?? metadata.ExportedPixelSha256, "image"));
+        entries.Add(new(relative, metadata.Target, metadata.Contract, relative + ".texture.json", metadata.SourceSha256, metadata.ExportedSemanticSha256 ?? metadata.ExportedPixelSha256, "image", metadata.SourceAliases, companionRole));
         bytes += writtenBytes;
     }
 

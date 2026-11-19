@@ -17,6 +17,10 @@ public sealed partial class GameAssets
         }
         if (owner[2] == "main_chr")
         {
+            if (member.Length == 3)
+            {
+                return null;
+            }
             TextureBuildContext? context = ReadMainCharacterAuthoringSheets(owner[3], member.Length == 3).SingleOrDefault(context => TextureTarget.FromContext(context) == target);
             return context is null ? null : Entry(context, $"{owner[3]} · {target.Subresource} · {target.Variant}", "Field") with { Reader = "main-sheet" };
         }
@@ -82,6 +86,7 @@ public sealed partial class GameAssets
         return new TextureBuildContext(new(sheet.Owner, sheet.Subresource, sheet.Palette), source.Source, source.Revision, "native-field-model-sheet", sheet.CanvasWidth, sheet.CanvasHeight, () => ProjectTextureSheetImage(source.Original, sheet.Width, sheet.Height, sheet), new(BitsPerPixel: source.Region.BitsPerPixel, CanvasWidth: sheet.CanvasWidth, CanvasHeight: sheet.CanvasHeight), paletteCount: source.PaletteCount, encodedSource: encoded)
         {
             Game = source.Game,
+            AuthoringSourceSha256 = source.AuthoringSourceSha256,
             RequestedVariant = source.RequestedVariant,
             NativeSheet = sheet with { X = 0, Y = 0, Width = sheet.CanvasWidth, Height = sheet.CanvasHeight },
             OriginalForAuthoring = () => Project(capturedOriginal ?? resources.ResolveOriginalForExport(source)),
@@ -112,9 +117,9 @@ public sealed partial class GameAssets
         return new(image, sheet.CanvasWidth, sheet.CanvasHeight, value.Provenance, mips, variants) { IsReplacement = value.IsReplacement, Animation = value.Animation is null ? null : new TextureAnimation(value.Animation.Frames.Select(frame => ProjectTextureSheetImage(frame, value.LogicalWidth, value.LogicalHeight, sheet)).ToArray(), value.Animation.FrameDurationMilliseconds) };
     }
 
-    private static PixelImage ProjectTextureSheetImage(PixelImage image, int logicalWidth, int logicalHeight, TextureSourceAddress sheet)
+    public static PixelImage ProjectTextureSheetImage(PixelImage image, int logicalWidth, int logicalHeight, TextureSourceAddress sheet)
     {
-        if (logicalWidth != sheet.Width || logicalHeight != sheet.Height || image.Width % logicalWidth != 0 || image.Height % logicalHeight != 0 || image.Width / logicalWidth != image.Height / logicalHeight)
+        if (logicalWidth <= 0 || logicalHeight <= 0 || sheet.CanvasWidth != 128 || sheet.CanvasHeight != 128 || sheet.X < 0 || sheet.Y < 0 || (long)sheet.X + sheet.Width > sheet.CanvasWidth || (long)sheet.Y + sheet.Height > sheet.CanvasHeight || logicalWidth != sheet.Width || logicalHeight != sheet.Height || image.Width % logicalWidth != 0 || image.Height % logicalHeight != 0 || image.Width / logicalWidth != image.Height / logicalHeight)
         {
             throw new InvalidDataException("Field sheet pixels must preserve the source material's uniform integer density.");
         }

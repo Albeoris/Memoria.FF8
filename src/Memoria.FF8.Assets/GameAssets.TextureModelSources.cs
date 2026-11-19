@@ -66,7 +66,7 @@ public sealed partial class GameAssets
                     {
                         throw new InvalidDataException("Field texture alias references an empty material source.");
                     }
-                    return (shared.Header, [shared.Images[0]], shared.Main, shared.Eyes);
+                    return (shared.Header, [shared.Images[0]], shared.Main, ReadCatalogEyeDefinition(one, checked(header.Offset + header.ModelOffset), shared.Images[0]));
                 }
                 if (header.Flag >> 28 == 0xD)
                 {

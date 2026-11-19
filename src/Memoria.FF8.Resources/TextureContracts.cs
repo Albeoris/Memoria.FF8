@@ -68,6 +68,7 @@ public sealed class TextureBuildContext
     public TextureKey Key { get; }
     public string Game { get; init; } = "ff8";
     public Func<TextureValue>? ReadInstalledOriginal { get; internal set; }
+    public Func<TextureValue>? ReadInstalledOriginalBase { get; internal set; }
     public Func<IReadOnlyDictionary<string, PixelImage>>? NativeVariants { get; init; }
     public Func<TextureValue>? OriginalForAuthoring { get; init; }
     public Func<TextureValue>? ResolvedForAuthoring { get; init; }
@@ -82,6 +83,7 @@ public sealed class TextureBuildContext
     public Func<int, PixelImage>? PaletteImage { get; }
     public int PaletteCount { get; }
     public ResourceContent? EncodedSource { get; }
+    public string? AuthoringSourceSha256 { get; set; }
     public TextureSourceAddress? NativeAlias { get; init; }
     public TextureSourceAddress? NativeSheet { get; init; }
     public TextureSourcePageAddress? NativePage { get; init; }

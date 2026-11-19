@@ -229,6 +229,35 @@ public sealed class TextureBrowserTests
         }
     }
 
+    [Theory]
+    [InlineData(640, 448)]
+    [InlineData(1280, 896)]
+    public void Matching_keeps_imported_image_beside_the_original_candidate(int width, int height)
+    {
+        TextureBrowserController browser = new(() => { }, _ => { }) { Matching = true, PreviewAvailable = true, ImportedPreviewAvailable = true, ScopeDescription = "FFVIII / synthetic source / en", Resolved = false };
+        browser.SetRows([new("candidate", "Candidate texture", "Characters/Squall", "Candidate original source")]);
+        ExpandAll(browser);
+        SelectLeaf(browser, "candidate");
+        browser.Message = "Compare the imported image with the selected original or resolved candidate.";
+        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            canvas.RegisterHostImage(TextureBrowserController.PreviewImageId, new(1, 1, [new Albeoris.Games.FF8.Imaging.Rgba32(30, 60, 200, 255)]));
+            canvas.RegisterHostImage(TextureBrowserController.ImportedPreviewImageId, new(1, 1, [new Albeoris.Games.FF8.Imaging.Rgba32(12, 200, 60, 255)]));
+            var view = browser.BuildView();
+            view.Resize(width, height);
+            view.Draw(canvas, new UiTheme());
+        }
+        Assert.Equal(new SkiaSharp.SKColor(30, 60, 200), bitmap.GetPixel((int)(638 * width / 960f), (int)(270 * height / 672f)));
+        Assert.Equal(new SkiaSharp.SKColor(12, 200, 60), bitmap.GetPixel((int)(838 * width / 960f), (int)(270 * height / 672f)));
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEXTURE_BROWSER_UI_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            Directory.CreateDirectory(output);
+            bitmap.SavePng(Path.Combine(output, $"texture-matching-{width}.png"));
+        }
+    }
+
     [Fact]
     public void Native_multiple_file_callback_preserves_every_selected_unicode_path()
     {

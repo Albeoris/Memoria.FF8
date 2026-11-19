@@ -24,6 +24,7 @@ public sealed class TextureBrowserController
 
     public const int RowsPerPage = 9;
     public const int PreviewImageId = 93001;
+    public const int ImportedPreviewImageId = 93002;
     private readonly Action close;
     private readonly Action<int> command;
     private readonly UiView view;
@@ -98,6 +99,7 @@ public sealed class TextureBrowserController
     public bool Busy { get; set; }
     public bool Matching { get; set; }
     public bool PreviewAvailable { get; set; }
+    public bool ImportedPreviewAvailable { get; set; }
     public Action<string>? Match { get; set; }
     public Action<string>? Unmatched { get; set; }
     public Action? CancelWork { get; set; }
@@ -345,6 +347,12 @@ public sealed class TextureBrowserController
         Filter();
     }
 
+    public void ClearSearch()
+    {
+        Search = "";
+        Filter();
+    }
+
     public void Backspace()
     {
         if (Search.Length != 0)
@@ -511,11 +519,20 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
         for (int index = start; index < Math.Min(start + TextureBrowserController.RowsPerPage, controller.Rows.Count); index++)
         {
             TextureBrowserRow row = controller.Rows[index];
-            Button(canvas, theme, new(18, 166 + (index - start) * 34, 714, 32), controller.RowLabel(row), index == controller.Index);
+            Button(canvas, theme, new(18, 166 + (index - start) * 34, controller.Matching ? 514 : 714, 32), controller.RowLabel(row), index == controller.Index);
         }
         if (controller.PreviewAvailable)
         {
-            canvas.Image(new(UiImageKind.HostArtwork, TextureBrowserController.PreviewImageId), new(748, 180, 180, 180));
+            canvas.Image(new(UiImageKind.HostArtwork, TextureBrowserController.PreviewImageId), new(controller.Matching ? 548 : 748, 180, 180, 180));
+        }
+        if (controller.Matching)
+        {
+            Label(canvas, controller.Resolved ? controller.Text("textures.match.resolved", "Candidate: Resolved") : controller.Text("textures.match.original", "Candidate: Original"), new(548, 154, 180, 24), theme.Foreground, 13);
+            Label(canvas, controller.Text("textures.match.imported", "Imported image"), new(748, 154, 180, 24), theme.Foreground, 13);
+            if (controller.ImportedPreviewAvailable)
+            {
+                canvas.Image(new(UiImageKind.HostArtwork, TextureBrowserController.ImportedPreviewImageId), new(748, 180, 180, 180));
+            }
         }
         Button(canvas, theme, new(748, 376, 56, 32), controller.Text("textures.select.all", "All"));
         Button(canvas, theme, new(810, 376, 56, 32), controller.Text("textures.select.clear", "Clear"));
@@ -542,7 +559,7 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
                 return;
             }
         }
-        if (y >= 166 && y < 472 && x >= 18 && x <= 732)
+        if (y >= 166 && y < 472 && x >= 18 && x <= (controller.Matching ? 532 : 732))
         {
             int row = controller.Page * TextureBrowserController.RowsPerPage + (int)((y - 166) / 34);
             if (row < controller.Rows.Count)

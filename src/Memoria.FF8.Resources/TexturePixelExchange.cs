@@ -100,6 +100,7 @@ public sealed record TextureExchangeMetadata(int SchemaVersion, TextureTarget Ta
     public int? NativeHeight { get; init; }
     public string? OriginalSemanticSha256 { get; init; }
     public string? ExportedSemanticSha256 { get; init; }
+    public IReadOnlyList<string>? SourceAliases { get; init; }
     public const int MaximumBytes = 96 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 16 };
     public byte[] Serialize() => ToBytes();
@@ -142,6 +143,10 @@ public sealed record TextureExchangeMetadata(int SchemaVersion, TextureTarget Ta
             throw new InvalidDataException("Unsupported or incomplete texture authoring metadata.");
         }
         Target.Validate();
+        if (SourceAliases is not null && (SourceAliases.Count > 4096 || SourceAliases.Any(alias => string.IsNullOrWhiteSpace(alias) || alias.Length > 1024 || alias.StartsWith('/') || alias.Contains(':') || alias.Contains('\\') || alias.Any(char.IsControl) || alias.Split('/').Any(part => part is "." or ".."))))
+        {
+            throw new InvalidDataException("Texture usage aliases require bounded relative game-resource names, without installation paths or traversal.");
+        }
     }
 
     private static void RejectDuplicates(JsonElement element)
