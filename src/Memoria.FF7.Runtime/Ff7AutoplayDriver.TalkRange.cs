@@ -7,6 +7,28 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoplayDriver
 {
+    internal bool AdmitsSelectedTalkApproach(Ff7AutoPlayTarget target, Ff7AutoplayInput input)
+    {
+        if (target.Kind != Ff7AutoPlayTargetKind.ActorTalk)
+        {
+            return false;
+        }
+        if (session.GetTalkTarget()?.Entity == target.Entity)
+        {
+            return input.Talk;
+        }
+        if (input.Horizontal == 0 && input.Vertical == 0)
+        {
+            return false;
+        }
+        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        var direction = Directions.Single(value => value.X == input.Horizontal && value.Y == input.Vertical);
+        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(input.Run)) };
+        int rotation = (input.Held & 8) != 0 ? 224 : (input.Held & 4) != 0 ? 32 : 0;
+        Ff7NativeMoveResult preview = session.Host.Movement!.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection + rotation) & 255), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked);
+        return session.PreviewTalkTarget(preview.Actor)?.Entity == target.Entity;
+    }
+
     internal static string ReadNavigationKey(Ff7Session session, string visitId)
     {
         Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);

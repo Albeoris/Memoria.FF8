@@ -218,9 +218,31 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
             }
         }
-        if (DeferUnavailableActiveNavigation(State, observation))
+        Ff7AutoplayInput? admittedApproachInput = null;
+        Ff7AutoPlayNavigationUnavailableException? admittedApproachFailure = null;
+        if (DeferUnavailableActiveNavigation(State, observation, (active, target) =>
+        {
+            try
+            {
+                bool continues = TryContinueAdmittedCycleApproach(active, target, observation, driver, physicalGuards, out Ff7AutoplayInput input);
+                if (continues)
+                {
+                    admittedApproachInput = input;
+                }
+                return continues;
+            }
+            catch (Ff7AutoPlayNavigationUnavailableException absence)
+            {
+                admittedApproachFailure = absence;
+                return true;
+            }
+        }))
         {
             Publish();
+        }
+        if (driver.PlanningPending)
+        {
+            return default;
         }
         if (State.Active is null)
         {
@@ -349,18 +371,15 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         try
         {
-            return driver.ChooseTargetInput(selectedTarget, observation.Events, run =>
+            if (admittedApproachFailure is not null)
             {
-                Ff7AutoplayInput input = selectedTarget.Kind switch
-                {
-                    Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(selectedTarget.Entity, run),
-                    Ff7AutoPlayTargetKind.ActorContact => driver.Contact(selectedTarget.Entity, run),
-                    Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(selectedTarget.GatewayIndex!.Value, run),
-                    Ff7AutoPlayTargetKind.AutonomousSpatial => driver.Approach(selectedTarget.Position, selectedTarget.Triangle, run),
-                    _ => ChooseLineInput(driver, selectedTarget, run)
-                };
-                return PrepareEntryInput(selectedTarget, input);
-            });
+                throw admittedApproachFailure;
+            }
+            if (admittedApproachInput is Ff7AutoplayInput retainedInput)
+            {
+                return retainedInput;
+            }
+            return driver.ChooseTargetInput(selectedTarget, observation.Events, run => PrepareEntryInput(selectedTarget, ChooseOrdinaryTargetInput(driver, selectedTarget, run)));
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {

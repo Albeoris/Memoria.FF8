@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--admitted-cycle-approach-only", StringComparer.Ordinal))
+{
+    AdmittedCycleApproachTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-actor-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeActorFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--bounded-movement-availability-only", StringComparer.Ordinal))
 {
     BoundedMovementAvailabilityTests.Run();
