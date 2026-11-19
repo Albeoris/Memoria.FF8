@@ -2,6 +2,8 @@
 
 Select **Report error** in the error window. Memoria prepares one local ZIP, reveals it in the file manager and opens a filled GitHub issue draft. Sign in to GitHub if needed, drag the ZIP into the issue body, wait for the upload and select **Submit new issue**. Reports and attachments are public. You may add what you remember doing directly in GitHub.
 
+If an unhandled .NET exception closes the launcher, Memoria saves the incident and opens **Error reports** in a separate process. If the report window cannot open, the next launcher start can offer the saved incident.
+
 Opening the draft does not attach the file or submit an issue. If login loses the text, use **Open GitHub again** or **Copy full description**. **Show ZIP**, **Copy report path** and the selectable URL remain available when the browser or file manager cannot open. Memoria never copies anything to the clipboard without your action. Offline preparation still works; the browser needs a connection to GitHub later.
 
 The error window immediately shows the incident date and time with the local UTC offset, subsystem, error summary and selectable local file path. **Copy incident path** works before preparing a report. After preparation, the incident path points to the ZIP. ZIP instructions and recovery actions appear only once a report is ready. **Delete incident** asks for confirmation, removes that incident's local recovery evidence and any prepared ZIP, then closes the window without opening GitHub. Ordinary saves, original logs and other incidents are kept. Closing the window alone keeps the incident.

@@ -515,10 +515,13 @@ internal sealed partial class LauncherWindow
 
         string[] keys = launcherModVisible.Select(row => row.Key).ToArray();
         bool changed = !launcherModItems.Keys.SequenceEqual(keys);
+        bool restoreListFocus = changed && launcherModRows.IsKeyboardFocusWithin;
         launcherModChangingRows = true;
         if (changed)
         {
-            ListBoxItem[] items = launcherModVisible.Select(row => launcherModItems.GetValueOrDefault(row.Key) ?? new ListBoxItem { Tag = row.Key, HorizontalContentAlignment = HorizontalAlignment.Stretch }).ToArray();
+            // The virtualizing panel detaches existing containers when the source is replaced.
+            // Give the new source its own containers so they can be realized and anchored.
+            ListBoxItem[] items = keys.Select(key => new ListBoxItem { Tag = key, HorizontalContentAlignment = HorizontalAlignment.Stretch }).ToArray();
             launcherModItems.Clear();
             foreach (ListBoxItem item in items)
             {
@@ -567,6 +570,10 @@ internal sealed partial class LauncherWindow
         }
         launcherModChangingRows = false;
         RenderLauncherModDetails();
+        if (restoreListFocus && launcherModRows.SelectedItem is ListBoxItem selectedItem)
+        {
+            selectedItem.Focus();
+        }
     }
 
     private void SetLauncherModIssues(IEnumerable<string> issues)

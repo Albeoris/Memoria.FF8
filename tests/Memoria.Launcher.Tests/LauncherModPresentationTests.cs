@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
+using Avalonia.VisualTree;
 using Memoria.FF8.Mods;
 
 namespace Memoria.Launcher.Tests;
@@ -26,20 +27,26 @@ public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture
                 using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
                 await library.StopAsync();
                 Application.Current!.Styles.Add(new FluentTheme());
-                RemoteModEntry external = new("external", Guid.NewGuid(), "A third-party mod", "1");
+                RemoteModEntry[] external = Enumerable.Range(1, 30).Select(index => new RemoteModEntry("external", Guid.NewGuid(), $"Third-party mod {index}", "1")).ToArray();
                 RemoteModEntry official = new(OfficialModCatalog.SourceId, OfficialModCatalog.GirlNextDoor.CatalogId, "Girl Next Door", "1") { Official = OfficialModCatalog.GirlNextDoor };
-                ModLibrarySnapshot snapshot = new(1, new([external, official], null, false, false, null), [], "Classic/en/test", true);
+                ModLibrarySnapshot snapshot = new(1, new([.. external, official], null, false, false, null), [], "Classic/en/test", true);
                 typeof(ModLibraryService).GetField("view", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(library, snapshot);
                 LauncherWindow window = new();
+                Window host = new() { Width = 900, Height = 480 };
                 try
                 {
                     Set(window, "launcherMods", mods);
                     Set(window, "launcherModLibrary", library);
                     Get<TabControl>(window, "launcherModTabs").SelectedIndex = 1;
                     Render(window);
+                    TabItem modsPage = Assert.IsType<TabItem>(Get<TabControl>(window, "launcherPages").Items[1]);
+                    host.Content = modsPage.Content;
+                    modsPage.Content = null;
+                    host.Show();
+                    host.UpdateLayout();
                     ListBox rows = Get<ListBox>(window, "launcherModRows");
                     ListBoxItem[] collapsed = rows.Items.Cast<ListBoxItem>().ToArray();
-                    Assert.Equal(2, collapsed.Length);
+                    Assert.Equal(31, collapsed.Length);
                     Assert.Equal("group:Memoria", collapsed[0].Tag);
                     Image crest = Assert.Single(((Control)collapsed[0].Content!).GetLogicalDescendants().OfType<Image>());
                     Assert.NotNull(crest.Source);
@@ -47,17 +54,35 @@ public sealed class LauncherModPresentationTests(LauncherHeadlessFixture fixture
                     Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(splitter.Background).Color);
                     Button toggle = Assert.Single(((Control)collapsed[0].Content!).GetLogicalDescendants().OfType<Button>());
                     Assert.Equal("\u25B8", toggle.Content);
-                    toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    Assert.Equal(3, rows.ItemCount);
+                    StackPanel details = Get<StackPanel>(window, "launcherModDetails");
+                    Button open = Assert.Single(details.Children.OfType<Button>());
+                    open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    host.UpdateLayout();
+                    Assert.Equal(32, rows.ItemCount);
                     ListBoxItem component = rows.Items.Cast<ListBoxItem>().ElementAt(1);
                     Assert.Equal(official.SourceId + ":" + official.Id, component.Tag);
-                    rows.SelectedItem = component;
+                    Assert.Same(component, rows.SelectedItem);
+                    Assert.Contains(rows, component.GetVisualAncestors());
                     Render(window);
                     Assert.Same(component, rows.SelectedItem);
-                    Assert.DoesNotContain(Get<StackPanel>(window, "launcherModDetails").GetLogicalDescendants().OfType<TextBlock>(), text => text.Text?.Contains("Restart required", StringComparison.OrdinalIgnoreCase) == true);
+                    Assert.DoesNotContain(details.GetLogicalDescendants().OfType<TextBlock>(), text => text.Text?.Contains("Restart required", StringComparison.OrdinalIgnoreCase) == true);
+
+                    ListBoxItem header = Assert.IsType<ListBoxItem>(rows.Items[0]);
+                    Button collapse = Assert.Single(((Control)header.Content!).GetLogicalDescendants().OfType<Button>());
+                    collapse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    host.UpdateLayout();
+                    Assert.Equal(31, rows.ItemCount);
+                    ListBoxItem selectedHeader = Assert.IsType<ListBoxItem>(rows.SelectedItem);
+                    Assert.Equal("group:Memoria", selectedHeader.Tag);
+                    Assert.Contains(rows, selectedHeader.GetVisualAncestors());
+                    Button expand = Assert.Single(((Control)selectedHeader.Content!).GetLogicalDescendants().OfType<Button>());
+                    expand.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    host.UpdateLayout();
+                    Assert.Equal(32, rows.ItemCount);
                 }
                 finally
                 {
+                    host.Close();
                     window.Close();
                 }
             }
