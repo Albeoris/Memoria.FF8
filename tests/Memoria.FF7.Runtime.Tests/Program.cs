@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-ivy-frontier-original-only", StringComparer.Ordinal))
+{
+    NativeIvyFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-event-frontier-original-only", StringComparer.Ordinal))
 {
     throw new ArgumentException("The remote future-proof selector has been retired; use --native-source-revalidation-only or --native-upper-frontier-original-only.");

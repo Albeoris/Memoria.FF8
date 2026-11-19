@@ -86,19 +86,26 @@ internal static class NativeOwnedRouteTests
         string guards = JsonSerializer.Serialize(policy.State.NavigationGuards.Select(entry => new { entry.Key, entry.Value.VisitId, entry.Value.EventId, entry.Value.NavigationKey, entry.Value.MovementFailure }));
         bool restored = false;
         bool owned = false;
+        long nativeStart=session.Host.Process.Tick;
+        var elapsed=System.Diagnostics.Stopwatch.StartNew();
         int callbacks = 0;
         try
         {
             controller.Start();
-            while (callbacks++ < 128 && controller.Running && session.Battle is null)
+            while (callbacks++ < 20000 && elapsed.Elapsed < TimeSpan.FromMinutes(2) && session.Host.Process.Tick-nativeStart < 2048 && controller.Running && session.Battle is null)
             {
                 controller.Advance(1);
+                if (!owned && policy.State.NativeRoute is { } first)
+                {
+                    Console.WriteLine($"FIRST-ADMISSION {first.EventId}, steps:{first.Steps.Length}, goal:{policy.State.NavigationGoal}");
+                }
                 owned |= policy.State.NativeRoute is not null;
                 if (policy.State.NativeRoute is not null)
                 {
                     Ff7AutoPlayActiveEvent active = policy.State.Active ?? throw new InvalidOperationException("A native continuation has no active event.");
                     var admitted = policy.State.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
                     Check(!admitted.Unavailable && active.EntryAvailabilityFingerprint == admitted.AvailabilityFingerprint, "Resumed native admission lost its positive stable availability.");
+                    Check(Ff7AutoPlayPolicy.IsNativeContinuationGoalPending(policy.State, policy.State.NavigationGoal, active.NavigationKey!, active.EventId) || policy.State.NavigationGoal is { EventId: null } goal && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(policy.State, new Ff7AutoPlayDiscovery(session).Observe()).Any(debt => debt.NavigationKey == goal.NavigationKey), "Owned native admission lost its genuine exploration/source-refresh goal.");
                 }
                 if (cold && !restored && policy.State.NativeRoute is { Cursor: >= 6 })
                 {
@@ -112,7 +119,7 @@ internal static class NativeOwnedRouteTests
                     restored = true;
                 }
             }
-            Console.WriteLine($"CONTROLLER cold:{cold}, restored:{restored}, callbacks:{callbacks - 1}, owned:{owned}, battle:{session.Battle is not null}, triangle:{session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, error:{controller.Error}");
+            Console.WriteLine($"CONTROLLER cold:{cold}, restored:{restored}, callbacks:{callbacks - 1}, native:{session.Host.Process.Tick-nativeStart}, phase:{policy.NativePlanningPhase}, owned:{owned}, battle:{session.Battle is not null}, triangle:{session.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, error:{controller.Error}");
             if (failFinal)
             {
                 Check(controller.Error?.Contains("Injected failure", StringComparison.Ordinal) == true, "The final-callback failure was not injected.");

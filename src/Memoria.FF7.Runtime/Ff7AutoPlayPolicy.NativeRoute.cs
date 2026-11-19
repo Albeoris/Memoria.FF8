@@ -100,7 +100,8 @@ public sealed partial class Ff7AutoPlayPolicy
             yield break;
         }
         Ff7AutoPlaySourceRevalidationTask? required = HasArrivedSourceRevalidation(State, observation) ? State.NativeRevalidation : null;
-        foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => (required is null || target.Id == required.EventId && target.ConditionFingerprint == required.Condition) && target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && State.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)))
+        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => (required is null || target.Id == required.EventId && target.ConditionFingerprint == required.Condition) && target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && State.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)).ToArray();
+        foreach (Ff7AutoPlayTarget target in PrioritizeNativeProbeCandidates(State, planner, observation, candidates, facts, NeedsVisitRefresh))
         {
             Ff7NativeRouteProbe probe = new();
             foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, true, probe))
@@ -138,7 +139,7 @@ public sealed partial class Ff7AutoPlayPolicy
             }
             components[observation.NavigationKey] = revised;
             AutoPlayPlanStep? next = planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, candidate) => ReadNavigationAvailability(navigation, candidate, observation, driver, components));
-            bool IsPendingPlan(AutoPlayPlanStep? candidate) => candidate?.Event.Id == target.Id && IsDestinationPlan(State, candidate, observation.NavigationKey) && (intermediate || IsNativeContinuationGoalPending(State, candidate.Goal, observation.NavigationKey, target.Id));
+            bool IsPendingPlan(AutoPlayPlanStep? candidate) => candidate?.Event.Id == target.Id && IsDestinationPlan(State, candidate, observation.NavigationKey) && IsNativeContinuationGoalPending(State, candidate.Goal, observation.NavigationKey, target.Id);
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
             if (!IsPendingPlan(next) && revalidations.FirstOrDefault() is { } refresh)
             {
@@ -163,6 +164,34 @@ public sealed partial class Ff7AutoPlayPolicy
                 yield break;
             }
         }
+    }
+
+    internal static Ff7AutoPlayTarget[] PrioritizeNativeProbeCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget[] candidates, IReadOnlyDictionary<string, string> actualFacts, Func<AutoPlayVisit, bool> needsRefresh)
+    {
+        Ff7NativeSourceRevalidation[] debts = state.DestinationField is null ? ReadPendingSourceRevalidations(state, observation) : [];
+        var retained = CreateRetainedNavigationAvailabilityReader(state);
+        bool IsSelectedTravel(Ff7AutoPlayTarget target)
+        {
+            Dictionary<string, string> hypothetical = new(actualFacts, StringComparer.Ordinal);
+            foreach (var entry in state.NavigationGuards.Where(entry => entry.Value.NavigationKey == observation.NavigationKey && entry.Value.EventId == target.Id && entry.Value.MovementFailure is not null))
+            {
+                hypothetical[entry.Key] = ReadNativeContinuationAvailability(actualFacts[entry.Key]);
+            }
+            AutoPlayEventAvailability? Read(AutoPlayNavigationVisit navigation, AutoPlayEvent native) => navigation.Key == observation.NavigationKey ? ReadComponentAvailability(state, navigation, native, hypothetical) : retained(navigation, native);
+            bool IsMeaningful(AutoPlayPlanStep? step) => step is { IsTravel: true } && step.Event.Id == target.Id && IsDestinationPlan(state, step, observation.NavigationKey) && IsNativeContinuationGoalPending(state, step.Goal, observation.NavigationKey, target.Id);
+            AutoPlayPlanStep? next = sharedPlanner.PlanNavigation(observation.NavigationKey, needsRefresh: needsRefresh, allowRemoteConditionRoutes: true, preferredGoal: state.NavigationGoal, readAvailability: Read);
+            if (IsMeaningful(next))
+            {
+                return true;
+            }
+            if (debts.FirstOrDefault() is not { } debt)
+            {
+                return false;
+            }
+            next = sharedPlanner.PlanNavigation(observation.NavigationKey, needsRefresh: visit => debts.Any(item => item.NavigationKey == visit.Key) || needsRefresh(visit), refreshNavigationKey: debt.NavigationKey, allowRemoteConditionRoutes: true, preferredGoal: new(debt.NavigationKey), readAvailability: Read);
+            return IsMeaningful(next) || next is { IsTravel: true, Goal.EventId: null } && next.Event.Id == target.Id && debts.Any(item => item.NavigationKey == next.Goal.NavigationKey) && IsDestinationPlan(state, next, observation.NavigationKey);
+        }
+        return candidates.OrderBy(target => IsSelectedTravel(target) ? 0 : 1).ToArray();
     }
 
     internal static void ApplyNativePlanningAvailability(Ff7AutoPlayState state, string visitId, string eventId, AutoPlayEventAvailability availability)
