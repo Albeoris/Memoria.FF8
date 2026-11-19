@@ -186,7 +186,11 @@ public sealed class BattleHudNativeCommandTests
             session.Tick();
         }
         Assert.True(session.CanChoosePlayerCommand("irvine"));
-        Assert.InRange(session.RefreshNativeLimit("irvine"), (byte)1, (byte)4);
+        for (int selection = 0; selection < 256 && session.GetNativeLimitLevel("irvine") == 0; selection++)
+        {
+            session.RefreshNativeLimit("irvine");
+        }
+        Assert.InRange(session.GetNativeLimitLevel("irvine"), (byte)1, (byte)4);
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId), readPresentationUi: BattleHudTestPresentation.Visible);
         hud.BuildView();
         hud.Navigate(MenuInput.Right);

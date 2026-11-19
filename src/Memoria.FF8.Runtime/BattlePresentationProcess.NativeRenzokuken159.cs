@@ -33,7 +33,7 @@ public sealed partial class BattlePresentationProcess
         {
             ReadAnchor = actor => ReadNativeModelAnchor(graphics, actor),
             ReadBoneCount = actor => (NativeGraphicsPoseResource(graphics, actor).PoseSource ?? throw new NotSupportedException("Native159 requires its actual body skeleton.")).BoneCount,
-            ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction),
+            ReadBone = (actor, bone, fraction) => ReadNativeGraphicsBone(graphics, actor, checked((byte)bone), fraction, actionBinding: false),
             ReadWeaponTip = actor => ReadNativeRenzokuken159WeaponTip(graphics, actor),
             CapturePresentation = true
         };

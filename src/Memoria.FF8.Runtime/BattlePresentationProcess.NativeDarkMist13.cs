@@ -400,15 +400,16 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(actor, source);
             short zsf3 = NativeEffectMemory!.ScriptedGraphics!.Zsf3 ?? throw new NotSupportedException("Native Dark Mist requires its current ZSF3.");
             short zsf4 = NativeEffectMemory.ScriptedGraphics.Zsf4 ?? throw new NotSupportedException("Native Dark Mist requires its current ZSF4.");
-            foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, actor.SequenceState!.MeshMask124))
+            NativeBattleModelTextureOwner? material = PrepareIntrinsicBodyMaterials(graphics, owner, resource);
+            foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, actor.SequenceState!.MeshMask124, material))
             {
                 if (geometry.Mesh.Vertices.Length * 16 > 0x2580)
                 {
                     throw new InvalidDataException("Native Dark Mist exceeds its original overlay vertex work.");
                 }
-                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, identity with { ModelOwner = owner, Primitive = geometry.AuthoredMesh });
+                NativeBattleBio22ActorDraw draw = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, actor.Color40!.Value, process.OverlayPhase, process.OverlayAmplitude, zsf3, zsf4, process.ActorWork, 0, geometry.AlreadyRelocated ? null : geometry.Binding, identity with { ModelOwner = owner, Primitive = geometry.AuthoredMesh });
                 process = process with { ActorWork = draw.Work };
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, draw.Packets);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, BindNativeModelMaterial(draw.Packets, geometry.MaterialOwner));
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
             }

@@ -196,7 +196,14 @@ public sealed partial class BattlePresentationProcess
                 current = Append(current, NativeBattleShadowPackets.EmitBatch5088A0(points, model.Color44 ?? throw new NotSupportedException("Effect9 body shadow requires its current model color."), gouraud, 4112, 16, geometry.Vertices.Select(vertex => NativeBattlePilotVisualGeometry.CameraToWorld(NativeBattlePilotVisualGeometry.Transform(geometry.CameraMatrix, vertex), Projection())).ToArray(), visualIdentity with { Primitive = -1 }), false);
             }
             uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect9 body requires its current mesh mask.");
-            NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask, visualIdentity);
+            NativeBattleModelTextureOwner? material = null;
+            if (resource.IntrinsicHands is not null)
+            {
+                NativeEffectMemory = current.Memory;
+                material = PrepareIntrinsicBodyMaterials(graphics, actor, resource);
+                current = current with { Memory = NativeEffectMemory! };
+            }
+            NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask, material), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask, visualIdentity);
             current = Append(body.Frame, body.Batch, false);
             model = NativeBattleBodyBoneMatrices.Publish508C90(model, source);
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actor, model) };

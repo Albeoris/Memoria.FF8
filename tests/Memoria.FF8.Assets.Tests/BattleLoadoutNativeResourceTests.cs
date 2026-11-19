@@ -5,6 +5,25 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class BattleLoadoutNativeResourceTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    public void Massive_Anchor_compiles_performer_body_tracks_without_decoding_linked_tracks_as_body(int recipient)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int weapon = assets.WeaponDefinitions.First(definition => definition.CharacterId == 10).Id;
+        BattleCombatantDefinition actor = new() { Id = "recipient", IsPlayer = true, ModelId = recipient, WeaponId = weapon, WeaponProfile = assets.ReadWeaponProfile(weapon) };
+        NativeBattleGraphicsResource equipment = assets.ReadNativeGraphicsResource(actor);
+        NativeBattleGraphicsResource action = assets.ReadNativeLimitPresentationResource(actor, BattleLimitFamily.MassiveAnchor, equipment);
+        NativeBattleAnimationBankOverride bodyBank = Assert.Single(action.AnimationBankOverrides, bank => !bank.Linked && bank.Bank == "actor-263");
+        Assert.Equal(new byte[] { 55, 3, 5, 8, 3, 15, 4, 6 }, NativeBattlePoseDecoder.ReadFrameCounts(bodyBank.Animations.AsSpan()));
+        NativeBattlePoseSource body = action.PoseSource! with { Animations = bodyBank.Animations };
+        var poses = NativeBattlePoseDecoder.DecodeFrames(body.Animations.AsSpan(), body.BoneCount);
+        Assert.All(poses.SelectMany(animation => animation), pose => Assert.Equal(assets.LoadPlayer(recipient).Bones.Count, pose.Bones.Length));
+        Assert.Equal(equipment.LinkedPoseSource, action.LinkedPoseSource);
+        Assert.Equal(NativeBattleEquipmentPresentationRole.Equipped, action.EquipmentPresentationRole);
+    }
+
+    [Theory]
     [InlineData(0, 6, BattleLimitFamily.Renzokuken)]
     [InlineData(6, 0, BattleLimitFamily.FireCross)]
     public void Cross_gunblade_limits_keep_equipped_rig_and_source_weapon_clocks(int recipient, int style, BattleLimitFamily family)

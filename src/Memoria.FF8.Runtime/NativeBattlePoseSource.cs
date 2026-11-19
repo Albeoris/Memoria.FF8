@@ -22,6 +22,7 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
     public ImmutableArray<byte> Model8FBoneAliases { get; init; } = [];
     public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
     public NativeBattlePoseRetargetBinding? RetargetBinding { get; init; }
+    public ImmutableArray<ImmutableArray<bool>> SecondaryHandContactFrames { get; init; } = [];
 
     public int BoneCount => Skeleton.IsDefaultOrEmpty ? throw new InvalidDataException("Native pose lacks its original skeleton.") : Skeleton[0];
 

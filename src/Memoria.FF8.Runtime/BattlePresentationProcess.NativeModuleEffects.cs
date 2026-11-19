@@ -25,6 +25,7 @@ public sealed partial class BattlePresentationProcess
             ModelAliases = graphics.NativeBindings.CaptureAliases(graphics.ActorModels),
             ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index),
             ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction),
+            ReadPhysicalModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction, actionBinding: false),
             ReadModelBoneCount = index => checked((byte)(NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native573560 requires its current model skeleton owner.")).BoneCount),
             ReadModelRotation14 = index => graphics.ActorModels.Get(index).Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."),
             TransformModelPosition = (index, local) => NativeBattlePoseMatrices.TransformModulePosition570CC0(graphics.ActorModels.Get(index), local),

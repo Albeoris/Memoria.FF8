@@ -74,7 +74,7 @@ public static partial class NativeBattleRenzokuken160Controller
                 Write(bytes, 2, emitted + Rand() % 6);
                 byte bones = (inputs.ReadModelBoneCount ?? throw new NotSupportedException("Native5FF4E0 requires actual body bone-count BYTE."))(actor);
                 int bone = bones == 0 ? 0 : Rand() % bones;
-                NativeBattleVector point = (inputs.ReadModelBone ?? throw new NotSupportedException("Native5FF4E0 requires actual502170 body-bone positions."))(actor, (byte)bone, 0);
+                NativeBattleVector point = (inputs.ReadPhysicalModelBone ?? inputs.ReadModelBone ?? throw new NotSupportedException("Native5FF4E0 requires actual502170 body-bone positions."))(actor, (byte)bone, 0);
                 short x = unchecked((short)(point.X + Rand() % 175 - 87));
                 short y = unchecked((short)(point.Y + Rand() % 175 - 87));
                 short z = unchecked((short)(point.Z + Rand() % 175 - 87));
@@ -130,7 +130,7 @@ public static partial class NativeBattleRenzokuken160Controller
         short counter = Read(payload, 0);
         byte bone = checked((byte)Read(payload, 12));
         BattleModelOwner actor = ReadSharedModel(task, RequireSharedAliases(inputs));
-        NativeBattleVector point = (inputs.ReadModelBone ?? throw new NotSupportedException("Native5FF770 requires actual502170 body-bone positions."))(actor, bone, unchecked((short)(counter << 9)));
+        NativeBattleVector point = (inputs.ReadPhysicalModelBone ?? inputs.ReadModelBone ?? throw new NotSupportedException("Native5FF770 requires actual502170 body-bone positions."))(actor, bone, unchecked((short)(counter << 9)));
         var horizontal = NativeBattleActionGeometryRules.NormalizeVector56BC50(referencePoint.X - point.X, 0, referencePoint.Z - point.Z);
         NativeBattleModuleAxisAngle cameraAxis = NativeBattleModuleAlignment.Between571480(0, 0, -4096, horizontal.X, horizontal.Y, horizontal.Z);
         NativeBattleActionMatrix oriented = new(NativeBattleModuleAlignment.Rotation5714F0(cameraAxis.Angle, cameraAxis.Axis), 0, 0, 0, 4096);

@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? RandomEncounters = null);
+internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? RandomEncounters = null, BattleNativeControlInput? Native = null);
 
 internal sealed partial class RecreateGame
 {
@@ -680,12 +680,12 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, active.CanAdmitDebugOutcome, active.CanReturnToField, NativePresentation = active.Presentation is { } presentation ? new { presentation.EntryReady, presentation.HasActiveAction, Outcome = presentation.Graphics.NativeOutcome, Party = presentation.Graphics.ActorModels.Party.Entries.Select(entry => new { entry.State.ModelId4, entry.State.Phase6, entry.State.Sequence, entry.State.SequenceFrame, entry.State.ActiveAnimationBank, Pose = entry.State.SequenceState?.Pose, PoseFrame = entry.State.SequenceState?.PoseFrame114, PoseLimit = entry.State.SequenceState?.PoseLimit115 }).ToArray(), DescriptorTasks = presentation.Graphics.Descriptors.Tasks.Where(task => task.Flags != 0).Select(task => new { task.Kind, task.Phase }).ToArray() } : null, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, active.CanAdmitDebugOutcome, active.CanReturnToField, active.NativeEntryAdvantage, active.NativeRenzokukenTriggerWindowOpen, NativeControllers = active.Combatants.Where(actor => actor.IsPlayer).Select(actor => new { actor.Id, Shot = active.GetNativeShot(actor.Id)?.Phase.ToString(), Duel = active.GetNativeDuel(actor.Id)?.Phase.ToString(), Renzokuken = active.GetNativeRenzokuken(actor.Id) is null ? null : "Active" }).ToArray(), NativePresentation = active.Presentation is { } presentation ? new { presentation.EntryReady, presentation.HasActiveAction, Outcome = presentation.Graphics.NativeOutcome, Party = presentation.Graphics.ActorModels.Party.Entries.Select(entry => new { entry.State.ModelId4, entry.State.Phase6, entry.State.Sequence, entry.State.SequenceFrame, entry.State.ActiveAnimationBank, entry.State.EquipmentPresentationRole, Pose = entry.State.SequenceState?.Pose, PoseFrame = entry.State.SequenceState?.PoseFrame114, PoseLimit = entry.State.SequenceState?.PoseLimit115 }).ToArray(), DescriptorTasks = presentation.Graphics.Descriptors.Tasks.Where(task => task.Flags != 0).Select(task => new { task.Kind, task.Phase }).ToArray() } : null, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)
     {
-        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("battle-status" or "battle-input"))
+        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("battle-status" or "battle-input" or "battle-native-input"))
         {
             throw new InvalidOperationException("The pending Slots card choice owns battle input.");
         }
@@ -693,6 +693,8 @@ internal sealed partial class RecreateGame
         UiPreferences currentPreferences = ReadCurrentUiPreferences();
         switch (request.Command.ToLowerInvariant())
         {
+            case "battle-native-input":
+                return DispatchNativeBattleControl(command.Native ?? throw new ArgumentException("Native controller input is required."));
             case "battle-start":
                 StartDebugBattle(command.Definition ?? throw new ArgumentException("Battle Definition is required."), command.Mode ?? ReadCurrentUiPreferences().AtbMode);
                 break;

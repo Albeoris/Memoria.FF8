@@ -7,14 +7,14 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    private readonly Dictionary<(int Recipient, int Costume, int Source, BattleModel RecipientModel, BattleModel SourceModel), BattleModel> combatStyleModels = [];
+    private readonly Dictionary<(int Recipient, int Costume, int Source, BattleModel RecipientModel, BattleModel SourceModel, BattleModel? ContactWeapon), BattleModel> combatStyleModels = [];
 
     public BattleModel LoadPlayerForWeapon(int character, int costume, int? weaponId)
     {
-        return LoadPlayerForStyle(character, costume, weaponId is int weapon ? WeaponOwner(weapon) : character);
+        return LoadPlayerForStyle(character, costume, weaponId is int weapon ? WeaponOwner(weapon) : character, weaponId);
     }
 
-    public BattleModel LoadPlayerForStyle(int character, int costume, int sourceCharacter)
+    public BattleModel LoadPlayerForStyle(int character, int costume, int sourceCharacter, int? sourceWeaponId = null)
     {
         BattleModel recipient = LoadPlayer(character, costume);
         if (sourceCharacter == character)
@@ -23,7 +23,8 @@ public sealed partial class BattleAssets
         }
         BattleModel source = LoadPlayer(sourceCharacter);
         _ = BattleHumanoidRigProfiles.SemanticPairs(sourceCharacter, source, character, recipient);
-        if (combatStyleModels.TryGetValue((character, costume, sourceCharacter, recipient, source), out BattleModel? cached))
+        BattleModel? contactWeapon = ReadContactWeapon(sourceCharacter, source, sourceWeaponId);
+        if (combatStyleModels.TryGetValue((character, costume, sourceCharacter, recipient, source, contactWeapon), out BattleModel? cached))
         {
             return cached;
         }
@@ -31,7 +32,9 @@ public sealed partial class BattleAssets
         {
             combatStyleModels.Remove(obsolete);
         }
-        NativeBattlePoseSource motion = BattleHumanoidRigProfiles.CreateRetargeter(sourceCharacter, source, character, recipient).Compile(source.NativePoseSource!);
+        NativeBattlePoseSource sourceMotion = source.NativePoseSource!;
+        var contacts = contactWeapon is null ? default : BattleWeaponContactFrames.Read(sourceCharacter, source, contactWeapon, sourceMotion);
+        NativeBattlePoseSource motion = BattleHumanoidRigProfiles.CreateRetargeter(sourceCharacter, source, character, recipient).Compile(sourceMotion, contacts);
         IReadOnlyList<BattleAnimation> animations = NativeBattlePoseDecoder.DecodeFrames(motion.Animations.AsSpan(), motion.BoneCount).Select(frames => new BattleAnimation(frames.Select(pose => new BattlePose(new Vector3(pose.Translation.X, pose.Translation.Y, pose.Translation.Z) / 100f, pose.Bones.Select(bone => new Vector3(bone.Rotation.X, bone.Rotation.Y, bone.Rotation.Z) * (MathF.Tau / 4096)).ToArray(), pose.Bones.Select(bone => new Vector3(bone.Scale.X, bone.Scale.Y, bone.Scale.Z) / 1024f).ToArray())).ToArray())).ToArray();
         IReadOnlyList<BattleMesh> meshes = recipient.Meshes;
         ImmutableArray<byte>? geometry = recipient.NativeGeometryBytes;
@@ -55,10 +58,21 @@ public sealed partial class BattleAssets
             int[] hands = BattleHumanoidRigProfiles.SemanticPairs(character, recipient, character, recipient).Where(pair => pair.Joint is "hand-a" or "hand-b").Select(pair => pair.Recipient).ToArray();
             meshes = meshes.Select(mesh => MaskBodyHands(mesh, hands)).ToArray();
             geometry = EncodeNativeBodyGeometry(meshes);
+            meshes = RefreshNativeVertexGroups(meshes, geometry.Value);
         }
         BattleModel result = recipient with { NativePoseSource = motion, Animations = animations, NativeActionCameraBank = source.NativeActionCameraBank, Sequences = source.Sequences, Meshes = meshes, NativeControlMeshes = meshes, NativeRenderGeometry = NativeBattleGeometryMetadata.FromMeshes(meshes), NativeGeometryBytes = geometry };
-        combatStyleModels.Add((character, costume, sourceCharacter, recipient, source), result);
+        combatStyleModels.Add((character, costume, sourceCharacter, recipient, source, contactWeapon), result);
         return result;
+    }
+
+    private BattleModel? ReadContactWeapon(int sourceCharacter, BattleModel sourceBody, int? preferredWeapon)
+    {
+        if (sourceCharacter is not (2 or 8))
+        {
+            return null;
+        }
+        int selected = preferredWeapon is int weapon && WeaponOwner(weapon) == sourceCharacter ? weapon : WeaponDefinitions.First(weapon => weapon.CharacterId == sourceCharacter).Id;
+        return ResolvePlayerRenderWeapon(sourceCharacter, selected, sourceBody) ?? throw new InvalidDataException("A firearm source contact requires its actual independent equipment.");
     }
 
     private int WeaponOwner(int weapon)

@@ -92,6 +92,49 @@ public sealed class NativeBattleCureActorAssemblyTests
         Assert.Equal(texture.TexturePage, unchecked((ushort)(overlay.Words[6] >> 16)));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Intrinsic_hands_follow_the_body_mask_with_their_own_material_while_effect_overlays_keep_effect_textures(bool cura)
+    {
+        var fixture = Fixture();
+        NativeBattleIntrinsicHandSurface hands = new([Mesh(55)], HandTexturePack());
+        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [Mesh(11)], LinkedGeometry = [], IntrinsicHands = hands };
+        NativeBattleModelTextureOwner material = new("recipient");
+        NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
+        NativeBattleCameraProjection projection = new(camera, 216, 20, 15);
+        NativeBattleCureActorPacketBatch batch = cura
+            ? NativeBattleCureActorAssembly.Emit88BDA0(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0, material: material)
+            : NativeBattleCureActorAssembly.Emit8D7110(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0, material: material);
+        NativeBattleGeometryPrimitive[] body = batch.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process).Select(item => item.Primitive).ToArray();
+        Assert.Equal(2, body.Length);
+        Assert.Equal("recipient", body[0].ModelTextureOwner!.ActorId);
+        Assert.Equal("recipient/intrinsic-hands/" + hands.MaterialKey, body[1].ModelTextureOwner!.ActorId);
+        Assert.All(batch.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.EffectPrimary), item => Assert.Null(item.Primitive.ModelTextureOwner));
+        var geometry = NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 1, material);
+        Assert.Equal(NativeBattleActorGeometryLayer.IntrinsicHands, geometry[1].Layer);
+        Assert.Same(hands.PreparedMaterial.Binding, geometry[1].Binding);
+        Assert.Empty(NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 0));
+        Assert.Throws<NotSupportedException>(() => NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 1));
+    }
+
+    private static NativeBattleEffectHeapAllocation HandTexturePack()
+    {
+        byte[] bytes = new byte[74];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 8);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(8), 16);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(12), 8);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), 44);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(22), 224);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(24), 16);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(26), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(60), 14);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(68), 1);
+        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(70), 1);
+        return new("intrinsic-hands", bytes.ToImmutableArray());
+    }
+
     private static NativeBattleCureActorPacketBatch Emit(NativeBattleGraphicsModel model, NativeBattleGraphicsResource resource)
     {
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);

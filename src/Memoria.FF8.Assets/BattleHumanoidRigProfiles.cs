@@ -47,7 +47,7 @@ public static class BattleHumanoidRigProfiles
         if (sourceCharacter is 2 or 8)
         {
             NativeBattleSemanticBonePair Joint(string name) => pairs.Single(pair => pair.Joint == name);
-            hands = new(Joint("hand-b").Source, Joint("hand-a").Source, Joint("hand-b").Recipient, Joint("upper-arm-a").Recipient, Joint("forearm-a").Recipient, Joint("hand-a").Recipient, 4);
+            hands = new(Joint("hand-b").Source, Joint("hand-a").Source, Joint("hand-b").Recipient, Joint("upper-arm-a").Recipient, Joint("forearm-a").Recipient, Joint("hand-a").Recipient, 4) { RecipientPrimaryUpperArm = Joint("upper-arm-b").Recipient, RecipientPrimaryForearm = Joint("forearm-b").Recipient };
         }
         return new(source.NativePoseSource!, recipient.NativePoseSource!, pairs, recipientLeg / sourceLeg, new(sourceVertices, recipientVertices), hands, PrimaryEquipmentContacts[sourceCharacter]);
     }

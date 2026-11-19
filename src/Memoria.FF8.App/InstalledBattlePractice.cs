@@ -61,7 +61,9 @@ internal static class InstalledBattlePractice
             NativeDeathCount = actor.NativeDeathCount ?? native.DeathCount,
             NativeStatusResistances = actor.NativeStatusResistances.Length == 40 ? actor.NativeStatusResistances.ToArray() : assets.ReadPlayerNativeStatusData(nativeDefaults, row).Resistances.ToArray()
         };
-        return assets.ApplyBattleWeapon(initialized, resolved.Weapon.Id);
+        BattleCombatantDefinition equipped = assets.ApplyBattleWeapon(initialized, resolved.Weapon.Id);
+        BattleNativePlayerStatistics statistics = equipped.NativePlayerStatRules!.Project(equipped.NativeMagicInventory!, equipped.NativeGrowth!);
+        return equipped with { MaximumHp = statistics.MaximumHp, CurrentHp = Math.Clamp(equipped.CurrentHp, 0, statistics.MaximumHp) };
     }
 
     internal static BattleSession Create(BattleDefinition source, BattleAtbMode mode, GameAssets game, BattleAssets assets, bool useEncounter = false)

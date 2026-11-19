@@ -201,15 +201,20 @@ public sealed partial class GameAssets
 
 internal static partial class BattleResourceReader
 {
-    internal static BattleModel ReadLinkedAnimationBank(BattleModel owner, byte[] bank, bool weapon)
+    internal static BattleModel ReadLinkedAnimationBank(BattleModel owner, byte[] bank, bool weapon, int? bodyAnimationCount = null, int? linkedAnimationBoneCount = null)
     {
-        using BinaryReader reader = Reader(bank);
         int[] offsets = Directory(bank);
         if (offsets.Length is not (2 or 3) || weapon && offsets.Length != 3)
         {
             throw new NotSupportedException("External animation bank requires a body-only or paired directory.");
         }
         int section = weapon ? 2 : 0;
+        if (!weapon && bodyAnimationCount is int bodyCount)
+        {
+            bank = ProjectBodyAnimationBank(bank, offsets, bodyCount, linkedAnimationBoneCount ?? throw new InvalidDataException("The body animation partition requires its linked rig contract."));
+            offsets = Directory(bank);
+        }
+        using BinaryReader reader = Reader(bank);
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[section], owner.Bones.Count);
         int end = weapon ? bank.Length : offsets[1];
         return owner with
@@ -217,5 +222,53 @@ internal static partial class BattleResourceReader
             Animations = animations,
             NativePoseSource = owner.NativePoseSource is { } pose ? pose with { Animations = bank.AsSpan(offsets[section], end - offsets[section]).ToArray().ToImmutableArray() } : null
         };
+    }
+
+    private static byte[] ProjectBodyAnimationBank(byte[] bank, int[] offsets, int bodyCount, int linkedBones)
+    {
+        if (offsets.Length != 3 || bodyCount <= 0)
+        {
+            throw new InvalidDataException("A partitioned body animation bank requires its paired linked section.");
+        }
+        int declared = BinaryPrimitives.ReadInt32LittleEndian(bank.AsSpan(offsets[0]));
+        int linkedCount = BinaryPrimitives.ReadInt32LittleEndian(bank.AsSpan(offsets[2]));
+        if (declared != bodyCount + linkedCount)
+        {
+            throw new InvalidDataException("The body animation partition differs from its declared linked-only tail.");
+        }
+        for (int index = 0; index < linkedCount; index++)
+        {
+            ReadOnlySpan<byte> bodyClip = Clip(offsets[0], offsets[1], bodyCount + index, declared);
+            ReadOnlySpan<byte> linkedClip = Clip(offsets[2], bank.Length, index, linkedCount);
+            var bodyFrames = NativeBattlePoseDecoder.DecodeFrames(SingleClip(bodyClip), linkedBones)[0];
+            var linkedFrames = NativeBattlePoseDecoder.DecodeFrames(SingleClip(linkedClip), linkedBones)[0];
+            if (bodyFrames.Length != linkedFrames.Length || bodyFrames.Where((pose, frame) => pose.Translation != linkedFrames[frame].Translation || pose.HasScale != linkedFrames[frame].HasScale || !pose.Bones.AsSpan().SequenceEqual(linkedFrames[frame].Bones.AsSpan())).Any())
+            {
+                throw new InvalidDataException("The body animation partition no longer contains the explicitly bound linked-only tracks.");
+            }
+        }
+        byte[] projected = (byte[])bank.Clone();
+        BinaryPrimitives.WriteInt32LittleEndian(projected.AsSpan(offsets[0]), bodyCount);
+        return projected;
+
+        static byte[] SingleClip(ReadOnlySpan<byte> clip)
+        {
+            byte[] section = new byte[8 + clip.Length];
+            BinaryPrimitives.WriteInt32LittleEndian(section, 1);
+            BinaryPrimitives.WriteInt32LittleEndian(section.AsSpan(4), 8);
+            clip.CopyTo(section.AsSpan(8));
+            return section;
+        }
+
+        ReadOnlySpan<byte> Clip(int sectionStart, int sectionEnd, int index, int count)
+        {
+            int start = BinaryPrimitives.ReadInt32LittleEndian(bank.AsSpan(sectionStart + 4 + index * 4));
+            int end = index + 1 < count ? BinaryPrimitives.ReadInt32LittleEndian(bank.AsSpan(sectionStart + 8 + index * 4)) : sectionEnd - sectionStart;
+            if (start < 4 + count * 4 || end <= start || end > sectionEnd - sectionStart)
+            {
+                throw new InvalidDataException("A partitioned animation clip exceeds its original section.");
+            }
+            return bank.AsSpan(sectionStart + start, end - start);
+        }
     }
 }

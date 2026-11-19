@@ -52,7 +52,23 @@ public sealed class InstalledLimitLoadoutBattleTests
         Run(recipient, family, cardSlots: false, nativeBaseline: true);
     }
 
-    private static void Run(int recipient, BattleLimitFamily family, bool cardSlots, bool nativeBaseline)
+    [Theory]
+    [InlineData(1)]
+    [InlineData(9)]
+    public void Native_hand_geometry_survives_foreign_machine_gun_to_Duel_FreeHands_and_restore(int recipient)
+    {
+        Run(recipient, BattleLimitFamily.Duel, cardSlots: false, nativeBaseline: false, weaponDonor: 8);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    public void Seifer_gunblade_Renzokuken_completes_without_inventing_a_Squall_finisher(int recipient)
+    {
+        Run(recipient, BattleLimitFamily.Renzokuken, cardSlots: false, nativeBaseline: false, weaponDonor: 6);
+    }
+
+    private static void Run(int recipient, BattleLimitFamily family, bool cardSlots, bool nativeBaseline, int? weaponDonor = null)
     {
         string directory = TestResources.GameDirectory;
         string source = TestResources.FixturePath("weapon-limit-field-source");
@@ -90,7 +106,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { BattleAllyCount = 3, AdditionalEnemies = 0, LimitOncePerTurn = false, SelphieCardSlots = cardSlots, SharedMagicStock = false, GunbladeMode = BattleGunbladeMode.Manual });
         BattleAssets assets = world.BattleResources;
         BattleWeaponCapabilities required = BattleLimitFamilyRules.RequiredWeapon(family);
-        int weapon = nativeBaseline || required == BattleWeaponCapabilities.None ? session.CharacterVitals.GetBattleWeapon(recipient) : assets.WeaponDefinitions.First(entry => assets.ReadWeaponProfile(entry.Id).Supports(required)).Id;
+        int weapon = weaponDonor is int donor ? assets.WeaponDefinitions.First(entry => entry.CharacterId == donor).Id : nativeBaseline || required == BattleWeaponCapabilities.None ? session.CharacterVitals.GetBattleWeapon(recipient) : assets.WeaponDefinitions.First(entry => assets.ReadWeaponProfile(entry.Id).Supports(required)).Id;
         if (!nativeBaseline)
         {
             BattleLoadoutDraft draft = session.CreateBattleLoadoutDraft([new(recipient, session.CharacterVitals.GetBattleWeapon(recipient), BattleLimitFamilyRules.NativeFamilies(recipient))]);
@@ -100,12 +116,14 @@ public sealed class InstalledLimitLoadoutBattleTests
         }
         string program = world.Events.Capture().GetProperty("ProgramHash").GetString()!;
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
-        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, 94, program)));
+        session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, WeaponLimitBattlePreparation.Formation, program)));
+        WeaponLimitBattlePreparation.SaveField(session, world, recipient, assets.ReadWeaponProfile(weapon).ResourceOwner, family, cardSlots, source, directory);
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
         int contacts = 0;
         bool observedFreeHands = false;
+        bool observedZeroMaskRenzokuken = false;
         bool expectsFreeHands = family == BattleLimitFamily.Duel || required == BattleWeaponCapabilities.None && BattleLimitFamilyRules.SourceCharacter(family) != battle.GetCombatantDefinition(actor.Id).WeaponProfile?.ResourceOwner;
         battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: actor.Id);
         TickUntil(() => battle.NativeEntryReady, "entry");
@@ -118,6 +136,10 @@ public sealed class InstalledLimitLoadoutBattleTests
         Assert.Equal(recipient, actor.ModelId);
         Assert.Equal(recipient, battle.GetCombatantDefinition(actor.Id).NativePlayerStatRules!.CharacterId);
         Assert.Equal(BattleLimitFamilyRules.SourceCharacter(family), actor.NativeLimit!.CharacterId);
+        if (family == BattleLimitFamily.Renzokuken && weaponDonor == 6)
+        {
+            Assert.Equal((byte)0, battle.GetCombatantDefinition(actor.Id).WeaponProfile!.RenzokukenFinisherMask);
+        }
         int start = battle.Events.Count;
         int shotsBefore = Ammo();
         bool fired = false;
@@ -150,6 +172,10 @@ public sealed class InstalledLimitLoadoutBattleTests
 
         TickUntil(() => Completed() && battle.GetNativeShot(actor.Id) is null && battle.GetNativeDuel(actor.Id) is null && battle.GetNativeRenzokuken(actor.Id) is null && battle.ActiveAction is null && battle.Presentation?.HasActiveAction != true, "family completion", Input);
         Assert.True(contacts > 0, "The native invocation must publish actual contact receipts.");
+        if (family == BattleLimitFamily.Renzokuken && weaponDonor == 6)
+        {
+            Assert.True(observedZeroMaskRenzokuken, "The queued native controller must actually execute before its zero-finisher contract can be accepted.");
+        }
         if (expectsFreeHands)
         {
             Assert.True(observedFreeHands, "The active native invocation must actually bind its FreeHands presentation resource.");
@@ -288,6 +314,11 @@ public sealed class InstalledLimitLoadoutBattleTests
             try
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
+                if (family == BattleLimitFamily.Renzokuken && weaponDonor == 6 && battle.GetNativeRenzokuken(actor.Id) is { } renzokuken)
+                {
+                    Assert.Null(renzokuken.FinisherActionId);
+                    observedZeroMaskRenzokuken = true;
+                }
                 if (PresentationModel()?.EquipmentPresentationRole == NativeBattleEquipmentPresentationRole.FreeHands && typeof(BattleSession).GetMethod("ReadActivePresentationLimitFamily", BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(battle, [battle.ReadPresentationModelOwner(actor.Id)]) is BattleLimitFamily activeFamily && activeFamily == family)
                 {
                     observedFreeHands = true;

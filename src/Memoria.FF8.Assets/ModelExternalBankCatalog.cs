@@ -13,11 +13,15 @@ public sealed record ModelBoundExternalBank(int CharacterId, ModelExternalBankDe
 {
     public string? UnsupportedReason { get; init; }
     public ModelExternalBankActorRole ActorRole { get; init; }
+    public int? BodyAnimationCount { get; init; }
+    public int? LinkedAnimationBoneCount { get; init; }
 }
 public sealed record ModelExternalBankSource(ModelExternalBankDescriptor Descriptor, int SectionCount = 3, string OwnerRole = "actor body and independent linked weapon")
 {
     public string? UnsupportedReason { get; init; }
     public ModelExternalBankActorRole ActorRole { get; init; }
+    public int? BodyAnimationCount { get; init; }
+    public int? LinkedAnimationBoneCount { get; init; }
 }
 
 /// <summary>Finite actor banks explicitly rebound by current native resource loaders.</summary>
@@ -40,7 +44,7 @@ public static class ModelExternalBankCatalog
         Source("actor", 89, 0x1495530), new(new("actor-92", 92, 0x16C96E8), 3, "contact-selected actor body and linked weapon") { ActorRole = ModelExternalBankActorRole.ContactTarget, UnsupportedReason = "This loader binds the contact-selected target, whose logical model identity is unresolved without an explicit target binding; the action owner's rig is not the replacement target." },
         Source("actor", 200, 0xE2B518),
         ScriptSelected(228, 0x18821A0, 2), ScriptSelected(229, 0x188062C), ScriptSelected(230, 0x187EAB8),
-        ScriptSelected(261, 0x187C20C), ScriptSelected(262, 0x187A2A4, 2), ScriptSelected(263, 0x1877DAC)
+        ScriptSelected(261, 0x187C20C), ScriptSelected(262, 0x187A2A4, 2), Source("actor", 263, 0x1877DAC) with { BodyAnimationCount = 8, LinkedAnimationBoneCount = 2 }
     }).ToArray());
 
     public static IReadOnlyList<ModelBoundExternalBank> ForCharacter(int character, IEnumerable<BattleNativeAction> actions)
@@ -51,7 +55,7 @@ public static class ModelExternalBankCatalog
         }
         HashSet<ushort> effects = actions.Where(action => action.CharacterId == character && (character < 6 || action.ActionId == NativeBattleLimitRules.GuestActionId(character))).Select(action => action.MagicId).ToHashSet();
         HashSet<string> squall = character == 0 ? ModelAssetDiscoveryBindings.SquallExternalBanks.Select(bank => bank.Bank).ToHashSet(StringComparer.Ordinal) : [];
-        return Array.AsReadOnly(Sources.Where(source => squall.Contains(source.Descriptor.Bank) || effects.Contains(source.Descriptor.MagicId)).Select(source => new ModelBoundExternalBank(character, source.Descriptor, source.SectionCount, source.OwnerRole) { UnsupportedReason = source.UnsupportedReason, ActorRole = source.ActorRole }).ToArray());
+        return Array.AsReadOnly(Sources.Where(source => squall.Contains(source.Descriptor.Bank) || effects.Contains(source.Descriptor.MagicId)).Select(source => new ModelBoundExternalBank(character, source.Descriptor, source.SectionCount, source.OwnerRole) { UnsupportedReason = source.UnsupportedReason, ActorRole = source.ActorRole, BodyAnimationCount = source.BodyAnimationCount, LinkedAnimationBoneCount = source.LinkedAnimationBoneCount }).ToArray());
     }
 
     private static ModelExternalBankSource Source(string family, ushort effect, uint address, int sections = 3) => new(new($"{family}-{effect}", effect, address), sections, sections == 2 ? "actor body with retained rig; no independent linked animation section" : "actor body and independent linked weapon");

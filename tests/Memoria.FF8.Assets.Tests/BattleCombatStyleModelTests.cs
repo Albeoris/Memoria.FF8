@@ -9,7 +9,7 @@ public sealed class BattleCombatStyleModelTests
 
     [Theory]
     [MemberData(nameof(TwoHandCases))]
-    public void Installed_firearm_contact_preserves_source_grip_gap_for_every_frame(int recipient, int source)
+    public void Installed_firearm_contact_preserves_admitted_grip_and_free_source_gestures(int recipient, int source)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleModel donor = assets.LoadPlayer(source);
@@ -20,6 +20,12 @@ public sealed class BattleCombatStyleModelTests
         NativeBattleSemanticBonePair second = pairs.Single(pair => pair.Joint == "hand-b");
         NativeBattlePoseSource donorPose = donor.NativePoseSource!;
         NativeBattlePoseSource targetPose = compiled.NativePoseSource!;
+        int nativeWeapon = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == source).Id;
+        BattleModel sourceWeapon = assets.ResolvePlayerRenderWeapon(source, nativeWeapon, donor)!;
+        var contacts = BattleWeaponContactFrames.Read(source, donor, sourceWeapon, donorPose);
+        Assert.Contains(contacts.SelectMany(frames => frames), value => value);
+        Assert.Contains(contacts.SelectMany(frames => frames), value => !value);
+        NativeBattlePoseRetargeter compiler = BattleHumanoidRigProfiles.CreateRetargeter(source, donor, recipient, original);
         var sourceFrames = NativeBattlePoseDecoder.DecodeFrames(donorPose.Animations.AsSpan(), donor.Bones.Count);
         var targetFrames = NativeBattlePoseDecoder.DecodeFrames(targetPose.Animations.AsSpan(), compiled.Bones.Count);
         Assert.Equal(original.Bones, compiled.Bones);
@@ -28,6 +34,14 @@ public sealed class BattleCombatStyleModelTests
             Assert.Equal(sourceFrames[animation].Length, targetFrames[animation].Length);
             for (int frame = 0; frame < sourceFrames[animation].Length; frame++)
             {
+                if (!contacts[animation][frame])
+                {
+                    NativeBattleDecodedPose free = source == recipient ? sourceFrames[animation][frame] : compiler.Transfer(sourceFrames[animation][frame], false);
+                    NativeBattleVector Canonical(NativeBattleVector angles) => new((short)(angles.X & 4095), (short)(angles.Y & 4095), (short)(angles.Z & 4095));
+                    Assert.Equal(free.Translation, targetFrames[animation][frame].Translation);
+                    Assert.Equal(free.Bones.Select(bone => Canonical(bone.Rotation)), targetFrames[animation][frame].Bones.Select(bone => Canonical(bone.Rotation)));
+                    continue;
+                }
                 var donorMatrices = NativeBattlePoseMatrices.StageBoneMatrices(donorPose, sourceFrames[animation][frame]);
                 var targetMatrices = NativeBattlePoseMatrices.StageBoneMatrices(targetPose, targetFrames[animation][frame]);
                 System.Numerics.Vector3 Point(NativeBattleActionMatrix matrix) => new(matrix.X, matrix.Y, matrix.Z);
@@ -97,12 +111,12 @@ public sealed class BattleCombatStyleModelTests
         }
         NativeBattleGraphicsResource resource = assets.ReadNativeGraphicsResource(new() { Id = "player", IsPlayer = true, ModelId = recipient, WeaponId = weapon });
         resource.Validate();
-        Assert.Equal(source, resource.CombatStyleModelId);
-        Assert.All(resource.ModelLoadSources, dat => Assert.Equal(recipient, dat.ModelId));
+        Assert.Equal((byte?)source, resource.CombatStyleModelId);
+        Assert.All(resource.ModelLoadSources!.Value, dat => Assert.Equal((byte)recipient, dat.ModelId));
         Assert.Equal(compiled.NativePoseSource, resource.PoseSource);
-        NativeBattleModelDatSource bodyDat = resource.ModelLoadSources.Single(dat => !dat.Linked);
+        NativeBattleModelDatSource bodyDat = resource.ModelLoadSources!.Value.Single(dat => !dat.Linked);
         Assert.Equal((resource.Geometry ?? []).Sum(mesh => mesh.Vertices.Length), NativeVertexCount(bodyDat));
-        NativeBattleModelDatSource weaponDat = resource.ModelLoadSources.Single(dat => dat.Linked);
+        NativeBattleModelDatSource weaponDat = resource.ModelLoadSources!.Value.Single(dat => dat.Linked);
         Assert.Equal((resource.LinkedGeometry ?? []).Sum(mesh => mesh.Vertices.Length), NativeVertexCount(weaponDat));
         NativeBattlePoseSource pose = resource.PoseSource!;
         for (int animation = 0; animation < resource.AnimationFrames.Length; animation++)
@@ -112,6 +126,48 @@ public sealed class BattleCombatStyleModelTests
         }
     }
 
+    [Theory]
+    [InlineData(1, 8)]
+    [InlineData(9, 8)]
+    [InlineData(1, 1)]
+    [InlineData(9, 9)]
+    [InlineData(4, 1)]
+    [InlineData(10, 9)]
+    public void Installed_freehands_retains_recipient_surfaces_and_separate_intrinsic_hand_material(int recipient, int source)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        int weapon = assets.WeaponDefinitions.First(definition => definition.CharacterId == source).Id;
+        BattleCombatantDefinition actor = new() { Id = "player", IsPlayer = true, ModelId = recipient, WeaponId = weapon };
+        NativeBattleGraphicsResource equipped = assets.ReadNativeGraphicsResource(actor);
+        NativeBattleGraphicsResource free = assets.ReadNativeLimitPresentationResource(actor, BattleLimitFamily.Duel, equipped);
+        BattleModel original = assets.LoadPlayer(recipient);
+        var originalGeometry = original.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(original.Meshes);
+        Assert.Equal(NativeBattleEquipmentPresentationRole.FreeHands, free.EquipmentPresentationRole);
+        Assert.Empty(free.LinkedGeometry!.Value);
+        Assert.Equal(originalGeometry[0].Vertices.ToArray(), free.Geometry!.Value[0].Vertices.ToArray());
+        Assert.Equal(originalGeometry[0].Polygons.ToArray(), free.Geometry.Value[0].Polygons.ToArray());
+        if (recipient is 1 or 9)
+        {
+            Assert.NotNull(free.IntrinsicHands);
+            Assert.Contains(free.IntrinsicHands.Geometry, mesh => !mesh.Polygons.IsEmpty);
+            Assert.NotEqual(free.BodyTexturePack!.Data, free.IntrinsicHands.TexturePack.Data);
+            Assert.All(free.IntrinsicHands.Geometry.SelectMany(mesh => mesh.Vertices), vertex => Assert.InRange(vertex.Bone, 0, original.Bones.Count - 1));
+        }
+        else
+        {
+            Assert.Null(free.IntrinsicHands);
+        }
+        if (source == 1 && recipient != 1)
+        {
+            Assert.True(equipped.Geometry!.Value[0].Polygons.Length < originalGeometry[0].Polygons.Length);
+        }
+        if (source == 9 && recipient != 9)
+        {
+            BattleModel donor = assets.LoadPlayer(9);
+            BattleModel donorWeapon = assets.ResolvePlayerRenderWeapon(9, weapon, donor)!;
+            Assert.True(equipped.LinkedGeometry!.Value.Sum(mesh => mesh.Polygons.Length) < donorWeapon.Meshes.Sum(mesh => mesh.Faces.Count));
+        }
+    }
     private static int NativeVertexCount(NativeBattleModelDatSource source)
     {
         ReadOnlySpan<byte> bytes = source.Bytes.AsSpan();

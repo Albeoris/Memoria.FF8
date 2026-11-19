@@ -11,6 +11,7 @@ public sealed partial record NativeBattleModuleInputs
     public Func<BattleModelOwner, NativeBattleModuleAnchor>? ReadModelAnchor { get; init; }
     public Func<BattleModelOwner, short>? ReadModelRotation14 { get; init; }
     public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadModelBone { get; init; }
+    public Func<BattleModelOwner, byte, short, NativeBattleVector>? ReadPhysicalModelBone { get; init; }
     public Func<BattleModelOwner, NativeBattleVector, NativeBattleVector>? TransformModelPosition { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }
 }

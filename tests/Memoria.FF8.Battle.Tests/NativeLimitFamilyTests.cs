@@ -42,8 +42,9 @@ public sealed class NativeLimitFamilyTests
     public void Selecting_three_families_preserves_recipient_crisis_and_random_state()
     {
         BattleSession battle = CreateBattle();
-        battle.SelectPlayerCommandActor("recipient");
+        Assert.True(battle.SelectDiagnosticLimit("recipient", new(1, 4, 256)).Accepted);
         byte crisis = battle.GetNativeLimitLevel("recipient");
+        Assert.InRange(crisis, (byte)1, (byte)4);
         string random = JsonSerializer.Serialize(battle.Capture().Random);
 
         foreach (BattleLimitFamily family in new[] { BattleLimitFamily.IceStrike, BattleLimitFamily.Duel, BattleLimitFamily.Slot })
@@ -64,7 +65,7 @@ public sealed class NativeLimitFamilyTests
     public void Guest_action_row_comes_from_family_source_and_selection_survives_snapshot()
     {
         BattleSession battle = CreateBattle();
-        battle.SelectPlayerCommandActor("recipient");
+        Assert.True(battle.SelectDiagnosticLimit("recipient", new(1, 4, 256)).Accepted);
         battle.SelectNativeLimitFamily("recipient", BattleLimitFamily.IceStrike);
 
         BattleActionDefinition choice = Assert.Single(battle.GetNativePlayerActionChoices("recipient", true));

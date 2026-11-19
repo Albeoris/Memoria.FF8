@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
@@ -56,6 +57,27 @@ public sealed partial class BattleAssets
     private static BattleMesh MaskBodyHands(BattleMesh mesh, IReadOnlyCollection<int> hands)
     {
         return mesh with { Faces = mesh.Faces.Where(face => !face.Vertices.Any(index => hands.Contains(mesh.Vertices[index].Bone))).ToArray() };
+    }
+
+    private static IReadOnlyList<BattleMesh> RefreshNativeVertexGroups(IReadOnlyList<BattleMesh> meshes, ImmutableArray<byte> geometry)
+    {
+        BattleMesh[] result = meshes.ToArray();
+        for (int index = 0; index < result.Length; index++)
+        {
+            int cursor = BinaryPrimitives.ReadInt32LittleEndian(geometry.AsSpan().Slice(4 + index * 4, 4));
+            int count = BinaryPrimitives.ReadUInt16LittleEndian(geometry.AsSpan().Slice(cursor, 2));
+            cursor += 2;
+            ImmutableArray<NativeBattleRawVertexGroup>.Builder groups = ImmutableArray.CreateBuilder<NativeBattleRawVertexGroup>(count);
+            for (int group = 0; group < count; group++)
+            {
+                ushort bone = BinaryPrimitives.ReadUInt16LittleEndian(geometry.AsSpan().Slice(cursor, 2));
+                short vertices = BinaryPrimitives.ReadInt16LittleEndian(geometry.AsSpan().Slice(cursor + 2, 2));
+                groups.Add(new(bone, vertices, geometry.Slice(cursor + 4, checked(vertices * 6 + 6))));
+                cursor += 4 + vertices * 6;
+            }
+            result[index] = result[index] with { NativePackedVertexGroups = groups.MoveToImmutable() };
+        }
+        return result;
     }
 
     private static ImmutableArray<byte> EncodeNativeBodyGeometry(IReadOnlyList<BattleMesh> meshes)

@@ -68,11 +68,13 @@ public sealed partial class BattleAssets
                 {
                     throw new NotSupportedException($"The bank '{bank}' has no implemented gameplay binding.");
                 }
-                BattleModel original = BattleResourceReader.ReadLinkedAnimationBank(owner with { EditableOverride = null }, bytes, linked);
+                BattleModel original = BattleResourceReader.ReadLinkedAnimationBank(owner with { EditableOverride = null }, bytes, linked, binding?.BodyAnimationCount, binding?.LinkedAnimationBoneCount);
                 BattleModel replacement = modelOverrides.ApplyBattleBank(modelId, bank, original);
                 NativeBattlePoseSource source = original.NativePoseSource ?? throw new NotSupportedException("An external override requires its actual native skeleton.");
                 NativeBattlePoseSource changed = replacement.NativePoseSource ?? throw new NotSupportedException("An external override requires native animation tracks.");
-                replacements.Add(new(bank, sourceDirectory, linked, Convert.ToHexString(SHA256.HashData(source.Animations.AsSpan())), changed.Animations));
+                int originalStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(linked ? 12 : 4));
+                int originalEnd = linked ? bytes.Length : BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(8));
+                replacements.Add(new(bank, sourceDirectory, linked, Convert.ToHexString(SHA256.HashData(bytes.AsSpan(originalStart, originalEnd - originalStart))), changed.Animations));
             }
         }
     }

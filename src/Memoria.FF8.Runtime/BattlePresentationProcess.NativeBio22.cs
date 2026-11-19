@@ -123,13 +123,19 @@ public sealed partial class BattlePresentationProcess
                         return drawn.Packets;
                     }
                 }
-                NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
+                if (resource.IntrinsicHands is not null)
+                {
+                    NativeEffectMemory = actual.Memory;
+                    _ = PrepareIntrinsicBodyMaterials(graphics, index, resource);
+                    actual = actual with { Memory = NativeEffectMemory! };
+                }
+                NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
                 NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native Bio body requires its actual skeleton.");
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Bio body requires its current mesh mask.");
                 short zsf4 = actual.Memory.ScriptedGraphics?.Zsf4 ?? throw new NotSupportedException("Native Bio body requires its initialized current ZSF4.");
-                foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, sequence.MeshMask124))
+                foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, sequence.MeshMask124, resource.IntrinsicHands is null ? null : material))
                 {
                     NativeBattleBio22ActorMemory owner = actual.Memory.Bio22ActorMemory ?? throw new NotSupportedException("Native Bio body requires its current physical projected work.");
                     ImmutableArray<NativeBattleRawMesh> bodyGeometry = resource.Geometry ?? throw new NotSupportedException("Native Bio body requires its authored geometry directory.");
@@ -139,12 +145,16 @@ public sealed partial class BattlePresentationProcess
                         ImmutableArray<NativeBattleRawMesh> linkedGeometry = resource.LinkedGeometry ?? throw new NotSupportedException("Native Bio body requires its authored linked geometry directory.");
                         meshIdentity = bodyGeometry.Length + linkedGeometry.IndexOf(geometry.Mesh);
                     }
-                    NativeBattleBio22ActorDraw drawn = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, model.Color40 ?? throw new NotSupportedException("Native Bio body requires its actual color."), phase, amplitude, zsf3, zsf4, owner.Projected, 0, resource.GeometryRelocated507550 ? null : geometry.Binding, NativeBattlePilotVisualLifetimes.Identity(22, actual.Task, meshIdentity));
+                    if (geometry.Layer == NativeBattleActorGeometryLayer.IntrinsicHands)
+                    {
+                        meshIdentity = geometry.AuthoredMesh;
+                    }
+                    NativeBattleBio22ActorDraw drawn = NativeBattleBio22ActorPackets.Emit89D780(geometry.Mesh, bones, main, projection, model.Color40 ?? throw new NotSupportedException("Native Bio body requires its actual color."), phase, amplitude, zsf3, zsf4, owner.Projected, 0, geometry.AlreadyRelocated ? null : geometry.Binding, NativeBattlePilotVisualLifetimes.Identity(22, actual.Task, meshIdentity));
                     owner = owner with { Projected = drawn.Work };
                     owner.Validate();
                     actual = actual with { Memory = actual.Memory with { Bio22ActorMemory = owner } };
                     NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native Bio body requires its initialized ordering table.");
-                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(actual.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Bio body requires its actual COMMON cursor."), primitive.Pending, BindNativeModelMaterial(drawn.Packets, material));
+                    NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(actual.Memory.PrimitiveProcess ?? throw new NotSupportedException("Native Bio body requires its actual COMMON cursor."), primitive.Pending, BindNativeModelMaterial(drawn.Packets, geometry.MaterialOwner ?? material));
                     graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
                     actual = actual with { Memory = actual.Memory with { PrimitiveProcess = written.Process } };
                 }

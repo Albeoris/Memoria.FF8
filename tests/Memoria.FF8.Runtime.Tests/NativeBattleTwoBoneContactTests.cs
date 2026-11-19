@@ -23,6 +23,44 @@ public sealed class NativeBattleTwoBoneContactTests
     }
 
     [Fact]
+    public void Authored_hand_envelope_admits_a_crossing_weapon_surface_and_rejects_a_released_one()
+    {
+        Assert.True(NativeBattleWeaponContactGeometry.IntersectsHandEnvelope(-Vector3.One, Vector3.One, new(-4, 0, 0), new(4, 0, 0), new(0, 4, 0)));
+        Assert.False(NativeBattleWeaponContactGeometry.IntersectsHandEnvelope(-Vector3.One, Vector3.One, new(-4, 0, 2), new(4, 0, 2), new(0, 4, 2)));
+        Assert.Throws<InvalidDataException>(() => NativeBattleWeaponContactGeometry.IntersectsHandEnvelope(Vector3.One, -Vector3.One, Vector3.Zero, Vector3.UnitX, Vector3.UnitY));
+    }
+
+    [Fact]
+    public void Coupled_contact_moves_the_primary_only_when_the_secondary_requires_shared_reach()
+    {
+        Vector3 preferred = new(3, 0, 0);
+        Vector3 gap = new(0, 1, 0);
+        Vector3 secondaryShoulder = new(-2, 1, 0);
+        Vector3 result = NativeBattleCoupledHandContact.SolvePrimary(preferred, Vector3.Zero, 2, 2, secondaryShoulder, 2, 2, gap);
+        Assert.InRange(Vector3.Distance(result, preferred), 0.9999f, 1.0001f);
+        Assert.InRange(Vector3.Distance(result, Vector3.Zero), 0, 4);
+        Assert.InRange(Vector3.Distance(result + gap, secondaryShoulder), 0, 4);
+        Vector3 admitted = new(1, 0, 0);
+        Assert.Equal(admitted, NativeBattleCoupledHandContact.SolvePrimary(admitted, Vector3.Zero, 2, 2, secondaryShoulder, 2, 2, gap));
+    }
+
+    [Fact]
+    public void Coupled_contact_uses_the_nearest_shared_sphere_intersection()
+    {
+        Vector3 result = NativeBattleCoupledHandContact.SolvePrimary(new(0, 6, 0), new(-2, 0, 0), 1.5f, 1.5f, new(2, 0, 0), 1.5f, 1.5f, Vector3.Zero);
+        Assert.InRange(MathF.Abs(result.X), 0, 0.0001f);
+        Assert.InRange(MathF.Abs(result.Y - MathF.Sqrt(5)), 0, 0.0001f);
+        Assert.InRange(MathF.Abs(result.Z), 0, 0.0001f);
+    }
+
+    [Fact]
+    public void Coupled_contact_reports_incompatible_shells_and_rejects_nonfinite_inputs()
+    {
+        Assert.Throws<NotSupportedException>(() => NativeBattleCoupledHandContact.SolvePrimary(Vector3.Zero, Vector3.Zero, 1, 1, new(10, 0, 0), 1, 1, Vector3.Zero));
+        Assert.Throws<InvalidDataException>(() => NativeBattleCoupledHandContact.SolvePrimary(Vector3.Zero, Vector3.Zero, 1, 1, Vector3.Zero, 1, 1, new(float.NaN, 0, 0)));
+    }
+
+    [Fact]
     public void Unreachable_contact_reports_the_actual_interval_without_clamping_the_target()
     {
         NotSupportedException exception = Assert.Throws<NotSupportedException>(() => NativeBattleTwoBoneContact.Solve(Vector3.Zero, Vector3.UnitX * 2, Vector3.UnitX * 4, Vector3.UnitX * 5, Vector3.UnitY));

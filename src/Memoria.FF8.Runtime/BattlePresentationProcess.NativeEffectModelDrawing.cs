@@ -90,6 +90,12 @@ public sealed partial class BattlePresentationProcess
         }
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         DrawSource(bodyGeometry ?? GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, maskOverride ?? model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."), bodyMaterial);
+        if (resource.IntrinsicHands is { } hands && ((maskOverride ?? model.SequenceState!.MeshMask124) & 1) != 0)
+        {
+            var handMaterial = PrepareIntrinsicHandMaterial(index, hands);
+            ImmutableArray<NativeBattleRawMesh> handGeometry = hands.Geometry.Select(mesh => mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, handMaterial.Binding) }).ToImmutableArray() }).ToImmutableArray();
+            DrawSource(bodyGeometry ?? GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, uint.MaxValue, handMaterial.Material, 2, handGeometry);
+        }
         model = prepareModel ? NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source) : graphics.ActorModels.Get(index);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         if (drawLinked && (model.LinkedStagedResourceRow is not null || model.LinkedTextureResourceIndex is not null))
@@ -110,7 +116,7 @@ public sealed partial class BattlePresentationProcess
         }
         return graphics;
 
-        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask, NativeBattleModelTextureOwner? material, int layer = 0)
+        void DrawSource(NativeBattleResourcePointer pointer, ImmutableArray<NativeBattleActionMatrix> bones, int boneCount, uint mask, NativeBattleModelTextureOwner? material, int layer = 0, ImmutableArray<NativeBattleRawMesh>? explicitGeometry = null)
         {
             NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native effect body drawing requires its retained packet memory.");
             NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native effect body drawing requires its current renderer process.");
@@ -124,7 +130,7 @@ public sealed partial class BattlePresentationProcess
             var cpu = NativeModelCpuResources ?? throw new NotSupportedException("Native effect body drawing requires its actual model CPU rows.");
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new NotSupportedException("Native effect body drawing requires its canonical projected CPU memory.");
             NativeBattleModelGeometrySource geometrySource = NativeBattleModelGeometrySource.Open(cpu, staging, pointer, Read);
-            ImmutableArray<NativeBattleRawMesh> geometry = NativeBattleRawGeometryReader.Read(geometrySource.Read, boneCount, objectMask: mask);
+            ImmutableArray<NativeBattleRawMesh> geometry = explicitGeometry ?? NativeBattleRawGeometryReader.Read(geometrySource.Read, boneCount, objectMask: mask);
             uint color = graphics.ActorModels.Get(index).Color40 ?? throw new NotSupportedException("Native effect body drawing requires its actual packed model color.");
             process = process.PublishModelColor(color);
             int capacity = checked((cpu.ScratchMaximum ?? throw new NotSupportedException("Native effect body drawing requires its actual loaded projected workspace maximum.")) * 8);

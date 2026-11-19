@@ -150,6 +150,10 @@ public static class NativeBattleEffect9Body
                     }
                     primitive = primitive with { PilotGeometry = new(identity with { Primitive = unchecked((identity.Primitive * 397 + geometry.AuthoredMesh) * 397 + authoredFace) }, World(0), World(1), World(2), polygon.Quad ? World(3) : default, checked((byte)count)) { SourceDepths = new(depths[0], depths[1], depths[2], polygon.Quad ? depths[3] : 0), UseSourceDepths = true } };
                 }
+                if (geometry.MaterialOwner is not null)
+                {
+                    primitive = primitive with { ModelTextureOwner = geometry.MaterialOwner };
+                }
                 attempts.Add(packet.Attempt(primitive));
                 allocated = checked(allocated + (polygon.Quad ? 52 : 40));
 

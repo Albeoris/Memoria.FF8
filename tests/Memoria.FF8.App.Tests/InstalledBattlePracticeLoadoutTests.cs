@@ -25,13 +25,35 @@ public sealed class InstalledBattlePracticeLoadoutTests
         Assert.Equal(donor, prepared.WeaponProfile!.ResourceOwner);
         Assert.Equal(weapon, prepared.WeaponId);
         Assert.Equal(assets.NativeKernelRecords.Single(record => record.Section == 4 && record.Index == weapon).Bytes, prepared.NativePlayerStatRules.WeaponRecord);
-        Assert.Equal(800, prepared.MaximumHp);
-        Assert.Equal(700, prepared.CurrentHp);
+        BattleNativePlayerStatistics statistics = prepared.NativePlayerStatRules.Project(prepared.NativeMagicInventory!, prepared.NativeGrowth!);
+        Assert.Equal(statistics.MaximumHp, prepared.MaximumHp);
+        Assert.Equal(Math.Min(700, statistics.MaximumHp), prepared.CurrentHp);
         Assert.Empty(prepared.NativeLimitFamilies!);
         Assert.NotNull(prepared.NativeGrowth);
         Assert.Equal(32, prepared.NativeMagicInventory!.Length);
         Assert.Equal(before, JsonSerializer.Serialize(defaults));
         Assert.Null(scenario.NativeAttack);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(100)]
+    [InlineData(1000)]
+    public void Native_laboratory_HP_preserves_valid_injury_and_KO_and_clamps_above_the_projected_maximum(int currentHp)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeCharacterVitals defaults = game.ReadNewGameCharacterVitals();
+        BattleCombatantDefinition source = new() { Id = "party-0", Name = "Squall", IsPlayer = true, ModelId = 0, MaximumHp = 1000, CurrentHp = currentHp };
+        BattleCombatantDefinition prepared = InstalledBattlePractice.PreparePlayer(source, defaults, assets);
+        BattleNativePlayerStatistics statistics = prepared.NativePlayerStatRules!.Project(prepared.NativeMagicInventory!, prepared.NativeGrowth!);
+        Assert.Equal(statistics.MaximumHp, prepared.MaximumHp);
+        Assert.Equal(Math.Min(currentHp, statistics.MaximumHp), prepared.CurrentHp);
+        Assert.Equal(currentHp, source.CurrentHp);
+        BattleCombatantDefinition again = InstalledBattlePractice.PreparePlayer(prepared, defaults, assets);
+        Assert.Equal(prepared.MaximumHp, again.MaximumHp);
+        Assert.Equal(prepared.CurrentHp, again.CurrentHp);
     }
 
     [Theory]

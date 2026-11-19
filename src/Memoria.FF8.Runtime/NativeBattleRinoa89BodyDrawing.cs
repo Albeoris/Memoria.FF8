@@ -8,6 +8,20 @@ public sealed record NativeBattleRinoa89BoneStep(NativeBattleRinoa89Frame Frame,
 
 public static class NativeBattleRinoa89BodyDrawing
 {
+    public static NativeBattleActionMatrix ReadActorBoneMatrix6FD2D0(ReadOnlySpan<byte> reference, ImmutableArray<NativeBattleActionMatrix> bones, NativeBattleActionMatrix world, ImmutableArray<byte> actionBoneAliases = default)
+    {
+        if (reference.Length != 8)
+        {
+            throw new InvalidDataException("Native6FD2D0 requires its actual eight-byte bone reference.");
+        }
+        short selector = NativeBattleActionBoneAliases.Resolve(actionBoneAliases, BinaryPrimitives.ReadInt16LittleEndian(reference[6..]));
+        if (selector < 0 || selector >= bones.Length)
+        {
+            throw new InvalidDataException("Native6FD2D0 selected a bone outside its actor skeleton.");
+        }
+        return NativeBattleGfMatrices.Compose56C2F0(world, bones[selector]);
+    }
+
     public static NativeBattleRinoa89BodyDraw Draw6A79B0(NativeBattleRinoa89Frame frame, NativeBattleModulePoolTask task, NativeBattleEffectOwnedModelResource resource, NativeBattleCameraProjection projection, bool hardware, NativeBattlePilotVisualIdentity? pilotIdentity = null)
     {
         NativeBattleActionMatrix view = projection.View ?? throw new NotSupportedException("Native Wishing Star body requires its current camera matrix.");

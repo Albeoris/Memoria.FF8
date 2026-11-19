@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Numerics;
 using System.Security.Cryptography;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -8,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Installed native host checks from an externally selected standalone field save.</summary>
 public sealed class InstalledWeaponLoadoutBattleTests
 {
-    private const ushort Formation = 87;
+    private static ushort Formation => WeaponLimitBattlePreparation.Formation;
     public static IEnumerable<object[]> StylePairs()
     {
         foreach (int recipient in new[] { 0, 6 })
@@ -184,6 +185,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
         BattleVertex[] weaponVertices = (weapon.NativeControlMeshes ?? weapon.Meshes).SelectMany(mesh => mesh.Vertices).ToArray();
         System.Numerics.Vector3[] weaponPoints = weaponVertices.Select(vertex => Transform(weaponBones[vertex.Bone], vertex)).ToArray();
         Assert.NotEmpty(weaponPoints);
+        (Vector3 A, Vector3 B, Vector3 C)[] weaponTriangles = Triangles(weapon.NativeControlMeshes ?? weapon.Meshes, vertex => Transform(weaponBones[vertex.Bone], vertex));
         string[] chainNames = ["shoulder-a", "shoulder-tip-a", "upper-arm-a", "forearm-a", "hand-a", "shoulder-b", "shoulder-tip-b", "upper-arm-b", "forearm-b", "hand-b"];
         var pivots = chainNames.Select(joint =>
         {
@@ -197,9 +199,12 @@ public sealed class InstalledWeaponLoadoutBattleTests
             NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose56C2F0(world, bodyBones[bone]);
             System.Numerics.Vector3[] hand = bodyVertices.Where(vertex => vertex.Bone == bone).Select(vertex => Transform(matrix, vertex)).ToArray();
             float? nearest = hand.Length == 0 ? null : hand.Min(point => weaponPoints.Min(weaponPoint => System.Numerics.Vector3.Distance(point, weaponPoint)));
-            return new { Joint = joint, Bone = bone, Vertices = hand.Length, MinimumVertexDistance = nearest };
+            (Vector3 A, Vector3 B, Vector3 C)[] handTriangles = Triangles(body.NativeControlMeshes ?? body.Meshes, vertex => Transform(NativeBattleGfMatrices.Compose56C2F0(world, bodyBones[vertex.Bone]), vertex), bone);
+            float? handToWeapon = hand.Length == 0 || weaponTriangles.Length == 0 ? null : hand.Min(point => weaponTriangles.Min(triangle => SurfaceDistance(point, triangle)));
+            float? weaponToHand = handTriangles.Length == 0 ? null : weaponPoints.Min(point => handTriangles.Min(triangle => SurfaceDistance(point, triangle)));
+            return new { Joint = joint, Bone = bone, Vertices = hand.Length, HandTriangles = handTriangles.Length, MinimumVertexDistance = nearest, MinimumHandVertexToWeaponSurface = handToWeapon, MinimumWeaponVertexToHandSurface = weaponToHand };
         }).ToArray();
-        var observation = new { Character = definition.ModelId, definition.WeaponId, Formation, battle.Frame, model.Sequence, model.SequenceFrame, Pose = model.SequenceState?.Pose, PoseFrame = model.SequenceState?.PoseFrame114, PoseFlags = model.SequenceState?.PoseFlags109, BodyBones = bodyBones.Length, WeaponBones = weaponBones.Length, WeaponVertices = weaponPoints.Length, EffectiveLinkedTransform = model.ReadEffectiveLinkedTransform(), model.LinkedContactOffset, Pivots = pivots, HandMeshDistances = distances };
+        var observation = new { Character = definition.ModelId, definition.WeaponId, Formation, battle.Frame, model.Sequence, model.SequenceFrame, Pose = model.SequenceState?.Pose, PoseFrame = model.SequenceState?.PoseFrame114, PoseFlags = model.SequenceState?.PoseFlags109, BodyBones = bodyBones.Length, WeaponBones = weaponBones.Length, WeaponVertices = weaponPoints.Length, WeaponTriangles = weaponTriangles.Length, model.Flags0, model.Flags2, model.Flags8, model.Phase6, model.ActiveAnimationBank, LinkedPose = model.SequenceState?.LinkedPose, EffectiveLinkedTransform = model.ReadEffectiveLinkedTransform(), model.LinkedContactOffset, Pivots = pivots, HandMeshDistances = distances };
         string json = System.Text.Json.JsonSerializer.Serialize(observation);
         Console.WriteLine("READY-GRIP " + json);
         string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_READY_PROBE")!;
@@ -211,6 +216,53 @@ public sealed class InstalledWeaponLoadoutBattleTests
             NativeBattleVector point = vertex.NativePosition ?? throw new InvalidDataException("READY grip probe requires an original native vertex.");
             NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, point);
             return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+    }
+
+    private static (Vector3 A, Vector3 B, Vector3 C)[] Triangles(IReadOnlyList<BattleMesh> meshes, Func<BattleVertex, Vector3> transform, int? bone = null)
+    {
+        List<(Vector3, Vector3, Vector3)> triangles = [];
+        foreach (BattleMesh mesh in meshes)
+        {
+            foreach (BattleFace face in mesh.Faces)
+            {
+                if (bone is int selected && face.Vertices.Any(index => mesh.Vertices[index].Bone != selected))
+                {
+                    continue;
+                }
+                Vector3 At(int index) => transform(mesh.Vertices[face.Vertices[index]]);
+                Assert.True(face.Vertices.Length is 3 or 4);
+                triangles.Add((At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2)));
+                if (face.Vertices.Length == 4)
+                {
+                    triangles.Add((At(3), At(2), At(0)));
+                }
+            }
+        }
+        return triangles.ToArray();
+    }
+
+    private static float SurfaceDistance(Vector3 point, (Vector3 A, Vector3 B, Vector3 C) triangle)
+    {
+        (Vector3 a, Vector3 b, Vector3 c) = triangle;
+        Vector3 normal = Vector3.Cross(b - a, c - a);
+        float squared = normal.LengthSquared();
+        if (squared > 0)
+        {
+            Vector3 projected = point - normal * (Vector3.Dot(point - a, normal) / squared);
+            if (Vector3.Dot(Vector3.Cross(b - a, projected - a), normal) >= 0 && Vector3.Dot(Vector3.Cross(c - b, projected - b), normal) >= 0 && Vector3.Dot(Vector3.Cross(a - c, projected - c), normal) >= 0)
+            {
+                return Vector3.Distance(point, projected);
+            }
+        }
+        return MathF.Min(Segment(a, b), MathF.Min(Segment(b, c), Segment(c, a)));
+
+        float Segment(Vector3 from, Vector3 to)
+        {
+            Vector3 edge = to - from;
+            float length = edge.LengthSquared();
+            float fraction = length == 0 ? 0 : Math.Clamp(Vector3.Dot(point - from, edge) / length, 0, 1);
+            return Vector3.Distance(point, from + edge * fraction);
         }
     }
 

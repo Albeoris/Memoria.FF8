@@ -9,7 +9,7 @@ public sealed partial class BattleAssets
     {
         int sourceCharacter = BattleLimitFamilyRules.SourceCharacter(family);
         BattleModel sourceBody = LoadPlayer(sourceCharacter, sourceCharacter == actor.ModelId ? actor.Costume : 0);
-        BattleModel motion = LoadPlayerForStyle(actor.ModelId, actor.Costume, sourceCharacter);
+        BattleModel motion = LoadPlayerForStyle(actor.ModelId, actor.Costume, sourceCharacter, actor.WeaponId);
         int? sourceWeapon = WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == sourceCharacter)?.Id;
         BattleModel sourceSequenceOwner = LoadPlayerSequenceOwner(sourceCharacter, sourceWeapon, sourceBody);
         NativeBattleGraphicsResource source = (sourceSequenceOwner.Sequences ?? throw new InvalidDataException("The selected Limit family has no original body sequence owner.")).NativeResource;

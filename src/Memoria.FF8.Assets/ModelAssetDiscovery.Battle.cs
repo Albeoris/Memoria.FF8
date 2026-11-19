@@ -174,7 +174,7 @@ public sealed partial class GameAssets
                 yield return DiscoveryDiagnostic(selected, descriptor.Bank, error ?? "External bank unavailable.");
                 continue;
             }
-            foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, bodyModel, bank, descriptor.Bank, false, bodyEntry.Id))
+            foreach (ModelAssetDiscoveryItem clip in DiscoverExternalClips(bodyEntry, bodyModel, bank, descriptor.Bank, false, bodyEntry.Id, binding.BodyAnimationCount, binding.LinkedAnimationBoneCount))
             {
                 yield return clip;
             }
@@ -198,7 +198,7 @@ public sealed partial class GameAssets
         return resources.GetSource<IBattleModelSource>()?.ReadModel(new ResourceKey(path), bytes) ?? BattleResourceReader.ReadModel(Path.GetFileName(path), bytes);
     }
 
-    private IEnumerable<ModelAssetDiscoveryItem> DiscoverExternalClips(ModelCatalogEntry owner, BattleModel model, byte[] bank, string bankId, bool weapon, string bodyId)
+    private IEnumerable<ModelAssetDiscoveryItem> DiscoverExternalClips(ModelCatalogEntry owner, BattleModel model, byte[] bank, string bankId, bool weapon, string bodyId, int? bodyAnimationCount = null, int? linkedAnimationBoneCount = null)
     {
         byte[]? frameCounts = null;
         string? error = null;
@@ -213,6 +213,10 @@ public sealed partial class GameAssets
                 throw new InvalidDataException("External animation section is outside its bank.");
             }
             frameCounts = NativeBattlePoseDecoder.ReadFrameCounts(bank.AsSpan(start, end - start)).ToArray();
+            if (!weapon && bodyAnimationCount is int count)
+            {
+                frameCounts = frameCounts.Take(count).ToArray();
+            }
         }
         catch (Exception exception) when (CatalogError(exception))
         {
@@ -225,7 +229,7 @@ public sealed partial class GameAssets
         }
         Lazy<EditableModel> editable = new(() =>
         {
-            BattleModel decoded = BattleResourceReader.ReadLinkedAnimationBank(model, bank, weapon);
+            BattleModel decoded = BattleResourceReader.ReadLinkedAnimationBank(model, bank, weapon, bodyAnimationCount, linkedAnimationBoneCount);
             return ModelExchange.FromBattle(modelOverrides?.ApplyBattleBank(owner.Id, bankId, decoded) ?? decoded);
         });
         for (int index = 0; index < frameCounts.Length; index++)

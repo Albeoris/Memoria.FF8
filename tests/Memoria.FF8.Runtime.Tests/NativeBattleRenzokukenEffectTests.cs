@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 using Xunit;
+using static Memoria.FF8.Tests.NativeBattleTypedFixture;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -79,7 +80,8 @@ public sealed class NativeBattleRenzokukenEffectTests
     private static NativeBattleRenzokuken160Frame Frame()
     {
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess() with { Renzokuken160 = NativeBattleRenzokuken160State.FromColdProcess().Enter(false) with { Duration = 100 } };
-        NativeBattleOriginalEffectState effect = new(160, 159, new(160, 0x5FF080, 0x5FF060), null, null);
+        NativeBattleEffectParameters parameters = new(OriginalOwner(0), 0, BattleModelTargets.From([OriginalOwner(3)]), new(0), 0, 0);
+        NativeBattleOriginalEffectState effect = new(160, 159, new(160, 0x5FF080, 0x5FF060), parameters, null);
         return new(memory, effect, NativeCrtRandomState.FromColdProcess());
     }
 
@@ -141,18 +143,30 @@ public sealed class NativeBattleRenzokukenEffectTests
         byte[] payload = NativeBattleStorageSnapshots.Capture(modules.Slots[slot]).Payload.ToArray();
         BinaryPrimitives.WriteUInt16LittleEndian(payload, 4);
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(14), 0);
-        modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = payload.ToImmutableArray() }) };
+        modules = modules with { Slots = modules.Slots.SetItem(slot, modules.Slots[slot] with { Payload = payload.ToImmutableArray(), ModelOwner = OriginalOwner(0) }) };
+        List<byte> physicalBones = [];
         NativeBattleModuleInputs inputs = new(0)
         {
+            ModelAliases = OriginalAliases,
             CrtRandom = NativeCrtRandomState.FromColdProcess(),
             ReadModelAnchor = _ => new(0, 0, 0, 0),
-            ReadModelBoneCount = _ => 0,
-            ReadModelBone = (_, _, _) => new(0, -700, 0)
+            ReadModelBoneCount = _ => 41,
+            ReadModelBone = (_, _, _) => throw new InvalidOperationException("A generated physical selector must not use authored action aliases."),
+            ReadPhysicalModelBone = (actor, bone, fraction) =>
+            {
+                Assert.Equal(OriginalOwner(0), actor);
+                Assert.Equal(0, fraction);
+                Assert.InRange(bone, (byte)0, (byte)40);
+                physicalBones.Add(bone);
+                return new(0, -700, 0);
+            }
         };
         NativeBattleModuleCallback step = NativeBattleRenzokuken160Controller.AdvanceShared5FF4E0(modules, slot, inputs);
         Assert.Equal(1, step.State.Slots[slot].Next);
         Assert.Equal(6, step.State.Tail);
         Assert.All(step.State.Slots.Skip(1).Take(6), child => Assert.Equal(0x5FF770u, child.Callback));
+        Assert.Equal(6, physicalBones.Count);
+        Assert.Contains(physicalBones, bone => bone >= 23);
         Assert.Equal(5, BinaryPrimitives.ReadUInt16LittleEndian(NativeBattleStorageSnapshots.Capture(step.State.Slots[slot]).Payload.AsSpan()));
     }
 }

@@ -1383,7 +1383,7 @@ internal sealed partial class RecreateGame : Game
             SynchronizeUiMoviePause();
             return saved;
         }
-        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("status" or "capture" or "battle-status" or "battle-input"))
+        if (SlotsModalBlocksGameplay && request.Command.ToLowerInvariant() is not ("status" or "capture" or "battle-status" or "battle-input" or "battle-native-input"))
         {
             throw new InvalidOperationException("The pending Slots card choice owns gameplay input.");
         }

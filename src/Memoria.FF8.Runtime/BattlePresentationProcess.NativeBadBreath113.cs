@@ -426,11 +426,20 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleRawMesh> body = resource.Geometry!.Value;
             ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry!.Value;
             bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Bad Breath requires linked skeleton ownership."));
+            NativeBattleModelTextureOwner? material = PrepareIntrinsicBodyMaterials(graphics, actorIndex, resource);
             for (int index = 0; index < body.Length; index++)
             {
                 if ((actor.SequenceState!.MeshMask124 & (1u << (index & 31))) != 0)
                 {
-                    Submit(shared && index == 1 ? linked.Single() : body[index], bones, shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!, index, shared && index == 1);
+                    Submit(shared && index == 1 ? linked.Single() : body[index], bones, shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!, index, shared && index == 1, material: material);
+                }
+            }
+            if (resource.IntrinsicHands is { } hands && (actor.SequenceState!.MeshMask124 & 1) != 0)
+            {
+                var handMaterial = PrepareIntrinsicHandMaterial(actorIndex, hands);
+                for (int index = 0; index < hands.Geometry.Length; index++)
+                {
+                    Submit(hands.Geometry[index], bones, handMaterial.Binding, 0x20000 + index, false, false, handMaterial.Material);
                 }
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);
@@ -439,12 +448,12 @@ public sealed partial class BattlePresentationProcess
                 ImmutableArray<NativeBattleActionMatrix> weaponBones = NativeBattlePoseMatrices.LinkedGeometryMatrices502D40(actor, resource.LinkedPoseSource!, view);
                 for (int linkedIndex = 0; linkedIndex < linked.Length; linkedIndex++)
                 {
-                    Submit(linked[linkedIndex], weaponBones, actor.LinkedTextureSlots!, linkedIndex, true);
+                    Submit(linked[linkedIndex], weaponBones, actor.LinkedTextureSlots!, linkedIndex, true, material: material);
                 }
             }
             graphics = graphics with { ActorModels = graphics.ActorModels.Set(actorIndex, actor) };
 
-            void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding binding, int meshIndex, bool linkedSource)
+            void Submit(NativeBattleRawMesh mesh, ImmutableArray<NativeBattleActionMatrix> matrices, NativeBattleModelTextureBinding binding, int meshIndex, bool linkedSource, bool? alreadyRelocated = null, NativeBattleModelTextureOwner? material = null)
             {
                 ushort maximum = NativeModelCpuResources?.ScratchMaximum ?? throw new NotSupportedException("Native Bad Breath requires its actual projected scratch capacity.");
                 uint address = checked(0x196B018u - (uint)maximum * 8);
@@ -460,8 +469,8 @@ public sealed partial class BattlePresentationProcess
                     BinaryPrimitives.WriteUInt32LittleEndian(output.AsSpan(index * 8 + 4), projected[index].DepthAndClip);
                 }
                 NativeFileStaging = NativeFileStaging!.Write(address, output);
-                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, resource.GeometryRelocated507550 ? null : binding, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = ((long)NativeModelResourceAddress100(actor) << 32) | ((linkedSource ? 1L : 0L) << 31) | (uint)meshIndex } : null);
-                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, batch);
+                NativeBattleGfGeometryBatch batch = NativeBattleEffect107Geometry.Emit6BCB50(mesh.Polygons, projected, actor.Color40!.Value, (alreadyRelocated ?? resource.GeometryRelocated507550) ? null : binding, pilotIdentity: pilotIdentity is { } bodyIdentity ? bodyIdentity with { ResourceGeneration = ((long)NativeModelResourceAddress100(actor) << 32) | ((linkedSource ? 1L : 0L) << 31) | (uint)meshIndex } : null);
+                NativeBattleCommonPacketWrite written = NativeBattleCommonPacketArena.Append(NativeEffectMemory!.PrimitiveProcess!, graphics.PrimitiveFrame!.Pending, BindNativeModelMaterial(batch, material));
                 NativeEffectMemory = NativeEffectMemory with { PrimitiveProcess = written.Process };
                 graphics = graphics with { PrimitiveFrame = graphics.PrimitiveFrame with { Pending = written.Ordering } };
             }

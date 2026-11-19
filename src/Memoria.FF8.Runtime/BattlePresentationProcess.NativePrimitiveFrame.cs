@@ -143,7 +143,7 @@ public sealed partial class BattlePresentationProcess
             NativeBattleModelPrimitiveBatch.Builder primitives = new();
             for (int index = 0; index < geometry.Length; index++)
             {
-                if ((mask & (1u << (index & 31))) == 0 || index == weaponObject && (model.Flags0 & 0x200) != 0)
+                if ((mask & (1u << (index & 31))) == 0)
                 {
                     continue;
                 }
