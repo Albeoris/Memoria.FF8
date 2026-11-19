@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF7.Runtime;
@@ -125,9 +125,17 @@ public enum Ff7NamingPhase
     Completed
 }
 
+public enum Ff7SaveMenuOutcome
+{
+    Open,
+    Cancelled
+}
+
 public sealed record Ff7Menu(long RequestId, int Mode, int Parameter, bool Completed = false, Ff7ShopState? Shop = null)
 {
     public Ff7NamingPhase? NamingPhase { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7SaveMenuOutcome? SaveOutcome { get; init; }
 }
 public sealed record Ff7Movie(int PreparedId, bool Playing, int Frame, bool Completed, long? RequestId, bool CameraDisabled = false, Ff7MovieCameraConsumption? CameraConsumption = null);
 public sealed record Ff7MovieCameraConsumption(int Frame, long WordsBeforeRead, long WordsAfterRead);
@@ -267,6 +275,10 @@ public sealed record Ff7FieldProcess
         }
         CameraShakeX?.Validate();
         Menu?.Shop?.Validate();
+        if (Menu is { SaveOutcome: { } outcome } saved && (!Enum.IsDefined(outcome) || saved.Mode != 14 || saved.Completed != (outcome == Ff7SaveMenuOutcome.Cancelled)))
+        {
+            throw new InvalidDataException("The save menu outcome and its native owner disagree.");
+        }
         if (Menu is { NamingPhase: { } naming } named && (!Enum.IsDefined(naming) || named.Mode != 6 || named.Completed != (naming == Ff7NamingPhase.Completed)))
         {
             throw new InvalidDataException("The naming phase and its native menu owner disagree.");

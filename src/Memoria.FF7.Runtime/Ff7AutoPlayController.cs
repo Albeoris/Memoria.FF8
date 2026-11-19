@@ -1,4 +1,4 @@
-using Memoria.AutoPlay;
+﻿using Memoria.AutoPlay;
 using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
@@ -245,6 +245,10 @@ public sealed partial class Ff7AutoPlayController(Ff7Session session, Func<Ff7Au
                 world.UpdateDialogue(Ff7DialogueCursor.Confirm(selected, FieldText.Read(world.Texts[dialogue.Text].Span)));
             }
             return;
+        }
+        if (session.Host.Process.Menu is { Completed: false, Mode: 14 } saveMenu)
+        {
+            session.Host.CancelSaveMenu(saveMenu.RequestId);
         }
         if (session.Host.Process.Menu is { Completed: false, Mode: 6 } menu)
         {

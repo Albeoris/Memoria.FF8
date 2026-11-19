@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-save-menu-only", StringComparer.Ordinal))
+{
+    NativeSaveMenuTests.Run();
+    return 0;
+}
+
 if (args.Contains("--keyman-route-only", StringComparer.Ordinal))
 {
     NativeKeymanRouteTests.Run();

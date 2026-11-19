@@ -14,7 +14,7 @@ public sealed partial class Ff7AutoPlayPolicy
 
     private bool IsKeymanPreferredEntry(AutoPlayVisit visit, AutoPlayEvent target)
     {
-        if (session.World is not null || session.MapId != 610 || session.Machine.ProgramIdentity != NativeKeymanProgram || ordinaryObservation is not { } observation || observation.VisitId != visit.Key || observation.ProgramIdentity != NativeKeymanProgram || State.DestinationField is not (null or 611 or 612) || (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xE9) & 8) != 0)
+        if (session.World is not null || session.MapId != 610 || session.Machine.ProgramIdentity != NativeKeymanProgram || ordinaryObservation is not { } observation || observation.VisitId != visit.Key || observation.ProgramIdentity != NativeKeymanProgram || State.DestinationField is not (null or 611 or 612))
         {
             return false;
         }
@@ -23,27 +23,74 @@ public sealed partial class Ff7AutoPlayPolicy
             keymanPlanGeneration = session.FieldGeneration;
             keymanPlanTick = session.Machine.Tick;
             keymanPreferredEvent = null;
+            bool caught = (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xE9) & 8) != 0;
             int npc = session.Machine.Variables.ReadByte(FieldBank.MapByte, 0x12);
             Ff7Actor? player = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
-            if (npc is >= 0 and < 9 && player is not null)
+            if ((caught || npc is >= 0 and < 9) && player is not null)
             {
                 int available = 0;
-                foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Slot is >= 0 and < 9 && line.Entity == line.Slot + 6))
+                bool progressionAvailable = false;
+                foreach (Ff7Line line in session.Host.Process.Lines.Where(line => line.Slot is >= 0 and <= 9 && line.Entity == line.Slot + 6))
                 {
                     if (Ff7AutoplayDriver.DiscoverLineContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, line).Count > 0)
                     {
-                        available |= 1 << line.Slot;
+                        if (line.Slot == 9)
+                        {
+                            progressionAvailable = true;
+                        }
+                        else
+                        {
+                            available |= 1 << line.Slot;
+                        }
                     }
                 }
-                int[] plan = ReadKeymanDoorPlan(npc, available);
+                int[] plan = caught ? ReadKeymanExitPlan(available, progressionAvailable) : ReadKeymanDoorPlan(npc, available);
                 if (plan.Length > 0)
                 {
                     int entry = plan[0];
-                    keymanPreferredEvent = $"line:{entry}:entity:{entry + 6}:script:5";
+                    keymanPreferredEvent = $"line:{entry}:entity:{entry + 6}:script:{(entry == 9 ? 2 : 5)}";
                 }
             }
         }
         return target.Id == keymanPreferredEvent;
+    }
+
+    internal static int[] ReadKeymanExitPlan(int availableEntries, bool progressionAvailable)
+    {
+        if ((availableEntries & ~0x1FF) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(availableEntries));
+        }
+        if (progressionAvailable)
+        {
+            return [9];
+        }
+        Queue<(int Available, int[] Entries)> queue = new();
+        HashSet<int> visited = [];
+        queue.Enqueue((availableEntries, []));
+        visited.Add(availableEntries);
+        while (queue.TryDequeue(out var state))
+        {
+            for (int entry = 0; entry < 9; entry++)
+            {
+                if ((state.Available & (1 << entry)) == 0)
+                {
+                    continue;
+                }
+                int[] route = [.. state.Entries, entry];
+                int exit = KeymanPhysicalExits[entry];
+                if (exit == 0)
+                {
+                    return [.. route, 9];
+                }
+                int nextAvailable = exit <= 4 ? 0x1E : 0x1E0;
+                if (visited.Add(nextAvailable))
+                {
+                    queue.Enqueue((nextAvailable, route));
+                }
+            }
+        }
+        return [];
     }
 
     internal static int[] ReadKeymanDoorPlan(int npcDoor, int availableEntries)
@@ -83,4 +130,3 @@ public sealed partial class Ff7AutoPlayPolicy
         return [];
     }
 }
-

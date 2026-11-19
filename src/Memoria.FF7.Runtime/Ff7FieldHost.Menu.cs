@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -19,7 +19,7 @@ public sealed partial class Ff7FieldHost
         {
             return new(false);
         }
-        if (command.Mode is not (6 or 7 or 8 or 17 or 21))
+        if (command.Mode is not (6 or 7 or 8 or 14 or 17 or 21))
         {
             throw new NotSupportedException($"FFVII menu mode {command.Mode} requires its native menu process.");
         }
@@ -32,6 +32,10 @@ public sealed partial class Ff7FieldHost
             throw new NotSupportedException($"FFVII party selector parameter {command.Parameter} requires its native roster contract.");
         }
         Ff7Menu menu = new(requestId, command.Mode, command.Parameter, Shop: command.Mode == 8 ? new(requestId, command.Parameter) : null);
+        if (command.Mode == 14)
+        {
+            menu = menu with { SaveOutcome = Ff7SaveMenuOutcome.Open };
+        }
         if (command.Mode == 6)
         {
             (NamingStarted ?? throw new NotSupportedException("FFVII naming requires its native character initialization owner."))(menu);
@@ -55,12 +59,26 @@ public sealed partial class Ff7FieldHost
         CompleteMenu(menu.RequestId);
     }
 
+    public void CancelSaveMenu(long requestId)
+    {
+        Ff7Menu menu = Process.Menu ?? throw new InvalidOperationException("No native save menu is active.");
+        if (menu.Mode != 14 || menu.Completed || menu.RequestId != requestId || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != requestId)
+        {
+            throw new InvalidOperationException("Only the active native save menu owner can acknowledge cancellation.");
+        }
+        Process = Process with { Menu = menu with { SaveOutcome = Ff7SaveMenuOutcome.Cancelled, Completed = true } };
+    }
+
     public void CompleteMenu(long requestId, string? nativeName = null)
     {
         Ff7Menu menu = Process.Menu ?? throw new InvalidOperationException("No FFVII menu is active.");
         if (menu.RequestId != requestId || Process.GlobalCommand != Ff7GlobalCommand.Menu || Process.GlobalRequestId != requestId)
         {
             throw new InvalidOperationException("Only the current FFVII menu owner can complete it.");
+        }
+        if (menu.Mode == 14)
+        {
+            throw new InvalidOperationException("The native save menu requires its explicit cancel acknowledgement.");
         }
         if (menu.Mode == 8 && menu.Shop?.Phase != Ff7ShopPhase.Completed)
         {

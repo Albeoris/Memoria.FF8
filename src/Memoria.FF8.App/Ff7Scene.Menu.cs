@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
@@ -64,6 +64,7 @@ internal sealed partial class Ff7Scene
         RegisterMateriaMenus(playerMenu);
         RegisterNativeCharacterMenus(playerMenu);
         RegisterStoryPartyMenu(playerMenu);
+        RegisterNativeSaveMenu(playerMenu);
         playerMenu.Register(new()
         {
             Id = "config",
@@ -130,7 +131,7 @@ internal sealed partial class Ff7Scene
 
     private void ApplyPlayerMenuAction(MenuAction action)
     {
-        if (ApplyStoryPartyMenuAction(action))
+        if (ApplyNativeSaveMenuAction(action) || ApplyStoryPartyMenuAction(action))
         {
             return;
         }
@@ -197,7 +198,7 @@ internal sealed partial class Ff7Scene
 
     private bool UpdatePlayerMenu(GameTime time, KeyboardState keys, GamePadState pad)
     {
-        if (UpdateStoryPartyMenu(time, keys, pad))
+        if (UpdateNativeSaveMenu(time, keys, pad) || UpdateStoryPartyMenu(time, keys, pad))
         {
             return true;
         }
