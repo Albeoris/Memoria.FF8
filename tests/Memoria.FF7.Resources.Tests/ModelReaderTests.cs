@@ -84,7 +84,7 @@ public sealed class ModelReaderTests
         Assert.Throws<InvalidDataException>(() => PcFieldAnimation.Read(source));
         source = Animation();
         BinaryPrimitives.WriteSingleLittleEndian(source.AsSpan(36), float.NaN);
-        Assert.Throws<InvalidDataException>(() => PcFieldAnimation.Read(source));
+        Assert.Throws<InvalidDataException>(() => PcFieldAnimation.Read(source).Frames[0]);
     }
 
     [Fact]

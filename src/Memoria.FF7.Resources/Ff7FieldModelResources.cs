@@ -32,7 +32,7 @@ public sealed record Ff7FieldModelResources(string HrcName, HrcHierarchy Hierarc
         {
             string name = Path.GetFileNameWithoutExtension(descriptor) + ".a";
             byte[] animationBytes = Read(characters, name);
-            PcFieldAnimation animation = PcFieldAnimation.Read(animationBytes);
+            PcFieldAnimation animation = PcFieldAnimation.Read(animationBytes, sourceName: name);
             if (name.Equals("bzbc.a", StringComparison.OrdinalIgnoreCase))
             {
                 knownMotionBytes = animationBytes;

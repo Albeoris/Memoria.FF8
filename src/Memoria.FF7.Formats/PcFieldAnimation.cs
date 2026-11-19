@@ -7,13 +7,13 @@ public sealed record PcFieldAnimationFrame(Vector3 RootRotation, Vector3 RootTra
 
 public sealed class PcFieldAnimation
 {
-    private PcFieldAnimation(uint version, uint rotationOrder, byte[] reserved, int boneCount, PcFieldAnimationFrame[] frames)
+    private PcFieldAnimation(uint version, uint rotationOrder, byte[] reserved, int boneCount, IReadOnlyList<PcFieldAnimationFrame> frames)
     {
         Version = version;
         RotationOrder = rotationOrder;
         ReservedHeader = Array.AsReadOnly(reserved);
         BoneCount = boneCount;
-        Frames = Array.AsReadOnly(frames);
+        Frames = frames;
     }
 
     public uint Version { get; }
@@ -50,7 +50,7 @@ public sealed class PcFieldAnimation
             }
             bound[index] = Frames[index] with { BoneRotations = Array.AsReadOnly(rotations.ToArray()) };
         }
-        return new(Version, RotationOrder, ReservedHeader.ToArray(), bones, bound);
+        return new(Version, RotationOrder, ReservedHeader.ToArray(), bones, Array.AsReadOnly(bound));
     }
 
     /// <summary>Reads an ordinal channel from the native contiguous frame allocation, without extending its bounds.</summary>
@@ -90,7 +90,7 @@ public sealed class PcFieldAnimation
         return rotation;
     }
 
-    public static PcFieldAnimation Read(ReadOnlySpan<byte> source, int maximumFrames = 100_000, int maximumBones = 4096, int maximumBytes = 64 * 1024 * 1024)
+    public static PcFieldAnimation Read(ReadOnlySpan<byte> source, int maximumFrames = 100_000, int maximumBones = 4096, int maximumBytes = 64 * 1024 * 1024, string? sourceName = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumFrames);
         ArgumentOutOfRangeException.ThrowIfNegative(maximumBones);
@@ -112,23 +112,55 @@ public sealed class PcFieldAnimation
         {
             throw new InvalidDataException("PC field animation payload does not match its dimensions.");
         }
-        PcFieldAnimationFrame[] frames = new PcFieldAnimationFrame[(int)frameCount];
-        int cursor = 36;
-        for (int i = 0; i < frames.Length; i++)
-        {
-            Vector3 rotation = ReadVector(source, ref cursor);
-            Vector3 translation = ReadVector(source, ref cursor);
-            Vector3[] bones = new Vector3[(int)boneCount];
-            for (int bone = 0; bone < bones.Length; bone++)
-            {
-                bones[bone] = ReadVector(source, ref cursor);
-            }
-            frames[i] = new PcFieldAnimationFrame(rotation, translation, Array.AsReadOnly(bones));
-        }
+        // Native loading retains every clip's allocation, including poses that are never selected.
+        // Coordinate validity belongs to the frame actually consumed, not a duration-only lookup.
+        FrameList frames = new(source[36..].ToArray(), (int)frameCount, (int)boneCount, sourceName);
         return new PcFieldAnimation(version, rotationOrder, source.Slice(16, 20).ToArray(), (int)boneCount, frames);
     }
 
-    private static Vector3 ReadVector(ReadOnlySpan<byte> source, ref int cursor)
+    private sealed class FrameList(byte[] payload, int count, int boneCount, string? sourceName) : IReadOnlyList<PcFieldAnimationFrame>
+    {
+        private readonly PcFieldAnimationFrame?[] decoded = new PcFieldAnimationFrame[count];
+        public int Count => count;
+
+        public PcFieldAnimationFrame this[int index]
+        {
+            get
+            {
+                if ((uint)index >= count)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                }
+                PcFieldAnimationFrame? existing = Volatile.Read(ref decoded[index]);
+                if (existing is not null)
+                {
+                    return existing;
+                }
+                int cursor = index * (24 + 12 * boneCount);
+                Vector3 rotation = ReadVector(payload, ref cursor, sourceName, index, 0);
+                Vector3 translation = ReadVector(payload, ref cursor, sourceName, index, 1);
+                Vector3[] bones = new Vector3[boneCount];
+                for (int bone = 0; bone < bones.Length; bone++)
+                {
+                    bones[bone] = ReadVector(payload, ref cursor, sourceName, index, bone + 2);
+                }
+                PcFieldAnimationFrame frame = new(rotation, translation, Array.AsReadOnly(bones));
+                return Interlocked.CompareExchange(ref decoded[index], frame, null) ?? frame;
+            }
+        }
+
+        public IEnumerator<PcFieldAnimationFrame> GetEnumerator()
+        {
+            for (int index = 0; index < Count; index++)
+            {
+                yield return this[index];
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private static Vector3 ReadVector(ReadOnlySpan<byte> source, ref int cursor, string? sourceName, int frame, int channel)
     {
         float x = BinaryPrimitives.ReadSingleLittleEndian(source[cursor..]);
         float y = BinaryPrimitives.ReadSingleLittleEndian(source[(cursor + 4)..]);
@@ -136,7 +168,8 @@ public sealed class PcFieldAnimation
         cursor += 12;
         if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z))
         {
-            throw new InvalidDataException("PC field animation contains non-finite coordinates.");
+            string coordinate = channel == 0 ? "root rotation" : channel == 1 ? "root translation" : $"bone {channel - 2} rotation";
+            throw new InvalidDataException($"PC field animation '{sourceName ?? "<unnamed>"}', frame {frame}, {coordinate} contains non-finite coordinates.");
         }
         return new Vector3(x, y, z);
     }

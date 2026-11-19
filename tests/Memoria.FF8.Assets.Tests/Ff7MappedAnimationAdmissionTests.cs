@@ -25,7 +25,7 @@ public sealed class Ff7MappedAnimationAdmissionTests
         Assert.Throws<NotSupportedException>(() => Ff7FieldPoseSampler.Sample(original, PcFieldAnimation.Read(unsupportedOrder), new(0)));
         byte[] corrupt = AnimationBytes();
         BinaryPrimitives.WriteSingleLittleEndian(corrupt.AsSpan(36), float.NaN);
-        Assert.Throws<InvalidDataException>(() => PcFieldAnimation.Read(corrupt));
+        Assert.Throws<InvalidDataException>(() => Ff7FieldPoseSampler.Sample(original, PcFieldAnimation.Read(corrupt), new(0)));
     }
 
     [Fact]
