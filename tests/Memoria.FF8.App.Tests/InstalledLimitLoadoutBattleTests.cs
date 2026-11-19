@@ -47,6 +47,7 @@ public sealed class InstalledLimitLoadoutBattleTests
     [InlineData(3, BattleLimitFamily.BlueMagic)]
     [InlineData(10, BattleLimitFamily.MassiveAnchor)]
     [InlineData(5, BattleLimitFamily.Slot)]
+    [InlineData(8, BattleLimitFamily.Desperado)]
     public void Native_source_owner_runs_without_an_assignment_override(int recipient, BattleLimitFamily family)
     {
         Run(recipient, family, cardSlots: false, nativeBaseline: true);
@@ -118,7 +119,8 @@ public sealed class InstalledLimitLoadoutBattleTests
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
         session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, WeaponLimitBattlePreparation.Formation, program)));
         WeaponLimitBattlePreparation.SaveField(session, world, recipient, assets.ReadWeaponProfile(weapon).ResourceOwner, family, cardSlots, source, directory);
-        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PAIR_PROBE") is null ? (byte)4 : (byte)0));
+        bool diagnosticSeed = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PAIR_PROBE") is not null || Environment.GetEnvironmentVariable("MEMORIA_FF8_DESPERADO_ATTACHMENT_PROBE") is not null;
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: diagnosticSeed ? (byte)0 : (byte)4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
         int contacts = 0;
@@ -144,6 +146,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         int shotsBefore = Ammo();
         bool fired = false;
         bool duelInput = false;
+        bool observedDuelContinuation = false;
 
         if (family == BattleLimitFamily.Slot && cardSlots)
         {
@@ -191,6 +194,10 @@ public sealed class InstalledLimitLoadoutBattleTests
         if (family == BattleLimitFamily.Duel)
         {
             Assert.True(duelInput);
+            if (recipient == 0)
+            {
+                Assert.True(observedDuelContinuation);
+            }
         }
         if (family == BattleLimitFamily.AngelWing)
         {
@@ -312,9 +319,24 @@ public sealed class InstalledLimitLoadoutBattleTests
         {
             object before = Context();
             NativeBattlePreparedPresentation? previousPrepared = battle.PreparedPresentation;
+            BattleSession? duelContinuation = family == BattleLimitFamily.Duel && recipient == 0 && !observedDuelContinuation && battle.GetNativeDuel(actor.Id) is { Phase: BattleNativeDuelPhase.AwaitingEffect } ? battle.ForkForContinuation() : null;
             try
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
+                InstalledDesperadoAttachmentProbe.CaptureIfRequested(world, actor.Id, recipient, family);
+                if (duelContinuation is not null)
+                {
+                    duelContinuation.Tick();
+                    Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(duelContinuation.Capture()));
+                    BattleModelOwner owner = battle.ReadPresentationModelOwner(actor.Id);
+                    NativeBattleGraphicsModel originalModel = battle.Presentation!.Graphics.ActorModels.Get(owner);
+                    NativeBattleGraphicsModel restoredModel = duelContinuation.Presentation!.Graphics.ActorModels.Get(owner);
+                    Assert.Equal(NativeBattleEquipmentPresentationRole.FreeHands, originalModel.EquipmentPresentationRole);
+                    Assert.Equal(originalModel.EquipmentPresentationRole, restoredModel.EquipmentPresentationRole);
+                    Assert.Equal(originalModel.ActiveAnimationBank, restoredModel.ActiveAnimationBank);
+                    Assert.Equal(JsonSerializer.Serialize(originalModel.SequenceState), JsonSerializer.Serialize(restoredModel.SequenceState));
+                    observedDuelContinuation = true;
+                }
                 if (recipient == 0 && family == BattleLimitFamily.BloodPain && previousPrepared is not null && battle.PreparedPresentation is { } currentPrepared && battle.Presentation?.LastFrameServices?.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Any() == true)
                 {
                     InstalledLoadoutPairProbe.Capture(assets, battle, previousPrepared, currentPrepared);

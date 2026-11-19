@@ -19,7 +19,7 @@ public sealed class NativeBattleBadBreath113Tests
         rows[0] = 0;
         NativeBattleCureActorGeometry body = new(mesh, new(rows.ToImmutableArray()));
         NativeBattleModelTextureOwner material = new("recipient/intrinsic-hands/revision");
-        NativeBattleCureActorGeometry hand = body with { Layer = NativeBattleActorGeometryLayer.IntrinsicHands, MaterialOwner = material };
+        NativeBattleCureActorGeometry hand = body with { Layer = NativeBattleActorGeometryLayer.ActorSurface, MaterialOwner = material };
         NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1024, 4096);
         NativeBattleCameraProjection projection = new(matrix, 216, 0, 0);
         var wave = new short[4096].ToImmutableArray();

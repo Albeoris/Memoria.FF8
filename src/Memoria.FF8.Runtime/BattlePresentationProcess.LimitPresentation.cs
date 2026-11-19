@@ -16,7 +16,7 @@ public sealed partial class BattlePresentationProcess
         return resources.NativeGraphics?.LimitPresentations.SingleOrDefault(binding => binding.ActorId == actor && binding.Family == family);
     }
 
-    private void InitializeRestoredLimitPresentationScopes()
+    internal void InitializeRestoredLimitPresentationScopes()
     {
         if (NativeGraphics is not { } graphics)
         {

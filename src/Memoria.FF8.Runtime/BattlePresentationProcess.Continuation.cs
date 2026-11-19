@@ -133,7 +133,6 @@ public sealed partial class BattlePresentationProcess
         // A future rollback must acquire its own storage from the captured pre-load state.
         BattlePresentationSnapshot native = NativeBattleStorageSnapshots.Restore(snapshot with { LoadCheckpoint = null }) with { LoadCheckpoint = snapshot.LoadCheckpoint };
         BattlePresentationProcess process = new(resources, native, services, resolveEffect, externalHost);
-        process.InitializeRestoredLimitPresentationScopes();
         return process;
     }
 

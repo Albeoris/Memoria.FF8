@@ -9,6 +9,10 @@ public sealed partial class BattleSession
         {
             return null;
         }
+        if (CurrentExpandedHostedInvocation?.Command is { } invocation && invocation.ActorId == actor.Id && invocation.NativePlayerReaction is BattleNativePlayerReaction.AngeloRush or BattleNativePlayerReaction.AngeloRecover or BattleNativePlayerReaction.AngeloReverse or BattleNativePlayerReaction.AngeloPeriodic)
+        {
+            return BattleLimitFamily.Combine;
+        }
         if (nativeDuelProcesses.ContainsKey(actor.Id))
         {
             return BattleLimitFamily.Duel;

@@ -90,11 +90,14 @@ public sealed partial class BattlePresentationProcess
         }
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };
         DrawSource(bodyGeometry ?? GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, maskOverride ?? model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native effect body drawing requires its current object mask."), bodyMaterial);
-        if (resource.IntrinsicHands is { } hands && ((maskOverride ?? model.SequenceState!.MeshMask124) & 1) != 0)
+        if (((maskOverride ?? model.SequenceState!.MeshMask124) & 1) != 0)
         {
-            var handMaterial = PrepareIntrinsicHandMaterial(index, hands);
-            ImmutableArray<NativeBattleRawMesh> handGeometry = hands.Geometry.Select(mesh => mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, handMaterial.Binding) }).ToImmutableArray() }).ToImmutableArray();
-            DrawSource(bodyGeometry ?? GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, uint.MaxValue, handMaterial.Material, 2, handGeometry);
+            foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
+            {
+                var handMaterial = PrepareActorSurfaceMaterial(index, hands);
+                ImmutableArray<NativeBattleRawMesh> handGeometry = hands.Geometry.Select(mesh => mesh with { Polygons = mesh.Polygons.Select(polygon => polygon with { Bytes = NativeBattleRawGeometryPackets.Relocate507550(polygon, handMaterial.Binding) }).ToImmutableArray() }).ToImmutableArray();
+                DrawSource(bodyGeometry ?? GeometryPointer(model.ActiveResourceRow100, model.ActiveStagedResourceRow100), NativeBattleBodyBoneMatrices.Require(model, source), source.BoneCount, uint.MaxValue, handMaterial.Material, (int)hands.Kind + 2, handGeometry);
+            }
         }
         model = prepareModel ? NativeBattleBodyBoneMatrices.Publish508C90(graphics.ActorModels.Get(index), source) : graphics.ActorModels.Get(index);
         graphics = graphics with { ActorModels = graphics.ActorModels.Set(index, model) };

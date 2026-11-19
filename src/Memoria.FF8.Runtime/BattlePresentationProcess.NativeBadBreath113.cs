@@ -426,7 +426,7 @@ public sealed partial class BattlePresentationProcess
             ImmutableArray<NativeBattleRawMesh> body = resource.Geometry!.Value;
             ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry!.Value;
             bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native Bad Breath requires linked skeleton ownership."));
-            NativeBattleModelTextureOwner? actorMaterial = PrepareIntrinsicBodyMaterials(graphics, actorIndex, resource);
+            NativeBattleModelTextureOwner? actorMaterial = PrepareActorSurfaceMaterials(graphics, actorIndex, resource);
             for (int index = 0; index < body.Length; index++)
             {
                 if ((actor.SequenceState!.MeshMask124 & (1u << (index & 31))) != 0)
@@ -434,12 +434,15 @@ public sealed partial class BattlePresentationProcess
                     Submit(shared && index == 1 ? linked.Single() : body[index], bones, shared && index == 1 ? actor.LinkedTextureSlots! : actor.BodyTextureSlots!, index, shared && index == 1, material: actorMaterial);
                 }
             }
-            if (resource.IntrinsicHands is { } hands && (actor.SequenceState!.MeshMask124 & 1) != 0)
+            if ((actor.SequenceState!.MeshMask124 & 1) != 0)
             {
-                var handMaterial = PrepareIntrinsicHandMaterial(actorIndex, hands);
-                for (int index = 0; index < hands.Geometry.Length; index++)
+                foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
                 {
-                    Submit(hands.Geometry[index], bones, handMaterial.Binding, 0x20000 + index, false, false, handMaterial.Material);
+                    var handMaterial = PrepareActorSurfaceMaterial(actorIndex, hands);
+                    for (int index = 0; index < hands.Geometry.Length; index++)
+                    {
+                        Submit(hands.Geometry[index], bones, handMaterial.Binding, hands.AuthoredMeshBase + index, false, false, handMaterial.Material);
+                    }
                 }
             }
             actor = NativeBattleBodyBoneMatrices.Publish508C90(actor, source);

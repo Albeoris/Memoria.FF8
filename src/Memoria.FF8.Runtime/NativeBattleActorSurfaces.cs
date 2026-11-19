@@ -2,8 +2,16 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleIntrinsicHandSurface
+public enum NativeBattleActorSurfaceKind
 {
+    IntrinsicHands,
+    LauncherMount
+}
+
+public sealed record NativeBattleActorSurface
+{
+    public NativeBattleActorSurfaceKind Kind { get; }
+    public int AuthoredMeshBase => ((int)Kind + 2) << 16;
     public ImmutableArray<NativeBattleRawMesh> Geometry { get; }
     public NativeBattleEffectHeapAllocation TexturePack { get; }
 
@@ -13,16 +21,17 @@ public sealed record NativeBattleIntrinsicHandSurface
     [System.Text.Json.Serialization.JsonIgnore]
     public string MaterialKey { get; }
 
-    public NativeBattleIntrinsicHandSurface(ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleEffectHeapAllocation texturePack)
+    public NativeBattleActorSurface(NativeBattleActorSurfaceKind kind, ImmutableArray<NativeBattleRawMesh> geometry, NativeBattleEffectHeapAllocation texturePack)
     {
         if (geometry.IsDefaultOrEmpty)
         {
-            throw new InvalidDataException("Intrinsic hands require their recipient-owned native surfaces.");
+            throw new InvalidDataException("Actor surfaces require their recipient-owned native surfaces.");
         }
         foreach (NativeBattleRawMesh mesh in geometry)
         {
             mesh.Validate();
         }
+        Kind = kind;
         Geometry = geometry;
         TexturePack = texturePack;
         PreparedMaterial = NativeBattleModelTextures.Prepare507400(texturePack, 0);
@@ -32,26 +41,29 @@ public sealed record NativeBattleIntrinsicHandSurface
 
 public sealed partial record NativeBattleGraphicsResource
 {
-    public NativeBattleIntrinsicHandSurface? IntrinsicHands { get; init; }
+    public ImmutableArray<NativeBattleActorSurface> ActorSurfaces { get; init; } = [];
 }
 
 public sealed partial class BattlePresentationProcess
 {
-    private NativeBattleModelTextureOwner? PrepareIntrinsicBodyMaterials(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsResource resource)
+    private NativeBattleModelTextureOwner? PrepareActorSurfaceMaterials(NativeBattleGraphicsState graphics, BattleModelOwner owner, NativeBattleGraphicsResource resource)
     {
-        if (resource.IntrinsicHands is not { } hands)
+        if (resource.ActorSurfaces.IsDefaultOrEmpty)
         {
             return null;
         }
-        _ = PrepareIntrinsicHandMaterial(owner, hands);
-        return SelectNativeModelMaterial(graphics, owner) ?? throw new NotSupportedException("Intrinsic hand surfaces require their actor's native presentation material namespace.");
+        foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
+        {
+            _ = PrepareActorSurfaceMaterial(owner, hands);
+        }
+        return SelectNativeModelMaterial(graphics, owner) ?? throw new NotSupportedException("Actor surfaces require their actor's native presentation material namespace.");
     }
 
-    private (NativeBattleModelTextureBinding Binding, NativeBattleModelTextureOwner Material) PrepareIntrinsicHandMaterial(BattleModelOwner owner, NativeBattleIntrinsicHandSurface hands)
+    private (NativeBattleModelTextureBinding Binding, NativeBattleModelTextureOwner Material) PrepareActorSurfaceMaterial(BattleModelOwner owner, NativeBattleActorSurface hands)
     {
-        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Intrinsic hands require their retained native material owner.");
-        NativeBattleEffectTextureState textures = memory.Textures ?? throw new InvalidDataException("Intrinsic hands require the actor presentation texture banks.");
-        string materialPrefix = ReadGraphicsPresentationId(owner) + "/intrinsic-hands/";
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Actor surfaces require their retained native material owner.");
+        NativeBattleEffectTextureState textures = memory.Textures ?? throw new InvalidDataException("Actor surfaces require the actor presentation texture banks.");
+        string materialPrefix = ReadGraphicsPresentationId(owner) + "/actor-surface/" + hands.Kind + "/";
         string materialId = materialPrefix + hands.MaterialKey;
         NativeBattleModelTextureLoad upload = hands.PreparedMaterial;
         if (textures.PresentationTextures?.ContainsKey(materialId) != true)
@@ -60,7 +72,7 @@ public sealed partial class BattlePresentationProcess
             {
                 textures = textures with { PresentationTextures = previousBanks.RemoveRange(previousBanks.Keys.Where(key => key.StartsWith(materialPrefix, StringComparison.Ordinal))) };
             }
-            NativeBattlePcTextureWindowCache cache = memory.PrimitiveProcess?.TextureWindowCache ?? throw new InvalidDataException("Intrinsic hands require an initialized native material cache.");
+            NativeBattlePcTextureWindowCache cache = memory.PrimitiveProcess?.TextureWindowCache ?? throw new InvalidDataException("Actor surfaces require an initialized native material cache.");
             NativeBattleEffectTextureState leaf = textures with { PresentationTextures = null, Count = 0, Slots = NativeBattleEffectTextureState.FromColdProcess().Slots, Animation = null };
             leaf = NativeBattleModelTextures.Enqueue507400(leaf, upload);
             textures = textures.WithPresentationTexture(materialId, new(leaf, NativeBattlePcTextureWindowCache.Reset4647A0(cache)));

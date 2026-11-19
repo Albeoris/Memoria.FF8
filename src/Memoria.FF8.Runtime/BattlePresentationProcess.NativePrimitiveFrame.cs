@@ -162,11 +162,14 @@ public sealed partial class BattlePresentationProcess
             bool selected = Enumerable.Range(0, geometry.Length).Any(index => (mask & (1u << (index & 31))) != 0);
             graphics = AppendNativeModelRendererPackets(graphics, bodyPrimitives, selected, measureModelPlacement: true);
         }
-        if (bodyDraw && resource.IntrinsicHands is { } hands && (mask & 1) != 0)
+        if (bodyDraw && (mask & 1) != 0)
         {
-            var handMaterial = PrepareIntrinsicHandMaterial(owner, hands);
-            NativeBattleModelPrimitiveBatch handPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(hands.Geometry, matrices, projection, color, uint.MaxValue, null, 17, 4, handMaterial.Binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, geometry.Length), actorId: actorId, material: handMaterial.Material);
-            graphics = AppendNativeModelRendererPackets(graphics, handPrimitives, true, measureModelPlacement: true);
+            foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
+            {
+                var handMaterial = PrepareActorSurfaceMaterial(owner, hands);
+                NativeBattleModelPrimitiveBatch handPrimitives = NativeBattleRawGeometryPackets.EmitModel5099D0(hands.Geometry, matrices, projection, color, uint.MaxValue, null, 17, 4, handMaterial.Binding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, hands.AuthoredMeshBase), actorId: actorId, material: handMaterial.Material);
+                graphics = AppendNativeModelRendererPackets(graphics, handPrimitives, true, measureModelPlacement: true);
+            }
         }
         if (!shared && !linked.IsEmpty && (model.Flags0 & 0x200) == 0)
         {

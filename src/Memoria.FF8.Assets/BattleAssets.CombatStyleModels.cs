@@ -53,6 +53,12 @@ public sealed partial class BattleAssets
                 geometry = ReplaceEquipmentBodyObject(original.Bytes.AsSpan().Slice(start, original.Section(2) - start), recipient.Meshes[0].Vertices.Count);
             }
         }
+        if (character == 4)
+        {
+            meshes = meshes.Select((mesh, index) => index == 0 ? SelectRinoaLauncherMount(mesh, recipient, false) : mesh).ToArray();
+            geometry = EncodeNativeBodyGeometry(meshes);
+            meshes = RefreshNativeVertexGroups(meshes, geometry.Value);
+        }
         if (sourceCharacter == 1 && character != 1)
         {
             int[] hands = BattleHumanoidRigProfiles.SemanticPairs(character, recipient, character, recipient).Where(pair => pair.Joint is "hand-a" or "hand-b").Select(pair => pair.Recipient).ToArray();

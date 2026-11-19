@@ -28,7 +28,8 @@ public sealed partial class BattleAssets
         if (unarmed && geometry is { } unarmedBody)
         {
             BattleModel ownBody = LoadPlayer(actor.ModelId, actor.Costume);
-            geometry = unarmedBody.SetItem(0, (ownBody.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(ownBody.Meshes))[0]);
+            ImmutableArray<NativeBattleRawMesh> ownGeometry = actor.ModelId == 4 ? NativeBattleGeometryMetadata.FromMeshes(ownBody.Meshes.Select((mesh, index) => index == 0 ? SelectRinoaLauncherMount(mesh, ownBody, false) : mesh).ToArray()) : ownBody.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(ownBody.Meshes);
+            geometry = unarmedBody.SetItem(0, ownGeometry[0]);
         }
         NativeBattleGraphicsResource presentation = equipment with
         {
@@ -45,7 +46,7 @@ public sealed partial class BattleAssets
             LinkedAnimationFrames = unarmed ? [] : equipment.LinkedAnimationFrames,
             EquipmentPresentationRole = unarmed ? NativeBattleEquipmentPresentationRole.FreeHands : NativeBattleEquipmentPresentationRole.Equipped
         };
-        presentation = BindIntrinsicHands(presentation, actor, unarmed);
+        presentation = BindActorSurfaces(presentation, actor, unarmed, family == BattleLimitFamily.Combine);
         presentation = BindLoadoutAnimationBanks(presentation, actor, LoadPlayer(actor.ModelId, actor.Costume), family);
         return BindLimitGunbladeMotion(presentation, actor, family, sourceCharacter, equippedStyle);
     }

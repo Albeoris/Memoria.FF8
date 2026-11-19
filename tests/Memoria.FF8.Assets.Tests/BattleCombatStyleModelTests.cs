@@ -145,17 +145,25 @@ public sealed class BattleCombatStyleModelTests
         Assert.Equal(NativeBattleEquipmentPresentationRole.FreeHands, free.EquipmentPresentationRole);
         Assert.Empty(free.LinkedGeometry!.Value);
         Assert.Equal(originalGeometry[0].Vertices.ToArray(), free.Geometry!.Value[0].Vertices.ToArray());
-        Assert.Equal(originalGeometry[0].Polygons.ToArray(), free.Geometry.Value[0].Polygons.ToArray());
-        if (recipient is 1 or 9)
+        if (recipient == 4)
         {
-            Assert.NotNull(free.IntrinsicHands);
-            Assert.Contains(free.IntrinsicHands.Geometry, mesh => !mesh.Polygons.IsEmpty);
-            Assert.NotEqual(free.BodyTexturePack!.Data, free.IntrinsicHands.TexturePack.Data);
-            Assert.All(free.IntrinsicHands.Geometry.SelectMany(mesh => mesh.Vertices), vertex => Assert.InRange(vertex.Bone, 0, original.Bones.Count - 1));
+            Assert.True(free.Geometry.Value[0].Polygons.Length < originalGeometry[0].Polygons.Length);
         }
         else
         {
-            Assert.Null(free.IntrinsicHands);
+            Assert.Equal(originalGeometry[0].Polygons.ToArray(), free.Geometry.Value[0].Polygons.ToArray());
+        }
+        if (recipient is 1 or 9)
+        {
+            NativeBattleActorSurface hands = Assert.Single(free.ActorSurfaces);
+            Assert.Equal(NativeBattleActorSurfaceKind.IntrinsicHands, hands.Kind);
+            Assert.Contains(hands.Geometry, mesh => !mesh.Polygons.IsEmpty);
+            Assert.NotEqual(free.BodyTexturePack!.Data, hands.TexturePack.Data);
+            Assert.All(hands.Geometry.SelectMany(mesh => mesh.Vertices), vertex => Assert.InRange(vertex.Bone, 0, original.Bones.Count - 1));
+        }
+        else
+        {
+            Assert.Empty(free.ActorSurfaces);
         }
         if (source == 1 && recipient != 1)
         {

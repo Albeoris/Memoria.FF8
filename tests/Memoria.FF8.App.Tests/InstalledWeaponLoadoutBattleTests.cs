@@ -39,6 +39,12 @@ public sealed class InstalledWeaponLoadoutBattleTests
         Run(recipient, donor);
     }
 
+    [Fact]
+    public void Supplementary_Zell_launcher_preserves_own_hands_and_transferred_mount()
+    {
+        Run(1, 4);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

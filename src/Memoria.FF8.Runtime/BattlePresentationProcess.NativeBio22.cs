@@ -124,10 +124,10 @@ public sealed partial class BattlePresentationProcess
                     }
                 }
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                if (resource.IntrinsicHands is not null)
+                if (!resource.ActorSurfaces.IsDefaultOrEmpty)
                 {
                     NativeEffectMemory = actual.Memory;
-                    _ = PrepareIntrinsicBodyMaterials(graphics, index, resource);
+                    _ = PrepareActorSurfaceMaterials(graphics, index, resource);
                     actual = actual with { Memory = NativeEffectMemory! };
                 }
                 NativeBattleModelTextureOwner? material = SelectNativeModelMaterial(graphics, index);
@@ -135,7 +135,7 @@ public sealed partial class BattlePresentationProcess
                 ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
                 NativeBattleSequenceState sequence = model.SequenceState ?? throw new NotSupportedException("Native Bio body requires its current mesh mask.");
                 short zsf4 = actual.Memory.ScriptedGraphics?.Zsf4 ?? throw new NotSupportedException("Native Bio body requires its initialized current ZSF4.");
-                foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, sequence.MeshMask124, resource.IntrinsicHands is null ? null : material))
+                foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, sequence.MeshMask124, resource.ActorSurfaces.IsDefaultOrEmpty ? null : material))
                 {
                     NativeBattleBio22ActorMemory owner = actual.Memory.Bio22ActorMemory ?? throw new NotSupportedException("Native Bio body requires its current physical projected work.");
                     ImmutableArray<NativeBattleRawMesh> bodyGeometry = resource.Geometry ?? throw new NotSupportedException("Native Bio body requires its authored geometry directory.");
@@ -145,7 +145,7 @@ public sealed partial class BattlePresentationProcess
                         ImmutableArray<NativeBattleRawMesh> linkedGeometry = resource.LinkedGeometry ?? throw new NotSupportedException("Native Bio body requires its authored linked geometry directory.");
                         meshIdentity = bodyGeometry.Length + linkedGeometry.IndexOf(geometry.Mesh);
                     }
-                    if (geometry.Layer == NativeBattleActorGeometryLayer.IntrinsicHands)
+                    if (geometry.Layer == NativeBattleActorGeometryLayer.ActorSurface)
                     {
                         meshIdentity = geometry.AuthoredMesh;
                     }

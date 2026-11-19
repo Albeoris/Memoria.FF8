@@ -9,7 +9,7 @@ public enum NativeBattleActorGeometryLayer
 {
     Body,
     Equipment,
-    IntrinsicHands
+    ActorSurface
 }
 
 public sealed record NativeBattleCureActorGeometry(NativeBattleRawMesh Mesh, NativeBattleModelTextureBinding Binding, bool AlreadyRelocated = false)
@@ -92,13 +92,16 @@ public static class NativeBattleCureActorAssembly
                 }
             }
         }
-        if (resource.IntrinsicHands is { } hands && (mask & 1) != 0)
+        if ((mask & 1) != 0)
         {
-            string actorId = material?.RequireActorId() ?? throw new NotSupportedException("Intrinsic hand drawing requires its prepared actor material namespace.");
-            NativeBattleModelTextureOwner handMaterial = new(actorId + "/intrinsic-hands/" + hands.MaterialKey);
-            for (int index = 0; index < hands.Geometry.Length; index++)
+            foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
             {
-                selected.Add(new(hands.Geometry[index], hands.PreparedMaterial.Binding) { AuthoredMesh = 0x20000 + index, MaterialOwner = handMaterial, Layer = NativeBattleActorGeometryLayer.IntrinsicHands });
+                string actorId = material?.RequireActorId() ?? throw new NotSupportedException("Intrinsic hand drawing requires its prepared actor material namespace.");
+                NativeBattleModelTextureOwner handMaterial = new(actorId + "/actor-surface/" + hands.Kind + "/" + hands.MaterialKey);
+                for (int index = 0; index < hands.Geometry.Length; index++)
+                {
+                    selected.Add(new(hands.Geometry[index], hands.PreparedMaterial.Binding) { AuthoredMesh = hands.AuthoredMeshBase + index, MaterialOwner = handMaterial, Layer = NativeBattleActorGeometryLayer.ActorSurface });
+                }
             }
         }
         return selected.ToImmutable();

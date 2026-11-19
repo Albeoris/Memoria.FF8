@@ -98,6 +98,7 @@ public sealed partial class BattleSession
         }
         preparePresentationModelBinding = modelBindingProvider;
         expandedPresentationProcess = process;
+        process.InitializeRestoredLimitPresentationScopes();
         process.RefreshPreparedPresentationAtBoundary();
     }
 }

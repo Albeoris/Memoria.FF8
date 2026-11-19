@@ -6,23 +6,97 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    private NativeBattleGraphicsResource BindIntrinsicHands(NativeBattleGraphicsResource resource, BattleCombatantDefinition actor, bool freeHands = false)
+    private static BattleMesh SelectRinoaLauncherMount(BattleMesh mesh, BattleModel body, bool mount)
     {
-        if (actor.ModelId is not (1 or 9))
+        var joints = BattleHumanoidRigProfiles.SemanticPairs(4, body, 4, body);
+        int forearm = joints.Single(pair => pair.Joint == "forearm-a").Recipient;
+        int oppositeForearm = joints.Single(pair => pair.Joint == "forearm-b").Recipient;
+        int[] parents = Enumerable.Range(0, mesh.Vertices.Count).ToArray();
+        int Root(int vertex)
         {
-            return resource with { IntrinsicHands = null };
+            while (parents[vertex] != vertex)
+            {
+                vertex = parents[vertex];
+            }
+            return vertex;
         }
-        int style = resource.CombatStyleModelId ?? actor.ModelId;
-        if (!freeHands && (style == 1 || actor.ModelId == 9 && style == 9))
+        foreach (BattleFace face in mesh.Faces)
         {
-            return resource with { IntrinsicHands = null };
+            foreach (int vertex in face.Vertices.Skip(1))
+            {
+                parents[Root(vertex)] = Root(face.Vertices[0]);
+            }
         }
-        BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
-        int nativeWeapon = WeaponDefinitions.First(weapon => weapon.CharacterId == actor.ModelId).Id;
-        BattleModel ownHands = LoadWeapon(ResolvePlayerWeaponName(actor.ModelId, nativeWeapon), body);
-        IReadOnlyList<BattleMesh> meshes = actor.ModelId == 9 ? ownHands.Meshes.Select(mesh => SelectKirosHandComponents(mesh, true)).ToArray() : ownHands.Meshes;
-        return resource with { IntrinsicHands = new(NativeBattleGeometryMetadata.FromMeshes(meshes), ownHands.NativeWeaponTexturePack ?? throw new InvalidDataException("The recipient's intrinsic hands require their own native texture pack.")) };
+        var components = mesh.Faces.GroupBy(face => Root(face.Vertices[0])).Select(group => new { Root = group.Key, Faces = group.ToArray(), Vertices = group.SelectMany(face => face.Vertices).Distinct().ToArray() }).ToArray();
+        var sleeves = components.Where(component => component.Vertices.All(index => mesh.Vertices[index].Bone == oppositeForearm)).ToArray();
+        if (sleeves.Length != 1)
+        {
+            throw new NotSupportedException("Rinoa's launcher composition requires one separate opposite forearm sleeve component.");
+        }
+        var sleeve = sleeves[0];
+        var forearmComponents = components.Where(component => component.Vertices.All(index => mesh.Vertices[index].Bone == forearm)).ToArray();
+        (short MinY, short MaxY, short MinZ, short MaxZ) Bounds(int[] vertices)
+        {
+            NativeBattleVector[] points = vertices.Select(index => mesh.Vertices[index].NativePosition ?? throw new InvalidDataException("Launcher composition requires native local coordinates.")).ToArray();
+            return (points.Min(point => point.Y), points.Max(point => point.Y), points.Min(point => point.Z), points.Max(point => point.Z));
+        }
+        var matchingSleeves = forearmComponents.Where(component => Bounds(component.Vertices) == Bounds(sleeve.Vertices)).ToArray();
+        if (matchingSleeves.Length != 1 || forearmComponents.Length <= 1)
+        {
+            throw new NotSupportedException("Rinoa's launcher composition requires a unique sleeve counterpart and separate launcher housing components.");
+        }
+        HashSet<int> hardware = forearmComponents.Where(component => component.Root != matchingSleeves[0].Root).Select(component => component.Root).ToHashSet();
+        return mesh with { Faces = mesh.Faces.Where(face => hardware.Contains(Root(face.Vertices[0])) == mount).ToArray() };
     }
+
+    private NativeBattleGraphicsResource BindActorSurfaces(NativeBattleGraphicsResource resource, BattleCombatantDefinition actor, bool freeHands = false, bool requireLauncherMount = false)
+    {
+        ImmutableArray<NativeBattleActorSurface>.Builder surfaces = ImmutableArray.CreateBuilder<NativeBattleActorSurface>();
+        int style = resource.CombatStyleModelId ?? actor.ModelId;
+        BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
+        if (actor.ModelId is 1 or 9 && (freeHands || style != 1 && (actor.ModelId != 9 || style != 9)))
+        {
+            int nativeWeapon = WeaponDefinitions.First(definition => definition.CharacterId == actor.ModelId).Id;
+            BattleModel ownHands = LoadWeapon(ResolvePlayerWeaponName(actor.ModelId, nativeWeapon), body);
+            IReadOnlyList<BattleMesh> meshes = actor.ModelId == 9 ? ownHands.Meshes.Select(mesh => SelectKirosHandComponents(mesh, true)).ToArray() : ownHands.Meshes;
+            surfaces.Add(new(NativeBattleActorSurfaceKind.IntrinsicHands, NativeBattleGeometryMetadata.FromMeshes(meshes), ownHands.NativeWeaponTexturePack ?? throw new InvalidDataException("The recipient's intrinsic hands require their own native texture pack.")));
+        }
+        bool needsMount = requireLauncherMount || !freeHands && style == 4;
+        bool nativeMountPresent = actor.ModelId == 4 && style == 4 && !freeHands;
+        if (needsMount && !nativeMountPresent)
+        {
+            BattleModel launcherBody = LoadPlayer(4);
+            BattleMesh mount = SelectRinoaLauncherMount(launcherBody.Meshes[0], launcherBody, true);
+            Dictionary<int, int> joints = BattleHumanoidRigProfiles.SemanticPairs(4, launcherBody, actor.ModelId, body).ToDictionary(pair => pair.Source, pair => pair.Recipient);
+            float units = launcherBody.NativePoseSource!.ReadModelScale5027D0() / body.NativePoseSource!.ReadModelScale5027D0();
+            int[] selectedVertices = mount.Faces.SelectMany(face => face.Vertices).Distinct().Order().ToArray();
+            Dictionary<int, int> indices = selectedVertices.Select((source, target) => (source, target)).ToDictionary(pair => pair.source, pair => pair.target);
+            BattleVertex[] vertices = selectedVertices.Select(index => mount.Vertices[index]).Select(vertex =>
+            {
+                if (!joints.TryGetValue(vertex.Bone, out int bone))
+                {
+                    throw new NotSupportedException("The launcher mount reaches a bone outside its semantic attachment profile.");
+                }
+                NativeBattleVector position = vertex.NativePosition ?? throw new InvalidDataException("The launcher mount requires its native local coordinates.");
+                NativeBattleVector mapped = new(checked((short)MathF.Round(position.X * units)), checked((short)MathF.Round(position.Y * units)), checked((short)MathF.Round(position.Z * units)));
+                return vertex with { Bone = bone, NativePosition = mapped, Position = new System.Numerics.Vector3(-mapped.X, -mapped.Y, mapped.Z) / 2048f };
+            }).ToArray();
+            BattleFace[] faces = mount.Faces.Select(face =>
+            {
+                byte[] polygon = face.NativePolygon.ToArray();
+                for (int lane = 0; lane < face.Vertices.Length; lane++)
+                {
+                    ushort original = BinaryPrimitives.ReadUInt16LittleEndian(polygon.AsSpan(lane * 2));
+                    BinaryPrimitives.WriteUInt16LittleEndian(polygon.AsSpan(lane * 2), checked((ushort)((original & 0xF000) | indices[original & 0xFFF])));
+                }
+                return face with { Vertices = face.Vertices.Select(index => indices[index]).ToArray(), NativePolygon = polygon.ToImmutableArray() };
+            }).ToArray();
+            mount = mount with { Vertices = vertices, Faces = faces, NativeBoneGroups = null, NativePackedVertexGroups = null };
+            surfaces.Add(new(NativeBattleActorSurfaceKind.LauncherMount, NativeBattleGeometryMetadata.FromMeshes([mount]), launcherBody.NativeBodyTexturePack ?? throw new InvalidDataException("The launcher mount requires its source body texture pack.")));
+        }
+        return resource with { ActorSurfaces = surfaces.ToImmutable() };
+    }
+
     private static BattleMesh SelectKirosHandComponents(BattleMesh mesh, bool hands)
     {
         int[] parents = Enumerable.Range(0, mesh.Vertices.Count).ToArray();

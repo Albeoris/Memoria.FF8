@@ -98,8 +98,9 @@ public sealed class NativeBattleCureActorAssemblyTests
     public void Intrinsic_hands_follow_the_body_mask_with_their_own_material_while_effect_overlays_keep_effect_textures(bool cura)
     {
         var fixture = Fixture();
-        NativeBattleIntrinsicHandSurface hands = new([Mesh(55)], HandTexturePack());
-        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [Mesh(11)], LinkedGeometry = [], IntrinsicHands = hands };
+        NativeBattleActorSurface hands = new(NativeBattleActorSurfaceKind.IntrinsicHands, [Mesh(55)], HandTexturePack());
+        NativeBattleActorSurface mount = new(NativeBattleActorSurfaceKind.LauncherMount, [Mesh(56)], HandTexturePack());
+        NativeBattleGraphicsResource resource = fixture.Resource with { Geometry = [Mesh(11)], LinkedGeometry = [], ActorSurfaces = [hands, mount] };
         NativeBattleModelTextureOwner material = new("recipient");
         NativeBattleActionMatrix camera = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 20000, 4096);
         NativeBattleCameraProjection projection = new(camera, 216, 20, 15);
@@ -107,13 +108,19 @@ public sealed class NativeBattleCureActorAssemblyTests
             ? NativeBattleCureActorAssembly.Emit88BDA0(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0, material: material)
             : NativeBattleCureActorAssembly.Emit8D7110(fixture.Model, resource, camera, projection, new(0, 0, 0), 0, 0, material: material);
         NativeBattleGeometryPrimitive[] body = batch.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.Process).Select(item => item.Primitive).ToArray();
-        Assert.Equal(2, body.Length);
+        Assert.Equal(3, body.Length);
         Assert.Equal("recipient", body[0].ModelTextureOwner!.ActorId);
-        Assert.Equal("recipient/intrinsic-hands/" + hands.MaterialKey, body[1].ModelTextureOwner!.ActorId);
+        Assert.Equal("recipient/actor-surface/IntrinsicHands/" + hands.MaterialKey, body[1].ModelTextureOwner!.ActorId);
+        Assert.Equal("recipient/actor-surface/LauncherMount/" + mount.MaterialKey, body[2].ModelTextureOwner!.ActorId);
         Assert.All(batch.Primitives.Where(item => item.Bank == NativeBattleCurePacketBank.EffectPrimary), item => Assert.Null(item.Primitive.ModelTextureOwner));
         var geometry = NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 1, material);
-        Assert.Equal(NativeBattleActorGeometryLayer.IntrinsicHands, geometry[1].Layer);
+        Assert.Equal(NativeBattleActorGeometryLayer.ActorSurface, geometry[1].Layer);
         Assert.Same(hands.PreparedMaterial.Binding, geometry[1].Binding);
+        var reordered = NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource with { ActorSurfaces = [mount, hands] }, 1, material);
+        Assert.Equal(geometry[1].AuthoredMesh, reordered[2].AuthoredMesh);
+        Assert.Equal(geometry[2].AuthoredMesh, reordered[1].AuthoredMesh);
+        Assert.Equal(geometry[1].MaterialOwner, reordered[2].MaterialOwner);
+        Assert.Equal(geometry[2].MaterialOwner, reordered[1].MaterialOwner);
         Assert.Empty(NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 0));
         Assert.Throws<NotSupportedException>(() => NativeBattleCureActorAssembly.SelectGeometry8D7110(fixture.Model, resource, 1));
     }

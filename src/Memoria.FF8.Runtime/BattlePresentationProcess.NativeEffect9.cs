@@ -197,10 +197,10 @@ public sealed partial class BattlePresentationProcess
             }
             uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Effect9 body requires its current mesh mask.");
             NativeBattleModelTextureOwner? material = null;
-            if (resource.IntrinsicHands is not null)
+            if (!resource.ActorSurfaces.IsDefaultOrEmpty)
             {
                 NativeEffectMemory = current.Memory;
-                material = PrepareIntrinsicBodyMaterials(graphics, actor, resource);
+                material = PrepareActorSurfaceMaterials(graphics, actor, resource);
                 current = current with { Memory = NativeEffectMemory! };
             }
             NativeBattleEffect9BodyDraw body = NativeBattleEffect9Body.Draw(current, NativeBattleCureActorAssembly.SelectGeometry8D7110(model, resource, mask, material), NativeBattleBodyBoneMatrices.Require(model, source), composed, Projection(), unchecked((short)current.State.ReadWord(0x274F048)), unchecked((short)current.State.ReadWord(0x274F04A)), unchecked((short)current.State.ReadWord(0x274F046)), mask, visualIdentity);

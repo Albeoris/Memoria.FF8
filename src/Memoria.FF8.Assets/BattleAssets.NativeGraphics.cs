@@ -27,7 +27,7 @@ public sealed partial class BattleAssets
             NativeBattleGraphicsResource result = (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank, TextureAnimations = body.NativeTextureAnimations, BodyTexturePack = body.NativeBodyTexturePack, LinkedTexturePack = owner.NativeWeaponTexturePack, LinkedGeometryUsesBodySkeleton = owner.NativeWeaponUsesBodySkeleton, Geometry = body.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(body.NativeControlMeshes ?? body.Meshes), LinkedGeometry = owner.NativeWeaponUsesBodySkeleton == true ? owner.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(owner.NativeControlMeshes ?? owner.Meshes) : linked is null ? [] : linked.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(linked.NativeControlMeshes ?? linked.Meshes) };
             result = BindNativeAnimationBankOverrides(result, body, linked, actor.ModelId);
             result = BindLoadoutAnimationBanks(result, actor, LoadPlayer(actor.ModelId, actor.Costume));
-            result = BindIntrinsicHands(result, actor);
+            result = BindActorSurfaces(result, actor);
             return BindNativeModelLoadSources(result, actor);
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);

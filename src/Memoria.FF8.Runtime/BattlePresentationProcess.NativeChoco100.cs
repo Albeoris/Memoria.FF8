@@ -162,10 +162,10 @@ public sealed partial class BattlePresentationProcess
                 int offset = checked((int)(settings.WorkAddress() - NativeBattleEffectNodeMemory.ArenaAddress));
                 NativeBattleChoco100Wave wave = new(unchecked((short)drawnTask.ReadWord(0xC2)), drawnTask.ReadWord(0xC4), drawnTask.ReadWord(0xC6), drawnTask.ReadWord(0xC8), drawnTask.ReadWord(0xC0));
                 NativeBattleModelTextureOwner? material = null;
-                if (resource.IntrinsicHands is not null)
+                if (!resource.ActorSurfaces.IsDefaultOrEmpty)
                 {
                     NativeEffectMemory = current.Memory;
-                    material = PrepareIntrinsicBodyMaterials(graphics, owner, resource);
+                    material = PrepareActorSurfaceMaterials(graphics, owner, resource);
                     current = current with { Memory = NativeEffectMemory! };
                 }
                 foreach (NativeBattleCureActorGeometry geometry in NativeBattleCureActorAssembly.SelectGeometry8D7110(actor, resource, sequence.MeshMask124, material))
