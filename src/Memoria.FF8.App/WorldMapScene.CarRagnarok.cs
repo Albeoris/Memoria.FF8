@@ -229,10 +229,6 @@ internal sealed partial class WorldMapScene
             {
                 throw new NotSupportedException("Nearby Ragnarok-allocation auxiliary actor requires its original animated presentation.");
             }
-            if (item.ShapeId == 94)
-            {
-                throw new NotSupportedException("Nearby Ragnarok-allocation Cactuar presentation requires its executed pre-AI draw phase.");
-            }
             NativeWorldPathNodeProjection draw = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
             if (draw.Visible)
             {

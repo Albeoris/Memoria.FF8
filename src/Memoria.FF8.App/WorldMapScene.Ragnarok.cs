@@ -142,7 +142,7 @@ internal sealed partial class WorldMapScene
                 }
                 continue;
             }
-            if (item.ShapeId < 64 || item.ShapeId == 94)
+            if (item.ShapeId < 64)
             {
                 throw new NotSupportedException($"Nearby Ragnarok auxiliary actor shape{item.ShapeId} requires its executed original animation/process publication.");
             }

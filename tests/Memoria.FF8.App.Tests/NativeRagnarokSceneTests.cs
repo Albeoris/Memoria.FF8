@@ -1,6 +1,8 @@
+using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -43,6 +45,64 @@ public sealed class NativeRagnarokSceneTests
         Assert.False(empty.SequenceEqual(onlySpray.Render(320, 224)));
         Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
         Assert.NotEmpty(scene.Render(320, 224, interpolation: 0.5f));
+    }
+
+    [Theory]
+    [InlineData(0, 0, false, false)]
+    [InlineData(1, 1, false, false)]
+    [InlineData(1, 29, false, false)]
+    [InlineData(2, 1, true, false)]
+    [InlineData(3, 1, true, false)]
+    [InlineData(3, 29, true, false)]
+    [InlineData(4, 1, false, false)]
+    [InlineData(2, 1, true, true)]
+    [InlineData(3, 29, true, true)]
+    public void NearbyCactuarUsesItsStaticModelAndPreAiVisibilityAcrossRestore(int phase, int counter, bool visible, bool car)
+    {
+        GameSession session = Fixture();
+        if (car)
+        {
+            session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(264, 1, 8).WriteBytes(265, 1, 1));
+            session.Restore(session.State with { WorldArrival = new(3, 38, -1) });
+        }
+        using WorldMapScene scene = new(session, GameDirectory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        NativeRagnarokWorldRuntimeState runtime = scene.State.NativeRagnarokRuntime ?? scene.State.NativeCarRuntime!.RagnarokObjects!;
+        int index = runtime.Objects.Select((item, index) => (item, index)).Single(pair => pair.item.ShapeId == 94).index;
+        NativeWorldFootCameraState camera = runtime.ProjectionCamera!;
+        NativeWorldPathPosition position = new(camera.TargetX, camera.TargetNativeHeight, -camera.TargetRawZ);
+        NativeRagnarokWorldObject body = runtime.Objects[index] with { Position = position, Pitch = 0, Yaw = 0, Roll = 0 };
+        runtime = runtime with { Objects = runtime.Objects.SetItem(index, body), Cactuar = new(phase, counter) };
+        session.SetWorldState(car ? scene.State with { NativeCarRuntime = scene.State.NativeCarRuntime! with { RagnarokObjects = runtime } } : scene.State with { NativeRagnarokRuntime = runtime });
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        runtime = scene.State.NativeRagnarokRuntime ?? scene.State.NativeCarRuntime!.RagnarokObjects!;
+        NativeWorldPathProjectionCertificate projection = car ? NativeWorldPathProjectionCertificate.CreateFoot(scene.State.NativeCarRuntime!.ProjectionCamera!) : NativeWorldPathProjectionCertificate.CreateRagnarok(runtime.ProjectionCamera!, runtime.ProjectionCurveThreshold!.Value);
+        Assert.True(projection.IsNear(position));
+        Assert.True(projection.ProjectNode(position)!.Visible);
+        Assert.NotEmpty(scene.Render(160, 112, interpolation: 0.5f));
+        AssertCactuarDraw(scene, index, visible);
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, GameDirectory);
+        string saved = JsonSerializer.Serialize(restoredSession.State);
+        Assert.NotEmpty(restored.Render(160, 112));
+        AssertCactuarDraw(restored, index, visible);
+        Assert.Equal(saved, JsonSerializer.Serialize(restoredSession.State));
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), restored.Apply(new(PlayerActionKind.Wait)));
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restoredSession.State));
+    }
+
+    private static void AssertCactuarDraw(WorldMapScene scene, int index, bool visible)
+    {
+        WorldPresentation history = (WorldPresentation)typeof(WorldMapScene).GetField("presentation", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene)!;
+        NativeWorldStaticModelDraw[] draws = history.Current!.StaticModels!.Where(draw => draw.ObjectId == new WorldRenderObjectId(WorldRenderObjectKind.Allocation, index)).ToArray();
+        Assert.Equal(visible ? 1 : 0, draws.Length);
+        if (visible)
+        {
+            Assert.Equal((byte)94, draws[0].Model.ShapeId);
+            Assert.Equal(30, draws[0].Model.ModelIndex);
+            Assert.Equal(new NativeWorldPathAngles(0, 0, 0), draws[0].Pose.Angles);
+            Assert.NotEmpty(draws[0].Model.Faces);
+        }
     }
 
     [Theory]
