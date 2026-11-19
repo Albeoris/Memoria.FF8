@@ -102,6 +102,10 @@ public static partial class NativeBattleAuxiliaryContactSolver
             double[] row = new double[variables.Length * 3];
             for (int variable = 0; variable < variables.Length; variable++)
             {
+                if (!influences[variable, cloth[0]] && !influences[variable, cloth[1]] && !influences[variable, cloth[2]])
+                {
+                    continue;
+                }
                 int bone = variables[variable];
                 Matrix4x4 parent = parents[bone] < 0 ? Matrix4x4.Identity : state.Globals[parents[bone]];
                 for (int coordinate = 0; coordinate < 3; coordinate++)

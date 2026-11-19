@@ -13,6 +13,8 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
     public static NativeBattleDecodedPose Solve(NativeBattlePoseSource rig, NativeBattleDecodedPose target, NativeBattleAuxiliaryContactCalibration calibration) => new Prepared(rig, calibration).Solve(target);
 
+    internal static NativeBattleDecodedPose SolveObserved(NativeBattlePoseSource rig, NativeBattleDecodedPose target, NativeBattleAuxiliaryContactCalibration calibration, Action<int, NativeBattleAuxiliaryContactReport, NativeBattleAuxiliaryContactReport> observer) => new Prepared(rig, calibration).Solve(target, observer);
+
     public static NativeBattleAuxiliaryContactReport Inspect(NativeBattlePoseSource rig, NativeBattleDecodedPose pose, NativeBattleAuxiliaryContactCalibration calibration) => new Prepared(rig, calibration).Inspect(pose);
 
     internal sealed class Prepared
@@ -65,7 +67,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
             return Report(geometry.ReadFacts(Read(pose)));
         }
 
-        public NativeBattleDecodedPose Solve(NativeBattleDecodedPose target)
+        public NativeBattleDecodedPose Solve(NativeBattleDecodedPose target, Action<int, NativeBattleAuxiliaryContactReport, NativeBattleAuxiliaryContactReport>? observer = null)
         {
             ValidatePose(target);
             if (variables.Length == 0 || clothIds.Length == 0 || bodyIds.Length == 0)
@@ -97,7 +99,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 state.InvalidGeometry = geometry.HasCollapsedCorrection(initialTarget, state);
                 return state;
             }
-            Solution solution = Run(Evaluate, geometry, initialTarget, initialFacts);
+            Solution solution = Run(Evaluate, geometry, initialTarget, initialFacts, observer);
             NativeBattleDecodedPose corrected = solution.Pose;
             ImmutableArray<NativeBattleActionMatrix> originalGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, target);
             ImmutableArray<NativeBattleActionMatrix> correctedGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, corrected);
@@ -197,7 +199,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
         public bool InvalidGeometry;
     }
 
-    private static Solution Run(Func<Quaternion[]?, NativeState> evaluate, PreparedGeometry geometry, NativeState initialTarget, Facts initialFacts)
+    private static Solution Run(Func<Quaternion[]?, NativeState> evaluate, PreparedGeometry geometry, NativeState initialTarget, Facts initialFacts, Action<int, NativeBattleAuxiliaryContactReport, NativeBattleAuxiliaryContactReport>? observer)
     {
         int evaluations = 0;
         int[] variables = geometry.Variables;
@@ -216,25 +218,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 break;
             }
             double[][] rows = active.Select(constraint => Jacobian(constraint, state)).ToArray();
-            double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out double[] dual);
-            // Select the canonical-rest solution within the active hard-contact tangent space.
-            double[] gradient = geometry.RestDirection(state);
-            for (int coordinate = 0; coordinate < gradient.Length; coordinate++)
-            {
-                gradient[coordinate] -= delta[coordinate];
-            }
-            for (int sweep = 0; sweep < MaximumLinearSweeps; sweep++)
-            {
-                for (int row = 0; row < rows.Length; row++)
-                {
-                    double norm = Dot(rows[row], rows[row]);
-                    if (dual[row] > 0 && norm > 0)
-                    {
-                        Add(gradient, rows[row], -Dot(gradient, rows[row]) / norm);
-                    }
-                }
-            }
-            Add(delta, gradient, 1);
+            double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out _);
             bool improved = false;
             NativeState lineState = state;
             Facts lineFacts = facts;
@@ -282,6 +266,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 facts = bestFacts;
                 trialLocal = (Quaternion[])state.Local.Clone();
             }
+            observer?.Invoke(iteration + 1, Report(facts), Report(bestTargetFacts));
             if (!improved)
             {
                 break;

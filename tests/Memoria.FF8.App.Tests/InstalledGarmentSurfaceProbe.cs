@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -64,6 +65,7 @@ internal static class InstalledGarmentSurfaceProbe
         Assert.Equal(frame.Callback, presentation.Graphics.Callback);
         BattleModel body = world.BattleResources.LoadPlayer(recipient, definition.Costume);
         var joints = BattleHumanoidRigProfiles.SemanticPairs(recipient, body, recipient, body);
+        object compiledPoseCorrelation = CompareCompiledPose(world.BattleResources, definition, body, model, sequence, donor, joints.Select(joint => joint.Recipient).ToHashSet());
         HashSet<int> lowerBones = joints.Where(joint => joint.Joint is "pelvis" or "hip-a" or "thigh-a" or "shin-a" or "foot-a" or "hip-b" or "thigh-b" or "shin-b" or "foot-b").Select(joint => joint.Recipient).ToHashSet();
         BattleMesh mesh = body.Meshes[0];
         HashSet<int> omitted = Enumerable.Range(0, mesh.Faces.Count).Where(index => mesh.Faces[index].Vertices.All(vertex => lowerBones.Contains(mesh.Vertices[vertex].Bone))).ToHashSet();
@@ -73,18 +75,95 @@ internal static class InstalledGarmentSurfaceProbe
         NativeBattlePreparedPresentation diagnostic = frame with { Primitives = frame.Primitives with { LastCommands = NativeBattleResolvedCommandList.From(kept) } };
         string before = JsonSerializer.Serialize(battle.Capture());
         (NativeBattlePreparedPresentation Baseline, NativeBattlePreparedPresentation Candidate, object Facts)? fit = fitRequested ? InstalledGarmentAttachmentFitProbe.Prepare(world, actorId, body, frame) : null;
-        using SurfaceGame game = new(world.BattleResources, battle.Capture().Definition, frame, diagnostic, actorId, mesh, omitted, output, donor, new { SelectedPose = sequence.Pose, SelectedFrame = sequence.PoseFrame114, sequence.PoseLimit115, DecodedPoseHash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(sequence.DecodedPose))), frame.Callback, frame.Frame, frame.Camera, model.GeometryWorldMatrix }, fit);
+        using SurfaceGame game = new(world.BattleResources, battle.Capture().Definition, frame, diagnostic, actorId, mesh, omitted, output, donor, new { SelectedPose = sequence.Pose, SelectedFrame = sequence.PoseFrame114, sequence.PoseLimit115, DecodedPoseHash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(sequence.DecodedPose))), CompiledPoseCorrelation = compiledPoseCorrelation, frame.Callback, frame.Frame, frame.Camera, model.GeometryWorldMatrix }, fit);
         game.Run();
         Assert.True(game.Completed);
         Assert.Equal(frame.Callback, presentation.Graphics.Callback);
         Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
     }
 
+    private static object CompareCompiledPose(BattleAssets assets, BattleCombatantDefinition definition, BattleModel body, NativeBattleGraphicsModel model, NativeBattleSequenceState sequence, int donor, HashSet<int> physical)
+    {
+        NativeBattleDecodedPose actual = sequence.DecodedPose ?? throw new InvalidDataException("The visible diagnostic actor has no decoded native body pose.");
+        NativeBattlePoseSource rig = body.NativePoseSource!;
+        BattleModel compiledModel = assets.LoadPlayerForStyle(definition.ModelId, definition.Costume, donor, definition.WeaponId);
+        NativeBattlePoseSource compiled = compiledModel.NativePoseSource!;
+        Assert.True(rig.Skeleton.AsSpan().SequenceEqual(compiled.Skeleton.AsSpan()));
+        byte animation = sequence.Pose ?? throw new InvalidDataException("The diagnostic actor has no selected native animation.");
+        int frames = NativeBattlePoseDecoder.ReadFrameCounts(compiled.Animations.AsSpan())[animation];
+        ImmutableArray<NativeBattleActionMatrix> actualMatrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, actual);
+        List<object> rows = [];
+        List<int> physicalMatches = [];
+        List<int> completeMatches = [];
+        NativeBattleDecodedPose? firstPhysicalSample = null;
+        NativeBattleAuxiliaryContactCalibration? calibration = BattleAuxiliaryContactCalibrations.Create(definition.ModelId, body);
+        for (int frame = 1; frame <= frames; frame++)
+        {
+            NativeBattleDecodedPose sample = compiled.Sample(animation, checked((byte)frame), sequence.PoseFlags109);
+            ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(compiled, sample);
+            int[] differences = Enumerable.Range(0, matrices.Length).Where(bone => !EqualMatrix(actualMatrices[bone], matrices[bone])).ToArray();
+            int[] physicalDifferences = differences.Where(physical.Contains).ToArray();
+            int[] auxiliaryDifferences = differences.Where(bone => !physical.Contains(bone)).ToArray();
+            if (physicalDifferences.Length == 0)
+            {
+                physicalMatches.Add(frame);
+                firstPhysicalSample ??= sample;
+            }
+            if (differences.Length == 0)
+            {
+                completeMatches.Add(frame);
+            }
+            rows.Add(new { Frame = frame, PhysicalDifferences = physicalDifferences, AuxiliaryDifferences = auxiliaryDifferences, NativeRootEqual = actual.Translation == sample.Translation, actual.HasScale, SampleHasScale = sample.HasScale });
+        }
+        int[] publicationDifferences = model.CurrentBodyBoneMatrices is { } publication && publication.Matrices.Length == actualMatrices.Length ? Enumerable.Range(0, actualMatrices.Length).Where(bone => !EqualMatrix(actualMatrices[bone], publication.Matrices[bone])).ToArray() : [];
+        return new
+        {
+            definition.ModelId,
+            definition.Costume,
+            definition.WeaponId,
+            SourceOwner = donor,
+            CompiledModel = compiledModel.Name,
+            CompiledAnimationSha256 = Convert.ToHexString(SHA256.HashData(compiled.Animations.AsSpan())),
+            ActualSelectedPose = animation,
+            ActualSelectedFrame = sequence.PoseFrame114,
+            sequence.PoseFlags109,
+            CompiledFrameCount = frames,
+            PhysicalMatchingFrames = physicalMatches,
+            AllBoneMatchingFrames = completeMatches,
+            PublishedMatricesAvailable = model.CurrentBodyBoneMatrices is not null,
+            PublishedVsDecodedDifferentBones = publicationDifferences,
+            ActualNativePose = actual,
+            FirstPhysicallyMatchingCompiledPose = firstPhysicalSample,
+            ActualRefinementReport = calibration is null ? null : NativeBattleAuxiliaryContactSolver.Inspect(rig, actual, calibration),
+            MatchingCompiledRefinementReport = calibration is null || firstPhysicalSample is null ? null : NativeBattleAuxiliaryContactSolver.Inspect(rig, firstPhysicalSample, calibration),
+            Frames = rows,
+            Qualification = "Every compiled frame is compared by exact native Stage matrices; selected counter is not assumed to identify the currently decoded/rendered frame. Physical and auxiliary matches are reported separately."
+        };
+    }
+
+    private static bool EqualMatrix(NativeBattleActionMatrix first, NativeBattleActionMatrix second) => first.X == second.X && first.Y == second.Y && first.Z == second.Z && first.Scale == second.Scale && first.Rotation.AsSpan().SequenceEqual(second.Rotation.AsSpan());
+
     internal static void AssertRequestedCaptured(int recipient, int donor)
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_PROBE");
         string? auxiliaryState = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_AUXILIARY_STATE");
-        if (recipient != 6 || donor is not (7 or 10) || string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(auxiliaryState) || Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_FIT") != "1")
+        if (recipient != 6 || donor is not (7 or 10) || string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_FIT") != "1")
+        {
+            if (donor == 7)
+            {
+                string nativeOutput = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-000-016");
+                foreach (string name in new[] { "surface.json", "01-original-native.png", "02-DIAGNOSTIC-no-pure-lowerbody.png" })
+                {
+                    Assert.True(File.Exists(Path.Combine(nativeOutput, name)), $"Requested compiled-pose binding diagnostic was not captured: {name}.");
+                }
+            }
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(auxiliaryState))
         {
             return;
         }
@@ -106,24 +185,44 @@ internal static class InstalledGarmentSurfaceProbe
     {
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_PROBE");
         string? auxiliaryState = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_AUXILIARY_STATE");
-        if (recipient != 6 || donor is not (7 or 10) || string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(auxiliaryState) || Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_FIT") != "1")
+        if (recipient != 6 || donor is not (7 or 10) || string.IsNullOrWhiteSpace(directory))
         {
             return;
         }
-        using JsonDocument input = JsonDocument.Parse(File.ReadAllText(auxiliaryState));
-        JsonElement source = input.RootElement.GetProperty("Source");
-        Assert.Equal(donor, source.GetProperty("Owner").GetInt32());
-        if (source.GetProperty("Animation").GetInt32() != 0)
+        bool fitRequested = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_FIT") == "1";
+        int target;
+        string marker;
+        if (fitRequested)
         {
-            return;
+            if (string.IsNullOrWhiteSpace(auxiliaryState))
+            {
+                return;
+            }
+            using JsonDocument input = JsonDocument.Parse(File.ReadAllText(auxiliaryState));
+            JsonElement source = input.RootElement.GetProperty("Source");
+            Assert.Equal(donor, source.GetProperty("Owner").GetInt32());
+            if (source.GetProperty("Animation").GetInt32() != 0)
+            {
+                return;
+            }
+            target = source.GetProperty("Frame").GetInt32();
+            marker = "attachment-fit.json";
         }
-        string output = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-000-{source.GetProperty("Frame").GetInt32():D3}");
-        int target = source.GetProperty("Frame").GetInt32();
+        else
+        {
+            if (donor != 7)
+            {
+                return;
+            }
+            target = 16;
+            marker = "surface.json";
+        }
+        string output = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-000-{target:D3}");
         bool AtRequestedPhase()
         {
             BattleSession battle = world.Battle!;
             NativeBattleGraphicsModel model = battle.Presentation!.Graphics.ActorModels.Get(battle.ReadPresentationModelOwner(actorId));
-            return model.SequenceState is { Pose: 0 } sequence && sequence.PoseFrame114 == target && File.Exists(Path.Combine(output, "attachment-fit.json"));
+            return model.SequenceState is { Pose: 0 } sequence && sequence.PoseFrame114 == target && File.Exists(Path.Combine(output, marker));
         }
         for (int callback = 0; callback < 70 && !AtRequestedPhase(); callback++)
         {

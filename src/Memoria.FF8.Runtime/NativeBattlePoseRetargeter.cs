@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 
 namespace Memoria.FF8.Runtime;
 
@@ -173,17 +174,7 @@ public sealed class NativeBattlePoseRetargeter
         {
             throw new InvalidDataException("Source hand contacts must cover exactly the original animation frames.");
         }
-        ImmutableArray<NativeBattleDecodedPose>[] converted = decoded.Select((animation, animationIndex) => animation.Select((pose, frameIndex) =>
-        {
-            try
-            {
-                return Transfer(pose, secondaryContactFrames.IsDefault || secondaryContactFrames[animationIndex][frameIndex]);
-            }
-            catch (NotSupportedException exception)
-            {
-                throw new NotSupportedException($"Native retarget animation {animationIndex}, frame {frameIndex + 1}: {exception.Message}", exception);
-            }
-        }).ToImmutableArray()).ToArray();
+        ImmutableArray<NativeBattleDecodedPose>[] converted = CompileFrames(decoded, secondaryContactFrames, Transfer);
         byte[] aliases = Enumerable.Repeat(byte.MaxValue, source.BoneCount).ToArray();
         NativeBattleActionMatrix[] actionFrames = Enumerable.Repeat(new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), source.BoneCount).ToArray();
         foreach (NativeBattleSemanticBonePair pair in bindings.Values)
@@ -211,6 +202,41 @@ public sealed class NativeBattlePoseRetargeter
             }).ToImmutableArray()).ToImmutableArray()
         };
         return recipient with { Animations = NativeBattleAnimationEncoder.Encode(converted), ActionBoneAliases = aliases.ToImmutableArray(), ActionBoneFrames = actionFrames.ToImmutableArray(), RetargetBinding = contact, SecondaryHandContactFrames = secondaryContactFrames.IsDefault ? [] : secondaryContactFrames };
+    }
+
+    internal static ImmutableArray<NativeBattleDecodedPose>[] CompileFrames(ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> decoded, ImmutableArray<ImmutableArray<bool>> secondaryContactFrames, Func<NativeBattleDecodedPose, bool, NativeBattleDecodedPose> transfer)
+    {
+        NativeBattleDecodedPose[][] converted = decoded.Select(animation => new NativeBattleDecodedPose[animation.Length]).ToArray();
+        (int Animation, int Frame)[] slots = decoded.SelectMany((animation, animationIndex) => Enumerable.Range(0, animation.Length).Select(frameIndex => (animationIndex, frameIndex))).ToArray();
+        ExceptionDispatchInfo?[] failures = new ExceptionDispatchInfo?[slots.Length];
+        ParallelOptions options = new() { MaxDegreeOfParallelism = Math.Min(4, Environment.ProcessorCount) };
+        Parallel.For(0, slots.Length, options, (index, loop) =>
+        {
+            if (loop.LowestBreakIteration is long earliest && index > earliest)
+            {
+                return;
+            }
+            (int animation, int frame) = slots[index];
+            try
+            {
+                converted[animation][frame] = transfer(decoded[animation][frame], secondaryContactFrames.IsDefault || secondaryContactFrames[animation][frame]);
+            }
+            catch (NotSupportedException exception)
+            {
+                failures[index] = ExceptionDispatchInfo.Capture(new NotSupportedException($"Native retarget animation {animation}, frame {frame + 1}: {exception.Message}", exception));
+                loop.Break();
+            }
+            catch (Exception exception)
+            {
+                failures[index] = ExceptionDispatchInfo.Capture(exception);
+                loop.Break();
+            }
+        });
+        foreach (ExceptionDispatchInfo? failure in failures)
+        {
+            failure?.Throw();
+        }
+        return converted.Select(animation => animation.ToImmutableArray()).ToArray();
     }
 
     public NativeBattleDecodedPose Transfer(NativeBattleDecodedPose pose, bool secondaryContact = true)

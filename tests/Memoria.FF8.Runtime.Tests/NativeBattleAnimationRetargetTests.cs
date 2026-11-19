@@ -1,10 +1,81 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleAnimationRetargetTests
 {
+    [Fact]
+    public void Indexed_compilation_matches_serial_transfer_bytes_and_preserves_all_animation_metadata()
+    {
+        ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> animations =
+        [
+            [Pose(0, 0), Pose(3, 200), Pose(-7, -300)],
+            [Pose(11, 1700)],
+            [Pose(5, -1800), Pose(-4, 2010), Pose(8, -2010), Pose(13, 900)],
+            [Pose(-19, -700), Pose(21, 1200)]
+        ];
+        ImmutableArray<ImmutableArray<bool>> contacts = [[true, false, true], [false], [false, true, false, true], [true, false]];
+        NativeBattlePoseSource source = Source(animations[0], 512);
+        NativeBattlePoseSource motion = source with { Animations = NativeBattleAnimationEncoder.Encode(animations) };
+        NativeBattlePoseSource recipient = Source([Pose(7, 200)], 1024) with { Model8FBoneAliases = Enumerable.Range(0, 16).Select(index => (byte)(index & 1)).ToImmutableArray() };
+        NativeBattlePoseRetargeter compiler = new(source, recipient, [new("hand-a", 0, 0), new("hand-b", 1, 1) { SourceBindAxes = Matrix4x4.CreateRotationY(MathF.PI / 2) }], 1.25f, primaryContactJoint: "hand-b", horizontalMotionScale: 0.75f);
+        ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> decoded = NativeBattlePoseDecoder.DecodeFrames(motion.Animations.AsSpan(), motion.BoneCount);
+        ImmutableArray<NativeBattleDecodedPose>[] serial = decoded.Select((animation, animationIndex) => animation.Select((pose, frameIndex) => compiler.Transfer(pose, contacts[animationIndex][frameIndex])).ToImmutableArray()).ToArray();
+        ImmutableArray<byte> expected = NativeBattleAnimationEncoder.Encode(serial);
+        NativeBattlePoseSource compiled = compiler.Compile(motion, contacts);
+        Assert.Equal(expected, compiled.Animations);
+        Assert.Equal(expected, compiler.Compile(motion, contacts).Animations);
+        Assert.Equal(recipient.Skeleton, compiled.Skeleton);
+        Assert.Equal(recipient.Model8FBoneAliases, compiled.Model8FBoneAliases);
+        Assert.Equal(new byte[] { 3, 1, 4, 2 }, NativeBattlePoseDecoder.ReadFrameCounts(compiled.Animations.AsSpan()).ToArray());
+        Assert.Equal(new byte[] { 0, 1 }, compiled.ActionBoneAliases.ToArray());
+        Assert.Equal(new short[] { 0, 0, 4096, 0, 4096, 0, -4096, 0, 0 }, compiled.ActionBoneFrames[1].Rotation.ToArray());
+        Assert.Same(motion, compiled.RetargetBinding!.SourceMotion);
+        for (int animation = 0; animation < decoded.Length; animation++)
+        {
+            Assert.Equal(contacts[animation], compiled.SecondaryHandContactFrames[animation]);
+            for (int frame = 0; frame < decoded[animation].Length; frame++)
+            {
+                ImmutableArray<NativeBattleActionMatrix> sourceBones = NativeBattlePoseMatrices.StageBoneMatrices(motion, decoded[animation][frame]);
+                NativeBattleVector Point(int bone) => new(unchecked((short)sourceBones[bone].X), unchecked((short)sourceBones[bone].Y), unchecked((short)sourceBones[bone].Z));
+                NativeBattleDecodedPose pose = compiled.Sample(checked((byte)animation), checked((byte)(frame + 1)), 0);
+                Assert.Equal(Point(1), pose.HandContact!.SourcePosition);
+                Assert.Equal(1, pose.HandContact.RecipientHand);
+                Assert.Equal(Point(0), pose.HandAContact!.SourcePosition);
+                Assert.Equal(0, pose.HandAContact.RecipientBone);
+                Assert.Equal((byte)animation, pose.HandAContact.Animation);
+                Assert.Equal((byte)(frame + 1), pose.HandAContact.Frame);
+                Assert.Equal((byte)decoded[animation].Length, pose.HandAContact.Frames);
+            }
+        }
+    }
+
+    [Fact]
+    public void Indexed_frame_compilation_rethrows_the_first_failure_in_source_animation_order()
+    {
+        NotSupportedException first = new("First source failure.");
+        NotSupportedException later = new("Later source failure.");
+        ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> animations = [[Pose(0, 0), Pose(11, 0)], [Pose(21, 0)], [Pose(31, 0)], [Pose(41, 0)]];
+        NativeBattleDecodedPose Transfer(NativeBattleDecodedPose pose, bool contact)
+        {
+            if (pose.Translation.X == 11)
+            {
+                Thread.Sleep(25);
+                throw first;
+            }
+            if (pose.Translation.X >= 21)
+            {
+                throw later;
+            }
+            return pose;
+        }
+        NotSupportedException actual = Assert.Throws<NotSupportedException>(() => NativeBattlePoseRetargeter.CompileFrames(animations, default, Transfer));
+        Assert.Same(first, actual.InnerException);
+        Assert.Contains("animation 0, frame 2", actual.Message);
+    }
+
     [Fact]
     public void Semantic_hand_a_contact_preserves_its_decoded_source_frame_independently_of_primary_hand_b()
     {
