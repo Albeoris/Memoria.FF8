@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-route-advisory-only", StringComparer.Ordinal))
+{
+    NativeRouteAdvisoryTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-primitive-graph-only", StringComparer.Ordinal))
 {
     NativePrimitiveGraphTests.Run();

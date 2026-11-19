@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 
 namespace Memoria.FF7.Runtime;
 
@@ -29,7 +30,7 @@ public sealed partial class Ff7AutoplayDriver
         int initialDistance = ReadNativeRouteDistance(target, targets);
         Ff7SessionSave rootSave = session.CaptureAutoPlayNavigation();
         Ff7NativeGraphState root = new(rootSave, ReadRootNativeDebt(session, targets));
-        using Ff7NativeStateGraph<Ff7NativeGraphState, Ff7AutoPlayRouteStep> graph = new(root, NativeGraphKey(root), NativeGraphAdvisory(rootSave.Process!, target.Position));
+        using Ff7NativeStateGraph<Ff7NativeGraphState, Ff7AutoPlayRouteStep> graph = new(root, NativeGraphKey(root), NativeGraphAdvisory(session, target, targets));
         long summaryId = ++nativeCandidateId;
         Ff7Actor rootActor = rootSave.Process!.Actors.Single(actor => actor.PlayerControlled);
         nativeCandidateSummaries.Set(summaryId, new("NativeGraph", root.Debt is not null, target.Id, 0, rootSave.Process.Tick, new(rootActor.X4096, rootActor.Y4096, rootActor.Z4096, rootActor.Triangle, rootActor.Direction), false, false, Vector3.Distance(Position3D(rootActor), target.Position)));
@@ -213,7 +214,7 @@ public sealed partial class Ff7AutoplayDriver
                 }
                 Ff7NativeGraphDebt? debt = settled ? null : ownership.Capture();
                 work = new(branch.CaptureAutoPlayNavigation(), debt, recovery);
-                graph.AddSuccessor(parent, work, NativeGraphKey(work), segment, NativeGraphAdvisory(work.Native.Process!, goal.Position));
+                graph.AddSuccessor(parent, work, NativeGraphKey(work), segment, NativeGraphAdvisory(branch, goal, current.Events));
                 if (edge.Kind == Ff7NativeGraphEdgeKind.Primitive && edge.Input == input && debt is null)
                 {
                     primitiveReuse.Remember(input, Ff7Session.ReadNativeLineScriptRequests(() => branch.Host).Concat(startedRoots));
@@ -355,10 +356,42 @@ public sealed partial class Ff7AutoplayDriver
     }
     private static bool IsNativeGraphProtectedLine(Ff7AutoPlayTarget target) => target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && (target.ChangesField || target.MayChangeNavigation);
 
-    private float NativeGraphAdvisory(Ff7FieldProcess process, Vector3 target)
+    private float NativeGraphAdvisory(Ff7Session branch, Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
-        Ff7Actor player = process.Actors.Single(actor => actor.PlayerControlled);
-        return Vector3.Distance(new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f), target) / Math.Max(1, session.GetPlayerMovementSpeed(true) / 256f);
+        Ff7Actor player = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Ff7AutoPlayTarget current = targets.SingleOrDefault(item => item.Id == target.Id && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind) ?? target;
+        IReadOnlyList<(Vector3 Point, int Triangle)> contacts = current.Kind == Ff7AutoPlayTargetKind.Gateway
+            ? DiscoverGatewayContacts(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, branch.Field.Triggers.Gateways[current.GatewayIndex!.Value])
+            : branch.Host.Process.Lines.LastOrDefault(line => line.Entity == current.Entity) is { } line ? DiscoverLineContacts(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, line) : [];
+        return ReadNativeRouteAdvisory(branch.Field.Walkmesh, branch.Host.Process.BlockedTriangles, player, current.Position, contacts, branch.GetPlayerMovementSpeed(false), ReadSpatialBoundaryTriangles(targets), current.Triangle, new Ff7AutoplayDriver(branch).ReadNavigationOwnedPortals(branch.Field.Walkmesh));
+    }
+
+    internal static float ReadNativeRouteAdvisory(IReadOnlyList<PcWalkmeshTriangle> mesh, byte[] blocked, Ff7Actor player, Vector3 target, IReadOnlyList<(Vector3 Point, int Triangle)> contacts, int movementSpeed, IReadOnlySet<int>? boundaries = null, int? admittedTriangle = null, IReadOnlySet<(int From, int To)>? ownedPortals = null)
+    {
+        Vector3 source = Position3D(player);
+        float best = float.PositiveInfinity;
+        foreach (var contact in contacts)
+        {
+            var route = ReadApproachRoutes(mesh, blocked, player.Triangle, contact.Triangle, boundaries, admittedTriangle, ownedPortals);
+            if (route.Distance[player.Triangle] == int.MaxValue)
+            {
+                continue;
+            }
+            Vector3 point = source;
+            float length = 0;
+            int triangle = player.Triangle;
+            while (triangle != contact.Triangle)
+            {
+                triangle = route.Previous[triangle];
+                PcWalkmeshTriangle next = mesh[triangle];
+                Vector3 centroid = (next.A + next.B + next.C) / 3;
+                length += Vector3.Distance(point, centroid);
+                point = centroid;
+            }
+            best = Math.Min(best, length + Vector3.Distance(point, contact.Point));
+        }
+        float distance = float.IsFinite(best) ? best : Vector3.Distance(source, target);
+        return distance / Math.Max(1, movementSpeed / 256f);
     }
 
     private static Ff7NativeGraphDebt? ReadRootNativeDebt(Ff7Session branch, IReadOnlyList<Ff7AutoPlayTarget> targets)
