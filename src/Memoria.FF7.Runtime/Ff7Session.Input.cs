@@ -217,13 +217,24 @@ public sealed partial class Ff7Session
 
     private void CheckGateways(Ff7Actor from, Ff7Actor to)
     {
-        foreach (PcFieldGateway gateway in Field.Triggers.Gateways)
+        for (int index = 0; index < Field.Triggers.Gateways.Count; index++)
         {
-            if (CrossesGateway(gateway, from, to))
+            Ff7NativeGatewayDeparture? accepted = RequestGatewayDeparture(Field.Name, FieldGeneration, Host, index, Field.Triggers.Gateways[index], from, to);
+            if (accepted is not null)
             {
-                Host.RequestGateway(new FieldTransitionCommand(checked((ushort)gateway.DestinationField), gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, checked((byte)gateway.Direction)));
+                GatewayDeparture = accepted;
             }
         }
+    }
+
+    internal static Ff7NativeGatewayDeparture? RequestGatewayDeparture(string field, long generation, Ff7FieldHost host, int index, PcFieldGateway gateway, Ff7Actor from, Ff7Actor to)
+    {
+        if (!CrossesGateway(gateway, from, to))
+        {
+            return null;
+        }
+        FieldTransitionCommand transition = new(checked((ushort)gateway.DestinationField), gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, checked((byte)gateway.Direction));
+        return host.RequestGateway(transition) ? new(field, generation, host.Process.Tick, index, transition, new(from.X4096, from.Y4096, from.Z4096, from.Triangle), new(to.X4096, to.Y4096, to.Z4096, to.Triangle)) : null;
     }
 
     internal static bool CrossesGateway(PcFieldGateway gateway, Ff7Actor from, Ff7Actor to)

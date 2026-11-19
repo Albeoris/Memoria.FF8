@@ -94,6 +94,8 @@ public sealed record Ff7SessionSave
     public short BattleSearchScopeScaleCounter { get; init; }
     public short BattleSilkDirection { get; init; } = 1;
     public byte BattleCameraPresentationCounter { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7NativeGatewayDeparture? GatewayDeparture { get; init; }
     public Ff7TickContinuation? TickContinuation { get; init; }
     public Ff7WorldProcess? World { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -120,6 +122,10 @@ public sealed record Ff7SessionSave
             throw new InvalidDataException("The preserved native FFVII save slot has an invalid size.");
         }
         Process.Validate();
+        if (GatewayDeparture is { } gateway && (gateway.Field != FieldName || gateway.Generation != FieldGeneration || gateway.Tick < 0 || gateway.GatewayIndex < 0 || gateway.From is null || gateway.To is null || gateway.From.Triangle < 0 || gateway.To.Triangle < 0 || gateway.Transition is null || gateway.Transition != Process.Transition || Process.GlobalCommand != Ff7GlobalCommand.Transition))
+        {
+            throw new InvalidDataException("The native gateway departure receipt does not match its pending source transition.");
+        }
         ChocoboCarry?.Validate();
         if (ChocoboRace is { } race)
         {

@@ -9,6 +9,9 @@ public sealed record Ff7NativeHostOperation(FieldHostRequest Request, FieldHostR
 public sealed record Ff7NativeInstructionBoundary(int Entity, int Priority, int ProgramCounter, byte Opcode);
 public sealed record Ff7NativeScriptActivity(FieldScriptDispatch? Dispatch = null, FieldScriptReturn? Return = null, Ff7NativeHostOperation? HostOperation = null, Ff7NativeInstructionBoundary? Boundary = null);
 
+public sealed record Ff7NativeGatewayPosition(int X, int Y, int Z, int Triangle);
+public sealed record Ff7NativeGatewayDeparture(string Field, long Generation, long Tick, int GatewayIndex, FieldTransitionCommand Transition, Ff7NativeGatewayPosition From, Ff7NativeGatewayPosition To);
+
 public sealed record Ff7NativeTransitionOwnership(int RootEntity, int RootScript, int OwnerEntity, int OwnerPriority);
 
 public sealed record Ff7NativeTickObservation(string Field, long Generation, long Tick, FieldScriptReturn[] ScriptReturns, FieldTransitionCommand? Transition, string ProgressWitness, FieldHostRequest? TransitionOwner = null, Ff7NativeTransitionOwnership? TransitionOwnership = null, Ff7NativeScriptActivity[]? ScriptActivity = null);
@@ -17,6 +20,45 @@ public sealed partial class Ff7Session
 {
     public event Action<Ff7NativeTickObservation>? NativeTickCompleted;
     public event Action<int, int, bool>? InteractionScriptRequested;
+    internal event Action<Ff7NativeGatewayDeparture?>? NativeFieldDeparting;
+    internal Ff7NativeGatewayDeparture? GatewayDeparture { get; private set; }
+    private bool deferNavigationFieldDeparture;
+
+    internal bool HasNativeGatewayDeparture(Ff7NativeGatewayDeparture expected)
+    {
+        if (GatewayDeparture != expected || expected.Field != Field.Name || expected.Generation != FieldGeneration || expected.Transition != Host.Process.Transition || (uint)expected.GatewayIndex >= Field.Triggers.Gateways.Count)
+        {
+            return false;
+        }
+        var gateway = Field.Triggers.Gateways[expected.GatewayIndex];
+        FieldTransitionCommand command = new(checked((ushort)gateway.DestinationField), gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, checked((byte)gateway.Direction));
+        if (command != expected.Transition)
+        {
+            return false;
+        }
+        Ff7Actor actor = Host.Process.Actors.Single(actor => actor.PlayerControlled);
+        Ff7Actor from = actor with { X4096 = expected.From.X, Y4096 = expected.From.Y, Z4096 = expected.From.Z, Triangle = expected.From.Triangle };
+        Ff7Actor to = actor with { X4096 = expected.To.X, Y4096 = expected.To.Y, Z4096 = expected.To.Z, Triangle = expected.To.Triangle };
+        return CrossesGateway(gateway, from, to);
+    }
+
+    internal void AdvanceNavigationTick()
+    {
+        if (deferNavigationFieldDeparture)
+        {
+            throw new InvalidOperationException("A native navigation departure scope is already active.");
+        }
+        deferNavigationFieldDeparture = true;
+        try
+        {
+            AdvanceTick(false);
+        }
+        finally
+        {
+            deferNavigationFieldDeparture = false;
+        }
+    }
+
     public event Action? WorldBattleStarting;
     internal event Action<Ff7WorldFieldDeparture, short>? WorldFieldDeparting;
     internal FieldSpatialRandomDomain ReadSpatialRandomDomain() => new(executable.NativeFieldRandomTable, Progress.FieldRandomStride ?? executable.FieldRandomStep, Progress.FieldRandomIndex);

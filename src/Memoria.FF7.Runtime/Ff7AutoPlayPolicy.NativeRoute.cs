@@ -11,12 +11,13 @@ public sealed partial class Ff7AutoPlayPolicy
     private string? nativePlanningSource;
     private string? nativePlanningIntent;
     private string? nativePlanningPhase;
+    private string? nativePlanningTaskEvent;
     private long nativePlanningWork;
     internal bool NativePlanningPending => nativePlanning is not null;
     internal long NativePlanningGeneration { get; private set; }
     internal string? NativePlanningPhase => nativePlanningPhase;
 
-    private AutoPlayPlanStep? TryProveNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components)
+    private AutoPlayPlanStep? TryProveNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components, string? completedTask = null)
     {
         string source = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
         string intent = ReadNativePlanningIntent();
@@ -29,7 +30,8 @@ public sealed partial class Ff7AutoPlayPolicy
             NativePlanningGeneration++;
             nativePlanningSource = source;
             nativePlanningIntent = intent;
-            nativePlanning = new(EnumerateNativeNavigation(observation, driver, facts, components).GetEnumerator());
+            nativePlanningTaskEvent = HasArrivedSourceRevalidation(State, observation) ? State.NativeRevalidation!.EventId : null;
+            nativePlanning = new(EnumerateNativeNavigation(observation, driver, facts, components, completedTask).GetEnumerator());
         }
         return ContinueNativePlanning(driver);
     }
@@ -91,16 +93,17 @@ public sealed partial class Ff7AutoPlayPolicy
         nativePlanningSource = null;
         nativePlanningIntent = null;
         nativePlanningPhase = null;
+        nativePlanningTaskEvent = null;
     }
 
-    private IEnumerable<AutoPlayPlanStep?> EnumerateNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components)
+    private IEnumerable<AutoPlayPlanStep?> EnumerateNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components, string? completedTask)
     {
         if (!Ff7AutoplayDriver.HasNativeRouteClockContract(session))
         {
             yield break;
         }
         Ff7AutoPlaySourceRevalidationTask? required = HasArrivedSourceRevalidation(State, observation) ? State.NativeRevalidation : null;
-        Ff7AutoPlayTarget[] candidates = observation.Events.Where(target => (required is null || target.Id == required.EventId && target.ConditionFingerprint == required.Condition) && target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave && State.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)).ToArray();
+        Ff7AutoPlayTarget[] candidates = ReadNativeProbeCandidates(State, observation, completedTask);
         foreach (Ff7AutoPlayTarget target in PrioritizeNativeProbeCandidates(State, planner, observation, candidates, facts, NeedsVisitRefresh))
         {
             Ff7NativeRouteProbe probe = new();
@@ -164,6 +167,12 @@ public sealed partial class Ff7AutoPlayPolicy
                 yield break;
             }
         }
+    }
+
+    internal static Ff7AutoPlayTarget[] ReadNativeProbeCandidates(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, string? completedTask = null)
+    {
+        Ff7AutoPlaySourceRevalidationTask? required = HasArrivedSourceRevalidation(state, observation) ? state.NativeRevalidation : null;
+        return observation.Events.Where(target => target.Id != completedTask && (required is null || target.Id == required.EventId && target.ConditionFingerprint == required.Condition) && target.AnalysisComplete && Ff7AutoplayDriver.SupportsNativeRouteTarget(target) && state.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)).ToArray();
     }
 
     internal static Ff7AutoPlayTarget[] PrioritizeNativeProbeCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget[] candidates, IReadOnlyDictionary<string, string> actualFacts, Func<AutoPlayVisit, bool> needsRefresh)
@@ -263,13 +272,38 @@ public sealed partial class Ff7AutoPlayPolicy
         return input;
     }
 
+    private void ObserveNativeFieldDeparture(Ff7NativeGatewayDeparture? departure)
+    {
+        if (State.NativeRoute?.GatewayDeparture is null)
+        {
+            return;
+        }
+        bool accepted = departure is not null && session.HasNativeGatewayDeparture(departure);
+        AuthenticateNativeGatewayDeparture(State, departure, accepted, accepted ? Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) : null, Publish);
+    }
+
+    internal static void AuthenticateNativeGatewayDeparture(Ff7AutoPlayState state, Ff7NativeGatewayDeparture? departure, bool nativeAccepted, string? sourceFingerprint, Action publish)
+    {
+        if (state.NativeRoute is not { GatewayDeparture: { } expected } proof)
+        {
+            return;
+        }
+        bool matches = nativeAccepted && expected == departure && proof.Generation == departure?.Generation && proof.Cursor == proof.Steps.Length && !proof.BattleBoundary && proof.After == sourceFingerprint;
+        state.NativeRoute = null;
+        publish();
+        if (!matches)
+        {
+            throw new NotSupportedException("The bounded native gateway continuation reached a different or unowned source departure.");
+        }
+    }
+
     private void ObserveNativeRouteBoundary()
     {
         if (State.NativeRoute is not { } proof || proof.Cursor != proof.Steps.Length)
         {
             return;
         }
-        if (proof.After != Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) || proof.BattleBoundary != (session.Battle is not null))
+        if (proof.After != Ff7AutoplayDriver.ReadNativeRouteFingerprint(session) || proof.BattleBoundary != (session.Battle is not null) || proof.GatewayDeparture is { } gateway && !session.HasNativeGatewayDeparture(gateway))
         {
             State.NativeRoute = null;
             Publish();

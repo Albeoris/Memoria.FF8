@@ -30,6 +30,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         scriptedInput = new(session);
         session.InteractionScriptRequested += ObserveInteraction;
         session.NativeTickCompleted += ObserveTick;
+        session.NativeFieldDeparting += ObserveNativeFieldDeparture;
         session.WorldBattleStarting += SaveWorldBattleBoundary;
         session.WorldFieldDeparting += ObserveWorldFieldDeparture;
         ObserveWorldAllocation();
@@ -92,10 +93,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             CancelNativePlanning();
         }
         bool nativeProofCompleted = false;
+        string? completedSourceTask = null;
         AutoPlayPlanStep? resumedNativePlan = null;
         AutoPlayEventAvailability? resumedNativeAvailability = null;
         if (nativePlanning is not null)
         {
+            completedSourceTask = nativePlanningTaskEvent;
             resumedNativePlan = ContinueNativePlanning(driver);
             if (driver.PlanningPending)
             {
@@ -106,7 +109,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 AutoPlayEventCoverage<Ff7AutoPlayDeferral> admittedCoverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == resumedNativePlan.VisitKey).Events.Single(item => item.Event.Id == resumedNativePlan.Event.Id);
                 resumedNativeAvailability = new(admittedCoverage.Unavailable, new(admittedCoverage.UnavailableVariants, StringComparer.Ordinal), admittedCoverage.AvailabilityFingerprint);
             }
-            nativeProofCompleted = true;
+            nativeProofCompleted = completedSourceTask is null;
         }
         if (State.PendingRestore is not null || session.Battle is not null)
         {
@@ -243,12 +246,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 {
                     throw new NotSupportedException("The arrived native source cannot be revalidated without its exact clock contract.");
                 }
+                completedSourceTask = State.NativeRevalidation!.EventId;
                 resumedNativePlan = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
                 if (driver.PlanningPending)
                 {
                     return default;
                 }
-                nativeProofCompleted = true;
+                nativeProofCompleted = false;
             }
             bool CanSelectDestination(Ff7AutoPlayTarget target)
             {
@@ -276,7 +280,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (next is null && !nativeProofCompleted)
             {
-                next = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
+                next = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards, completedSourceTask);
             }
             if (driver.PlanningPending)
             {
@@ -723,6 +727,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         CancelNativePlanning();
         session.InteractionScriptRequested -= ObserveInteraction;
         session.NativeTickCompleted -= ObserveTick;
+        session.NativeFieldDeparting -= ObserveNativeFieldDeparture;
         session.WorldBattleStarting -= SaveWorldBattleBoundary;
         session.WorldFieldDeparting -= ObserveWorldFieldDeparture;
         if (observedWorld is not null)

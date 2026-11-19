@@ -132,6 +132,11 @@ public sealed partial class Ff7Session : IDisposable
             session.Machine.ScriptDispatched = session.ObserveNativeScriptDispatch;
             session.Machine.InstructionExecuted = session.ObserveNativeInstruction;
             session.InitializeNativePartyPresentation(restoring: true);
+            session.GatewayDeparture = save.GatewayDeparture;
+            if (session.GatewayDeparture is { } gateway && !session.HasNativeGatewayDeparture(gateway))
+            {
+                throw new InvalidDataException("The accepted native gateway receipt does not match its selected source resource and crossing.");
+            }
             session.tickContinuation = save.TickContinuation is null ? null : save.TickContinuation with { ScriptReturns = save.TickContinuation.ScriptReturns?.ToArray() };
             session.EventCoverage = save.EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(save.EventCoverage).Capture();
             session.AutoPlayState = save.AutoPlay?.Clone();
@@ -266,6 +271,10 @@ public sealed partial class Ff7Session : IDisposable
         tickTailInProgress = false;
         Ff7NativeTickObservation? observation = CompleteNativeObservation(completedContinuation, snapshot);
         CompleteFieldTransition();
+        if (deferNavigationFieldDeparture && Host.Process.Transition is not null)
+        {
+            return;
+        }
         if (observation is not null)
         {
             NativeTickCompleted?.Invoke(observation);
@@ -277,24 +286,39 @@ public sealed partial class Ff7Session : IDisposable
     {
         if (Host.Process.Transition is FieldTransitionCommand transition)
         {
-            if (transition.Map is >= 1 and <= 64)
-            {
-                byte[] persistent = Machine.Variables.CopyPersistent();
-                World = new(installation, persistent, transition.Map, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), Ff7WorldRuntime.ResolveWorldId(transition.Map));
-                ConfigureWorldPresentation();
-                return;
-            }
-            FieldVariables variables = Machine.Variables;
-            LoadField(transition.Map, variables);
-            FieldGeneration++;
-            fieldLoadIncomplete = true;
-            Machine.Initialize();
-            InitializeNativePartyPresentation();
-            Host.InitializePlayerMovement(Field.Scripts.Scale);
-            Host.InitializeBackgroundTriggers();
-            Host.PlacePlayerAtEntry(transition);
-            fieldLoadIncomplete = false;
+            CompleteNativeFieldDeparture(transition, GatewayDeparture, deferNavigationFieldDeparture, NativeFieldDeparting, LoadAcceptedFieldTransition);
         }
+    }
+
+    internal static void CompleteNativeFieldDeparture(FieldTransitionCommand transition, Ff7NativeGatewayDeparture? receipt, bool defer, Action<Ff7NativeGatewayDeparture?>? observed, Action<FieldTransitionCommand> load)
+    {
+        observed?.Invoke(receipt);
+        if (!defer)
+        {
+            load(transition);
+        }
+    }
+
+    private void LoadAcceptedFieldTransition(FieldTransitionCommand transition)
+    {
+        if (transition.Map is >= 1 and <= 64)
+        {
+            byte[] persistent = Machine.Variables.CopyPersistent();
+            World = new(installation, persistent, transition.Map, Enumerable.Range(9, 3).Select(address => persistent[256 + address]).ToArray(), Ff7WorldRuntime.ResolveWorldId(transition.Map));
+            ConfigureWorldPresentation();
+            GatewayDeparture = null;
+            return;
+        }
+        FieldVariables variables = Machine.Variables;
+        LoadField(transition.Map, variables);
+        FieldGeneration++;
+        fieldLoadIncomplete = true;
+        Machine.Initialize();
+        InitializeNativePartyPresentation();
+        Host.InitializePlayerMovement(Field.Scripts.Scale);
+        Host.InitializeBackgroundTriggers();
+        Host.PlacePlayerAtEntry(transition);
+        fieldLoadIncomplete = false;
     }
 
     public Ff7SessionSave Capture()
@@ -308,7 +332,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = AutoPlayState, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
+        return new Ff7SessionSave { GatewayDeparture = GatewayDeparture, NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = AutoPlayState, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
     }
 
     private bool fieldLoadIncomplete;
@@ -365,6 +389,7 @@ public sealed partial class Ff7Session : IDisposable
         prepareHost?.Invoke(loadedHost);
         FieldMachine loadedMachine = new(FieldProgram.FromPcScripts(loadedField.Scripts), variables, host: loadedHost);
         fieldLoadIncomplete = true;
+        GatewayDeparture = null;
         Field = loadedField;
         MapId = map;
         models = loadedModels;

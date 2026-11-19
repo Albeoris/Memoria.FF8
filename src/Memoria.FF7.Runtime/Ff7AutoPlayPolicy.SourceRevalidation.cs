@@ -21,7 +21,7 @@ public sealed partial class Ff7AutoPlayPolicy
         List<Ff7NativeSourceRevalidation> pending = [];
         foreach (AutoPlayNavigationVisit source in state.Coverage.NavigationVisits.Where(visit => visit.VisitKey == observation.VisitId && visit.Key != observation.NavigationKey))
         {
-            foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave))
+            foreach (Ff7AutoPlayTarget target in observation.Events.Where(target => target.AnalysisComplete && Ff7AutoplayDriver.SupportsNativeRouteTarget(target)))
             {
                 AutoPlayEvent? observed = source.Events.SingleOrDefault(item => item.Id == target.Id && item.ConditionSignature == target.ConditionFingerprint);
                 if (observed is null || !state.NavigationGuards.Values.Any(guard => guard.NavigationKey == source.Key && guard.EventId == target.Id && guard.MovementFailure is not null) || ReadRetainedNavigationAvailability(state, source, observed)?.Unavailable != true)

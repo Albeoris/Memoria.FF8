@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-gateway-route-only", StringComparer.Ordinal))
+{
+    NativeGatewayRouteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-post-ivy-frontier-original-only", StringComparer.Ordinal))
+{
+    NativePostIvyFrontierTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-ivy-frontier-original-only", StringComparer.Ordinal))
 {
     NativeIvyFrontierTests.RunOriginal();

@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
 public sealed record Ff7AutoPlayRouteStep(string Before, Ff7AutoplayInput Input);
-public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0);
+public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7NativeGatewayDeparture? GatewayDeparture = null);
 
 public sealed partial class Ff7Session
 {
@@ -30,7 +31,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe)
     {
-        if (target.Kind is < Ff7AutoPlayTargetKind.LineTalk or > Ff7AutoPlayTargetKind.LineLeave)
+        if (!SupportsNativeRouteTarget(target))
         {
             yield break;
         }
@@ -61,10 +62,9 @@ public sealed partial class Ff7AutoplayDriver
                 bool accepted = false;
                 bool ladderObserved = false;
                 bool returned = !requireIntermediate;
-                bool clockAccess = false;
+                using Ff7NativeRouteClockWitness clock = new(branch.Machine);
                 string? boundary = null;
                 branch.InteractionScriptRequested += (entity, script, admitted) => accepted |= admitted && entity == target.Entity && script == target.Script;
-                branch.Machine.InstructionVariableAccessed += (access, _) => clockAccess |= IsNativeClockAccess(access);
                 bool AdvanceCallback(int callback)
                 {
                     try
@@ -94,22 +94,32 @@ public sealed partial class Ff7AutoplayDriver
                             accepted = false;
                             try
                             {
-                                input = driver.ChooseTargetInput(target, targets, mode => driver.ApproachLine(target.Entity, target.Kind, mode));
+                                input = driver.ChooseTargetInput(target, targets, mode => driver.ApproachNativeRouteTarget(target, mode));
                             }
                             catch (Ff7AutoPlayNavigationUnavailableException) when (ladderObserved)
                             {
-                                input = driver.ApproachLine(target.Entity, target.Kind, false);
+                                input = driver.ApproachNativeRouteTarget(target, false);
                             }
                         }
                         steps.Add(new(ReadNativeRouteFingerprint(branch), input));
                         driver.Apply(input);
-                        branch.AdvanceTick(false);
-                        if (clockAccess || !HasNativeRouteClockContract(branch))
+                        branch.AdvanceNavigationTick();
+                        if (!clock.Independent || !HasNativeRouteClockContract(branch))
                         {
                             return false;
                         }
                         if (accepted && !returned)
                         {
+                            return false;
+                        }
+                        if (branch.Host.Process.Transition is not null)
+                        {
+                            boundary = "Native source departure";
+                            if (target.Kind == Ff7AutoPlayTargetKind.Gateway && returned && branch.GatewayDeparture is { } departure && departure.GatewayIndex == target.GatewayIndex && departure.Transition.Map == target.DestinationField && branch.HasNativeGatewayDeparture(departure))
+                            {
+                                LastNativeRouteProbe = $"Accepted native gateway {departure.GatewayIndex} departure after {steps.Count} callbacks";
+                                probe.Result = new(target.Id, target.ConditionFingerprint, session.FieldGeneration, steps.ToArray(), ReadNativeRouteFingerprint(branch), GatewayDeparture: departure);
+                            }
                             return false;
                         }
                         if (branch.Battle is not null || branch.World is not null || branch.FieldGeneration != session.FieldGeneration)
@@ -155,6 +165,16 @@ public sealed partial class Ff7AutoplayDriver
                 LastNativeRouteProbe = $"No final admission: {target.Id}, callbacks {steps.Count}, triangle {branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Triangle}, boundary:{boundary}";
             }
         }
+    }
+
+    internal static bool SupportsNativeRouteTarget(Ff7AutoPlayTarget target)
+    {
+        return target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: >= 0, DestinationField: not null };
+    }
+
+    private Ff7AutoplayInput ApproachNativeRouteTarget(Ff7AutoPlayTarget target, bool run)
+    {
+        return target.Kind == Ff7AutoPlayTargetKind.Gateway ? GatewayAt(target.GatewayIndex!.Value, run) : ApproachLine(target.Entity, target.Kind, run);
     }
 
     internal static ushort BackwardLadderKey(int mode)
@@ -214,8 +234,9 @@ public sealed partial class Ff7AutoplayDriver
     private int ReadNativeRouteDistance(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        Ff7Line line = session.Host.Process.Lines.Last(line => line.Entity == target.Entity);
-        var contacts = DiscoverLineContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, line);
+        var contacts = target.Kind == Ff7AutoPlayTargetKind.Gateway
+            ? DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[target.GatewayIndex!.Value])
+            : DiscoverLineContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.Process.Lines.Last(line => line.Entity == target.Entity));
         return contacts.Select(contact => ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, contact.Triangle, ReadSpatialBoundaryTriangles(targets), target.Triangle).Distance[player.Triangle]).DefaultIfEmpty(int.MaxValue).Min();
     }
 }
