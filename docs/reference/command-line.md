@@ -94,6 +94,7 @@ The mode selector must be first and the source file must follow it immediately. 
 | `--output FILE` | Required new destination file. Existing destinations and the source path are refused. |
 | `--game-dir DIRECTORY` | Import: installed resources used to initialize and validate the state; defaults to `MEMORIA_FF8_GAME_DIR`, then `FF8_GAME_DIRECTORY`. Export: explicitly declare the target game's initialization and GF definitions. |
 | `--allow-gf-loss` | Export only: accept the reported GF configuration/progression conversion losses. Requires explicit `--game-dir`; review the loss report before adding this flag. |
+| `--allow-loadout-loss` | Export only: omit custom weapon and Limit assignments from the separate original-format copy. Requires explicit `--game-dir`; the Memoria source retains its assignments. GF losses require their own consent flag. |
 | `--mods-dir DIRECTORY` | Import only: select the mod root used for resource initialization and continuation validation, with the same behavior as ordinary application startup. |
 | `--model-source-dir DIRECTORY` | Import only: select model resources independently of the primary installed game directory. |
 

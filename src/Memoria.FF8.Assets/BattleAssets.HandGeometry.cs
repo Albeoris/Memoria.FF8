@@ -56,7 +56,7 @@ public sealed partial class BattleAssets
 
     private static BattleMesh MaskBodyHands(BattleMesh mesh, IReadOnlyCollection<int> hands)
     {
-        return mesh with { Faces = mesh.Faces.Where(face => !face.Vertices.Any(index => hands.Contains(mesh.Vertices[index].Bone))).ToArray() };
+        return mesh with { Faces = mesh.Faces.Where(face => !face.Vertices.All(index => hands.Contains(mesh.Vertices[index].Bone))).ToArray() };
     }
 
     private static IReadOnlyList<BattleMesh> RefreshNativeVertexGroups(IReadOnlyList<BattleMesh> meshes, ImmutableArray<byte> geometry)

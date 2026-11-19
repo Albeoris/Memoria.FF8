@@ -210,7 +210,20 @@ public sealed class BattleHudNativeCommandTests
 
         hud.Navigate(MenuInput.Cancel);
 
-        Assert.Equal((byte)238, Assert.Single(session.QueuedActions, command => command.ActorId == "irvine").NativeQueuedCommand);
+        Assert.Equal(BattleNativeShotPhase.Ending, session.GetNativeShot("irvine")!.Phase);
+        bool NativeEndControlObserved() => session.QueuedActions.Any(command => command.ActorId == "irvine" && command.NativeQueuedCommand == 238 && command.NativeLimitCallback == NativeLimitCallback.ShotEnding)
+            || session.ActiveAction is { ActorId: "irvine", NativeQueuedCommand: 238, NativeLimitCallback: NativeLimitCallback.ShotEnding };
+        for (int callback = 0; callback < 1800 && !NativeEndControlObserved(); callback++)
+        {
+            session.Tick();
+        }
+        Assert.True(NativeEndControlObserved(), "Cancel must request native widget closing and its callback must dispatch command238.");
+        Assert.True(session.GetNativeShot("irvine")!.Widget!.ClosingPolls > 0);
+        for (int callback = 0; callback < 1800 && session.GetNativeShot("irvine") is not null; callback++)
+        {
+            session.Tick();
+        }
+        Assert.Null(session.GetNativeShot("irvine"));
     }
 
     [Fact]

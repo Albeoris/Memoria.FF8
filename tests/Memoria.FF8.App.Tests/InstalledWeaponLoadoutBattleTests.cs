@@ -44,6 +44,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
     [InlineData(1)]
     [InlineData(6)]
     [InlineData(9)]
+    [InlineData(10)]
     public void Native_no_override_baseline_enters_attacks_and_returns(int recipient)
     {
         Run(recipient, recipient, assignOverride: false);

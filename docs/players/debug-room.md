@@ -9,7 +9,7 @@ Press **F2** to open Debug Room, or change its binding in [Controls](controls.md
 | Section | Purpose |
 | --- | --- |
 | [Models](../modding/model-mods.md) | Open the model catalog directly; search, compare variants and exchange GLB files. |
-| Battle | Laboratory, encounter execution policy, displayed battle status and explicit Win/Lose actions. |
+| Battle | Weapons and Limit assignments, laboratory, encounter execution policy, displayed battle status and explicit Win/Lose actions. |
 | Scene | Open the inspector directly; Layers, Objects and Events remain local tabs. |
 | UI tools | Open the fixture menu gallery directly; Reset fixture data affects only previews. |
 | Session | Open the supported-name list directly. |

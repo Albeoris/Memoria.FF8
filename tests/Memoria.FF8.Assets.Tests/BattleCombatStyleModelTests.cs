@@ -168,6 +168,31 @@ public sealed class BattleCombatStyleModelTests
             Assert.True(equipped.LinkedGeometry!.Value.Sum(mesh => mesh.Polygons.Length) < donorWeapon.Meshes.Sum(mesh => mesh.Faces.Count));
         }
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    public void Installed_gloves_preserve_recipient_wrist_bridge_polygons(int recipient)
+    {
+        using BattleAssets assets = new(TestResources.GameDirectory);
+        BattleModel original = assets.LoadPlayer(recipient);
+        BattleModel equipped = assets.LoadPlayerForStyle(recipient, 0, 1);
+        HashSet<int> hands = BattleHumanoidRigProfiles.SemanticPairs(recipient, original, recipient, original).Where(pair => pair.Joint is "hand-a" or "hand-b").Select(pair => pair.Recipient).ToHashSet();
+        BattleMesh body = original.Meshes[0];
+        BattleFace[] bridges = body.Faces.Where(face => face.Vertices.Any(index => hands.Contains(body.Vertices[index].Bone)) && face.Vertices.Any(index => !hands.Contains(body.Vertices[index].Bone))).ToArray();
+        Assert.NotEmpty(bridges);
+        foreach (BattleFace face in bridges)
+        {
+            Assert.Contains(face, equipped.Meshes[0].Faces);
+        }
+        Assert.DoesNotContain(equipped.Meshes[0].Faces, face => face.Vertices.All(index => hands.Contains(body.Vertices[index].Bone)));
+        Assert.Equal(body.Vertices, equipped.Meshes[0].Vertices);
+        Assert.Equal(equipped.Meshes[0].Faces.Count, equipped.NativeRenderGeometry!.Value[0].Polygons.Length);
+        BattleCombatantDefinition actor = new() { Id = "player", IsPlayer = true, ModelId = recipient, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == 1).Id };
+        NativeBattleGraphicsResource free = assets.ReadNativeLimitPresentationResource(actor, BattleLimitFamily.Duel, assets.ReadNativeGraphicsResource(actor));
+        Assert.Equal(body.Faces.Count, free.Geometry!.Value[0].Polygons.Length);
+    }
+
     private static int NativeVertexCount(NativeBattleModelDatSource source)
     {
         ReadOnlySpan<byte> bytes = source.Bytes.AsSpan();
