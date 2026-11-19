@@ -28,8 +28,34 @@ internal static class NativeGraphOwnershipTests
         Check(Ff7AutoplayDriver.ReadNavigationRunModes(true, null).SequenceEqual([true, false]) && Ff7AutoplayDriver.ReadNavigationRunModes(true, false).SequenceEqual([false]) && Ff7AutoplayDriver.ReadNavigationRunModes(false, true).SequenceEqual([true]), "Native graph run/walk choices were merged into a greedy speed choice.");
         CheckForcedForest(root);
         CheckExternalAdmissions();
+        CheckQueuedAcknowledgements();
         CheckExactNativeIdentity(pending, recovery);
         Console.WriteLine("Native graph owner lineage, settlement, ladder evidence, exact identity and speed checks passed.");
+    }
+
+    private static void CheckQueuedAcknowledgements()
+    {
+        Ff7AutoPlayTarget touch = new("touch", 11, 4, Ff7AutoPlayTargetKind.LineTouch, "condition", false, default, MayChangeNavigation: true);
+        Ff7Line line = new(7, 11, 0, 0, 0, 100, 0, 0, 1, 0, Touch: true);
+        string nativeFlags = JsonSerializer.Serialize(line);
+        Ff7AutoplayDriver.NativeGraphOwnership selected = new(null, touch);
+        selected.ObserveQueued([line]);
+        Check(selected.Capture() is { Pending: [true], AdmissionObserved: [false] }, "An undispatched chosen native contact did not arm its queued obligation.");
+        selected.Requested(11, 4, true, false);
+        for (int callback = 0; callback < 3; callback++)
+        {
+            selected.ObserveQueued([line]);
+            Check(!selected.HasDebt && selected.Capture() is null && !selected.Allows(11, 4), "Persistent Touch resurrected an acknowledged no-op and forced another settlement-only node.");
+        }
+        Check(JsonSerializer.Serialize(line) == nativeFlags && !selected.HasReturnedLadder, "Acknowledging a no-op changed native flags or borrowed recovery authority.");
+        selected.AdoptForcedRoot(touch);
+        selected.Requested(11, 4, true, true);
+        selected.Returned(new(11, 1, 20, 1));
+        selected.AdoptForcedRoot(touch);
+        selected.Requested(11, 4, true, true);
+        Check(!selected.Invalid && selected.OwnsInput(11, 1) && selected.Capture()!.Roots.Length == 3 && selected.Capture()!.AdmissionObserved!.All(value => value), "A genuine repeated forced Touch lost its new execution lifetime.");
+        selected.Returned(new(11, 1, 21, 2));
+        Check(selected.IsSettled(true), "A repeated real Touch did not settle after its exact return.");
     }
 
     private static void CheckExternalAdmissions()
@@ -113,6 +139,7 @@ internal static class NativeGraphOwnershipTests
         }
         Check(exact != Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(native, JsonSerializer.Serialize(new { Debt = pending, Recovery = recovery })), "Completed recovery evidence was erased from graph node identity.");
         Check(exact != Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(native, JsonSerializer.Serialize(new { Debt = pending with { Owners = [new(13, 1, 0, true)] }, Recovery = (Ff7NativeGraphDebt?)null })), "A distinct native ownership debt was erased from visited identity.");
+        Check(exact != Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(native, JsonSerializer.Serialize(new { Debt = pending with { AdmissionObserved = [false] }, Recovery = (Ff7NativeGraphDebt?)null })), "Acknowledged versus undispatched native admission was erased from graph identity.");
     }
 
     private static void Check(bool condition, string message)

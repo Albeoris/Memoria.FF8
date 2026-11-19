@@ -7,7 +7,7 @@ namespace Memoria.FF7.Runtime;
 
 internal enum Ff7NativeGraphEdgeKind { Wait, Portal, Goal, OwnedEvent, OwnerSettlement }
 internal sealed record Ff7NativeGraphOwner(int Entity, int Priority, int Root, bool Returned, int Script = -1, int ParentEntity = -1, int ParentPriority = -1);
-internal sealed record Ff7NativeGraphDebt(Ff7AutoPlayTarget[] Roots, bool[] Pending, Ff7NativeGraphOwner[] Owners, long? LadderRequest = null, int LadderEntity = -1, int LadderPriority = -1, bool BackwardCompleted = false, int LadderRoot = -1);
+internal sealed record Ff7NativeGraphDebt(Ff7AutoPlayTarget[] Roots, bool[] Pending, Ff7NativeGraphOwner[] Owners, long? LadderRequest = null, int LadderEntity = -1, int LadderPriority = -1, bool BackwardCompleted = false, int LadderRoot = -1, bool[]? AdmissionObserved = null);
 internal sealed record Ff7NativeGraphState(Ff7SessionSave Native, Ff7NativeGraphDebt? Debt, Ff7NativeGraphDebt? Recovery = null);
 internal sealed record Ff7NativeGraphEdge(Ff7NativeGraphEdgeKind Kind, Vector3 Point, int? Triangle = null, Ff7AutoPlayTarget? Event = null, bool Run = true);
 
@@ -182,7 +182,7 @@ public sealed partial class Ff7AutoplayDriver
                         }
                         break;
                     }
-                    ownership.ObserveQueued(branch, current.Events);
+                    ownership.ObserveQueued(branch.Host.Process.Lines);
                     if (lastTick is not null && input == default && ownership.HasDebt)
                     {
                         probe.QueuedLineWaitObserved?.Invoke(segment[^1], lastTick);
@@ -403,6 +403,7 @@ public sealed partial class Ff7AutoplayDriver
     {
         private readonly List<Ff7AutoPlayTarget> roots;
         private readonly List<bool> pending;
+        private readonly List<bool> admissionObserved;
         private readonly List<Ff7NativeGraphOwner> owners;
         private long? ladderRequest;
         private int ladderEntity;
@@ -418,6 +419,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             roots = source?.Roots.ToList() ?? (chosen is null ? [] : [chosen]);
             pending = source?.Pending.ToList() ?? roots.Select(_ => false).ToList();
+            admissionObserved = source?.AdmissionObserved?.ToList() ?? roots.Select(_ => false).ToList();
             owners = source?.Owners.ToList() ?? [];
             ladderRequest = source?.LadderRequest;
             ladderEntity = source?.LadderEntity ?? -1;
@@ -436,7 +438,7 @@ public sealed partial class Ff7AutoplayDriver
         {
             for (int root = 0; root < roots.Count; root++)
             {
-                if (roots[root].Entity == entity && roots[root].Script == script && (pending[root] || !owners.Any(owner => owner.Entity == entity && owner.Priority == 1 && owner.Root == root) || owners.Any(owner => owner.Entity == entity && owner.Priority == 1 && owner.Root == root && !owner.Returned)))
+                if (roots[root].Entity == entity && roots[root].Script == script && (pending[root] || !admissionObserved[root] && !owners.Any(owner => owner.Entity == entity && owner.Priority == 1 && owner.Root == root) || owners.Any(owner => owner.Entity == entity && owner.Priority == 1 && owner.Root == root && !owner.Returned)))
                 {
                     return true;
                 }
@@ -450,6 +452,7 @@ public sealed partial class Ff7AutoplayDriver
             {
                 roots.Add(target);
                 pending.Add(true);
+                admissionObserved.Add(false);
             }
         }
 
@@ -461,6 +464,7 @@ public sealed partial class Ff7AutoplayDriver
                 return false;
             }
             pending[index] = false;
+            admissionObserved[index] = true;
             if (accepted && started)
             {
                 Invalid |= OwnsInput(entity, 1);
@@ -496,12 +500,12 @@ public sealed partial class Ff7AutoplayDriver
             }
         }
 
-        internal void ObserveQueued(Ff7Session branch, Ff7AutoPlayTarget[] events)
+        internal void ObserveQueued(IReadOnlyList<Ff7Line> lines)
         {
             for (int root = 0; root < roots.Count; root++)
             {
                 Ff7AutoPlayTarget target = roots[root];
-                if (!owners.Any(owner => owner.Entity == target.Entity && owner.Priority == 1 && owner.Root == root) && branch.Host.Process.Lines.Any(line => line.Entity == target.Entity && HasNativeLineRequest(target.Kind, line)))
+                if (!admissionObserved[root] && !owners.Any(owner => owner.Entity == target.Entity && owner.Priority == 1 && owner.Root == root) && lines.Any(line => line.Entity == target.Entity && HasNativeLineRequest(target.Kind, line)))
                 {
                     pending[root] = true;
                 }
@@ -528,6 +532,6 @@ public sealed partial class Ff7AutoplayDriver
         internal bool IsSettled(Ff7Session branch) => IsSettled(Ff7AutoPlayDiscovery.NativeControlReady(branch));
         internal bool HasReturnedLadder => backwardCompleted && ladderRequest is not null && ladderRoot >= 0 && ladderRoot < roots.Count && owners.Any(owner => owner.Entity == ladderEntity && owner.Priority == ladderPriority && owner.Root == ladderRoot && owner.Returned) && owners.Any(owner => owner.Entity == roots[ladderRoot].Entity && owner.Priority == 1 && owner.Root == ladderRoot && owner.Returned);
         internal bool CanReleaseSource(Ff7Session branch) => HasReturnedLadder && branch.Host.Process.Actors.Single(actor => actor.PlayerControlled).Ladder is null && branch.Machine.Capture().PendingRequests?.Any(request => request.Id == ladderRequest) != true;
-        internal Ff7NativeGraphDebt? Capture() => HasDebt ? new(roots.ToArray(), pending.ToArray(), owners.OrderBy(owner => owner.Root).ThenBy(owner => owner.Entity).ThenBy(owner => owner.Priority).ToArray(), ladderRequest, ladderEntity, ladderPriority, backwardCompleted, ladderRoot) : null;
+        internal Ff7NativeGraphDebt? Capture() => HasDebt ? new(roots.ToArray(), pending.ToArray(), owners.OrderBy(owner => owner.Root).ThenBy(owner => owner.Entity).ThenBy(owner => owner.Priority).ToArray(), ladderRequest, ladderEntity, ladderPriority, backwardCompleted, ladderRoot, admissionObserved.ToArray()) : null;
     }
 }
