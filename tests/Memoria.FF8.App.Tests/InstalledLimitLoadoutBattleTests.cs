@@ -120,7 +120,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
         session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, WeaponLimitBattlePreparation.Formation, program)));
         WeaponLimitBattlePreparation.SaveField(session, world, recipient, assets.ReadWeaponProfile(weapon).ResourceOwner, family, cardSlots, source, directory);
-        bool diagnosticSeed = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PAIR_PROBE") is not null || Environment.GetEnvironmentVariable("MEMORIA_FF8_DESPERADO_ATTACHMENT_PROBE") is not null;
+        bool diagnosticSeed = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PAIR_PROBE") is not null || Environment.GetEnvironmentVariable("MEMORIA_FF8_DESPERADO_ATTACHMENT_PROBE") is not null || Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_TRACE") is not null;
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: diagnosticSeed ? (byte)0 : (byte)4));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
@@ -262,7 +262,9 @@ public sealed class InstalledLimitLoadoutBattleTests
             }
             if (family == BattleLimitFamily.Duel && !duelInput && battle.GetNativeDuel(actor.Id) is { Phase: BattleNativeDuelPhase.Ready })
             {
-                BattleNativeDuelChoice move = battle.GetNativeDuelChoices(actor.Id).First(choice => choice.Learned && !choice.Finisher);
+                string? selectedMove = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_DUEL_ACTION_ID");
+                BattleNativeDuelChoice[] availableMoves = battle.GetNativeDuelChoices(actor.Id).Where(choice => choice.Learned && !choice.Finisher).ToArray();
+                BattleNativeDuelChoice move = selectedMove is null ? availableMoves.First() : Assert.Single(availableMoves, choice => choice.ActionId == byte.Parse(selectedMove, System.Globalization.CultureInfo.InvariantCulture));
                 foreach (ushort button in move.Buttons)
                 {
                     battle.SubmitNativeDuelInput(0);

@@ -57,6 +57,7 @@ public sealed class NativeBattlePoseRetargeter
     private readonly NativeBattleDecodedPose recipientRest;
     private readonly IReadOnlyDictionary<int, NativeBattleSemanticBonePair> bindings;
     private readonly float rootScale;
+    private readonly float horizontalRootScale;
     private readonly NativeBattleVector sourceOrigin;
     private readonly NativeBattleFootContactCalibration? feet;
     private readonly float sourceFloor;
@@ -65,7 +66,7 @@ public sealed class NativeBattlePoseRetargeter
     private readonly string? primaryContactJoint;
     private readonly NativeBattleRootTranslationMode translationMode;
 
-    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale, NativeBattleFootContactCalibration? footContact = null, NativeBattleTwoHandContactCalibration? twoHandContact = null, string? primaryContactJoint = "hand-a", NativeBattleRootTranslationMode translationMode = NativeBattleRootTranslationMode.RecipientNeutral)
+    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale, NativeBattleFootContactCalibration? footContact = null, NativeBattleTwoHandContactCalibration? twoHandContact = null, string? primaryContactJoint = "hand-a", NativeBattleRootTranslationMode translationMode = NativeBattleRootTranslationMode.RecipientNeutral, float? horizontalMotionScale = null)
     {
         sourceNeutral.Validate();
         recipientNeutral.Validate();
@@ -88,6 +89,11 @@ public sealed class NativeBattlePoseRetargeter
             throw new InvalidDataException("A semantic profile requires a finite positive calibrated root-motion scale.");
         }
         rootScale = rootMotionScale;
+        horizontalRootScale = horizontalMotionScale ?? rootMotionScale;
+        if (!float.IsFinite(horizontalRootScale) || horizontalRootScale <= 0)
+        {
+            throw new InvalidDataException("A semantic profile requires a finite positive horizontal native-coordinate scale.");
+        }
         this.primaryContactJoint = primaryContactJoint;
         if (!Enum.IsDefined(translationMode))
         {
@@ -185,8 +191,8 @@ public sealed class NativeBattlePoseRetargeter
             targetCurrent[bone] = local * parentCurrent;
             bones.Add(new(Angles(local), recipientRest.Bones[bone].Scale));
         }
-        short Coordinate(short position, short origin, short target) => translationMode == NativeBattleRootTranslationMode.SourceAbsolute ? checked((short)MathF.Round(position * rootScale)) : checked((short)(target + MathF.Round((position - origin) * rootScale)));
-        NativeBattleVector translation = new(Coordinate(pose.Translation.X, sourceOrigin.X, recipientRest.Translation.X), Coordinate(pose.Translation.Y, sourceOrigin.Y, recipientRest.Translation.Y), Coordinate(pose.Translation.Z, sourceOrigin.Z, recipientRest.Translation.Z));
+        short Coordinate(short position, short origin, short target, float scale) => translationMode == NativeBattleRootTranslationMode.SourceAbsolute ? checked((short)MathF.Round(position * scale)) : checked((short)(target + MathF.Round((position - origin) * scale)));
+        NativeBattleVector translation = new(Coordinate(pose.Translation.X, sourceOrigin.X, recipientRest.Translation.X, horizontalRootScale), Coordinate(pose.Translation.Y, sourceOrigin.Y, recipientRest.Translation.Y, rootScale), Coordinate(pose.Translation.Z, sourceOrigin.Z, recipientRest.Translation.Z, horizontalRootScale));
         NativeBattleDecodedPose result = new(translation, bones.MoveToImmutable(), recipientRest.HasScale);
         if (hands is not null && secondaryContact)
         {

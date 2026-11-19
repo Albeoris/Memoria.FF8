@@ -49,7 +49,9 @@ public static class BattleHumanoidRigProfiles
             NativeBattleSemanticBonePair Joint(string name) => pairs.Single(pair => pair.Joint == name);
             hands = new(Joint("hand-b").Source, Joint("hand-a").Source, Joint("hand-b").Recipient, Joint("upper-arm-a").Recipient, Joint("forearm-a").Recipient, Joint("hand-a").Recipient, 4) { RecipientPrimaryUpperArm = Joint("upper-arm-b").Recipient, RecipientPrimaryForearm = Joint("forearm-b").Recipient };
         }
-        return new(source.NativePoseSource!, recipient.NativePoseSource!, pairs, recipientLeg / sourceLeg, new(sourceVertices, recipientVertices), hands, PrimaryEquipmentContacts[sourceCharacter]);
+        //508C90 scales translation by skeleton WORD2; limb lengths do not change authored world X/Z displacement.
+        float horizontalUnits = source.NativePoseSource!.ReadModelScale5027D0() / (float)recipient.NativePoseSource!.ReadModelScale5027D0();
+        return new(source.NativePoseSource, recipient.NativePoseSource, pairs, recipientLeg / sourceLeg, new(sourceVertices, recipientVertices), hands, PrimaryEquipmentContacts[sourceCharacter], horizontalMotionScale: horizontalUnits);
     }
 
     private static void Validate(int character, BattleModel model)

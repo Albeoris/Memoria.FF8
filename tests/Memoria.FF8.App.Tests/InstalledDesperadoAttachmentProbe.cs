@@ -11,6 +11,7 @@ internal static class InstalledDesperadoAttachmentProbe
 {
     internal static void CaptureIfRequested(GameWorld world, string actorId, int recipient, BattleLimitFamily family)
     {
+        InstalledDesperadoOwnershipTrace.CaptureIfRequested(world, actorId, recipient, family);
         string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_DESPERADO_ATTACHMENT_PROBE");
         if (string.IsNullOrWhiteSpace(output) || family != BattleLimitFamily.Desperado || recipient is not (0 or 6 or 8) || world.Battle?.Presentation is not { } process || process.Graphics.Callback != 201)
         {
@@ -27,7 +28,8 @@ internal static class InstalledDesperadoAttachmentProbe
         NativeBattleEffectArena arena = process.Memory.Arena!;
         NativeBattleScriptedEffectMemory core = process.Memory.ScriptedEffects!;
         NativeBattleGraphicsModel actor = graphics.ActorModels.Get(battle.ReadPresentationModelOwner(actorId));
-        var body = world.BattleResources.LoadPlayer(recipient);
+        BattleCombatantDefinition definition = battle.GetCombatantDefinition(actorId);
+        var body = world.BattleResources.LoadPlayer(recipient, definition.Costume);
         NativeBattlePoseSource skeleton = body.NativePoseSource!;
         NativeBattleDecodedPose decoded = actor.SequenceState!.DecodedPose!;
         ImmutableArray<NativeBattleActionMatrix> localBones = NativeBattlePoseMatrices.StageBoneMatrices(skeleton, decoded);
@@ -57,6 +59,7 @@ internal static class InstalledDesperadoAttachmentProbe
         File.WriteAllText(Path.Combine(output, $"emissions-{recipient:D2}.json"), JsonSerializer.Serialize(new
         {
             Recipient = recipient,
+            definition.Costume,
             Actor = actorId,
             ActorOwner = battle.ReadPresentationModelOwner(actorId).ToString(),
             Callback = graphics.Callback,
@@ -206,6 +209,7 @@ internal static class InstalledDesperadoAttachmentProbe
         File.WriteAllText(path, JsonSerializer.Serialize(new
         {
             Recipient = recipient,
+            definition.Costume,
             Actor = actorId,
             Callback = graphics.Callback,
             Frame = battle.Frame,
