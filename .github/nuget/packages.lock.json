@@ -167,6 +167,26 @@
       "sha512": "ae35df05e5d964e8b17932178bc17e1e47d749ffa26ae4d0834c0ef8265bcea0ce9b95cf7ac7361b2a58434a2d14e05b7db14fe1ac19ad9c0d6bad0b69856f61"
     },
     {
+      "id": "microsoft.netcore.app.crossgen2.linux-x64",
+      "version": "10.0.12",
+      "sha512": "841adba45968361dc19420cbc4f7dfdc495898652e40cd994ca95846d19761a93d7bed270cc4a6b5073102931fd3a7fc338986c84b06092b1c5b4067b89b84da"
+    },
+    {
+      "id": "microsoft.netcore.app.crossgen2.osx-arm64",
+      "version": "10.0.12",
+      "sha512": "2ecc3dcc02d99282af61631f31b34d702347e5471919f8bad03ca5af703bbe45086c70d363e7342052cef48e98280de904509505ea143a842e1769bb37c409eb"
+    },
+    {
+      "id": "microsoft.netcore.app.crossgen2.osx-x64",
+      "version": "10.0.12",
+      "sha512": "e79b2060b101b220290b878ca135c27aa8c685832db95886e33e311c552fddba377aad19c45360b1c44cbd6472e84e80c2fe9dbe24965c3dc6b3fb0fd9e26f4b"
+    },
+    {
+      "id": "microsoft.netcore.app.crossgen2.win-x64",
+      "version": "10.0.12",
+      "sha512": "34ac95a526b975a887b38496f1b8afcb7b3c58dc199fa25e10321da1ba31b9a3b59ffd37d5de20c1ae0d79c9fbf195978fde034c91180228df8a7195b9f24401"
+    },
+    {
       "id": "microsoft.netcore.app.host.linux-x64",
       "version": "10.0.12",
       "sha512": "b688f494f44dee80c97b4d8ec93603064456ea6516467f0b79441603ba394639dbb7eede25407c0139702ae6d5a83627b8e23202440ca03c260c2de0741d7266"

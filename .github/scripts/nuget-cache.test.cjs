@@ -31,6 +31,10 @@ test('the shared dependency lock has one version and archive hash per package ID
     for (const rid of ['win-x64', 'linux-x64', 'osx-x64', 'osx-arm64']) {
         assert.ok(ids.includes(`microsoft.netcore.app.runtime.${rid}`));
         assert.ok(ids.includes(`microsoft.netcore.app.host.${rid}`));
+        const runtime = lock.packages.find(({ id }) => id === `microsoft.netcore.app.runtime.${rid}`);
+        const compiler = lock.packages.find(({ id }) => id === `microsoft.netcore.app.crossgen2.${rid}`);
+        assert.ok(compiler, `Missing ReadyToRun compiler for build host ${rid}`);
+        assert.equal(compiler.version, runtime.version, `ReadyToRun compiler and runtime versions differ for ${rid}`);
     }
     assert.ok(ids.includes('dotnet-mgfxc'));
 });

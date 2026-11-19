@@ -204,6 +204,7 @@ try {
             '-p:SelfContained=true'
             '-p:SkipMusicHost=true'
             '-p:PublishTrimmed=false'
+            '-p:MemoriaPrecompile=true'
             '-p:ShouldUnsetParentConfigurationAndPlatform=false'
         )
         Add-RestorePackages "$rid-packaging" 'tools/Memoria.FF8.Distribution.Check/Memoria.FF8.Distribution.Check.csproj' @("-p:MemoriaTargetRuntime=$rid")
@@ -216,6 +217,7 @@ try {
             '-p:SelfContained=true'
             '-p:SkipMusicHost=true'
             '-p:PublishTrimmed=false'
+            '-p:MemoriaPrecompile=true'
             '-p:EnableWindowsTargeting=true'
         )
     }
@@ -227,6 +229,21 @@ try {
     }
     foreach ($rid in $runtimes) {
         Add-Package "microsoft.netcore.app.host.$rid" $appHostVersions[0] "SDK $sdkVersion"
+    }
+
+    # ReadyToRun restores only the current build host's compiler, even when targeting another RID.
+    # Include every supported build host using the pinned SDK's compiler contract.
+    [xml]$bundledVersions = Get-Content -LiteralPath (Join-Path $sdkPath 'Microsoft.NETCoreSdk.BundledVersions.props') -Raw
+    $crossgen2Packs = @($bundledVersions.SelectNodes('//KnownCrossgen2Pack[@Include="Microsoft.NETCore.App.Crossgen2" and @TargetFramework="net10.0"]'))
+    if ($crossgen2Packs.Count -ne 1) {
+        throw 'Expected one net10.0 Crossgen2 pack definition in the pinned SDK.'
+    }
+    $crossgen2 = $crossgen2Packs[0]
+    foreach ($rid in $runtimes) {
+        if ($rid -cnotin $crossgen2.Crossgen2RuntimeIdentifiers.Split(';')) {
+            throw "The pinned SDK does not support the Crossgen2 build host $rid."
+        }
+        Add-Package $crossgen2.Crossgen2PackNamePattern.Replace('**RID**', $rid) $crossgen2.Crossgen2PackVersion "SDK $sdkVersion ReadyToRun"
     }
 
     foreach ($manifestPath in '.config/dotnet-tools.json', 'src/Memoria.FF8.TitleScene/.config/dotnet-tools.json') {
