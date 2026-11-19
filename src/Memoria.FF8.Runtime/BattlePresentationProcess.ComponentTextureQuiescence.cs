@@ -21,6 +21,12 @@ public sealed partial class BattlePresentationProcess
         {
             return null;
         }
+        return observation with { ResidentFingerprint = CaptureDiagnosticResidentTextureFingerprint(owners, textures) };
+    }
+
+    internal string CaptureDiagnosticResidentTextureFingerprint(BattleDiagnosticInvocationOwners owners, BattleDiagnosticTextureQuiescence textures)
+    {
+        NativeBattleGraphicsState graphics = Graphics;
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         HashValue(hash, owners.ActionHeaders);
         HashValue(hash, owners.ContactRows);
@@ -63,7 +69,7 @@ public sealed partial class BattlePresentationProcess
                 }
             }
         }
-        return observation with { ResidentFingerprint = Convert.ToHexStringLower(hash.GetHashAndReset()) };
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
     private static void HashValue(IncrementalHash hash, long value)

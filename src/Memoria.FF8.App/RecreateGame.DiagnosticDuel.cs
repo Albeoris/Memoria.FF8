@@ -31,6 +31,15 @@ internal sealed partial class RecreateGame
 
     private DiagnosticDuelObservation ObserveDiagnosticDuel(BattleSession active) => new(active.NativeHostCallbacks ?? throw new NotSupportedException("Duel diagnostics require the native callback ledger."), active.ObserveDiagnosticDuelState(diagnosticDriverRecipe!.Input.ActorId!));
 
+    private void ObserveDiagnosticDuelClosing(string actorId)
+    {
+        if (diagnosticDriverRecipe?.DuelCycle is null || actorId != diagnosticDriverRecipe.Input.ActorId || diagnosticDriverBattle is not { } active || diagnosticDriver is not { Finished: false, DuelCycle: { Completed: false } })
+        {
+            return;
+        }
+        ObserveDiagnosticDuelUi(active);
+    }
+
     private void ObserveDiagnosticDuelUi(BattleSession active)
     {
         if (diagnosticDriverRecipe?.DuelCycle is not null && diagnosticDriver?.DuelCycle is { Completed: false } cycle)

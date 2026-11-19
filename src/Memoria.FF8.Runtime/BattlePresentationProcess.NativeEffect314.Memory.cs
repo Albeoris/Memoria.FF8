@@ -65,9 +65,9 @@ public sealed partial class BattlePresentationProcess
             (NativeBattleModelSlot slot, int offset) = NativeBattleGraphicsModelAddress.ResolveOriginalField(address, length);
             return NativeBattleEffectNodeContextMemory.Copy(CaptureNativeEffect301Model(graphics.NativeBindings.ReadOriginalCell(slot, graphics.ActorModels)), offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
-        foreach (BattleModelEntry<BattleModelOwner> actor in graphics.ActorModels.Entries)
+        foreach (BattleModelOwner actor in graphics.ActorModels.Owners)
         {
-            NativeBattleGraphicsModel model = actor.State;
+            NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
             if (model.ActiveResourceRow100 is not int rowIndex || model.CurrentBodyBoneMatrices is not { } bones)
             {
                 continue;

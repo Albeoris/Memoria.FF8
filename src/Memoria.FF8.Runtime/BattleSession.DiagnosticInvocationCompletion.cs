@@ -76,6 +76,21 @@ public sealed partial class BattleSession
     public object? LastDiagnosticInvocationPendingOwners { get; private set; }
     public BattleDiagnosticInvocationRelease? LastDiagnosticInvocationCompletion { get; private set; }
 
+    public object ObserveDiagnosticInvocationCompletionState()
+    {
+        return new
+        {
+            Owners = LastDiagnosticInvocationCompletion?.Owners is { } owners ? owners with { OriginalPools = owners.OriginalPools.IsDefault ? [] : owners.OriginalPools.Take(16).ToImmutableArray() } : null,
+            FollowupAmbiguous = diagnosticFollowupAmbiguous,
+            FollowupRetirementCaptured = diagnosticFollowupRetirement is not null,
+            FollowupReleased = LastDiagnosticInvocationFollowupRelease is not null,
+            CallbackCount = diagnosticFollowupCallbacks?.Count ?? 0,
+            Callbacks = diagnosticFollowupCallbacks?.Take(16).Select(pair => new { Actor = pair.Key.Actor is BattlePartyActorReference party ? party.ActorId : null, pair.Key.Stage, pair.Value.Queued, pair.Value.Started, pair.Value.Completed, pair.Value.NoOp }).ToArray(),
+            TextureCount = diagnosticFollowupTextures?.Count ?? 0,
+            TextureReleaseCount = diagnosticFollowupTextures?.Values.Count(texture => texture.Release is not null) ?? 0
+        };
+    }
+
     private void ObserveDiagnosticInvocationDispatch(BattleDiagnosticEffectDispatch dispatch)
     {
         if (diagnosticPendingFrameAttempt is not null)
@@ -265,6 +280,7 @@ public sealed partial class BattleSession
         diagnosticRetiredCompletion = null;
         ObserveDiagnosticInvocationGraphicsFrameEnd(process);
         ObserveDiagnosticFollowupDrain(process);
+        ObserveDiagnosticAftercareFrameEnded();
     }
 
     private void ObserveDiagnosticInvocationGraphicsFrameEnd(BattlePresentationProcess process)

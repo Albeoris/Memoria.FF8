@@ -2,7 +2,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.BattleEffects;
 
-public static class DiagnosticInvocationReleaseValidation
+public static partial class DiagnosticInvocationReleaseValidation
 {
     public static void ValidateFollowupFocalRetirement(BattleDiagnosticInvocationRelease retirement, BattleDiagnosticEffectDispatch focal, Guid lifecycle)
     {
@@ -31,8 +31,8 @@ public static class DiagnosticInvocationReleaseValidation
         ArgumentNullException.ThrowIfNull(release);
         BattleDiagnosticInvocationRelease retirement = release.FocalRetirement ?? throw new InvalidDataException("Follow-up release has no focal retirement.");
         ValidateFollowupFocalRetirement(retirement, focal, lifecycle);
-        BattleDiagnosticInvocationFinalDrain drain = release.FinalDrain ?? throw new InvalidDataException("Follow-up release has no actual final drain.");
-        if (drain.LifecycleId != lifecycle || drain.Callback <= retirement.Callback || drain.SimulationFrame < retirement.SimulationFrame || drain.GraphicsCallback <= retirement.GraphicsCallback || drain.Timestamp <= retirement.Timestamp || drain.FocalDispatch is null || !DiagnosticEffectDispatchEvidence.Matches(drain.FocalDispatch, focal) || drain.Owners is null || HasOutstandingOwners(drain.Owners, 0) || release.Callbacks.IsDefault || release.Callbacks.Length != retirement.PendingFollowups.Length)
+        BattleDiagnosticInvocationFinalDrain drain = release.FinalDrain ?? throw new InvalidDataException("Follow-up release has no observed final boundary.");
+        if (drain.LifecycleId != lifecycle || drain.Callback <= retirement.Callback || drain.SimulationFrame < retirement.SimulationFrame || drain.GraphicsCallback <= retirement.GraphicsCallback || drain.Timestamp <= retirement.Timestamp || drain.FocalDispatch is null || !DiagnosticEffectDispatchEvidence.Matches(drain.FocalDispatch, focal) || drain.Owners is null || HasOutstandingOwners(release.QuiescentTextures is null ? drain.Owners : drain.Owners with { AuxiliaryHead = false }, 0) || release.Callbacks.IsDefault || release.Callbacks.Length != retirement.PendingFollowups.Length)
         {
             throw new InvalidDataException("Follow-up drain changed focal lineage or retains actual native owners.");
         }
@@ -44,7 +44,38 @@ public static class DiagnosticInvocationReleaseValidation
                 throw new InvalidDataException("Follow-up drain lacks the actual once-queued, started and completed native callback witnesses.");
             }
         }
-        ValidateFollowupTextureReleases(release);
+        if (release.QuiescentTextures is null)
+        {
+            ValidateFollowupTextureReleases(release);
+        }
+        else
+        {
+            ValidateFollowupQuiescence(release, focal);
+        }
+    }
+
+    private static void ValidateFollowupQuiescence(BattleDiagnosticInvocationFollowupRelease release, BattleDiagnosticEffectDispatch focal)
+    {
+        BattleDiagnosticInvocationFollowupQuiescence proof = release.QuiescentTextures!;
+        BattleComponentTextureQuiescenceObservation observation = proof.Observation ?? throw new InvalidDataException("Resident followup has no native fixed-point observation.");
+        BattleDiagnosticInvocationFinalDrain boundary = release.FinalDrain;
+        ValidatePlayerStage2NoOp(proof.NoOp, release);
+        if (release.TextureReleases.IsDefault || !release.TextureReleases.IsEmpty || !boundary.Owners.AuxiliaryHead || release.Callbacks is not [{ Actor: BattlePartyActorReference actor, Stage: 2 }] || actor.ActorId != focal.ActorId ||
+            proof.DispatchSerial != focal.Serial || proof.HeaderGeneration != focal.NativeHeaderGeneration || proof.HeaderGeneration <= 0 || !observation.IsEligible || observation.Effect != focal.RequestedEffect || observation.GraphicsCallback != boundary.GraphicsCallback ||
+            observation.ResidentFingerprint is not { Length: 64 } || observation.ResidentFingerprint.Any(character => !Uri.IsHexDigit(character)) ||
+            (observation.Owners with { OriginalPools = [] }) != (boundary.Owners with { OriginalPools = [] }) || !observation.Owners.OriginalPools.SequenceEqual(boundary.Owners.OriginalPools) ||
+            proof.ResidentTextures.IsDefaultOrEmpty || proof.ResidentTextures.Any(texture => texture is null) || proof.ResidentTextures.Length != release.FocalRetirement.PendingTextures.Length || proof.ResidentTextures.Length != observation.Textures.Tasks.Length || proof.ResidentTextures.Select(texture => texture.Slot).Distinct().Count() != proof.ResidentTextures.Length)
+        {
+            throw new InvalidDataException("Resident followup requires exact focal lineage, completed caster stage2 and only the proved conditional texture owners.");
+        }
+        foreach (BattleDiagnosticInvocationPendingTexture texture in proof.ResidentTextures)
+        {
+            BattleDiagnosticTextureTask? row = observation.Textures.Tasks.SingleOrDefault(row => row.Slot == texture.Slot);
+            if (!release.FocalRetirement.PendingTextures.Contains(texture) || row is null || row.ModelActorId != texture.Actor.ActorId || row.ModelIndex != texture.NativeActorIndex || row.CapturedSequence != texture.CapturedSequence || row.ModelSequence != texture.Sequence || row.ProgramOffset != texture.ProgramOffset || row.ProgramLength != texture.ProgramLength || row.Deadline != texture.Deadline || row.ModelFlags0 is not ushort flags || (flags & 2) != (texture.ModelFlags0 & 2) || row.ResourceFlags44 is not ushort resource || (resource & 0x40) != (texture.ResourceFlags44 & 0x40))
+            {
+                throw new InvalidDataException("Resident followup changed its originally captured texture/program/model lineage.");
+            }
+        }
     }
 
     private static void ValidateFollowupPendingTextures(BattleDiagnosticInvocationRelease retirement, BattleDiagnosticEffectDispatch focal)

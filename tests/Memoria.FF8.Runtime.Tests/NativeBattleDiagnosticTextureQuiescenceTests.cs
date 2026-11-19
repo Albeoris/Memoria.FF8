@@ -143,8 +143,9 @@ public sealed class NativeBattleDiagnosticTextureQuiescenceTests
         {
             Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }]
         }, BattleAtbMode.Normal);
-        NativeBattleGraphicsState graphics = Fixture() with { OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0) };
+        NativeBattleGraphicsState graphics = Fixture() with { OriginalEffect = new(effect, effect - 1, new(effect, 1, 1), null, 0), PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
         BattlePresentationProcess process = NativeBattleHostedTestFixture.SeedProcess(logical, graphics);
+        Assert.Same(graphics, process.Graphics);
         NativeBattleEffectMemory memory = NativeBattleEffectMemory.FromColdProcess();
         NativeBattleHostedTestFixture.SetProperty(process, nameof(BattlePresentationProcess.NativeEffectMemory), memory);
         BattleDiagnosticInvocationOwners owners = new(0, 0, 0, 0, false, true, 0, false, 0, 0, false, 0, false, false, false, false)

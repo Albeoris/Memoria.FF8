@@ -100,6 +100,39 @@ public sealed class DiagnosticDuelCycleDriverTests
     }
 
     [Fact]
+    public void Reopened_widget_waits_until_manual_input_is_consumed_before_emitting_its_first_edge()
+    {
+        DiagnosticDuelCycleDriver cycle = Create();
+        BattleNativeDuelState reopening = NativeBattleDuelRules.AcknowledgeWidgetReady(State(BattleNativeDuelPhase.AwaitingEffect) with { MoveSetId = 3 });
+        BattleNativeDuelChoice choice = new(1, 0, "Punch Rush", true, false, [16]);
+        cycle.BeginInput(choice, new(3, ReadObservation(reopening)));
+        Assert.Equal((byte)0, reopening.WidgetPhase);
+        BattleNativeDuelState premature = NativeBattleDuelRules.AdvanceWidget(reopening with { PreviousButtons = 16 }, true, 16, false, [choice], () => throw new InvalidOperationException("Manual input must not draw random values."));
+        Assert.Equal((byte)0, premature.InputCursor);
+        Assert.Equal(BattleNativeDuelPhase.Ready, premature.Phase);
+        for (int callback = 0; callback < 8 && reopening.WidgetPhase < 3; callback++)
+        {
+            ushort buttons = cycle.Buttons(reopening);
+            Assert.Equal((ushort)0, buttons);
+            ushort pulse = (ushort)(buttons & ~reopening.PreviousButtons);
+            reopening = NativeBattleDuelRules.AdvanceWidget(reopening with { PreviousButtons = buttons }, true, pulse, false, [choice], () => throw new InvalidOperationException("Manual input must not draw random values."));
+            Assert.Equal((byte)0, reopening.InputCursor);
+        }
+        Assert.Equal((byte)3, reopening.WidgetPhase);
+        ushort acceptedButtons = cycle.Buttons(reopening);
+        Assert.Equal((ushort)16, acceptedButtons);
+        ushort acceptedPulse = (ushort)(acceptedButtons & ~reopening.PreviousButtons);
+        BattleNativeDuelState accepted = NativeBattleDuelRules.AdvanceWidget(reopening with { PreviousButtons = acceptedButtons }, true, acceptedPulse, false, [choice], () => throw new InvalidOperationException("Manual input must not draw random values."));
+        Assert.Equal((byte)1, accepted.InputCursor);
+        Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, accepted.Phase);
+        Assert.Equal(choice.MoveSetId, accepted.MoveSetId);
+        cycle.Observe(new(10, ReadObservation(accepted)), false);
+        DiagnosticDuelInputReceipt input = Assert.Single(cycle.Receipt.Inputs);
+        Assert.Equal(choice, input.Choice);
+        Assert.True(NativeBattleDuelRules.Matches(input.Choice, input.After.Duel!.InputRing, input.After.Duel.InputCursor));
+    }
+
+    [Fact]
     public void Timer_close_requires_the_real_255_transition_and_full_drain_after_input()
     {
         DiagnosticDuelCycleDriver cycle = Create();
@@ -160,7 +193,7 @@ public sealed class DiagnosticDuelCycleDriverTests
         }
     }
 
-    private static BattleNativeDuelState State(BattleNativeDuelPhase phase) => new(0, NativeBattleTargetRequestAdapter.Decode(8, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), 240, 240, phase) { Selection1D28DEF = 254 };
+    private static BattleNativeDuelState State(BattleNativeDuelPhase phase) => new(0, NativeBattleTargetRequestAdapter.Decode(8, BattleTargetEligibility.SavedStatus, BattleTargetReplacement.UseCurrentBattlePolicy, samplesOriginalSlots: true), 240, 240, phase) { Selection1D28DEF = 254, WidgetPhase = 4 };
 
     private static BattleDiagnosticDuelState ReadObservation(BattleNativeDuelState state)
     {

@@ -12,6 +12,45 @@ public sealed partial class BattleSession
     private sealed record DiagnosticFollowupTexture(BattleDiagnosticInvocationPendingTexture Pending, BattleModelOwner Owner, NativeBattleAuxiliaryTask Task, BattleDiagnosticInvocationTextureRelease? Release = null);
     private Dictionary<int, DiagnosticFollowupTexture>? diagnosticFollowupTextures;
 
+    public BattleComponentTextureQuiescenceObservation? ObserveDiagnosticFollowupQuiescence(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        if (!diagnosticFollowupResidentTail || !ReferenceEquals(release, LastDiagnosticInvocationFollowupRelease) || release.QuiescentTextures is not { } proof || Presentation is not { } process)
+        {
+            return null;
+        }
+        BattleDiagnosticInvocationFollowupQuiescence? current = TryCaptureDiagnosticFollowupQuiescence(process, release.FocalRetirement, CaptureDiagnosticInvocationOwnerState(process.Graphics));
+        return current is not null && current.Observation.ResidentFingerprint == proof.Observation.ResidentFingerprint ? current.Observation : null;
+    }
+
+    public void CloseDiagnosticFollowupQuiescenceObservation(BattleDiagnosticInvocationFollowupRelease release)
+    {
+        if (!ReferenceEquals(release, LastDiagnosticInvocationFollowupRelease))
+        {
+            throw new InvalidDataException("Resident observation close changed its actual diagnostic receipt.");
+        }
+        diagnosticFollowupResidentTail = false;
+    }
+
+    private BattleDiagnosticInvocationFollowupQuiescence? TryCaptureDiagnosticFollowupQuiescence(BattlePresentationProcess process, BattleDiagnosticInvocationRelease retirement, BattleDiagnosticInvocationOwners owners)
+    {
+        if (diagnosticFollowupAmbiguous || !ReferenceEquals(retirement, LastDiagnosticInvocationCompletion) || retirement.Dispatch.Serial != diagnosticDispatchSerial || retirement.Dispatch.HeaderReference is not { } reference || process.ReadDiagnosticCounterHeaderGeneration(reference.Ordinal) is not long generation || generation <= 0 || generation != retirement.Dispatch.NativeHeaderGeneration ||
+            diagnosticFollowupCallbacks is not { Count: 1 } callbacks || callbacks.Single() is not { Key.Stage: 2, Key.Actor: BattlePartyActorReference actor, Value.Started: not null, Value.Completed: not null, Value.NoOp: not null } || actor.ActorId != retirement.Dispatch.ActorId ||
+            expandedHostedEvent is not null || ActiveAction is not null || actions.Count != 0 || !owners.AuxiliaryHead || !DiagnosticFollowupOwnersEmpty(owners with { AuxiliaryHead = false }) || diagnosticFollowupTextures is not { Count: > 0 } textures || textures.Count != retirement.PendingTextures.Length)
+        {
+            return null;
+        }
+        NativeBattleGraphicsState graphics = process.Graphics;
+        foreach ((int slot, DiagnosticFollowupTexture texture) in textures)
+        {
+            if (texture.Release is not null || !retirement.PendingTextures.Contains(texture.Pending) || !ReferenceEquals(graphics.Auxiliary.Slots[slot], texture.Task) || texture.Task.ModelOwner != texture.Owner || graphics.NativeBindings.DecodeLiteral(texture.Pending.NativeActorIndex, graphics.ActorModels) != texture.Owner)
+            {
+                return null;
+            }
+        }
+        BattleComponentTextureQuiescenceObservation? observation = process.ObserveComponentTerminalTextures(retirement.Dispatch.RequestedEffect, owners, ["effect-or-auxiliary-task"]);
+        return observation is null ? null : new(observation, textures.Values.Select(texture => texture.Pending).ToImmutableArray(), diagnosticDispatchSerial, generation) { NoOp = callbacks.Single().Value.NoOp };
+    }
+
     private bool TryCaptureDiagnosticFollowupTextures(BattleDiagnosticInvocationRelease retirement, out ImmutableArray<BattleDiagnosticInvocationPendingTexture> pending)
     {
         pending = [];

@@ -23,6 +23,19 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
         Attach(battle);
         battle.ConfigureDiagnosticScheduling(true);
         DiagnosticDuelCycleDriver? cycle = null;
+        int timerClosings = 0;
+        battle.DiagnosticDuelClosingObserved += actorId =>
+        {
+            Assert.Equal("party", actorId);
+            Assert.NotNull(cycle);
+            Assert.False(cycle.Completed);
+            BattleDiagnosticDuelState state = Assert.IsType<BattleDiagnosticDuelState>(battle.ObserveDiagnosticDuelState(actorId));
+            Assert.Equal(BattleNativeDuelPhase.Finisher, state.Phase);
+            Assert.Equal((byte)255, state.Selection1D28DEF);
+            Assert.True(state.RemainingTimer <= 0);
+            cycle.Observe(Observation(), false);
+            timerClosings++;
+        };
         battle.DiagnosticEffectDispatched += dispatch =>
         {
             Assert.NotNull(cycle);
@@ -32,6 +45,7 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
             NativeBattleRetainedActionHeaderSlot header = packets.Headers[dispatch.NativeHeaderIndex!.Value];
             cycle.ObserveDispatch(dispatch, new(dispatch.Serial, dispatch.Callback, dispatch.NativeHeaderIndex.Value, dispatch.NativeHeaderGeneration!.Value, packets)
             {
+                AttachedPresentation = battle.Presentation is not null,
                 Parameter80 = invocation.Parameter80,
                 Parameter82 = invocation.Parameter82,
                 HeaderEffect = (ushort)(header.ReadOriginalByte(6) | header.ReadOriginalByte(7) << 8),
@@ -83,6 +97,8 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
                 }
             }
             Assert.True(cycle.Completed);
+            Assert.Equal(execution, timerClosings);
+            Assert.Equal((byte)255, cycle.Receipt.TimedOut!.Duel!.Selection1D28DEF);
             DiagnosticDuelCycleValidation.ValidateReceipt(cycle.Receipt, new(BattleInputKind.Action, ActorId: "party", TargetId: "enemy", Ability: BattleAbility.LimitBreak, ActionId: 11 << 16), 274, cycle.Receipt.Dispatches, cycle.Receipt.BeforeOpening.Callback, cycle.Receipt.Completed!.Callback);
             Assert.Null(battle.GetNativeDuel("party"));
             Assert.Empty(battle.ObserveDiagnosticDrainBlockers());
@@ -99,6 +115,7 @@ public sealed class NativeBattleDiagnosticDuelCycleTests
             }
         }
         Assert.True(coldChecked);
+        Assert.Equal(2, timerClosings);
 
         DiagnosticDuelObservation Observation() => new(battle.NativeHostCallbacks!.Value, battle.ObserveDiagnosticDuelState("party"));
         void Attach(BattleSession session) => session.AttachNativeEffectResourceResolver(effect => game.ReadNativeEffectCatalogForEffects([effect])[effect - 1]);

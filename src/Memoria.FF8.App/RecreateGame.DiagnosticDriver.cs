@@ -83,6 +83,7 @@ internal sealed partial class RecreateGame
             diagnosticDriverBattle.DiagnosticEventPublished += ObserveDiagnosticShotImpact;
             diagnosticDriverBattle.DiagnosticShotClosingObserved += ObserveDiagnosticShotClosing;
         }
+        diagnosticDriverBattle.DiagnosticDuelClosingObserved += ObserveDiagnosticDuelClosing;
         diagnosticMountedReserve = null;
         diagnosticAllocatedFocus = null;
         if (world.DiagnosticReceipt.Preparation.Roster?.MountedReserveSceneSlot is not null)
@@ -246,7 +247,7 @@ internal sealed partial class RecreateGame
                     diagnosticFreshEntryInitializationPublished = true;
                 }
                 BattleComponentHeldScreenBlendCertificate? heldBlend = ObserveDiagnosticHeldScreenBlend(active, driver, blockers, presentedTimestamp);
-                DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers, heldBlend);
+                DiagnosticDriverObservation observation = new(now.TotalSeconds, active.NativeHostCallbacks ?? throw new NotSupportedException("Diagnostic driver requires the live callback ledger."), diagnosticPresentedFrames, ready, blockers.Length == 0, active.Outcome != BattleOutcome.Active, blockers, heldBlend, diagnosticTelemetry.AftercarePresentationTail);
                 if (diagnosticVisualDispatch is { } visualDispatch && !diagnosticVisualStartedPublished)
                 {
                     diagnosticPresentation!.Write("visual-started", observation.Callback, diagnosticPresentedFrames, DateTimeOffset.UtcNow, nativeIdentity: visualDispatch, dispatchUtc: diagnosticVisualDispatchUtc);
@@ -326,6 +327,10 @@ internal sealed partial class RecreateGame
                 if (diagnosticDriverRecipe.FreshEntry is null && previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Tail)
                 {
                     diagnosticTelemetry.MarkEffectCompleted(presentedTimestamp);
+                }
+                if (previousStage == DiagnosticDriverStage.Drain && driver.Stage == DiagnosticDriverStage.Completed && driver.FocalFollowupRelease?.QuiescentTextures is not null)
+                {
+                    diagnosticTelemetry.Complete(diagnosticPresentedFrames, true, diagnosticDriverRecipe.TailFrames, null);
                 }
                 if (heldBlend is not null && driver.Stage == DiagnosticDriverStage.Completed)
                 {
@@ -418,6 +423,7 @@ internal sealed partial class RecreateGame
         diagnosticDriverBattle!.DiagnosticEffectDispatched -= ObserveDiagnosticDriverDispatch;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticShotImpact;
         diagnosticDriverBattle.DiagnosticShotClosingObserved -= ObserveDiagnosticShotClosing;
+        diagnosticDriverBattle.DiagnosticDuelClosingObserved -= ObserveDiagnosticDuelClosing;
         diagnosticDriverBattle.DiagnosticEventPublished -= ObserveDiagnosticMountedReserveActivation;
         diagnosticDriverBattle.DiagnosticInvocationReleased -= ObserveDiagnosticInvocationRelease;
         diagnosticDriverBattle.DiagnosticInvocationFocalRetired -= ObserveDiagnosticInvocationFocalRetired;
@@ -470,6 +476,7 @@ internal sealed partial class RecreateGame
                     schema_version = 1,
                     gates = diagnosticCompletionGates.ToArray(),
                     pending_owners = diagnosticDriverBattle?.LastDiagnosticInvocationPendingOwners,
+                    completion_state = diagnosticDriverBattle?.ObserveDiagnosticInvocationCompletionState(),
                     completion = completion is null ? null : new { completion.Boundary, completion.CompletionToken, completion.Callback, completion.NativeEventCompleted, completion.PresentationAcknowledged, completion.HeaderCapturedBeforeReset, completion.CurrentCompletionPacketGuaranteedRemoval, completion.PacketRemoved, completion.Blockers }
                 });
             }

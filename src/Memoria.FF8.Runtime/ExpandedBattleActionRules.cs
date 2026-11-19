@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-internal static class ExpandedBattleActionRules
+public static class ExpandedBattleActionRules
 {
     public static bool SupportsContacts(BattleNativeAction action)
     {

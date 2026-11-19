@@ -4,10 +4,19 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattleEffect276279ComponentSourceTests
 {
-    [Theory]
-    [InlineData(276, 9, 92, 145, 19)]
-    [InlineData(279, 377, 30, 106, 14)]
-    public void Installed_component_passes_original_death_rig_or_actual_composed_stack_producer(ushort effect, int formation, int model, ushort action, byte sequence)
+    [Fact]
+    public void Installed_Xatm_component_passes_original_sixth_death_rig()
+    {
+        ValidateInstalledComponent(276, 9, 92, 145, 19);
+    }
+
+    [Fact]
+    public void Installed_MegaSpark_component_passes_actual_composed_stack_producer()
+    {
+        ValidateInstalledComponent(279, 377, 30, 106, 14);
+    }
+
+    private static void ValidateInstalledComponent(ushort effect, int formation, int model, ushort action, byte sequence)
     {
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(game is not null, "Select installed original resources with MEMORIA_FF8_GAME_DIR.");

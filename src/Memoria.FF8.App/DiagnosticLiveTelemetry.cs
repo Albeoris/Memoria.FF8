@@ -31,6 +31,8 @@ internal sealed record DiagnosticLiveExecution(int Index, bool Completed, bool C
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DiagnosticInvocationTail? PostReleaseTail { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BattleDiagnosticAftercareTail? AftercarePresentationTail { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BattleComponentHeldScreenBlendCertificate? HeldScreenBlendCertificate { get; init; }
     public int ReflectionDispatchCount => Dispatches.Count(dispatch => dispatch.Reflection is not null);
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -78,6 +80,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     private DiagnosticInvocationTail? postReleaseTail;
     private int sealedExecutionIndex = -1;
     private bool sealedTailFinalized;
+    private BattleDiagnosticAftercarePresent? firstAftercarePresent;
+    private BattleDiagnosticAftercarePresent? lastAftercarePresent;
+    private int aftercarePresentedFrames;
+    internal BattleDiagnosticAftercareTail? AftercarePresentationTail => sealedExecutionIndex >= 0 ? executions[sealedExecutionIndex].AftercarePresentationTail : null;
     private readonly DiagnosticPresentationProgress presentationProgress = new(Stopwatch.Frequency);
     private const int EventCapacity = 65536;
     private readonly bool pacingEnabled = Environment.GetEnvironmentVariable("MEMORIA_DIAGNOSTIC_PACING") == "1";
@@ -218,8 +224,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
     {
         lastPresentedFrame = frame;
         lastPresentedTimestamp = timestamp;
+        ObserveAftercarePresentation(timestamp, frame);
+        bool spanningAftercare = sealedExecutionIndex >= 0 && executions[sealedExecutionIndex].FollowupRelease?.QuiescentTextures is not null;
         long? tailBoundary = followupDrainTimestamp ?? invocationRelease?.Timestamp;
-        if (invocationRelease is not null && !awaitingFollowupDrain && tailBoundary is long completedBoundary && !sealedTailFinalized && timestamp > completedBoundary)
+        if (!spanningAftercare && invocationRelease is not null && !awaitingFollowupDrain && tailBoundary is long completedBoundary && !sealedTailFinalized && timestamp > completedBoundary)
         {
             if (postReleaseTail is null)
             {
@@ -247,6 +255,44 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
         visualChanges?.Presented(frame, successfulVisualFrame == frame ? successfulVisualTimestamp : timestamp, observedVisualFrame == frame, observedVisualFrame == frame ? observedVisualSubmission : default);
         presentationProgress.Presented(timestamp, effectStartedTicks, effectCompletedTicks);
         frames!.RecordPresentation(new(timestamp, frame, phase, battle.NativeHostCallbacks ?? battle.Frame, renders, drawCalls, textureUploads));
+    }
+
+    private void ObserveAftercarePresentation(long timestamp, long frame)
+    {
+        if (sealedExecutionIndex < 0 || sealedTailFinalized || invocationRelease is null || !awaitingFollowupDrain && executions[sealedExecutionIndex].FollowupRelease?.QuiescentTextures is null)
+        {
+            return;
+        }
+        BattleDiagnosticAftercareBoundary? boundary = battle.ObserveDiagnosticAftercareBoundary();
+        if (boundary is null)
+        {
+            if (firstAftercarePresent is not null)
+            {
+                throw new InvalidDataException("Spanning aftercare presentation encountered unproved native work or changed resident ownership.");
+            }
+            return;
+        }
+        BattleDiagnosticAftercarePresent current = new(frame, timestamp, boundary);
+        if (firstAftercarePresent is null)
+        {
+            if (boundary.CallbackCompleted)
+            {
+                throw new InvalidDataException("Spanning aftercare has no real presentation of its exact queued native callback.");
+            }
+            firstAftercarePresent = current;
+        }
+        else if (lastAftercarePresent is not null && (frame != lastAftercarePresent.PresentedFrame + 1 || timestamp <= lastAftercarePresent.Timestamp || boundary.ResidentFingerprint != firstAftercarePresent.Boundary.ResidentFingerprint))
+        {
+            throw new InvalidDataException("Spanning aftercare presentations are not consecutive actual unchanged-owner observations.");
+        }
+        lastAftercarePresent = current;
+        aftercarePresentedFrames = checked(aftercarePresentedFrames + 1);
+        if (boundary.CallbackCompleted && executions[sealedExecutionIndex].FollowupRelease is { QuiescentTextures: not null } release)
+        {
+            BattleDiagnosticAftercareTail tail = new(BattleDiagnosticAftercareTail.Phase, aftercarePresentedFrames, firstAftercarePresent, current);
+            DiagnosticInvocationReleaseValidation.ValidateAftercarePresentationTail(release, tail);
+            executions[sealedExecutionIndex] = executions[sealedExecutionIndex] with { AftercarePresentationTail = tail };
+        }
     }
 
     internal void SealInvocation(BattleDiagnosticInvocationRelease release)
@@ -308,9 +354,19 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
             {
                 DiagnosticLiveExecution sealedExecution = executions[sealedExecutionIndex];
                 string? integrityError = sealedExecution.IntegrityError ?? error;
-                bool actualTail = completed && !awaitingFollowupDrain && integrityError is null && (invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecution.TerminalTextureAdmission is not null) && postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
-                executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
+                bool spanning = sealedExecution.FollowupRelease?.QuiescentTextures is not null;
+                bool presentedTail = spanning ? sealedExecution.AftercarePresentationTail is { PresentedFrames: >= 2 } aftercare && aftercare.PresentedFrames >= tailFrames : postReleaseTail is { PresentedFrames: >= 2 } && postReleaseTail.PresentedFrames >= tailFrames;
+                bool actualTail = completed && !awaitingFollowupDrain && integrityError is null && (invocationRelease?.TerminalTextures?.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || sealedExecution.TerminalTextureAdmission is not null) && presentedTail;
+                if (actualTail && spanning)
+                {
+                    DiagnosticInvocationReleaseValidation.ValidateAftercarePresentationTail(sealedExecution.FollowupRelease!, sealedExecution.AftercarePresentationTail!, tailFrames);
+                }
+                executions[sealedExecutionIndex] = sealedExecution with { Completed = actualTail, CleanupCompleted = actualTail, TailPresentedFrames = spanning ? sealedExecution.AftercarePresentationTail?.PresentedFrames ?? 0 : postReleaseTail?.PresentedFrames ?? 0, PostReleaseTail = spanning ? null : postReleaseTail, IntegrityError = integrityError ?? (actualTail ? null : "POST_RELEASE_PRESENTATION_TAIL_INCOMPLETE") };
                 sealedTailFinalized = true;
+                if (sealedExecution.FollowupRelease is { QuiescentTextures: not null } observed)
+                {
+                    battle.CloseDiagnosticFollowupQuiescenceObservation(observed);
+                }
             }
             return;
         }
@@ -385,6 +441,10 @@ internal sealed class DiagnosticLiveTelemetry : INativeBattleTelemetrySink, IDis
 
     public void Dispose()
     {
+        if (battle.LastDiagnosticInvocationFollowupRelease is { QuiescentTextures: not null } observed)
+        {
+            battle.CloseDiagnosticFollowupQuiescenceObservation(observed);
+        }
         runtimeScope?.Dispose();
         resourceScope?.Dispose();
         battle.DiagnosticEventPublished -= ObserveEvent;

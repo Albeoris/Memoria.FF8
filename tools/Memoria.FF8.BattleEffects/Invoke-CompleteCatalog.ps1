@@ -28,6 +28,25 @@ function Write-Json([string]$Path, [object]$Value) {
     $Value | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $Path -Encoding utf8
 }
 
+function Get-OrdinaryCatalogCase([object[]]$Cases, [int]$Effect, [string[]]$UnsupportedStockMagicCases = @()) {
+    $candidates = @(foreach ($case in $Cases) {
+        if ($case.status -ne 'RUNNABLE' -or $case.effect_id -ne $Effect -or $case.id -in $UnsupportedStockMagicCases) { continue }
+        if (-not (Test-Path -LiteralPath $case.recipe -PathType Leaf) -or (Get-FileHash -LiteralPath $case.recipe -Algorithm SHA256).Hash -ne $case.recipe_sha256) {
+            throw 'An ordinary candidate recipe is missing or differs from its discovery hash.'
+        }
+        $recipe = Get-Content -LiteralPath $case.recipe -Raw | ConvertFrom-Json -Depth 100
+        if ($recipe.driver.expected_effect -ne $Effect) { throw 'An ordinary candidate recipe selects another effect.' }
+        $declaredOwner = $false
+        foreach ($name in @('slots_admission', 'duel_cycle', 'shot_cycle', 'limit_selection', 'enemy_ability', 'enemy_trigger', 'counter_cycle', 'terminal_hold')) {
+            $property = $recipe.driver.PSObject.Properties[$name]
+            if ($null -ne $property -and $null -ne $property.Value) { $declaredOwner = $true }
+        }
+        [pscustomobject]@{ case=$case; declared_owner=$declaredOwner; id=$case.id }
+    })
+    $selectedCase = @($candidates | Sort-Object @{ Expression='declared_owner'; Descending=$true }, id | Select-Object -First 1)
+    if ($selectedCase.Count) { return $selectedCase[0].case }
+}
+
 function Read-ComponentPreparation([string]$Path, [int]$Effect) {
     $receipt = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -Depth 100
     if ($receipt.Phase -ne 'prepared' -or $receipt.Scope -ne 'native-effect-component' -or $receipt.Boundary -notin @('queued-action104', 'admitted-before-entry', 'module-loaded-before-entry') -or $receipt.Effect -ne $Effect -or $receipt.Inputs.Effect -ne $Effect -or $receipt.InputsSha256 -cnotmatch '^[0-9a-f]{64}$' -or $receipt.OrdinaryAdmissionCertified -or $receipt.FunctionalCompletionCertified) {
@@ -269,6 +288,10 @@ $catalogIds = @($catalog.bindings | Where-Object { $_.entry -ne 0 -or $_.initial
 $selected = @(if ($EffectId.Count) { $EffectId | Sort-Object -Unique } else { $catalogIds })
 if (@($selected | Where-Object { $_ -notin $catalogIds }).Count) { throw 'Requested IDs include empty or absent native bindings.' }
 $cases = @(Get-Content -LiteralPath (Join-Path $DiscoveryDirectory 'cases-manifest.json') -Raw | ConvertFrom-Json -Depth 100)
+$admissionOutput = & dotnet $ToolAssembly catalog-admission --input $catalogPath
+if ($LASTEXITCODE -ne 0) { throw 'Current ordinary action admission could not be read from the selected tool.' }
+$unsupportedStockMagicCases = @(($admissionOutput -join "`n" | ConvertFrom-Json -Depth 100).unsupported_stock_magic_cases)
+
 $results = [Collections.Generic.List[object]]::new()
 [IO.Directory]::CreateDirectory($OutputRoot) | Out-Null
 $binaryHashes = @{}
@@ -298,7 +321,7 @@ try {
         $script:CurrentPerformanceContext.observations.Add($beforeContext)
         Assert-GpuProcessContext $beforeContext
         try {
-            $ordinary = @($cases | Where-Object { $_.status -eq 'RUNNABLE' -and $_.effect_id -eq $effect } | Sort-Object id | Select-Object -First 1)
+            $ordinary = @(Get-OrdinaryCatalogCase $cases $effect $unsupportedStockMagicCases)
             if ($ordinary.Count) {
                 $result.route = 'ordinary-native-invocation'
                 if ($PrepareSourcesOnly) {
@@ -384,6 +407,10 @@ try {
                             255 { 106 }
                             276 { 92 }
                             279 { 30 }
+                            290 { 109 }
+                            298 { 102 }
+                            303 { 11 }
+                            319 { 38 }
                             { $_ -ge 243 -and $_ -le 246 } { 101 }
                             308 { 105 }
                             314 { 103 }
@@ -394,6 +421,9 @@ try {
                         $componentRequest = @{ enemy_id=$componentEnemy; ally_id=0; effect_id=$effect; duration_seconds=300 }
                         if ($effect -eq 110) {
                             $componentRequest.stage_id = 3
+                        }
+                        if ($effect -in @(290, 298, 303, 319)) {
+                            $componentRequest.stage_id = switch ($effect) { 290 { 126 } 298 { 52 } 303 { 96 } 319 { 140 } }
                         }
                         if ($effect -eq 279) {
                             $componentRequest.stage_id = 127

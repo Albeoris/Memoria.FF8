@@ -12,7 +12,7 @@ public sealed partial class NativeBattleComponentSourceTests
             141 or 160 => (71, 36),
             159 => (9, 92),
             161 => (738, 131),
-            259 => (94, 61),
+            259 or 332 or 333 => (94, 61),
             _ => throw new InvalidDataException("The selected original Renzokuken component is unsupported.")
         };
         DiagnosticCharacterPreparation squall = new(0, 0, [], [0]) { HitPoints = 1, Weapon = 0, MagicCommand = new(0, 20) };

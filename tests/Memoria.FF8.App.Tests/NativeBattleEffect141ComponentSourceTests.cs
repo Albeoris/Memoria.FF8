@@ -10,6 +10,8 @@ public sealed class NativeBattleEffect141ComponentSourceTests
     [InlineData(160, 71, 36)]
     [InlineData(161, 738, 131)]
     [InlineData(259, 94, 61)]
+    [InlineData(332, 94, 61)]
+    [InlineData(333, 94, 61)]
     public void Installed_component_preserves_real_Renzokuken_logical_owner_through_actual_widget_registration(ushort effect, int formation, int targetModel)
     {
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
@@ -32,6 +34,10 @@ public sealed class NativeBattleEffect141ComponentSourceTests
         Assert.Null(source.GetNativeRenzokuken(actor.Id)!.FinisherActionId);
         BattleSnapshot continuation = source.CaptureForContinuation();
         Assert.NotNull(continuation.LogicalContinuation!.Event!.Renzokuken);
+        if (effect is 332 or 333)
+        {
+            Assert.Equal(effect == 332 ? (byte)3 : (byte)4, continuation.ActiveAction!.NativeRenzokuken!.CrisisLevel);
+        }
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(continuation with { ActiveAction = null }));
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(continuation with { ActiveAction = continuation.ActiveAction! with { } }));
         BattleActionHeaderReference reference = new(admission.HeaderIndex);
@@ -50,6 +56,10 @@ public sealed class NativeBattleEffect141ComponentSourceTests
             registered = fork.Presentation!.TriggerWidget?.SourceMagicId == effect && fork.Presentation.LastFrameServices?.ReadOrderedReceipts().OfType<NativeBattleModelTriggerRegistered>().Any(receipt => receipt.Owner == admission.Actor && receipt.ActorId == actor.Id) == true;
         }
         Assert.True(registered, "The actual widget receipt must register under the retained ordinary Renzokuken logical owner.");
+        if (effect is 332 or 333)
+        {
+            Assert.Equal(effect == 332 ? 7 : 8, fork.Presentation!.TriggerWidget!.Block.Timeline.InputThresholds.Length);
+        }
         long registeredCallback = fork.Presentation!.Graphics.Callback;
         fork.AdvanceNativeGraphicsPresentation(BattlePresentationTiming.ElapsedForCallbacks(1));
         Assert.True(fork.Presentation.Graphics.Callback > registeredCallback);

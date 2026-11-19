@@ -43,6 +43,10 @@ public sealed partial class BattleSession
         RunNativePlayerDamageSupport(actor);
         if ((flags & 0x40000) == 0 || attacker == actor)
         {
+            if (attacker == actor && participantCallbackObservations is not null)
+            {
+                diagnosticPreparedPlayerStage2SelfInputs = CaptureDiagnosticPlayerStage2SelfInputs(actor, flags);
+            }
             return;
         }
         byte healing = actor.LastNativeHealing ?? throw new NotSupportedException("Native Auto-Potion requires the last primary commitment's healing byte.");

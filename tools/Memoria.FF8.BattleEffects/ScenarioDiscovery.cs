@@ -99,7 +99,7 @@ public static partial class ScenarioDiscovery
             string targetPolicy = TargetPolicy(native);
             bool ordinaryMagic = native.Command == 2 && native.ActionId is >= 1 and <= 63 && native.MagicId is >= 1 and <= 400 && native.TargetFlags is not null;
             BattleActionDefinition? definition = assets.ActionDefinitions.SingleOrDefault(definition => definition.Ability == BattleAbility.Magic && definition.Id == native.ActionId);
-            ordinaryMagic &= definition is not null;
+            ordinaryMagic &= definition is not null && SupportsOrdinaryStockMagicRecipe(native);
             bool requiresRevival = native.AttackType is 5 or 6;
             if (ordinaryMagic && !requiresRevival && templatePath is not null)
             {
@@ -480,6 +480,10 @@ public static partial class ScenarioDiscovery
         }
         else if (action.KernelSection == 1 && action.Command == 2)
         {
+            if (!SupportsOrdinaryStockMagicRecipe(action))
+            {
+                blockers.Add("MAGIC_INVOCATION_PRECONDITION: the current ordinary player contact path does not support this installed action; a separately declared native owner is required.");
+            }
             blockers.Add("MAGIC_PREPARATION_UNPROVED: a valid installed stock row and canonical recipe template are required, including legal recipient/precondition and two executions.");
         }
         else

@@ -43,6 +43,41 @@ public sealed class DiagnosticDispatchTimeoutTests
         Assert.Null(driver.Blocker);
     }
 
+    private static DiagnosticBattleDriverRecipe DuelRecipe => new(new(BattleInputKind.Action, ActorId: "party0", TargetId: "enemy0", Ability: BattleAbility.LimitBreak, ActionId: 11 << 16), 274)
+    {
+        BaselineSeconds = 0,
+        ActionTimeoutSeconds = 30,
+        OverallTimeoutSeconds = 60,
+        LimitSelection = new(1, 1, 256),
+        ExpectedNativeAction = 0,
+        ExpectedNativeCommand = 241,
+        DuelCycle = new(0)
+    };
+
+    [Fact]
+    public void Duel_input_cycle_keeps_its_whole_action_budget_before_the_focal_move()
+    {
+        DiagnosticBattleDriverRecipe recipe = DuelRecipe;
+        recipe.Validate();
+        DiagnosticBattleDriver driver = Started(recipe);
+        driver.Advance(Point(10));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        driver.Advance(Point(29.999));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        driver.Advance(Point(30));
+        Assert.Equal("EXPECTED_EFFECT_DISPATCH_TIMEOUT", driver.Blocker);
+    }
+
+    [Fact]
+    public void Duel_input_cycle_cannot_outlive_the_overall_budget()
+    {
+        DiagnosticBattleDriver driver = Started(DuelRecipe with { OverallTimeoutSeconds = 15 });
+        driver.Advance(Point(14.999));
+        Assert.Equal(DiagnosticDriverStage.AwaitDispatch, driver.Stage);
+        driver.Advance(Point(15.001));
+        Assert.Equal("OVERALL_TIMEOUT", driver.Blocker);
+    }
+
     [Fact]
     public void Explicit_dispatch_budget_expires_at_its_boundary()
     {

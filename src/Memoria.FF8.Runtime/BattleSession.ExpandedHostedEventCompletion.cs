@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         ObserveDiagnosticHostedCompletionAcknowledged(process, receipt);
         if (ObservingDiagnosticParticipantCallbacks && nextEvent.LogicallyComplete && hostedEvent.Command.ExpandedAiCallback is { } participant)
         {
-            ObserveDiagnosticParticipantCallback(new(participant, BattleParticipantCallbackPhase.Completed, []));
+            ObserveDiagnosticParticipantCallback(new(participant, BattleParticipantCallbackPhase.Completed, []) { Completion = receipt });
         }
         PublishHostedGuardianFormAudio(form);
     }

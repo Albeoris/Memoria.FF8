@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -19,6 +20,9 @@ public sealed class NativeBattleGuest261263ComponentSourceTests
         string records = JsonSerializer.Serialize(session.State.CharacterVitals!.Records);
         Assert.Equal(NativeCharacterVitals.NativeRecordCount, session.State.CharacterVitals.Records.Length);
         BattleSession source = NativeBattleComponentSourceTests.PrepareComponentSource(world, NativeBattleComponentSourceTests.CreateComponentRequest(effect));
+        BattleDefinition definition = source.ReadDefinition();
+        Assert.NotNull(definition.NativeFieldBattleRules);
+        Assert.Equal((definition.NativeFieldBattleRules.Value & 0x20) != 0, definition.NativeLimitsDisabled);
         Assert.Equal(records, JsonSerializer.Serialize(session.State.CharacterVitals!.Records));
         Assert.Equal(NativeCharacterVitals.NativeRecordCount, session.State.CharacterVitals.Records.Length);
         Assert.Null(world.Battle);
@@ -80,6 +84,20 @@ public sealed class NativeBattleGuest261263ComponentSourceTests
             completed = entered && (current is null || current.ReturnedDescriptor == 0);
         }
         Assert.True(completed, "The actual guest cinematic must pass all native rig consumers and complete.");
+        for (int tick = 0; tick < 3600 && fork.ReadyPlayerCommandOrder.Count == 0; tick++)
+        {
+            fork.Tick();
+        }
+        BattleCombatant ready = Assert.Single(fork.ReadyPlayerCommandOrder);
+        Assert.Equal((int)character, ready.ModelId);
+        Assert.NotNull(ready.NativeLimit);
+        BattleHudController hud = new(fork, (_, _) => { }, () => { }, () => { });
+        hud.BuildView();
+        Assert.Equal(ready.Id, hud.SelectedActor!.Id);
+        Assert.True(fork.HasNativeLimitSelection(ready.Id));
+        NativeBattleRandomState selectedRandom = fork.ObserveDiagnosticSlotsFacts(ready.Id).Random;
+        hud.BuildView();
+        Assert.Equal(selectedRandom, fork.ObserveDiagnosticSlotsFacts(ready.Id).Random);
         Assert.Same(graphics, process.Graphics);
         Assert.Same(stage, process.NativeStage);
         Assert.Equal(callback, source.NativeHostCallbacks);

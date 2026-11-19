@@ -111,10 +111,9 @@ public sealed partial class BattlePresentationProcess
 
         NativeBattleEffect314Frame WriteArena(NativeBattleEffect314Frame current, uint address, NativeBattleEffectArena data, int length)
         {
-            foreach (BattleModelEntry<BattleModelOwner> entry in graphics.ActorModels.Entries)
+            foreach (BattleModelOwner actor in graphics.ActorModels.Owners)
             {
-                BattleModelOwner actor = entry.Owner;
-                NativeBattleGraphicsModel model = entry.State;
+                NativeBattleGraphicsModel model = graphics.ActorModels.Get(actor);
                 if (model.CurrentBodyBoneMatrices is not { } bones || model.ActiveResourceRow100 is null)
                 {
                     continue;

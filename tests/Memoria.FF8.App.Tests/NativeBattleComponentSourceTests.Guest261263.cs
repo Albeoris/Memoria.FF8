@@ -25,7 +25,8 @@ public sealed partial class NativeBattleComponentSourceTests
         GameState temporaryState = new() { CharacterVitals = temporary, CharacterAppearance = game.ReadNewGameCharacterAppearance() };
         BattleCombatantDefinition guest = BattlePartyProjection.Create(temporaryState, null, LiveMenuCatalog.ReadInstalled(game), world.BattleResources, [character]).Single();
         BattleDefinition seed = NativeBattleTestDefinitions.CreateTargetGuardianDefinition(game, world.BattleResources, 0, 116, out _);
-        BattleDefinition definition = seed with { Combatants = [guest, seed.Combatants[1]], MagicVitals = temporary, GuardianForces = [], ActionDefinitions = [] };
+        byte fieldRules = seed.NativeFieldBattleRules ?? throw new InvalidDataException("The guest component requires its current native field battle prohibition byte.");
+        BattleDefinition definition = seed with { Combatants = [guest, seed.Combatants[1]], MagicVitals = temporary, GuardianForces = [], ActionDefinitions = [], NativeLimitsDisabled = (fieldRules & 0x20) != 0 };
         BattleSession source = InstalledBattlePractice.Create(definition, BattleAtbMode.Normal, game, world.BattleResources);
         source.ConfigureDiagnosticScheduling(holdEnemyCommands: true);
         for (int callback = 0; callback < 3600 && (!source.NativeEntryReady || source.ObserveDiagnosticDrainBlockers().Count != 0); callback++)

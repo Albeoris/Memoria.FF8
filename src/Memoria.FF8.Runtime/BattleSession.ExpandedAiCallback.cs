@@ -9,7 +9,11 @@ internal enum BattleParticipantCallbackPhase
     Completed
 }
 
-internal sealed record BattleParticipantCallbackReceipt(BattleExpandedAiCallbackRequest Request, BattleParticipantCallbackPhase Phase, ImmutableArray<BattleActionHeaderReference> Headers, NativeBattlePendingReaction? Reaction = null, string? ScriptSha256 = null);
+internal sealed record BattleParticipantCallbackReceipt(BattleExpandedAiCallbackRequest Request, BattleParticipantCallbackPhase Phase, ImmutableArray<BattleActionHeaderReference> Headers, NativeBattlePendingReaction? Reaction = null, string? ScriptSha256 = null)
+{
+    internal BattleDiagnosticPlayerStage2NoOp? NoOp { get; init; }
+    internal NativeBattlePresentationCompletionRequested? Completion { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -115,7 +119,10 @@ public sealed partial class BattleSession
         {
             ImmutableArray<BattleActionHeaderReference> headers = expandedOperationCursor.Operations.OfType<ExpandedHostedInvocation>()
                 .Select(invocation => invocation.HeaderReference).OfType<BattleActionHeaderReference>().ToImmutableArray();
-            BattleParticipantCallbackReceipt admitted = new(request, BattleParticipantCallbackPhase.Started, headers);
+            BattleParticipantCallbackReceipt admitted = new(request, BattleParticipantCallbackPhase.Started, headers)
+            {
+                NoOp = CaptureDiagnosticPlayerStage2NoOp(candidate, request, completionOwner, headers)
+            };
             ObserveDiagnosticParticipantCallback(admitted);
             PublishDiagnosticCounterCandidate(candidate, admitted);
         }

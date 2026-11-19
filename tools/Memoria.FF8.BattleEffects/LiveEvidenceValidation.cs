@@ -347,7 +347,7 @@ public static partial class LiveEvidenceValidation
                     {
                         effectFrames.Add(invocationRelease is null
                             ? TelemetryEffectFrames.Summarize(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, frequency)
-                            : TelemetryEffectFrames.SummarizeNativeRelease(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, Number(execution.GetProperty("post_release_tail"), "first_timestamp"), frequency));
+                            : TelemetryEffectFrames.SummarizeNativeRelease(recomputed, Number(execution, "preceding_presentation_ticks"), effectStarted, effectCompleted, FirstNativeTailTimestamp(execution), frequency));
                     }
                 }
                 if (!recomputed.Valid || Number(execution, "dropped_events") != 0)
@@ -487,6 +487,8 @@ public static partial class LiveEvidenceValidation
         TelemetryOwnerState end = execution.GetProperty("end_owners").Deserialize<TelemetryOwnerState>(Json) ?? throw new InvalidDataException("Fresh release has no retained end owner.");
         long tailBoundaryFrame = endFrame;
         long tailBoundaryTicks = release.Timestamp;
+        long requiredTail = Number(report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver"), "tail_frames");
+        BattleDiagnosticAftercareTail? spanningTail = null;
         if (execution.TryGetProperty("followup_release", out JsonElement followupElement) && followupElement.ValueKind != JsonValueKind.Null)
         {
             BattleDiagnosticInvocationFollowupRelease followup = followupElement.Deserialize<BattleDiagnosticInvocationFollowupRelease>(Json) ?? throw new InvalidDataException("Fresh followup requires its observed callback and final drain receipts.");
@@ -495,6 +497,15 @@ public static partial class LiveEvidenceValidation
                 throw new InvalidDataException("Followup release changed the original focal retirement receipt.");
             }
             DiagnosticInvocationReleaseValidation.ValidateFollowup(followup, focal, Guid.Parse(end.RetainedMemoryOwnerId));
+            if (followup.QuiescentTextures is not null)
+            {
+                spanningTail = execution.GetProperty("aftercare_presentation_tail").Deserialize<BattleDiagnosticAftercareTail>(Json) ?? throw new InvalidDataException("Resident followup requires its distinct actual no-op aftercare presentation interval.");
+                DiagnosticInvocationReleaseValidation.ValidateAftercarePresentationTail(followup, spanningTail, checked((int)requiredTail));
+                if (followup.RawDrained || Flag(followupElement, "raw_drained") || Text(followupElement, "completion_kind") != "native-followup-resident-texture-no-op-aftercare" || execution.TryGetProperty("post_release_tail", out JsonElement legacy) && legacy.ValueKind != JsonValueKind.Null)
+                {
+                    throw new InvalidDataException("Resident followup cannot claim raw native drain.");
+                }
+            }
             foreach (BattleDiagnosticInvocationFollowupCallback callback in followup.Callbacks)
             {
                 if (execution.GetProperty("before").EnumerateArray().Count(state => Text(state, "id") == callback.Actor.ActorId) != 1 || execution.GetProperty("after").EnumerateArray().Count(state => Text(state, "id") == callback.Actor.ActorId) != 1)
@@ -517,14 +528,13 @@ public static partial class LiveEvidenceValidation
                 throw new InvalidDataException("Aftercare cutoffs require an authenticated native followup release.");
             }
         }
-        JsonElement tail = execution.GetProperty("post_release_tail");
-        long first = Number(tail, "first_presented_frame");
-        long last = Number(tail, "last_presented_frame");
-        long firstTicks = Number(tail, "first_timestamp");
-        long lastTicks = Number(tail, "last_timestamp");
-        long count = Number(tail, "presented_frames");
-        long requiredTail = Number(report.GetProperty("initialization").GetProperty("preparation").GetProperty("driver"), "tail_frames");
-        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != tailBoundaryFrame + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= tailBoundaryTicks || lastTicks <= firstTicks)
+        JsonElement tail = spanningTail is null ? execution.GetProperty("post_release_tail") : default;
+        long first = spanningTail?.First.PresentedFrame ?? Number(tail, "first_presented_frame");
+        long last = spanningTail?.Last.PresentedFrame ?? Number(tail, "last_presented_frame");
+        long firstTicks = spanningTail?.First.Timestamp ?? Number(tail, "first_timestamp");
+        long lastTicks = spanningTail?.Last.Timestamp ?? Number(tail, "last_timestamp");
+        long count = spanningTail?.PresentedFrames ?? Number(tail, "presented_frames");
+        if (release.Callback != endCallback || release.Callback <= startCallback || release.Timestamp != Number(execution, "effect_completed_ticks") || first != (spanningTail is null ? tailBoundaryFrame : endFrame) + 1 || requiredTail < 2 || count < requiredTail || last - first + 1 != count || Number(execution, "tail_presented_frames") != count || firstTicks <= (spanningTail is null ? tailBoundaryTicks : release.Timestamp) || lastTicks <= firstTicks || spanningTail is not null && (last != tailBoundaryFrame + 1 || lastTicks <= tailBoundaryTicks))
         {
             throw new InvalidDataException("Fresh release and separate actual presentation tail do not match their focal execution boundary.");
         }
@@ -533,6 +543,11 @@ public static partial class LiveEvidenceValidation
             throw new InvalidDataException("Fresh focal window contains gameplay after its sealed native release.");
         }
         return release;
+    }
+
+    private static long FirstNativeTailTimestamp(JsonElement execution)
+    {
+        return execution.TryGetProperty("aftercare_presentation_tail", out JsonElement spanning) && spanning.ValueKind == JsonValueKind.Object ? Number(spanning.GetProperty("first"), "timestamp") : Number(execution.GetProperty("post_release_tail"), "first_timestamp");
     }
 
     private static bool HasSupportingInvocation(JsonElement execution, JsonElement dispatch, BattleDiagnosticSupportingInvocation[] declared)

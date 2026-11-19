@@ -68,7 +68,7 @@ internal sealed class DiagnosticDuelCycleDriver(DiagnosticDuelCycleReceipt recei
 
     internal ushort Buttons(BattleNativeDuelState state)
     {
-        if (pendingChoice is not { } choice || state.Phase != BattleNativeDuelPhase.Ready)
+        if (pendingChoice is not { } choice || state.Phase != BattleNativeDuelPhase.Ready || state.WidgetPhase is not (3 or 4))
         {
             return 0;
         }

@@ -33,6 +33,9 @@ public sealed partial class BattleSession
     /// <summary>Observes the native Shot closing transition before subsequent UI service polls.</summary>
     public event Action<string>? DiagnosticShotClosingObserved;
 
+    /// <summary>Observes native Duel timer expiry before its selected closing command consumes the sentinel.</summary>
+    public event Action<string>? DiagnosticDuelClosingObserved;
+
     public BattleDiagnosticShotState? ObserveDiagnosticShotState(string actorId)
     {
         if (GetNativeShot(actorId) is not { } state)

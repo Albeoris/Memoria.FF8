@@ -23,6 +23,14 @@ public sealed partial class BattlePresentationProcess
                 graphics.ActionCallbackReady,
                 graphics.ActionGraphics,
                 ModuleCount = graphics.ModuleEffects.PublishedCount,
+                ModuleTasks = Enumerable.Range(0, graphics.ModuleEffects.Slots.Length)
+                    .Where(index => (graphics.ModuleEffects.Slots[index].Flags & 1) != 0)
+                    .Take(16)
+                    .Select(index =>
+                    {
+                        NativeBattleModuleTask task = graphics.ModuleEffects.Slots[index];
+                        return new { Index = index, task.Kind, task.Callback, task.Flags, task.State, task.Next, ModelOwner = task.ModelOwner is { } owner ? ReadGraphicsPresentationId(owner) : null };
+                    }).ToArray(),
                 EffectCount = graphics.Effects.PublishedCount,
                 Descriptors = graphics.Descriptors.Queue.Select(index => new { Index = index, Packet = graphics.Descriptors.Packets[index] }).ToArray(),
                 Tasks = graphics.Descriptors.Tasks.Select((task, index) => new { Index = index, task.Flags, task.State, task.Kind }).Where(task => (task.Flags & 1) != 0).ToArray(),

@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help")
             {
-                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "validate-component-completion --input --receipt --effect --source-sha256 --pid", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "reconcile-coverage --input --catalog --output [--history] [--require-full true]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
+                Print(new { tool = "battle-effects", stage = "external_scenario_runner", commands = new[] { "capabilities", "catalog-admission --input", "discover --game-dir --output [--fixture] [--source-commit] [--patch-hash]", "inventory --input", "plan", "validate-plan", "seal", "pass-create", "validate-record", "validate-live --input [--case]", "validate-component-completion --input --receipt --effect --source-sha256 --pid", "run --input", "pilot --input", "validate-pilot --input", "resume-plan --input --history --output --report", "slow-effects --input --history --below-fps [--output]", "recalculate-fps --input --history --below-fps --output --slow-output", "reconcile-coverage --input --catalog --output [--history] [--require-full true]", "prepare-replay --input --case --executable --output-root --output", "claim-next", "claim-specific", "heartbeat", "release", "recover-stale", "status", "supervise", "records", "show", "export" }, guide = "docs/developers/battle-effects-validation.md" });
                 return 0;
             }
 
@@ -31,6 +31,13 @@ public static class Program
                     execution_command = "run --input",
                     blockers = new[] { "Discovery records unsupported action paths and unproved fixtures as explicit planning blockers; discovery is not playable certification.", "Typed preparation, arbitrary capabilities, timed limits and between-execution repairs remain bounded by current engine contracts.", "Telemetry admission is separate from independent fixture provenance, reviewer acceptance and a final campaign sweep." }
                 });
+                return 0;
+            }
+
+            if (args[0] == "catalog-admission")
+            {
+                InstalledScenarioInventory catalog = RecordJson.Read<InstalledScenarioInventory>(Get("input"));
+                Print(new { unsupported_stock_magic_cases = ScenarioDiscovery.UnsupportedStockMagicCaseIds(catalog) });
                 return 0;
             }
 

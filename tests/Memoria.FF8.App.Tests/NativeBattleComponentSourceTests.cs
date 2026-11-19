@@ -105,6 +105,10 @@ public sealed partial class NativeBattleComponentSourceTests
             255 => 106,
             276 => 92,
             279 => 30,
+            290 => 109,
+            298 => 102,
+            303 => 11,
+            319 => 38,
             167 => 70,
             308 => 105,
             314 => 103,
@@ -116,7 +120,7 @@ public sealed partial class NativeBattleComponentSourceTests
 
     internal static EffectPreviewRequest CreateComponentRequest(ushort effect)
     {
-        return new(OriginalComponentEnemy(effect), effect is >= 261 and <= 263 ? checked((byte)(effect - 253)) : effect == 228 ? (byte)7 : effect is 112 or 212 or 215 or 216 ? (byte)1 : effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 or 227 ? 142 : effect == 110 ? 3 : effect == 137 ? 98 : effect == 209 ? 137 : effect == 218 ? 68 : effect == 219 ? 121 : effect is >= 243 and <= 246 or 248 ? 25 : effect is >= 253 and <= 255 ? 65 : effect == 279 ? 127 : 0 };
+        return new(OriginalComponentEnemy(effect), effect is >= 261 and <= 263 ? checked((byte)(effect - 253)) : effect == 228 ? (byte)7 : effect is 112 or 212 or 215 or 216 ? (byte)1 : effect is 84 or >= 86 and <= 89 or 92 ? (byte)4 : (byte)0, effect) { StageId = effect is 64 or 66 or 76 or 77 or 79 or 227 ? 142 : effect == 110 ? 3 : effect == 137 ? 98 : effect == 209 ? 137 : effect == 218 ? 68 : effect == 219 ? 121 : effect is >= 243 and <= 246 or 248 ? 25 : effect is >= 253 and <= 255 ? 65 : effect == 279 ? 127 : effect == 290 ? 126 : effect == 298 ? 52 : effect == 303 ? 96 : effect == 319 ? 140 : 0 };
     }
 
     internal static BattleSession PrepareComponentSource(GameWorld world, EffectPreviewRequest request)
@@ -187,7 +191,7 @@ public sealed partial class NativeBattleComponentSourceTests
         {
             return PrepareOriginalEffect137Component(world, request);
         }
-        if (effect is 141 or 159 or 160 or 161 or 259)
+        if (effect is 141 or 159 or 160 or 161 or 259 or 332 or 333)
         {
             return PrepareOriginalEffect141Component(world, request);
         }
@@ -202,6 +206,10 @@ public sealed partial class NativeBattleComponentSourceTests
         if (effect is 215 or 216)
         {
             return PrepareOriginalDuelFinisherComponent(world, request);
+        }
+        if (effect is 290 or 298 or 303 or 319)
+        {
+            return PrepareOriginalEffect290298303319Component(world, request);
         }
         if (effect == 276)
         {

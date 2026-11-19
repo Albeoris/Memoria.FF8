@@ -12,9 +12,11 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect298Resources resources = effect.Binding.Effect298Resources ?? throw new NotSupportedException("Effect298 requires its original resources.");
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Effect298 requires its actual process memory.");
         NativeBattleEffect298Frame frame = new(memory, effect, memory.Effect298 ?? throw new NotSupportedException("Effect298 requires its retained executable storage.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect298 requires its current temporary memory.") };
+        NativeBattleEffectPresentationPackets.Collector presentationPackets = new();
         NativeBattleSummonColors colors = this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect298 requires its original arithmetic constants.");
         NativeBattleEffect298Inputs inputs = new(colors, _ => Camera().CapturePackedView1D97778(), _ => Projection(), (_, actor) => graphics.ActorModels.Get(actor), ReadBone502170, _ => nativeActionPackets, ReadBody, Execute, StartVibration, PollIo) { CapturePresentation = true };
         frame = initialize ? NativeBattleEffect298Controller.Initialize(frame, resources, inputs) : NativeBattleEffect298Controller.Advance(frame, resources, inputs);
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = presentationPackets.Capture() } };
         Publish(frame);
         if (initialize)
         {
@@ -106,7 +108,7 @@ public sealed partial class BattlePresentationProcess
             if (cursorGlobal == 0x1D8E054)
             {
                 NativeBattlePrimitiveProcess process = current.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect298 requires its current ordinary COMMON packet owner.");
-                current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch) } };
+                presentationPackets.Record(process.PacketBank!, process.PacketBuffer, process.ByteCursor!.Value, batch);
                 NativeBattleCommonPacketWrite ordinary = NativeBattleCommonPacketDelivery.Deliver(process, primitive.Pending, batch, flags);
                 graphics = graphics with { PrimitiveFrame = primitive with { Pending = ordinary.Ordering } };
                 return current with { Memory = current.Memory with { PrimitiveProcess = ordinary.Process } };
@@ -118,7 +120,7 @@ public sealed partial class BattlePresentationProcess
             int cursor = NativeBattleWaterExecutionFields.ArenaOffset(current.State.ReadDword(cursorGlobal), 0);
             NativeBattleEffectArena arena = current.Memory.Arena ?? throw new NotSupportedException("Effect298 requires its actual effect packet arena.");
             NativeBattleGfGeometryBatch resolved = NativeBattlePacketBatchWords.Resolve(batch, cursor, NativeBattleEffectArena.Length, offset => arena.Read(offset, 1)[0]);
-            current = current with { Effect = current.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(current.Effect.PresentationPackets, "20DFAB8", 0, cursor, resolved) } };
+            presentationPackets.Record("20DFAB8", 0, cursor, resolved);
             NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(current.Memory, cursor, primitive.Pending, resolved, flags);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
             return current with { Memory = written.Memory, State = current.State.WriteDword(cursorGlobal, checked(NativeBattleEffect298Profile.ArenaAddress + (uint)written.Cursor)) };

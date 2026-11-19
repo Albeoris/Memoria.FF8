@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             ObservePresentationDescriptorRemoved, ObservePresentationFrameEnded, ReadPresentationStackVitals, MatchesDiagnosticVisualEntry, AdmitDiagnosticVisualEntry,
             ReadNativeShotWidgetFacts, ApplyNativeShotWidgetUpdate, ReadNativeDuelWidgetFacts, ApplyNativeDuelWidgetUpdate)
         {
-            ObservesFollowupTextures = () => diagnosticFollowupRetirement is not null && diagnosticFollowupTextures is { Count: > 0 } && !diagnosticFollowupAmbiguous,
+            ObservesFollowupTextures = () => ObservingDiagnosticInvocationFollowup && diagnosticFollowupRetirement is not null && diagnosticFollowupTextures is { Count: > 0 } && !diagnosticFollowupAmbiguous,
             TextureAnimationReleased = ObserveDiagnosticFollowupTextureReleased
         };
     }

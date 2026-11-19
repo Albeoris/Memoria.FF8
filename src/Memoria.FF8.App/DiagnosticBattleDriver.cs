@@ -177,7 +177,7 @@ internal enum DiagnosticDriverStage
     Blocked
 }
 
-internal sealed record DiagnosticDriverObservation(double Seconds, long Callback, long PresentedFrame, bool Ready, bool Drained, bool Terminal, string[] DrainBlockers, BattleComponentHeldScreenBlendCertificate? HeldScreenBlend = null);
+internal sealed record DiagnosticDriverObservation(double Seconds, long Callback, long PresentedFrame, bool Ready, bool Drained, bool Terminal, string[] DrainBlockers, BattleComponentHeldScreenBlendCertificate? HeldScreenBlend = null, BattleDiagnosticAftercareTail? AftercareTail = null);
 
 /// <summary>Ordinary two-use diagnostics, with an explicit fresh-entry single-use protocol; completion is a candidate rather than acceptance.</summary>
 internal sealed class DiagnosticBattleDriver
@@ -486,7 +486,8 @@ internal sealed class DiagnosticBattleDriver
         {
             return false;
         }
-        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalFollowupRelease is not null ? observation.Drained : FocalRelease.TerminalTextures is null || observation.Drained && (FocalRelease.TerminalTextures.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || TerminalTextureAdmission is not null)) : observation.Drained;
+        bool followupComplete = FocalFollowupRelease?.QuiescentTextures is null && observation.Drained;
+        bool drained = recipe.FreshEntry is not null && (Stage is DiagnosticDriverStage.Drain or DiagnosticDriverStage.Tail) ? FocalRelease is not null && (FocalFollowupRelease is not null ? followupComplete : FocalRelease.TerminalTextures is null || observation.Drained && (FocalRelease.TerminalTextures.Hold.Phase != BattleDiagnosticTerminalHoldPhase.Armed || TerminalTextureAdmission is not null)) : observation.Drained;
         LastDrainBlockers = observation.DrainBlockers;
         if (observation.Callback < previousCallback)
         {
@@ -588,6 +589,24 @@ internal sealed class DiagnosticBattleDriver
         {
             Fail("RENZOKUKEN_FINISHER_NOT_SELECTED");
         }
+        else if (Stage == DiagnosticDriverStage.Drain && FocalFollowupRelease is { QuiescentTextures: not null } resident && observation.AftercareTail is { } aftercare)
+        {
+            try
+            {
+                if (aftercare.Last.PresentedFrame != observation.PresentedFrame || aftercare.Last.Boundary.Callback != observation.Callback)
+                {
+                    throw new InvalidDataException("Aftercare tail is not the current actual presented native boundary.");
+                }
+                DiagnosticInvocationReleaseValidation.ValidateAftercarePresentationTail(resident, aftercare, recipe.TailFrames);
+            }
+            catch (InvalidDataException error)
+            {
+                Fail("AFTERCARE_PRESENTATION_TAIL_INVALID: " + error.Message);
+                return false;
+            }
+            Stage = DiagnosticDriverStage.Completed;
+            stageStarted = observation.Seconds;
+        }
         else if (Stage == DiagnosticDriverStage.Drain && drained)
         {
             if (recipe.DuelCycle is not null)
@@ -685,7 +704,7 @@ internal sealed class DiagnosticBattleDriver
             Fail("OVERALL_TIMEOUT");
             return false;
         }
-        if (Stage == DiagnosticDriverStage.AwaitDispatch && seconds - executionStarted >= (recipe.CounterCycle is null ? Math.Min(recipe.DispatchTimeoutSeconds, recipe.ActionTimeoutSeconds) : recipe.ActionTimeoutSeconds))
+        if (Stage == DiagnosticDriverStage.AwaitDispatch && seconds - executionStarted >= (recipe.CounterCycle is null && recipe.DuelCycle is null ? Math.Min(recipe.DispatchTimeoutSeconds, recipe.ActionTimeoutSeconds) : recipe.ActionTimeoutSeconds))
         {
             Fail("EXPECTED_EFFECT_DISPATCH_TIMEOUT");
             return false;

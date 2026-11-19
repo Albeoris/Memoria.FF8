@@ -27,6 +27,10 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Duel window6 updated a stale gameplay request.");
         }
         nativeDuelProcesses[facts.ActorId] = update.State;
+        if (current.Phase == BattleNativeDuelPhase.Ready && update.State is { Phase: BattleNativeDuelPhase.Finisher, Selection1D28DEF: 255, RemainingTimer: <= 0 })
+        {
+            DiagnosticDuelClosingObserved?.Invoke(facts.ActorId);
+        }
         if (update.State is { WidgetClosed: true, GameplayFinished: true })
         {
             EndNativeDuel(facts.ActorId);
