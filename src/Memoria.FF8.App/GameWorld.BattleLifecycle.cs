@@ -96,7 +96,7 @@ internal sealed partial class GameWorld
             bool menuBattle = Events.PendingMenuBattle is not null;
             NativeWorldBattleOutcome physical = new(occurrence, active.NativeResult!.Value, active.EntryClockCalls ?? throw new NotSupportedException("World outcome requires its actual entry clock."), session.ExamTimer!.ClockCalls) { DefeatBranch = active.NativeResult == 1 ? Events.ReadNativeDefeatReturnBranch4706B0() : null };
             Events.RequireNativeWorldBattleOutcome(physical);
-            Action publishWorld = PrepareNativeWorldBattleReturn(active, occurrence);
+            Action publishWorld = PrepareNativeWorldBattleReturn(active, occurrence, ProjectBattleResult(result).CharacterVitals);
             ApplyBattleResult(occurrence, result, guardianForceLearning);
             publishWorld();
             Events.PublishNativeWorldBattleOutcome(physical);

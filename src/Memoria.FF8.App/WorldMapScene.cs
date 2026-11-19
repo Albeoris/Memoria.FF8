@@ -597,23 +597,23 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback && candidate.NativeGardenRuntime is not null)
                 {
-                    candidate = StepGardenCactuar(candidate, out fieldEntry);
+                    candidate = StepGardenCactuar(candidate, ref salary);
                 }
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null)
                 {
-                    candidate = StepCarGardenObjects(candidate, out fieldEntry);
-                    if (fieldEntry is null)
+                    candidate = StepCarGardenObjects(candidate, ref salary);
+                    if (salary.RandomEncounters?.Pending is null)
                     {
-                        candidate = StepCarRagnarokObjects(candidate, out fieldEntry);
+                        candidate = StepCarRagnarokObjects(candidate, ref salary);
                     }
                 }
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeFootRuntime?.EntityType == 2)
                 {
-                    candidate = StepFootType2Cactuar(candidate, out fieldEntry);
+                    candidate = StepFootType2Cactuar(candidate, ref salary);
                 }
                 if (mapScriptMode != 12 && fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback && candidate.NativeRagnarokRuntime is not null)
                 {
-                    candidate = StepRagnarokCactuar(candidate, out fieldEntry);
+                    candidate = StepRagnarokCactuar(candidate, ref salary);
                 }
                 if (boardingTarget is not null)
                 {

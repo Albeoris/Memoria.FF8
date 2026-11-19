@@ -27,9 +27,15 @@ internal sealed partial class WorldMapScene
         return state;
     }
 
-    private WorldState StepRagnarokCactuar(WorldState state, out WorldFieldSelection? fieldEntry)
+    private void PrepareCactuarBattle(WorldState state, ref NativeWorldSalaryState salary)
     {
-        fieldEntry = null;
+        // 54E730 returns a formation WORD to the same 53FAC0 battle transition as 541C80.
+        RandomEncounterSessionState encounters = salary.RandomEncounters ?? new(false, NativeRandomEncounterState.FromColdProcess(), null);
+        salary = salary with { RandomEncounters = encounters with { Pending = new(SceneKind.WorldMap, session.State.FieldId, state.Frame, 712, AllocationProgramSha256) } };
+    }
+
+    private WorldState StepRagnarokCactuar(WorldState state, ref NativeWorldSalaryState salary)
+    {
         NativeRagnarokWorldRuntimeState runtime = state.NativeRagnarokRuntime!;
         NativeCactuarWorldState? cactuar = runtime.Cactuar;
         if (cactuar is null || runtime.Transfer is not null || NativeWorldEntryControl.DelayAfterCallback(state.Frame, 0) > 0)
@@ -51,11 +57,7 @@ internal sealed partial class WorldMapScene
                 int z = unchecked((short)(player.Z - target.Z));
                 if (unchecked((uint)(x * x + z * z)) < 40000)
                 {
-                    if (assets.FieldEntries.Entries.Count <= 712)
-                    {
-                        throw new InvalidDataException("Original Cactuar field packet712 is absent.");
-                    }
-                    fieldEntry = new(-1, -1, -1, assets.FieldEntries.Entries[712], []);
+                    PrepareCactuarBattle(state, ref salary);
                     return state;
                 }
             }

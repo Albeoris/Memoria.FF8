@@ -17,7 +17,7 @@ internal sealed partial class GameWorld
         session.RecordNativeWorldBattleDeparture(request, receipt);
     }
 
-    private Action PrepareNativeWorldBattleReturn(BattleSession active, BattleEncounterOccurrence occurrence)
+    private Action PrepareNativeWorldBattleReturn(BattleSession active, BattleEncounterOccurrence occurrence, NativeCharacterVitals postBattleVitals)
     {
         WorldMapScene previous = worldScene ?? throw new NotSupportedException("World combat return has no original exploration resource owner.");
         GameState departure = session.State;
@@ -29,7 +29,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("World combat return differs from its original request, result or saved foot owner.");
         }
-        GameState input = departure with { World = null, Battle = null, PendingBattleEncounter = null, AchievementCursor = null, OriginalAchievementDrawCursor = null, DepartingWorldState = departure.World, RandomEncounters = departure.RandomEncounters is null ? null : departure.RandomEncounters with { Pending = null } };
+        GameState input = departure with { CharacterVitals = postBattleVitals, World = null, Battle = null, PendingBattleEncounter = null, AchievementCursor = null, OriginalAchievementDrawCursor = null, DepartingWorldState = departure.World, RandomEncounters = departure.RandomEncounters is null ? null : departure.RandomEncounters with { Pending = null } };
         GameSession temporary = new(input);
         WorldMapScene candidate = new(temporary, assets.GameDirectory, resources, receipt, modelOverrides);
         Action publishMusic;

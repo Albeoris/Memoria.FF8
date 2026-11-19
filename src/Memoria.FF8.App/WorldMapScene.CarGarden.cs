@@ -178,9 +178,8 @@ internal sealed partial class WorldMapScene
         return boarded;
     }
 
-    private WorldState StepCarGardenObjects(WorldState state, out WorldFieldSelection? fieldEntry)
+    private WorldState StepCarGardenObjects(WorldState state, ref NativeWorldSalaryState salary)
     {
-        fieldEntry = null;
         NativeCarWorldRuntimeState? car = state.NativeCarRuntime ?? state.NativeFootRuntime?.ParkedCar?.Car;
         if (car?.GardenObjects is not { } garden)
         {
@@ -192,7 +191,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = foot is null ? car.ProjectionCamera! : NativeWorldFootCameraState.Create(state);
         garden = garden with { Forest = forest!, CameraPitch = forest!.CameraPitch, GroundCache = cache!, GroundYaw = checked((short)(foot?.GroundYaw ?? car.GroundYaw)!.Value), ProjectionCamera = camera, AnimationVariant = foot?.AnimationVariant ?? car.AnimationVariant, MapDisplayMode = foot?.MapDisplayMode ?? car.MapDisplayMode, CurrentGroundHeight = unchecked((short)(state.NativeHeight - (state.GroundType <= 5 ? 320 : 0))), MovementMagnitude20409F4 = foot?.MovementMagnitude20409F4 ?? car.MovementMagnitude20409F4 ?? throw new InvalidDataException("Garden car allocation lost its actual accepted movement magnitude.") };
         garden = foot is null ? garden.PublishCarBody(new(state.X, state.NativeHeight, -state.Z), checked((short)state.BodyYaw)) : garden.PublishBody(new(state.X, state.NativeHeight, -state.Z), 0, checked((short)state.BodyYaw), 0, false);
-        WorldState advanced = StepGardenCactuar(state with { NativeCarRuntime = null, NativeGardenRuntime = garden }, out fieldEntry);
+        WorldState advanced = StepGardenCactuar(state with { NativeCarRuntime = null, NativeGardenRuntime = garden }, ref salary);
         garden = advanced.NativeGardenRuntime!;
         car = car with { GardenObjects = garden, Forest = garden.Forest };
         return foot is null ? state with { NativeCarRuntime = car } : state with { NativeFootRuntime = foot with { Forest = garden.Forest, ParkedCar = foot.ParkedCar! with { Car = car } } };

@@ -177,9 +177,8 @@ internal sealed partial class WorldMapScene
         return CompleteRagnarokFootReboarding(state with { NativeRagnarokRuntime = runtime, NativeCarRuntime = null });
     }
 
-    private WorldState StepCarRagnarokObjects(WorldState state, out WorldFieldSelection? fieldEntry)
+    private WorldState StepCarRagnarokObjects(WorldState state, ref NativeWorldSalaryState salary)
     {
-        fieldEntry = null;
         NativeCarWorldRuntimeState? car = state.NativeCarRuntime ?? state.NativeFootRuntime?.ParkedCar?.Car;
         if (car?.RagnarokObjects is not { } runtime)
         {
@@ -196,7 +195,7 @@ internal sealed partial class WorldMapScene
             runtime = runtime with { TransferCamera = globals with { ProjectionDistance = camera.ProjectionDistance, CurveThreshold = 5216, Pitch = camera.Pitch, Yaw = checked((short)camera.Yaw), OffsetZ = camera.OffsetZ } };
         }
         runtime = foot is null ? runtime.PublishCarBody(new(state.X, state.NativeHeight, -state.Z), checked((short)state.BodyYaw)) : runtime.PublishFootBody(new(state.X, state.NativeHeight, -state.Z), 0, checked((short)state.BodyYaw), 0);
-        WorldState advanced = StepRagnarokCactuar(state with { NativeCarRuntime = null, NativeRagnarokRuntime = runtime }, out fieldEntry);
+        WorldState advanced = StepRagnarokCactuar(state with { NativeCarRuntime = null, NativeRagnarokRuntime = runtime }, ref salary);
         runtime = advanced.NativeRagnarokRuntime!;
         car = car with { RagnarokObjects = runtime, Forest = runtime.Forest };
         return foot is null ? state with { NativeCarRuntime = car } : state with { NativeFootRuntime = foot with { Forest = runtime.Forest, ParkedCar = foot.ParkedCar! with { Car = car } } };

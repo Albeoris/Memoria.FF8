@@ -129,7 +129,7 @@ internal sealed partial class WorldMapScene
         fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, admission.Action ? true : null);
         if (fieldEntry is null && scriptMode == 0)
         {
-            after = StepGardenCactuar(after, out fieldEntry);
+            after = StepGardenCactuar(after, ref salary);
             garden = after.NativeGardenRuntime!;
         }
         if (fieldEntry is null && garden.Transfer is { Counter: < 31 } transfer)

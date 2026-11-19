@@ -114,7 +114,7 @@ internal sealed partial class WorldMapScene
                 globals = globals with { Pitch = runtime.Motor.CameraPitch, Yaw = checked((short)after.CameraYaw), OffsetZ = runtime.ProjectionCamera!.OffsetZ };
                 after = after with { NativeRagnarokRuntime = runtime with { TransferCamera = globals } };
             }
-            after = StepRagnarokCactuar(after, out fieldEntry);
+            after = StepRagnarokCactuar(after, ref salary);
         }
         return after;
     }

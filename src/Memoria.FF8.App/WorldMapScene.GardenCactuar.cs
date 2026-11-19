@@ -5,9 +5,8 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepGardenCactuar(WorldState state, out WorldFieldSelection? fieldEntry)
+    private WorldState StepGardenCactuar(WorldState state, ref NativeWorldSalaryState salary)
     {
-        fieldEntry = null;
         NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
         NativeCactuarWorldState? cactuar = garden.Cactuar;
         if (cactuar is null || NativeWorldEntryControl.DelayAfterCallback(state.Frame, 0) > 0 || garden.Transfer is { Counter: < 31 })
@@ -26,11 +25,7 @@ internal sealed partial class WorldMapScene
             int z = unchecked((short)(player.Z - target.Z));
             if (unchecked((uint)(x * x + z * z)) < 40000)
             {
-                if (assets.FieldEntries.Entries.Count <= 712)
-                {
-                    throw new InvalidDataException("Native Cactuar field entry712 is absent.");
-                }
-                fieldEntry = new WorldFieldSelection(-1, -1, -1, assets.FieldEntries.Entries[712], []);
+                PrepareCactuarBattle(state, ref salary);
                 return state;
             }
         }
