@@ -1,4 +1,4 @@
-namespace Memoria.FF7.Events;
+﻿namespace Memoria.FF7.Events;
 
 public enum FieldScriptInputKind
 {
@@ -7,9 +7,17 @@ public enum FieldScriptInputKind
     Released
 }
 
+public enum FieldScriptInputContinuation
+{
+    Unknown,
+    ReturnsToPollingLoop,
+    LeavesPollingLoop
+}
+
 public sealed record FieldScriptInputDemand(string Identity, string ProgramIdentity, int Entity, int Priority, int ProgramCounter, FieldScriptInputKind Kind, ushort Mask, bool Mapped, bool AwaitingInput)
 {
     public int DelayTicks { get; init; }
+    public FieldScriptInputContinuation MatchedContinuation { get; init; }
 }
 
 public sealed partial class FieldMachine
@@ -180,7 +188,55 @@ public sealed partial class FieldMachine
                 }
             }
         }
-        return demands;
+        return demands.Select(demand => demand.AwaitingInput ? demand with { MatchedContinuation = ReadMatchedInputContinuation(source, demand, demands.Where(other => other.Entity == demand.Entity && other.Priority == demand.Priority && other.AwaitingInput).Select(other => other.ProgramCounter).ToHashSet(), instructionBudget) } : demand).ToArray();
+    }
+
+    private FieldScriptInputContinuation ReadMatchedInputContinuation(FieldVmSnapshot source, FieldScriptInputDemand demand, IReadOnlySet<int> pollingGates, int instructionBudget)
+    {
+        FieldMachine detached = Restore(program, source, new InspectionHost());
+        detached.inspection = new() { StopAtHost = true };
+        Entity owner = detached.entities[demand.Entity];
+        owner.Pc = unchecked((ushort)(demand.ProgramCounter + 4));
+        owner.Wait = 0;
+        HashSet<int> visited = [];
+        for (int step = 0; step < instructionBudget; step++)
+        {
+            int pc = owner.Pc;
+            if (pollingGates.Contains(pc))
+            {
+                return FieldScriptInputContinuation.ReturnsToPollingLoop;
+            }
+            if (!visited.Add(pc))
+            {
+                return FieldScriptInputContinuation.Unknown;
+            }
+            try
+            {
+                byte opcode = program.Read(pc);
+                if (opcode == 0)
+                {
+                    return FieldScriptInputContinuation.LeavesPollingLoop;
+                }
+                if (opcode is >= 0x30 and <= 0x32)
+                {
+                    return FieldScriptInputContinuation.Unknown;
+                }
+                if (SkipInputPollingDelay(owner, opcode, out _))
+                {
+                    continue;
+                }
+                if (IsInputInspectionBoundary(opcode))
+                {
+                    return FieldScriptInputContinuation.Unknown;
+                }
+                detached.Execute(demand.Entity);
+            }
+            catch (Exception error) when (error is InputInspectionBoundaryException or FieldExecutionException or InvalidDataException or NotSupportedException or ArgumentException or IndexOutOfRangeException)
+            {
+                return FieldScriptInputContinuation.Unknown;
+            }
+        }
+        return FieldScriptInputContinuation.Unknown;
     }
 
     private FieldScriptInputDemand ReadInputDemand(int entity, int pc, byte opcode)

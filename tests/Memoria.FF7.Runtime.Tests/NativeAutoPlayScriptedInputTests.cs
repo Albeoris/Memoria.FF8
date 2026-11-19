@@ -1,10 +1,11 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
 
 internal static class NativeAutoPlayScriptedInputTests
 {
     public static void Run()
     {
+        CheckPhaseExitPreference();
         CheckInteractionInputOwnership();
         CheckTimedPollingEdges();
         FieldScriptInputDemand demand = new("program:0:1:0001", "program", 0, 1, 1, FieldScriptInputKind.Held, 0x220, true, true);
@@ -58,6 +59,16 @@ internal static class NativeAutoPlayScriptedInputTests
             }
             Check(machine.Capture().Entities[0].ProgramCounter == 8, "A proved even-period native poll missed its prepared press or release edge.");
         }
+    }
+
+    private static void CheckPhaseExitPreference()
+    {
+        FieldScriptInputDemand adjustment = new("adjust", "program", 3, 6, 10, FieldScriptInputKind.Pressed, 0x20, false, true) { MatchedContinuation = FieldScriptInputContinuation.ReturnsToPollingLoop };
+        FieldScriptInputDemand exit = adjustment with { Identity = "exit", ProgramCounter = 20, Mask = 0x80, MatchedContinuation = FieldScriptInputContinuation.LeavesPollingLoop };
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([adjustment, exit]) == exit, "A raw non-confirm polling-phase exit lost to the first adjustment branch.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([adjustment, exit with { MatchedContinuation = FieldScriptInputContinuation.Unknown }]) == adjustment, "An unknown matched continuation changed the existing safe source-order preference.");
+        Check(Ff7AutoPlayScriptedInput.SelectDemand([adjustment, exit with { Entity = 4 }]) == adjustment && Ff7AutoPlayScriptedInput.SelectDemand([adjustment, exit with { Priority = 7 }]) == adjustment, "Phase-exit preference crossed native owner/priority ordering.");
+        Check(Ff7AutoPlayScriptedInput.SelectInput(exit, new(Held: 0x80, RawHeld: 0x80)).Held == 0 && Ff7AutoPlayScriptedInput.SelectInput(exit, new()).Held == 0x80, "Phase-exit selection bypassed the real press/release edge contract.");
     }
 
     private static void CheckInteractionInputOwnership()

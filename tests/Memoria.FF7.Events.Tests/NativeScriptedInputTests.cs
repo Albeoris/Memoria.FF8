@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Events;
 
 internal static class NativeScriptedInputTests
@@ -6,6 +6,7 @@ internal static class NativeScriptedInputTests
     public static void Run()
     {
         NativeNavigationEntryProofTests.Run();
+        CheckMatchedPollingContinuations();
         CheckSkippableEntryProof();
         CheckTimedPollingLoop();
         CheckEvenTimedEdgePolling();
@@ -71,6 +72,27 @@ internal static class NativeScriptedInputTests
         FieldMachine loop = new(new([0, 0x12, 0], [new ushort[32]]));
         loop.Initialize();
         Check(loop.ReadCurrentInputDemands(4).Count == 0, "A pure main loop exceeded bounded lookahead or invented input.");
+    }
+
+    private static void CheckMatchedPollingContinuations()
+    {
+        byte[] code = [0, 0x31, 0x20, 0, 6, 0x95, 0x05, 4, 0x12, 7, 0x31, 0x80, 0, 3, 0, 0, 0x12, 15];
+        FieldProgram program = new(code, [new ushort[32]]);
+        FieldMachine machine = new(program);
+        machine.Initialize();
+        string before = JsonSerializer.Serialize(machine.Capture());
+        FieldScriptInputDemand[] demands = machine.ReadCurrentInputDemands().ToArray();
+        Check(demands.Length == 2 && demands[0].MatchedContinuation == FieldScriptInputContinuation.ReturnsToPollingLoop && demands[1].MatchedContinuation == FieldScriptInputContinuation.LeavesPollingLoop, "A mutable adjustment branch and a finite polling-phase exit were confused.");
+        Check(before == JsonSerializer.Serialize(machine.Capture()) && machine.Variables.ReadByte(FieldBank.MapByte, 4) == 0, "Matched-branch classification executed a live adjustment or changed native ownership.");
+        Check(demands.SequenceEqual(FieldMachine.Restore(program, machine.Capture()).ReadCurrentInputDemands()), "Cold classification changed the polling branch outcome.");
+        FieldMachine extraGate = new(new([0, 0x31, 0x20, 0, 7, 0x31, 0x80, 0, 3, 0, 0, 0x12, 10], [new ushort[32]]));
+        extraGate.Initialize();
+        Check(extraGate.ReadCurrentInputDemands().First() is { AwaitingInput: true, MatchedContinuation: FieldScriptInputContinuation.Unknown }, "An unfamiliar matched-path input gate with a return edge was falsely certified to leave the original polling SCC.");
+        code[5] = 0x99;
+        RejectHost host = new();
+        FieldMachine unknown = new(new(code, [new ushort[32]]), host: host);
+        unknown.Initialize();
+        Check(unknown.ReadCurrentInputDemands().First().MatchedContinuation == FieldScriptInputContinuation.Unknown, "An unexecuted host/random handler was falsely certified to exit or rejoin a polling phase.");
     }
 
     private static void CheckSkippableEntryProof()

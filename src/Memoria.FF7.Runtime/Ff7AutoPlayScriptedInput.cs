@@ -1,9 +1,9 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
 /// <summary>Projects physical buttons from observed native waits and owned interactive continuations.</summary>
-public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
+public sealed partial class Ff7AutoPlayScriptedInput(Ff7Session session)
 {
     public FieldScriptInputDemand? CurrentDemand { get; private set; }
 
@@ -141,7 +141,12 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
         {
             return SelectOwnedSpatialContinuationInput(CurrentDemand, vm, active, session.FieldGeneration, locked, session.Machine.Input);
         }
-        CurrentDemand = SelectDemand(demands.Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)));
+        FieldScriptInputDemand[] ownedDemands = demands.Where(demand => locked || IsInteractionInputOwner(demand, vm, active, session.FieldGeneration)).ToArray();
+        if (TryChooseClockInput(ownedDemands, out Ff7AutoplayInput clockInput))
+        {
+            return clockInput;
+        }
+        CurrentDemand = SelectDemand(ownedDemands);
         return CurrentDemand is null ? null : SelectInput(CurrentDemand, session.Machine.Input);
     }
 
@@ -181,7 +186,7 @@ public sealed class Ff7AutoPlayScriptedInput(Ff7Session session)
 
     internal static FieldScriptInputDemand? SelectDemand(IEnumerable<FieldScriptInputDemand> demands)
     {
-        return demands.Where(demand => demand.AwaitingInput).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).ThenBy(demand => demand.Mapped && (demand.Mask & 0x40) != 0 ? 0 : demand.Mapped && (demand.Mask & 0x20) != 0 ? 1 : 2).FirstOrDefault();
+        return demands.Where(demand => demand.AwaitingInput).OrderBy(demand => demand.Priority).ThenBy(demand => demand.Entity).ThenBy(demand => demand.MatchedContinuation == FieldScriptInputContinuation.LeavesPollingLoop ? 0 : 1).ThenBy(demand => demand.Mapped && (demand.Mask & 0x40) != 0 ? 0 : demand.Mapped && (demand.Mask & 0x20) != 0 ? 1 : 2).FirstOrDefault();
     }
 
     internal static bool IsOwnedSpatialContinuationDemand(FieldScriptInputDemand demand, FieldVmSnapshot vm, Ff7AutoPlayActiveEvent? active, long generation, bool locked)

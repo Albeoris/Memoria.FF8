@@ -1,7 +1,19 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+
+if (args.Contains("--clock-route-only", StringComparer.Ordinal))
+{
+    NativeClockRouteTests.Run();
+    return 0;
+}
+
+if (args.Contains("--clock-route-original-only", StringComparer.Ordinal))
+{
+    NativeClockRouteTests.RunOriginal();
+    return 0;
+}
 
 if (args.Contains("--ordinary-alternative-only", StringComparer.Ordinal))
 {
