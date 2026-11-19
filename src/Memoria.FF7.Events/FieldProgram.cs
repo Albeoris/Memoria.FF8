@@ -71,6 +71,8 @@ public enum FieldSyncState : byte
     Done
 }
 
+public sealed record FieldExternalScriptAdmission(int Entity, int Script, int Priority, bool Accepted, bool Started);
+
 public sealed record FieldEntitySnapshot(int ProgramCounter, int Priority, ushort WaitCounter, int[] SavedProgramCounters, FieldSyncState[] SyncStates, int[] SyncOwners, bool ModelBound = false)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

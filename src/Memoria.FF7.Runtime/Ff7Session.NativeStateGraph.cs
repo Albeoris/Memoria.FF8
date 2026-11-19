@@ -102,13 +102,16 @@ public sealed partial class Ff7AutoplayDriver
                     bool forcedSettlement = edge.Kind == Ff7NativeGraphEdgeKind.OwnerSettlement && ownership.HasDebt && (branch.Host.Process.PlayerLocked || branch.Host.Process.Join is not null || startingPlayer.Ladder is not null || branch.Host.HasScriptedMotion(startingPlayer) || ownership.HasPendingRoot);
                     Ff7NativeTickObservation? lastTick = null;
                     branch.NativeTickCompleted += tick => lastTick = tick;
-                    branch.InteractionScriptRequested += (entity, script, accepted) =>
+                    branch.NativeInteractionScriptRequested += admission =>
                     {
+                        int entity = admission.Entity;
+                        int script = admission.Script;
+                        bool accepted = admission.Accepted;
                         if (accepted && forcedSettlement && !ownership.Allows(entity, script) && protectedEvents.FirstOrDefault(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)) is { } forcedRoot)
                         {
                             ownership.AdoptForcedRoot(forcedRoot);
                         }
-                        bool owned = ownership.Requested(entity, script, accepted);
+                        bool owned = ownership.Requested(entity, script, accepted, admission.Started);
                         selected |= accepted && entity == goal.Entity && script == goal.Script;
                         if (accepted && !owned && (entity != goal.Entity || script != goal.Script) && protectedEvents.Any(item => item.Entity == entity && item.Script == script && !driver.CanSkipNavigationLine(item, branch.Machine.Input, false)))
                         {
@@ -450,7 +453,7 @@ public sealed partial class Ff7AutoplayDriver
             }
         }
 
-        internal bool Requested(int entity, int script, bool accepted)
+        internal bool Requested(int entity, int script, bool accepted, bool started = true)
         {
             int index = roots.FindLastIndex(root => root.Entity == entity && root.Script == script);
             if (index < 0)
@@ -458,7 +461,7 @@ public sealed partial class Ff7AutoplayDriver
                 return false;
             }
             pending[index] = false;
-            if (accepted)
+            if (accepted && started)
             {
                 Invalid |= OwnsInput(entity, 1);
                 owners.Add(new(entity, 1, index, false, script));

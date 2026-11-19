@@ -20,6 +20,7 @@ public sealed partial class Ff7Session
 {
     public event Action<Ff7NativeTickObservation>? NativeTickCompleted;
     public event Action<int, int, bool>? InteractionScriptRequested;
+    internal event Action<FieldExternalScriptAdmission>? NativeInteractionScriptRequested;
     internal event Action<Ff7NativeGatewayDeparture?>? NativeFieldDeparting;
     internal Ff7NativeGatewayDeparture? GatewayDeparture { get; private set; }
     private bool deferNavigationFieldDeparture;
@@ -67,9 +68,10 @@ public sealed partial class Ff7Session
 
     private bool RequestInteractionScript(int entity, int script)
     {
-        bool accepted = Machine.TryRequestScript(entity, script);
-        InteractionScriptRequested?.Invoke(entity, script, accepted);
-        return accepted;
+        FieldExternalScriptAdmission admission = Machine.RequestExternalScript(entity, script);
+        NativeInteractionScriptRequested?.Invoke(admission);
+        InteractionScriptRequested?.Invoke(entity, script, admission.Accepted);
+        return admission.Accepted;
     }
 
     private void ObserveNativeScriptReturn(FieldScriptReturn returned)

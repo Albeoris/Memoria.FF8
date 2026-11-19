@@ -53,6 +53,12 @@ public sealed partial class FieldMachine
     /// <summary>Admits an external field trigger. Talk/push/line scripts use priority 1 and IDs 1/2/3–6.</summary>
     public bool TryRequestScript(int entityId, int scriptId, int priority = 1)
     {
+        return RequestExternalScript(entityId, scriptId, priority).Accepted;
+    }
+
+    /// <summary>Reports whether an external request actually started a new VM execution lifetime.</summary>
+    public FieldExternalScriptAdmission RequestExternalScript(int entityId, int scriptId, int priority = 1)
+    {
         if (!Initialized)
         {
             throw new InvalidOperationException("Field triggers require completed initialization.");
@@ -64,23 +70,23 @@ public sealed partial class FieldMachine
         Entity target = entities[entityId];
         if (target.Priority <= priority)
         {
-            return false;
+            return new(entityId, scriptId, priority, false, false);
         }
         if (target.Sync[priority] != FieldSyncState.None)
         {
-            return true;
+            return new(entityId, scriptId, priority, true, false);
         }
         int entry = program.Entry(entityId, scriptId);
         if (program.Read(entry) == 0)
         {
-            return true;
+            return new(entityId, scriptId, priority, true, false);
         }
         CancelPreemptedMovement(entityId);
         target.Saved[target.Priority] = target.Pc;
         target.Pc = entry;
         target.Priority = priority;
         target.Wait = 0;
-        return true;
+        return new(entityId, scriptId, priority, true, true);
     }
 
     /// <summary>Runs initialization to the first RET per entity. Yields do not advance logical time here.</summary>

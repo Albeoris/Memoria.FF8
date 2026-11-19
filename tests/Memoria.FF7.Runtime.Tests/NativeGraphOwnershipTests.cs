@@ -27,8 +27,53 @@ internal static class NativeGraphOwnershipTests
         Check(!new Ff7AutoplayDriver.NativeGraphOwnership(recovery with { Owners = [new(13, 1, 0, false), new(17, 1, 0, true), new(17, 6, 0, true)] }, null).HasReturnedLadder, "A child's priority1 RET replaced the exact root RET.");
         Check(Ff7AutoplayDriver.ReadNavigationRunModes(true, null).SequenceEqual([true, false]) && Ff7AutoplayDriver.ReadNavigationRunModes(true, false).SequenceEqual([false]) && Ff7AutoplayDriver.ReadNavigationRunModes(false, true).SequenceEqual([true]), "Native graph run/walk choices were merged into a greedy speed choice.");
         CheckForcedForest(root);
+        CheckExternalAdmissions();
         CheckExactNativeIdentity(pending, recovery);
         Console.WriteLine("Native graph owner lineage, settlement, ladder evidence, exact identity and speed checks passed.");
+    }
+
+    private static void CheckExternalAdmissions()
+    {
+        ushort[] entries = new ushort[32];
+        entries[1] = 1;
+        FieldProgram program = new([0, 0x80, 0x50, 0, 9, 0], [entries]);
+        FieldMachine machine = new(program);
+        machine.Initialize();
+        Ff7AutoPlayTarget first = new("empty-enter", 0, 5, Ff7AutoPlayTargetKind.LineEnter, "condition", false, default);
+        Ff7AutoPlayTarget second = first with { Id = "empty-touch", Script = 4, Kind = Ff7AutoPlayTargetKind.LineTouch };
+        Ff7AutoplayDriver.NativeGraphOwnership empty = new(new([first, second], [true, true], []), null);
+        string before = JsonSerializer.Serialize(machine.Capture());
+        foreach (Ff7AutoPlayTarget target in new[] { first, second })
+        {
+            FieldExternalScriptAdmission receipt = machine.RequestExternalScript(target.Entity, target.Script);
+            Check(receipt is { Accepted: true, Started: false }, "An immediate RET was reported as a new native execution.");
+            empty.Requested(receipt.Entity, receipt.Script, receipt.Accepted, receipt.Started);
+        }
+        Check(!empty.Invalid && !empty.HasDebt && empty.Capture() is null && !empty.HasReturnedLadder && before == JsonSerializer.Serialize(machine.Capture()), "Empty queued admissions invented a live owner, recovery evidence or native mutation.");
+        foreach (FieldSyncState sync in new[] { FieldSyncState.Waiting, FieldSyncState.Done })
+        {
+            FieldVmSnapshot snapshot = machine.Capture();
+            snapshot.Entities[0].SyncStates[1] = sync;
+            snapshot.Entities[0].SyncOwners[1] = 0;
+            FieldMachine synchronized = FieldMachine.Restore(program, snapshot);
+            string synchronizedBefore = JsonSerializer.Serialize(synchronized.Capture());
+            Check(synchronized.RequestExternalScript(0, 1) is { Accepted: true, Started: false } && synchronizedBefore == JsonSerializer.Serialize(synchronized.Capture()), "An existing sync acknowledgement created a second native lifetime.");
+        }
+        Ff7AutoPlayTarget real = first with { Id = "real", Script = 1, Kind = Ff7AutoPlayTargetKind.LineTalk };
+        Ff7AutoplayDriver.NativeGraphOwnership owner = new(null, real);
+        FieldExternalScriptAdmission started = machine.RequestExternalScript(0, 1);
+        Check(started is { Accepted: true, Started: true } && machine.Capture().Entities[0].Priority == 1, "A real admitted entry lost its native execution receipt.");
+        owner.Requested(started.Entity, started.Script, started.Accepted, started.Started);
+        FieldExternalScriptAdmission busy = machine.RequestExternalScript(0, 1);
+        owner.Requested(busy.Entity, busy.Script, busy.Accepted, busy.Started);
+        Check(busy is { Accepted: false, Started: false } && !owner.Invalid && owner.OwnsInput(0, 1), "A busy native slot created another owner lifetime.");
+        machine.ScriptReturned += owner.Returned;
+        machine.AdvanceTick();
+        Check(owner.IsSettled(true) && !owner.HasReturnedLadder, "A real native RET failed to settle its exact owner or borrowed recovery authority.");
+        Ff7AutoplayDriver.NativeGraphOwnership collision = new(null, real);
+        collision.Requested(0, 1, true, true);
+        collision.Requested(0, 1, true, true);
+        Check(collision.Invalid, "Two genuinely started lifetimes replaced the same live slot without rejection.");
     }
 
     private static void CheckForcedForest(Ff7AutoPlayTarget root)
