@@ -23,7 +23,7 @@ internal sealed class DialoguePageCache
         return (entry.Pages, entry.Pager);
     }
 
-    private static bool SameOpening(DialogueState previous, DialogueState current, bool valueIdentity)
+    internal static bool SameOpening(DialogueState previous, DialogueState current, bool valueIdentity)
     {
         if (valueIdentity)
         {

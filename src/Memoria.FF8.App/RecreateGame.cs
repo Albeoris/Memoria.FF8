@@ -729,11 +729,7 @@ internal sealed partial class RecreateGame : Game
             SynchronizeFieldVoices();
             DialogueState? dialogue = events!.CurrentDialogue;
             NativeLimitProgress? previousLimits = session.State.LimitProgress;
-            if (dialogue != presentedDialogue)
-            {
-                presentedDialogue = dialogue;
-                (selectedChoice, enteredName) = DialoguePresentation.ResolveDraft(dialogue, session.State.DialogueDraft, events.PendingNameDefault ?? "Squall");
-            }
+            DialoguePresentation.UpdateDraft(dialogue, ref presentedDialogue, session.State.DialogueDraft, ref selectedChoice, ref enteredName, events.PendingNameDefault ?? "Squall");
             if (dialogue is { CanConfirm: true, IsNamePrompt: false })
             {
                 if (dialogue.FirstChoice is null && !input.Confirm && !input.Cancel && CanVoiceAutoAdvance(dialogue))

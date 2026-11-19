@@ -5,6 +5,32 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class DialogueInputTests
 {
+    [Fact]
+    public void Confirmed_choice_keeps_its_cursor_until_the_physical_window_closes_and_a_new_opening_resets_it()
+    {
+        var window = new NativeDialogueWindowState(1, 4096, 0);
+        DialogueState dialogue = new(0, 10, "Choose{Line}First{Line}Second", 0, 0, FirstChoice: 1, LastChoice: 2, InitialChoice: 1, NativeWindow: window);
+        DialogueState? presented = null;
+        int selected = 0;
+        string name = "";
+        DialoguePresentation.UpdateDraft(dialogue, ref presented, null, ref selected, ref name, "Squall");
+        Assert.Equal(1, selected);
+        DialoguePresentation.ResolveInput(dialogue, new InputFrame(0, 0, false, false, false, false, MenuVertical: 1), ref selected, name);
+        Assert.Equal(new PlayerAction(PlayerActionKind.Choose, 2), DialoguePresentation.ResolveInput(dialogue, new InputFrame(0, 0, true, false, false, false), ref selected, name));
+        DialogueState closing = dialogue with { CanConfirm = false };
+        window.Delta = -512;
+        for (int progress = 4096; progress > 0; progress -= 512)
+        {
+            window.Progress = progress;
+            DialoguePresentation.UpdateDraft(closing, ref presented, null, ref selected, ref name, "Squall");
+            Assert.Equal(2, selected);
+            Assert.Null(DialoguePresentation.ResolveInput(closing, new InputFrame(0, 0, false, false, false, false, MenuVertical: -1), ref selected, name));
+        }
+        DialogueState reopened = dialogue with { NativeWindow = new NativeDialogueWindowState(1, 4096, 0) };
+        DialoguePresentation.UpdateDraft(reopened, ref presented, null, ref selected, ref name, "Squall");
+        Assert.Equal(1, selected);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

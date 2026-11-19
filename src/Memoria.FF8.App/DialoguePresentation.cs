@@ -79,6 +79,19 @@ internal static class DialoguePresentation
         return null;
     }
 
+    public static void UpdateDraft(DialogueState? dialogue, ref DialogueState? presented, DialogueDraft? draft, ref int selection, ref string name, string defaultName)
+    {
+        if (dialogue == presented)
+        {
+            return;
+        }
+        if (dialogue is null || presented is null || !DialoguePageCache.SameOpening(presented, dialogue, valueIdentity: false))
+        {
+            (selection, name) = ResolveDraft(dialogue, draft, defaultName);
+        }
+        presented = dialogue;
+    }
+
     public static (int Selection, string Name) ResolveDraft(DialogueState? dialogue, DialogueDraft? draft, string defaultName)
     {
         if (dialogue is not null && draft is not null && draft.Channel == dialogue.Channel && draft.MessageId == dialogue.MessageId)
