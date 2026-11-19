@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--ordinary-alternative-only", StringComparer.Ordinal))
+{
+    OrdinaryAlternativeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-owned-ladder-graph-only", StringComparer.Ordinal))
 {
     NativeOwnedLadderGraphTests.Run();
@@ -138,6 +144,12 @@ if (args.Contains("--native-route-fair-original-only", StringComparer.Ordinal))
 if (args.Contains("--physical-search-continuation-only", StringComparer.Ordinal))
 {
     PhysicalSearchContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--talk-region-geometry-original-only", StringComparer.Ordinal))
+{
+    TalkRegionGeometryTests.RunOriginal();
     return 0;
 }
 

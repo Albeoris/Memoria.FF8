@@ -23,7 +23,6 @@ public sealed partial class Ff7AutoPlayPolicy
     private Dictionary<string, AutoPlayEventAvailability>? nativePlanningAvailability;
     private Ff7NativePhysicalFailureFence? nativePhysicalFailure;
     private string? nativePlanningPhase;
-    private string? nativePlanningTaskEvent;
     private long nativePlanningWork;
     private bool nativePlanningForActive;
     private bool activeNativeTurn;
@@ -40,10 +39,6 @@ public sealed partial class Ff7AutoPlayPolicy
             return;
         }
         Ff7AutoPlayObservation observation = discovery.Observe();
-        if (HasArrivedSourceRevalidation(State, observation) && State.NativeRevalidation!.EventId != active.EventId)
-        {
-            return;
-        }
         Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => MatchesActiveNativeTarget(active, observation, target));
         if (target is null || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || !IsActiveNativeGoalPending(State, active, observation))
         {
@@ -149,10 +144,6 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static Ff7NativeSiblingCandidate[] ReadNativeSiblingCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Func<AutoPlayVisit, bool>? needsRefresh = null)
     {
-        if (HasArrivedSourceRevalidation(state, observation))
-        {
-            return [];
-        }
         var retained = CreateRetainedNavigationAvailabilityReader(state);
         List<Ff7NativeSiblingCandidate> candidates = [];
         Ff7NativeSourceRevalidation[] debts = state.DestinationField is null ? ReadPendingSourceRevalidations(state, observation) : [];
@@ -229,7 +220,7 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static bool TryAdoptSiblingNativeRoute(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent expected, AutoPlayTravelGoal? expectedGoal, Ff7AutoPlayObservation observation, Ff7NativeSiblingCandidate sibling, AutoPlayPlanStep? fresh, Ff7AutoPlayNativeRoute proof, string source, AutoPlayEventAvailability availability, IReadOnlyDictionary<string, string> facts, int story, string witness)
     {
         Ff7AutoPlayTarget target = sibling.Target;
-        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || HasArrivedSourceRevalidation(state, observation) || target.Id == expected.EventId || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || sibling.Revalidation is { } requiredDebt && !ReadPendingSourceRevalidations(state, observation).Contains(requiredDebt) || sibling.Guarded && !IsMeaningfulGuardedSibling(state, observation, sibling.Target, fresh, sibling.Revalidation) || !MatchesNativePlan(sibling.Plan, fresh) || !IsDestinationPlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item.Id == target.Id && item.ConditionFingerprint == target.ConditionFingerprint && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind && item.DestinationField == target.DestinationField) || proof.EventId != target.Id || proof.ConditionFingerprint != target.ConditionFingerprint || proof.Generation != observation.Generation || proof.Cursor != 0 || proof.Steps.Length == 0 || proof.Steps[0].Before != source)
+        if (state.Active != expected || expected.Accepted || expected.VisitId != observation.VisitId || expected.NavigationKey != observation.NavigationKey || expected.Generation != observation.Generation || state.NavigationGoal != expectedGoal || state.NativeRoute is not null || state.PendingRestore is not null || target.Id == expected.EventId || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || sibling.Revalidation is { } requiredDebt && !ReadPendingSourceRevalidations(state, observation).Contains(requiredDebt) || sibling.Guarded && !IsMeaningfulGuardedSibling(state, observation, sibling.Target, fresh, sibling.Revalidation) || !MatchesNativePlan(sibling.Plan, fresh) || !IsDestinationPlan(state, fresh, observation.NavigationKey) || availability.Unavailable || !observation.Events.Any(item => item.Id == target.Id && item.ConditionFingerprint == target.ConditionFingerprint && item.Entity == target.Entity && item.Script == target.Script && item.Kind == target.Kind && item.DestinationField == target.DestinationField) || proof.EventId != target.Id || proof.ConditionFingerprint != target.ConditionFingerprint || proof.Generation != observation.Generation || proof.Cursor != 0 || proof.Steps.Length == 0 || proof.Steps[0].Before != source)
         {
             return false;
         }
@@ -242,7 +233,7 @@ public sealed partial class Ff7AutoPlayPolicy
         AutoPlayEventCoverage<Ff7AutoPlayDeferral> selected = state.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id);
         selected.Conditions ??= new();
         selected.Conditions.ActiveEntry = target.ConditionFingerprint;
-        if (state.NativeRevalidation is { ArrivalAcknowledged: false } pending && (fresh!.Goal?.EventId is not null || pending.NavigationKey != fresh.Goal?.NavigationKey))
+        if (state.NativeRevalidation is { } pending && (fresh!.Goal?.EventId is not null || pending.NavigationKey != fresh.Goal?.NavigationKey))
         {
             state.NativeRevalidation = null;
         }
@@ -273,7 +264,6 @@ public sealed partial class Ff7AutoPlayPolicy
             nativePlanningIntent = intent;
             nativePlanningHeader = ReadNativePlanningHeader(State);
             nativePlanningAvailability = ReadNativePlanningAvailability(State, observation.VisitId);
-            nativePlanningTaskEvent = HasArrivedSourceRevalidation(State, observation) ? State.NativeRevalidation!.EventId : null;
             nativePlanning = new(EnumerateNativeNavigation(observation, driver, facts, components, completedTask).GetEnumerator());
         }
         return ContinueNativePlanning(driver);
@@ -331,6 +321,16 @@ public sealed partial class Ff7AutoPlayPolicy
         return nativePlanningForActive && nativePlanning is not null && nativePhysicalFailure is { } failure && failure.Matches(State, Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:1"), session.GetPlayerMovementSpeed(true), session.GetPlayerMovementSpeed(false));
     }
 
+    internal static bool TryRetainFailedOrdinaryTarget(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent owner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, IReadOnlyDictionary<string, string> facts)
+    {
+        if (state.Active != owner || !MatchesActiveNativeTarget(owner, observation, target) || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || !IsActiveNativeGoalPending(state, owner, observation))
+        {
+            return false;
+        }
+        PreservePendingPhysicalOwner(state, owner, observation, target, facts);
+        return true;
+    }
+
     internal static void PreservePendingPhysicalOwner(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent owner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target, IReadOnlyDictionary<string, string> facts)
     {
         AutoPlayNavigationVisit source = state.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
@@ -375,7 +375,6 @@ public sealed partial class Ff7AutoPlayPolicy
         nativePlanningAvailability = null;
         nativePhysicalFailure = null;
         nativePlanningPhase = null;
-        nativePlanningTaskEvent = null;
         nativePlanningForActive = false;
         activeNativeTurn = false;
     }
@@ -491,8 +490,8 @@ public sealed partial class Ff7AutoPlayPolicy
 
     internal static Ff7AutoPlayTarget[] ReadNativeProbeCandidates(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, string? completedTask = null)
     {
-        Ff7AutoPlaySourceRevalidationTask? required = HasArrivedSourceRevalidation(state, observation) ? state.NativeRevalidation : null;
-        return observation.Events.Where(target => target.Id != completedTask && (required is null || target.Id == required.EventId && target.ConditionFingerprint == required.Condition) && target.AnalysisComplete && Ff7AutoplayDriver.SupportsNativeRouteTarget(target) && state.NavigationGuards.Values.Any(guard => guard.EventId == target.Id && guard.NavigationKey == observation.NavigationKey && guard.MovementFailure is not null)).ToArray();
+        return [];
+
     }
 
     internal static Ff7AutoPlayTarget[] PrioritizeNativeProbeCandidates(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> sharedPlanner, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget[] candidates, IReadOnlyDictionary<string, string> actualFacts, Func<AutoPlayVisit, bool> needsRefresh)

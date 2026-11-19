@@ -267,7 +267,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             CancelObstacleSearch();
         }
         int next = previous[player.Triangle];
-        var (finalApproach, waypoint) = ReadCurrentApproachStep(mesh, player.Triangle, destination, next, target);
+        var (finalApproach, waypoint) = ReadPortalApproachStep(mesh, player.Triangle, destination, previous, Position3D(player), target, player.CollisionRadius);
         Vector2 currentPosition = new(player.X4096 / 4096f, player.Y4096 / 4096f);
         if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && player.Triangle == waypointSourceTriangle && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
         {
@@ -354,16 +354,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private string? approachGuideContext;
     private readonly HashSet<(int From, int To)> approachAdviceExclusions = [];
 
-    internal static (bool FinalApproach, Vector3 Waypoint) ReadCurrentApproachStep(IReadOnlyList<PcWalkmeshTriangle> mesh, int source, int destination, int next, Vector3 target)
-    {
-        bool final = source == destination;
-        if (next < 0 && !final)
-        {
-            throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII navigation target has no unblocked native walkmesh path.", destination: target, destinationTriangle: destination);
-        }
-        return (final, !final && next != source ? (mesh[next].A + mesh[next].B + mesh[next].C) / 3 : target);
-    }
-
     private string ReadApproachGuideContext(Ff7Actor player, Vector3 target, int destination)
     {
         return ReadApproachAdvisoryContext(session.FieldGeneration, target, destination, navigationSelectedTarget, player, session.GetPlayerMovementSpeed(navigationRunMode ?? true), navigationRunMode, session.Host.Process.MapJumpDisabled, session.Host.Process.BlockedTriangles, CaptureSpatialBoundaryTriangles(), admittedSpatialTriangle, admittedGateways ?? new HashSet<int>(), ReadNavigationOwnedPortals(session.Field.Walkmesh), session.Host.Process.Actors, session.Host.Process.Lines);
@@ -449,6 +439,17 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             return (previous, distance);
         }
+        List<int>[] incoming = Enumerable.Range(0, mesh.Count).Select(_ => new List<int>()).ToArray();
+        foreach (PcWalkmeshTriangle triangle in mesh)
+        {
+            foreach (int adjacent in new[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
+            {
+                if (adjacent >= 0)
+                {
+                    incoming[adjacent].Add(triangle.Index);
+                }
+            }
+        }
         Queue<int> queue = new();
         previous[destination] = destination;
         distance[destination] = 0;
@@ -458,8 +459,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         while (queue.TryDequeue(out int current))
         {
-            PcWalkmeshTriangle triangle = mesh[current];
-            foreach (int adjacent in new int[] { triangle.AdjacentAB, triangle.AdjacentBC, triangle.AdjacentCA })
+            foreach (int adjacent in incoming[current])
             {
                 if (adjacent < 0 || previous[adjacent] >= 0 || adjacent != source && IsRestricted(adjacent) || ownedPortals?.Contains((adjacent, current)) == true)
                 {

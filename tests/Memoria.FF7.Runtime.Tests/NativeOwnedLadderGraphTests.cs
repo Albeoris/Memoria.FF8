@@ -60,6 +60,21 @@ internal static class NativeOwnedLadderGraphTests
             Ff7AutoplayDriver.NativeGraphOwnership backwardOwner = new(debt with { BackwardCompleted = true }, null);
             backwardOwner.Returned(new(0, 6, 101, 1));
             Check(backwardOwner.HasReturnedLadder, "Existing exact backward/root/child release evidence was lost.");
+            held = Ff7AutoplayDriver.BackwardLadderKey(mode);
+            Ff7FieldHost back = Host(() => held, JsonSerializer.Deserialize<Ff7FieldProcess>(source)!);
+            while (!back.GetActor(0).Ladder!.Completed)
+            {
+                back.AdvanceActors();
+            }
+            Ff7Actor endpoint = back.GetActor(0);
+            Check(endpoint.Triangle == player.Triangle && endpoint.Ladder is { Step: 0, Completed: true }, "Native backward settlement did not preserve the source triangle.");
+            Ff7AutoplayDriver.NativeGraphOwnership sameTriangle = new(debt with { BackwardCompleted = endpoint.Ladder!.Completed && endpoint.Ladder.Step == 0 }, null);
+            sameTriangle.Returned(new(0, 6, 101, 1));
+            Check(!sameTriangle.CanReleaseSource(endpoint, [request]), "Completed backward ladder released before its native request/process acknowledgement.");
+            Check(back.Execute(request).Completed && back.GetActor(0).Ladder is null, "Backward source request did not acknowledge/remove its native ladder.");
+            Check(sameTriangle.IsSettled(true) && sameTriangle.CanReleaseSource(back.GetActor(0), []), "An authenticated backward/root/child/free release incorrectly required changing triangle or decreasing triangle-BFS distance.");
+            Check(!sameTriangle.CanReleaseSource(back.GetActor(0), [request]), "Same-triangle release ignored an outstanding matching native request.");
+            Check(!owner.CanReleaseSource(back.GetActor(0), []), "Forward completion borrowed same-triangle backward release authority.");
         }
         NativeLadderTests.Run();
         Console.WriteLine("PASS owned native ladder forward/backward/pause, exact request/root/child scope, locked/cold behavior and backward-only source release.");

@@ -68,23 +68,23 @@ internal static class ApproachContextOwnershipTests
     {
         PcWalkmeshTriangle[] mesh =
         [
-            new(0, Vector3.Zero, new(2, 0, 0), new(0, 2, 0), 1, -1, -1),
-            new(1, new(0, 10, 0), new(2, 10, 0), new(0, 12, 0), 0, 2, -1),
-            new(2, new(3, 0, 0), new(5, 0, 0), new(3, 2, 0), 1, -1, -1)
+            new(0, Vector3.Zero, new(2, 0, 0), new(0, 2, 0), -1, 1, -1),
+            new(1, new(2, 0, 0), new(2, 2, 0), new(0, 2, 0), 2, -1, 0),
+            new(2, new(2, 0, 0), new(4, 0, 0), new(2, 2, 0), -1, -1, 1)
         ];
-        Vector3 target = new(3.5f, 0.5f, 0);
+        Vector3 target = new(3.5f, 0.25f, 0);
         foreach (int source in new[] { 2, 0, 2, 0 })
         {
             var route = Ff7AutoplayDriver.ReadApproachRoutes(mesh, [0], source, 2);
-            var step = Ff7AutoplayDriver.ReadCurrentApproachStep(mesh, source, 2, route.Previous[source], target);
+            var step = Ff7AutoplayDriver.ReadPortalApproachStep(mesh, source, 2, route.Previous, new(0.5f, 0.5f, 0), target, 0);
             Check(step.FinalApproach == (source == 2), "A previous destination visit retained final approach after leaving its native triangle.");
-            Check(step.Waypoint == (source == 2 ? target : (mesh[1].A + mesh[1].B + mesh[1].C) / 3), "A repeated same-goal approach steered directly across the gap instead of rejoining the current native route.");
+            Check(source != 2 || step.Waypoint == target, "A repeated destination visit lost its actual final contact.");
         }
         var blocked = Ff7AutoplayDriver.ReadApproachRoutes(mesh, [2], 0, 2);
         bool rejected = false;
         try
         {
-            Ff7AutoplayDriver.ReadCurrentApproachStep(mesh, 0, 2, blocked.Previous[0], target);
+            Ff7AutoplayDriver.ReadPortalApproachStep(mesh, 0, 2, blocked.Previous, new(0.5f, 0.5f, 0), target, 0);
         }
         catch (Ff7AutoPlayNavigationUnavailableException)
         {

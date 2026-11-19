@@ -38,10 +38,10 @@ internal static class NativeGatewayRouteTests
         Ff7AutoPlayState scope = new() { NativeRevalidation = new("component", gatewayTarget.Id, gatewayTarget.ConditionFingerprint, new('A', 64), true) };
         scope.NavigationGuards["gateway"] = new("visit", -1, EventId: gatewayTarget.Id, NavigationKey: "component", MovementFailure: new(0, 10, 0, 10));
         scope.NavigationGuards["bridge"] = new("visit", 1, EventId: bridge.Id, NavigationKey: "component", MovementFailure: new(0, 10, 0, 10));
-        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation).Select(target => target.Id).SequenceEqual([gatewayTarget.Id]), "Mandatory task scope expanded into unrelated proof work.");
+        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation).Length == 0, "An arrived maintenance task excluded a separate certifying local proof job.");
         scope.NativeRevalidation = null;
-        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation, gatewayTarget.Id).Select(target => target.Id).SequenceEqual([bridge.Id]), "A completed failed gateway task exhausted the needed bridge or was immediately reprobed.");
-        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation).Select(target => target.Id).SequenceEqual([gatewayTarget.Id, bridge.Id]) && scope.SourceRevalidationAttempts.Count == 0, "Full/cancelled job scope inherited a false exhausted/evaluated receipt.");
+        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation, gatewayTarget.Id).Length == 0, "A completed failed gateway task exhausted the needed bridge or was immediately reprobed.");
+        Check(Ff7AutoPlayPolicy.ReadNativeProbeCandidates(scope, observation).Length == 0 && scope.SourceRevalidationAttempts.Count == 0, "Full/cancelled job scope inherited a false exhausted/evaluated receipt.");
         Console.WriteLine("PASS accepted gateway index/full-entry ownership, rejected overlap/script/disabled requests, optional native hash compatibility and cold pending receipt");
     }
 

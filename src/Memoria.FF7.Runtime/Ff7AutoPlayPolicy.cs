@@ -39,6 +39,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     }
 
     public Ff7AutoPlayState State { get; }
+    private Ff7AutoPlayObservation? ordinaryObservation;
+    private IReadOnlyDictionary<string, string>? ordinaryPhysicalGuards;
+
     public string WorkProgress => $"{State.FrontierProgressKey}:world-catalogs:{worldCatalogs.Count}:native-planning:{nativePlanningWork}";
     public string Status => State.Status ?? "Discovering native events";
 
@@ -86,10 +89,31 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         nativeInputReservation = null;
         try
         {
-            Ff7AutoplayInput input = ChooseInput(driver, new Ff7NativePlanningQuantum(), out bool controllable);
+            Ff7NativePlanningQuantum quantum = new();
+            Ff7AutoplayInput input = ChooseInput(driver, quantum, out bool controllable);
             if (driver.PlanningPending)
             {
-                BeginActiveNativePlanning(driver);
+                if (TryChooseOrdinaryAlternative(driver, out Ff7AutoplayInput ordinaryInput))
+                {
+                    CancelNativePlanning();
+                    driver.BeginPlanningStep();
+                    controllable = true;
+                    input = ordinaryInput;
+                }
+                else
+                {
+                    BeginActiveNativePlanning(driver);
+                }
+                if (driver.PlanningPending && nativePlanningForActive && nativePlanning is not null && TakeNativePlanningTurn(true, ref activeNativeTurn))
+                {
+                    ContinueNativePlanning(driver);
+                    if (State.NativeRoute is not null)
+                    {
+                        driver.BeginPlanningStep();
+                        controllable = true;
+                        input = ReadNativeRouteInput();
+                    }
+                }
             }
             else if (nativePlanningForActive)
             {
@@ -115,31 +139,20 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum, out bool controllable)
     {
         controllable = false;
+        ordinaryObservation = null;
+        ordinaryPhysicalGuards = null;
         nativePlanningQuantum = quantum;
         if (nativePlanning is not null && !CanResumeNativePlanning())
         {
             CancelNativePlanning();
         }
         bool nativeProofCompleted = false;
-        string? completedSourceTask = null;
         AutoPlayPlanStep? resumedNativePlan = null;
         AutoPlayEventAvailability? resumedNativeAvailability = null;
-        bool resumeNative = nativePlanning is not null && TakeNativePlanningTurn(nativePlanningForActive, ref activeNativeTurn);
+        bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
         if (resumeNative)
         {
-            bool activeScope = nativePlanningForActive;
-            completedSourceTask = nativePlanningTaskEvent;
             resumedNativePlan = ContinueNativePlanning(driver);
-            if (activeScope)
-            {
-                if (State.NativeRoute is not null)
-                {
-                    controllable = true;
-                    return ReadNativeRouteInput();
-                }
-                driver.DeferPlanning();
-                return default;
-            }
             if (driver.PlanningPending)
             {
                 return default;
@@ -149,7 +162,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 AutoPlayEventCoverage<Ff7AutoPlayDeferral> admittedCoverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == resumedNativePlan.VisitKey).Events.Single(item => item.Event.Id == resumedNativePlan.Event.Id);
                 resumedNativeAvailability = new(admittedCoverage.Unavailable, new(admittedCoverage.UnavailableVariants, StringComparer.Ordinal), admittedCoverage.AvailabilityFingerprint);
             }
-            nativeProofCompleted = completedSourceTask is null;
+            nativeProofCompleted = true;
         }
         if (State.PendingRestore is not null || session.Battle is not null)
         {
@@ -181,6 +194,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             return nativeInput;
         }
         Ff7AutoPlayObservation observation = ObservePlanner();
+        ordinaryObservation = observation;
         if (!observation.CanAcceptInput)
         {
             return default;
@@ -197,7 +211,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         controllable = true;
         driver.ConfigureSpatialBoundaries(observation.Events);
-        driver.SetPhysicalFailureReceipts(State.NavigationGuards.Where(entry => entry.Value.NavigationKey == observation.NavigationKey && IsBoundedPhysicalApproach(entry.Key, entry.Value)).Select(entry => entry.Value.PhysicalFailure).OfType<Ff7AutoPlayPhysicalFailureReceipt>());
+        driver.SetPhysicalFailureReceipts(State.NavigationGuards.Where(entry => entry.Value.NavigationKey == observation.NavigationKey && IsUncertifiedMovementAdvice(entry.Key, entry.Value)).Select(entry => entry.Value.PhysicalFailure).OfType<Ff7AutoPlayPhysicalFailureReceipt>());
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())
         {
@@ -241,6 +255,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 }
             }
         }
+        ordinaryPhysicalGuards = physicalGuards;
         Dictionary<string, IReadOnlyDictionary<string, string>?> componentGuards = new(StringComparer.Ordinal) { [observation.NavigationKey] = physicalGuards };
         AutoPlayNavigationVisit currentNavigation = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
         foreach (var item in State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Where(item => item.Available))
@@ -271,31 +286,9 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
             }
         }
-        Ff7AutoplayInput? admittedApproachInput = null;
-        Ff7AutoPlayNavigationUnavailableException? admittedApproachFailure = null;
-        if (DeferUnavailableActiveNavigation(State, observation, (active, target) =>
-        {
-            try
-            {
-                bool continues = TryContinueAdmittedCycleApproach(active, target, observation, driver, physicalGuards, out Ff7AutoplayInput input);
-                if (continues)
-                {
-                    admittedApproachInput = input;
-                }
-                return continues;
-            }
-            catch (Ff7AutoPlayNavigationUnavailableException absence)
-            {
-                admittedApproachFailure = absence;
-                return true;
-            }
-        }))
+        if (DeferUnavailableActiveNavigation(State, observation))
         {
             Publish();
-        }
-        if (driver.PlanningPending)
-        {
-            return default;
         }
         if (State.Active is null)
         {
@@ -304,7 +297,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
-            if (State.NativeRevalidation is { } pendingTask && (State.DestinationField is not null || !observation.Events.Any(target => target.Id == pendingTask.EventId && target.ConditionFingerprint == pendingTask.Condition && target.AnalysisComplete) || !State.NavigationGuards.Values.Any(guard => guard.NavigationKey == pendingTask.NavigationKey && guard.EventId == pendingTask.EventId && guard.MovementFailure is not null)))
+            if (State.NativeRevalidation is { } pendingTask && (State.DestinationField is not null || !observation.Events.Any(target => target.Id == pendingTask.EventId && target.ConditionFingerprint == pendingTask.Condition && target.AnalysisComplete) || !HasSourceRevalidationRefusal(State, pendingTask.NavigationKey, pendingTask.EventId, pendingTask.Condition)))
             {
                 State.NativeRevalidation = null;
                 Publish();
@@ -313,24 +306,21 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 Publish();
             }
-            if (!nativeProofCompleted && HasArrivedSourceRevalidation(State, observation))
+            var ordinaryAvailability = CreateOrdinarySchedulingAvailability(observation, driver, (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+            if (State.NavigationGoal is { EventId: not null } scheduledGoal && State.Coverage.NavigationVisits.SingleOrDefault(visit => visit.Key == scheduledGoal.NavigationKey) is { } goalSource && goalSource.Events.SingleOrDefault(item => item.Id == scheduledGoal.EventId && (scheduledGoal.Conditions is null || item.ConditionSignature == scheduledGoal.Conditions)) is { } goalEvent)
             {
-                if (!Ff7AutoplayDriver.HasNativeRouteClockContract(session))
+                AutoPlayEventAvailability? nativeAvailability = ReadNavigationAvailability(goalSource, goalEvent, observation, driver, componentGuards);
+                if (nativeAvailability?.Unavailable != true && ordinaryAvailability(goalSource, goalEvent)?.Unavailable == true)
                 {
-                    throw new NotSupportedException("The arrived native source cannot be revalidated without its exact clock contract.");
+                    State.NavigationGoal = null;
+                    CancelNativePlanning();
+                    Publish();
                 }
-                completedSourceTask = State.NativeRevalidation!.EventId;
-                resumedNativePlan = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
-                if (driver.PlanningPending)
-                {
-                    return default;
-                }
-                nativeProofCompleted = false;
             }
             bool CanSelectDestination(Ff7AutoPlayTarget target)
             {
                 AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
-                return ReadNavigationAvailability(currentNavigation, native, observation, driver, componentGuards)?.Unavailable != true;
+                return ordinaryAvailability(currentNavigation, native)?.Unavailable != true;
             }
             string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections);
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];
@@ -339,12 +329,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             AutoPlayPlanStep? next = resumedNativePlan;
             if (!continuingRefresh)
             {
-                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
-                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
+                next ??= planner.PlanNavigation(observation.NavigationKey, needsRefresh: NeedsVisitRefresh, allowRemoteConditionRoutes: true, preferredGoal: State.NavigationGoal, readAvailability: ordinaryAvailability);
             }
             if (refreshSource is not null)
             {
-                next ??= SelectSourceRefreshPlan(State, planner, observation, revalidations.First(item => item.NavigationKey == refreshSource), NeedsVisitRefresh, (navigation, target) => ReadNavigationAvailability(navigation, target, observation, driver, componentGuards));
+                next ??= SelectSourceRefreshPlan(State, planner, observation, revalidations.First(item => item.NavigationKey == refreshSource), NeedsVisitRefresh, ordinaryAvailability);
             }
             if (!IsDestinationPlan(State, next, observation.NavigationKey))
             {
@@ -352,7 +342,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (next is null && !nativeProofCompleted)
             {
-                next = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards, completedSourceTask);
+                next = TryProveNativeNavigation(observation, driver, physicalGuards, componentGuards);
             }
             if (driver.PlanningPending)
             {
@@ -428,41 +418,38 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         try
         {
-            if (admittedApproachFailure is not null)
-            {
-                throw admittedApproachFailure;
-            }
-            if (admittedApproachInput is Ff7AutoplayInput retainedInput)
-            {
-                return retainedInput;
-            }
             return driver.ChooseTargetInput(selectedTarget, observation.Events, run => PrepareEntryInput(selectedTarget, ChooseOrdinaryTargetInput(driver, selectedTarget, run)));
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
-            bool retainNativeAlternatives = absence.MovementFailure is not null && nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
+            RecordOrdinaryGoalDeferral(observation, selectedTarget, driver);
+            bool retainNativeAlternatives = nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, player.Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: absence.MovementFailure is null ? null : ReadMovementSourceInside(absence.MovementFailure, player), PhysicalFailure: absence.PhysicalFailure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
-            if (retainNativeAlternatives)
+            physicalGuards[key] = fingerprint;
+            if (TryRetainFailedOrdinaryTarget(State, current, observation, selectedTarget, physicalGuards))
             {
-                physicalGuards[key] = fingerprint;
-                PreservePendingPhysicalOwner(State, current, observation, selectedTarget, physicalGuards);
-                nativePlanningIntent = ReadNativePlanningIntent();
-                nativePlanningHeader = ReadNativePlanningHeader(State);
-                nativePlanningAvailability = ReadNativePlanningAvailability(State, observation.VisitId);
+                if (!retainNativeAlternatives)
+                {
+                    CancelNativePlanning();
+                }
+                else
+                {
+                    nativePlanningIntent = ReadNativePlanningIntent();
+                    nativePlanningHeader = ReadNativePlanningHeader(State);
+                    nativePlanningAvailability = ReadNativePlanningAvailability(State, observation.VisitId);
+                }
                 nativePhysicalFailure = new(current, State.NavigationGoal, absence.PhysicalFailure?.NativeSource ?? Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:1"), session.GetPlayerMovementSpeed(true), session.GetPlayerMovementSpeed(false));
-                State.Status = "Local physical attempt exhausted; retaining native goal alternatives";
+                State.Status = "Trying other ordinary native goals after a local failure";
                 driver.DeferPlanning();
                 Publish();
                 return default;
             }
-            State.Active = null;
-            State.Status = "Deferred a native contact until its physical availability changes";
             Publish();
-            return default;
+            throw new NotSupportedException("The ordinary native attempt cannot prepare a legal input and has no remaining supported authenticated alternative.", absence);
         }
     }
 

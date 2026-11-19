@@ -7,7 +7,7 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal static bool DeferUnavailableActiveNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, Func<Ff7AutoPlayActiveEvent, Ff7AutoPlayTarget, bool>? canContinueApproach = null)
+    internal static bool DeferUnavailableActiveNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         if (state.Active is not { Accepted: false } active || active.VisitId != observation.VisitId || active.Generation != observation.Generation)
         {
@@ -19,58 +19,9 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             return false;
         }
-        if (canContinueApproach?.Invoke(active, target) == true)
-        {
-            return false;
-        }
         state.Active = null;
         state.Status = "Replanning after entering a deferred native approach region";
         return true;
-    }
-
-    private bool TryContinueAdmittedCycleApproach(Ff7AutoPlayActiveEvent active, Ff7AutoPlayTarget target, Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, IReadOnlyDictionary<string, string> facts, out Ff7AutoplayInput input)
-    {
-        input = default;
-        HashSet<string> admittedCycles = ReadAdmittedCycleGuards(State, active, target, observation, guard =>
-        {
-            string physical = driver.ReadPhysicalAvailabilityFingerprint(target, guard.BlockingEntities);
-            return ReadMovementFailureFingerprint(physical, guard.MovementFailure, session.Host.Process.Actors, guard.BlockingEntities, currentSource: false, retainedSourceInside: false);
-        });
-        if (admittedCycles.Count == 0)
-        {
-            return false;
-        }
-        AutoPlayNavigationVisit navigation = State.Coverage.NavigationVisits.Single(visit => visit.Key == observation.NavigationKey);
-        AutoPlayEvent observed = navigation.Events.Single(item => item.Id == target.Id);
-        AutoPlayEventAvailability availability = ReadComponentAvailability(State, navigation, observed, facts, includeRefusal: (key, _) => !admittedCycles.Contains(key));
-        if (availability.UnavailableVariants.Contains(target.Id))
-        {
-            return false;
-        }
-        driver.ConfigureSpatialBoundaries(observation.Events, target);
-        input = driver.ChooseTargetInput(target, observation.Events, run => PrepareEntryInput(target, ChooseOrdinaryTargetInput(driver, target, run)));
-        return driver.PlanningPending || driver.PlannedActionAdvances == true || driver.AdmitsSelectedTalkApproach(target, input);
-    }
-
-    internal static HashSet<string> ReadAdmittedCycleGuards(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, Ff7AutoPlayTarget target, Ff7AutoPlayObservation observation, Func<Ff7AutoPlayNavigationGuard, string> readOutsideFingerprint)
-    {
-        HashSet<string> admittedCycles = [];
-        if (active.Accepted || active.VisitId != observation.VisitId || active.Generation != observation.Generation || active.NavigationKey != observation.NavigationKey || active.EventId != target.Id || active.ConditionFingerprint != target.ConditionFingerprint || active.Entity != target.Entity || active.Script != target.Script || active.Kind != target.Kind || active.EntryGuardFingerprints is null)
-        {
-            return admittedCycles;
-        }
-        foreach (var entry in active.EntryGuardFingerprints)
-        {
-            if (!state.NavigationGuards.TryGetValue(entry.Key, out var guard) || guard.VisitId != active.VisitId || guard.Entity != target.Entity || guard.NavigationKey != observation.NavigationKey || guard.EventId != target.Id || guard.MovementFailure is not { } failure || guard.MovementSourceInside != true || entry.Key != ReadMovementFailureGuardKey(observation.NavigationKey, target.Id, "movement-cycle", failure))
-            {
-                continue;
-            }
-            if (entry.Value == readOutsideFingerprint(guard))
-            {
-                admittedCycles.Add(entry.Key);
-            }
-        }
-        return admittedCycles;
     }
 
     private Ff7AutoplayInput ChooseOrdinaryTargetInput(Ff7AutoplayDriver driver, Ff7AutoPlayTarget target, bool run)

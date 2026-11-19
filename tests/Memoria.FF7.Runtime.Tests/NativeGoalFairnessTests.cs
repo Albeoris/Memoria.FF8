@@ -16,11 +16,11 @@ internal static class NativeGoalFairnessTests
         Console.WriteLine("Native multi-goal selection, retained fairness, atomic owner/goal/proof and intent checks passed.");
     }
 
-    private static Fixture Create()
+    private static Fixture Create(bool actor = false)
     {
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(state);
-        AutoPlayEvent slow = new("slow", AutoPlayEventKind.Transition, Order: 0, ConditionSignature: "slow-condition");
+        AutoPlayEvent slow = new("slow", actor ? AutoPlayEventKind.Interaction : AutoPlayEventKind.Transition, Order: 0, ConditionSignature: "slow-condition");
         AutoPlayEvent bridge = new("bridge", AutoPlayEventKind.Interaction, Order: 2, ConditionSignature: "bridge-condition");
         AutoPlayEvent frontier = new("frontier", AutoPlayEventKind.Interaction, Order: 1, ConditionSignature: "fresh");
         planner.Observe(new("visit", "program"), [slow, bridge, frontier]);
@@ -33,9 +33,9 @@ internal static class NativeGoalFairnessTests
         state.NavigationGuards["absent"] = new("visit", 3, EventId: frontier.Id, NavigationKey: "left", ObservedFingerprint: "absent");
         planner.MarkUnavailable("visit", frontier.Id, new("fresh", "visit", "absent", "absent", frontier.Id));
         state.NavigationGoal = new("left", slow.Id, slow.ConditionSignature);
-        state.Active = new("visit", slow.Id, slow.ConditionSignature!, 1, -1, 0, Ff7AutoPlayTargetKind.Gateway, 10, 1, "before", NavigationKey: "left");
+        state.Active = new("visit", slow.Id, slow.ConditionSignature!, 1, actor ? 4 : -1, actor ? 1 : 0, actor ? Ff7AutoPlayTargetKind.ActorTalk : Ff7AutoPlayTargetKind.Gateway, actor ? null : (ushort)10, 1, "before", NavigationKey: "left");
         planner.BeginEvent("visit", slow.Id);
-        Ff7AutoPlayObservation observation = new("visit", "program", 1, [new(slow.Id, -1, 0, Ff7AutoPlayTargetKind.Gateway, slow.ConditionSignature!, false, default, GatewayIndex: 1, DestinationField: 10), new(bridge.Id, 2, 3, Ff7AutoPlayTargetKind.LineCross, bridge.ConditionSignature!, false, default, MayChangeNavigation: true), new(frontier.Id, 3, 1, Ff7AutoPlayTargetKind.ActorTalk, "fresh", false, default)], true, true) { NavigationKey = "left" };
+        Ff7AutoPlayObservation observation = new("visit", "program", 1, [new(slow.Id, actor ? 4 : -1, actor ? 1 : 0, actor ? Ff7AutoPlayTargetKind.ActorTalk : Ff7AutoPlayTargetKind.Gateway, slow.ConditionSignature!, false, default, GatewayIndex: actor ? null : 1, DestinationField: actor ? null : (ushort)10), new(bridge.Id, 2, 3, Ff7AutoPlayTargetKind.LineCross, bridge.ConditionSignature!, false, default, MayChangeNavigation: true), new(frontier.Id, 3, 1, Ff7AutoPlayTargetKind.ActorTalk, "fresh", false, default)], true, true) { NavigationKey = "left" };
         Ff7NativeSiblingCandidate sibling = Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(state, planner, observation).Single();
         Ff7AutoPlayNativeRoute proof = new(bridge.Id, bridge.ConditionSignature!, 1, [new(new('A', 64), new(1, 0))], new('B', 64));
         return new(state, planner, observation, sibling, proof);
@@ -63,12 +63,12 @@ internal static class NativeGoalFairnessTests
         Check(guards == JsonSerializer.Serialize(fixture.State.NavigationGuards), "A sibling proof cleared refusal history.");
         Fixture required = Create();
         required.State.NativeRevalidation = new("left", "slow", "slow-condition", new('C', 64), true);
-        Check(Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(required.State, required.Planner, required.Observation).Length == 0 && !Adopt(required), "An arrived local validation obligation was bypassed by sibling work.");
+        Check(Ff7AutoPlayPolicy.ReadNativeSiblingCandidates(required.State, required.Planner, required.Observation).Length > 0 && Adopt(required) && required.State.NativeRevalidation is null && required.State.SourceRevalidationAttempts.Count == 0, "An optional arrived maintenance task excluded another genuine frontier or fabricated completion when replaced.");
     }
 
     private static void CheckFairPendingWinner()
     {
-        Fixture fixture = Create();
+        Fixture fixture = Create(actor: true);
         int slow = 0;
         int fast = 0;
         bool disposed = false;
@@ -102,11 +102,11 @@ internal static class NativeGoalFairnessTests
             if (fixture.State.NativeRoute is null)
             {
                 Ff7AutoPlayActiveEvent owner = fixture.State.Active!;
-                Ff7AutoPlayMovementFailure region = new(0, 10, 0, 10);
+                Ff7AutoPlayMovementFailure? region = slow == 1 ? null : new(0, 10, 0, 10);
                 string key = Ff7AutoPlayPolicy.ReadMovementFailureGuardKey("left", "slow", "physical", region);
                 fixture.State.NavigationGuards[key] = new("visit", -1, EventId: "slow", NavigationKey: "left", MovementFailure: region, MovementSourceInside: true);
                 fixture.Planner.MarkUnavailable("visit", "slow", new("slow-condition", "visit", key, "same-local-failure", "slow"));
-                Ff7AutoPlayPolicy.PreservePendingPhysicalOwner(fixture.State, owner, fixture.Observation, fixture.Observation.Events.Single(target => target.Id == "slow"), new Dictionary<string, string> { [key] = "same-local-failure" });
+                Check(Ff7AutoPlayPolicy.TryRetainFailedOrdinaryTarget(fixture.State, owner, fixture.Observation, fixture.Observation.Events.Single(target => target.Id == "slow"), new Dictionary<string, string> { [key] = "same-local-failure" }), "A synchronous regionless ordinary failure dropped its owner before native alternatives could start.");
                 Ff7NativePhysicalFailureFence fence = new(owner, fixture.State.NavigationGoal, new('A', 64), 4096, 1024);
                 Check(fence.Matches(fixture.State, new('A', 64), 4096, 1024) && !fence.Matches(fixture.State, new('B', 64), 4096, 1024) && !fence.Matches(fixture.State, new('A', 64), 4096, 512), "Repeated local exhaustion lost its exact owner/source/mode fence.");
                 Check(!fixture.State.Coverage.Visits[0].Events.Single(item => item.Event.Id == "slow").Unavailable, "A repeated local search failure became event-level denial while sibling work was pending.");

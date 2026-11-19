@@ -358,6 +358,11 @@ public sealed class Ff7NativeMovement
         return collision;
     }
 
+    internal Vector2[] ReadFootprintOffsets(byte direction, int radius)
+    {
+        return new[] { (int)direction + 32, direction - 32, direction }.Select(angle => new Vector2(VectorX(angle) * radius / 4096f, -VectorY(angle) * radius / 4096f)).ToArray();
+    }
+
     private int VectorX(int direction) => vectors[(direction & 255) * 2];
     private int VectorY(int direction) => vectors[(direction & 255) * 2 + 1];
     private static bool Integral(Vector3 value) => value.X == (short)value.X && value.Y == (short)value.Y && value.Z == (short)value.Z;

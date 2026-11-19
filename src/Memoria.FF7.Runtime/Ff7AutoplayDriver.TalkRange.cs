@@ -118,7 +118,7 @@ public sealed partial class Ff7AutoplayDriver
     internal static string ReadPhysicalAvailabilityFingerprint(string programIdentity, IReadOnlyList<PcWalkmeshTriangle> walkmesh, byte[] blockedTriangles, Ff7Actor player, Ff7Actor target, IReadOnlyList<int>? blockingEntities = null, IReadOnlyList<Ff7Actor>? actors = null, bool mapJumpDisabled = false, IReadOnlyList<PcFieldGateway>? gateways = null)
     {
         int component = ReachableTriangles(walkmesh, blockedTriangles, player.Triangle).Min();
-        StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|target:{target.Entity}:{target.Slot}:{target.Model}:{target.EntityBound}:{target.X4096}:{target.Y4096}:{target.Z4096}:{target.Triangle}:{target.TalkEnabled}:{target.TalkRadius}:{target.CollisionEnabled}:{target.CollisionRadius}");
+        StringBuilder facts = new($"{programIdentity}|component:{component}|blocked:{Convert.ToHexString(blockedTriangles)}|player:{player.Entity}:{player.Model}:{player.CollisionRadius}|talk-region:2|target:{target.Entity}:{target.Slot}:{target.Model}:{target.EntityBound}:{target.X4096}:{target.Y4096}:{target.Z4096}:{target.Triangle}:{target.TalkEnabled}:{target.TalkRadius}:{target.CollisionEnabled}:{target.CollisionRadius}");
         AppendGatewayAvailability(facts, mapJumpDisabled, gateways);
         AppendBlockingAvailability(facts, blockingEntities, actors);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts.ToString())));
@@ -135,24 +135,29 @@ public sealed partial class Ff7AutoplayDriver
             return input;
         }
         HashSet<int> reachable = ReachableTriangles(player.Triangle);
-        Vector3 targetPoint = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
-        if (reachable.Contains(target.Triangle))
-        {
-            return Approach(targetPoint, target.Triangle, run);
-        }
         var (candidates, blockingEntities) = DiscoverTalkContacts(target, player, reachable);
         if (candidates.Count == 0)
         {
             throw new Ff7AutoPlayNavigationUnavailableException(target.Entity, "FFVII talk target has no reachable native floor point satisfying its original interaction predicate.", blockingEntities.Order().ToArray());
         }
         Vector3 current = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
-        var goal = candidates.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
+        var goal = retainedTalkRegionGoal ?? candidates.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
+        retainedTalkRegionGoal = goal;
         return Approach(goal.Point, goal.Triangle, run);
     }
+
+    private string? talkRegionCacheKey;
+    private (Vector3 Point, int Triangle)? retainedTalkRegionGoal;
+    private (IReadOnlyList<(Vector3 Point, int Triangle)> Contacts, int[] BlockingEntities) talkRegionCache;
 
     internal (IReadOnlyList<(Vector3 Point, int Triangle)> Contacts, int[] BlockingEntities) DiscoverTalkContacts(Ff7Actor target, Ff7Actor player, IReadOnlySet<int>? reachable = null)
     {
         reachable ??= ReachableTriangles(player.Triangle);
+        string cacheKey = $"{target.Slot}:{target.Entity}|{session.FieldGeneration}|{session.Field.Triggers.ControlDirection}|{player.Slot}:{player.Model}:{player.CollisionRadius}:{player.MovementFacingDisabled}:{((player.MovementFacingDisabled ?? 0) == 0 ? 0 : player.Direction)}|{session.Host.Process.PlayerLocked}:{session.Host.Process.Join is not null}:{session.Host.Process.LineBlocked}|{Convert.ToHexString(session.Host.Process.BlockedTriangles)}|{string.Join(',', reachable.Order())}|{string.Join(';', session.Host.Process.Actors.OrderBy(actor => actor.Slot).Where(actor => actor.Slot != player.Slot).Select(actor => $"{actor.Slot}:{actor.Entity}:{actor.X4096}:{actor.Y4096}:{actor.Z4096}:{actor.Triangle}:{actor.CollisionEnabled}:{actor.CollisionRadius}:{actor.TalkEnabled}:{actor.TalkRadius}"))}";
+        if (talkRegionCacheKey == cacheKey)
+        {
+            return talkRegionCache;
+        }
         Vector3 targetPoint = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
         List<(Vector3 Point, int Triangle)> candidates = [];
         HashSet<int> blockingEntities = [];
@@ -160,31 +165,14 @@ public sealed partial class Ff7AutoplayDriver
         foreach (int index in reachable.Order())
         {
             var triangle = session.Field.Walkmesh[index];
-            Vector3 center = (triangle.A + triangle.B + triangle.C) / 3;
-            List<Vector3> points = [center, (center + triangle.A) / 2, (center + triangle.B) / 2, (center + triangle.C) / 2];
-            if (Contains(triangle, targetPoint, out float floorHeight))
-            {
-                points.Add(new(targetPoint.X, targetPoint.Y, floorHeight));
-            }
-            foreach (var edge in new[] { (triangle.A, triangle.B), (triangle.B, triangle.C), (triangle.C, triangle.A) })
-            {
-                Vector2 delta = new(edge.Item2.X - edge.Item1.X, edge.Item2.Y - edge.Item1.Y);
-                float ratio = delta.LengthSquared() == 0 ? 0 : Math.Clamp(Vector2.Dot(new(targetPoint.X - edge.Item1.X, targetPoint.Y - edge.Item1.Y), delta) / delta.LengthSquared(), 0, 1);
-                Vector3 nearest = Vector3.Lerp(edge.Item1, edge.Item2, ratio);
-                points.Add(nearest);
-                float length = Vector2.Distance(new(nearest.X, nearest.Y), new(center.X, center.Y));
-                points.Add(Vector3.Lerp(nearest, center, length == 0 ? 1 : Math.Min(1, player.CollisionRadius / length)));
-            }
+            IReadOnlyList<Vector3> points = ReadTalkRegionPoints(session.Field.Walkmesh, reachable, index, targetPoint, target.TalkRadius + player.CollisionRadius, player.CollisionRadius, headings.SelectMany(heading => session.Host.Movement!.ReadFootprintOffsets(heading, player.CollisionRadius)).ToArray());
             foreach (Vector3 point in points)
             {
-                Ff7Actor projected = player with { X4096 = (int)(point.X * 4096), Y4096 = (int)(point.Y * 4096), Z4096 = (int)(point.Z * 4096), Triangle = index };
-                int dx = (target.X4096 >> 12) - (projected.X4096 >> 12);
-                int dy = (target.Y4096 >> 12) - (projected.Y4096 >> 12);
-                if (dx == 0 && dy == 0)
+                Ff7Actor projected = ProjectTalkRegionContact(player, point, index, target, session.Host.Movement!);
+                if (projected.X4096 == target.X4096 && projected.Y4096 == target.Y4096)
                 {
                     continue;
                 }
-                projected = projected with { Direction = session.Host.Movement!.Direction(dx, dy) };
                 Ff7Actor? selected = session.PreviewTalkTarget(projected);
                 if (selected?.Entity == target.Entity)
                 {
@@ -208,7 +196,18 @@ public sealed partial class Ff7AutoplayDriver
                 }
             }
         }
-        return (candidates, blockingEntities.Order().ToArray());
+        retainedTalkRegionGoal = null;
+        talkRegionCacheKey = cacheKey;
+        talkRegionCache = (candidates.Distinct().ToArray(), blockingEntities.Order().ToArray());
+        return talkRegionCache;
+    }
+
+    internal static Ff7Actor ProjectTalkRegionContact(Ff7Actor player, Vector3 point, int triangle, Ff7Actor target, Ff7NativeMovement movement)
+    {
+        Ff7Actor projected = player with { X4096 = (int)(point.X * 4096), Y4096 = (int)(point.Y * 4096), Z4096 = (int)(point.Z * 4096), Triangle = triangle };
+        int dx = (target.X4096 >> 12) - (projected.X4096 >> 12);
+        int dy = (target.Y4096 >> 12) - (projected.Y4096 >> 12);
+        return (player.MovementFacingDisabled ?? 0) == 0 && (dx != 0 || dy != 0) ? projected with { Direction = movement.Direction(dx, dy) } : projected;
     }
 
     internal static Ff7Actor? ReadNativeTalkFloorContact(Ff7Actor projected, Ff7NativeMovement movement, IReadOnlyList<Ff7Actor> actors, byte[] blockedTriangles, bool lineBlocked, IReadOnlyList<byte> headings, Func<Ff7Actor, bool> acceptsTalk, ISet<int>? blockingEntities = null)

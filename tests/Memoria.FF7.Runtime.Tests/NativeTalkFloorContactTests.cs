@@ -8,6 +8,7 @@ internal static class NativeTalkFloorContactTests
 {
     internal static void Run()
     {
+        TalkRegionGeometryTests.Run();
         PcWalkmeshTriangle[] mesh =
         [
             new(0, Vector3.Zero, new(0, 1000, 0), new(1000, 0, 0), -1, 1, -1),
