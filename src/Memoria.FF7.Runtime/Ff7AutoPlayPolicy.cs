@@ -16,6 +16,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private readonly Dictionary<(string Visit, string Event), int> nativeDestinationHints = [];
     private readonly Ff7AutoPlayNativeReadiness nativeReadiness = new();
     private string? movementEvent;
+    private long movementSampleTick = -1;
 
     public Ff7AutoPlayPolicy(Ff7Session session, Func<string, Ff7SessionSave, string> writeChoiceCheckpoint, Action<Ff7SessionSave>? checkpointBeforeWorldBattle = null)
     {
@@ -86,6 +87,14 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         try
         {
             Ff7AutoplayInput input = ChooseInput(driver, new Ff7NativePlanningQuantum(), out bool controllable);
+            if (driver.PlanningPending)
+            {
+                BeginActiveNativePlanning(driver);
+            }
+            else if (nativePlanningForActive)
+            {
+                CancelNativePlanning();
+            }
             try
             {
                 TrackControllableFrontierProgress(controllable, driver);
@@ -115,10 +124,22 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         string? completedSourceTask = null;
         AutoPlayPlanStep? resumedNativePlan = null;
         AutoPlayEventAvailability? resumedNativeAvailability = null;
-        if (nativePlanning is not null)
+        bool resumeNative = nativePlanning is not null && TakeNativePlanningTurn(nativePlanningForActive, ref activeNativeTurn);
+        if (resumeNative)
         {
+            bool activeScope = nativePlanningForActive;
             completedSourceTask = nativePlanningTaskEvent;
             resumedNativePlan = ContinueNativePlanning(driver);
+            if (activeScope)
+            {
+                if (State.NativeRoute is not null)
+                {
+                    controllable = true;
+                    return ReadNativeRouteInput();
+                }
+                driver.DeferPlanning();
+                return default;
+            }
             if (driver.PlanningPending)
             {
                 return default;
@@ -741,6 +762,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         if (movementEvent != identity)
         {
             movementEvent = identity;
+            movementSampleTick = -1;
             recentPositions.Clear();
         }
         Ff7Actor? actor = session.Host.Process.Actors.SingleOrDefault(actor => actor.PlayerControlled);
@@ -748,12 +770,22 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             return false;
         }
-        recentPositions.Enqueue((actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle));
-        while (recentPositions.Count > 96)
+        return ObserveMovementCycle(recentPositions, actor, session.Host.Process.Tick, ref movementSampleTick);
+    }
+
+    internal static bool ObserveMovementCycle(Queue<(int X, int Y, int Z, int Triangle)> positions, Ff7Actor actor, long tick, ref long previousTick)
+    {
+        if (tick == previousTick)
         {
-            recentPositions.Dequeue();
+            return false;
         }
-        return recentPositions.Count == 96 && recentPositions.Distinct().Count() <= 8;
+        previousTick = tick;
+        positions.Enqueue((actor.X4096, actor.Y4096, actor.Z4096, actor.Triangle));
+        while (positions.Count > 96)
+        {
+            positions.Dequeue();
+        }
+        return positions.Count == 96 && positions.Distinct().Count() <= 8;
     }
 
     private static int TargetOrder(Ff7AutoPlayTarget target) => target.Kind == Ff7AutoPlayTargetKind.Gateway ? 10000 + target.GatewayIndex!.Value : target.Entity * 8 + target.Script;

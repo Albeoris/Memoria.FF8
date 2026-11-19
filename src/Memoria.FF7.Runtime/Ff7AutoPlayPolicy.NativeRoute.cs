@@ -15,9 +15,98 @@ public sealed partial class Ff7AutoPlayPolicy
     private string? nativePlanningPhase;
     private string? nativePlanningTaskEvent;
     private long nativePlanningWork;
+    private bool nativePlanningForActive;
+    private bool activeNativeTurn;
+    private string? completedActiveNativeSource;
+    private string? completedActiveNativeIntent;
     internal bool NativePlanningPending => nativePlanning is not null;
     internal long NativePlanningGeneration { get; private set; }
     internal string? NativePlanningPhase => nativePlanningPhase;
+
+    private void BeginActiveNativePlanning(Ff7AutoplayDriver driver)
+    {
+        if (nativePlanning is not null || State.Active is not { Accepted: false } active || State.PendingRestore is not null || State.NativeRoute is not null || session.Battle is not null || session.World is not null || !Ff7AutoplayDriver.HasNativeRouteClockContract(session))
+        {
+            return;
+        }
+        Ff7AutoPlayObservation observation = discovery.Observe();
+        Ff7AutoPlayTarget? target = observation.Events.SingleOrDefault(target => MatchesActiveNativeTarget(active, observation, target));
+        if (target is null || !Ff7AutoplayDriver.SupportsNativeRouteTarget(target) || !IsActiveNativeGoalPending(State, active, observation))
+        {
+            return;
+        }
+        string source = Ff7AutoplayDriver.ReadNativeRouteFingerprint(session);
+        string intent = ReadNativePlanningIntent();
+        if (source == completedActiveNativeSource && intent == completedActiveNativeIntent)
+        {
+            return;
+        }
+        NativePlanningGeneration++;
+        nativePlanningSource = source;
+        nativePlanningIntent = intent;
+        nativePlanningForActive = true;
+        activeNativeTurn = true;
+        nativePlanning = new(EnumerateActiveNativeNavigation(driver, observation, active, target, source, intent).GetEnumerator());
+    }
+
+    internal static bool MatchesActiveNativeTarget(Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation, Ff7AutoPlayTarget target)
+    {
+        return active is { Accepted: false } && active.VisitId == observation.VisitId && active.NavigationKey == observation.NavigationKey && active.Generation == observation.Generation && active.EventId == target.Id && active.ConditionFingerprint == target.ConditionFingerprint && active.Entity == target.Entity && active.Script == target.Script && active.Kind == target.Kind && active.DestinationField == target.DestinationField && target.AnalysisComplete;
+    }
+
+    internal static bool IsActiveNativeGoalPending(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, Ff7AutoPlayObservation observation)
+    {
+        return IsNativeContinuationGoalPending(state, state.NavigationGoal, observation.NavigationKey, active.EventId) || state.NavigationGoal is { EventId: null } goal && ReadPendingSourceRevalidations(state, observation).Any(debt => debt.NavigationKey == goal.NavigationKey);
+    }
+
+    internal static bool TakeNativePlanningTurn(bool activeScope, ref bool nativeTurn)
+    {
+        if (!activeScope)
+        {
+            return true;
+        }
+        bool resume = nativeTurn;
+        nativeTurn = !nativeTurn;
+        return resume;
+    }
+
+    internal static bool TryInstallActiveNativeRoute(Ff7AutoPlayState state, Ff7AutoPlayActiveEvent active, AutoPlayTravelGoal? goal, Ff7AutoPlayObservation observation, Ff7AutoPlayNativeRoute proof, string source)
+    {
+        if (state.Active != active || state.NavigationGoal != goal || state.NativeRoute is not null || state.PendingRestore is not null || !observation.Events.Any(target => MatchesActiveNativeTarget(active, observation, target)) || !IsActiveNativeGoalPending(state, active, observation) || proof.EventId != active.EventId || proof.ConditionFingerprint != active.ConditionFingerprint || proof.Generation != active.Generation || proof.Cursor != 0 || proof.Steps.Length == 0 || proof.Steps[0].Before != source)
+        {
+            return false;
+        }
+        state.NativeRoute = proof;
+        return true;
+    }
+
+    private IEnumerable<AutoPlayPlanStep?> EnumerateActiveNativeNavigation(Ff7AutoplayDriver driver, Ff7AutoPlayObservation observation, Ff7AutoPlayActiveEvent active, Ff7AutoPlayTarget target, string source, string intent)
+    {
+        AutoPlayTravelGoal? goal = State.NavigationGoal;
+        Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, target, branch, actual) };
+        IEnumerable<int>[] modes = [driver.EnumerateNativeRoute(target, observation.Events, true, probe), driver.EnumerateNativeRoute(target, observation.Events, false, probe)];
+        foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(modes, () => probe.Result is not null))
+        {
+            nativePlanningPhase = probe.Progress;
+            yield return null;
+        }
+        if (!CanResumeNativePlanning() || State.Active != active || !IsActiveNativeGoalPending(State, active, observation))
+        {
+            yield break;
+        }
+        if (probe.Result is { } proof)
+        {
+            if (TryInstallActiveNativeRoute(State, active, goal, observation, proof, source))
+            {
+                Publish();
+            }
+        }
+        else
+        {
+            completedActiveNativeSource = source;
+            completedActiveNativeIntent = intent;
+        }
+    }
 
     private AutoPlayPlanStep? TryProveNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components, string? completedTask = null)
     {
@@ -65,9 +154,11 @@ public sealed partial class Ff7AutoPlayPolicy
         return result;
     }
 
-    private string ReadNativePlanningIntent()
+    private string ReadNativePlanningIntent() => ReadNativePlanningIntent(State);
+
+    internal static string ReadNativePlanningIntent(Ff7AutoPlayState state)
     {
-        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { State.DestinationField, State.NavigationGoal, State.Active, State.NativeRoute, State.PendingRestore, State.Choice, State.Coverage, State.NavigationGuards, State.VisitGuards, State.NavigationProbes, State.GatewayTopology, State.SourceRevalidationAttempts, State.NativeRevalidation });
+        byte[] bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { state.DestinationField, state.NavigationGoal, state.Active, state.NativeRoute, state.PendingRestore, state.Choice, state.Coverage, state.NavigationGuards, state.VisitGuards, state.NavigationProbes, state.GatewayTopology, state.SourceRevalidationAttempts, state.NativeRevalidation });
         return Convert.ToHexString(SHA256.HashData(bytes));
     }
 
@@ -96,6 +187,8 @@ public sealed partial class Ff7AutoPlayPolicy
         nativePlanningIntent = null;
         nativePlanningPhase = null;
         nativePlanningTaskEvent = null;
+        nativePlanningForActive = false;
+        activeNativeTurn = false;
     }
 
     private IEnumerable<AutoPlayPlanStep?> EnumerateNativeNavigation(Ff7AutoPlayObservation observation, Ff7AutoplayDriver driver, Dictionary<string, string> facts, Dictionary<string, IReadOnlyDictionary<string, string>?> components, string? completedTask)

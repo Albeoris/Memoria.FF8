@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--active-native-planning-only", StringComparer.Ordinal))
+{
+    ActiveNativePlanningTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-input-reservation-original-only", StringComparer.Ordinal))
 {
     NativeInputReservationTests.RunOriginal();
