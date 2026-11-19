@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF7.Events;
@@ -235,7 +235,7 @@ public sealed partial class Ff7AutoplayDriver
                 {
                     yield break;
                 }
-                if (settled && ownership.OwnsLadder)
+                if (settled && ownership.CanReleaseSource(branch))
                 {
                     recovery = ownership.Capture();
                 }
@@ -654,8 +654,20 @@ public sealed partial class Ff7AutoplayDriver
         internal bool IsSettled(bool nativeControlReady) => HasDebt && pending.All(value => !value) && owners.All(owner => owner.Returned) && nativeControlReady;
         internal bool IsSettled(Ff7Session branch) => IsSettled(Ff7AutoPlayDiscovery.NativeControlReady(branch));
         internal bool HasReturnedLadder => backwardCompleted && ladderRequest is not null && ladderRoot >= 0 && ladderRoot < roots.Count && owners.Any(owner => owner.Entity == ladderEntity && owner.Priority == ladderPriority && owner.Root == ladderRoot && owner.Returned) && owners.Any(owner => owner.Entity == roots[ladderRoot].Entity && owner.Priority == 1 && owner.Root == ladderRoot && owner.Returned);
-        internal bool CanReleaseSource(Ff7Session branch) => CanReleaseSource(branch.Host.Process.Actors.Single(actor => actor.PlayerControlled), branch.Machine.Capture().PendingRequests ?? []);
-        internal bool CanReleaseSource(Ff7Actor player, IReadOnlyList<FieldHostRequest> requests) => HasReturnedLadder && player.Ladder is null && !requests.Any(request => request.Id == ladderRequest);
+        internal bool HasReturnedOwnedEvent => !Invalid && owners.Count > 0 && !pending.Any(value => value) && owners.All(owner => owner.Returned && owner.Root >= 0 && owner.Root < roots.Count && owners.Any(root => root.Entity == roots[owner.Root].Entity && root.Priority == 1 && root.Root == owner.Root && root.Script == roots[owner.Root].Script && root.Returned));
+        internal bool CanReleaseSource(Ff7Session branch) => Ff7AutoPlayDiscovery.NativeControlReady(branch) && CanReleaseSource(branch.Host.Process.Actors.Single(actor => actor.PlayerControlled), branch.Machine.Capture().PendingRequests ?? []);
+        internal bool CanReleaseSource(Ff7Actor player, IReadOnlyList<FieldHostRequest> requests)
+        {
+            if (Invalid || player.Ladder is not null)
+            {
+                return false;
+            }
+            if (ladderRequest is not null)
+            {
+                return HasReturnedLadder && IsSettled(true) && !requests.Any(request => request.Id == ladderRequest);
+            }
+            return HasReturnedOwnedEvent && !requests.Any(request => owners.Any(owner => owner.Entity == request.Entity && owner.Priority == request.Priority));
+        }
         internal Ff7NativeGraphDebt? Capture() => HasDebt ? new(roots.ToArray(), pending.ToArray(), owners.OrderBy(owner => owner.Root).ThenBy(owner => owner.Entity).ThenBy(owner => owner.Priority).ToArray(), ladderRequest, ladderEntity, ladderPriority, backwardCompleted, ladderRoot, admissionObserved.ToArray()) : null;
     }
 }

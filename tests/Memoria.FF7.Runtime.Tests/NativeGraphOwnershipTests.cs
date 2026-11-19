@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Events;
 using Memoria.FF7.Runtime;
 
@@ -26,11 +26,37 @@ internal static class NativeGraphOwnershipTests
         Check(!new Ff7AutoplayDriver.NativeGraphOwnership(recovery with { BackwardCompleted = false }, null).HasReturnedLadder, "A forward or incomplete ladder acquired backward-release authority.");
         Check(!new Ff7AutoplayDriver.NativeGraphOwnership(recovery with { Owners = [new(13, 1, 0, false), new(17, 1, 0, true), new(17, 6, 0, true)] }, null).HasReturnedLadder, "A child's priority1 RET replaced the exact root RET.");
         Check(Ff7AutoplayDriver.ReadNavigationRunModes(true, null).SequenceEqual([true, false]) && Ff7AutoplayDriver.ReadNavigationRunModes(true, false).SequenceEqual([false]) && Ff7AutoplayDriver.ReadNavigationRunModes(false, true).SequenceEqual([true]), "Native graph run/walk choices were merged into a greedy speed choice.");
+        CheckReturnedEventRelease(root);
         CheckForcedForest(root);
         CheckExternalAdmissions();
         CheckQueuedAcknowledgements();
         CheckExactNativeIdentity(pending, recovery);
         Console.WriteLine("Native graph owner lineage, settlement, ladder evidence, exact identity and speed checks passed.");
+    }
+
+    private static void CheckReturnedEventRelease(Ff7AutoPlayTarget root)
+    {
+        Ff7Actor player = new() { Slot = 0, Entity = 17, Model = 0, PlayerControlled = true };
+        Ff7AutoplayDriver.NativeGraphOwnership owned = new(null, root);
+        owned.Requested(root.Entity, root.Script, true, true);
+        owned.Dispatched(new(root.Entity, 1, 100, 17, 8, 6, 1, true, false, 1));
+        owned.Returned(new(root.Entity, 1, 101, 1));
+        Check(!owned.CanReleaseSource(player, []), "An early root RET released a still-running nonblocking child.");
+        owned.Returned(new(17, 6, 120, 2));
+        Check(owned.HasReturnedOwnedEvent && owned.CanReleaseSource(player, []) && !owned.HasReturnedLadder, "A genuinely started root and returned child could not release native source control without inventing ladder evidence.");
+        Ff7AutoplayDriver.NativeGraphOwnership cold = new(owned.Capture(), null);
+        Check(cold.CanReleaseSource(player, []), "Cold native event settlement lost exact root/child source-release evidence.");
+        foreach (bool accepted in new[] { false, true })
+        {
+            Ff7AutoplayDriver.NativeGraphOwnership noop = new(null, root);
+            noop.Requested(root.Entity, root.Script, accepted, false);
+            Check(!noop.HasReturnedOwnedEvent && !noop.CanReleaseSource(player, []), "A rejected or accepted no-op admission acquired source-release authority.");
+        }
+        Ff7NativeGraphDebt foreign = owned.Capture()! with { Owners = [new(root.Entity, 1, 0, true, root.Script), new(99, 6, -1, true, 8)] };
+        Check(!new Ff7AutoplayDriver.NativeGraphOwnership(foreign, null).CanReleaseSource(player, []), "A foreign returned slot borrowed an unrelated root's release authority.");
+        Ff7AutoplayDriver.NativeGraphOwnership invalid = new(owned.Capture(), null);
+        invalid.AdoptForcedRoot(root);
+        Check(!invalid.CanReleaseSource(player, []), "A new queued root reused an earlier completed lifetime's release authority.");
     }
 
     private static void CheckQueuedAcknowledgements()

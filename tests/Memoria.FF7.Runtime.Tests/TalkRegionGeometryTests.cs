@@ -59,7 +59,9 @@ internal static class TalkRegionGeometryTests
     {
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_GEOMETRIC_ROUTE_SAVE") ?? throw new InvalidOperationException("Select an external geometric-route fixture.");
         string root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR") ?? throw new InvalidOperationException("Original resources are required.");
-        int entity = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_GEOMETRIC_ROUTE_ENTITY") ?? throw new InvalidOperationException("Select an external actor entity."));
+        int entity = int.Parse(Environment.GetEnvironmentVariable("MEMORIA_FF7_GEOMETRIC_ROUTE_ENTITY") ?? "-1");
+        int? gateway = Environment.GetEnvironmentVariable("MEMORIA_FF7_GEOMETRIC_ROUTE_GATEWAY") is { } gatewayText ? int.Parse(gatewayText) : null;
+        Check(entity >= 0 || gateway is not null, "Select an external actor or gateway target.");
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream stream = new(bytes);
         var envelope = CombinedSessionCodec.Read(stream);
@@ -68,10 +70,10 @@ internal static class TalkRegionGeometryTests
         string before = JsonSerializer.Serialize(session.Capture());
         Ff7AutoplayDriver driver = new(session);
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        var contacts = driver.DiscoverTalkContacts(session.Host.GetActor(entity), player);
-        Check(contacts.Contacts.Count > 0, "The actual geometric fixture still has an empty native contact catalog.");
+        int contactCount = gateway is { } gatewayIndex ? Ff7AutoplayDriver.DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[gatewayIndex]).Count : driver.DiscoverTalkContacts(session.Host.GetActor(entity), player).Contacts.Count;
+        Check(contactCount > 0, "The actual geometric fixture still has an empty native contact catalog.");
         Check(before == JsonSerializer.Serialize(session.Capture()), "Contact geometry advanced or modified the native source.");
-        Console.WriteLine($"PASS original zero-callback contact geometry: {contacts.Contacts.Count} native-valid contacts, source unchanged.");
+        Console.WriteLine($"PASS original zero-callback contact geometry: {contactCount} native-valid contacts, source unchanged.");
         if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_GRAPH") == "1")
         {
             if (Environment.GetEnvironmentVariable("MEMORIA_FF7_GRAPH_AFTER_NEUTRAL") == "1")
@@ -83,7 +85,7 @@ internal static class TalkRegionGeometryTests
             Ff7AutoPlayObservation observation = new Ff7AutoPlayDiscovery(session).Observe();
             Ff7NativeGraphDebt? debt = Ff7AutoplayDriver.ReadRootNativeDebt(session, observation.Events);
             Console.WriteLine($"SOURCE graph debt: {JsonSerializer.Serialize(debt is null ? null : new { Roots = debt.Roots.Select(item => item.Id), debt.Pending, debt.Owners, debt.LadderRequest })}");
-            Ff7AutoPlayTarget target = observation.Events.Single(item => item.Kind == Ff7AutoPlayTargetKind.ActorTalk && item.Entity == entity);
+            Ff7AutoPlayTarget target = observation.Events.Single(item => gateway is { } index ? item.Kind == Ff7AutoPlayTargetKind.Gateway && item.GatewayIndex == index : item.Kind == Ff7AutoPlayTargetKind.ActorTalk && item.Entity == entity);
             Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => Ff7AutoPlayPolicy.CanReleaseNativeSource(saved.AutoPlay!, observation, target, branch, actual) };
             var graphWall = System.Diagnostics.Stopwatch.StartNew();
             using var graph = Ff7AutoplayDriver.EnumerateFairNativeCandidates(driver.EnumerateNativeRouteModes(target, observation.Events, probe), () => probe.Result is not null).GetEnumerator();
