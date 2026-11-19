@@ -20,7 +20,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
     private sealed partial class PreparedGeometry
     {
-        private Constraint? SelectSeparation(NativeState state, int[] cloth, int[] body)
+        private Constraint? SelectSeparation(NativeState state, int[] cloth, int[] body, bool preferSharedOutward)
         {
             Vector3 clothNormal = Vector3.Cross(state.Points[cloth[1]] - state.Points[cloth[0]], state.Points[cloth[2]] - state.Points[cloth[0]]);
             Vector3 bodyNormal = Vector3.Cross(state.Points[body[1]] - state.Points[body[0]], state.Points[body[2]] - state.Points[body[0]]);
@@ -30,6 +30,11 @@ public static partial class NativeBattleAuxiliaryContactSolver
             }
             Constraint? selected = null;
             double selectedCost = double.PositiveInfinity;
+            bool selectedOutward = false;
+            Vector3 restNormal = Vector3.Cross(restPoints[cloth[1]] - restPoints[cloth[0]], restPoints[cloth[2]] - restPoints[cloth[0]]);
+            Vector3 restBody = (restPoints[body[0]] + restPoints[body[1]] + restPoints[body[2]]) / 3;
+            int bodySide = Math.Sign(DotVector(restBody - restPoints[cloth[0]], restNormal));
+            Vector3 outward = -bodySide * Vector3.Normalize(clothNormal);
             for (int kind = 0; kind < 3; kind++)
             {
                 int clothEdges = kind == 2 ? 3 : 1;
@@ -40,7 +45,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     {
                         for (int sign = 1; sign >= -1; sign -= 2)
                         {
-                            Constraint? candidate = SeparationAt(state, cloth, body, new(kind, clothEdge, bodyEdge, sign));
+                            Constraint? candidate = SeparationAt(state, cloth, body, new(kind, clothEdge, bodyEdge, sign), outward);
                             if (candidate is null || candidate.Derivative is not { } derivative)
                             {
                                 continue;
@@ -51,10 +56,12 @@ public static partial class NativeBattleAuxiliaryContactSolver
                                 continue;
                             }
                             double cost = candidate.Value * candidate.Value / norm;
-                            if (selected is null || cost < selectedCost || cost == selectedCost && candidate.Value > selected.Value)
+                            bool prefersOutward = preferSharedOutward && candidate.OutwardResponse > 0;
+                            if (selected is null || prefersOutward && !selectedOutward || prefersOutward == selectedOutward && (cost < selectedCost || cost == selectedCost && candidate.Value > selected.Value))
                             {
                                 selected = candidate;
                                 selectedCost = cost;
+                                selectedOutward = prefersOutward;
                             }
                         }
                     }
@@ -63,7 +70,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
             return selected;
         }
 
-        private Constraint? SeparationAt(NativeState state, int[] cloth, int[] body, SeparationAxis specification)
+        private Constraint? SeparationAt(NativeState state, int[] cloth, int[] body, SeparationAxis specification, Vector3 outward = default)
         {
             Vector3 first = state.Points[cloth[1]] - state.Points[cloth[0]];
             Vector3 second = state.Points[cloth[2]] - state.Points[cloth[0]];
@@ -121,6 +128,13 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     row[variable * 3 + coordinate] = SeparationDerivative(state.Points[supportA], state.Points[supportB], axis, length, velocity * specification.Sign, Velocity(supportA), Vector3.Zero);
                 }
             }
+            Vector3 ProbeVelocity(int vertex) => auxiliaryInfluenced[vertex] ? outward : Vector3.Zero;
+            Vector3 probeAxisVelocity = specification.Kind switch
+            {
+                0 => Vector3.Cross(ProbeVelocity(cloth[1]) - ProbeVelocity(cloth[0]), second) + Vector3.Cross(first, ProbeVelocity(cloth[2]) - ProbeVelocity(cloth[0])),
+                1 => Vector3.Zero,
+                _ => Vector3.Cross(ProbeVelocity(cloth[(edgeA + 1) % 3]) - ProbeVelocity(cloth[edgeA]), bodyEdge)
+            };
             return new Constraint
             {
                 Body = supportB,
@@ -129,6 +143,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 EscapeAxis = specification,
                 Normal = axis,
                 Derivative = row,
+                OutwardResponse = SeparationDerivative(state.Points[supportA], state.Points[supportB], axis, length, probeAxisVelocity * specification.Sign, ProbeVelocity(supportA), Vector3.Zero),
                 Value = DotVector(state.Points[supportB] - state.Points[supportA], axis),
                 Kind = "TriangleSeparation"
             };

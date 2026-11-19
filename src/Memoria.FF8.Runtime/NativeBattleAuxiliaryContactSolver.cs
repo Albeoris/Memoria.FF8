@@ -184,6 +184,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
         public double[]? Derivative;
         public int[]? BodyTriangle;
         public SeparationAxis? EscapeAxis;
+        public double OutwardResponse;
     }
 
     private sealed class Facts

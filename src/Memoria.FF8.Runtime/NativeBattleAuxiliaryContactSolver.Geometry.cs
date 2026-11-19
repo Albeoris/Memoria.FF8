@@ -11,6 +11,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
         private readonly int[] vertexBones;
         private readonly int[] variables;
         private readonly int[][] triangles;
+        private readonly Vector3[] restPoints;
         private readonly Quaternion[] canonical;
         private readonly List<Layer> layers;
         private readonly (int A, int B)[] orderedEdges;
@@ -26,6 +27,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
             this.vertexBones = vertexBones;
             this.variables = variables;
             this.triangles = triangles;
+            restPoints = rest.Points;
             canonical = (Quaternion[])rest.Local.Clone();
             layers = Calibrate(rest, vertexBones, triangles, clothIds, bodyIds, semanticSegments);
             HashSet<(int, int)> edges = new HashSet<(int, int)>();
@@ -106,6 +108,8 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 Vector3 third = state.Points[face[2]];
                 bounds[triangle] = new(Vector3.Min(first, Vector3.Min(second, third)), Vector3.Max(first, Vector3.Max(second, third)));
             }
+            List<(int Cloth, int Body)> activeContacts = new();
+            Dictionary<(int A, int B, int C, int Side), HashSet<(int A, int B, int C)>> sharedContacts = new();
             foreach (var pair in contactPairs)
             {
                 if (bounds[pair.Cloth].Disjoint(bounds[pair.Body]))
@@ -124,7 +128,21 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     facts.ImmutableCrossings++;
                     continue;
                 }
-                if (SelectSeparation(state, cloth, body) is Constraint contact)
+                activeContacts.Add(pair);
+                var key = RestContactGroup(cloth, body);
+                if (!sharedContacts.TryGetValue(key, out var bodies))
+                {
+                    bodies = new();
+                    sharedContacts.Add(key, bodies);
+                }
+                bodies.Add(CanonicalTriangle(body));
+            }
+            foreach (var pair in activeContacts)
+            {
+                int[] cloth = triangles[pair.Cloth];
+                int[] body = triangles[pair.Body];
+                bool shared = sharedContacts[RestContactGroup(cloth, body)].Count >= 2;
+                if (SelectSeparation(state, cloth, body, shared) is Constraint contact)
                 {
                     facts.Constraints.Add(contact);
                     if (contact.Value < 0)
@@ -150,6 +168,23 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 facts.RestRotation += angle * angle;
             }
             return facts;
+        }
+
+        private (int A, int B, int C, int Side) RestContactGroup(int[] cloth, int[] body)
+        {
+            var canonical = CanonicalTriangle(cloth);
+            Vector3 normal = Vector3.Cross(restPoints[canonical.B] - restPoints[canonical.A], restPoints[canonical.C] - restPoints[canonical.A]);
+            Vector3 centroid = (restPoints[body[0]] + restPoints[body[1]] + restPoints[body[2]]) / 3;
+            int side = Math.Sign(DotVector(centroid - restPoints[canonical.A], normal));
+            return (canonical.A, canonical.B, canonical.C, side);
+        }
+
+        private static (int A, int B, int C) CanonicalTriangle(int[] triangle)
+        {
+            int minimum = Math.Min(triangle[0], Math.Min(triangle[1], triangle[2]));
+            int maximum = Math.Max(triangle[0], Math.Max(triangle[1], triangle[2]));
+            int middle = triangle[0] + triangle[1] + triangle[2] - minimum - maximum;
+            return (minimum, middle, maximum);
         }
 
         private readonly record struct TriangleBounds(Vector3 Minimum, Vector3 Maximum)

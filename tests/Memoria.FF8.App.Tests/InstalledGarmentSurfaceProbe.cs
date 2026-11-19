@@ -33,8 +33,10 @@ internal static class InstalledGarmentSurfaceProbe
             return;
         }
         NativeBattleGraphicsModel model = presentation.Graphics.ActorModels.Get(owner);
-        int pose = donor == 7 ? 0 : 28;
-        int first = donor == 7 ? 15 : 6;
+        bool returnRequested = donor == 7 && Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1";
+        Assert.False(returnRequested && fitRequested, "The return ownership diagnostic does not import auxiliary states.");
+        int pose = donor == 7 ? returnRequested ? 9 : 0 : 28;
+        int first = donor == 7 ? returnRequested ? 5 : 15 : 6;
         if (fitRequested && !string.IsNullOrWhiteSpace(auxiliaryState))
         {
             using JsonDocument input = JsonDocument.Parse(File.ReadAllText(auxiliaryState));
@@ -155,7 +157,10 @@ internal static class InstalledGarmentSurfaceProbe
         {
             if (donor == 7)
             {
-                string nativeOutput = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-000-016");
+                bool returnRequested = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1";
+                int pose = returnRequested ? 9 : 0;
+                int target = returnRequested ? 6 : 16;
+                string nativeOutput = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-{pose:D3}-{target:D3}");
                 foreach (string name in new[] { "surface.json", "01-original-native.png", "02-DIAGNOSTIC-no-pure-lowerbody.png" })
                 {
                     Assert.True(File.Exists(Path.Combine(nativeOutput, name)), $"Requested compiled-pose binding diagnostic was not captured: {name}.");
@@ -186,6 +191,10 @@ internal static class InstalledGarmentSurfaceProbe
         string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_PROBE");
         string? auxiliaryState = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_AUXILIARY_STATE");
         if (recipient != 6 || donor is not (7 or 10) || string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+        if (donor == 7 && Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1")
         {
             return;
         }

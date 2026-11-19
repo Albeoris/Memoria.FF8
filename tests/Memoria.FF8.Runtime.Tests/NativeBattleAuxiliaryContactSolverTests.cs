@@ -206,6 +206,70 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
     }
 
     [Fact]
+    public void Shared_cloth_contacts_with_the_same_rest_side_preserve_both_physical_triangles()
+    {
+        NativeBattleVector unit = new(1024, 1024, 1024);
+        NativeBattleDecodedPose rest = new(default, Enumerable.Repeat(new NativeBattleBonePose(default, unit), 5).ToImmutableArray(), false);
+        byte[] skeleton = new byte[16 + 5 * 48];
+        skeleton[0] = 5;
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(18), 100);
+        short[] parents = [-1, 0, 0, 2, 0];
+        for (int bone = 0; bone < parents.Length; bone++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16 + bone * 48), parents[bone]);
+        }
+        NativeBattlePoseSource rig = new(skeleton.ToImmutableArray(), NativeBattleAnimationEncoder.Encode([[rest]]));
+        NativeBattleAuxiliaryContactCalibration calibration = new(
+            [new(1, new(20, -20, 105)), new(1, new(30, -20, 85)), new(1, new(20, -30, 85)), new(4, new(55, -20, 115)), new(4, new(65, -20, 95)), new(4, new(55, -30, 95)), new(0, default), new(0, new(100, 0, 0)), new(2, new(0, 100, -100))],
+            [new(0, 1, 2), new(3, 4, 5), new(6, 7, 8)],
+            [0, 1, 4],
+            [1, 4],
+            [new(0, 1), new(0, 4)]);
+        NativeBattleDecodedPose target = rest with { Bones = rest.Bones.SetItem(1, new(new(2048, 0, 0), unit)).SetItem(4, new(new(2048, 0, 0), unit)) };
+        NativeBattleAuxiliaryContactReport before = NativeBattleAuxiliaryContactSolver.Inspect(rig, target, calibration);
+        Assert.Equal(2, before.CorrectableCrossings);
+        NativeBattleDecodedPose known = target with { Bones = target.Bones.SetItem(2, new(new(1024, 0, 0), unit)) };
+        Assert.Equal(0, NativeBattleAuxiliaryContactSolver.Inspect(rig, known, calibration).CorrectableCrossings);
+        NativeBattleDecodedPose solved = NativeBattleAuxiliaryContactSolver.Solve(rig, target, calibration);
+        Assert.Equal(0, NativeBattleAuxiliaryContactSolver.Inspect(rig, solved, calibration).CorrectableCrossings);
+        Assert.True(AuxiliaryRotationEnergy(rest, solved) <= AuxiliaryRotationEnergy(rest, known));
+        Assert.Equal(target.Translation, solved.Translation);
+        Assert.Equal(target.HasScale, solved.HasScale);
+        Assert.Equal(target.Bones.Select(bone => bone.Scale), solved.Bones.Select(bone => bone.Scale));
+        ImmutableArray<NativeBattleActionMatrix> expected = NativeBattlePoseMatrices.StageBoneMatrices(rig, target);
+        ImmutableArray<NativeBattleActionMatrix> actual = NativeBattlePoseMatrices.StageBoneMatrices(rig, solved);
+        foreach (int bone in new[] { 0, 1, 4 })
+        {
+            Assert.Equal(expected[bone].Rotation, actual[bone].Rotation);
+            Assert.Equal(expected[bone].X, actual[bone].X);
+            Assert.Equal(expected[bone].Y, actual[bone].Y);
+            Assert.Equal(expected[bone].Z, actual[bone].Z);
+        }
+        Vector3 Point(int vertex)
+        {
+            NativeBattleAuxiliaryVertex definition = calibration.Vertices[vertex];
+            NativeBattleActionMatrix matrix = actual[definition.Bone];
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, definition.Position);
+            return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+        Vector3 normal = Vector3.Cross(Point(7) - Point(6), Point(8) - Point(6));
+        Assert.True(normal.LengthSquared() > 0);
+        ImmutableArray<NativeBattleActionMatrix> restMatrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, rest);
+        Vector3 RestPoint(int vertex)
+        {
+            NativeBattleAuxiliaryVertex definition = calibration.Vertices[vertex];
+            NativeBattleActionMatrix matrix = restMatrices[definition.Bone];
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, definition.Position);
+            return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+        Vector3 restNormal = Vector3.Cross(RestPoint(7) - RestPoint(6), RestPoint(8) - RestPoint(6));
+        Vector3 firstCentre = (RestPoint(0) + RestPoint(1) + RestPoint(2)) / 3;
+        Vector3 secondCentre = (RestPoint(3) + RestPoint(4) + RestPoint(5)) / 3;
+        Assert.True(Vector3.Dot(firstCentre - RestPoint(6), restNormal) * Vector3.Dot(secondCentre - RestPoint(6), restNormal) > 0);
+    }
+
+    [Fact]
     public void Fixed_support_separation_includes_rotation_of_the_selected_axis()
     {
         Vector3 a = Vector3.Zero;
