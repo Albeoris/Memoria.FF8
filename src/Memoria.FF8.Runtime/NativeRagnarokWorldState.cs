@@ -140,6 +140,10 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeCactuarWorldState? Cactuar { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CactuarDrawPhase { get; init; }
+    [JsonIgnore]
+    public bool CactuarVisibleForDraw => (CactuarDrawPhase ?? Cactuar?.Phase) is 2 or 3;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeRagnarokTransferCamera? TransferCamera { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ProjectionCurveThreshold { get; init; }
@@ -184,6 +188,10 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         Allocation.Validate();
         Motor.Validate();
         BackgroundRails?.Validate();
+        if (CactuarDrawPhase is < 0 or > 4 || CactuarDrawPhase is not null && Cactuar is null)
+        {
+            throw new InvalidDataException("Ragnarok Cactuar draw phase requires its original process owner and phase range.");
+        }
         int contactCount = Objects.Length + (BackgroundRails?.Primary is not null || BackgroundRails?.Alternate is not null ? 1 : 0);
         if (PrimaryContact < -1 || PrimaryContact >= contactCount || BroadContact < -1 || BroadContact >= contactCount)
         {

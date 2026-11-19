@@ -100,23 +100,25 @@ public sealed class HeadlessWorldEntryTests
         Assert.Equal(ordinary.PerspectiveWords.ToArray(), scene.State.NativeRagnarokRuntime.TransferCamera.PerspectiveWords.ToArray());
     }
 
-    [Fact]
-    public void HeadlessPreparationRetainsAllSimulationOwnersAndSelectorConsumptionWhileLiveRasterFailsExplicitly()
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(50, -1)]
+    public void LiveAndHeadlessPreparationRetainTheSameOwnersAndConsumeRelocationOnce(short entity, short extra)
     {
         GameSession source = GameSession.CreateColdProcess();
         source.StartNewGame();
         using GameWorld initialization = new(source, GameDirectory);
         GameState departure = source.State with
         {
-            WorldEntryMemory = source.State.WorldEntryMemory!.WriteBytes(256, 2, 3500),
+            WorldEntryMemory = source.State.WorldEntryMemory!.WriteBytes(256, 2, 3150),
             EventMemory = source.State.EventMemory.Write(269, 1, NativeScalarValue.Exact(4)),
             SavedWorld = source.State.SavedWorld! with { WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame().WithOperand(260) }
         };
         string before = JsonSerializer.Serialize(departure);
-        WorldTransition packet = new(32, 50, -1);
-        NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, GameDirectory, packet));
-        Assert.Contains("auxiliary actor", refusal.Message);
+        WorldTransition packet = new(32, entity, extra);
+        using PreparedWorldEntry live = WorldEntryPreflight.Prepare(departure, GameDirectory, packet);
         using PreparedWorldEntry prepared = WorldEntryPreflight.Prepare(departure, GameDirectory, packet, validatePresentation: false);
+        Assert.Equal(JsonSerializer.Serialize(live.InitialState), JsonSerializer.Serialize(prepared.InitialState));
         Assert.NotNull(prepared.InitialState.NativeRagnarokRuntime!.GroundCache);
         Assert.NotNull(prepared.InitialState.NativeRagnarokRuntime.Cactuar);
         Assert.NotNull(prepared.InitialState.NativeRagnarokRuntime.Forest);
@@ -133,6 +135,7 @@ public sealed class HeadlessWorldEntryTests
         Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
         Assert.Equal(JsonSerializer.Serialize(committed.State), JsonSerializer.Serialize(restoredSession.State));
         Assert.Equal(before, JsonSerializer.Serialize(departure));
-        Assert.Throws<NotSupportedException>(() => scene.Render(320, 224));
+        Assert.NotEmpty(scene.Render(320, 224));
+        Assert.NotEmpty(restored.Render(320, 224));
     }
 }

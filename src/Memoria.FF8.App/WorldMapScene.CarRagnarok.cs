@@ -216,7 +216,12 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < runtime.Objects.Length; index++)
         {
             NativeRagnarokWorldObject item = runtime.Objects[index];
-            if (item.ShapeId is 0 or 1 or 3 || !includeCar && index == runtime.Allocation.SavedCarIndex || !projection.IsNear(item.Position))
+            // Native 5472C0 hides dormant chocobo slots and only draws Cactuar phases 2/3.
+            if (item.ShapeId == 94 && !runtime.CactuarVisibleForDraw)
+            {
+                continue;
+            }
+            if (item.ShapeId is 0 or 1 or 2 or 3 || !includeCar && index == runtime.Allocation.SavedCarIndex || !projection.IsNear(item.Position))
             {
                 continue;
             }

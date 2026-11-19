@@ -430,6 +430,7 @@ internal sealed partial class WorldMapScene : IDisposable
             for (int index = 0; index < action.Frames; index++)
             {
                 previousCallback = candidate;
+                candidate = CaptureRagnarokCactuarDrawPhase(candidate);
                 salary = salary.BeginWorldEventCallback();
                 int animationEntityType = candidate.NativeFootRuntime?.EntityType ?? (candidate.NativeChocoboRuntime is not null ? 49 : candidate.NativeRagnarokRuntime is not null ? 50 : 0);
                 byte animationScriptMode = candidate.EventUi?.ScriptMode ?? throw new NotSupportedException("World texture animation requires the preceding native script mode.");

@@ -124,7 +124,12 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < runtime.Objects.Length; index++)
         {
             NativeRagnarokWorldObject item = runtime.Objects[index];
-            if (item.ShapeId is 0 or 3 || item.ShapeId == 1 && foot is null || !projection.IsNear(item.Position))
+            // Native 5472C0 hides dormant chocobo slots and only draws Cactuar phases 2/3.
+            if (item.ShapeId == 94 && !runtime.CactuarVisibleForDraw)
+            {
+                continue;
+            }
+            if (item.ShapeId is 0 or 2 or 3 || item.ShapeId == 1 && foot is null || !projection.IsNear(item.Position))
             {
                 continue;
             }
@@ -139,7 +144,7 @@ internal sealed partial class WorldMapScene
             }
             if (item.ShapeId < 64 || item.ShapeId == 94)
             {
-                throw new NotSupportedException("Nearby Ragnarok auxiliary actor requires its executed original animation/process publication.");
+                throw new NotSupportedException($"Nearby Ragnarok auxiliary actor shape{item.ShapeId} requires its executed original animation/process publication.");
             }
             NativeWorldPathNodeProjection node = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
             if (node.Visible)

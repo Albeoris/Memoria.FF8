@@ -5,6 +5,28 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
+    private static WorldState CaptureRagnarokCactuarDrawPhase(WorldState state)
+    {
+        // 5472C0 draws before 54E730 advances the Cactuar process.
+        static NativeRagnarokWorldRuntimeState Capture(NativeRagnarokWorldRuntimeState runtime)
+        {
+            return runtime with { CactuarDrawPhase = runtime.Cactuar?.Phase };
+        }
+        if (state.NativeRagnarokRuntime is { } ragnarok)
+        {
+            return state with { NativeRagnarokRuntime = Capture(ragnarok) };
+        }
+        if (state.NativeCarRuntime is { RagnarokObjects: { } carObjects } car)
+        {
+            return state with { NativeCarRuntime = car with { RagnarokObjects = Capture(carObjects) } };
+        }
+        if (state.NativeFootRuntime is { ParkedCar: { Car.RagnarokObjects: { } parkedObjects } parked } foot)
+        {
+            return state with { NativeFootRuntime = foot with { ParkedCar = parked with { Car = parked.Car with { RagnarokObjects = Capture(parkedObjects) } } } };
+        }
+        return state;
+    }
+
     private WorldState StepRagnarokCactuar(WorldState state, out WorldFieldSelection? fieldEntry)
     {
         fieldEntry = null;

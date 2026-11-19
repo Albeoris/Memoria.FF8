@@ -10,6 +10,59 @@ public sealed class NativeRagnarokSceneTests
 {
     private static string GameDirectory => TestResources.GameDirectory;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DormantChocoboSlotsNearTheLandingSiteRemainHiddenAcrossRestore(byte chocoboFlags)
+    {
+        GameSession session = Fixture();
+        session.Restore(session.State with { WorldArrival = new(46, 50, -1) });
+        session.SetEventMemory(session.State.EventMemory.Write(1536, 1, NativeScalarValue.Exact(chocoboFlags)));
+        using WorldMapScene scene = new(session, GameDirectory);
+        NativeRagnarokWorldRuntimeState runtime = scene.State.NativeRagnarokRuntime!;
+        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateRagnarok(runtime.ProjectionCamera!, runtime.ProjectionCurveThreshold!.Value);
+        Assert.Equal(chocoboFlags == 0 ? new byte[] { 2 } : new byte[] { 2, 3 }, runtime.Objects.Where(item => item.ShapeId is 2 or 3).Select(item => item.ShapeId));
+        Assert.True(projection.IsNear(runtime.Objects[1].Position));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.NotEmpty(scene.Render(160, 112));
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 5)).Accepted);
+        Assert.NotEmpty(scene.Render(160, 112, interpolation: 0.5f));
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, GameDirectory);
+        Assert.NotEmpty(restored.Render(160, 112));
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), restored.Apply(new(PlayerActionKind.Wait)));
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restoredSession.State));
+        Assert.Equal(runtime.Objects.Select(item => item.ShapeId), scene.State.NativeRagnarokRuntime!.Objects.Select(item => item.ShapeId));
+    }
+
+    [Theory]
+    [InlineData(1, 29, 2, false)]
+    [InlineData(3, 29, 4, true)]
+    public void CactuarDrawRetainsThePhaseBeforeItsAiCallbackAndRestoresOlderPresentation(int phase, int counter, int nextPhase, bool visible)
+    {
+        GameSession session = Fixture();
+        using WorldMapScene scene = new(session, GameDirectory);
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait, Frames: 24)).Accepted);
+        session.SetWorldState(scene.State with { NativeRagnarokRuntime = scene.State.NativeRagnarokRuntime! with { Cactuar = new(phase, counter) } });
+        Assert.True(scene.Apply(new(PlayerActionKind.Wait)).Accepted);
+        NativeRagnarokWorldRuntimeState runtime = scene.State.NativeRagnarokRuntime!;
+        Assert.Equal(nextPhase, runtime.Cactuar!.Phase);
+        Assert.Equal(phase, runtime.CactuarDrawPhase);
+        Assert.Equal(visible, runtime.CactuarVisibleForDraw);
+        GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene restored = new(restoredSession, GameDirectory);
+        Assert.Equal(visible, restored.State.NativeRagnarokRuntime!.CactuarVisibleForDraw);
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), restored.Apply(new(PlayerActionKind.Wait)));
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(restoredSession.State));
+        System.Text.Json.Nodes.JsonObject older = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(session.State))!.AsObject();
+        older["World"]!["NativeRagnarokRuntime"]!.AsObject().Remove("CactuarDrawPhase");
+        GameSession olderSession = new(JsonSerializer.Deserialize<GameState>(older.ToJsonString())!);
+        using WorldMapScene olderScene = new(olderSession, GameDirectory);
+        Assert.Equal(scene.State.NativeRagnarokRuntime!.Cactuar!.Visible, olderScene.State.NativeRagnarokRuntime!.CactuarVisibleForDraw);
+        Assert.Equal(scene.Apply(new(PlayerActionKind.Wait)), olderScene.Apply(new(PlayerActionKind.Wait)));
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(olderSession.State));
+    }
+
     [Fact]
     public void FullMapKeepsFlightMotorAndInputHistoryWithoutChangingAllocationOrCommittingMovement()
     {
