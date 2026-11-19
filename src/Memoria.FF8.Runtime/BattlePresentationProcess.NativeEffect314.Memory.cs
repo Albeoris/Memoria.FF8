@@ -18,6 +18,22 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleEffectArena ReadNativeEffect314Arena(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint address, int length)
     {
+        return ReadNativeEffect314ArenaOverride(graphics, frame, address, length) ?? NativeBattleEffect314Controller.ReadBytes(frame, address, length);
+    }
+
+    private void ReadNativeEffect314Bytes(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known)
+    {
+        NativeBattleEffectArena? owner = ReadNativeEffect314ArenaOverride(graphics, frame, address, data.Length);
+        if (owner is not null)
+        {
+            owner.ReadWithKnownness(0, data, known);
+            return;
+        }
+        NativeBattleEffect314Controller.ReadWithKnownness(frame, address, data, known);
+    }
+
+    private NativeBattleEffectArena? ReadNativeEffect314ArenaOverride(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint address, int length)
+    {
         if (address == 0x1D8E054 && length == 4)
         {
             NativeBattlePrimitiveProcess process = frame.Memory.PrimitiveProcess ?? throw new NotSupportedException("Effect314 requires its current COMMON packet process.");
@@ -75,10 +91,15 @@ public sealed partial class BattlePresentationProcess
             record = record.Write(20, BitConverter.GetBytes(matrix.X)).Write(24, BitConverter.GetBytes(matrix.Y)).Write(28, BitConverter.GetBytes(matrix.Z));
             return NativeBattleEffectNodeContextMemory.Copy(record, offset, NativeBattleEffectArena.Clear().MarkUnknown(0, length), 0, length);
         }
-        return ReadNativeEffect314Physical(frame, address, length);
+        return ReadNativeEffect314PhysicalOverride(frame, address, length);
     }
 
     private NativeBattleEffectArena ReadNativeEffect314Physical(NativeBattleEffect314Frame frame, uint address, int length)
+    {
+        return ReadNativeEffect314PhysicalOverride(frame, address, length) ?? NativeBattleEffect314Controller.ReadBytes(frame, address, length);
+    }
+
+    private NativeBattleEffectArena? ReadNativeEffect314PhysicalOverride(NativeBattleEffect314Frame frame, uint address, int length)
     {
         for (int bank = 0; bank < 3; bank++)
         {
@@ -91,7 +112,7 @@ public sealed partial class BattlePresentationProcess
                 return NativeBattleEffectArena.CreateOwnedRead(data, known, null, length == 0 ? 0 : 1);
             }
         }
-        return NativeBattleEffect314Controller.ReadBytes(frame, address, length);
+        return null;
     }
 
     private NativeBattleEffect314Frame WriteNativeEffect314Arena(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena data, int length)

@@ -63,8 +63,32 @@ public static partial class NativeBattleEffect314Controller
         }
         byte[] data = new byte[length];
         Span<bool> known = length <= 512 ? stackalloc bool[length] : new bool[length];
+        ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = ReadBytesCore(frame, address, data, known, out long version);
+        return NativeBattleEffectArena.CreateOwnedRead(data, known, pointers, version);
+    }
+
+    internal static void ReadWithKnownness(NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known)
+    {
+        ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = ReadBytesCore(frame, address, data, known, out _);
+        if (pointers is not null)
+        {
+            foreach ((int field, NativeBattleResourcePointer? pointer) in pointers)
+            {
+                NativeBattleEffectArena.ValidatePointer(pointer);
+                NativeBattleEffectArena.ValidateResourcePointerBytes(pointer, data.Slice(field, 4), known.Slice(field, 4));
+            }
+        }
+    }
+
+    private static ImmutableDictionary<int, NativeBattleResourcePointer?>? ReadBytesCore(NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known, out long version)
+    {
+        int length = data.Length;
+        if (length > NativeBattleEffectArena.Length || known.Length != length)
+        {
+            throw new InvalidDataException("Native detached read requires bounded bytes and matching knownness.");
+        }
         ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder? pointers = null;
-        long version = length == 0 ? 0 : 1;
+        version = length == 0 ? 0 : 1;
         int copied = 0;
         while (copied < length)
         {
@@ -90,7 +114,7 @@ public static partial class NativeBattleEffect314Controller
             }
             else if (stateKind == 3)
             {
-                frame.State.ReadWithKnownness(current, data.AsSpan(copied, count), known.Slice(copied, count));
+                frame.State.ReadWithKnownness(current, data.Slice(copied, count), known.Slice(copied, count));
                 version++;
                 copied += count;
                 continue;
@@ -98,7 +122,7 @@ public static partial class NativeBattleEffect314Controller
             else
             {
                 NativeBattleFileStaging staging = RequireStaging(frame);
-                NativeBattleTemporaryMemory.ReadWithKnownness(staging, current, data.AsSpan(copied, count), known.Slice(copied, count));
+                NativeBattleTemporaryMemory.ReadWithKnownness(staging, current, data.Slice(copied, count), known.Slice(copied, count));
                 int previousPointers = pointers?.Count ?? 0;
                 foreach ((uint field, NativeBattleResourcePointer? pointer) in staging.EnumerateResourcePointers())
                 {
@@ -114,7 +138,7 @@ public static partial class NativeBattleEffect314Controller
                         pointers.Add(destination, pointer);
                         if (pointer?.NativeByteValue is uint numeric)
                         {
-                            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(destination, 4), numeric);
+                            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(destination, 4), numeric);
                             known.Slice(destination, 4).Fill(true);
                         }
                         else
@@ -127,7 +151,7 @@ public static partial class NativeBattleEffect314Controller
                 copied += count;
                 continue;
             }
-            source.ReadWithKnownness(offset, data.AsSpan(copied, count), known.Slice(copied, count));
+            source.ReadWithKnownness(offset, data.Slice(copied, count), known.Slice(copied, count));
             version++;
             if (source.MayHaveResourcePointers())
             {
@@ -142,7 +166,7 @@ public static partial class NativeBattleEffect314Controller
             }
             copied += count;
         }
-        return NativeBattleEffectArena.CreateOwnedRead(data, known, pointers?.ToImmutable(), version);
+        return pointers?.ToImmutable();
     }
 
     public static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena source, int length)

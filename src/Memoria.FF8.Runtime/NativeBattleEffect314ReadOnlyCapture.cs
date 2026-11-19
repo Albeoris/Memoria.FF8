@@ -60,6 +60,8 @@ internal readonly struct NativeBattleEffect314ReadOnlyCapture
         return new(data, known);
     }
 
+    internal static NativeBattleEffect314ReadOnlyCapture FromBytes(ReadOnlySpan<byte> data, ReadOnlySpan<bool> known) => new(data, known);
+
     internal byte ReadByte(int offset)
     {
         Span<byte> data = stackalloc byte[1];
@@ -75,6 +77,13 @@ internal readonly struct NativeBattleEffect314ReadOnlyCapture
     }
 
     internal short ReadInt16(int offset) => unchecked((short)ReadUInt16(offset));
+
+    internal uint ReadUInt32(int offset)
+    {
+        Span<byte> data = stackalloc byte[4];
+        ReadInto(offset, data);
+        return BinaryPrimitives.ReadUInt32LittleEndian(data);
+    }
 
     internal NativeBattleEffectArena CopyTo(int sourceOffset, NativeBattleEffectArena destination, int destinationOffset, int count)
     {

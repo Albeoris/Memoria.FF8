@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleFaceRasterRandom<TState>(TState State, int Value);
 public sealed record NativeBattleEffect314FaceRasterServices<TState>(Func<TState, uint, int, NativeBattleEffectArena> ReadArena, Func<TState, uint, NativeBattleEffectArena, int, TState> WriteArena, Func<TState, NativeBattleEffectMemory> ReadMemory, Func<TState, NativeBattleEffectMemory, TState> WriteMemory, Func<TState, NativeBattleGfGeometryBatch, uint, TState> DrawBatch, Func<TState, NativeBattleFaceRasterRandom<TState>> NextRandom, Func<TState, uint, NativeBattleEffectArena, TState> Birth)
 {
+    internal NativeBattleEffect314ReadSpan<TState>? ReadBytes { get; init; }
     public NativeBattleModelGeometrySource? GeometrySource { get; init; }
     public Func<NativeBattleGeometryPrimitive, uint, IReadOnlyList<uint>, NativeBattleGeometryPrimitive>? CapturePrimitive { get; init; }
 }
@@ -35,6 +36,9 @@ public static class NativeBattleEffect314FaceRaster661720
         uint common = Dword(context, cursorOffset);
         uint secondary = Dword(context, cursorOffset + 4);
         int vertexStride = expanded ? 16 : 8;
+        Span<NativeBattleEffect314ReadOnlyCapture> capturedRows = stackalloc NativeBattleEffect314ReadOnlyCapture[4];
+        Span<byte> rowData = stackalloc byte[16];
+        Span<bool> rowKnown = stackalloc bool[16];
         for (int shape = 0; shape < 2; shape++)
         {
             int corners = shape == 0 ? 3 : 4;
@@ -43,7 +47,7 @@ public static class NativeBattleEffect314FaceRaster661720
             for (int index = 0; index < count; index++, faces += (uint)faceLength)
             {
                 NativeBattleEffectArena face = faces.Read(faceLength);
-                NativeBattleEffectArena[] rows = new NativeBattleEffectArena[corners];
+                RasterRows rows = new(capturedRows[..corners], inputs.ReadBytes is not null);
                 byte[] gray = new byte[corners];
                 short[] depths = new short[corners];
                 uint[] screen = new uint[corners];
@@ -51,9 +55,18 @@ public static class NativeBattleEffect314FaceRaster661720
                 for (int corner = 0; corner < corners; corner++)
                 {
                     int vertex = unchecked((ushort)Word(face, corner * 2)) & 0xFFF;
-                    rows[corner] = inputs.ReadArena(frame, vertices + unchecked((uint)(vertex * vertexStride)), vertexStride);
-                    context = Copy(rows[corner], 0, context, 0x1C + corner * vertexStride, vertexStride);
-                    depths[corner] = Word(rows[corner], 4);
+                    uint address = vertices + unchecked((uint)(vertex * vertexStride));
+                    if (inputs.ReadBytes is { } readBytes)
+                    {
+                        readBytes(frame, address, rowData[..vertexStride], rowKnown[..vertexStride]);
+                        rows.Set(corner, NativeBattleEffect314ReadOnlyCapture.FromBytes(rowData[..vertexStride], rowKnown[..vertexStride]));
+                    }
+                    else
+                    {
+                        rows.Set(corner, inputs.ReadArena(frame, address, vertexStride));
+                    }
+                    context = rows.CopyTo(corner, context, 0x1C + corner * vertexStride, vertexStride);
+                    depths[corner] = rows.Word(corner, 4);
                     depthOr |= unchecked((ushort)depths[corner]);
                 }
                 if (unchecked((short)depthOr) <= 0)
@@ -66,7 +79,7 @@ public static class NativeBattleEffect314FaceRaster661720
                 {
                     for (int corner = 0; corner < corners; corner++)
                     {
-                        gray[corner] = rows[corner].Read(6, 1)[0];
+                        gray[corner] = rows.Byte(corner, 6);
                         grayOr |= gray[corner];
                     }
                     if (grayOr == 0)
@@ -77,7 +90,7 @@ public static class NativeBattleEffect314FaceRaster661720
                 NativeBattleGeometryRegisterStep registers = Registers(frame, inputs);
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    screen[corner] = Dword(rows[corner], 0);
+                    screen[corner] = rows.Dword(corner, 0);
                 }
                 registers = NativeBattleGeometry.Clip45EE10(registers with { Geometry = registers.Geometry with { Sxy = screen.Take(3).Select(value => (uint?)value).ToImmutableArray() } });
                 int area = unchecked((int)(registers.Geometry.Mac0 ?? throw new NotSupportedException("The face requires its current clipping result.")));
@@ -89,7 +102,7 @@ public static class NativeBattleEffect314FaceRaster661720
                 }
                 if (corners == 4)
                 {
-                    screen[3] = Dword(rows[3], 0);
+                    screen[3] = rows.Dword(3, 0);
                 }
                 uint?[] sz = registers.Geometry.Sz.ToArray();
                 for (int corner = 0; corner < corners; corner++)
@@ -108,7 +121,7 @@ public static class NativeBattleEffect314FaceRaster661720
                 {
                     for (int corner = 0; corner < tested; corner++)
                     {
-                        gray[corner] = rows[corner].Read(6, 1)[0];
+                        gray[corner] = rows.Byte(corner, 6);
                         grayOr |= gray[corner];
                     }
                 }
@@ -167,7 +180,11 @@ public static class NativeBattleEffect314FaceRaster661720
                         NativeBattleEffectArena point = Copy(context, 0x7C, NativeBattleEffectArena.Clear().MarkUnknown(0, 8), 0, 8);
                         for (int axis = 0; axis < 3; axis++)
                         {
-                            int sum = rows.Sum(row => (int)Word(row, 8 + axis * 2));
+                            int sum = 0;
+                            for (int corner = 0; corner < corners; corner++)
+                            {
+                                sum += rows.Word(corner, 8 + axis * 2);
+                            }
                             point = PutWord(point, axis * 2, sum / corners);
                         }
                         context = Copy(point, 0, context, 0x7C, 8);
@@ -181,7 +198,7 @@ public static class NativeBattleEffect314FaceRaster661720
                     Packet complement = Textured(face, screen, corners, true);
                     if (corners == 4)
                     {
-                        gray[3] = rows[3].Read(6, 1)[0];
+                        gray[3] = rows.Byte(3, 6);
                     }
                     for (int corner = 0; corner < corners; corner++)
                     {
@@ -263,6 +280,29 @@ public static class NativeBattleEffect314FaceRaster661720
         public void AddWord(int offset, int value)
         {
             Store16(offset, unchecked((ushort)(BitConverter.ToUInt16(Data, offset) + value)));
+        }
+    }
+
+    private readonly ref struct RasterRows
+    {
+        private readonly Span<NativeBattleEffect314ReadOnlyCapture> captures;
+        private readonly NativeBattleEffectArena[]? arenas;
+
+        internal RasterRows(Span<NativeBattleEffect314ReadOnlyCapture> captures, bool captured)
+        {
+            this.captures = captures;
+            arenas = captured ? null : new NativeBattleEffectArena[captures.Length];
+        }
+
+        internal void Set(int corner, NativeBattleEffect314ReadOnlyCapture value) => captures[corner] = value;
+        internal void Set(int corner, NativeBattleEffectArena arena) => arenas![corner] = arena;
+        internal byte Byte(int corner, int offset) => arenas is null ? captures[corner].ReadByte(offset) : arenas[corner].Read(offset, 1)[0];
+        internal short Word(int corner, int offset) => arenas is null ? captures[corner].ReadInt16(offset) : NativeBattleEffect314FaceRaster661720.Word(arenas[corner], offset);
+        internal uint Dword(int corner, int offset) => arenas is null ? captures[corner].ReadUInt32(offset) : NativeBattleEffect314FaceRaster661720.Dword(arenas[corner], offset);
+
+        internal NativeBattleEffectArena CopyTo(int corner, NativeBattleEffectArena destination, int offset, int length)
+        {
+            return arenas is null ? captures[corner].CopyTo(0, destination, offset, length) : Copy(arenas[corner], 0, destination, offset, length);
         }
     }
 
