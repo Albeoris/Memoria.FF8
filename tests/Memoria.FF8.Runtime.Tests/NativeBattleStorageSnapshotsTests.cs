@@ -95,6 +95,124 @@ public sealed class NativeBattleStorageSnapshotsTests
         Assert.IsType<StorageNode>(NativeBattleStorageSnapshots.Restore<StorageNode>(frozen));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Storage_free_immutable_bytes_inside_unknown_wrappers_do_not_allocate_per_element(bool privateContinuation)
+    {
+        UnknownContainer small = new(ImmutableArray.Create((byte)17));
+        UnknownContainer large = new(Enumerable.Repeat((byte)17, 65536).ToImmutableArray());
+        for (int iteration = 0; iteration < 8; iteration++)
+        {
+            Assert.Same(small, Capture(small));
+            Assert.Same(large, Capture(large));
+        }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int iteration = 0; iteration < 8; iteration++)
+        {
+            _ = Capture(small);
+        }
+        long smallBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (int iteration = 0; iteration < 8; iteration++)
+        {
+            _ = Capture(large);
+        }
+        long largeBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(largeBytes <= smallBytes + 16384, $"Large immutable bytes allocated {largeBytes}; the same wrapper with one byte allocated {smallBytes}.");
+
+        UnknownContainer Capture(UnknownContainer value) => privateContinuation ? NativeBattleStorageSnapshots.CapturePrivate(value) : NativeBattleStorageSnapshots.Capture(value);
+    }
+
+    [Theory]
+    [InlineData("direct")]
+    [InlineData("object-array")]
+    [InlineData("immutable-object-array")]
+    [InlineData("mutable-list")]
+    [InlineData("nested-wrapper")]
+    [InlineData("frozen-node")]
+    public void Unknown_containers_still_reject_storage_hidden_behind_runtime_object_types(string kind)
+    {
+        StorageNode node = new([23]);
+        object hidden = kind switch
+        {
+            "object-array" => new object[] { node },
+            "immutable-object-array" => ImmutableArray.Create<object>(node),
+            "mutable-list" => new List<object> { node },
+            "nested-wrapper" => new UnknownContainer(node),
+            "frozen-node" => NativeBattleStorageSnapshots.Capture(node),
+            _ => node
+        };
+        UnknownContainer wrapper = new(hidden);
+        Assert.Throws<NotSupportedException>(() => NativeBattleStorageSnapshots.Capture(wrapper));
+        Assert.Throws<NotSupportedException>(() => NativeBattleStorageSnapshots.CapturePrivate(wrapper));
+        Assert.Equal(23, node.Read());
+        Assert.Same(hidden, wrapper.Value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unknown_wrappers_still_visit_custom_immutable_record_enumerators_with_static_storage(bool immutableArray)
+    {
+        StaticStorageEnumerable enumerable = new();
+        object hidden = immutableArray ? ImmutableArray.Create(enumerable) : enumerable;
+        UnknownContainer wrapper = new(hidden);
+        Assert.Throws<NotSupportedException>(() => NativeBattleStorageSnapshots.Capture(wrapper));
+        Assert.Throws<NotSupportedException>(() => NativeBattleStorageSnapshots.CapturePrivate(wrapper));
+        Assert.Same(hidden, wrapper.Value);
+    }
+
+    [Fact]
+    public void Object_typed_storage_fields_still_map_aliases_and_detach_restored_authorities()
+    {
+        StorageNode node = new([17]);
+        ImmutablePayload definition = new([1, 2, 3]);
+        ObjectOwner source = new(node, node, definition);
+        ObjectOwner captured = NativeBattleStorageSnapshots.CapturePrivate(source);
+        FrozenStorageNode frozen = Assert.IsType<FrozenStorageNode>(captured.First);
+        Assert.Same(frozen, captured.Second);
+        Assert.Same(definition, captured.Definition);
+        node.Write(99);
+        Assert.Equal(17, frozen.Read());
+        ObjectOwner first = NativeBattleStorageSnapshots.Restore(captured);
+        ObjectOwner second = NativeBattleStorageSnapshots.Restore(captured);
+        StorageNode firstNode = Assert.IsType<StorageNode>(first.First);
+        StorageNode secondNode = Assert.IsType<StorageNode>(second.First);
+        Assert.Same(first.First, first.Second);
+        Assert.Same(second.First, second.Second);
+        Assert.NotSame(firstNode.Authority, secondNode.Authority);
+        Assert.Same(definition, first.Definition);
+        Assert.Same(definition, second.Definition);
+        firstNode.Write(7);
+        Assert.Equal(17, secondNode.Read());
+        Assert.Equal(17, frozen.Read());
+        Assert.Equal(99, node.Read());
+    }
+
+    private sealed class UnknownContainer(object value)
+    {
+        public object Value { get; } = value;
+    }
+
+    private sealed record StaticStorageEnumerable : IEnumerable<object>
+    {
+        private static readonly StorageNode storage = new([31]);
+
+        public IEnumerator<object> GetEnumerator()
+        {
+            yield return storage;
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
+    private sealed record ImmutablePayload(ImmutableArray<byte> Bytes);
+    private sealed record ObjectOwner(object First, object Second, ImmutablePayload Definition);
+
     private sealed record Graph(StorageNode First, StorageNode Retained, ImmutableArray<StorageNode> Items, ImmutableDictionary<string, StorageNode> Names, StorageNode[,] Grid, ImmutableLeaf Leaf);
     private sealed record ImmutableLeaf(string Text);
     private sealed record LeafCollection(ImmutableArray<ImmutableLeaf> Items, ImmutableArray<ImmutableLeaf> Empty, ImmutableArray<ImmutableLeaf> Default);

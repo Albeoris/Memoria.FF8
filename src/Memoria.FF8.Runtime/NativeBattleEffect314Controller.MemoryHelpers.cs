@@ -130,26 +130,20 @@ public static partial class NativeBattleEffect314Controller
                 NativeBattleFileStaging staging = RequireStaging(frame);
                 NativeBattleTemporaryMemory.ReadWithKnownness(staging, current, data.Slice(copied, count), known.Slice(copied, count));
                 int previousPointers = pointers?.Count ?? 0;
-                foreach ((uint field, NativeBattleResourcePointer? pointer) in staging.EnumerateResourcePointers())
+                if (TrySingleStagingPointer(staging, current, count, out bool present, out uint field, out NativeBattleResourcePointer? pointer))
                 {
-                    if (field >= current && (ulong)field + 4 <= (ulong)current + (uint)count)
+                    if (present)
                     {
-                        NativeBattleEffectArena.ValidatePointer(pointer);
-                        int destination = checked(copied + (int)(field - current));
-                        pointers ??= ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>();
-                        for (int candidate = Math.Max(copied, destination - 3); candidate <= destination + 3; candidate++)
+                        ApplyStagingPointer(field, pointer, current, copied, data, known, ref pointers);
+                    }
+                }
+                else
+                {
+                    foreach ((uint enumeratedField, NativeBattleResourcePointer? enumeratedPointer) in staging.EnumerateResourcePointers())
+                    {
+                        if (enumeratedField >= current && (ulong)enumeratedField + 4 <= (ulong)current + (uint)count)
                         {
-                            pointers.Remove(candidate);
-                        }
-                        pointers.Add(destination, pointer);
-                        if (pointer?.NativeByteValue is uint numeric)
-                        {
-                            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(destination, 4), numeric);
-                            known.Slice(destination, 4).Fill(true);
-                        }
-                        else
-                        {
-                            known.Slice(destination, 4).Clear();
+                            ApplyStagingPointer(enumeratedField, enumeratedPointer, current, copied, data, known, ref pointers);
                         }
                     }
                 }
@@ -173,6 +167,59 @@ public static partial class NativeBattleEffect314Controller
             copied += count;
         }
         return pointers?.ToImmutable();
+    }
+
+    private static bool TrySingleStagingPointer(NativeBattleFileStaging staging, uint address, int length, out bool present, out uint field, out NativeBattleResourcePointer? pointer)
+    {
+        present = false;
+        field = 0;
+        pointer = null;
+        if (length > 16 || staging.IsSnapshot)
+        {
+            return false;
+        }
+        uint origin = staging.BaseAddress;
+        if (address < origin || (ulong)address - origin + (uint)length > int.MaxValue)
+        {
+            return false;
+        }
+        for (int offset = 0; offset <= length - 4; offset++)
+        {
+            uint candidate = checked(address + (uint)offset);
+            if (staging.TryGetResourcePointerMetadata(candidate, out NativeBattleResourcePointer? value))
+            {
+                // Multiple contained fields retain the existing traversal and validation order.
+                if (present)
+                {
+                    return false;
+                }
+                present = true;
+                field = candidate;
+                pointer = value;
+            }
+        }
+        return true;
+    }
+
+    private static void ApplyStagingPointer(uint field, NativeBattleResourcePointer? pointer, uint address, int copied, Span<byte> data, Span<bool> known, ref ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder? pointers)
+    {
+        NativeBattleEffectArena.ValidatePointer(pointer);
+        int destination = checked(copied + (int)(field - address));
+        pointers ??= ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>();
+        for (int candidate = Math.Max(copied, destination - 3); candidate <= destination + 3; candidate++)
+        {
+            pointers.Remove(candidate);
+        }
+        pointers.Add(destination, pointer);
+        if (pointer?.NativeByteValue is uint numeric)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(destination, 4), numeric);
+            known.Slice(destination, 4).Fill(true);
+        }
+        else
+        {
+            known.Slice(destination, 4).Clear();
+        }
     }
 
     public static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena source, int length)

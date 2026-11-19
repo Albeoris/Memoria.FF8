@@ -595,6 +595,10 @@ internal abstract class NativeBattleStorageContext
             return true;
         }
         Type type = value.GetType();
+        if (type == typeof(ImmutableArray<byte>))
+        {
+            return false;
+        }
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ImmutableArray<>) && type.GetProperty(nameof(ImmutableArray<int>.IsDefault))!.GetValue(value) is true)
         {
             return false;

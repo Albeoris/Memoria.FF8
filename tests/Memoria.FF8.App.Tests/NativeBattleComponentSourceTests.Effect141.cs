@@ -13,6 +13,13 @@ public sealed partial class NativeBattleComponentSourceTests
             159 => (9, 92),
             161 => (738, 131),
             259 or 332 or 333 => (94, 61),
+            334 => (326, 67),
+            336 => (354, 90),
+            339 => (796, 112),
+            340 => (982, 126),
+            341 => (712, 84),
+            342 => (510, 124),
+            343 => (509, 122),
             _ => throw new InvalidDataException("The selected original Renzokuken component is unsupported.")
         };
         DiagnosticCharacterPreparation squall = new(0, 0, [], [0]) { HitPoints = 1, Weapon = 0, MagicCommand = new(0, 20) };
@@ -36,6 +43,10 @@ public sealed partial class NativeBattleComponentSourceTests
         if (!source.NativeEntryReady || source.ObserveDiagnosticDrainBlockers().Count != 0 || !source.CanChoosePlayerCommand(actor.Id))
         {
             throw new InvalidDataException("The original component caster did not reach ordinary command readiness.");
+        }
+        if (!target.IsActive || !target.IsAlive || target.Untargetable || target.Suspended)
+        {
+            throw new InvalidDataException("The original Renzokuken target did not reach its living targetable native lifecycle boundary.");
         }
         byte desiredCrisis = Enumerable.Range(1, 4).Where(crisis => target.NativeRenzokukenMagicIds[crisis + 1] == effect || target.NativeRenzokukenMagicIds[crisis + 2] == effect).Select(crisis => checked((byte)crisis)).FirstOrDefault();
         if (desiredCrisis == 0)
