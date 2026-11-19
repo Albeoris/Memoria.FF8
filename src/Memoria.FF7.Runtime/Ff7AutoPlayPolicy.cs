@@ -223,7 +223,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             }
             if (guard.NavigationKey == observation.NavigationKey)
             {
-                State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = physicalGuards[entry.Key], MovementSourceInside = guard.MovementFailure is null ? null : ReadMovementSourceInside(guard.MovementFailure, session.Host.Process.Actors.Single(actor => actor.PlayerControlled)) };
+                bool? inside = guard.MovementFailure is null ? null : ReadMovementSourceInside(guard.MovementFailure, session.Host.Process.Actors.Single(actor => actor.PlayerControlled));
+                if (guard.ObservedFingerprint != physicalGuards[entry.Key] || guard.MovementSourceInside != inside)
+                {
+                    CancelNativePlanning();
+                }
+                State.NavigationGuards[entry.Key] = guard with { ObservedFingerprint = physicalGuards[entry.Key], MovementSourceInside = inside };
             }
             if (target is not null && guard.SourceTriangle is int triangle && (uint)triangle < session.Field.Walkmesh.Count)
             {
@@ -242,6 +247,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             AutoPlayEvent observed = currentNavigation.Events.Single(target => target.Id == item.Event.Id);
             AutoPlayEventAvailability availability = ReadNavigationAvailability(currentNavigation, observed, observation, driver, componentGuards)!;
+            ObserveNativePlanningAvailability(item.Event.Id, availability);
             item.Unavailable = availability.Unavailable;
             item.UnavailableVariants = availability.UnavailableVariants;
             item.AvailabilityFingerprint = availability.Fingerprint;
@@ -381,7 +387,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             planner.BeginEvent(observation.VisitId, target.Id);
             RetainDestinationGoal(next, observation.NavigationKey, target.ConditionFingerprint);
             string? availability = State.Coverage.Visits.Single(visit => visit.Visit.Key == observation.VisitId).Events.Single(item => item.Event.Id == target.Id).AvailabilityFingerprint;
-            State.Active = new(observation.VisitId, target.Id, target.ConditionFingerprint, observation.Generation, target.Entity, target.Script, target.Kind, target.DestinationField, Story(), session.CaptureEventProgressWitness(), NavigationKey: observation.NavigationKey, NavigationProbeKey: target.MayChangeNavigation ? NavigationProbeKey(observation.NavigationKey, target) : null, EntryAvailabilityFingerprint: availability, SpatialDestinations: target.SpatialDestinations, SpatialOwner: target.SpatialOwner, DirectEffectOwner: target.DirectEffectOwner, TravelRoute: next.Route, TravelSelections: next.Route is null ? null : [], EntryGuardFingerprints: physicalGuards.Where(entry => State.NavigationGuards.TryGetValue(entry.Key, out var guard) && guard.NavigationKey == observation.NavigationKey && guard.EventId == target.Id).ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal));
+            State.Active = CreateNativeActiveEvent(State, observation, target, next, Story(), session.CaptureEventProgressWitness(), physicalGuards, availability);
             State.Status = $"{session.Field.Name}: {target.Id}";
             Publish();
         }
@@ -416,6 +422,11 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             Publish();
             return default;
         }
+        if (CanWaitForNativeAlternatives())
+        {
+            driver.DeferPlanning();
+            return default;
+        }
         try
         {
             if (admittedApproachFailure is not null)
@@ -430,11 +441,25 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         catch (Ff7AutoPlayNavigationUnavailableException absence)
         {
+            bool retainNativeAlternatives = absence.MovementFailure is not null && nativePlanningForActive && nativePlanning is not null && CanResumeNativePlanning(validateIntent: true);
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
             State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, player.Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: absence.MovementFailure is null ? null : ReadMovementSourceInside(absence.MovementFailure, player), PhysicalFailure: absence.PhysicalFailure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
+            if (retainNativeAlternatives)
+            {
+                physicalGuards[key] = fingerprint;
+                PreservePendingPhysicalOwner(State, current, observation, selectedTarget, physicalGuards);
+                nativePlanningIntent = ReadNativePlanningIntent();
+                nativePlanningHeader = ReadNativePlanningHeader(State);
+                nativePlanningAvailability = ReadNativePlanningAvailability(State, observation.VisitId);
+                nativePhysicalFailure = new(current, State.NavigationGoal, absence.PhysicalFailure?.NativeSource ?? Ff7AutoplayDriver.ReadExactNativeGraphFingerprint(session.CaptureAutoPlayNavigation(), "physical-search-source:1"), session.GetPlayerMovementSpeed(true), session.GetPlayerMovementSpeed(false));
+                State.Status = "Local physical attempt exhausted; retaining native goal alternatives";
+                driver.DeferPlanning();
+                Publish();
+                return default;
+            }
             State.Active = null;
             State.Status = "Deferred a native contact until its physical availability changes";
             Publish();
@@ -601,6 +626,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             nativeDestinationHints[(observation.VisitId, target.Id)] = target.DestinationField!.Value;
         }
         AutoPlayEvent[] events = observation.Events.Where(target => target.AnalysisComplete).Select(target => new AutoPlayEvent(target.Id, target.Kind == Ff7AutoPlayTargetKind.Gateway ? AutoPlayEventKind.Transition : AutoPlayEventKind.Interaction, ChangesStory: target.ChangesStory, Order: TargetOrder(target), ConditionSignature: target.ConditionFingerprint)).ToArray();
+        bool plannerChanged = NativePlannerObservationChanged(State, observation, events);
+        State.VisitGuards.TryGetValue(observation.VisitId, out Ff7AutoPlayVisitGuard? previousGuard);
         planner.Observe(new(observation.VisitId, observation.ProgramIdentity), events);
         if (observation.CanAcceptInput)
         {
@@ -608,11 +635,39 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             ObserveNavigationProbes(State, observation);
         }
         ObserveVisitGuard(observation);
+        Ff7AutoPlayVisitGuard currentGuard = State.VisitGuards[observation.VisitId];
+        if (plannerChanged || previousGuard is null || previousGuard.DiscoveryRevision != currentGuard.DiscoveryRevision || previousGuard.Fingerprint != currentGuard.Fingerprint || !previousGuard.Reads.SequenceEqual(currentGuard.Reads) || !previousGuard.HostReads.SequenceEqual(currentGuard.HostReads))
+        {
+            CancelNativePlanning();
+        }
         if (nativeCatalogChanged)
         {
             Publish();
         }
         return observation;
+    }
+
+    internal static bool NativePlannerObservationChanged(Ff7AutoPlayState state, Ff7AutoPlayObservation observation, IReadOnlyList<AutoPlayEvent> events)
+    {
+        AutoPlayVisitCoverage<Ff7AutoPlayDeferral>? visit = state.Coverage.Visits.SingleOrDefault(item => item.Visit.Key == observation.VisitId);
+        if (visit is null || visit.Visit.Region != observation.ProgramIdentity || visit.Events.Count(item => item.Available) != events.Count)
+        {
+            return true;
+        }
+        foreach (AutoPlayEvent native in events)
+        {
+            AutoPlayEventCoverage<Ff7AutoPlayDeferral>? old = visit.Events.SingleOrDefault(item => item.Event.Id == native.Id);
+            if (old is null || !old.Available || old.Event != (native with { DestinationVisitKey = native.DestinationVisitKey ?? old.Event.DestinationVisitKey, Kind = old.Event.DestinationVisitKey is null ? native.Kind : AutoPlayEventKind.Transition }) || old.Conditions is null && native.ConditionSignature is not null || old.BlockedReason is not null && native.ConditionSignature is string condition && old.Conditions?.HasExecutedEntry(condition) != true)
+            {
+                return true;
+            }
+        }
+        if (!observation.CanAcceptInput)
+        {
+            return false;
+        }
+        AutoPlayNavigationVisit? navigation = state.Coverage.NavigationVisits.SingleOrDefault(item => item.Key == observation.NavigationKey);
+        return navigation is null || !navigation.Events.SequenceEqual(events.OrderBy(item => item.Id, StringComparer.Ordinal)) || observation.Events.Where(target => target.AnalysisComplete && target.MayChangeNavigation && !target.ChangesStory).Any(target => !navigation.RouteRediscovery.TryGetValue(target.Id, out bool current) || current != (visit.Events.Single(item => item.Event.Id == target.Id).Completed && !state.NavigationProbes.Contains(NavigationProbeKey(observation.NavigationKey, target))));
     }
 
     internal static bool ReplanForNewNativeTargets(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
