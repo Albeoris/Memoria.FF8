@@ -45,6 +45,7 @@ public sealed class InstalledLimitLoadoutBattleTests
 
     [Theory]
     [InlineData(3, BattleLimitFamily.BlueMagic)]
+    [InlineData(4, BattleLimitFamily.AngelWing)]
     [InlineData(10, BattleLimitFamily.MassiveAnchor)]
     [InlineData(5, BattleLimitFamily.Slot)]
     [InlineData(8, BattleLimitFamily.Desperado)]
@@ -126,6 +127,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         int contacts = 0;
         bool observedFreeHands = false;
         bool observedZeroMaskRenzokuken = false;
+        bool observedDuelContinuation = false;
         bool expectsFreeHands = family == BattleLimitFamily.Duel || required == BattleWeaponCapabilities.None && BattleLimitFamilyRules.SourceCharacter(family) != battle.GetCombatantDefinition(actor.Id).WeaponProfile?.ResourceOwner;
         battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: actor.Id);
         TickUntil(() => battle.NativeEntryReady, "entry");
@@ -134,7 +136,16 @@ public sealed class InstalledLimitLoadoutBattleTests
         TickUntil(() => battle.CanChoosePlayerCommand(actor.Id), "readiness");
         Assert.True(battle.SelectDiagnosticLimit(actor.Id, new(1, 4, 256)).Accepted);
         battle.SelectNativeLimitFamily(actor.Id, family);
-        Assert.True(Assert.Single(battle.GetNativeLimitFamilies(actor.Id)).Available);
+        IReadOnlyList<BattleNativeLimitFamilyChoice> familyChoices = battle.GetNativeLimitFamilies(actor.Id);
+        Assert.True(Assert.Single(familyChoices, choice => choice.Family == family).Available);
+        if (!nativeBaseline)
+        {
+            Assert.Single(familyChoices);
+        }
+        else if (recipient == 4)
+        {
+            Assert.Equal(new[] { BattleLimitFamily.Combine, BattleLimitFamily.AngelWing }, familyChoices.Select(choice => choice.Family));
+        }
         Assert.Equal(recipient, actor.ModelId);
         Assert.Equal(recipient, battle.GetCombatantDefinition(actor.Id).NativePlayerStatRules!.CharacterId);
         Assert.Equal(BattleLimitFamilyRules.SourceCharacter(family), actor.NativeLimit!.CharacterId);
@@ -146,7 +157,6 @@ public sealed class InstalledLimitLoadoutBattleTests
         int shotsBefore = Ammo();
         bool fired = false;
         bool duelInput = false;
-        bool observedDuelContinuation = false;
 
         if (family == BattleLimitFamily.Slot && cardSlots)
         {
@@ -324,6 +334,7 @@ public sealed class InstalledLimitLoadoutBattleTests
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 InstalledDesperadoAttachmentProbe.CaptureIfRequested(world, actor.Id, recipient, family);
+                InstalledLoadoutMotionTrace.CaptureIfRequested(world, actor.Id, recipient, family);
                 if (duelContinuation is not null)
                 {
                     duelContinuation.Tick();

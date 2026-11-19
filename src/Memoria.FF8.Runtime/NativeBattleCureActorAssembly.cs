@@ -94,13 +94,13 @@ public static class NativeBattleCureActorAssembly
         }
         if ((mask & 1) != 0)
         {
-            foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
+            foreach (NativeBattleActorSurface surface in resource.ActorSurfaces)
             {
-                string actorId = material?.RequireActorId() ?? throw new NotSupportedException("Intrinsic hand drawing requires its prepared actor material namespace.");
-                NativeBattleModelTextureOwner handMaterial = new(actorId + "/actor-surface/" + hands.Kind + "/" + hands.MaterialKey);
-                for (int index = 0; index < hands.Geometry.Length; index++)
+                string actorId = material?.RequireActorId() ?? throw new NotSupportedException("Actor surface drawing requires its prepared actor material namespace.");
+                NativeBattleModelTextureOwner surfaceMaterial = new(actorId + "/actor-surface/" + surface.Kind + "/" + surface.MaterialKey);
+                for (int index = 0; index < surface.Geometry.Length; index++)
                 {
-                    selected.Add(new(hands.Geometry[index], hands.PreparedMaterial.Binding) { AuthoredMesh = hands.AuthoredMeshBase + index, MaterialOwner = handMaterial, Layer = NativeBattleActorGeometryLayer.ActorSurface });
+                    selected.Add(new(surface.Geometry[index], surface.PreparedMaterial.Binding) { AuthoredMesh = surface.AuthoredMeshBase + index, MaterialOwner = surfaceMaterial, Layer = NativeBattleActorGeometryLayer.ActorSurface });
                 }
             }
         }

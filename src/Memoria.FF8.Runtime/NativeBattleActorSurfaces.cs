@@ -25,7 +25,7 @@ public sealed record NativeBattleActorSurface
     {
         if (geometry.IsDefaultOrEmpty)
         {
-            throw new InvalidDataException("Actor surfaces require their recipient-owned native surfaces.");
+            throw new InvalidDataException("Actor surfaces require their selected native geometry.");
         }
         foreach (NativeBattleRawMesh mesh in geometry)
         {
@@ -52,20 +52,20 @@ public sealed partial class BattlePresentationProcess
         {
             return null;
         }
-        foreach (NativeBattleActorSurface hands in resource.ActorSurfaces)
+        foreach (NativeBattleActorSurface surface in resource.ActorSurfaces)
         {
-            _ = PrepareActorSurfaceMaterial(owner, hands);
+            _ = PrepareActorSurfaceMaterial(owner, surface);
         }
         return SelectNativeModelMaterial(graphics, owner) ?? throw new NotSupportedException("Actor surfaces require their actor's native presentation material namespace.");
     }
 
-    private (NativeBattleModelTextureBinding Binding, NativeBattleModelTextureOwner Material) PrepareActorSurfaceMaterial(BattleModelOwner owner, NativeBattleActorSurface hands)
+    private (NativeBattleModelTextureBinding Binding, NativeBattleModelTextureOwner Material) PrepareActorSurfaceMaterial(BattleModelOwner owner, NativeBattleActorSurface surface)
     {
         NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Actor surfaces require their retained native material owner.");
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new InvalidDataException("Actor surfaces require the actor presentation texture banks.");
-        string materialPrefix = ReadGraphicsPresentationId(owner) + "/actor-surface/" + hands.Kind + "/";
-        string materialId = materialPrefix + hands.MaterialKey;
-        NativeBattleModelTextureLoad upload = hands.PreparedMaterial;
+        string materialPrefix = ReadGraphicsPresentationId(owner) + "/actor-surface/" + surface.Kind + "/";
+        string materialId = materialPrefix + surface.MaterialKey;
+        NativeBattleModelTextureLoad upload = surface.PreparedMaterial;
         if (textures.PresentationTextures?.ContainsKey(materialId) != true)
         {
             if (textures.PresentationTextures is { } previousBanks)

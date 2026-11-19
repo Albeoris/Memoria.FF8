@@ -37,6 +37,77 @@ internal static class InstalledDesperadoAttachmentProbe
         Vector3 HandPoint(int bone) => Vector3.Transform(new(localBones[bone].X, localBones[bone].Y, localBones[bone].Z), Matrix(worldMatrix));
         Vector3 handWorld = HandPoint(hand);
         Vector3[] handVertices = body.Meshes.SelectMany(mesh => mesh.Vertices).Where(vertex => vertex.Bone == hand).Select(vertex => World(localBones[hand], vertex.NativePosition!.Value)).ToArray();
+        NativeBattlePreparedPresentation prepared = battle.PreparedPresentation ?? throw new InvalidOperationException("The attachment observation requires the retained actual draw.");
+        List<NativeBattleLogicalCommandReference> retained = [];
+        foreach (ref readonly NativeBattleLogicalResolvedCommand command in prepared.Primitives.LastCommands)
+        {
+            retained.Add(command.Command);
+        }
+        var emissions = retained.GroupBy(command => new
+        {
+            command.Pilot.Identity.Effect,
+            command.Pilot.Identity.Bank,
+            command.Pilot.Identity.Slot,
+            command.Pilot.Identity.Generation,
+            command.Pilot.Identity.ResourceGeneration,
+            command.Pilot.Identity.ModelOwner,
+            Pose = command.Pilot.ModelPose
+        }).ToArray();
+        Directory.CreateDirectory(output);
+        File.WriteAllText(Path.Combine(output, $"emissions-{recipient:D2}.json"), JsonSerializer.Serialize(new
+        {
+            Recipient = recipient,
+            Actor = actorId,
+            ActorOwner = battle.ReadPresentationModelOwner(actorId).ToString(),
+            Callback = graphics.Callback,
+            PreparedCallback = prepared.Callback,
+            PreparedFrame = prepared.Frame,
+            TotalCommands = retained.Count,
+            TotalEmissionGroups = emissions.Length,
+            Truncated = emissions.Length > 32,
+            Emissions = emissions.OrderByDescending(group => group.Key.ModelOwner is not null).ThenByDescending(group => group.Key.Pose is not null).Take(32).Select(group => new
+            {
+                group.Key.Effect,
+                group.Key.Bank,
+                group.Key.Slot,
+                group.Key.Generation,
+                group.Key.ResourceGeneration,
+                Owner = group.Key.ModelOwner?.ToString(),
+                OwnerType = group.Key.ModelOwner?.GetType().Name,
+                FirstPrimitive = group.First().Pilot.Identity.Primitive,
+                Commands = group.Count(),
+                ModelPose = group.Key.Pose is not null,
+                FirstMeshVertices = group.Key.Pose?.Positions(0).Length,
+                ActorIds = group.Select(command => command.PresentationActorId).Distinct().ToArray()
+            }).ToArray(),
+            Boundary = "At most32 actual prepared emission groups, ordered with model-owned groups first, then other ModelPose groups. No geometry retained. First-mesh vertex count is an observation, not admission."
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        List<(NativeBattlePilotVisualIdentity Identity, Vector3[] Vertices, (Vector3 A, Vector3 B, Vector3 C)[] Triangles)> renderedHands = [];
+        foreach (var emission in emissions.Where(group => group.Key.ModelOwner == battle.ReadPresentationModelOwner(actorId) && group.Key.Bank == 0x502D40 && group.Key.Pose is not null))
+        {
+            // NativePrimitiveFrame assigns this bank to the ordinary body producer; linked geometry uses507BF0.
+            ImmutableArray<Vector3> positions = emission.Key.Pose!.Positions(0);
+            Assert.Equal(body.Meshes[0].Vertices.Count, positions.Length);
+            Vector3[] vertices = body.Meshes[0].Vertices.Select((vertex, index) => (vertex, index)).Where(item => item.vertex.Bone == hand).Select(item => positions[item.index]).ToArray();
+            List<(Vector3 A, Vector3 B, Vector3 C)> triangles = [];
+            foreach (var face in body.Meshes[0].Faces)
+            {
+                if (face.Vertices.Any(index => body.Meshes[0].Vertices[index].Bone != hand))
+                {
+                    continue;
+                }
+                Assert.True(face.Vertices.Length is 3 or 4);
+                Vector3 At(int corner) => positions[face.Vertices[corner]];
+                triangles.Add((At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2)));
+                if (face.Vertices.Length == 4)
+                {
+                    triangles.Add((At(3), At(2), At(0)));
+                }
+            }
+            Assert.NotEmpty(vertices);
+            Assert.NotEmpty(triangles);
+            renderedHands.Add((emission.First().Pilot.Identity, vertices, triangles.ToArray()));
+        }
         uint manager = DwordCore(0x27973EC);
         uint owner = DwordCore(0x279744C);
         uint bank = DwordCore(manager + 0x90);
@@ -112,6 +183,19 @@ internal static class InstalledDesperadoAttachmentProbe
                     WorldCenter = Point(ringCenter),
                     CenterToHandPivot = Vector3.Distance(ringCenter, handWorld),
                     CenterToHandMeshVertex = handVertices.Select(vertex => Vector3.Distance(ringCenter, vertex)).Min(),
+                    RenderedHands = renderedHands.Select(rendered => new
+                    {
+                        rendered.Identity.Effect,
+                        rendered.Identity.Bank,
+                        rendered.Identity.Slot,
+                        Vertices = rendered.Vertices.Length,
+                        Triangles = rendered.Triangles.Length,
+                        Center = Point(rendered.Vertices.Aggregate(Vector3.Zero, (sum, vertex) => sum + vertex) / rendered.Vertices.Length),
+                        Minimum = Point(rendered.Vertices.Aggregate(Vector3.Min)),
+                        Maximum = Point(rendered.Vertices.Aggregate(Vector3.Max)),
+                        CenterToHandSurface = rendered.Triangles.Min(triangle => SurfaceDistance(ringCenter, triangle)),
+                        RingVertexToHandSurface = endRing.Min(vertex => rendered.Triangles.Min(triangle => SurfaceDistance(vertex.World, triangle)))
+                    }).ToArray(),
                     Selection = "Distinct authored vertices on the selected lower extremum's bone and exact local Z plane; no distance threshold or attachment offset."
                 },
                 LowerToHandPivot = Vector3.Distance(lower.World, handWorld),
@@ -132,7 +216,7 @@ internal static class InstalledDesperadoAttachmentProbe
             HandA = new { Bone = hand, World = Point(handWorld), HandVertices = handVertices.Length },
             CameraView = process.Camera.Projection!.View,
             Models = models,
-            Boundary = "Retained post-draw node skeleton matrices are camera-composed; prop corners are converted through the actual current camera inverse. Complete meshes are examined in memory; only two extrema per model are retained. No game callback is executed by this probe."
+            Boundary = "Retained post-draw node skeleton matrices are camera-composed; prop corners use the actual current camera inverse. The separate emissions inventory observes prepared ownership and clock before any body-emission selection. HandA remains the ordinary actor-basis observation and is not an accepted cinematic grip distance. Only extrema and ring center are retained; no asset geometry or extra game callback."
         }, new JsonSerializerOptions { WriteIndented = true }));
         Assert.Equal(201, process.Graphics.Callback);
 
@@ -150,6 +234,30 @@ internal static class InstalledDesperadoAttachmentProbe
 
     private static object Point(NativeBattleVector vector) => new { vector.X, vector.Y, vector.Z };
     private static object Point(Vector3 vector) => new { vector.X, vector.Y, vector.Z };
+
+    private static float SurfaceDistance(Vector3 point, (Vector3 A, Vector3 B, Vector3 C) triangle)
+    {
+        (Vector3 a, Vector3 b, Vector3 c) = triangle;
+        Vector3 normal = Vector3.Cross(b - a, c - a);
+        float squared = normal.LengthSquared();
+        if (squared > 0)
+        {
+            Vector3 projected = point - normal * (Vector3.Dot(point - a, normal) / squared);
+            if (Vector3.Dot(Vector3.Cross(b - a, projected - a), normal) >= 0 && Vector3.Dot(Vector3.Cross(c - b, projected - b), normal) >= 0 && Vector3.Dot(Vector3.Cross(a - c, projected - c), normal) >= 0)
+            {
+                return Vector3.Distance(point, projected);
+            }
+        }
+        return MathF.Min(Segment(a, b), MathF.Min(Segment(b, c), Segment(c, a)));
+
+        float Segment(Vector3 from, Vector3 to)
+        {
+            Vector3 edge = to - from;
+            float length = edge.LengthSquared();
+            float fraction = length == 0 ? 0 : Math.Clamp(Vector3.Dot(point - from, edge) / length, 0, 1);
+            return Vector3.Distance(point, from + edge * fraction);
+        }
+    }
 
     private static Matrix4x4 Matrix(NativeBattleActionMatrix matrix)
     {

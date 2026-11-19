@@ -228,12 +228,13 @@ public sealed class NativeBattlePoseRetargeter
 
     private static NativeBattleVector Angles(Matrix4x4 row)
     {
-        float x = MathF.Asin(Math.Clamp(-row.M32, -1, 1));
-        float cosine = MathF.Cos(x);
-        float y = MathF.Abs(cosine) > 0.00001f ? MathF.Atan2(row.M31, row.M33) : MathF.Atan2(-row.M13, row.M11);
-        float z = MathF.Abs(cosine) > 0.00001f ? MathF.Atan2(row.M12, row.M22) : 0;
         short Angle(float value) => checked((short)MathF.Round(value * (4096 / MathF.Tau)));
-        return new(Angle(x), Angle(y), Angle(z));
+        short x = Angle(MathF.Atan2(-row.M32, MathF.Sqrt(row.M31 * row.M31 + row.M33 * row.M33)));
+        // A quantized quarter turn has one coupled Y/Z angle; floating-point remnants cannot select separate axes.
+        bool singular = Math.Abs(x) == 1024;
+        float y = singular ? MathF.Atan2(-row.M13, row.M11) : MathF.Atan2(row.M31, row.M33);
+        float z = singular ? 0 : MathF.Atan2(row.M12, row.M22);
+        return new(x, Angle(y), Angle(z));
     }
 
     private static int Parent(NativeBattlePoseSource rig, int bone) => BinaryPrimitives.ReadInt16LittleEndian(rig.Skeleton.AsSpan().Slice(16 + bone * 48, 2));

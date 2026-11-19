@@ -119,7 +119,8 @@ public sealed class InstalledWeaponLoadoutBattleTests
                     File.WriteAllText(Path.ChangeExtension(preparedPath, ".json"), System.Text.Json.JsonSerializer.Serialize(new { SourceResource = "weapon-limit-field-source", SourceSha256 = Convert.ToHexString(sourceHash), StandalonePath = Path.GetFullPath(preparedPath), Formation, Recipient = recipient, Donor = donor, WeaponId = weapon, NativeBaseline = !assignOverride, Field = session.State.FieldId, FieldFrame = world.Events.Frame, Boundary = "Standalone prepared field with one pending ordinary native encounter; StartEncounter is the next control command.", Resume = $"Memoria.FF8.exe --state \"{Path.GetFullPath(preparedPath)}\" --game-dir \"{directory}\"" }));
                 }
             }
-            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+            bool traceMotion = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_TRACE"));
+            world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: traceMotion ? (byte)0 : (byte)4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
             Assert.Equal(recipient, actor.ModelId);
@@ -136,10 +137,18 @@ public sealed class InstalledWeaponLoadoutBattleTests
             Assert.Equal(donorResource.SequenceSection.ToArray(), compiled.SequenceSection.ToArray());
             Assert.Equal(body.NativePoseSource!.Skeleton.ToArray(), compiled.PoseSource!.Skeleton.ToArray());
             compiled.Validate();
+            void TraceMotion()
+            {
+                if (encounter == 0)
+                {
+                    InstalledLoadoutMotionTrace.CaptureIfRequested(world, actor.Id, recipient, null);
+                }
+            }
             battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: actor.Id);
-            TickUntil(world, () => battle.NativeEntryReady, $"recipient {recipient}, donor {donor}, weapon {weapon}: native entry");
+            TickUntil(world, () => battle.NativeEntryReady, $"recipient {recipient}, donor {donor}, weapon {weapon}: native entry", TraceMotion);
             actor.Atb = BattleSession.AtbMaximum;
-            TickUntil(world, () => battle.CanChoosePlayerCommand(actor.Id), $"recipient {recipient}, donor {donor}, weapon {weapon}: player readiness");
+            TickUntil(world, () => battle.CanChoosePlayerCommand(actor.Id), $"recipient {recipient}, donor {donor}, weapon {weapon}: player readiness", TraceMotion);
+            TraceMotion();
             if (readyProbeOnly)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 8));
@@ -157,6 +166,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
             MotionPoint? firstContact = null;
             void ObserveMotion()
             {
+                TraceMotion();
                 if (stance is null)
                 {
                     return;

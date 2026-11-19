@@ -61,6 +61,39 @@ public sealed class NativeBattleAnimationRetargetTests
         Assert.Throws<InvalidDataException>(() => NativeBattleAnimationEncoder.Encode([[]]));
     }
 
+    [Theory]
+    [InlineData(-1024, 67)]
+    [InlineData(1024, -1981)]
+    [InlineData(-1023, 67)]
+    [InlineData(1023, -1981)]
+    public void Singular_limb_rotation_remains_equivalent_under_adjacent_parent_motion(short limbX, short limbY)
+    {
+        NativeBattleVector unit = new(1024, 1024, 1024);
+        NativeBattleBonePose limb = new(new(limbX, limbY, 0), unit);
+        ImmutableArray<NativeBattleDecodedPose> frames =
+        [
+            new(default, [new(new(999, 1514, -1517), unit), limb], false),
+            new(default, [new(new(1000, 1483, -1548), unit), limb], false)
+        ];
+        NativeBattlePoseSource source = Source(frames, 512);
+        NativeBattlePoseSource compiled = new NativeBattlePoseRetargeter(source, source, [new("root", 0, 0), new("limb", 1, 1)], 1).Compile(source);
+        for (int frame = 0; frame < frames.Length; frame++)
+        {
+            ImmutableArray<NativeBattleActionMatrix> expected = NativeBattlePoseMatrices.StageBoneMatrices(source, frames[frame]);
+            ImmutableArray<NativeBattleActionMatrix> actual = NativeBattlePoseMatrices.StageBoneMatrices(compiled, compiled.Sample(0, checked((byte)(frame + 1)), 0));
+            for (int bone = 0; bone < expected.Length; bone++)
+            {
+                for (int lane = 0; lane < 9; lane++)
+                {
+                    Assert.InRange(Math.Abs(actual[bone].Rotation[lane] - expected[bone].Rotation[lane]), 0, 8);
+                }
+                Assert.InRange(Math.Abs(actual[bone].X - expected[bone].X), 0, 3);
+                Assert.InRange(Math.Abs(actual[bone].Y - expected[bone].Y), 0, 3);
+                Assert.InRange(Math.Abs(actual[bone].Z - expected[bone].Z), 0, 3);
+            }
+        }
+    }
+
     [Fact]
     public void Linked_contact_uses_the_published_recipient_hand_without_accumulation_or_sequence_mutation()
     {
