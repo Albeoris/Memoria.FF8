@@ -23,11 +23,11 @@ public static class Ff7NativeFieldPoseMath
         {
             return Matrix4x4.CreateFromQuaternion(Quaternion.Slerp(Quaternion.CreateFromRotationMatrix(a), Quaternion.CreateFromRotationMatrix(b), fraction));
         }
-        Vector3 translation = first == second ? animation.Frames[first].RootTranslation : Vector3.Lerp(animation.Frames[first].RootTranslation, animation.Frames[second].RootTranslation, fraction);
-        Matrix4x4 rootRotation = Rotate(animation.Frames[first].RootRotation);
+        Vector3 translation = first == second ? animation.ReadNativeRootTranslation(first) : Vector3.Lerp(animation.ReadNativeRootTranslation(first), animation.ReadNativeRootTranslation(second), fraction);
+        Matrix4x4 rootRotation = Rotate(animation.ReadNativeRootRotation(first));
         if (first != second)
         {
-            rootRotation = Interpolate(rootRotation, Rotate(animation.Frames[second].RootRotation));
+            rootRotation = Interpolate(rootRotation, Rotate(animation.ReadNativeRootRotation(second)));
         }
         Matrix4x4 root = rootRotation * Matrix4x4.CreateTranslation(translation * new Vector3(1, -1, 1));
         Matrix4x4[] transforms = new Matrix4x4[resources.Hierarchy.Bones.Count];
@@ -63,7 +63,16 @@ public static class Ff7NativeFieldPoseMath
 
     public static Matrix4x4 Rotate(Vector3 degrees)
     {
+        if (float.IsInfinity(degrees.X) || float.IsInfinity(degrees.Y) || float.IsInfinity(degrees.Z))
+        {
+            throw new InvalidDataException("Native field Euler rotations cannot consume infinite angles.");
+        }
+        // The native x87 comparison skips both zero and unordered axes before constructing their matrices.
+        // Preserve NaN as that branch marker until this consumer, independently for each Euler axis.
         Vector3 radians = degrees * (MathF.PI / 180);
-        return Matrix4x4.CreateRotationZ(radians.Z) * Matrix4x4.CreateRotationX(radians.X) * Matrix4x4.CreateRotationY(radians.Y);
+        Matrix4x4 z = float.IsNaN(degrees.Z) ? Matrix4x4.Identity : Matrix4x4.CreateRotationZ(radians.Z);
+        Matrix4x4 x = float.IsNaN(degrees.X) ? Matrix4x4.Identity : Matrix4x4.CreateRotationX(radians.X);
+        Matrix4x4 y = float.IsNaN(degrees.Y) ? Matrix4x4.Identity : Matrix4x4.CreateRotationY(radians.Y);
+        return z * x * y;
     }
 }

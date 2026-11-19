@@ -20,7 +20,7 @@ public sealed class DeferredFieldAnimationTests
         Assert.Contains("authored.a", error.Message);
         Assert.Contains("frame 1", error.Message);
         Assert.Contains("bone 0 rotation", error.Message);
-        Assert.Throws<InvalidDataException>(() => clip.ReadNativeBoneRotation(1, 0, 1));
+        Assert.True(float.IsNaN(clip.ReadNativeBoneRotation(1, 0, 1).X));
     }
 
     [Fact]

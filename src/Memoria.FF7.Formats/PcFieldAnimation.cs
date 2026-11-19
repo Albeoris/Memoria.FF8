@@ -22,6 +22,29 @@ public sealed class PcFieldAnimation
     public int BoneCount { get; }
     public IReadOnlyList<PcFieldAnimationFrame> Frames { get; }
 
+    public Vector3 ReadNativeRootRotation(int frameIndex) => ReadNativeChannel(frameIndex, 0);
+
+    public Vector3 ReadNativeRootTranslation(int frameIndex) => ReadNativeChannel(frameIndex, 1);
+
+    private Vector3 ReadNativeChannel(int frameIndex, int channel)
+    {
+        if ((uint)frameIndex >= Frames.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frameIndex));
+        }
+        if (Frames is FrameList original)
+        {
+            return original.ReadNativeChannel(frameIndex, channel);
+        }
+        PcFieldAnimationFrame frame = Frames[frameIndex];
+        return channel switch
+        {
+            0 => frame.RootRotation,
+            1 => frame.RootTranslation,
+            _ => frame.BoneRotations[channel - 2]
+        };
+    }
+
     public PcFieldAnimation BindSingleFrame(IReadOnlyList<Vector3> rotations)
     {
         ArgumentNullException.ThrowIfNull(rotations);
@@ -70,7 +93,7 @@ public sealed class PcFieldAnimation
         {
             throw new NotSupportedException("The selected HRC bone channel addresses beyond the original native animation allocation.");
         }
-        PcFieldAnimationFrame selected = Frames[(int)(ordinal / vectorsPerFrame)];
+        int selected = (int)(ordinal / vectorsPerFrame);
         int channel = (int)(ordinal % vectorsPerFrame);
         // The native loader scales root translations in place before ordinal channel traversal.
         if (channel == 1 && (!float.IsFinite(nativeTranslationScale) || nativeTranslationScale <= 0))
@@ -79,11 +102,10 @@ public sealed class PcFieldAnimation
         }
         Vector3 rotation = channel switch
         {
-            0 => selected.RootRotation,
-            1 => selected.RootTranslation * nativeTranslationScale,
-            _ => selected.BoneRotations[channel - 2]
+            1 => ReadNativeChannel(selected, channel) * nativeTranslationScale,
+            _ => ReadNativeChannel(selected, channel)
         };
-        if (!float.IsFinite(rotation.X) || !float.IsFinite(rotation.Y) || !float.IsFinite(rotation.Z))
+        if (float.IsInfinity(rotation.X) || float.IsInfinity(rotation.Y) || float.IsInfinity(rotation.Z))
         {
             throw new InvalidDataException("The native animation channel exceeds finite coordinates after translation scaling.");
         }
@@ -123,6 +145,12 @@ public sealed class PcFieldAnimation
         private readonly PcFieldAnimationFrame?[] decoded = new PcFieldAnimationFrame[count];
         public int Count => count;
 
+        public Vector3 ReadNativeChannel(int frame, int channel)
+        {
+            int cursor = frame * (24 + 12 * boneCount) + channel * 12;
+            return ReadVector(payload, ref cursor, sourceName, frame, channel, nativeRotation: channel != 1);
+        }
+
         public PcFieldAnimationFrame this[int index]
         {
             get
@@ -160,13 +188,13 @@ public sealed class PcFieldAnimation
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
-    private static Vector3 ReadVector(ReadOnlySpan<byte> source, ref int cursor, string? sourceName, int frame, int channel)
+    private static Vector3 ReadVector(ReadOnlySpan<byte> source, ref int cursor, string? sourceName, int frame, int channel, bool nativeRotation = false)
     {
         float x = BinaryPrimitives.ReadSingleLittleEndian(source[cursor..]);
         float y = BinaryPrimitives.ReadSingleLittleEndian(source[(cursor + 4)..]);
         float z = BinaryPrimitives.ReadSingleLittleEndian(source[(cursor + 8)..]);
         cursor += 12;
-        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z))
+        if (float.IsInfinity(x) || float.IsInfinity(y) || float.IsInfinity(z) || !nativeRotation && (float.IsNaN(x) || float.IsNaN(y) || float.IsNaN(z)))
         {
             string coordinate = channel == 0 ? "root rotation" : channel == 1 ? "root translation" : $"bone {channel - 2} rotation";
             throw new InvalidDataException($"PC field animation '{sourceName ?? "<unnamed>"}', frame {frame}, {coordinate} contains non-finite coordinates.");
