@@ -35,8 +35,9 @@ internal static class InstalledGarmentSurfaceProbe
         NativeBattleGraphicsModel model = presentation.Graphics.ActorModels.Get(owner);
         bool returnRequested = donor == 7 && Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1";
         Assert.False(returnRequested && fitRequested, "The return ownership diagnostic does not import auxiliary states.");
-        int pose = donor == 7 ? returnRequested ? 9 : 0 : 28;
-        int first = donor == 7 ? returnRequested ? 5 : 15 : 6;
+        var requested = RequestedPhase(donor);
+        int pose = requested.Pose;
+        int first = requested.Frame - 1;
         if (fitRequested && !string.IsNullOrWhiteSpace(auxiliaryState))
         {
             using JsonDocument input = JsonDocument.Parse(File.ReadAllText(auxiliaryState));
@@ -155,12 +156,10 @@ internal static class InstalledGarmentSurfaceProbe
         }
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_GARMENT_FIT") != "1")
         {
-            if (donor == 7)
+            if (donor == 7 || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_POSE")))
             {
-                bool returnRequested = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1";
-                int pose = returnRequested ? 9 : 0;
-                int target = returnRequested ? 6 : 16;
-                string nativeOutput = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-{pose:D3}-{target:D3}");
+                var requested = RequestedPhase(donor);
+                string nativeOutput = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-{requested.Pose:D3}-{requested.Frame:D3}");
                 foreach (string name in new[] { "surface.json", "01-original-native.png", "02-DIAGNOSTIC-no-pure-lowerbody.png" })
                 {
                     Assert.True(File.Exists(Path.Combine(nativeOutput, name)), $"Requested compiled-pose binding diagnostic was not captured: {name}.");
@@ -219,11 +218,12 @@ internal static class InstalledGarmentSurfaceProbe
         }
         else
         {
-            if (donor != 7)
+            var requested = RequestedPhase(donor);
+            if (requested.Pose != 0)
             {
                 return;
             }
-            target = 16;
+            target = requested.Frame;
             marker = "surface.json";
         }
         string output = Path.Combine(directory, $"recipient-{recipient:D2}-style-{donor:D2}-selected-000-{target:D3}");
@@ -240,6 +240,25 @@ internal static class InstalledGarmentSurfaceProbe
         }
         Assert.True(AtRequestedPhase(), "The actual native idle did not reach the requested visible diagnostic phase within70callbacks.");
         AssertRequestedCaptured(recipient, donor);
+    }
+
+    private static (int Pose, int Frame) RequestedPhase(int donor)
+    {
+        string? pose = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_POSE");
+        string? frame = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_FRAME");
+        if (!string.IsNullOrWhiteSpace(pose) || !string.IsNullOrWhiteSpace(frame))
+        {
+            Assert.True(int.TryParse(pose, out int poseValue), "The explicit diagnostic animation must be an integer.");
+            Assert.True(int.TryParse(frame, out int frameValue), "The explicit diagnostic frame must be an integer.");
+            Assert.InRange(poseValue, 0, byte.MaxValue);
+            Assert.InRange(frameValue, 1, byte.MaxValue);
+            return (poseValue, frameValue);
+        }
+        if (donor == 7 && Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_RETURN") == "1")
+        {
+            return (9, 6);
+        }
+        return donor == 7 ? (0, 16) : (28, 7);
     }
 
     private sealed class SurfaceGame : Game
@@ -271,7 +290,7 @@ internal static class InstalledGarmentSurfaceProbe
             this.output = output;
             this.provenance = provenance;
             this.fit = fit;
-            patch = donor == 7 ? new(1600, 590, 125, 205) : new(1530, 840, 210, 180);
+            patch = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_POSE") is not null ? new(0, 0, Width, Height) : donor == 7 ? new(1600, 590, 125, 205) : new(1530, 840, 210, 180);
             scene = new(assets, definition);
             graphics = new(this) { PreferredBackBufferWidth = Width, PreferredBackBufferHeight = Height, GraphicsProfile = GraphicsProfile.HiDef, SynchronizeWithVerticalRetrace = false };
             window = WindowModeController.PrepareTransferChild(Window, graphics);
