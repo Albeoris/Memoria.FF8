@@ -13,7 +13,7 @@ public static class NativeRagnarokWorldAllocationReader
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (controlledType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) || controlledType != 50 && parkedRagnarokPose2 is null || controlledType == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
+        if (controlledType is not (0 or 50) && !NativeCarWorldRuntimeState.IsSupportedEntity(controlledType) || controlledType != 50 && parkedRagnarokPose2 is null || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) && !NativeCarWorldRuntimeState.IsSupportedEntity(NativeTrainWorldObject.ClassifyShape(saved.Slot4.ShapeId)))
         {
             throw new NotSupportedException("Ragnarok allocation requires its ordinary packet and represented active saved vehicle branch.");
         }

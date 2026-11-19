@@ -23,6 +23,38 @@ public sealed class NativeRagnarokAllocationAssetsTests
         Assert.Equal((ushort)512, allocation.CameraYaw);
     }
 
+    [Theory]
+    [InlineData(21, 21)]
+    [InlineData(21, -1)]
+    [InlineData(21, 0)]
+    [InlineData(21, 127)]
+    [InlineData(21, 128)]
+    [InlineData(21, 255)]
+    [InlineData(21, 256)]
+    [InlineData(21, 277)]
+    [InlineData(62, 21)]
+    [InlineData(62, -1)]
+    public void OrdinaryRagnarokLoaderIgnoresExtraAndPreservesTheOriginalPacket(short spawnIndex, short extra)
+    {
+        using WorldAssets assets = new(GameDirectory);
+        using GameAssets game = new(GameDirectory);
+        NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 3500);
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame();
+        NativeSavedWorldPose ship = new(30000, -40000, -600, 256);
+        WorldTransition packet = new(spawnIndex, 50, extra);
+        NativeRagnarokWorldAllocation allocation = assets.ReadRagnarokAllocation(packet, entry, NativeEventMemory.Empty, saved, game.ReadNewGameCharacterVitals(), ship, 512, 0);
+        WorldSpawn spawn = assets.Spawns[spawnIndex];
+        NativeSavedWorldPose expected = spawnIndex == 62 ? ship : new(spawn.X, spawn.Z, spawn.NativeHeight, (ushort)((spawn.Unknown >> 8) * 16));
+        Assert.Equal(packet, allocation.Packet);
+        Assert.Equal(expected, allocation.LoadPose);
+        Assert.Equal(spawnIndex == 62 ? (ushort)512 : (ushort)((spawn.Unknown & 255) * 16), allocation.CameraYaw);
+        Assert.Equal(new NativeWorldPathPosition(expected.X, expected.Height, -expected.RawZ), allocation.Objects[allocation.RagnarokIndex].Position);
+        NativeRagnarokWorldAllocation restored = JsonSerializer.Deserialize<NativeRagnarokWorldAllocation>(JsonSerializer.Serialize(allocation))!;
+        restored.Validate();
+        Assert.Equal(packet, restored.Packet);
+        Assert.Equal(JsonSerializer.Serialize(allocation), JsonSerializer.Serialize(restored));
+    }
+
     [Fact]
     public void NativeConditionalAdmissionRetainsDenseIndicesAndPublicationOwners()
     {
