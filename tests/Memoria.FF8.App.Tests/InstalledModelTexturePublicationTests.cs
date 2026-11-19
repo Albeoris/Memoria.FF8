@@ -48,7 +48,7 @@ public sealed class InstalledModelTexturePublicationTests
             byte[] png = LocalizationArtworkExporter.EncodePng(image);
             files.Add(new("Memoria/actor-textures", ModFormat.Memoria, snapshot.Target.CanonicalPath(), 1, () => png));
         }
-        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods native, out var diagnostics), string.Join("; ", diagnostics.Select(error => error.Message)));
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods native, out var diagnostics, cancellationToken: TestContext.Current.CancellationToken), string.Join("; ", diagnostics.Select(error => error.Message)));
         ResourceService.PreparedResources candidate = resources.Prepare(native);
         using TexturePublication graphics = gpu.PrepareTexturePublication(candidate.TextureValues.Values.Select(value => value.Image), snapshots.Select(snapshot => snapshot.Resolved.Image));
         candidate.Commit(beforePublish: graphics.Commit);

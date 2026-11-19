@@ -10,7 +10,7 @@ public sealed class ModelCatalogTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "An optional installed game directory is required.");
         using GameAssets assets = new(directory);
-        ModelCatalogEntry[] entries = assets.EnumerateModelCatalog().ToArray();
+        ModelCatalogEntry[] entries = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).ToArray();
         Assert.Contains(entries, entry => entry.Category == "Field" && entry.LoadError is null);
         Assert.Contains(entries, entry => entry.Category == "Battle enemy");
         Assert.Contains(entries, entry => entry.Category == "Battle weapon");

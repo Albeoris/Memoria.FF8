@@ -59,7 +59,7 @@ public sealed class InstalledUiTexturePublicationTests
             byte[] png = LocalizationArtworkExporter.EncodePng(image);
             files.Add(new("Memoria/ui-textures", ModFormat.Memoria, snapshot.Target.CanonicalPath(), 1, () => png));
         }
-        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods native, out var diagnostics), string.Join("; ", diagnostics.Select(item => item.Message)));
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods native, out var diagnostics, cancellationToken: TestContext.Current.CancellationToken), string.Join("; ", diagnostics.Select(item => item.Message)));
         ResourceService.PreparedResources candidate = resources.Prepare(native);
         Assert.Throws<InvalidDataException>(() => canvas.PrepareTexturePublication(candidate, candidate.TextureValues, resources.Generation + 1, maximumBytes: 1));
         Assert.Equal(before, Draw());

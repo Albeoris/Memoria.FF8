@@ -176,7 +176,7 @@ public sealed class FfnxTextureTests
         Assert.Equal(4, ResourceTextureList.PhysicalScale(ragnarok.Textures, 0).X);
         using GameAssets assets = new(game!, resources: resources);
         HashSet<string> objectNames = files.Where(file => file.RelativePath.Contains("/field/model/second_chr/", StringComparison.OrdinalIgnoreCase)).Select(file => Path.GetFileName(file.RelativePath)[..4]).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        ModelCatalogEntry entry = assets.EnumerateModelCatalog().First(entry => entry.Category == "Field" && entry.LoadError is null && entry.Name.Length >= 4 && objectNames.Contains(entry.Name[..4]));
+        ModelCatalogEntry entry = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Field" && entry.LoadError is null && entry.Name.Length >= 4 && objectNames.Contains(entry.Name[..4]));
         FieldAssets field = assets.LoadField(entry.FieldId!.Value);
         ResourceTextureList textures = Assert.IsType<ResourceTextureList>(field.Models[entry.ModelIndex].Textures);
         Assert.Contains("mods/textures/field/model/second_chr/" + field.Models[entry.ModelIndex].TextureResourceName + "-0_00", textures.GetTexture(0).Provenance, StringComparison.OrdinalIgnoreCase);

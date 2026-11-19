@@ -194,7 +194,7 @@ public sealed class ModelAssetExchangeTests
             return;
         }
         using GameAssets assets = new(game);
-        ModelCatalogEntry entry = assets.EnumerateModelCatalog().First(item => item.ResourcePath.StartsWith("battle/d0c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry entry = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(item => item.ResourcePath.StartsWith("battle/d0c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] discovered = assets.DiscoverModelAssets(entry, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem[] owners = discovered.Where(item => item.Kind == ModelAssetDiscoveryKind.Object && item.Load is not null).GroupBy(item => item.AlternativeGroup).Select(group => group.First()).Take(2).ToArray();
         Assert.Equal(2, owners.Length);

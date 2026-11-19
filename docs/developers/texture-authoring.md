@@ -6,13 +6,17 @@ See the [author workflow](../modding/texture-authoring.md) for package layout an
 
 `TextureTarget` carries game, canonical logical owner, subresource, palette and variant. Target identity is independent of fingerprints, image dimensions, GPU addresses and catalog order. A `TextureTargetContract` checks the installed layout and logical canvas. Tile/page/VRAM/atlas layouts require uniform integer enlargement; full images can retain their logical canvas at a different physical resolution. Native aliases additionally require exact scaled crop boundaries.
 
-`ResourceService.CaptureTextureSources` expands derived handles into stable source dependencies. `CaptureTextureSourcesForImages` selects presented CPU images, including mip, variant and animation images, before expansion. Captures contain CPU source contexts and the current resolved values. Source-owned authoring recovery rejects transient native sampling-window identities; the installation catalog supplies complete supported sources.
+`ResourceService.CaptureTextureSources` expands derived handles into stable source dependencies. `CaptureTextureSourcesForImages` selects presented CPU images, including mip, variant and animation images, before expansion. Captures freeze the selected installed original and current resolved CPU values. `ResolveOriginalForExport` applies the selected installation provider before user mods; a native TIM fallback is not substituted for an installed Remastered HD source. Logical source dimensions remain independent of physical HD dimensions. Frozen source fingerprints survive disposal of independent authoring readers. Source-owned authoring recovery rejects transient native sampling-window identities; the installation catalog supplies complete supported sources.
 
-`NativeTextureMods.TryPrepare` validates only native contributions under `textures/`, freezes encoded content and rejects duplicate targets within a package. Canonical PNG/DDS files need no hand-written global index. Runtime mappings and exported authoring companions are recognized explicitly. Metadata conflicts do not silently fall back to filenames.
+`NativeTextureMods.TryPrepare` validates only native contributions under `textures/`, freezes encoded content and rejects duplicate targets within a package. Canonical PNG/DDS files need no hand-written global index. Runtime mappings and exported authoring companions are recognized explicitly. Metadata conflicts do not silently fall back to filenames. Overlapping source/pixel/semantic hashes compare without case sensitivity; native-coverage Base64 compares exactly, and native dimensions must agree. Missing legacy fields merge. Informational provenance and usage aliases need not match.
 
 Cross-package exact-target duplicates remain valid. Each masked package/path receives a nonfatal `Memoria.TextureOverridden` diagnostic naming the first effective contribution in normal catalog precedence. Disabled packages do not contribute files. The resolver does not enable packages or modify priority to manufacture a visible result.
 
 Source effect aliases use persistent owner/member/palette identities and a full canvas. The native resolver crops these according to the published `NativeAlias`, preserving exact boundaries. `native-effect-source` is the defined full-source counterpart of runtime `native-effect-texture`. Runtime effect crops use the existing alpha normalization (`alpha >= 127` becomes `127`; otherwise `0`); direct source exports do not apply that runtime policy. Direct-color effect sources requiring a selected device 555/565 contract are rejected until that contract is available.
+
+Shared field model `NativeSheet` addresses normalize to source-owned `field/model/main_chr` or `field/model/second_chr` row targets on the proved logical 128x128 canvas. Field usages remain informational aliases; pixel similarity never establishes sharing. Legacy field-local and registered targets remain resolvable offline. Source-declared `eyes-open` and `eyes-closed` companions preserve native copy phases; untouched native companions can be projected from edited bank pixels without changing clocks or gameplay. Installed HD planes remain authoritative. Unknown variants are rejected.
+
+Package priority is evaluated before target specificity. Within one package, the runtime tries the exact target, then its proved `NativeAlias`, then `NativeSheet`. Variants choose their winning package independently; an explicit sibling overrides that phase, while untouched source-declared phases remain available. Runtime composition can enlarge coherent planes to a common physical density; separate authored files keep their own sizes.
 
 The field ORA bridge reuses Frameworks workspace readers, verifies source MIM/MAP fingerprints and preserves Pupu identities and native composition. It emits per-tile runtime replacements at uniform integral scale. It does not infer native animation, blending or ownership from a flattened painting.
 
@@ -34,11 +38,15 @@ An uncommitted journal restores hash-checked originals and removes newly created
 
 ## Incremental editing and watchers
 
-`Assets.TextureExportJournal` writes schema-version-1 `texture-export-index.json` plus `texture-export-report.txt` and `EDITING.txt` in the destination working folder. The index contains game, scope, provider, language, original/resolved mode, completion state, completed resource count, deduplicated-alias count, written bytes, relative output entries and diagnostics. Ordinary image entries include target, contract, companion path, source fingerprint and exported pixel baseline. Layered-field entries identify the ORA and companion; their target/contract/fingerprint/baseline fields are null, and the verified field source metadata lives in the companion. One field workspace counts as one exported resource, rather than its compiled tile count.
+`Assets.TextureExportJournal` writes schema-version-1 `texture-export-index.json` plus `texture-export-report.txt` and `EDITING.txt` in the destination working folder. The index contains game, scope, provider, language, original/resolved mode, completion state, completed resource count, deduplicated-alias count, written bytes, relative output entries and diagnostics. Ordinary image entries include target, contract, companion path, source fingerprint, pixel/semantic baselines, usage aliases and companion roles where applicable. Layered-field entries identify the ORA and companion; their target/contract/fingerprint/baseline fields are null, and the verified field source metadata lives in the companion. One field workspace counts as one exported resource, rather than its compiled tile count.
 
 The journal starts incomplete and becomes complete only through `Complete()`. Disposal writes an honest incomplete report after failure/cancellation, retaining completed outputs. Counts never claim that failed or unscanned archive contents form a known full-game total. An existing index prevents a second export into the same working folder, protecting its edited files and recorded baselines. Export bookkeeping is separate from the local import synchronization index below; neither belongs in a runtime native package.
 
-The working-folder index records the last successfully installed source pixels and destination bytes per mapped input. It advances after publication succeeds. Current source pixels are compared with this imported snapshot on subsequent imports, preserving revert-to-original edits. Destination-only edits are retained when the working image is unchanged; two-sided changes require explicit selection. Missing/unchecked inputs never imply removal. Comparisons of destination bytes are conservative and can report a conflict for semantically identical re-encodes.
+The schema-3 working-folder index records semantic source/destination baselines separately per workspace input and destination package, plus reusable explicit target mappings. Semantic fingerprints include decoded pixels, logical target/contract and native coverage; encoded byte hashes protect input/destination identity at apply time. Equivalent re-encodes are omitted. The index advances only after successful publication; old state preserves explicit mappings without assigning a legacy baseline to an arbitrary destination.
+
+Exported original and resolved semantic baselines distinguish an unedited resolved export from a new edit on first import. ORA companions hold per-tile compiled baselines. Reverting to original pixels after a prior import is a new change. Destination-only edits survive unchanged working files; two-sided changes are unchecked conflicts until explicitly selected. Missing/unchecked inputs never imply removal. Input leases and expected destination hashes reject changes between review and commit.
+
+PNG, ORA and their companions use no-overwrite final renames, including when another writer creates a file after the initial check. Cancellation may retain a completed image with an incomplete journal; it never authorizes overwriting existing artwork. Export journal refreshes intentionally replace their own bookkeeping files.
 
 Installed packages use the existing mod watchers and debouncing. External working-folder editing uses explicit repeat import. Stable input reads retry three times with 75 ms intervals and retain invalid/incomplete revisions as diagnostics. Explicit refresh forces content revalidation even when timestamps and sizes appear unchanged. Catalog/export sessions own independent source readers; they do not share a mutable archive reader with gameplay.
 
@@ -50,6 +58,7 @@ Installed packages use the existing mod watchers and debouncing. External workin
 | Imported input file | 128 MiB |
 | Native image contribution | 64 MiB encoded per file; 512 MiB total encoded images |
 | Texture mapping/authoring metadata | 96 MiB per record; native mapping preparation 512 MiB total |
+| Resident native CPU preparation pin | 256 MiB for decoded RGBA and mip data, retained through CPU preparation and GPU finalization, then released |
 | Resolver decoded/resolved LRU | 128 MiB and 256 entries; a larger single image is not retained in the cache |
 | Independent authoring source cache | Normally 64 MiB and 4 retained nested archives per provider; one current source unit may exceed that cache budget up to 256 MiB, with larger units rejected before materialization |
 | Install outputs / original rollback backups | 512 MiB each; at most 100,000 outputs |
@@ -64,6 +73,10 @@ Authoring opens fresh independent source providers. An encoded source context re
 
 A mixed game/model-source selection owns two independent provider caches. Their ordinary combined limit is eight archives and 128 MiB; two simultaneously current oversized units can total up to 512 MiB. Those are theoretical configured limits, rather than measured mixed-provider peaks.
 
+`ResourceService.BeginPrepare` now provides an owner-thread `PreparationJob`: `Advance` accepts a time budget and unit limit, resolves complete source/transform units and yields without publishing. `Complete`, `CompletedUnits`, `Prepared` and `IsStale` expose progress and staleness. Cancellation, registration changes and transform failure discard partial candidates; only `PreparedResources.Commit` changes handles/generation. Synchronous `Prepare` drains the same implementation. A unit is indivisible, so this is not a strict millisecond pause guarantee. Metadata-only preparation capture must not invoke source image/variant callbacks on background threads. Host updates use a 4 ms budget and at most 64 source/transform units per pump; one unit can overrun that budget. Native worker preparation validates nonresident contributions individually and pins resident decoded images/mips through GPU finalization to avoid owner-thread redecoding. Stale graphs restart preparation; constructor initialization alone drains preparation before session creation.
+
+Independent native-image worker preparation and host/UI deferred import integration are implemented. The worker uses immutable package bytes; mutable game source callbacks stay on the owner thread. Import staging, hashes and synchronization state are prepared off-thread; staged transactions and reviewed input leases survive deferred publication. Normal watcher preparation waits behind an explicit import, and a deferred normal candidate retries without restarting its debounce. Focused tests pass, including native preparation pinning and cancellation. A Classic watched-host test passed with real PNG edit/invalid/repair revisions, ready initial policy and 97 bindings spread across incremental steps. The current implementation gap is Remastered texture-only package eligibility across discovery, enablement and explicit import: its actual host case failed and the correction is still in progress. No claim of measured interactive latency follows from these APIs.
+
 Unchanged native contributions reuse immutable entries and bounded decoded/resolved cache results across preparation. Resource preparation retains equal values and rebuilds only changed sources and their transform dependency closure. The presenter prepares affected resident GPU resources at its graphics boundary. No gameplay script replay or save mutation is part of this operation; interactive validation of all renderer consumers is still pending.
 
 ## Focused checks and remaining evidence
@@ -76,7 +89,7 @@ dotnet run --project tests/Memoria.FF8.Mods.Tests -- --filter-class '*TextureAut
 dotnet run --project tests/Memoria.FF8.Assets.Tests -- --filter-class '*TextureExchangeTests'
 ```
 
-The first two portable selections passed with 23 and 14 cases respectively, including embedded-claim conflicts, live-lease rejection, startup recovery and presented mip/variant/animation capture. Assets exchange checks include an optional installed-resource case that is skipped without its configured resources. These commands do not run unrelated battle-effect tests. Follow [building and testing](building-and-testing.md) for packaging; do not use `Build.ps1 -Test` unless its entire test selection is authorized.
+Latest focused evidence includes NativeTextureMods 40/40 (964 ms); resource/authoring 37/37 (including incremental cancellation/staleness/atomic failure); source 81/81 including 36 relevant native effect texture-source cases; and the final source companion 17/17. Strict metadata integrity 14 cases and affected exchange/journal/ORA checks passed as 34 unique cases (the one optional installed case was rerun with configured resources). The latest export-journal selection passed 5/5 in 597 ms. A later cancellation/metadata/journal selection passed 20/20 without skips in 3.129 s; its installed case cancels before the first model/field/texture enumeration step. Token-aware discovery checks between archive entries, fields and model directory members. This does not measure cancellation latency within an indivisible source read. No unrelated battle-effect simulation suite was run. Installed cases skip without explicitly configured source resources. Follow [building and testing](building-and-testing.md) for packaging; do not use `Build.ps1 -Test` unless its entire test selection is authorized.
 
 Still required: a cold interactive F2 export/edit/import/revert sequence against installed resources and real editor save patterns; interactive model/menu/world/battle/card/effect consumers and additional field scenarios; driver allocation-failure and in-flight resource-retirement checks; and full-game export, large ORA, catalog search, repeated reload, cancellation and idle/frame-time measurements. Record hardware, source edition, counts and measured durations/memory instead of inferring performance from asynchronous APIs.
 
@@ -88,10 +101,10 @@ The default catalog uses one compound field-workspace node per field. Individual
 | --- | --- | ---: | ---: |
 | Battle stage | Material/texture target | 1,358 | 1,358 |
 | Battle enemy | Material/texture target | 416 | 416 |
-| Battle model | Material/texture target | 34 | 34 |
+| Battle model | Material/texture target | 34 | 50 |
 | Battle weapon | Material/texture target | 32 | 32 |
 | World character | Material/texture target | 16 | 16 |
-| Field | Model texture target | 7,326 | 7,326 |
+| Field | Shared source row and declared variant target | 948 | 713 |
 | Field background | Compound workspace, with lazy tile leaves | 851 | 851 |
 | Menu and cards | Texture/palette target | 151 | 151 |
 | World textures | Texture/palette target | 350 | 350 |
@@ -102,7 +115,7 @@ The default catalog uses one compound field-workspace node per field. Individual
 | Battle and magic textures | Supported source-owned texture/palette target | 1,991 | 2,017 |
 | Guardian Forces and cinematics | Supported source-profile texture/palette target | 324 | 0 |
 | Triple Triad | Native card/artwork target | 127 | 127 |
-| **Compact nodes returned** | **Includes the 851 workspace parents** | **13,433** | **13,135** |
+| **Compact nodes returned** | **Includes the 851 workspace parents** | **7,055** | **6,538** |
 
 Zero entries in a category means that scan returned none; it does not establish that the edition contains no such textures. In particular, Remastered source-profile discovery reported an unsupported native executable capability. Indexed full-source effect exports cover known TIM sequences and supported scripted material profiles. Transient procedural upload/GF sampling windows and direct-color sources needing an unresolved 555/565 contract remain explicit unsupported boundaries.
 
@@ -110,34 +123,45 @@ These were complete runs of the configured discovery routine followed by represe
 
 | Measurement | Classic | Remastered |
 | --- | ---: | ---: |
-| Compact discovery | 80.628 s | 79.348 s |
-| Representative PNGs plus one field ORA | 0.772 s | 0.537 s |
-| Sampled managed-memory peak during discovery | 237.3 MB | 363.1 MB |
-| Retained authoring-archive peak during discovery | 8.40 MB | 22.97 MB |
+| Compact discovery | 78.443 s | 81.197 s |
+| Representative PNGs plus one field ORA | 0.771 s | 0.787 s |
+| Sampled managed-memory peak during discovery | 445.38 MB (445,379,808 B) | 361.96 MB (361,957,528 B) |
+| Retained authoring-archive peak during discovery | 8.31 MB (8,307,616 B) | 20.95 MB (20,948,278 B) |
 | Resident resource textures after the check | 0 | 0 |
 | Diagnostics classified skipped / unsupported / failed | 325 / 195 / 1 | 264 / 11 / 56 |
 
-The reported process working-set high-water was 641.9 MB; process high-water marks are cumulative and are not independent per-edition allocation peaks. Managed memory was sampled during enumeration, not continuously. These figures show bounded source-cache retention and no resource texture residency growth in this workload; they do not establish full-game export peak memory, GPU residency, cancellation latency or frame-time impact.
+The reported process working-set high-water was 675.97 MB (675,966,976 B); process high-water marks are cumulative and are not independent per-edition allocation peaks. Managed memory was sampled during enumeration, not continuously. These figures show bounded source-cache retention and no resource texture residency growth in this workload; they do not establish full-game export peak memory, GPU residency, cancellation latency or frame-time impact.
 
-The configured combined selection passed seven cases without skips: the two installed catalog cases and five exchange cases, in 2 minutes 44.930 seconds. This is the test selection duration, not a separate catalog benchmark or an interactive latency measurement.
+The two configured installed discovery/representative cases passed without skips in 2 minutes 44.291 seconds. This is selection duration, not an interactive latency measurement. Counts supersede earlier compact reports before shared-sheet deduplication.
 
-Discovery diagnostics remain part of the result. Classic reported unsupported model layouts and unresolved cinematic selectors, plus one failed model-texture read. Remastered reported unsupported model/source-profile contracts and 56 failed model-texture reads. Skipped records include unavailable resources. Failed reads remain coverage gaps requiring investigation; they are not silently reclassified as unsupported or counted as successful exports. The returned catalog therefore cannot be described as every texture in either installation.
+Skipped records include unavailable resources; unsupported records require an explicit unsupported contract, including unresolved scripted source-owner selectors and unsupported material directories. Remastered cinematic discovery lacks the required native-executable capability. An earlier category-based rule incorrectly labelled failed non-party battle reads as unsupported; it was removed. The table restores 1 Classic out-of-range failure and 56 Remastered invalid-directory/section/bone failures from the recorded diagnostic messages and their exception contracts, without repeating discovery. Source counts and timings are unchanged. These failed reads remain unresolved coverage gaps; their category does not establish an unsupported format or corrupt original data.
+
+A separate Classic export was stopped by its 512 MiB conservative allocation threshold: 851 completed PNGs, 537,149,440 B estimated output allocation and 128.763 s including discovery. All generated imagery was removed after verification. It did not reach the entire catalog or field workspaces, so full-game export completion/peak memory remain unverified. No cancellation latency or frame-time guarantee is inferred.
 
 ### Renderer checks already run
 
-The App `TexturePublicationTests` checks prepared GPU images remain unpublished until commit, require no later upload, and preserve previous GPU pixels/storage on budget failure or discarded preparation. Its two portable cases passed.
+The portable `TexturePublicationTests` selection passed all 3 cases, including 24 repeated publication cycles under the cache budget. It verifies prepared GPU images stay unpublished until commit, require no later upload, and preserve prior pixels/storage on preparation budget failure or discard.
 
-A third repeated-publication GPU test has been added; its final run is still pending at this documentation checkpoint.
+Actual GPU checks passed:
 
-`InstalledTexturePublicationTests` ran both cases with actual GPU rendering against Classic and Remastered installations, with zero skips in each run:
+- Field PNG round-trip and HD logical-coordinate cases for both Classic and Remastered sources, without advancing gameplay.
+- Model unedited/HD cases across Classic, Remastered and both mixed model-provider directions: 8 cases, zero skips.
+- SpriteBatch cached portrait, pointer and magazine-paper publication with unrelated card/host ownership retained, against Classic and Remastered: 1 installed case per edition, zero skips. Magazine paper consumes mean source RGB; authored pattern/alpha is not a full paper texture contract.
+- Targeted Classic UI selection: 13 cases covering ownership 2, paper 1, installed UI publication 1 and scene eligibility 9; matching comparison rendered at 640/1280 widths in 2 additional cases. The final broader UI selection includes software-diagnostic eligibility and deferred import checks: 125 cases selected, 122 passed, 1 optional fixture skipped and 2 existing session-lifecycle failures. Those two empty-game-path failures reproduce in a retained pre-task executable. New UI/state/root/eligibility/deferred groups passed. Deferred lifecycle plus native/ModRuntime checks selected 75 cases: 74 passed and 1 optional installed fixture skipped. The Remastered watched-host package-eligibility case remains failed and under repair; Classic watched-host and the final GPU matrix passed as recorded below.
 
-- `NativeFieldPngRoundTripPublishesThroughActualBackgroundAtlasesWithoutChangingRenderedPixels`.
-- `HdFieldTileUsesNativeLogicalCoordinatesAndChangesTheActualGpuFrame`.
+Latest actual host/GPU regression evidence:
 
-These checks instantiate field assets/rendering directly. They verify actual background atlas publication and HD logical coordinates, without loading or advancing gameplay. They do not replace an interactive F2 acceptance run or prove every non-field renderer consumer. The installed run durations were 2.534 seconds for Classic and 6.108 seconds for Remastered; these are test durations, not export or frame-time benchmarks.
+- Classic watched-host lifecycle: 1 passed in 3.449 s, covering real edit/invalid/repair changes, ready constructor policy and incremental handling of 97 bindings.
+- Classic GPU matrix: 8 passed in 5.232 s.
+- Remastered GPU matrix: 5 passed. Its combined host/GPU selection took 13.005 s and also contained the separate failed Remastered host eligibility case; this duration is not attributed to the GPU cases alone.
+- Each mixed model-provider direction: 2 passed, in 1.893 s and 4.104 s.
+
+The unresolved feature gap is Remastered texture-only package eligibility through discovery, enablement and explicit import. Do not treat its host case as passed while that correction is pending. These durations are test durations, not export or frame-time benchmarks. Renderer checks construct assets directly; they do not replace cold interactive F2 operation or a real editor save sequence, nor prove every consumer/driver failure path.
+
+Current-scene capture is explicitly unavailable in software diagnostic rendering and unsupported presentation states. FFVII texture authoring is not claimed.
 
 ```powershell
 dotnet run --project tests/Memoria.FF8.App.Tests -p:SkipMusicHost=true -- --filter-class '*TexturePublicationTests'
 ```
 
-Installed cases require `MEMORIA_FF8_GAME_DIR`; without it the installed cases skip. An initial unconfigured combined run had two portable passes and two installed skips. The configured runs above exercised both installed cases without skips.
+Installed cases require explicitly configured source resources and a GPU test device. An unset installation causes skips; report configured runs separately from unconfigured runs.

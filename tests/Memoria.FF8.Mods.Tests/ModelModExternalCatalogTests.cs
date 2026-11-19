@@ -14,7 +14,7 @@ public sealed class ModelModExternalCatalogTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(Directory.Exists(game), "Set MEMORIA_FF8_GAME_DIR to run the optional installed resource check.");
         using GameAssets discovery = new(game!);
-        ModelCatalogEntry selected = discovery.EnumerateModelCatalog().First(entry => entry.ResourcePath.StartsWith("battle/d2c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = discovery.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.ResourcePath.StartsWith("battle/d2c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] discovered = discovery.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem weapon = discovered.First(item => item.Kind == ModelAssetDiscoveryKind.Object && item.AlternativeGroup is not null);
         ModelAssetDiscoveryItem clip = discovered.First(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == weapon.Id && item.Bank == "shot-188");

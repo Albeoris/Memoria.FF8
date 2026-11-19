@@ -18,4 +18,11 @@ public sealed class TextureSceneEligibilityTests
     {
         Assert.Equal(expected, TextureSceneEligibility.CanCapture(scene, ff7, battle, field, world, faulted, exclusive));
     }
+    [Fact]
+    public void Diagnostic_software_mode_does_not_claim_complete_submission_provenance()
+    {
+        Assert.False(TextureSceneEligibility.CanCapture(SceneKind.Field, false, false, true, false, false, false, softwareDiagnostic: true));
+        Assert.False(TextureSceneEligibility.CanCapture(SceneKind.WorldMap, false, false, false, true, false, false, softwareDiagnostic: true));
+    }
+
 }

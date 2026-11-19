@@ -38,6 +38,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
     private FieldLightingMods? pendingLighting;
     private FieldLightingMods lighting = FieldLightingMods.Empty;
     private (ModCatalogSnapshot Candidate, bool AutoEnable, string Identity)? deferredDiscovery;
+    private ModPreparationResult? deferredPreparation;
     private IReadOnlyList<ModDiagnostic> diagnostics = Array.Empty<ModDiagnostic>();
     private DateTime requestedAt = DateTime.MinValue;
     private DateTime firstRequestedAt = DateTime.MinValue;
@@ -214,13 +215,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
             {
                 return new(false, lockReason);
             }
+            if (enabled && (package.Status == ModEffectiveStatus.IncompatibleEdition || !isCompatible(package.Format) && !package.LocalizationOnly && !package.TextureContentOnly))
+            {
+                return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
+            }
             if (enabled && package.HasLocalization && !installedPackages.Any(other => other.Id != package.Id && other.HasLocalization && other.RequestedEnabled))
             {
                 return SetLocalizationSelection([package.Id], LocalizationPrimaryTarget);
-            }
-            if (!isCompatible(package.Format) && !package.LocalizationOnly)
-            {
-                return new(false, $"{package.Name} is incompatible with the selected game-data edition.");
             }
             try
             {
@@ -346,12 +347,21 @@ public sealed partial class ModRuntime : IModService, IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
+            if (explicitTextureImport is not null)
+            {
+                return false;
+            }
             DateTime now = DateTime.UtcNow;
             if (!reloadRequested || (!force && (now < retryDue || now - requestedAt < debounce && now - firstRequestedAt < TimeSpan.FromSeconds(2))))
             {
                 return false;
             }
             reloadRequested = false;
+            if (deferredDiscovery is null)
+            {
+                deferredPreparation?.Discard?.Invoke();
+                deferredPreparation = null;
+            }
             pendingPreparation?.Discard?.Invoke();
             pending = null;
             pendingPreparation = null;
@@ -412,14 +422,15 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
                 {
-                    result.Discard?.Invoke();
+                    deferredPreparation = result;
                     deferredDiscovery = (candidate, nextAutoEnable, identity);
                     reloadRequested = true;
-                    requestedAt = now;
+                    requestedAt = DateTime.MinValue;
                     retryDue = now + TimeSpan.FromMilliseconds(25);
                     updateOutcome = ModUpdateOutcome.Updating;
                     return false;
                 }
+                deferredPreparation = null;
                 if (!result.Success)
                 {
                     result.Discard?.Invoke();
@@ -486,7 +497,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
-            if (pending is null || reloadRequested)
+            if (explicitTextureImport is not null || pending is null || reloadRequested)
             {
                 return false;
             }
@@ -558,6 +569,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 return;
             }
             disposed = true;
+            deferredPreparation?.Discard?.Invoke();
+            deferredPreparation = null;
+            explicitTextureImport?.Preparation?.Discard?.Invoke();
+            explicitTextureImport = null;
             foreach ((_, FileSystemWatcher watcher) in watchers)
             {
                 watcher.Dispose();
@@ -768,9 +783,6 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     }
                     notices.Add(new("native-descriptor", descriptorFailure, id, NativeModDescriptor.FileName));
                 }
-                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly) && nativeError is null && descriptorFailure is null;
-                ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
-                identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 string[] packageRoots = bundledRoot is not null && !string.Equals(root, bundledRoot, StringComparison.OrdinalIgnoreCase) ? [root, bundledRoot] : [root];
                 List<(string Root, string Physical, string Relative)> packageFiles = [];
                 foreach (string packageRoot in packageRoots)
@@ -779,6 +791,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     EnumerateFiles(packageRoot, packageRoot, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), sourceFiles, notices, hasLocalization);
                     packageFiles.AddRange(sourceFiles.OrderBy(item => item.Relative, PathOrder).Select(file => (packageRoot, file.Physical, file.Relative)));
                 }
+                bool textureContentOnly = format == ModFormat.Memoria && TexturePackageCompatibility.IsTextureContentOnly(packageFiles.Select(file => file.Relative), hasLocalization);
+                bool compatible = ((native?.Official is not null && nativeError is null) || isCompatible(format) || localizationOnly || textureContentOnly) && nativeError is null && descriptorFailure is null;
+                ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
+                identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}\0{priority}");
                 Dictionary<string, string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
                 List<(string Root, string Physical, string Relative)> selectedFiles = [];
                 foreach ((string packageRoot, string physical, string relative) in packageFiles)
@@ -831,7 +847,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                 {
                     status = ModEffectiveStatus.NoUsableEntries;
                 }
-                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly });
+                packages.Add(new(id, descriptor?.Name ?? native?.Official?.Name ?? name, format, explicitEnabled, requested, status, root) { IsBundled = format == ModFormat.Memoria && (bundledRoot is not null || modRoot == bundledModsRoot), Official = native?.Official, Descriptor = descriptor, Priority = priority, HasLocalization = hasLocalization, HasLighting = hasLighting, LocalizationOnly = localizationOnly, TextureContentOnly = textureContentOnly });
             }
         }
         foreach (string key in fileEntries.Keys.Where(key => !visitedFiles.Contains(key)).ToArray())
@@ -950,6 +966,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void RequestRefreshCore(DateTime time)
     {
+        deferredPreparation?.Discard?.Invoke();
+        deferredPreparation = null;
         memoriaSettingsViews.Clear();
         deferredDiscovery = null;
         localizationChangeEpoch++;
@@ -967,6 +985,8 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void ScheduleRetry()
     {
+        deferredPreparation?.Discard?.Invoke();
+        deferredPreparation = null;
         deferredDiscovery = null;
         int[] delays = [100, 250, 500, 1000];
         if (retryAttempt >= delays.Length)
@@ -1010,6 +1030,10 @@ public sealed partial class ModRuntime : IModService, IDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs args)
     {
+        if (args.FullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(segment => segment.StartsWith(".texture-stage-", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
         lock (gate)
         {
             if (!disposed)

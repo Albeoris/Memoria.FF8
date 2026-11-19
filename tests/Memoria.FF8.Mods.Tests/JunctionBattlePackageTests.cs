@@ -234,7 +234,7 @@ public sealed class JunctionBattlePackageTests
         List<(string Resource, string Content)> unreadableDirectories = [];
         using (GameAssets assets = new(game, resources: resources))
         {
-            catalog = assets.EnumerateModelCatalog().Where(entry => entry.Category == "Field").ToArray();
+            catalog = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).Where(entry => entry.Category == "Field").ToArray();
             ModelCatalogEntry[] unavailable = catalog.Where(entry => entry.LoadError is not null).ToArray();
             foreach (ModelCatalogEntry entry in unavailable)
             {
@@ -406,7 +406,7 @@ public sealed class JunctionBattlePackageTests
         List<Exception> failures = [];
         resources.ReplacementFailed += (_, exception) => failures.Add(exception);
         using GameAssets assets = new(game, resources: resources);
-        ModelCatalogEntry[] catalog = assets.EnumerateModelCatalog().Where(entry => entry.Category == "Field" && entry.LoadError is null).ToArray();
+        ModelCatalogEntry[] catalog = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).Where(entry => entry.Category == "Field" && entry.LoadError is null).ToArray();
         IGrouping<int?, ModelCatalogEntry> selected = catalog.GroupBy(entry => entry.FieldId).First(group => names.All(name => group.Any(entry => entry.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase))));
         FieldAssets field = assets.LoadField(selected.Key!.Value);
         int[] models = Enumerable.Range(0, field.Models.Count).Where(index => names.Contains(field.Models[index].TextureResourceName ?? "")).ToArray();

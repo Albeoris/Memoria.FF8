@@ -52,10 +52,14 @@ public sealed partial class GameAssets
     }
 
     /// <summary>Reads only field ONE directories; model geometry and scene resources remain unloaded.</summary>
-    public IEnumerable<ModelCatalogEntry> EnumerateFieldModelSources()
+    public IEnumerable<ModelCatalogEntry> EnumerateFieldModelSources() => EnumerateFieldModelSources(CancellationToken.None);
+
+    public IEnumerable<ModelCatalogEntry> EnumerateFieldModelSources(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         for (int fieldId = 0; fieldId < fieldNames.Length; fieldId++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string name = fieldNames[fieldId];
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -80,8 +84,9 @@ public sealed partial class GameAssets
             }
             for (int index = 0; index < directory.Count; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 string model = directory[index].Name;
-                yield return new($"field/{name}/{index}", $"{model} · {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index)
+                yield return new($"field/{name}/{index}", $"{model} Â· {name}/{index}", "Field", path, $"field {fieldId} {name} {index} {model} {path}", fieldId, index)
                 {
                     ModelLibraryResource = directory[index].Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
                 };
@@ -106,7 +111,7 @@ public sealed partial class GameAssets
         }
         NativeFieldOneModelEntry entry = directory[modelIndex];
         string model = entry.Name;
-        return new($"field/{fieldName}/{modelIndex}", $"{model} · {fieldName}/{modelIndex}", "Field", path, $"field {fieldId} {fieldName} {modelIndex} {model} {path}", fieldId, modelIndex)
+        return new($"field/{fieldName}/{modelIndex}", $"{model} Â· {fieldName}/{modelIndex}", "Field", path, $"field {fieldId} {fieldName} {modelIndex} {model} {path}", fieldId, modelIndex)
         {
             ModelLibraryResource = entry.Flag >> 28 == 0xD && model.Length >= 4 ? $"field/main_chr/{model[..4]}.mch" : null
         };

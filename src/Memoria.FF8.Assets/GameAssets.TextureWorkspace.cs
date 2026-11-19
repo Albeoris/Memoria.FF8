@@ -63,8 +63,8 @@ public sealed partial class GameAssets
             }
             FieldTextureWorkspaceMetadata metadata = new(1, fieldName, Convert.ToHexString(SHA256.HashData(mim)), Convert.ToHexString(SHA256.HashData(map))) { ExportedPixelSha256 = baselines, ExportedSemanticSha256 = semanticBaselines };
             byte[] companion = JsonSerializer.SerializeToUtf8Bytes(metadata, TextureWorkspaceJson);
-            TextureExchange.WriteAtomic(path + ".texture.json", companion, cancellationToken);
-            File.Move(temporary, path, true);
+            TextureExchange.WriteAtomic(path + ".texture.json", companion, cancellationToken, overwrite: false);
+            File.Move(temporary, path, false);
         }
         finally
         {

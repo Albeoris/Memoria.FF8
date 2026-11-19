@@ -58,7 +58,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Coverage);
         ModelAssetDiscoveryItem[] weapons = items.Where(item => item.Kind == ModelAssetDiscoveryKind.Object && item.AlternativeGroup is not null).ToArray();
@@ -95,7 +95,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Field" && entry.Name.StartsWith("d000", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Field" && entry.Name.StartsWith("d000", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] clips = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).Where(item => item.Kind == ModelAssetDiscoveryKind.Clip).ToArray();
         Assert.True(clips.Select(clip => clip.ResourcePath).Distinct().Count() > 1);
         Assert.Equal(clips.Length, clips.Select(clip => clip.Id).Distinct().Count());
@@ -113,7 +113,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == category && entry.LoadError is null);
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == category && entry.LoadError is null);
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         Assert.Single(items, item => item.Kind == ModelAssetDiscoveryKind.Object);
         Assert.DoesNotContain(items, item => item.AlternativeGroup is not null || item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId != selected.Id);
@@ -163,7 +163,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith($"battle/d{character:x}w", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith($"battle/d{character:x}w", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem weapon = Assert.Single(items, item => item.Kind == ModelAssetDiscoveryKind.Object && item.Id == selected.Id);
         Assert.True(weapon.UsesOwnerSkeleton);
@@ -184,7 +184,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith("battle/d0w", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Battle weapon" && entry.ResourcePath.StartsWith("battle/d0w", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem weapon = Assert.Single(items, item => item.Kind == ModelAssetDiscoveryKind.Object && item.Id == selected.Id);
         Assert.False(weapon.UsesOwnerSkeleton);
@@ -242,7 +242,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         Assert.True(items.Any(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && item.OwnerId == selected.Id), string.Join("; ", items.Where(item => item.Kind == ModelAssetDiscoveryKind.Diagnostic).Select(item => item.Id + ": " + item.Error)));
         ModelAssetDiscoveryItem clip = items.First(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == bank && item.OwnerId == selected.Id);
@@ -260,7 +260,7 @@ public sealed class ModelAssetDiscoveryTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY");
         Assert.SkipUnless(Directory.Exists(game), "Optional installed game resources are required.");
         using GameAssets assets = new(TestResources.GameDirectory);
-        ModelCatalogEntry selected = assets.EnumerateModelCatalog().First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith("battle/d9c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.Category == "Battle model" && entry.ResourcePath.StartsWith("battle/d9c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = assets.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         Assert.Contains(items, item => item.Kind == ModelAssetDiscoveryKind.Diagnostic && item.Id.EndsWith("/actor-262", StringComparison.Ordinal) && item.Error is not null);
         Assert.DoesNotContain(items, item => item.Kind == ModelAssetDiscoveryKind.Clip && item.Bank == "actor-262");

@@ -77,7 +77,7 @@ public sealed class ModelModInstalledTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(Directory.Exists(game), "Set MEMORIA_FF8_GAME_DIR to run the optional installed resource check.");
         using GameAssets discovery = new(game!);
-        ModelCatalogEntry selected = discovery.EnumerateModelCatalog().First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = discovery.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] items = discovery.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem body = items.First(item => item.Kind == ModelAssetDiscoveryKind.Object && item.OwnerId == selected.Id);
         ModelAssetDiscoveryItem weapon = items.First(item => item.Kind == ModelAssetDiscoveryKind.Object && item.UsesOwnerSkeleton);
@@ -179,7 +179,7 @@ public sealed class ModelModInstalledTests
         string? game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR");
         Assert.SkipUnless(Directory.Exists(game), "Set MEMORIA_FF8_GAME_DIR to run the optional installed resource check.");
         using GameAssets discovery = new(game!);
-        ModelCatalogEntry selected = discovery.EnumerateModelCatalog().First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry selected = discovery.EnumerateModelCatalog(TestContext.Current.CancellationToken).First(entry => entry.ResourcePath.StartsWith($"battle/d{character:x}c", StringComparison.OrdinalIgnoreCase));
         ModelAssetDiscoveryItem[] discovered = discovery.DiscoverModelAssets(selected, TestContext.Current.CancellationToken).ToArray();
         ModelAssetDiscoveryItem[] clips = discovered.Where(item => item.Kind == ModelAssetDiscoveryKind.Clip && item.OwnerId == selected.Id && item.Error is null).ToArray();
         ModelAssetDiscoveryItem[] banks = clips.GroupBy(item => item.Bank).Select(group => group.First()).ToArray();

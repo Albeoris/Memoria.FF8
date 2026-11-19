@@ -3,6 +3,10 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Mods;
 
 public sealed record NativeTextureVariant(TextureTarget Target, string PackageId, string RelativePath);
+public sealed record NativeTextureRequest(TextureTarget Target, string Layout, TextureSourceAddress? Alias, TextureSourceAddress? Sheet)
+{
+    public static NativeTextureRequest FromContext(TextureBuildContext context) => new(TextureTarget.FromContext(context, context.Game), context.Layout, context.NativeAlias, context.NativeSheet);
+}
 
 /// <summary>Validated immutable native texture contributions in catalog precedence order.</summary>
 public sealed class NativeTextureMods : ITextureReplacementResolver
@@ -13,21 +17,33 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
     private readonly IReadOnlyDictionary<TextureTarget, IReadOnlyDictionary<string, Entry>> companionEntries;
     private readonly IReadOnlyList<IReadOnlyDictionary<TextureTarget, Entry>> packageEntries;
     private readonly TextureCache cache;
+    private readonly Dictionary<Entry, DecodedTextureImage> preparationPixels;
+    private sealed class DecodeCounter
+    {
+        public int Count;
+    }
+    private readonly DecodeCounter decodeCounter;
 
-    private NativeTextureMods(IReadOnlyList<Entry> entries, TextureCache? cache = null)
+    private NativeTextureMods(IReadOnlyList<Entry> entries, TextureCache? cache = null, Dictionary<Entry, DecodedTextureImage>? preparationPixels = null, DecodeCounter? decodeCounter = null)
     {
         this.entries = entries;
         effective = entries.GroupBy(entry => entry.Variant.Target).ToDictionary(group => group.Key, group => group.First());
         companionEntries = effective.Values.Where(entry => entry.Variant.Target.Variant.Length != 0).GroupBy(entry => entry.Variant.Target with { Variant = "" }).ToDictionary(group => group.Key, group => (IReadOnlyDictionary<string, Entry>)group.ToDictionary(entry => entry.Variant.Target.Variant, StringComparer.Ordinal));
         packageEntries = entries.GroupBy(entry => entry.Variant.PackageId, StringComparer.OrdinalIgnoreCase).Select(group => (IReadOnlyDictionary<TextureTarget, Entry>)group.ToDictionary(entry => entry.Variant.Target)).ToArray();
         this.cache = cache ?? new();
+        this.preparationPixels = preparationPixels ?? [];
+        this.decodeCounter = decodeCounter ?? new();
         Variants = Array.AsReadOnly(entries.Select(entry => entry.Variant).ToArray());
     }
 
     public static NativeTextureMods Empty { get; } = new([]);
     public IReadOnlyList<NativeTextureVariant> Variants { get; }
+    public int ImageDecodeCount => Volatile.Read(ref decodeCounter.Count);
+    public int PreparationImageCount => preparationPixels.Count;
 
-    public static bool TryPrepare(ModCatalogSnapshot catalog, out NativeTextureMods result, out IReadOnlyList<ModDiagnostic> diagnostics, NativeTextureMods? previous = null)
+    public static bool TryPrepare(ModCatalogSnapshot catalog, out NativeTextureMods result, out IReadOnlyList<ModDiagnostic> diagnostics, NativeTextureMods? previous = null) => TryPrepare(catalog, out result, out diagnostics, CancellationToken.None, previous);
+
+    public static bool TryPrepare(ModCatalogSnapshot catalog, out NativeTextureMods result, out IReadOnlyList<ModDiagnostic> diagnostics, CancellationToken cancellationToken, NativeTextureMods? previous = null, IReadOnlyList<NativeTextureRequest>? requests = null)
     {
         List<Entry> prepared = [];
         List<ModDiagnostic> errors = [];
@@ -36,13 +52,19 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
         long metadataBytes = 0;
         TextureCache cache = previous?.cache ?? new();
         Dictionary<NativeTextureVariant, Entry> prior = previous?.entries.ToDictionary(entry => entry.Variant) ?? [];
+        HashSet<Entry> changed = [];
+        Dictionary<Entry, DecodedTextureImage> pins = [];
+        long pinnedBytes = 0;
+        DecodeCounter counter = new();
         foreach (IGrouping<string, ModFile> package in catalog.Files.Where(file => file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("textures/", StringComparison.OrdinalIgnoreCase)).GroupBy(file => file.PackageId, StringComparer.OrdinalIgnoreCase))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Dictionary<string, ModFile> images = new(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, TextureModMapping> mappings = new(StringComparer.OrdinalIgnoreCase);
             HashSet<TextureTarget> targets = [];
             foreach (ModFile file in package)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     if (TextureModPaths.IsImage(file.RelativePath))
@@ -100,6 +122,7 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
             }
             foreach ((string path, ModFile file) in images)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     TextureModPaths.ValidateRelative(path);
@@ -140,16 +163,17 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
                     }
                     NativeTextureVariant variant = new(target, package.Key, path);
                     TextureNativeCoverage? coverage = mapping?.NativeCoverage;
+                    Entry entry;
                     if (prior.TryGetValue(variant, out Entry? unchanged) && unchanged.Contract == mapping?.Contract && unchanged.Coverage == coverage && unchanged.Bytes.AsSpan().SequenceEqual(bytes))
                     {
-                        prepared.Add(unchanged);
+                        entry = unchanged;
                     }
                     else
                     {
-                        Entry entry = new(variant, bytes, mapping?.Contract, coverage);
-                        _ = cache.Get(entry, () => TextureImageDecoder.Decode(bytes, path), decoded => PixelBytes(decoded.MipLevels));
-                        prepared.Add(entry);
+                        entry = new(variant, bytes, mapping?.Contract, coverage);
+                        changed.Add(entry);
                     }
+                    prepared.Add(entry);
                 }
                 catch (Exception exception) when (IsValidationError(exception))
                 {
@@ -157,6 +181,39 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
                 }
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        NativeTextureMods? candidate = errors.Count == 0 ? new(Array.AsReadOnly(prepared.ToArray()), cache, pins, counter) : null;
+        HashSet<Entry> requestedEntries = candidate is not null && requests is not null ? candidate.RequestedEntries(requests) : [];
+        if (candidate is not null)
+        {
+            foreach (Entry entry in prepared)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    bool pin = requestedEntries.Contains(entry);
+                    if (!changed.Contains(entry) && !pin)
+                    {
+                        continue;
+                    }
+                    DecodedTextureImage decoded = requests is null || !changed.Contains(entry) ? cache.Get(entry, () => DecodeImage(counter, entry.Bytes, entry.Variant.RelativePath), decoded => PixelBytes(decoded.MipLevels)) : DecodeImage(counter, entry.Bytes, entry.Variant.RelativePath);
+                    if (pin)
+                    {
+                        pinnedBytes = checked(pinnedBytes + PixelBytes(decoded.MipLevels));
+                        if (pinnedBytes > 256L * 1024 * 1024)
+                        {
+                            throw new InvalidDataException("Resident native texture preparation exceeds its 256 MiB decoded pixel budget. Import a smaller coherent selection or reduce image dimensions.");
+                        }
+                        pins.Add(entry, decoded);
+                    }
+                }
+                catch (Exception exception) when (IsValidationError(exception))
+                {
+                    errors.Add(new("Memoria.InvalidTexture", exception.Message, entry.Variant.PackageId, entry.Variant.RelativePath));
+                }
+            }
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         foreach (IGrouping<TextureTarget, Entry> contributions in prepared.GroupBy(entry => entry.Variant.Target))
         {
             Entry winner = contributions.First();
@@ -166,8 +223,35 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
             }
         }
         diagnostics = Array.AsReadOnly(errors.Concat(notices).ToArray());
-        result = errors.Count == 0 ? new(Array.AsReadOnly(prepared.ToArray()), cache) : Empty;
+        result = errors.Count == 0 ? candidate! : Empty;
         return errors.Count == 0;
+    }
+
+    public void ReleasePreparationPixels() => preparationPixels.Clear();
+
+    private HashSet<Entry> RequestedEntries(IEnumerable<NativeTextureRequest> requests)
+    {
+        Dictionary<TextureTarget, string[]> variants = entries.GroupBy(entry => entry.Variant.Target with { Variant = "" }).ToDictionary(group => group.Key, group => group.Select(entry => entry.Variant.Target.Variant).Distinct(StringComparer.Ordinal).ToArray());
+        HashSet<Entry> selected = [];
+        foreach (NativeTextureRequest request in requests)
+        {
+            foreach (string variant in Families(request, "").Where(family => variants.ContainsKey(family.Target)).SelectMany(family => variants[family.Target]).Distinct(StringComparer.Ordinal))
+            {
+                if (SelectBinding(request, variant) is { } binding)
+                {
+                    selected.Add(binding.Entry);
+                }
+            }
+        }
+        return selected;
+    }
+
+    private DecodedTextureImage Decode(Entry entry) => preparationPixels.TryGetValue(entry, out DecodedTextureImage? pinned) ? cache.Get(entry, () => pinned, decoded => PixelBytes(decoded.MipLevels)) : cache.Get(entry, () => DecodeImage(decodeCounter, entry.Bytes, entry.Variant.RelativePath), decoded => PixelBytes(decoded.MipLevels));
+
+    private static DecodedTextureImage DecodeImage(DecodeCounter counter, byte[] bytes, string path)
+    {
+        Interlocked.Increment(ref counter.Count);
+        return TextureImageDecoder.Decode(bytes, path);
     }
 
     public TextureReplacement? Resolve(TextureBuildContext context)
@@ -206,23 +290,27 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
     private sealed record Family(TextureTarget Target, TextureSourceAddress? Address = null, bool Sheet = false);
     private sealed record Binding(Entry Entry, TextureSourceAddress? Address, bool Sheet, int Package, int Family);
 
-    private static IReadOnlyList<Family> Families(TextureBuildContext context, string variant)
+    private static IReadOnlyList<Family> Families(TextureBuildContext context, string variant) => Families(NativeTextureRequest.FromContext(context), variant);
+
+    private static IReadOnlyList<Family> Families(NativeTextureRequest request, string variant)
     {
-        List<Family> families = [new(TextureTarget.FromKey(context.Key, variant, context.Game))];
-        if (context.NativeAlias is { } alias)
+        List<Family> families = [new(request.Target with { Variant = variant })];
+        if (request.Alias is { } alias)
         {
-            families.Add(new(TextureTarget.FromKey(new(alias.Owner, alias.Subresource, alias.Palette), variant, context.Game), alias));
+            families.Add(new(TextureTarget.FromKey(new(alias.Owner, alias.Subresource, alias.Palette), variant, request.Target.Game), alias));
         }
-        if (context.NativeSheet is { CanvasWidth: 128, CanvasHeight: 128 } sheet && context.Layout is "classic-field-model" or "classic-model")
+        if (request.Sheet is { CanvasWidth: 128, CanvasHeight: 128 } sheet && request.Layout is "classic-field-model" or "classic-model")
         {
-            families.Add(new(TextureTarget.FromKey(new(sheet.Owner, sheet.Subresource, sheet.Palette), variant, context.Game), sheet, true));
+            families.Add(new(TextureTarget.FromKey(new(sheet.Owner, sheet.Subresource, sheet.Palette), variant, request.Target.Game), sheet, true));
         }
         return families;
     }
 
-    private Binding? SelectBinding(TextureBuildContext context, string variant)
+    private Binding? SelectBinding(TextureBuildContext context, string variant) => SelectBinding(NativeTextureRequest.FromContext(context), variant);
+
+    private Binding? SelectBinding(NativeTextureRequest request, string variant)
     {
-        IReadOnlyList<Family> families = Families(context, variant);
+        IReadOnlyList<Family> families = Families(request, variant);
         for (int package = 0; package < packageEntries.Count; package++)
         {
             for (int family = 0; family < families.Count; family++)
@@ -326,7 +414,7 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
         {
             throw new InvalidDataException("The native texture source publishes an invalid crop address.");
         }
-        DecodedTextureImage decoded = cache.Get(entry, () => TextureImageDecoder.Decode(entry.Bytes, entry.Variant.RelativePath), decoded => PixelBytes(decoded.MipLevels));
+        DecodedTextureImage decoded = Decode(entry);
         if (sheet && (decoded.Image.Width != decoded.Image.Height || decoded.Image.Width % 128 != 0))
         {
             throw new InvalidDataException("Native field model sheets require a square uniform integer enlargement of the published 128x128 canvas.");
@@ -382,7 +470,7 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
 
     private TextureReplacement Resolve(Entry entry, TextureBuildContext context)
     {
-        DecodedTextureImage decoded = cache.Get(entry, () => TextureImageDecoder.Decode(entry.Bytes, entry.Variant.RelativePath), decoded => PixelBytes(decoded.MipLevels));
+        DecodedTextureImage decoded = Decode(entry);
         TextureTargetContract contract = entry.Contract ?? TextureTargetContract.FromContext(context);
         contract.Validate(context, decoded.Image);
         Albeoris.Games.FF8.Imaging.PixelImage image = decoded.Image;
@@ -457,11 +545,20 @@ public sealed class NativeTextureMods : ITextureReplacementResolver
                     order.AddLast(cached.Node);
                     return (T)cached.Value;
                 }
-                T value = create();
-                long size = measure(value);
-                if (size > MaximumBytes)
+            }
+            T value = create();
+            long size = measure(value);
+            if (size > MaximumBytes)
+            {
+                return value;
+            }
+            lock (gate)
+            {
+                if (values.TryGetValue(key, out var cached))
                 {
-                    return value;
+                    order.Remove(cached.Node);
+                    order.AddLast(cached.Node);
+                    return (T)cached.Value;
                 }
                 while (values.Count >= MaximumEntries || bytes + size > MaximumBytes)
                 {

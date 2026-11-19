@@ -88,6 +88,9 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     public event Action<TextureKey, Exception>? ReplacementFailed;
 
     /// <summary>Capture on the resource owner thread. Derived handles expand to stable authored sources.</summary>
+    /// <summary>Captures resident source descriptions on the owner thread without decoding. Background consumers must copy metadata only and must not invoke image, variant, or authoring callbacks.</summary>
+    public IReadOnlyList<TextureBuildContext> CaptureTextureContextsForPreparation() => contexts.Values.ToArray();
+
     public IReadOnlyList<TextureSourceSnapshot> CaptureTextureSources(IEnumerable<TextureKey>? keys = null)
     {
         if (notifying)
@@ -475,7 +478,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         foreach (TextureKey key in OrderAffectedTransforms(transformContexts, affected))
         {
             TextureTransformContext transform = transformContexts[key];
-            next[key] = transform.Build(transform.Dependencies.Select(dependency => next.TryGetValue(dependency, out TextureValue? value) ? value : throw new InvalidOperationException($"Missing texture preparation dependency {dependency}.")).ToArray());
+            next[key] = BuildPreparedTransform(next, transform);
             yield return 0;
         }
         job.Prepared = new PreparedResources(this, job.ExpectedVersion, nextResolver, affected.ToImmutableDictionary(key => key, key => next[key]), textResources?.ToImmutableDictionary(text => text.Key) ?? published.Texts, encoded, exclusiveScopes, failures.ToImmutable(), nextLocalization, nextAliases);
@@ -677,47 +680,18 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next, ISet<TextureKey>? affected = null)
     {
         Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
-        if (affected is not null)
+        HashSet<TextureKey> closure = affected is null ? preparation.Keys.ToHashSet() : affected.ToHashSet();
+        IReadOnlyList<TextureKey> ordered = OrderAffectedTransforms(preparation, closure);
+        foreach (TextureKey key in ordered)
         {
-            bool added;
-            do
-            {
-                added = false;
-                foreach ((TextureKey key, TextureTransformContext transform) in preparation)
-                {
-                    if (!affected.Contains(key) && transform.Dependencies.Any(affected.Contains))
-                    {
-                        affected.Add(key);
-                        added = true;
-                    }
-                }
-            }
-            while (added);
+            affected?.Add(key);
+            next[key] = BuildPreparedTransform(next, preparation[key]);
         }
-        foreach (TextureKey key in preparation.Keys.Where(key => affected is null || affected.Contains(key)))
-        {
-            next.Remove(key);
-        }
-        HashSet<TextureKey> visiting = [];
-        TextureValue Build(TextureKey key)
-        {
-            if (next.TryGetValue(key, out TextureValue? value))
-            {
-                return value;
-            }
-            if (!preparation.TryGetValue(key, out TextureTransformContext? transform) || !visiting.Add(key))
-            {
-                throw new InvalidOperationException($"Missing or cyclic texture preparation dependency {key}.");
-            }
-            value = transform.Build(transform.Dependencies.Select(Build).ToArray());
-            visiting.Remove(key);
-            next.Add(key, value);
-            return value;
-        }
-        foreach (TextureKey key in preparation.Keys.Where(key => affected is null || affected.Contains(key)))
-        {
-            Build(key);
-        }
+    }
+
+    private static TextureValue BuildPreparedTransform(ImmutableDictionary<TextureKey, TextureValue>.Builder next, TextureTransformContext transform)
+    {
+        return transform.Build(transform.Dependencies.Select(dependency => next.TryGetValue(dependency, out TextureValue? value) ? value : throw new InvalidOperationException($"Missing texture preparation dependency {dependency}.")).ToArray());
     }
 
     public void Release(IEnumerable<TextureKey> keys)

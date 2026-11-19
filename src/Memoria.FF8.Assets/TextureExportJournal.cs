@@ -63,7 +63,7 @@ public sealed class TextureExportJournal : IDisposable
     private void Write()
     {
         var outcomes = diagnostics.GroupBy(diagnostic => diagnostic.Outcome).ToDictionary(group => group.Key, group => group.Count());
-        bool catalogTotalKnown = !diagnostics.Any(diagnostic => diagnostic.Outcome == "failed" && diagnostic.Operation.StartsWith("Discovering", StringComparison.Ordinal));
+        bool catalogTotalKnown = !diagnostics.Any(diagnostic => diagnostic.Operation.StartsWith("Discovering", StringComparison.Ordinal));
         byte[] index = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, game = "ff8", scope, provider, language, resolved, complete, catalogTotalKnown, exported = entries.Count, deduplicatedAliases = aliases, bytesWritten = bytes, outcomes, entries, diagnostics }, Json);
         TextureExchange.WriteAtomic(TextureExchange.SafeOutput(root, "texture-export-index.json"), index, CancellationToken.None);
         string status = complete ? "Completed selected export scope." : "INCOMPLETE: export was cancelled, failed, or is still running. Completed files remain editable and importable.";

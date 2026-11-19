@@ -21,7 +21,7 @@ public sealed class JunctionMainCharacterResourceInstalledTests
         using GameAssets assets = new(TestResources.GameDirectory, resources: host.Resources);
         Assert.DoesNotContain(host.Mods.Diagnostics, item => item.Code == "Junction.InvalidEncodedResource");
         Dictionary<string, ModelCatalogEntry> sources = [];
-        foreach (ModelCatalogEntry entry in assets.EnumerateFieldModelSources())
+        foreach (ModelCatalogEntry entry in assets.EnumerateFieldModelSources(TestContext.Current.CancellationToken))
         {
             string name = entry.Name.Split(' ')[0];
             if (entry.LoadError is null && name.Length >= 4 && fixture.Resources.ContainsKey(name[..4]))

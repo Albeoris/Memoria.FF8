@@ -429,7 +429,8 @@ internal sealed partial class RecreateGame
                 return;
             }
             var createSession = resourceHost!.CaptureTextureAuthoringFactory(false);
-            StartTextureJob(token => PrepareTextureImport(review, selected, descriptor is null ? slug : null, package.Name, createSession, token), plan => ApplyTextureImportPlan(review, selected, package, plan), LocalizeAuthored("textures.installing", "Validating reviewed inputs / preparing installation..."));
+            string allowedRoot = TextureModDestination.Resolve(resourceHost.Mods.ModsDirectories, review.Destination);
+            StartTextureJob(token => PrepareTextureImport(review, selected, descriptor is null ? slug : null, package.Name, allowedRoot, createSession, token), plan => ApplyTextureImportPlan(review, selected, package, plan), LocalizeAuthored("textures.installing", "Validating reviewed inputs / preparing installation..."));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
@@ -442,14 +443,19 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private sealed class PreparedTextureImport(TextureModInstallPlan plan, TextureInputLeases inputs) : IDisposable
+    private sealed class PreparedTextureImport(TextureInputLeases inputs, TextureModInstallTransaction transaction, Dictionary<string, TextureWorkingEntry> working) : IDisposable
     {
-        public TextureModInstallPlan Plan { get; } = plan;
         public TextureInputLeases Inputs { get; } = inputs;
-        public void Dispose() => Inputs.Dispose();
+        public TextureModInstallTransaction Transaction { get; } = transaction;
+        public Dictionary<string, TextureWorkingEntry> Working { get; } = working;
+        public void Dispose()
+        {
+            Inputs.Dispose();
+            Transaction.Dispose();
+        }
     }
 
-    private PreparedTextureImport PrepareTextureImport(TextureImportReview review, TextureImportRow[] selected, string? newId, string name, Func<TextureAuthoringSession> createSession, CancellationToken token)
+    private PreparedTextureImport PrepareTextureImport(TextureImportReview review, TextureImportRow[] selected, string? newId, string name, string allowedRoot, Func<TextureAuthoringSession> createSession, CancellationToken token)
     {
         string[] paths = selected.Select(row => row.Workspace ?? row.RelativePath).Distinct(StringComparer.Ordinal).SelectMany(relative =>
         {
@@ -459,16 +465,26 @@ internal sealed partial class RecreateGame
             return new[] { image, image + ".texture.json" };
         }).ToArray();
         TextureInputLeases inputs = new(paths, token);
+        TextureModInstallTransaction? transaction = null;
         try
         {
             TextureModInstallPlan plan = PrepareTextureImportPlan(review, selected, newId, name, createSession, token);
+            Dictionary<string, TextureWorkingEntry> state = new(review.Working, StringComparer.Ordinal);
+            foreach (TextureImportRow row in selected)
+            {
+                token.ThrowIfCancellationRequested();
+                TextureModOutput output = plan.Files.Single(file => file.RelativePath == row.Target!.CanonicalPath(row.Workspace is null ? Path.GetExtension(row.RelativePath).ToLowerInvariant() : ".png"));
+                state[row.RelativePath] = new(row.Target!, row.Pixels, Convert.ToHexString(SHA256.HashData(output.Content)), row.ExplicitMapping, row.Pixels);
+            }
+            transaction = TextureModInstaller.PrepareInstall(allowedRoot, review.Destination, plan, token);
             inputs.ValidateContents(token);
             token.ThrowIfCancellationRequested();
-            return new(plan, inputs);
+            return new(inputs, transaction, state);
         }
         catch
         {
             inputs.Dispose();
+            transaction?.Dispose();
             throw;
         }
     }
@@ -576,67 +592,125 @@ internal sealed partial class RecreateGame
         };
     }
 
+    private sealed record PendingTextureImport(TextureImportReview Review, TextureImportRow[] Selected, ModPackage Package, PreparedTextureImport Prepared);
+    private PendingTextureImport? pendingTextureImport;
+    private readonly List<Task> textureCleanupTasks = [];
+    private void QueueTextureCleanup(Action action)
+    {
+        textureCleanupTasks.RemoveAll(task => task.IsCompleted);
+        textureCleanupTasks.Add(Task.Run(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception) when (IsModelBrowserError(exception))
+            {
+                textureCompletions.Enqueue(() =>
+                {
+                    if (textureBrowser is not null)
+                    {
+                        textureBrowser.Message += " Staging cleanup: " + exception.Message;
+                    }
+                });
+            }
+        }));
+    }
+
     private void ApplyTextureImportPlan(TextureImportReview review, TextureImportRow[] selected, ModPackage package, PreparedTextureImport prepared)
     {
-        using TextureInputLeases inputs = prepared.Inputs;
-        TextureModInstallPlan plan = prepared.Plan;
-        try
+        pendingTextureImport = new(review, selected, package, prepared);
+        textureBrowser!.Busy = true;
+    }
+
+    private void PumpTextureImport()
+    {
+        if (pendingTextureImport is not { } pending)
         {
-            inputs.ValidateStamps();
-        }
-        catch (Exception exception) when (IsModelBrowserError(exception))
-        {
-            textureBrowser!.Message = exception.Message;
             return;
         }
         try
         {
-            textureBrowser!.Message = LocalizeAuthored("textures.applying", "Installing / Applying validated texture generation...");
-            string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
-            using TextureModInstallTransaction transaction = TextureModInstaller.PrepareInstall(root, review.Destination, plan);
-            if (!resourceHost.Mods.ApplyTextureImport(transaction, package))
+            if (textureCancellation?.IsCancellationRequested == true)
             {
-                throw new InvalidDataException("Texture publication failed. Previous destination and live textures were retained; inspect Mods diagnostics.");
+                throw new OperationCanceledException("Cancelled before publication. Previous destination and live textures were retained.");
             }
-            Dictionary<string, TextureWorkingEntry> state = new(review.Working, StringComparer.Ordinal);
-            foreach (TextureImportRow row in selected)
+            TextureImportApplyResult result = resourceHost!.Mods.TryApplyTextureImport(pending.Prepared.Transaction, pending.Package, pending.Prepared.Inputs.ValidateStamps);
+            if (result == TextureImportApplyResult.Deferred)
             {
-                TextureModOutput output = plan.Files.Single(file => file.RelativePath == row.Target!.CanonicalPath(row.Workspace is null ? Path.GetExtension(row.RelativePath).ToLowerInvariant() : ".png"));
-                state[row.RelativePath] = new(row.Target!, row.Pixels, Convert.ToHexString(SHA256.HashData(output.Content)), row.ExplicitMapping, row.Pixels);
+                return;
             }
-            string? bookkeepingWarning = null;
-            try
+            if (result == TextureImportApplyResult.Failed)
             {
-                WriteTextureWorkingState(review.Source, review.Destination, state);
+                throw new InvalidDataException("Texture publication failed. Previous destination and live textures were retained. " + string.Join(" ", resourceHost.Mods.Diagnostics.TakeLast(3).Select(diagnostic => diagnostic.Message)));
             }
-            catch (Exception exception) when (IsModelBrowserError(exception))
+            pendingTextureImport = null;
+            texturePendingResults.TryRemove(pending.Prepared, out _);
+            textureBrowser!.Message = LocalizeAuthored("textures.install.finishing", "Textures installed; saving working-folder state...");
+            QueueTextureCleanup(() =>
             {
-                bookkeepingWarning = "Installed successfully, but the working folder could not remember this import: " + exception.Message;
-            }
-            IReadOnlyList<TextureSourceSnapshot> resident = resourceHost.Resources.CaptureTextureSources();
-            var ownership = selected.ToDictionary(row => row.Target!, row => TextureImportOwnership.Inspect(row.Target!, resident, package.Id));
-            int owned = ownership.Count(pair => pair.Value.OwnedConsumers != 0);
-            textureBrowser.Message = package.RequestedEnabled
-                ? FormatAuthored("textures.import.applied", "Installed {0} texture edits; {1} resident targets use this mod. Other targets are nonresident or overridden by priority. Refresh / reimport repeats this working folder.", selected.Length, owned)
-                : FormatAuthored("textures.import.disabled", "Saved {0} texture edits. The mod remains disabled; enable it in Mods to use them.", selected.Length);
-            if (bookkeepingWarning is not null)
-            {
-                textureBrowser.Message += " " + bookkeepingWarning;
-            }
-            textureReview = null;
-            textureBrowser.Selection.Clear();
-            textureBrowser.Unmatched = null;
-            textureBrowser.SetRows(selected.Select(row =>
-            {
-                string status = !package.RequestedEnabled ? "Installed in disabled mod; enable it in Mods" : ownership[row.Target!].Describe();
-                string name = textureCatalog.FirstOrDefault(entry => entry.Target == row.Target)?.Name ?? row.Target!.Subresource;
-                return new TextureBrowserRow(TextureId(row.Target!), name, row.Target!.Owner, status + " · " + row.Target.CanonicalPath());
-            }));
+                string? warning = null;
+                try
+                {
+                    WriteTextureWorkingState(pending.Review.Source, pending.Review.Destination, pending.Prepared.Working);
+                }
+                catch (Exception exception) when (IsModelBrowserError(exception))
+                {
+                    warning = "Installed successfully, but the working folder could not remember this import: " + exception.Message;
+                }
+                finally
+                {
+                    try
+                    {
+                        pending.Prepared.Dispose();
+                    }
+                    catch (Exception exception) when (IsModelBrowserError(exception))
+                    {
+                        warning = (warning is null ? "" : warning + " ") + "Installed successfully, but staging cleanup failed: " + exception.Message;
+                    }
+                    textureCompletions.Enqueue(() => CompleteTextureImportResult(pending, warning));
+                }
+            });
         }
-        catch (Exception exception) when (IsModelBrowserError(exception))
+        catch (Exception exception) when (exception is OperationCanceledException || IsModelBrowserError(exception))
         {
-            textureBrowser!.Message = exception.Message;
+            resourceHost!.Mods.CancelTextureImport(pending.Prepared.Transaction);
+            pendingTextureImport = null;
+            texturePendingResults.TryRemove(pending.Prepared, out _);
+            QueueTextureCleanup(pending.Prepared.Dispose);
+            textureBrowser!.Busy = false;
+            textureBrowser.Message = exception.Message;
         }
+    }
+
+    private void CompleteTextureImportResult(PendingTextureImport pending, string? bookkeepingWarning)
+    {
+        if (textureBrowser is null)
+        {
+            return;
+        }
+        textureBrowser.Busy = false;
+        TextureImportRow[] selected = pending.Selected;
+        ModPackage package = resourceHost!.Mods.Catalog.Packages.FirstOrDefault(candidate => candidate.Id == pending.Package.Id) ?? pending.Package;
+        IReadOnlyList<TextureSourceSnapshot> resident = resourceHost.Resources.CaptureTextureSources();
+        var ownership = selected.ToDictionary(row => row.Target!, row => TextureImportOwnership.Inspect(row.Target!, resident, package.Id));
+        int owned = ownership.Count(pair => pair.Value.OwnedConsumers != 0);
+        textureBrowser.Message = package.RequestedEnabled
+            ? FormatAuthored("textures.import.applied", "Installed {0} texture edits; {1} resident targets use this mod. Other targets are nonresident or overridden by priority. Refresh / reimport repeats this working folder.", selected.Length, owned)
+            : FormatAuthored("textures.import.disabled", "Saved {0} texture edits. The mod remains disabled; enable it in Mods to use them.", selected.Length);
+        if (bookkeepingWarning is not null)
+        {
+            textureBrowser.Message += " " + bookkeepingWarning;
+        }
+        textureReview = null;
+        textureBrowser.Selection.Clear();
+        textureBrowser.Unmatched = null;
+        textureBrowser.SetRows(selected.Select(row =>
+        {
+            string status = !package.RequestedEnabled ? "Installed in disabled mod; enable it in Mods" : ownership[row.Target!].Describe();
+            string name = textureCatalog.FirstOrDefault(entry => entry.Target == row.Target)?.Name ?? row.Target!.Subresource;
+            return new TextureBrowserRow(TextureId(row.Target!), name, row.Target!.Owner, status + " / " + row.Target.CanonicalPath());
+        }));
     }
 
     private static IEnumerable<string> EnumerateTextureInputs(string root, CancellationToken token)

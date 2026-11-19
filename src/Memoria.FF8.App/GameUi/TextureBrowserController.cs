@@ -507,7 +507,7 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
     {
         fontScale = theme.FontSize / 16;
         theme.Panel(canvas, new(10, 10, 940, 652));
-        Label(canvas, controller.Text("textures.title", "FFVIII · Textures"), new(24, 22, 200, 30), theme.Foreground, 22);
+        Label(canvas, controller.Text("textures.title", "FFVIII \u00b7 Textures"), new(24, 22, 200, 30), theme.Foreground, 22);
         Button(canvas, theme, new(250, 20, 680, 34), controller.Search.Length == 0 ? controller.Text("textures.search", "Search names, categories and targets (Tab)") : controller.Search, controller.SearchFocused);
         Label(canvas, controller.ScopeDescription, new(24, 54, 906, 18), theme.Muted, 11);
         string[] commands = [controller.Text("textures.scope.scene", "Current scene"), controller.Text("textures.scope.all", "All textures"), controller.Text("textures.scope.selected", "Selected"), controller.Resolved ? controller.Text("textures.source.resolved", "Resolved") : controller.Text("textures.source.original", "Original"), controller.Text("textures.export", "Export folder"), controller.Text("textures.import", "Import folder"), controller.Text("textures.refresh", "Reimport"), controller.Text("textures.open.folder", "Open working folder"), controller.Text("textures.import.files", "Import files"), controller.Text("textures.open.mod", "Open mod folder")];
@@ -540,7 +540,7 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
         Label(canvas, $"{controller.Leaves.Count} targets / {controller.Selection.Count} checked\nPage {controller.Page + 1} / {Math.Max(1, (controller.Rows.Count + TextureBrowserController.RowsPerPage - 1) / TextureBrowserController.RowsPerPage)}", new(748, 420, 180, 48), theme.Muted, 12);
         Button(canvas, theme, new(830, 566, 100, 32), controller.Text("textures.mods", "Mods"));
         Label(canvas, controller.Selected?.Detail ?? "", new(24, 474, 906, 44), theme.Muted, 13);
-        Label(canvas, controller.Filtering ? controller.Text("textures.filtering", "Filtering catalog…") : controller.Message, new(24, 522, 790, 70), theme.Foreground, 14);
+        Label(canvas, controller.Filtering ? controller.Text("textures.filtering", "Filtering catalog...") : controller.Message, new(24, 522, 790, 70), theme.Foreground, 14);
         Label(canvas, controller.Text("textures.hints", "Arrows: rows / branches | Space: checkbox | Confirm: expand / select\nShoulders: commands | Tab: search | Detail: Mods | Back: cancel"), new(24, 606, 780, 44), theme.Muted, 12);
         Button(canvas, theme, new(830, 610, 100, 32), controller.Busy ? controller.Text("textures.cancel", "Cancel") : controller.Text("common.back", "Back"));
     }

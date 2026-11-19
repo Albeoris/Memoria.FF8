@@ -4,9 +4,9 @@ namespace Memoria.FF8;
 
 internal static class TextureSceneEligibility
 {
-    internal static bool CanCapture(SceneKind scene, bool inFf7, bool battlePresented, bool fieldPresented, bool worldPresented, bool faulted, bool exclusivePresentation)
+    internal static bool CanCapture(SceneKind scene, bool inFf7, bool battlePresented, bool fieldPresented, bool worldPresented, bool faulted, bool exclusivePresentation, bool softwareDiagnostic = false)
     {
-        if (inFf7 || faulted || exclusivePresentation || scene == SceneKind.Movie)
+        if (softwareDiagnostic || inFf7 || faulted || exclusivePresentation || scene == SceneKind.Movie)
         {
             return false;
         }

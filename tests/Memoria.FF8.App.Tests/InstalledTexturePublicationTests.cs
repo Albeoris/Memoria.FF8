@@ -32,7 +32,7 @@ public sealed class InstalledTexturePublicationTests
             byte[] png = LocalizationArtworkExporter.EncodePng(TexturePixelExchange.ToEditable(snapshot.Original));
             files.Add(new("Memoria/roundtrip", ModFormat.Memoria, snapshot.Target.CanonicalPath(), 1, () => png));
         }
-        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods mods, out var diagnostics), string.Join("; ", diagnostics.Select(error => error.Message)));
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods mods, out var diagnostics, cancellationToken: TestContext.Current.CancellationToken), string.Join("; ", diagnostics.Select(error => error.Message)));
         ResourceService.PreparedResources candidate = resources.Prepare(mods);
         PreparedFieldTextures background = Assert.IsType<PreparedFieldTextures>(renderer.PrepareTexturePublication(candidate.TextureValues, resources.Generation + 1));
         using TexturePublication graphics = gpu.PrepareTexturePublication(background.Images);

@@ -190,7 +190,7 @@ public sealed class DemasterContentTextureAcceptanceTests
         HashSet<string> wantedFields = fixture.Targets.Where(target => target.Kind == "field").Select(target => target.Owner).ToHashSet(StringComparer.OrdinalIgnoreCase);
         using (GameAssets inventory = new(game, resources: resources))
         {
-            ModelCatalogEntry[] entries = inventory.EnumerateFieldModelSources().Where(entry => entry.LoadError is null && entry.Name.Length >= 4 && wantedFields.Contains(ExternalFieldName(entry.Name[..4]))).ToArray();
+            ModelCatalogEntry[] entries = inventory.EnumerateFieldModelSources(TestContext.Current.CancellationToken).Where(entry => entry.LoadError is null && entry.Name.Length >= 4 && wantedFields.Contains(ExternalFieldName(entry.Name[..4]))).ToArray();
             Assert.True(wantedFields.Count == 0 || entries.Length > 0);
             foreach (ModelCatalogEntry entry in entries)
             {

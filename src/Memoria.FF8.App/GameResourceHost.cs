@@ -19,7 +19,11 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     private readonly string? modelSourceDirectory;
     private NativeTextureMods nativeTextureMods = NativeTextureMods.Empty;
 
-    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
+    public GameResourceHost(string gameDirectory, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null) : this(gameDirectory, CancellationToken.None, applicationBaseDirectory, watch, modsDirectory, resourceLanguage, modelSourceDirectory)
+    {
+    }
+
+    private GameResourceHost(string gameDirectory, CancellationToken startupCancellationToken, string? applicationBaseDirectory = null, bool watch = true, string? modsDirectory = null, string? resourceLanguage = null, string? modelSourceDirectory = null)
     {
         this.gameDirectory = gameDirectory;
         this.modelSourceDirectory = modelSourceDirectory;
@@ -43,7 +47,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         try
         {
             RecoverModLibrary(applicationBaseDirectory ?? Memoria.FF8.Platform.ApplicationInstallation.DataDirectory);
-            Pump(true);
+            CompleteStartupPreparation(startupCancellationToken);
             ValidateModLibraryStartup();
         }
         catch
@@ -181,6 +185,56 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     private ModPreparationResult Prepare(ModCatalogSnapshot catalog)
     {
+        CandidatePreparation candidate = GetCandidatePreparation(catalog);
+        try
+        {
+            ModPreparationResult result = PrepareCore(catalog, candidate);
+            if (!result.Deferred && (!result.Success || !candidate.PublicationPrepared))
+            {
+                DiscardCandidate(candidate);
+            }
+            if (result.Deferred)
+            {
+                return result with
+                {
+                    Discard = () =>
+                    {
+                        result.Discard?.Invoke();
+                        DiscardCandidate(candidate);
+                    }
+                };
+            }
+            return result;
+        }
+        catch
+        {
+            DiscardCandidate(candidate);
+            throw;
+        }
+    }
+
+    private ModPreparationResult PrepareCore(ModCatalogSnapshot catalog, CandidatePreparation candidate)
+    {
+        if (candidate.Resources is not null)
+        {
+            return AdvanceCandidate(candidate);
+        }
+        if (!candidate.Native.IsCompleted)
+        {
+            return DeferredCandidate(candidate);
+        }
+        if (!candidate.Native.IsCompletedSuccessfully)
+        {
+            Exception? error = candidate.Native.Exception?.GetBaseException();
+            DiscardCandidate(candidate);
+            throw new InvalidDataException("Native texture preparation did not complete.", error);
+        }
+        NativePreparation nativePreparation = candidate.Native.Result;
+        if (!nativePreparation.Success)
+        {
+            DiscardCandidate(candidate);
+            return new(false, Diagnostics: nativePreparation.Diagnostics);
+        }
         ModPreparationResult? waiting = PrepareLocalization(catalog, out var localization);
         if (waiting is not null)
         {
@@ -322,10 +376,8 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         }
         List<ITextureReplacementResolver> resolvers = [];
         List<string> usable = [];
-        if (!NativeTextureMods.TryPrepare(catalog, out NativeTextureMods nativeTextures, out IReadOnlyList<ModDiagnostic> nativeTextureDiagnostics, nativeTextureMods))
-        {
-            return new ModPreparationResult(false, Diagnostics: nativeTextureDiagnostics);
-        }
+        NativeTextureMods nativeTextures = nativePreparation.Textures;
+        IReadOnlyList<ModDiagnostic> nativeTextureDiagnostics = nativePreparation.Diagnostics;
         resolvers.Add(nativeTextures);
         usable.AddRange(nativeTextures.Variants.Select(variant => variant.PackageId).Distinct(StringComparer.OrdinalIgnoreCase));
         usable.AddRange(localization!.Layers.Select(layer => layer.PackageId));
@@ -411,10 +463,15 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 }
             }
         }
-        ResourceService.PreparedResources prepared;
         try
         {
-            prepared = Resources.Prepare(resolver, textResources, encodedResources, ComposeAuthoringLocalization(localization!.Catalog), textAliases);
+            IReadOnlyList<TextureBuildContext> currentContexts = Resources.CaptureTextureContextsForPreparation();
+            if (!currentContexts.SequenceEqual(candidate.Contexts, ReferenceEqualityComparer.Instance))
+            {
+                DiscardCandidate(candidate);
+                return new(false) { Deferred = true };
+            }
+            candidate.Resources = Resources.BeginPrepare(resolver, textResources, encodedResources, ComposeAuthoringLocalization(localization!.Catalog), textAliases);
         }
         catch (ResourceReloadRequiredException exception)
         {
@@ -424,36 +481,41 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: statusMods.Names.Select(name => new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, name.Source.PackageId, name.Source.RelativePath)).ToArray());
         }
-        TexturePublication? texturePublication = PrepareTexturePublication?.Invoke(prepared);
-        return new ModPreparationResult(true, usable, diagnostics, () =>
+        candidate.Finish = prepared =>
         {
-            System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();
-            localization!.InputRevision?.ValidatePublication();
-            prepared.Commit(notify: false, beforePublish: () =>
+            TexturePublication? texturePublication = PrepareTexturePublication?.Invoke(prepared);
+            return new ModPreparationResult(true, usable, diagnostics, () =>
             {
-                guardianPublication.Commit?.Invoke();
-                encounterPublication.Commit?.Invoke();
-                texturePublication?.Commit();
-            });
-            CommittedLocalizations?.InputRevision?.Dispose();
-            CommitLocalizationLanguage(localization);
-            CommittedLocalizations = localization;
-            GuardianForceMods = guardianMods;
-            EncounterMods = encounterMods;
-            SceneMods = sceneMods;
-            ModelMods = modelMods;
-            nativeTextureMods = nativeTextures;
-            ItemOverrides = itemOverrides;
-            StartupPolicy = startupPolicy;
-            GameplayPolicy = gameplayPolicy;
-            LastLocalizationChangedKeys = localization.ChangedKeys;
-            LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
-            VoiceResolver = voiceResolver;
-        }, prepared.Notify) { Discard = texturePublication is null ? null : texturePublication.Dispose };
+                System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();
+                localization!.InputRevision?.ValidatePublication();
+                prepared.Commit(notify: false, beforePublish: () =>
+                {
+                    guardianPublication.Commit?.Invoke();
+                    encounterPublication.Commit?.Invoke();
+                    texturePublication?.Commit();
+                });
+                CommittedLocalizations?.InputRevision?.Dispose();
+                CommitLocalizationLanguage(localization);
+                CommittedLocalizations = localization;
+                GuardianForceMods = guardianMods;
+                EncounterMods = encounterMods;
+                SceneMods = sceneMods;
+                ModelMods = modelMods;
+                nativeTextureMods = nativeTextures;
+                ItemOverrides = itemOverrides;
+                StartupPolicy = startupPolicy;
+                GameplayPolicy = gameplayPolicy;
+                LastLocalizationChangedKeys = localization.ChangedKeys;
+                LastLocalizationPublicationMilliseconds = publicationClock.Elapsed.TotalMilliseconds;
+                VoiceResolver = voiceResolver;
+            }, prepared.Notify) { Discard = texturePublication is null ? null : texturePublication.Dispose };
+        };
+        return AdvanceCandidate(candidate);
     }
 
     public void Dispose()
     {
+        candidatePreparation?.Dispose();
         modLibrary?.Dispose();
         localizationCancellation.Cancel();
         CommittedLocalizations?.InputRevision?.Dispose();

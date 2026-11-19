@@ -90,10 +90,9 @@ public sealed class NativeTextureModsTests
     {
         using TemporaryPackage temporary = new();
         TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png())]);
-        using TextureModInstallTransaction transaction = TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, plan);
-        System.IO.File.WriteAllText(Path.Combine(temporary.Package, "mod.ini"), "Enabled=1");
-        Assert.Throws<IOException>(() => transaction.Apply());
-        Assert.Equal("Enabled=1", System.IO.File.ReadAllText(Path.Combine(temporary.Package, "mod.ini")));
+        using TextureModInstallTransaction transaction = PrepareInstall(temporary.Root, temporary.Package, plan);
+        Assert.Throws<IOException>(() => System.IO.File.WriteAllText(Path.Combine(temporary.Package, "mod.ini"), "Enabled=1"));
+        Assert.Equal("Enabled=0", System.IO.File.ReadAllText(Path.Combine(temporary.Package, "mod.ini")));
     }
 
     [Fact]
@@ -113,8 +112,8 @@ public sealed class NativeTextureModsTests
     {
         using TemporaryPackage temporary = new();
         TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png())]);
-        Assert.Throws<InvalidDataException>(() => TextureModInstaller.PrepareInstall(temporary.Root, temporary.Root + "-elsewhere", plan));
-        Assert.Throws<InvalidDataException>(() => TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, new([new("textures/../../escape.png", Png())])));
+        Assert.Throws<InvalidDataException>(() => PrepareInstall(temporary.Root, temporary.Root + "-elsewhere", plan));
+        Assert.Throws<InvalidDataException>(() => PrepareInstall(temporary.Root, temporary.Package, new([new("textures/../../escape.png", Png())])));
     }
 
     [Fact]
@@ -122,7 +121,7 @@ public sealed class NativeTextureModsTests
     {
         using TemporaryPackage temporary = new();
         TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png())]);
-        using TextureModInstallTransaction transaction = TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, plan);
+        using TextureModInstallTransaction transaction = PrepareInstall(temporary.Root, temporary.Package, plan);
         byte[] expected = plan.Files[0].Content.ToArray();
         plan.Files[0].Content[0] = 0;
         transaction.Files[0].Content[0] = 0;
@@ -147,7 +146,7 @@ public sealed class NativeTextureModsTests
     {
         using TemporaryPackage temporary = new();
         TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png())]);
-        using TextureModInstallTransaction transaction = TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, plan);
+        using TextureModInstallTransaction transaction = PrepareInstall(temporary.Root, temporary.Package, plan);
         using ModRuntime runtime = new(modsDirectory: temporary.Root, watch: false, prepare: _ => failPublication ? new(true, Commit: () => throw new IOException("publication failed")) : new(false));
         ModPackage package = new("Memoria/sample", "Sample", ModFormat.Memoria, true, true, ModEffectiveStatus.Active, temporary.Package);
         Assert.False(runtime.ApplyTextureImport(transaction, package));
@@ -222,7 +221,7 @@ public sealed class NativeTextureModsTests
         }
         Assert.Equal("enabled=1\n", System.IO.File.ReadAllText(Path.Combine(destination, "mod.ini")));
         Assert.Equal("new-package", NativeModDescriptor.Read(Path.Combine(destination, "mod.json")).Id);
-        Assert.Throws<InvalidDataException>(() => TextureModInstaller.PrepareInstall(temporary.Root, destination, plan));
+        Assert.Throws<InvalidDataException>(() => PrepareInstall(temporary.Root, destination, plan));
     }
 
     [Fact]
@@ -233,7 +232,7 @@ public sealed class NativeTextureModsTests
         string target = Path.Combine(temporary.Package, Target.CanonicalPath());
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         System.IO.File.WriteAllBytes(target, Png("blue"));
-        Assert.Throws<IOException>(() => TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, plan));
+        Assert.Throws<IOException>(() => PrepareInstall(temporary.Root, temporary.Package, plan));
         Assert.Empty(Directory.EnumerateDirectories(temporary.Package, ".texture-stage-*"));
     }
 
@@ -567,6 +566,35 @@ public sealed class NativeTextureModsTests
         Assert.Contains("variant eyes-closed: Memoria/high/", result.Provenance);
     }
 
+    [Fact]
+    public void PreparationPinsOnlyRequestedFamiliesAndOwnerResolveDoesNotDecodeAgain()
+    {
+        TextureTarget other = Target with { Owner = "field/other/model.mch" };
+        TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png("blue")), new(other, Png("red"))]);
+        NativeTextureRequest[] requests = [NativeTextureRequest.FromContext(Context())];
+        ModFile[] files = plan.Files.Select(file => File(file.RelativePath, file.Content)).Append(File(Target.CanonicalPath(), Png("yellow"), "Memoria/masked")).ToArray();
+        Assert.True(NativeTextureMods.TryPrepare(new(1, [], files), out NativeTextureMods mods, out _, TestContext.Current.CancellationToken, requests: requests));
+        Assert.Equal(1, mods.PreparationImageCount);
+        Assert.Equal(3, mods.ImageDecodeCount);
+        Assert.NotNull(mods.Resolve(Context()));
+        Assert.Equal(3, mods.ImageDecodeCount);
+        mods.ReleasePreparationPixels();
+        Assert.Equal(0, mods.PreparationImageCount);
+    }
+
+    [Fact]
+    public void CancelledPreparationLeavesDestinationUntouchedAndNativeDecodeUnstarted()
+    {
+        using TemporaryPackage temporary = new();
+        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.Cancel();
+        TextureModInstallPlan plan = TextureModInstaller.Plan([new(Target, Png())]);
+        Assert.Throws<OperationCanceledException>(() => TextureModInstaller.PrepareInstall(temporary.Root, temporary.Package, plan, cancellation.Token));
+        Assert.Empty(Directory.EnumerateDirectories(temporary.Package, ".texture-stage-*"));
+        Assert.False(System.IO.File.Exists(Path.Combine(temporary.Package, Target.CanonicalPath())));
+        Assert.Throws<OperationCanceledException>(() => NativeTextureMods.TryPrepare(new(1, [], plan.Files.Select(file => File(file.RelativePath, file.Content))), out _, out _, cancellation.Token, requests: [NativeTextureRequest.FromContext(Context())]));
+    }
+
     private static TextureBuildContext SheetContext(string field, TextureSourceAddress address, Func<IReadOnlyDictionary<string, Albeoris.Games.FF8.Imaging.PixelImage>>? variants = null, string layout = "classic-field-model") => new(new(new($"field/{field}/chara.one"), "model/0/texture/0"), Context().Source, 1, layout, address.Width, address.Height, () => Opaque(address.Width, address.Height, 1)) { NativeSheet = address, NativeVariants = variants };
     private static Albeoris.Games.FF8.Imaging.PixelImage Opaque(int width, int height, byte red) => new(width, height, Enumerable.Repeat(new Albeoris.Games.FF8.Imaging.Rgba32(red, 2, 3, 255), width * height).ToArray());
     private static byte[] ImagePng(Albeoris.Games.FF8.Imaging.PixelImage image) => Memoria.FF8.Assets.Localization.LocalizationArtworkExporter.EncodePng(image);
@@ -594,11 +622,18 @@ public sealed class NativeTextureModsTests
         }
     }
 
+    private static TextureModInstallTransaction PrepareInstall(string root, string destination, TextureModInstallPlan plan) => TextureModInstaller.PrepareInstall(root, destination, plan, TestContext.Current.CancellationToken);
+
     private static void SimulateProcessTermination(TextureModInstallTransaction transaction)
     {
         // These handles/registrations disappear when a process exits; the disk journal remains.
         IDisposable lease = (IDisposable)typeof(TextureModInstallTransaction).GetField("lease", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(transaction)!;
         lease.Dispose();
+        var revisions = (System.Collections.IEnumerable)typeof(TextureModInstallTransaction).GetField("destinationRevisions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(transaction)!;
+        foreach (object revision in revisions)
+        {
+            (revision.GetType().GetProperty("Stream")!.GetValue(revision) as IDisposable)?.Dispose();
+        }
         var active = (System.Collections.Concurrent.ConcurrentDictionary<string, byte>)typeof(TextureModInstaller).GetField("ActiveTransactions", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
         active.TryRemove(transaction.Destination, out _);
     }

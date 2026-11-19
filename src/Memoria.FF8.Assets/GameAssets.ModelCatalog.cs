@@ -9,8 +9,11 @@ namespace Memoria.FF8.Assets;
 public sealed partial class GameAssets
 {
     /// <summary>Streams metadata without loading scenes, gameplay state, or model geometry.</summary>
-    public IEnumerable<ModelCatalogEntry> EnumerateModelCatalog()
+    public IEnumerable<ModelCatalogEntry> EnumerateModelCatalog() => EnumerateModelCatalog(CancellationToken.None);
+
+    public IEnumerable<ModelCatalogEntry> EnumerateModelCatalog(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         IFlArchive? battleArchive = null;
         string? battleError = null;
         try
@@ -31,6 +34,7 @@ public sealed partial class GameAssets
             {
                 foreach (IFlArchiveEntry entry in battle.Entries.OrderBy(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     string name = Path.GetFileName(entry.RelativePath.Replace('\\', '/')).ToLowerInvariant();
                     if (entry.Size <= 0 || !name.EndsWith(".dat") && !name.EndsWith(".x"))
                     {
@@ -57,6 +61,7 @@ public sealed partial class GameAssets
                 }
             }
         }
+        cancellationToken.ThrowIfCancellationRequested();
         byte[]? world = null;
         string? worldError = null;
         try
@@ -74,6 +79,7 @@ public sealed partial class GameAssets
             {
                 for (int shape = 0; shape < count; shape++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     string name = $"World character shape {shape}";
                     yield return new($"world/{shape}", name, "World character", "world/chara.one", $"{name} world/chara.one {shape}", ModelIndex: shape);
                 }
@@ -91,6 +97,7 @@ public sealed partial class GameAssets
         {
             yield return new("world/chara", "World characters", "World character", "world/chara.one", "world character chara.one") { LoadError = worldError };
         }
+        cancellationToken.ThrowIfCancellationRequested();
         ResourceKey worldSettingsKey = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
         byte[]? wmset = null;
         string? staticError = null;
@@ -116,6 +123,7 @@ public sealed partial class GameAssets
             }
             for (int index = 0; index < count; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 int shape = index + 64;
                 string name = $"World static shape {shape}";
                 yield return new($"world/static/{shape}", name, "World static", worldSettingsKey.Path, $"{name} {worldSettingsKey.Path} {index}", ModelIndex: shape);
@@ -125,7 +133,7 @@ public sealed partial class GameAssets
         {
             yield return new("world/static/unavailable", "World static models", "World static", worldSettingsKey.Path, $"world static models {worldSettingsKey.Path}") { LoadError = staticError };
         }
-        foreach (ModelCatalogEntry entry in EnumerateFieldModelSources())
+        foreach (ModelCatalogEntry entry in EnumerateFieldModelSources(cancellationToken))
         {
             yield return entry;
         }

@@ -6,6 +6,30 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class TextureExportJournalTests
 {
+    [Theory]
+    [InlineData("unsupported")]
+    [InlineData("skipped")]
+    [InlineData("failed")]
+    public void UnscannedDiscoveryDoesNotClaimAKnownGameTotal(string outcome)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-export-coverage-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using (TextureExportJournal journal = new(root, "all", "synthetic", "en", false))
+            {
+                journal.AddDiagnostic(new("magic/synthetic", "Discovering texture profiles", "The source directory could not be inspected.", outcome));
+                journal.Complete();
+            }
+            using JsonDocument index = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(root, "texture-export-index.json")));
+            Assert.True(index.RootElement.GetProperty("complete").GetBoolean());
+            Assert.False(index.RootElement.GetProperty("catalogTotalKnown").GetBoolean());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Fact]
     public void CancellationKeepsCompletedImagesAndMarksIndexIncomplete()
     {

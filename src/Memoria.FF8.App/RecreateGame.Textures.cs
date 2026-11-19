@@ -59,7 +59,7 @@ internal sealed partial class RecreateGame
         bool fieldPresented = ActiveBattle is null && world?.CanPresentCurrentField == true && field?.Id == session.State.FieldId && texturePresentedScene == SceneKind.Field && texturePresentedField == session.State.FieldId && ReferenceEquals(world, texturePresentedWorldOwner);
         bool worldPresented = ActiveBattle is null && world?.WorldScene is { IsPresentationDeferred: false } scene && texturePresentedScene == SceneKind.WorldMap && ReferenceEquals(scene, texturePresentedWorld) && ReferenceEquals(world, texturePresentedWorldOwner);
         bool exclusive = startup.Active || worldTransfer is not null || crossoverSetup is not null || modelBrowser is not null || textureBrowser is not null || sceneInspector is not null || battleDebug is not null || lightingEditor is not null || localizationWorkbench.CapturesSimulation || authoringCandidates is not null || gameMenus is { IsOpen: true, IsDemo: true };
-        if (!TextureSceneEligibility.CanCapture(session.State.Scene, InFf7, battlePresented, fieldPresented, worldPresented, fieldFaulted || fieldRenderFaulted, exclusive))
+        if (!TextureSceneEligibility.CanCapture(session.State.Scene, InFf7, battlePresented, fieldPresented, worldPresented, fieldFaulted || fieldRenderFaulted, exclusive, options.SoftwareRenderer))
         {
             textureScene = [];
             textureSceneNormalized = true;
@@ -67,7 +67,7 @@ internal sealed partial class RecreateGame
             textureSceneCompanions.Clear();
             textureSceneOriginalFactory = null;
             textureSceneResolvedFactory = null;
-            textureSceneUnavailable = LocalizeAuthored("textures.scene.unavailable", "Current scene requires an active FFVIII field, world or battle presentation. Title, movies, FFVII and authoring screens are excluded; All textures and import remain available.");
+            textureSceneUnavailable = options.SoftwareRenderer ? LocalizeAuthored("textures.scene.software", "Current scene provenance is unavailable in the diagnostic software renderer. All textures, Selected and import remain available.") : LocalizeAuthored("textures.scene.unavailable", "Current scene requires an active FFVIII field, world or battle presentation. Title, movies, FFVII and authoring screens are excluded; All textures and import remain available.");
             return;
         }
         textureSceneUnavailable = null;
@@ -92,16 +92,6 @@ internal sealed partial class RecreateGame
         {
             // Layered authoring retains the field's palette and animation companions as one workspace.
             keys.UnionWith(field.Background.Select(tile => tile.Texture?.TextureKey).OfType<TextureKey>());
-            if (options.SoftwareRenderer && events is not null)
-            {
-                foreach (int modelId in events.Actors.Where(actor => actor.Visible).Select(actor => actor.RenderModelId).Distinct())
-                {
-                    if ((uint)modelId < field.Models.Count && field.Models[modelId].Textures is ResourceTextureList textures)
-                    {
-                        keys.UnionWith(textures.TextureKeys);
-                    }
-                }
-            }
         }
         textureScene = sampled.Concat(resourceHost.Resources.CaptureTextureSources(keys)).GroupBy(snapshot => snapshot.Target).Select(group => group.First()).ToArray();
         HashSet<TextureTarget> contributors = sampled.Select(snapshot => snapshot.Target).ToHashSet();
@@ -141,6 +131,7 @@ internal sealed partial class RecreateGame
             using var authoring = createSession();
             Dictionary<TextureTarget, TextureSourceSnapshot> normalized = [];
             HashSet<TextureTarget> companions = [];
+            HashSet<TextureTarget> contributors = [];
             HashSet<TextureTarget> blocked = [];
             List<TextureCatalogDiagnostic> diagnostics = [];
             Dictionary<(ResourceKey, long), string> sourceHashes = [];
@@ -173,6 +164,8 @@ internal sealed partial class RecreateGame
                         if (normalized.TryGetValue(candidate.Target, out TextureSourceSnapshot? previous) && (!SameImage(previous.Original, candidate.Original) || !SameImage(previous.Resolved.Image, candidate.Resolved.Image)))
                         {
                             normalized.Remove(candidate.Target);
+                            companions.Remove(candidate.Target);
+                            contributors.Remove(candidate.Target);
                             blocked.Add(candidate.Target);
                             diagnostics.Add(new(candidate.Target.Owner, "Normalizing captured scene", "Shared source aliases have different captured pixels. Resolve the conflicting per-consumer overrides or choose an explicit installation catalog source."));
                             continue;
@@ -182,6 +175,10 @@ internal sealed partial class RecreateGame
                         {
                             companions.Add(candidate.Target);
                         }
+                        else
+                        {
+                            contributors.Add(candidate.Target);
+                        }
                     }
                 }
                 catch (Exception exception) when (IsModelBrowserError(exception))
@@ -189,6 +186,7 @@ internal sealed partial class RecreateGame
                     diagnostics.Add(new(source.Target.Owner, "Normalizing captured scene", exception.Message));
                 }
             }
+            companions.ExceptWith(contributors);
             return (sources: normalized.Values.ToArray(), companions, diagnostics);
         }, result =>
         {
@@ -300,7 +298,7 @@ internal sealed partial class RecreateGame
             textureCatalog = textureCatalog.Concat(tiles).GroupBy(entry => entry.Target).Select(group => group.First()).ToArray();
             ShowTextureCatalog();
             textureBrowser!.Message = LocalizeAuthored("textures.field.expanded", "Field source expanded into palette and tile targets. A layered export includes the required field companions.");
-        }, LocalizeAuthored("textures.field.expanding", "Reading selected field texture hierarchy…"));
+        }, LocalizeAuthored("textures.field.expanding", "Reading selected field texture hierarchy..."));
     }
 
     private void DiscoverTextureCatalog()
@@ -415,10 +413,10 @@ internal sealed partial class RecreateGame
                     }
                     finally
                     {
-                        if (result is IDisposable disposable)
+                        if (result is IDisposable disposable && !ReferenceEquals(pendingTextureImport?.Prepared, result))
                         {
                             texturePendingResults.TryRemove(disposable, out _);
-                            disposable.Dispose();
+                            QueueTextureCleanup(disposable.Dispose);
                         }
                     }
                 });
@@ -460,7 +458,7 @@ internal sealed partial class RecreateGame
             {
                 if (ReferenceEquals(textureBrowser, browser) && browser.Busy)
                 {
-                    browser.Message = FormatAuthored("textures.progress", "{0}: {1} items · {2:N0} bytes · {3}", item.Stage, item.Completed, item.BytesWritten, item.Current ?? "");
+                    browser.Message = FormatAuthored("textures.progress", "{0}: {1} items / {2:N0} bytes / {3}", item.Stage, item.Completed, item.BytesWritten, item.Current ?? "");
                 }
             }));
             StartTextureJob(token =>
@@ -510,6 +508,10 @@ internal sealed partial class RecreateGame
 
     private bool UpdateTextureBrowserUi(InputFrame input)
     {
+        if (textureBrowser?.Busy == true && !textureDialogDrain && (input.Cancel || keyboard.DebugRoomRequested))
+        {
+            textureCancellation?.Cancel();
+        }
         while (textureCompletions.TryDequeue(out Action? complete))
         {
             try
@@ -570,6 +572,7 @@ internal sealed partial class RecreateGame
         previousTextureMouse = pressed;
         previousTextureSpace = space;
         previousTextureWheel = mouse.ScrollWheelValue;
+        PumpTextureImport();
         return true;
     }
 
@@ -592,6 +595,11 @@ internal sealed partial class RecreateGame
         SaveTextureToolPreferences();
         textureCancellation?.Cancel();
         texturePreviewCancellation?.Cancel();
+        if (pendingTextureImport is { } pending)
+        {
+            resourceHost!.Mods.CancelTextureImport(pending.Prepared.Transaction);
+            pendingTextureImport = null;
+        }
         Task.WhenAll(new[] { textureWork, texturePreviewWork }.OfType<Task>()).GetAwaiter().GetResult();
         textureCancellation?.Dispose();
         texturePreviewCancellation?.Dispose();
@@ -600,6 +608,8 @@ internal sealed partial class RecreateGame
             result.Dispose();
         }
         texturePendingResults.Clear();
+        Task.WhenAll(textureCleanupTasks).GetAwaiter().GetResult();
+        textureCleanupTasks.Clear();
         textureScene = [];
         textureSceneCompanions.Clear();
         textureCatalog = [];

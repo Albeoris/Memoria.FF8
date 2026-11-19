@@ -28,6 +28,7 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
     public bool HasLocalization { get; init; }
     public bool HasLighting { get; init; }
     public bool LocalizationOnly { get; init; }
+    public bool TextureContentOnly { get; init; }
     public int Priority { get; init; }
     public JunctionManifestMetadata? JunctionMetadata { get; init; }
 }

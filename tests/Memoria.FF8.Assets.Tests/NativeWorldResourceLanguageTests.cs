@@ -32,7 +32,7 @@ public sealed class NativeWorldResourceLanguageTests
             Assert.All(resolver.Contexts, context => Assert.Equal(key, context.Key.Owner));
             Assert.All(resolver.Contexts, context => Assert.Equal(key, context.EncodedSource!.Key));
             using GameAssets assets = new(TestResources.GameDirectory, resources: resources);
-            ModelCatalogEntry[] models = assets.EnumerateModelCatalog().Where(entry => entry.Category == "World static").ToArray();
+            ModelCatalogEntry[] models = assets.EnumerateModelCatalog(TestContext.Current.CancellationToken).Where(entry => entry.Category == "World static").ToArray();
             Assert.NotEmpty(models);
             Assert.All(models, model => Assert.Equal(key.Path, model.ResourcePath));
             Assert.All(models, model => Assert.Null(model.LoadError));

@@ -99,7 +99,7 @@ public sealed class TextureAuthoringResourceTests
     [Theory]
     [InlineData("CON", "a/b", "")]
     [InlineData("owner.tex", "a%2Fb", "A:variant")]
-    [InlineData("owner.tex", "material/日本語", "../variant")]
+    [InlineData("owner.tex", "material/æ—¥æœ¬èªž", "../variant")]
     public void CanonicalIdentityRoundTripsReservedAndUnicodeComponentsWithoutFilesystemCollisions(string owner, string member, string variant)
     {
         TextureTarget target = new("ff8", "synthetic/" + owner.ToLowerInvariant(), member, 7, variant);
@@ -144,6 +144,93 @@ public sealed class TextureAuthoringResourceTests
         Assert.NotEqual(TexturePixelExchange.Fingerprint(original), TexturePixelExchange.Fingerprint(editable));
         TextureBuildContext desktop = new(Context("desktop", original).Key, Source with { Edition = GameDataEdition.Remastered }, 1, "classic-battle", 2, 1, () => original);
         Assert.False(TexturePixelExchange.UsesNativeFlags(desktop));
+    }
+
+    [Fact]
+    public void IncrementalPreparationYieldsBetweenSourcesAndTransformsAndPublishesOnlyAtCommit()
+    {
+        using InMemoryResourceSource source = new(Source);
+        ResourceService resources = new(source);
+        TextureBuildContext first = Context("first", Image(10));
+        AssetHandle<TextureValue> handle = resources.GetTexture(first);
+        _ = resources.GetTexture(Context("second", Image(20)));
+        int builds = 0;
+        AssetHandle<TextureValue> atlas = resources.GetTransformedTexture(new(new(new("synthetic/atlas"), "image"), [first.Key], values =>
+        {
+            builds++;
+            return values[0];
+        }));
+        long generation = resources.Generation;
+        PixelImage changed = Image(99);
+        using ResourceService.PreparationJob job = resources.BeginPrepare(new Resolver(first.Key, new(changed, "edited", 1, 1)));
+        Assert.False(job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(1, job.CompletedUnits);
+        Assert.Null(job.Prepared);
+        Assert.Equal(1, builds);
+        Assert.Equal(generation, resources.Generation);
+        Assert.NotSame(changed, handle.Value.Image);
+        Assert.False(job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(1, builds);
+        Assert.False(job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(2, builds);
+        Assert.NotSame(changed, atlas.Value.Image);
+        Assert.True(job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(3, job.CompletedUnits);
+        Assert.Equal(generation, resources.Generation);
+        job.Prepared!.Commit();
+        Assert.Same(changed, handle.Value.Image);
+        Assert.Same(changed, atlas.Value.Image);
+        Assert.Equal(generation + 1, resources.Generation);
+    }
+
+    [Fact]
+    public void IncrementalCancellationAndChangedRegistrationCannotPublishPartialCandidates()
+    {
+        using InMemoryResourceSource source = new(Source);
+        ResourceService resources = new(source);
+        TextureBuildContext first = Context("first", Image(10));
+        AssetHandle<TextureValue> handle = resources.GetTexture(first);
+        PixelImage original = handle.Value.Image;
+        long generation = resources.Generation;
+        Resolver resolver = new(first.Key, new(Image(99), "edited", 1, 1));
+        using ResourceService.PreparationJob cancelled = resources.BeginPrepare(resolver);
+        Assert.False(cancelled.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => cancelled.Advance(TimeSpan.Zero, cancellationToken: cancellation.Token));
+        Assert.Null(cancelled.Prepared);
+        Assert.Same(original, handle.Value.Image);
+        Assert.Equal(generation, resources.Generation);
+        using ResourceService.PreparationJob stale = resources.BeginPrepare(resolver);
+        Assert.False(stale.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        _ = resources.GetTexture(Context("later", Image(20)));
+        Assert.True(stale.IsStale);
+        Assert.Throws<InvalidOperationException>(() => stale.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Null(stale.Prepared);
+        Assert.Same(original, handle.Value.Image);
+        Assert.Equal(generation, resources.Generation);
+    }
+
+    [Fact]
+    public void IncrementalTransformFailureLeavesTheWholePublishedGraphUnchanged()
+    {
+        using InMemoryResourceSource source = new(Source);
+        ResourceService resources = new(source);
+        TextureBuildContext first = Context("first", Image(10));
+        AssetHandle<TextureValue> handle = resources.GetTexture(first);
+        bool fail = false;
+        AssetHandle<TextureValue> atlas = resources.GetTransformedTexture(new(new(new("synthetic/atlas"), "image"), [first.Key], values => fail ? throw new InvalidDataException("invalid transform") : values[0]));
+        PixelImage original = handle.Value.Image;
+        long generation = resources.Generation;
+        fail = true;
+        using ResourceService.PreparationJob job = resources.BeginPrepare(new Resolver(first.Key, new(Image(99), "edited", 1, 1)));
+        Assert.False(job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<InvalidDataException>(() => job.Advance(TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.False(job.IsStale);
+        Assert.Null(job.Prepared);
+        Assert.Same(original, handle.Value.Image);
+        Assert.Same(original, atlas.Value.Image);
+        Assert.Equal(generation, resources.Generation);
     }
 
     private static TextureBuildContext Context(string name, PixelImage image) => new(new(new("synthetic/" + name), "image"), Source, 1, "image", image.Width, image.Height, () => image);

@@ -90,6 +90,11 @@ public static class TextureExchange
                 journal?.AddAlias();
                 continue;
             }
+            string path = SafeOutput(root, target.CanonicalPath());
+            if (File.Exists(path) || File.Exists(path + ".texture.json"))
+            {
+                throw new IOException($"Export preserves existing edits: {target.CanonicalPath()} already exists. Choose a fresh working folder.");
+            }
             PixelImage original = installedOriginal?.Image ?? context.Original;
             PixelImage selected = resolved?.Image ?? original;
             bool nativeFlags = installedOriginal is null ? TexturePixelExchange.UsesNativeFlags(context) : TexturePixelExchange.UsesNativeFlags(context, installedOriginal);
@@ -118,14 +123,9 @@ public static class TextureExchange
             };
             byte[] serialized = metadata.ToBytes();
             byte[] png = EmbedMetadata(LocalizationArtworkExporter.EncodePng(editable), serialized);
-            string path = SafeOutput(root, target.CanonicalPath());
-            if (File.Exists(path) || File.Exists(path + ".texture.json"))
-            {
-                throw new IOException($"Export preserves existing edits: {target.CanonicalPath()} already exists. Choose a fresh working folder.");
-            }
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            WriteAtomic(path, png, cancellationToken);
-            WriteAtomic(path + ".texture.json", serialized, cancellationToken);
+            WriteAtomic(path, png, cancellationToken, overwrite: false);
+            WriteAtomic(path + ".texture.json", serialized, cancellationToken, overwrite: false);
             files.Add(path);
             bytesWritten += png.Length + serialized.Length;
             journal?.AddImage(path, metadata, png.Length + serialized.Length, companionRole);
@@ -165,7 +165,39 @@ public static class TextureExchange
         {
             throw new InvalidDataException($"Texture metadata conflicts between {imagePath} and its sidecar. Select the intended target explicitly.");
         }
-        return sidecar ?? embedded;
+        if (sidecar is null || embedded is null)
+        {
+            return sidecar ?? embedded;
+        }
+        string? Merge(string? first, string? second, string field, bool hash = true)
+        {
+            if (first is not null && second is not null && !string.Equals(first, second, hash ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                throw new InvalidDataException($"Texture metadata conflicts in {field} between {imagePath} and its sidecar. Select the intended mapping explicitly.");
+            }
+            return first ?? second;
+        }
+        int? MergeDimension(int? first, int? second, string field)
+        {
+            if (first is not null && second is not null && first != second)
+            {
+                throw new InvalidDataException($"Texture metadata conflicts in {field} between {imagePath} and its sidecar. Select the intended mapping explicitly.");
+            }
+            return first ?? second;
+        }
+        return sidecar with
+        {
+            SourceSha256 = Merge(sidecar.SourceSha256, embedded.SourceSha256, nameof(TextureExchangeMetadata.SourceSha256)),
+            OriginalPixelSha256 = Merge(sidecar.OriginalPixelSha256, embedded.OriginalPixelSha256, nameof(TextureExchangeMetadata.OriginalPixelSha256)),
+            ExportedPixelSha256 = Merge(sidecar.ExportedPixelSha256, embedded.ExportedPixelSha256, nameof(TextureExchangeMetadata.ExportedPixelSha256)),
+            OriginalSemanticSha256 = Merge(sidecar.OriginalSemanticSha256, embedded.OriginalSemanticSha256, nameof(TextureExchangeMetadata.OriginalSemanticSha256)),
+            ExportedSemanticSha256 = Merge(sidecar.ExportedSemanticSha256, embedded.ExportedSemanticSha256, nameof(TextureExchangeMetadata.ExportedSemanticSha256)),
+            NativeFlagsBase64 = Merge(sidecar.NativeFlagsBase64, embedded.NativeFlagsBase64, nameof(TextureExchangeMetadata.NativeFlagsBase64), hash: false),
+            NativeWidth = MergeDimension(sidecar.NativeWidth, embedded.NativeWidth, nameof(TextureExchangeMetadata.NativeWidth)),
+            NativeHeight = MergeDimension(sidecar.NativeHeight, embedded.NativeHeight, nameof(TextureExchangeMetadata.NativeHeight)),
+            Provenance = sidecar.Provenance ?? embedded.Provenance,
+            SourceAliases = sidecar.SourceAliases ?? embedded.SourceAliases
+        };
     }
 
     public static TextureExchangeMetadata? TryReadEmbeddedMetadata(byte[] png)
@@ -304,7 +336,7 @@ public static class TextureExchange
         return path;
     }
 
-    internal static void WriteAtomic(string path, byte[] bytes, CancellationToken cancellationToken)
+    internal static void WriteAtomic(string path, byte[] bytes, CancellationToken cancellationToken, bool overwrite = true)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -312,7 +344,7 @@ public static class TextureExchange
         {
             File.WriteAllBytes(temporary, bytes);
             cancellationToken.ThrowIfCancellationRequested();
-            File.Move(temporary, path, true);
+            File.Move(temporary, path, overwrite);
         }
         finally
         {

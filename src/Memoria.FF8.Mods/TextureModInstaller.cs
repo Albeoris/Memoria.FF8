@@ -60,7 +60,8 @@ public static class TextureModInstaller
         return new(Array.AsReadOnly(plan.Files.Concat(new[] { new TextureModOutput(NativeModDescriptor.FileName, descriptor), new TextureModOutput("mod.ini", System.Text.Encoding.UTF8.GetBytes("enabled=" + (enable ? "1" : "0") + "\n")) }).ToArray())) { ExpectedDestinationHashes = plan.ExpectedDestinationHashes };
     }
 
-    public static TextureModInstallTransaction PrepareInstall(string allowedRoot, string destination, TextureModInstallPlan plan) => new(allowedRoot, destination, plan);
+    public static TextureModInstallTransaction PrepareInstall(string allowedRoot, string destination, TextureModInstallPlan plan) => new(allowedRoot, destination, plan, CancellationToken.None);
+    public static TextureModInstallTransaction PrepareInstall(string allowedRoot, string destination, TextureModInstallPlan plan, CancellationToken cancellationToken) => new(allowedRoot, destination, plan, cancellationToken);
 
     public static TextureModInstallTransaction BeginInstall(string allowedRoot, string destination, TextureModInstallPlan plan)
     {
@@ -212,14 +213,15 @@ public sealed record TextureInstallJournal(IReadOnlyList<TextureInstallJournalFi
 
 public sealed class TextureModInstallTransaction : IDisposable
 {
+    private sealed record DestinationRevision(string Path, FileStream? Stream, long Length, DateTime Modified, string? Hash);
+    private readonly List<DestinationRevision> destinationRevisions = [];
+    private readonly Dictionary<string, DestinationRevision> destinationByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyList<TextureModOutput> frozenFiles;
     private readonly IReadOnlyDictionary<string, string?> reviewedHashes;
     private readonly string allowedRoot;
     private readonly string root;
     private readonly string stage;
     private readonly TextureInstallJournal journal;
-    private readonly string? descriptorHash;
-    private readonly string? settingsHash;
     private readonly bool rootExisted;
     private readonly List<string> createdDirectories = [];
     private FileStream? lease;
@@ -227,15 +229,17 @@ public sealed class TextureModInstallTransaction : IDisposable
     private bool committed;
     private bool disposed;
 
-    internal TextureModInstallTransaction(string allowedRoot, string destination, TextureModInstallPlan plan)
+    internal TextureModInstallTransaction(string allowedRoot, string destination, TextureModInstallPlan plan, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         this.allowedRoot = allowedRoot;
         root = TextureModInstaller.ValidateDestination(allowedRoot, destination);
         rootExisted = Directory.Exists(root);
         reviewedHashes = new Dictionary<string, string?>(plan.ExpectedDestinationHashes, StringComparer.OrdinalIgnoreCase);
         foreach ((string path, string? expected) in reviewedHashes)
         {
-            if (!string.Equals(Hash(TextureModInstaller.OutputPath(root, path)), expected, StringComparison.OrdinalIgnoreCase))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.Equals(Hash(TextureModInstaller.OutputPath(root, path), cancellationToken), expected, StringComparison.OrdinalIgnoreCase))
             {
                 throw new IOException("The destination changed after review; refresh the import before installing.");
             }
@@ -244,7 +248,13 @@ public sealed class TextureModInstallTransaction : IDisposable
         {
             throw new InvalidDataException("Recover the interrupted texture installation before installing again.");
         }
-        frozenFiles = Array.AsReadOnly(plan.Files.Select(file => new TextureModOutput(file.RelativePath, file.Content.ToArray())).ToArray());
+        List<TextureModOutput> ownedFiles = [];
+        foreach (TextureModOutput file in plan.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ownedFiles.Add(new(file.RelativePath, file.Content.ToArray()));
+        }
+        frozenFiles = Array.AsReadOnly(ownedFiles.ToArray());
         if (frozenFiles.Any(file => file.RelativePath is NativeModDescriptor.FileName or "mod.ini") && (rootExisted && Directory.EnumerateFileSystemEntries(root).Any() || !frozenFiles.Any(file => file.RelativePath == NativeModDescriptor.FileName)))
         {
             throw new InvalidDataException("Descriptor and enablement generation is only supported for a new empty package; preserve existing configuration.");
@@ -255,6 +265,7 @@ public sealed class TextureModInstallTransaction : IDisposable
         }
         foreach (TextureModOutput file in frozenFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string path = TextureModInstaller.OutputPath(root, file.RelativePath);
             if (file.RelativePath == NativeModDescriptor.FileName && File.Exists(path))
             {
@@ -278,8 +289,6 @@ public sealed class TextureModInstallTransaction : IDisposable
         {
             throw new InvalidDataException("Texture rollback backups exceed their bounded storage budget.");
         }
-        descriptorHash = Hash(Path.Combine(root, "mod.json"));
-        settingsHash = Hash(Path.Combine(root, "mod.ini"));
         stage = Path.Combine(root, ".texture-stage-" + Guid.NewGuid().ToString("N"));
         if (!TextureModInstaller.ActiveTransactions.TryAdd(root, 0))
         {
@@ -288,10 +297,34 @@ public sealed class TextureModInstallTransaction : IDisposable
         List<TextureInstallJournalFile> originals = [];
         try
         {
+            foreach (string relative in frozenFiles.Select(file => file.RelativePath).Concat(reviewedHashes.Keys).Concat(new[] { "mod.json", "mod.ini" }).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string path = TextureModInstaller.OutputPath(root, relative);
+                FileStream? stream = File.Exists(path) ? new(path, FileMode.Open, FileAccess.Read, FileShare.Read) : null;
+                FileInfo info = new(path);
+                try
+                {
+                    string? hash = stream is null ? null : HashStream(stream, cancellationToken);
+                    DestinationRevision revision = new(path, stream, stream?.Length ?? 0, info.Exists ? info.LastWriteTimeUtc : default, hash);
+                    destinationRevisions.Add(revision);
+                    destinationByPath.Add(path, revision);
+                    if (reviewedHashes.TryGetValue(relative, out string? expected) && !string.Equals(hash, expected, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new IOException("The destination changed while acquiring its installation lease; review the import again.");
+                    }
+                }
+                catch
+                {
+                    stream?.Dispose();
+                    throw;
+                }
+            }
             Directory.CreateDirectory(stage);
             lease = new(Path.Combine(stage, "lease"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
             for (int index = 0; index < frozenFiles.Count; index++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 TextureModOutput file = frozenFiles[index];
                 string target = TextureModInstaller.OutputPath(root, file.RelativePath);
                 bool exists = File.Exists(target);
@@ -299,7 +332,12 @@ public sealed class TextureModInstallTransaction : IDisposable
                 {
                     File.Copy(target, Path.Combine(stage, index + ".original"));
                 }
-                originals.Add(new(file.RelativePath, exists, exists ? Hash(Path.Combine(stage, index + ".original")) : null));
+                string? originalHash = exists ? Hash(Path.Combine(stage, index + ".original"), cancellationToken) : null;
+                if (originalHash != destinationByPath[target].Hash)
+                {
+                    throw new IOException("The destination changed while its rollback backup was captured; review the import again.");
+                }
+                originals.Add(new(file.RelativePath, exists, originalHash));
                 File.WriteAllBytes(Path.Combine(stage, index + ".new"), file.Content);
                 if (file.RelativePath == NativeModDescriptor.FileName)
                 {
@@ -315,9 +353,15 @@ public sealed class TextureModInstallTransaction : IDisposable
                 }
             }
             WriteJournal(journal);
+            cancellationToken.ThrowIfCancellationRequested();
+            WriteJournal(journal with { Committed = true }, "journal.commit");
+            WriteJournal(journal, "journal.rollback");
+            cancellationToken.ThrowIfCancellationRequested();
+            ValidateDestinationRevisions();
         }
         catch
         {
+            ReleaseDestinationLeases();
             lease?.Dispose();
             TextureModInstaller.ActiveTransactions.TryRemove(root, out _);
             if (Directory.Exists(stage))
@@ -329,6 +373,7 @@ public sealed class TextureModInstallTransaction : IDisposable
     }
 
     public IReadOnlyList<TextureModOutput> Files => Array.AsReadOnly(frozenFiles.Select(file => new TextureModOutput(file.RelativePath, file.Content.ToArray())).ToArray());
+    internal IReadOnlyList<TextureModOutput> FrozenFiles => frozenFiles;
     public string Destination => root;
 
     public void Apply()
@@ -339,10 +384,8 @@ public sealed class TextureModInstallTransaction : IDisposable
             throw new InvalidOperationException("Texture transaction has already been applied.");
         }
         TextureModInstaller.ValidateDestination(allowedRoot, root);
-        if (Hash(Path.Combine(root, "mod.json")) != descriptorHash || Hash(Path.Combine(root, "mod.ini")) != settingsHash || journal.Files.Any(file => Hash(TextureModInstaller.OutputPath(root, file.Path)) != file.Hash) || reviewedHashes.Any(pair => !string.Equals(Hash(TextureModInstaller.OutputPath(root, pair.Key)), pair.Value, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new IOException("The destination package changed after preparation; review and retry the import.");
-        }
+        ValidateDestinationRevisions();
+        ReleaseDestinationLeases();
         applying = true;
         for (int index = 0; index < frozenFiles.Count; index++)
         {
@@ -373,7 +416,7 @@ public sealed class TextureModInstallTransaction : IDisposable
         {
             throw new InvalidOperationException("Apply the staged texture files before committing publication.");
         }
-        WriteJournal(journal with { Committed = true });
+        File.Move(Path.Combine(stage, "journal.commit"), Path.Combine(stage, "journal.json"), true);
         try
         {
             publish?.Invoke();
@@ -381,7 +424,7 @@ public sealed class TextureModInstallTransaction : IDisposable
         }
         catch
         {
-            WriteJournal(journal);
+            File.Copy(Path.Combine(stage, "journal.rollback"), Path.Combine(stage, "journal.json"), true);
             throw;
         }
     }
@@ -401,6 +444,7 @@ public sealed class TextureModInstallTransaction : IDisposable
         }
         finally
         {
+            ReleaseDestinationLeases();
             lease?.Dispose();
             TextureModInstaller.ActiveTransactions.TryRemove(root, out _);
         }
@@ -424,7 +468,7 @@ public sealed class TextureModInstallTransaction : IDisposable
         TextureModInstaller.ActiveTransactions.TryRemove(root, out _);
     }
 
-    private void WriteJournal(TextureInstallJournal value)
+    private void WriteJournal(TextureInstallJournal value, string name = "journal.json")
     {
         byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(value);
         if (bytes.Length > TextureModInstaller.MaximumRecoveryJournalBytes)
@@ -437,10 +481,45 @@ public sealed class TextureModInstallTransaction : IDisposable
             stream.Write(bytes);
             stream.Flush(true);
         }
-        File.Move(temporary, Path.Combine(stage, "journal.json"), true);
+        File.Move(temporary, Path.Combine(stage, name), true);
     }
 
-    private static string? Hash(string path)
+    private void ValidateDestinationRevisions()
+    {
+        foreach (DestinationRevision revision in destinationRevisions)
+        {
+            TextureModInstaller.RejectReparsePoints(revision.Path);
+            FileInfo current = new(revision.Path);
+            if (revision.Stream is null ? current.Exists : !current.Exists || current.Length != revision.Length || current.LastWriteTimeUtc != revision.Modified || revision.Stream.Length != revision.Length)
+            {
+                throw new IOException("The destination package changed after preparation; review and retry the import.");
+            }
+        }
+    }
+
+    private void ReleaseDestinationLeases()
+    {
+        foreach (DestinationRevision revision in destinationRevisions)
+        {
+            revision.Stream?.Dispose();
+        }
+    }
+
+    private static string HashStream(Stream stream, CancellationToken cancellationToken)
+    {
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        byte[] buffer = new byte[65536];
+        int count;
+        while ((count = stream.Read(buffer)) != 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hash.AppendData(buffer, 0, count);
+        }
+        stream.Position = 0;
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static string? Hash(string path, CancellationToken cancellationToken)
     {
         TextureModInstaller.RejectReparsePoints(path);
         if (!File.Exists(path))
@@ -448,7 +527,7 @@ public sealed class TextureModInstallTransaction : IDisposable
             return null;
         }
         using FileStream stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream));
+        return HashStream(stream, cancellationToken);
     }
 }
 
