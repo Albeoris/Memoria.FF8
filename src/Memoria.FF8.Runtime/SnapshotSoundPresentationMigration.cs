@@ -9,7 +9,8 @@ internal static class SnapshotSoundPresentationMigration
 {
     internal static void Apply(JsonObject saved, JsonSerializerOptions options)
     {
-        JsonObject? current = saved["EventState"] as JsonObject;
+        bool world = saved["Scene"] is JsonValue kind && (kind.TryGetValue(out string? sceneName) && sceneName == nameof(SceneKind.WorldMap) || kind.TryGetValue(out int number) && number == (int)SceneKind.WorldMap);
+        JsonObject? current = (world ? saved["WorldEventState"] : saved["EventState"] ?? saved["DepartingFieldState"]) as JsonObject;
         Complete(saved, current?["Scene"] as JsonObject, options);
         JsonSerializerOptions vmOptions = new(options) { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
         foreach (string name in new[] { "EventState", "DepartingFieldState", "WorldEventState" })
@@ -32,11 +33,6 @@ internal static class SnapshotSoundPresentationMigration
             NativeMusicPlaybackState playback = RestorePresentation(scene);
             sound["MusicPlayback"] = JsonSerializer.SerializeToNode(playback, options);
         }
-        // Explicitly absent optional members must have the same shape in the root and its VM mirror.
-        // Deserialization validates required members and preserves all recorded sound/SPU counters.
-        NativeGlobalSoundProcess normalized = sound.Deserialize<NativeGlobalSoundProcess>(options) ?? throw new InvalidDataException("Empty historical sound process.");
-        normalized.Validate();
-        owner["GlobalSoundProcess"] = JsonSerializer.SerializeToNode(normalized, options);
     }
 
     private static NativeMusicPlaybackState RestorePresentation(JsonObject? scene)

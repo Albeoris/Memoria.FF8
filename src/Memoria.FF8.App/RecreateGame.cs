@@ -425,17 +425,17 @@ internal sealed partial class RecreateGame : Game
         UpdateDiagnosticExit(gameTime);
         noticeWindow.Advance(gameTime.ElapsedGameTime);
         drawPointNoticeSeconds = Math.Max(0, drawPointNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
-        if (UpdateCompletedGame(input))
-        {
-            base.Update(gameTime);
-            metrics.Update(updateStarted);
-            return;
-        }
         if (session.State.Scene == SceneKind.Title)
         {
             RefreshCompletedDiscovery();
         }
         if (UpdateAutoPlay(gameTime, input))
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
+        if (UpdateCompletedGame(input))
         {
             base.Update(gameTime);
             metrics.Update(updateStarted);
@@ -1162,6 +1162,7 @@ internal sealed partial class RecreateGame : Game
             crossover = saved;
             return;
         }
+        using FileStream selectedSource = File.OpenRead(playerSaves.GetPath(slot));
         Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
         if (savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7 && !CrossoverSaveAdapter.HasCompletedFf8(savedCrossover))
         {
@@ -1174,8 +1175,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (state.CompletedGame is not null)
         {
-            using FileStream sourceStream = File.OpenRead(playerSaves.GetPath(slot));
-            string revision = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceStream));
+            string revision = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(selectedSource));
             OpenNewGamePlusSource(state, revision);
             return;
         }

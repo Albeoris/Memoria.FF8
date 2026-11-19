@@ -114,7 +114,7 @@ internal sealed partial class PlayerSaveStore
                 return new QuickSaveCleanupResult(removed, obsolete.Length - removed, exception.Message);
             }
         }
-        return new QuickSaveCleanupResult(removed, Math.Max(0, files.Count - count - removed), null);
+        return new QuickSaveCleanupResult(removed, obsolete.Count(file => File.Exists(file.Path) && !IsCompletedPath(file.Path)), null);
     }
 
     public string GetPath(int slot)
@@ -157,7 +157,7 @@ internal sealed partial class PlayerSaveStore
 
     public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
     {
-        return state.CompletedGame is not null || state.NewGamePlus is not null || state.NewGamePlusRewards is not null || RequiresMemoriaBattleRoster(state) || state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return state.Ff8Completion is not null || state.CompletedGame is not null || state.NewGamePlus is not null || state.NewGamePlusRewards is not null || RequiresMemoriaBattleRoster(state) || state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
     internal static void ValidateOriginalBattleRoster(GameState state)

@@ -7,11 +7,15 @@ public sealed record CompletedGameData
 {
     public int SchemaVersion { get; init; } = 1;
     public string Campaign { get; init; } = "ff8";
+    public string RunIdentity { get; init; } = "";
+    public string? ParentCompletionIdentity { get; init; }
     public required Ff8CompletionState Completion { get; init; }
     public required GameplayPreferences Settings { get; init; }
     public ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> GuardianForceTemplates { get; init; } = [];
     public ImmutableArray<string> EmbeddedGuardianForceDocuments { get; init; } = [];
     public NativeCardInventory? Cards { get; init; }
+    public bool? FullBattlePlaythrough { get; init; }
+    public bool? RandomEncountersEnabled { get; init; }
     public NativePlaytimeState? Playtime { get; init; }
     public int[] Portraits { get; init; } = [];
     public required string InitializationIdentity { get; init; }
@@ -19,18 +23,27 @@ public sealed record CompletedGameData
 
     public void Validate()
     {
-        if (SchemaVersion != 1 || Campaign != "ff8" || Completion is null || Settings is null || InitializationIdentity is not { Length: 64 } || ContentIdentity is not { Length: 64 } || Portraits is null || Portraits.Length > 11 || Portraits.Any(id => id is < 0 or > 10) || GuardianForceTemplates.IsDefault || GuardianForceTemplates.Length != 16 || GuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null)) || EmbeddedGuardianForceDocuments.IsDefault)
+        if (SchemaVersion != 1 || Campaign != "ff8" || Completion is null || Settings is null || Cards is null || InitializationIdentity is not { Length: 64 } || ContentIdentity is not { Length: 64 } || Portraits is null || Portraits.Length > 11 || Portraits.Any(id => id is < 0 or > 10) || GuardianForceTemplates.IsDefault || GuardianForceTemplates.Length != 16 || GuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null)) || EmbeddedGuardianForceDocuments.IsDefault)
         {
             throw new InvalidDataException("Unsupported or incomplete FFVIII completed game data.");
         }
         Completion.Validate();
         Settings.Validate();
-        Cards?.Validate();
+        Cards.Validate();
+        if (EmbeddedGuardianForceDocuments.Distinct(StringComparer.Ordinal).Count() != EmbeddedGuardianForceDocuments.Length)
+        {
+            throw new InvalidDataException("Completed Game GF document identities must be distinct.");
+        }
+        foreach (string identity in EmbeddedGuardianForceDocuments)
+        {
+            GameplaySaveGuardianForceIntent.ValidateIdentity(identity);
+        }
+        new GuardianForceAbilityProfile(GuardianForceTemplates, "completed-game-effective-definitions-v1", [], [], EmbeddedGuardianForceDocuments).Validate();
     }
 
     public static GameplaySaveComponentDocument Capture(GameState state)
     {
-        if (state.Ff8Completion is not { } completion || state.Battle is not null || state.PendingBattleEncounter is not null || state.CharacterVitals is not { } characters || state.Economy is null || state.LimitProgress is null)
+        if (state.Ff8Completion is not { } completion || state.Battle is not null || state.PendingBattleEncounter is not null || state.CharacterVitals is not { } characters || state.Economy is null || state.LimitProgress is null || state.CardInventory is null)
         {
             throw new InvalidOperationException("A completed game can only be saved after the ending and credits have finished.");
         }
@@ -47,9 +60,13 @@ public sealed record CompletedGameData
             CompletedGame = new()
             {
                 Completion = completion,
+                RunIdentity = string.IsNullOrEmpty(state.NewGamePlus?.RunIdentity) ? completion.Identity : state.NewGamePlus.RunIdentity,
+                ParentCompletionIdentity = state.NewGamePlus?.SourceCompletionIdentity,
                 Settings = state.GameplayPreferences,
                 Cards = state.CardInventory,
                 Playtime = state.Playtime,
+                FullBattlePlaythrough = state.FullBattlePlaythrough,
+                RandomEncountersEnabled = state.RandomEncounters?.Enabled,
                 Portraits = SaveSummary.CapturePartyPortraits(state),
                 InitializationIdentity = characters.InitOutSha256,
                 ContentIdentity = characters.KernelSha256,
@@ -77,6 +94,8 @@ public sealed record CompletedGameData
             CardInventory = clear.Cards,
             GameplayPreferences = clear.Settings,
             Playtime = clear.Playtime,
+            FullBattlePlaythrough = clear.FullBattlePlaythrough,
+            RandomEncounters = clear.RandomEncountersEnabled is bool enabled ? new(enabled, NativeRandomEncounterState.FromColdProcess(), null) : null,
             CompletedGame = clear,
             NewGamePlus = null,
             NewGamePlusRewards = null,

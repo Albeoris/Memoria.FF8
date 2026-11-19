@@ -17,14 +17,22 @@ public sealed record NewGamePlusMagicBank(byte CharacterId, ImmutableArray<Nativ
 /// <summary>Resolved initial recipe and continuing rules. Current progression remains in its existing gameplay owners.</summary>
 public sealed record NewGamePlusDefinition
 {
+    public const string ExpandedRosterCapability = "Memoria/Extended FFVIII Roster";
+    public string RunIdentity { get; init; } = "";
+    public string SourceRunIdentity { get; init; } = "";
     public string SourceCompletionIdentity { get; init; } = "";
     public string SourceContentIdentity { get; init; } = "";
     public string SourceRevision { get; init; } = "";
     [JsonRequired]
     public GameplayPreferences Settings { get; init; } = new();
     [JsonRequired]
+    public bool InitialFullBattlePlaythrough { get; init; } = true;
+    [JsonRequired]
+    public bool InitialRandomEncountersEnabled { get; init; } = true;
+    [JsonRequired]
     public int ConversionPolicyVersion { get; init; } = 1;
     public ImmutableArray<string> RequiredCapabilities { get; init; } = [];
+    public int ExpandedRosterSemanticsVersion { get; init; } = 1;
     [JsonRequired]
     public int SchemaVersion { get; init; } = 1;
     [JsonRequired]
@@ -76,13 +84,9 @@ public sealed record NewGamePlusDefinition
 
     public void Validate()
     {
-        if (SchemaVersion != 1 || InitializationPolicy != "fresh-story-resolved-progression-v1" || ConversionPolicyVersion != 1 || RequiredCapabilities.IsDefault || RequiredCapabilities.Any(capability => capability != "extended-roster-v1"))
+        if (SchemaVersion != 1 || InitializationPolicy != "fresh-story-resolved-progression-v1" || ConversionPolicyVersion != 1 || ExpandedRosterSemanticsVersion != 1 || RequiredCapabilities.IsDefault || RequiredCapabilities.Any(capability => capability != ExpandedRosterCapability))
         {
             throw new NotSupportedException("This New Game+ save requires an unsupported initialization policy. Preserve it and use a compatible Memoria version.");
-        }
-        if (Settings is null)
-        {
-            throw new InvalidDataException("New Game+ requires the selected gameplay settings.");
         }
         if (Settings is null || InitialMagicExtension.IsDefault || InitializedCharacters.IsDefault || InitializedGuardianForces.IsDefault || !Enum.IsDefined(CharacterPreset) || !Enum.IsDefined(GuardianForcePreset) || !Enum.IsDefined(MagicPreset) || !Enum.IsDefined(ItemPreset) || !Enum.IsDefined(CardPreset))
         {
@@ -101,7 +105,7 @@ public sealed record NewGamePlusDefinition
         {
             throw new InvalidDataException("New Game+ starting collections contain invalid quantities.");
         }
-        if (InitialGuardianForces.IsDefault || InitialGuardianForces.Length != 16 || InitialGuardianForceTemplates.IsDefault || InitialGuardianForceTemplates.Length != 16 || InitialGuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null) || row.Select(entry => entry.Ability).Distinct().Count() != row.Length) || InitialMagic.IsDefault || InitialMagic.Any(bank => bank is null || bank.Stock.IsDefault || bank.CharacterId > 10 || bank.Stock.Any(stock => stock is null || stock.SpellId > 56 || stock.Count > 100)) || InitialMagic.Select(bank => bank.CharacterId).Distinct().Count() != InitialMagic.Length)
+        if (InitialGuardianForces.IsDefault || InitialGuardianForces.Length != 16 || InitialGuardianForceTemplates.IsDefault || InitialGuardianForceTemplates.Length != 16 || InitialGuardianForceTemplates.Any(row => row.IsDefault || row.Any(entry => entry is null) || row.Select(entry => entry.Ability).Distinct().Count() != row.Length) || InitialMagic.IsDefault || InitialMagic.Any(bank => bank is null) || InitialMagic.Select(bank => bank.CharacterId).Distinct().Count() != InitialMagic.Length)
         {
             throw new InvalidDataException("New Game+ starting magic or Guardian Force definitions are incomplete.");
         }

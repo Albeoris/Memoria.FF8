@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -102,6 +103,8 @@ public sealed class CompletedGameStoreTests : IDisposable
     public void CompletedSemanticsRequireMemoriaFormat()
     {
         GameState state = CompletedSaveFixture.State();
+        Assert.True(PlayerSaveStore.RequiresMemoriaFormat(state));
+        Assert.Contains("Completed", Assert.Throws<NotSupportedException>(() => NativePcSaveConverter.Export(state)).Message);
         state = state with { CompletedGame = CompletedSaveFixture.Document().CompletedGame };
         Assert.True(PlayerSaveStore.RequiresMemoriaFormat(state));
     }

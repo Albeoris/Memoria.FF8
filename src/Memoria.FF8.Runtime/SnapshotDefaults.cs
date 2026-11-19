@@ -202,7 +202,7 @@ internal static class SnapshotDefaults
     internal static bool CompleteProperty(JsonObject saved, string name, JsonNode? value)
     {
         // Versioned migration owns this complete state; filling individual fields can erase unknown history.
-        if (name == nameof(NativeBattleEffectMemory.Sigh46) || name == nameof(NativeWorldProcess.TextureAnimation) || SnapshotRetainedEffectMigration.Owns(name))
+        if (name == nameof(NativeBattleEffectMemory.Sigh46) || name == nameof(NativeWorldProcess.TextureAnimation) || name == nameof(NativeGlobalSoundProcess.MusicPlayback) || name == nameof(NativeMusicPlaybackState.BattleFirstLoadB8B7D4) || SnapshotRetainedEffectMigration.Owns(name))
         {
             return false;
         }

@@ -323,10 +323,6 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
-        if (ApplyChocoboWorldMenuAction(action))
-        {
-            return;
-        }
         if (newGamePlusDraft is not null && action.Kind == "config")
         {
             if (action.SubjectId is "Shared magic stock" or "Infinite magic" or "Chocobo World")
@@ -346,6 +342,10 @@ internal sealed partial class RecreateGame
             newGamePlusPreferences = ResolveNewGamePlusPreferences(newGamePlusDraft.Settings);
             newGamePlusDraft.ConvertMagic(newGamePlusPreferences);
             gameMenus!.InvalidateLiveData();
+            return;
+        }
+        if (ApplyChocoboWorldMenuAction(action))
+        {
             return;
         }
         if (ApplyHardcoreMenuAction(action))

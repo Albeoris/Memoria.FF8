@@ -26,7 +26,6 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.category.help"] = "Choose a preset or open Config to edit starting values.";
         defaults["new-game-plus.category.items"] = "Items";
         defaults["new-game-plus.category.magic"] = "Magic";
-        defaults["new-game-plus.configure"] = "Configure New Game+";
         defaults["new-game-plus.character.0"] = "Squall";
         defaults["new-game-plus.character.1"] = "Zell";
         defaults["new-game-plus.character.10"] = "Ward";
@@ -39,6 +38,7 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.character.8"] = "Laguna";
         defaults["new-game-plus.character.9"] = "Kiros";
         defaults["new-game-plus.config"] = "Config";
+        defaults["new-game-plus.configure"] = "Configure New Game+";
         defaults["new-game-plus.difficulty"] = "Difficulty";
         defaults["new-game-plus.done"] = "Done";
         defaults["new-game-plus.done.help"] = "Keep edits and return.";
@@ -67,6 +67,19 @@ public static partial class SystemTextCatalog
         defaults["new-game-plus.item"] = "Item";
         defaults["new-game-plus.magic.owner.help"] = "Left / Right changes the character whose personal stock is shown.";
         defaults["new-game-plus.magic.quantity.help"] = "Set stock from 0 to 100. Existing bank capacity and retained overflow are respected.";
+        defaults["new-game-plus.magic.remove-everywhere"] = "Remove from Entire Collection";
+        defaults["new-game-plus.magic.remove-everywhere.help"] = "Remove this spell from the shared pool, every personal bank and all retained stock. Changing modes will not restore it.";
+        defaults["new-game-plus.magic.remove-retained"] = "Remove retained stock";
+        defaults["new-game-plus.magic.remove-retained.help"] = "Remove only this character's retained copy. The shared pool is unchanged.";
+        defaults["new-game-plus.magic.retained"] = "Retained personal stock:";
+        defaults["new-game-plus.magic.retained.none"] = "No retained personal copies.";
+        defaults["new-game-plus.magic.review.config"] = "Inspect the shared pool and retained personal stock.";
+        defaults["new-game-plus.magic.review.explanation"] = "Stock is moved once into the shared pool up to its capacity. Overflow remains with its original owner. Config can remove a retained copy or a spell from the entire collection.";
+        defaults["new-game-plus.magic.review.keep"] = "Keep this conversion and continue configuring the draft.";
+        defaults["new-game-plus.magic.review.moved"] = "Moved into the shared pool:";
+        defaults["new-game-plus.magic.review.personal"] = "Personal magic stock";
+        defaults["new-game-plus.magic.review.personal.help"] = "The shared pool becomes the first character's personal bank. Retained stock stays with its original owner. No copies are created.";
+        defaults["new-game-plus.magic.review.title"] = "Magic conversion";
         defaults["new-game-plus.native-fallback"] = "Absent from source: using the native starting level.";
         defaults["new-game-plus.off"] = "Off";
         defaults["new-game-plus.on"] = "On";

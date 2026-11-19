@@ -106,20 +106,12 @@ public sealed class AutoPlayControllerTests
     }
 
     [Fact]
-    public void EndingRequiresTheExplicitTerminalSceneMovieAndHaltedEntryScript()
+    public void EndingRequiresTheVerifiedSharedCompletionReceipt()
     {
         GameState ending = new() { Scene = SceneKind.Field, FieldId = 76, MovieSource = new NativeMovieSource(3, 5), MoviePlayback = new MoviePlaybackState(100, 100, false, true, false) };
-        JsonElement haltedEntry = JsonSerializer.SerializeToElement(new { Fibers = new[] { new { ObjectId = 0, ScriptId = 1, WaitReason = "NativeHalt" } } });
-        Assert.True(AutoPlayController.IsEnding(ending, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { Scene = SceneKind.Movie }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { FieldId = 74 }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MovieSource = new NativeMovieSource(2, 5) }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MovieSource = new NativeMovieSource(3, 4) }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MovieSource = null }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MoviePlayback = ending.MoviePlayback! with { Completed = false } }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MoviePlayback = ending.MoviePlayback! with { IsPlaying = true } }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending with { MoviePlayback = null }, haltedEntry));
-        Assert.False(AutoPlayController.IsEnding(ending, JsonSerializer.SerializeToElement(new { Fibers = Array.Empty<object>() })));
+        Assert.False(AutoPlayController.IsEnding(ending));
+        Ff8CompletionState receipt = new(1, Guid.NewGuid().ToString("N"), 76, 20055, Ff8CompletionState.OriginalEndingProgramHash, 3064, false);
+        Assert.True(AutoPlayController.IsEnding(ending with { Ff8Completion = receipt }));
     }
 
     [Theory]
@@ -129,9 +121,8 @@ public sealed class AutoPlayControllerTests
     [InlineData(0, 1, null)]
     public void UnrelatedOrNonterminalFibersCannotEstablishCompletion(int objectId, int scriptId, string? waitReason)
     {
-        GameState ending = new() { Scene = SceneKind.Field, FieldId = 76, MovieSource = new NativeMovieSource(3, 5), MoviePlayback = new MoviePlaybackState(100, 100, false, true, false) };
-        JsonElement vm = JsonSerializer.SerializeToElement(new { Fibers = new[] { new { ObjectId = objectId, ScriptId = scriptId, WaitReason = waitReason } } });
-        Assert.False(AutoPlayController.IsEnding(ending, vm));
+        GameState ending = new() { Scene = SceneKind.Field, FieldId = 76, MovieSource = new NativeMovieSource(3, 5), MoviePlayback = new MoviePlaybackState(100, 100, false, true, false), EventState = JsonSerializer.SerializeToElement(new { Fibers = new[] { new { ObjectId = objectId, ScriptId = scriptId, WaitReason = waitReason } } }) };
+        Assert.False(AutoPlayController.IsEnding(ending));
     }
 
     [Fact]

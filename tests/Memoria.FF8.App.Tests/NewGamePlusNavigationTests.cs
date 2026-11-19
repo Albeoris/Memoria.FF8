@@ -51,6 +51,43 @@ public sealed class NewGamePlusNavigationTests
     }
 
     [Fact]
+    public void LargestFontScrollsEveryActionIntoViewAndMeasuredControlsFit()
+    {
+        (MenuController menus, _) = Create(150, 48);
+        Assert.Equal(3f, menus.TextScale);
+        using SkiaSharp.SKBitmap bitmap = new(960, 672);
+        using BattlePreviewCanvas canvas = new(bitmap);
+        for (int index = 0; index < 8; index++)
+        {
+            UiView view = menus.BuildView();
+            view.Resize(960, 672);
+            view.Draw(canvas, menus.CreateTheme());
+            UiElement focused = view.FocusedElement!;
+            UiScrollPanel scroll = Assert.Single(Descendants(view.Root).OfType<UiScrollPanel>(), panel => Descendants(panel).Contains(focused));
+            Assert.True(focused.Bounds.Y >= scroll.Bounds.Y - 1);
+            Assert.True(focused.Bounds.Bottom <= scroll.Bounds.Bottom + 1);
+            foreach (UiButton button in Descendants(view.Root).OfType<UiButton>().Where(button => button.Text.Length > 0))
+            {
+                UiSize measured = canvas.MeasureText(button.Text, button.FontSize, float.PositiveInfinity, menus.CreateTheme().FontFamily);
+                Assert.True(measured.Width <= button.Bounds.Width - button.TextInset - 8 + 1, button.Text);
+                Assert.True(measured.Height <= button.Bounds.Height + 1, button.Text);
+            }
+            menus.Navigate(MenuInput.Down);
+        }
+        menus.Navigate(MenuInput.Up);
+        Assert.Equal("begin", menus.SelectedEntry!.Id);
+        menus.Execute(new("ng-config", "characters"));
+        UiView characters = menus.BuildView();
+        characters.Resize(960, 672);
+        characters.Draw(canvas, menus.CreateTheme());
+        UiButton world = Descendants(characters.Root).OfType<UiButton>().Single(button => button.Id == "world");
+        UiLabel label = Assert.Single(world.Children.OfType<UiLabel>());
+        UiSize size = canvas.MeasureText(label.Text, label.FontSize, label.Bounds.Width, menus.CreateTheme().FontFamily);
+        Assert.True(size.Height <= label.Bounds.Height + 1);
+
+    }
+
+    [Fact]
     public void AlternateOpensConfigAndNumericPanelSharesInlineValue()
     {
         (MenuController menus, NewGamePlusDraft draft) = Create();
@@ -79,8 +116,9 @@ public sealed class NewGamePlusNavigationTests
         Assert.Equal(11, Descendants(view.Root).OfType<UiImage>().Count(image => image.Source?.Kind == UiImageKind.CharacterPortraitGrayscale));
         UiButton seifer = Descendants(view.Root).OfType<UiButton>().Single(button => button.Id == "available-6");
         Assert.True(seifer.Enabled);
+        bool before = draft.Characters.Single(character => character.CharacterId == 6).AvailableFromStart;
         seifer.Click!();
-        Assert.True(draft.Characters.Single(character => character.CharacterId == 6).AvailableFromStart);
+        Assert.NotEqual(before, draft.Characters.Single(character => character.CharacterId == 6).AvailableFromStart);
         Assert.Equal(75, draft.GlobalLevel);
         Assert.All(Descendants(menus.BuildView().Root).OfType<UiNumericSlider>().Where(slider => slider.Id?.StartsWith("level-", StringComparison.Ordinal) == true), slider => Assert.True(slider.ReadOnly));
     }
@@ -99,7 +137,7 @@ public sealed class NewGamePlusNavigationTests
         Assert.Equal(NewGamePlusPreset.Custom, draft.CharacterPreset);
     }
 
-    private static (MenuController Menus, NewGamePlusDraft Draft) Create(int scale = 100)
+    private static (MenuController Menus, NewGamePlusDraft Draft) Create(int scale = 100, int fontSize = 24)
     {
         GameState source = CompletedSaveFixture.State();
         GameState native = CompletedSaveFixture.State() with { Ff8Completion = null };
@@ -107,6 +145,8 @@ public sealed class NewGamePlusNavigationTests
         MenuData data = new();
         data.Settings["Text scale"] = scale + "%";
         MenuController menus = new(() => data);
+        UiPreferences preferences = new() { TextScale = scale, UiFontSize = fontSize };
+        menus.ConnectPreferences(() => preferences);
         menus.OpenNewGamePlus(draft, _ => { }, () => { });
         return (menus, draft);
     }

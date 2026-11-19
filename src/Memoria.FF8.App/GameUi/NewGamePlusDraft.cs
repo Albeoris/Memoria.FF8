@@ -33,6 +33,7 @@ internal sealed class NewGamePlusDraft
     internal bool Dirty { get; private set; }
     internal MagicStockMove[] MagicOverflow { get; private set; } = [];
     internal MagicStockMove[] MagicConversionMoves { get; private set; } = [];
+    internal bool MagicModeChanged { get; private set; }
 
     internal NewGamePlusDraft(GameState source, GameState native, UiPreferences settings)
     {
@@ -40,8 +41,7 @@ internal sealed class NewGamePlusDraft
         this.native = Detach(native);
         Settings = settings with { };
         GameplaySettings = native.GameplayPreferences;
-        guardianForces = this.source.CharacterVitals!;
-        guardianForces = guardianForces.ApplyGuardianForceTemplates(guardianForces.ResolveGuardianForceTemplates());
+        guardianForces = SeedGuardianForces(NewGamePlusPreset.Stored);
         magic = this.source.CharacterVitals!.WithGuestBattleRecords().DeepCopy();
         items = this.source.Economy!.DeepCopy();
         cards = ImportCards(this.source.CardInventory!);
@@ -70,12 +70,35 @@ internal sealed class NewGamePlusDraft
         {
             NativeCharacterVital? record = input.Records.FirstOrDefault(record => record.CharacterId == identity);
             NativeCharacterVital fallback = target.Records.Single(record => record.CharacterId == identity);
-            int level = NativeStatDefinitions.Level((record ?? fallback).Experience, target.Definitions.Characters[identity]);
+            int level = NativeStatDefinitions.Level((record ?? fallback).Experience, (record is null ? target : input).Definitions.Characters[identity]);
             characters.Add(identity, new(identity, level, (fallback.MemberFlags & 1) != 0, record is null));
         }
         GlobalLevel = 0;
         AllowWorldMapPartyChanges = false;
         CharacterPreset = preset;
+    }
+
+    private NativeCharacterVitals SeedGuardianForces(NewGamePlusPreset preset)
+    {
+        NativeCharacterVitals nativeGfs = native.CharacterVitals!.DeepCopy();
+        nativeGfs = nativeGfs.ApplyGuardianForceTemplates(nativeGfs.ResolveGuardianForceTemplates());
+        if (preset == NewGamePlusPreset.Native)
+        {
+            return nativeGfs;
+        }
+        NativeCharacterVitals result = source.CharacterVitals!.DeepCopy();
+        result = result.ApplyGuardianForceTemplates(result.ResolveGuardianForceTemplates());
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates = result.ResolveGuardianForceTemplates();
+        ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> nativeTemplates = nativeGfs.ResolveGuardianForceTemplates();
+        for (int id = 0; id < 16; id++)
+        {
+            if ((result.GuardianForces[id].Flags & 1) == 0)
+            {
+                result.GuardianForces[id] = nativeGfs.GuardianForces[id];
+                templates = templates.SetItem(id, nativeTemplates[id]);
+            }
+        }
+        return result.ApplyGuardianForceTemplates(templates);
     }
 
     internal void RevalidateNative(GameState cold)
@@ -94,10 +117,9 @@ internal sealed class NewGamePlusDraft
                 characters[character.CharacterId] = character with { IndividualLevel = NativeStatDefinitions.Level(record.Experience, target.Definitions.Characters[record.CharacterId]) };
             }
         }
-        if (GuardianForcePreset == NewGamePlusPreset.Native)
+        if (GuardianForcePreset is NewGamePlusPreset.Native or NewGamePlusPreset.Stored)
         {
-            guardianForces = native.CharacterVitals!.DeepCopy();
-            guardianForces = guardianForces.ApplyGuardianForceTemplates(guardianForces.ResolveGuardianForceTemplates());
+            guardianForces = SeedGuardianForces(GuardianForcePreset);
         }
         ConvertMagic(cold.GameplayPreferences);
     }
@@ -142,8 +164,7 @@ internal sealed class NewGamePlusDraft
                 SeedCharacters(preset);
                 break;
             case "gf":
-                guardianForces = (preset == NewGamePlusPreset.Stored ? source : native).CharacterVitals!.DeepCopy();
-                guardianForces = guardianForces.ApplyGuardianForceTemplates(guardianForces.ResolveGuardianForceTemplates());
+                guardianForces = SeedGuardianForces(preset);
                 GuardianForcePreset = preset;
                 break;
             case "magic":
@@ -175,6 +196,10 @@ internal sealed class NewGamePlusDraft
 
     internal void SetItem(int identity, int quantity)
     {
+        if (identity is < 1 or > byte.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(identity));
+        }
         quantity = Math.Clamp(quantity, 0, 100);
         NativeItemStock[] stock = items.Items.ToArray();
         int slot = Array.FindIndex(stock, item => item.ItemId == identity);
@@ -286,6 +311,7 @@ internal sealed class NewGamePlusDraft
         MagicModePreview preview = MagicModeCoordinator.Preview(magic, preferences);
         if (magic.MagicSystem.SharedMagicStock != preferences.SharedMagicStock)
         {
+            MagicModeChanged = true;
             MagicConversionMoves = preview.Moves;
         }
         magic = preview.Vitals;
@@ -374,9 +400,11 @@ internal sealed class NewGamePlusDraft
     {
         NewGamePlusDefinition definition = new()
         {
+            SourceRunIdentity = source.CompletedGame?.RunIdentity ?? source.Ff8Completion?.Identity ?? "",
             SourceCompletionIdentity = source.CompletedGame?.Completion.Identity ?? source.Ff8Completion?.Identity ?? "", SourceContentIdentity = source.CompletedGame?.ContentIdentity ?? source.CharacterVitals!.KernelSha256, SourceRevision = SourceRevision, Settings = GameplaySettings,
-            RequiredCapabilities = Characters.Any(character => character.CharacterId >= 6 && character.AvailableFromStart) ? ["extended-roster-v1"] : [],
+            RequiredCapabilities = Characters.Any(character => character.CharacterId >= 6 && character.AvailableFromStart) ? [NewGamePlusDefinition.ExpandedRosterCapability] : [],
             GuardianForceExcludedDocuments = GuardianForceExclusions(),
+            InitialFullBattlePlaythrough = Settings.BattlePolicy == "NewGameFullCombat", InitialRandomEncountersEnabled = Settings.RandomEncounters,
             InitialMagicConversionMoves = MagicConversionMoves.ToImmutableArray(), InitialMagicOverflow = MagicOverflow.ToImmutableArray(),
             Characters = Characters.ToImmutableArray(), GlobalLevel = GlobalLevel, AllowWorldMapPartyChanges = AllowWorldMapPartyChanges,
             ExperienceMultiplierTenths = ExperienceMultiplierTenths, ApMultiplierTenths = ApMultiplierTenths,
@@ -431,7 +459,16 @@ internal sealed class NewGamePlusDraft
             result.GuardianForces[id] = gf with { HitPoints = hp, MaximumHitPoints = hp };
         }
         result.Validate();
-        definition = definition with { StartingChoicesApplied = true, InitializedCharacters = result.Records.Select(record => record.CharacterId).ToImmutableArray(), InitializedGuardianForces = Enumerable.Range(0, 16).Select(id => (byte)id).ToImmutableArray() };
-        return cold with { CharacterVitals = result, Economy = cold.Economy! with { Items = items.Items.ToArray() }, CardInventory = cards.DeepCopy(), NewGamePlus = definition };
+        definition = definition with { RunIdentity = Guid.NewGuid().ToString("N"), StartingChoicesApplied = true, InitializedCharacters = result.Records.Select(record => record.CharacterId).ToImmutableArray(), InitializedGuardianForces = Enumerable.Range(0, 16).Select(id => (byte)id).ToImmutableArray() };
+        return cold with
+        {
+            CharacterVitals = result,
+            Economy = cold.Economy! with { Items = items.Items.ToArray() },
+            CardInventory = cards.DeepCopy(),
+            NewGamePlus = definition,
+            FullBattlePlaythrough = definition.InitialFullBattlePlaythrough,
+            RandomEncounters = new(definition.InitialRandomEncountersEnabled, NativeRandomEncounterState.FromColdProcess(), null),
+            NewGamePlusRewards = new() { ExperienceTenths = ExperienceMultiplierTenths, AbilityPointTenths = ApMultiplierTenths }
+        };
     }
 }

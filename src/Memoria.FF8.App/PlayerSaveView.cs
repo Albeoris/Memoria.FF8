@@ -50,8 +50,8 @@ internal sealed partial class PlayerSaveView : UiElement
         information.RowDefinitions.Add(UiGridLength.Auto);
         header = new() { Gap = 5 };
         header.RowDefinitions.Add(UiGridLength.Star());
-        header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
-        header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
+        header.ColumnDefinitions.Add(UiGridLength.Star(menu.IsCompletedMode ? 1.8f : 3.7f));
+        header.ColumnDefinitions.Add(UiGridLength.Star(menu.IsCompletedMode ? 3.2f : 1.3f));
         UiPanel info = new() { Caption = menu.SystemText("save.view.info", "INFO."), CaptionFontSize = UiTheme.DefaultCaptionFontSize * textScale, CaptionHeight = 13 * textScale, Padding = new UiThickness(8, 0) };
         pageLabel = new UiLabel { Text = menu.FormatSystemText("save.view.page", "Page {0} / {1}", menu.Page + 1, menu.PageCount) + navigationSuffix, FontSize = 16 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center };
         info.Children.Add(pageLabel);
@@ -66,7 +66,7 @@ internal sealed partial class PlayerSaveView : UiElement
             PlayerSaveMenuMode.Load => menu.SystemText("save.view.load", "Load"),
             _ => menu.SystemText("save.view.save", "Save")
         };
-        title.Children.Add(new UiLabel { Text = menu.IsTransferring ? menu.SystemText("save.view.transfer", "Transfer") : name, FontSize = 25 * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
+        title.Children.Add(new UiLabel { Text = menu.IsTransferring ? menu.SystemText("save.view.transfer", "Transfer") : name, FontSize = (menu.Mode == PlayerSaveMenuMode.SaveCompleted ? 20 : 25) * textScale, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
         header.Children.Add(title);
         information.Children.Add(header);
         string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-transfer-overwrite", "Confirm transfer overwrite") : menu.SystemText("save.view.choose-destination-block", "Choose destination block") : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-overwrite", "Confirm overwrite") : menu.IsSaving ? menu.SystemText("save.view.choose-block-to-save", "Choose block to save") : menu.SystemText("save.view.choose-block-to-load", "Choose block to load");

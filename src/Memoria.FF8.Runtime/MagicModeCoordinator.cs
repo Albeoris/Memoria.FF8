@@ -135,7 +135,7 @@ public static class MagicModeCoordinator
         {
             throw new InvalidOperationException("Magic rules cannot change while casts are reserved.");
         }
-        NativeCharacterVitals next = vitals.DeepCopy();
+        NativeCharacterVitals next = vitals.UnbindNewGamePlusDreamMagic().DeepCopy();
         for (int row = 0; row < vitals.Records.Length; row++)
         {
             HashSet<int> ids = [];
@@ -181,6 +181,7 @@ public static class MagicModeCoordinator
                 }
             }
         }
+        next = next.BindNewGamePlusDreamMagic();
         next = MagicJunctionPolicy.Reconcile(next, out MagicJunctionChange[] removed);
         MagicHitPointChange[] hp = Enumerable.Range(0, vitals.Records.Length).Select(row => new MagicHitPointChange(row, MagicJunctionPolicy.Maximum(vitals, row), MagicJunctionPolicy.Maximum(next, row))).Where(change => change.PreviousMaximum != change.Maximum).ToArray();
         next.Validate();

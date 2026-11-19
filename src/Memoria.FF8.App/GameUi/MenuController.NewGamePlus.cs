@@ -45,7 +45,7 @@ public sealed partial class MenuController
         RegisterNewGamePlusScreens();
         Open("new-game-plus");
         string review = NgMagicConversionSummary();
-        if ((draft.MagicConversionMoves.Length != 0 || draft.MagicOverflow.Length != 0) && newGamePlusMagicReview != review)
+        if ((draft.MagicModeChanged || draft.MagicOverflow.Length != 0) && newGamePlusMagicReview != review)
         {
             newGamePlusMagicReview = review;
             Push("new-game-plus-magic-review");
@@ -62,6 +62,7 @@ public sealed partial class MenuController
     private string NgSpell(int identity) => NewGamePlusMagicName?.Invoke(identity) ?? Data.Magic.FirstOrDefault(spell => spell.SpellId == identity)?.Name ?? NgText("spell", "Spell") + " " + identity;
     internal Func<int, string>? NewGamePlusCharacterName { get; set; }
     internal Func<int, string>? NewGamePlusItemName { get; set; }
+    internal IReadOnlyList<int>? NewGamePlusItemIds { get; set; }
     internal Func<int, UiImageSource?>? NewGamePlusItemIcon { get; set; }
     internal Func<int, string>? NewGamePlusCardName { get; set; }
     internal Func<int, string>? NewGamePlusMagicName { get; set; }
@@ -117,18 +118,18 @@ public sealed partial class MenuController
                     {
                         string id = character.CharacterId.ToString(CultureInfo.InvariantCulture);
                         entries.Add(NgAction("level-" + id, NgCharacter(character.CharacterId), character.NativeFallback ? NgText("native-fallback", "Absent from source: using the native starting level.") : NgText("individual.help", "Choose the starting level. This transfers levels without weapons, junctions or permanent stat bonuses."), "ng-number", enabled: draft.GlobalLevel == 0));
-                        entries.Add(NgAction("available-" + id, (character.AvailableFromStart ? "☑ " : "☐ ") + NgText("available", "Available from Start"), NgText("available.help", "Available in the reserve roster. Extra characters remain available; regular characters still follow story departures."), "ng-availability"));
+                        entries.Add(NgAction("available-" + id, (character.AvailableFromStart ? "[x] " : "[ ] ") + NgText("available", "Available from Start"), NgText("available.help", "Available in the reserve roster. Extra characters remain available; regular characters still follow story departures."), "ng-availability"));
                     }
                     break;
                 case "gf":
                     for (int id = 0; id < 16; id++)
                     {
                         bool available = (draft.GuardianForces.GuardianForces[id].Flags & 1) != 0;
-                        entries.Add(NgAction(id.ToString(CultureInfo.InvariantCulture), (available ? "☑ " : "☐ ") + NgGuardian(id), NgText("gf.help", "Confirm toggles initial ownership. Config opens this GF's abilities without granting it."), "ng-gf-availability"));
+                        entries.Add(NgAction(id.ToString(CultureInfo.InvariantCulture), (available ? "[x] " : "[ ] ") + NgGuardian(id), NgText("gf.help", "Confirm toggles initial ownership. Config opens this GF's abilities without granting it."), "ng-gf-availability"));
                     }
                     break;
                 case "items":
-                    for (int id = 1; id < 198; id++)
+                    foreach (int id in NewGamePlusItemIds ?? Enumerable.Range(1, NativeEconomy.ItemSlotCount).ToArray())
                     {
                         entries.Add(NgAction(id.ToString(CultureInfo.InvariantCulture), NgItem(id), NgText("quantity.help", "Left / Right or the slider changes starting quantity. Zero removes the stock."), "ng-number"));
                     }
@@ -158,7 +159,7 @@ public sealed partial class MenuController
             {
                 GuardianForceAbilityProgress? progress = draft.GuardianForces.GuardianForces[newGamePlusGuardian].Progression?.Abilities.FirstOrDefault(entry => entry.Ability == ability.Ability);
                 bool learned = progress?.Learned == true;
-                entries.Add(NgAction(ability.Ability.ToString(CultureInfo.InvariantCulture), (learned ? "☑ " : "☐ ") + NgAbility(ability.Ability) + (progress?.EarnedPoints > 0 ? "   " + progress.EarnedPoints + " / " + ability.RequiredPoints : ""), NgText("ability.help", "Confirm toggles starting learned state and resets AP. Untouched partial AP is retained. Config opens Add / Remove Ability."), "ng-ability-toggle"));
+                entries.Add(NgAction(ability.Ability.ToString(CultureInfo.InvariantCulture), (learned ? "[x] " : "[ ] ") + NgAbility(ability.Ability) + (progress?.EarnedPoints > 0 ? "   " + progress.EarnedPoints + " / " + ability.RequiredPoints : ""), NgText("ability.help", "Confirm toggles starting learned state and resets AP. Untouched partial AP is retained. Config opens Add / Remove Ability."), "ng-ability-toggle"));
             }
             entries.Add(NgAction("add", NgText("add-ability", "Add Ability"), NgText("add-ability.help", "Choose a supported ability not already present."), "ng-ability-add-open"));
             entries.Add(NgAction("done", NgText("done", "Done"), NgText("done.help", "Keep edits and return."), "menu-back"));
@@ -210,20 +211,45 @@ public sealed partial class MenuController
 
     private UiElement BuildNewGamePlus()
     {
-        UiGrid page = Grid([1.3f, 6.6f, 0.75f], [1], 7);
-        Place(page, Panel(null, Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? NgText("title", "New Game+"), 19, UiTextFlow.Wrap)), 0);
+        UiGrid page = new() { Gap = 7 };
+        page.RowDefinitions.Add(UiGridLength.Pixel(Math.Min(160, 70 * TextScale)));
+        page.RowDefinitions.Add(UiGridLength.Star());
+        page.RowDefinitions.Add(UiGridLength.Pixel(Math.Min(150, 52 * TextScale)));
+        page.ColumnDefinitions.Add(UiGridLength.Star());
+        UiScrollPanel help = new() { ContentHeight = 280 * TextScale };
+        help.Children.Add(Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? NgText("title", "New Game+"), 18, UiTextFlow.Wrap));
+        Place(page, Panel(null, help), 0);
         if (ScreenId == "new-game-plus")
         {
-            UiGrid rows = Grid(Enumerable.Repeat(1f, 8).ToArray(), [1], 4);
+            bool stacked = TextScale > 1.5f;
+            float rowHeight = stacked ? 64 * TextScale : Math.Max(44, 36 * TextScale);
+            UiGrid rows = new() { Gap = 4 };
+            rows.ColumnDefinitions.Add(UiGridLength.Star());
+            foreach (MenuEntry _ in Entries)
+            {
+                rows.RowDefinitions.Add(UiGridLength.Pixel(rowHeight));
+            }
             for (int index = 0; index < Entries.Count; index++)
             {
                 MenuEntry entry = Entries[index];
                 int selected = index;
-                UiGrid row = Grid([1], [5, 1], 6);
+                UiGrid row = stacked ? Grid([1, 1], [1], 3) : Grid([1], [5, 1], 6);
+                UiGrid heading = Grid([1], [3, 1], 6);
+                if (stacked && entry.Id != "begin")
+                {
+                    Place(heading, Label(entry.Label, 18, UiTextFlow.Wrap), 0);
+                    Place(heading, new UiButton { Id = "config-" + entry.Id, Text = NgText("config", "Config"), FontSize = 16 * TextScale, TextInset = 8, Click = () => OpenNgConfig(entry.Id), FocusChanged = focused => SelectConfigRow(focused, selected) }, 0, 1);
+                }
+                if (stacked)
+                {
+                    Place(row, heading, 0);
+                }
                 UiElement control;
                 if (entry.Id is "exp" or "ap")
                 {
-                    control = NgSlider(entry.Id, entry.Label, entry.Id == "exp" ? newGamePlusDraft!.ExperienceMultiplierTenths / 10f : newGamePlusDraft!.ApMultiplierTenths / 10f, 0, 10, 0.1f, value => SetNgReward(entry.Id, value));
+                    UiNumericSlider slider = NgSlider(entry.Id, stacked ? "" : entry.Label, entry.Id == "exp" ? newGamePlusDraft!.ExperienceMultiplierTenths / 10f : newGamePlusDraft!.ApMultiplierTenths / 10f, 0, 10, 0.1f, value => SetNgReward(entry.Id, value));
+                    slider.LabelWidthRatio = stacked ? 0 : 0.48f;
+                    control = slider;
                 }
                 else if (entry.Id == "begin")
                 {
@@ -237,18 +263,20 @@ public sealed partial class MenuController
                     {
                         choices = [.. choices, NewGamePlusPreset.Custom];
                     }
-                    control = new UiChoiceRow { Text = entry.Label, Items = choices.Select(NgPreset).ToArray(), SelectedIndex = Array.IndexOf(choices, current), SelectionChanged = value => RequestNgReset(entry.Id, choices[value]), FontSize = 22 * TextScale, LabelWidthRatio = 0.5f };
+                    control = new UiChoiceRow { Text = stacked ? "" : entry.Label, Items = choices.Select(NgPreset).ToArray(), SelectedIndex = Array.IndexOf(choices, current), SelectionChanged = value => RequestNgReset(entry.Id, choices[value]), FontSize = 20 * TextScale, LabelWidthRatio = stacked ? 0 : 0.5f };
                 }
                 control.Id = entry.Id;
                 control.FocusChanged = focused => SelectConfigRow(focused, selected);
-                Place(row, control, 0);
-                if (entry.Id != "begin")
+                Place(row, control, stacked && entry.Id != "begin" ? 1 : 0, 0, stacked && entry.Id == "begin" ? 2 : 1, !stacked && entry.Id == "begin" ? 2 : 1);
+                if (!stacked && entry.Id != "begin")
                 {
-                    Place(row, new UiButton { Id = "config-" + entry.Id, Text = NgText("config", "Config"), FontSize = 19 * TextScale, Click = () => OpenNgConfig(entry.Id) }, 0, 1);
+                    Place(row, new UiButton { Id = "config-" + entry.Id, Text = NgText("config", "Config"), FontSize = 16 * TextScale, TextInset = 8, Click = () => OpenNgConfig(entry.Id), FocusChanged = focused => SelectConfigRow(focused, selected) }, 0, 1);
                 }
                 Place(rows, row, index);
             }
-            Place(page, Panel(null, rows), 1);
+            UiScrollPanel scroll = new() { ContentHeight = Entries.Count * (rowHeight + 4) };
+            scroll.Children.Add(rows);
+            Place(page, Panel(null, scroll), 1);
         }
         else if (ScreenId == "new-game-plus-config" && newGamePlusCategory == "characters")
         {
@@ -278,16 +306,20 @@ public sealed partial class MenuController
             Place(body, Panel(null, commands), 0);
             UiGrid detail = Grid([1, 3, 1], [1], 8);
             string title = ScreenId == "new-game-plus-review" ? NgText("review.title", "Review New Game+") : ScreenId.Contains("abilit", StringComparison.Ordinal) ? NgGuardian(newGamePlusGuardian) : NgCategoryLabel(newGamePlusCategory);
+            if (TextScale > 1.5f && SelectedEntry is { } selected)
+            {
+                title = selected.Label;
+            }
             Place(detail, Panel(null, Label(title, 24, UiTextFlow.Wrap)), 0);
             string explanation = ScreenId == "new-game-plus-review" ? NgSummary() : ScreenId == "new-game-plus-magic-review" ? NgMagicConversionSummary() : SelectedEntry?.Help ?? "";
             if (ScreenId == "new-game-plus-config" && newGamePlusCategory == "magic" && int.TryParse(SelectedEntry?.Id, out int selectedSpell))
             {
                 explanation += "\n" + NgRetainedMagic(selectedSpell);
             }
-            UiScrollPanel explanationScroll = new() { ContentHeight = ScreenId == "new-game-plus-review" ? 440 * TextScale : 260 * TextScale };
+            UiScrollPanel explanationScroll = new() { ContentHeight = Math.Max(320, explanation.Split('\n').Length * 42 + 120) * TextScale };
             explanationScroll.Children.Add(Label(explanation, 19, UiTextFlow.Wrap));
             Place(detail, Panel(null, explanationScroll), 1);
-            if (TryNgNumber(out float value, out float max))
+            if (TryNgNumber(out float value, out float max) && !(newGamePlusCategory == "magic" && newGamePlusDraft!.Magic.MagicSystem.SharedMagicStock))
             {
                 Place(detail, Panel(null, NgSlider("ng-selected-value", NgText("value", "Value"), value, 0, max, newGamePlusCategory is "exp" or "ap" ? 0.1f : 1, SetNgNumber)), 2);
             }
@@ -305,26 +337,37 @@ public sealed partial class MenuController
                 Place(actions, new UiButton { Text = NgText("config", "Config"), FontSize = 19 * TextScale, Click = OpenSelectedNgConfig }, 0, 1);
                 Place(detail, Panel(null, actions), 2);
             }
-            Place(body, detail, 0, 1);
+            if (TextScale > 1.5f)
+            {
+                UiScrollPanel detailScroll = new() { ContentHeight = 600 * TextScale };
+                detailScroll.Children.Add(detail);
+                Place(body, detailScroll, 0, 1);
+            }
+            else
+            {
+                Place(body, detail, 0, 1);
+            }
             Place(page, body, 1);
         }
         Place(page, Panel(null, Label(NgHint + "   ·   " + CurrentBindingText(ControlAction.Cancel) + " " + NgText("back", "Back"), 18, UiTextFlow.Wrap)), 2);
         return page;
     }
 
-    private UiNumericSlider NgSlider(string id, string label, float value, float min, float max, float step, Action<float> changed) => new() { Id = id, Text = label, Value = value, Min = min, Max = max, Step = step, ValueFormat = step < 1 ? "0.0'×'" : "0", ValueWidth = 55 * TextScale, FontSize = 21 * TextScale, LabelWidthRatio = 0.48f, ValueChanged = changed };
+    private UiNumericSlider NgSlider(string id, string label, float value, float min, float max, float step, Action<float> changed) => new() { Id = id, Text = TextScale > 1.5f ? "" : label, Min = min, Max = max, Step = step, Value = value, ValueFormat = step < 1 ? "0.0'×'" : "0", ValueWidth = 55 * TextScale, FontSize = 21 * TextScale, LabelWidthRatio = TextScale > 1.5f ? 0 : 0.48f, ValueChanged = changed };
 
     private UiElement BuildNewGamePlusCharacters()
     {
         NewGamePlusDraft draft = newGamePlusDraft!;
         float rowHeight = 62 * TextScale;
+        bool accessible = TextScale > 1.5f;
         UiGrid rows = new() { Gap = 5 };
         for (int index = 0; index < 14; index++)
         {
-            rows.RowDefinitions.Add(UiGridLength.Pixel(rowHeight));
+            rows.RowDefinitions.Add(UiGridLength.Pixel(index == 1 ? (accessible ? 112 : 72) * TextScale : accessible && index is >= 2 and <= 12 ? 128 * TextScale : rowHeight));
         }
         rows.ColumnDefinitions.Add(UiGridLength.Star());
-        UiButton world = new() { Id = "world", Text = (draft.AllowWorldMapPartyChanges ? "☑ " : "☐ ") + NgText("world", "Allow Party Changes on the World Map"), FontSize = 22 * TextScale, Click = () => Execute(new("ng-world")), FocusChanged = focused => SelectConfigRow(focused, 0) };
+        UiButton world = new() { Id = "world", Click = () => Execute(new("ng-world")), FocusChanged = focused => SelectConfigRow(focused, 0) };
+        AddNewGamePlusCheckbox(world, draft.AllowWorldMapPartyChanges, NgText("world", "Allow Party Changes on the World Map"));
         Place(rows, world, 0);
         UiGrid global = Grid([1, 1], [1], 0);
         Place(global, Label(NgText("global-level", "Level for All Characters") + (draft.GlobalLevel == 0 ? " · " + NgText("individual", "Individual / No Override") : ""), 18, UiTextFlow.Wrap), 0);
@@ -342,17 +385,31 @@ public sealed partial class MenuController
             NewGamePlusCharacter character = draft.Characters[index];
             int levelSelection = 2 + index * 2;
             int availabilitySelection = levelSelection + 1;
-            UiGrid row = Grid([1], [0.5f, 3.1f, 2.1f], 8);
+            UiGrid row = accessible ? Grid([1, 1, 1], [1], 4) : Grid([1], [0.5f, 3.1f, 2.1f], 8);
             UiImage portrait = Artwork(draft.GlobalLevel == 0 ? UiImageKind.CharacterPortrait : UiImageKind.CharacterPortraitGrayscale, character.CharacterId);
-            Place(row, portrait, 0);
-            UiNumericSlider level = NgSlider("level-" + character.CharacterId, NgCharacter(character.CharacterId), draft.GlobalLevel == 0 ? character.IndividualLevel : draft.GlobalLevel, 1, 100, 1, value =>
+            if (accessible)
+            {
+                UiGrid heading = Grid([1], [0.6f, 4], 8);
+                Place(heading, portrait, 0);
+                Place(heading, Label(NgCharacter(character.CharacterId), 22, UiTextFlow.Wrap), 0, 1);
+                Place(row, heading, 0);
+            }
+            else
+            {
+                Place(row, portrait, 0);
+            }
+            UiNumericSlider level = NgSlider("level-" + character.CharacterId, accessible ? "" : NgCharacter(character.CharacterId), draft.GlobalLevel == 0 ? character.IndividualLevel : draft.GlobalLevel, 1, 100, 1, value =>
             {
                 draft.SetLevel(character.CharacterId, (int)value);
                 _view = null;
             });
             level.ReadOnly = draft.GlobalLevel != 0;
+            if (accessible)
+            {
+                level.LabelWidthRatio = 0;
+            }
             level.FocusChanged = focused => SelectConfigRow(focused, levelSelection);
-            Place(row, level, 0, 1);
+            Place(row, level, accessible ? 1 : 0, accessible ? 0 : 1);
             UiButton available = new()
             {
                 Id = "available-" + character.CharacterId,
@@ -364,15 +421,56 @@ public sealed partial class MenuController
                 },
                 FocusChanged = focused => SelectConfigRow(focused, availabilitySelection)
             };
-            available.Children.Add(Label((character.AvailableFromStart ? "☑ " : "☐ ") + NgText("available", "Available from Start"), 18, UiTextFlow.Wrap));
-            Place(row, available, 0, 2);
+            AddNewGamePlusCheckbox(available, character.AvailableFromStart, NgText("available", "Available from Start"));
+            Place(row, available, accessible ? 2 : 0, accessible ? 0 : 2);
             Place(rows, row, index + 2);
         }
         UiButton done = new() { Id = "done", Text = NgText("done", "Done"), FontSize = 22 * TextScale, Click = Back, FocusChanged = focused => SelectConfigRow(focused, Entries.Count - 1) };
         Place(rows, done, 13);
-        UiScrollPanel scroll = new() { ContentHeight = 14 * (rowHeight + 5) };
+        UiScrollPanel scroll = new() { ContentHeight = (124 + (accessible ? 112 : 72) + 11 * (accessible ? 128 : 62)) * TextScale + 14 * 5 };
         scroll.Children.Add(rows);
         return Panel(null, scroll);
+    }
+
+    private void AddNewGamePlusCheckbox(UiButton button, bool selected, string text)
+    {
+        button.Children.Add(new NewGamePlusCheckboxMark
+        {
+            Selected = selected,
+            Width = 18 * TextScale,
+            Height = 18 * TextScale,
+            HorizontalAlignment = UiAlignment.Start,
+            VerticalAlignment = UiAlignment.Center,
+            Margin = new UiThickness(12 * TextScale, 0, 0, 0)
+        });
+        UiLabel label = Label(text, 18, UiTextFlow.Wrap);
+        label.VerticalTextAlignment = UiAlignment.Center;
+        label.Margin = new UiThickness(42 * TextScale, 4 * TextScale, 8 * TextScale, 4 * TextScale);
+        button.Children.Add(label);
+    }
+
+    private sealed class NewGamePlusCheckboxMark : UiElement
+    {
+        public bool Selected { get; init; }
+
+        protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
+        {
+            UiColor color = Enabled ? theme.Foreground : theme.Muted;
+            float thickness = Math.Max(1, Bounds.Width / 12);
+            float left = Bounds.X + thickness;
+            float top = Bounds.Y + thickness;
+            float right = Bounds.Right - thickness;
+            float bottom = Bounds.Bottom - thickness;
+            canvas.Line(left, top, right, top, color, thickness);
+            canvas.Line(right, top, right, bottom, color, thickness);
+            canvas.Line(right, bottom, left, bottom, color, thickness);
+            canvas.Line(left, bottom, left, top, color, thickness);
+            if (Selected)
+            {
+                canvas.Line(Bounds.X + Bounds.Width * 0.2f, Bounds.Y + Bounds.Height * 0.51f, Bounds.X + Bounds.Width * 0.43f, Bounds.Y + Bounds.Height * 0.75f, color, thickness);
+                canvas.Line(Bounds.X + Bounds.Width * 0.43f, Bounds.Y + Bounds.Height * 0.75f, Bounds.X + Bounds.Width * 0.82f, Bounds.Y + Bounds.Height * 0.24f, color, thickness);
+            }
+        }
     }
     private void SetNgReward(string category, float value)
     {
@@ -485,7 +583,13 @@ public sealed partial class MenuController
     private string NgMagicConversionSummary()
     {
         NewGamePlusDraft draft = newGamePlusDraft!;
-        return NgText("magic.review.title", "Magic conversion") + "\n" + NgText("magic.review.explanation", "Stock is moved once into the shared pool up to its capacity. Overflow remains with its original owner. Config can remove a retained copy or a spell from the entire collection.") + "\n\n" + string.Join("\n", draft.MagicOverflow.Select(move => NgCharacter(draft.Magic.Records[move.RecordId].CharacterId) + " · " + NgSpell(move.SpellId) + " ×" + move.Quantity));
+        if (!draft.Magic.MagicSystem.SharedMagicStock)
+        {
+            return NgText("magic.review.personal", "Personal magic stock") + "\n" + NgText("magic.review.personal.help", "The shared pool becomes the first character's personal bank. Retained stock stays with its original owner. No copies are created.");
+        }
+        string moved = string.Join("\n", draft.MagicConversionMoves.Select(move => NgCharacter(draft.Magic.Records[move.RecordId].CharacterId) + " · " + NgSpell(move.SpellId) + " ×" + move.Quantity));
+        string retained = string.Join("\n", draft.MagicOverflow.Select(move => NgCharacter(draft.Magic.Records[move.RecordId].CharacterId) + " · " + NgSpell(move.SpellId) + " ×" + move.Quantity));
+        return NgText("magic.review.title", "Magic conversion") + "\n" + NgText("magic.review.explanation", "Stock is moved once into the shared pool up to its capacity. Overflow remains with its original owner. Config can remove a retained copy or a spell from the entire collection.") + "\n\n" + NgText("magic.review.moved", "Moved into the shared pool:") + "\n" + moved + "\n\n" + NgText("magic.retained", "Retained personal stock:") + "\n" + retained;
     }
 
     private void OpenNgConfig(string category)

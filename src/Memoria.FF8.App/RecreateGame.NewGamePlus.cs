@@ -88,7 +88,7 @@ internal sealed partial class RecreateGame
             throw new InvalidDataException("The selected file is no longer a Completed Game save. Choose another source.");
         }
         GameplayPreferences preferences = source.GameplayPreferences;
-        UiPreferences settings = uiPreferences with { Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, TripleTriad = preferences.TripleTriad, BattleAllyCount = preferences.BattleAllyCount, AdditionalEnemies = preferences.AdditionalEnemies };
+        UiPreferences settings = uiPreferences with { BattlePolicy = source.FullBattlePlaythrough == false ? "ResearchInstantVictory" : "NewGameFullCombat", RandomEncounters = source.RandomEncounters?.Enabled ?? true, Difficulty = preferences.Difficulty, AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode, TripleTriad = preferences.TripleTriad, BattleAllyCount = preferences.BattleAllyCount, AdditionalEnemies = preferences.AdditionalEnemies };
         foreach (NewGameOption option in GameplayPreferences.NewGameOptions)
         {
             typeof(UiPreferences).GetProperty(option.PropertyName)?.SetValue(settings, option.IsEnabled(preferences));
@@ -98,7 +98,8 @@ internal sealed partial class RecreateGame
         newGamePlusPreferences = preferences;
         newGamePlusDraft.ConvertMagic(preferences);
         EnsureLiveMenuCatalog();
-        gameMenus!.NewGamePlusItemIcon = id => liveMenuCatalog!.ItemIcon(id);
+        gameMenus!.NewGamePlusItemIds = Enumerable.Range(1, 201).Where(id => !string.IsNullOrWhiteSpace(liveMenuCatalog!.ItemName(id))).ToArray();
+        gameMenus.NewGamePlusItemIcon = id => liveMenuCatalog!.ItemIcon(id);
         gameMenus.NewGamePlusItemName = id => liveMenuCatalog!.ItemName(id) ?? $"Item {id}";
         gameMenus.NewGamePlusCharacterName = id => liveMenuCatalog!.CharacterName(id) ?? GameNames.DefaultName(GameNames.CharacterSubject(id));
         gameMenus.NewGamePlusCardName = id => liveMenuCatalog!.CardName(id) ?? $"Card {id}";

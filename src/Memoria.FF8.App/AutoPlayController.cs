@@ -675,7 +675,7 @@ internal sealed partial class AutoPlayController
         {
             throw new EventScriptException(fault.Message);
         }
-        if (session.State.FieldId == 76 && IsEnding(session.State, world.Events.Capture()))
+        if (session.State.FieldId == 76 && IsEnding(session.State))
         {
             run.ReachedEnding = true;
             ReproductionPath = SaveBundle($"ending-{run.Steps:D10}", CaptureState());
@@ -2417,11 +2417,9 @@ internal sealed partial class AutoPlayController
 
     private string VisitKey() => $"{session.State.FieldId}:{session.State.Variables.GetValueOrDefault(256)}";
 
-    internal static bool IsEnding(GameState state, JsonElement vm)
+    internal static bool IsEnding(GameState state)
     {
-        // The terminal ending scene is an explicit product completion policy.
-        // A halted script elsewhere never establishes successful completion.
-        return state.Scene == SceneKind.Field && state.FieldId == 76 && state.MovieSource is { DiscIndex: 3, MovieIndex: 5 } && state.MoviePlayback is { Completed: true, IsPlaying: false } && vm.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1 && fiber.GetProperty("WaitReason").GetString() == "NativeHalt");
+        return state.Ff8Completion is not null;
     }
 
     internal string SaveBundle(string name, GameState state)

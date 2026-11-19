@@ -350,7 +350,7 @@ internal sealed class PlayerSaveMenu
             }
             return;
         }
-        if (input.CardChallenge && CanTransfer)
+        if (input.CardChallenge && !IsCompletedMode && !IsQuick && !IsTransferring)
         {
             BeginTransfer();
             return;

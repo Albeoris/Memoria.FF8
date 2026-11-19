@@ -23,6 +23,10 @@ public sealed record GameplaySaveCharacters
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ImmutableSortedDictionary<byte, uint>? NewGamePlusDreamExperienceBackup { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<byte, NewGamePlusDreamMagicBank>? NewGamePlusDreamMagicBackup { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableArray<NativeMagicStock>? NewGamePlusDreamMagicExtensionBackup { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ExtendedRosterPartyBeforeDream { get; init; }
     [JsonRequired]
     public required GameplaySaveGuardianForce[] GuardianForces { get; init; }
@@ -52,6 +56,8 @@ public sealed record GameplaySaveCharacters
             ExtendedRosterEnabled = source.ExtendedRosterEnabled,
             NewGamePlusPermanentGuests = source.NewGamePlusPermanentGuests,
             NewGamePlusDreamExperienceBackup = source.NewGamePlusDreamExperienceBackup,
+            NewGamePlusDreamMagicBackup = source.NewGamePlusDreamMagicBackup,
+            NewGamePlusDreamMagicExtensionBackup = source.NewGamePlusDreamMagicExtensionBackup,
             ExtendedRosterPartyBeforeDream = source.ExtendedRosterPartyBeforeDream,
             GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.ResolveLearning(id).Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
@@ -83,6 +89,8 @@ public sealed record GameplaySaveCharacters
             ExtendedRosterEnabled = detached.ExtendedRosterEnabled,
             NewGamePlusPermanentGuests = detached.NewGamePlusPermanentGuests,
             NewGamePlusDreamExperienceBackup = detached.NewGamePlusDreamExperienceBackup,
+            NewGamePlusDreamMagicBackup = detached.NewGamePlusDreamMagicBackup,
+            NewGamePlusDreamMagicExtensionBackup = detached.NewGamePlusDreamMagicExtensionBackup,
             ExtendedRosterPartyBeforeDream = detached.ExtendedRosterPartyBeforeDream,
             GuardianForces = guardianForces,
             DreamWeapons = detached.DreamWeapons,
@@ -98,6 +106,11 @@ public sealed record GameplaySaveCharacters
 
     public void Validate()
     {
+        NativeCharacterVitals.ValidateNewGamePlusDreamMagicBackup(NewGamePlusDreamMagicBackup, NewGamePlusDreamMagicExtensionBackup);
+        if (NewGamePlusDreamMagicBackup is not null && (!DreamEnabled || Magic?.SharedMagicStock != false))
+        {
+            throw new InvalidDataException("New Game+ personal dream magic aliases require a live personal-stock dream owner.");
+        }
         if (NewGamePlusPermanentGuests is ushort guests && (guests & ~0x7C0) != 0)
         {
             throw new InvalidDataException("New Game+ permanent guests require stable additional character identities.");

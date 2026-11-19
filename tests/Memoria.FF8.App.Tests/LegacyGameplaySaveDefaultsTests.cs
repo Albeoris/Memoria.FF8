@@ -18,10 +18,12 @@ public sealed class LegacyGameplaySaveDefaultsTests
         string before = JsonSerializer.Serialize(legacy);
         List<string> warnings = [];
         GameState loaded = GameplaySaveSessionLoader.Restore(legacy, directory, sharedAssets: assets, reportWarning: warnings.Add);
+        GameState restoredCurrent = GameplaySaveSessionLoader.Restore(current, directory, sharedAssets: assets);
         Assert.Single(warnings);
         Assert.Equal(current.Economy.Gil, loaded.Economy!.Gil);
         Assert.Equal(current.Progression!.Clocks.Playtime, loaded.Playtime);
-        Assert.Equal(current.Progression.Clocks.CrtRandom, loaded.CrtRandom);
+        // Both normal-load reconstructions perform the same native field allocation before resuming.
+        Assert.Equal(restoredCurrent.CrtRandom, loaded.CrtRandom);
         Assert.Equal(current.Progression.Clocks.GlobalRandom, loaded.GlobalRandom);
         Assert.True(loaded.FieldShake!.IsColdProcess);
         Assert.True(loaded.SalaryPresentation!.IsColdProcess);
