@@ -96,6 +96,16 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         return session.World is null && !session.HasPendingTick && session.Machine.HasCompletedInitialCycle && process.GlobalCommand == Ff7GlobalCommand.None && !process.PlayerLocked && process.Join is null && process.Transition is null && !process.Dialogues.Any(dialogue => !dialogue.Completed && session.Host.CanConfirmDialogue(dialogue.RequestId)) && process.Actors.Any(actor => actor.PlayerControlled && actor.Ladder is null && actor.Jump is null && !session.Host.HasScriptedMotion(actor));
     }
 
+    internal static string ReadEntryWitness(string programIdentity, string navigationKey, IEnumerable<Ff7Actor> actors)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            Program = programIdentity,
+            Navigation = navigationKey,
+            Players = actors.Where(actor => actor.PlayerControlled).Select(actor => new { actor.Slot, actor.Entity, actor.Model, actor.EntityBound })
+        });
+    }
+
     public Ff7AutoPlayObservation Observe()
     {
         string identity = session.Machine.ProgramIdentity;
@@ -113,13 +123,7 @@ public sealed partial class Ff7AutoPlayDiscovery(Ff7Session session)
         bool entryStable = entryReadiness.IsReady(session.FieldGeneration);
         if (!entryStable)
         {
-            string entryWitness = canAccept ? JsonSerializer.Serialize(new
-            {
-                Navigation = navigationKey,
-                process.MapJumpDisabled,
-                Actors = process.Actors.Select(actor => new { actor.Slot, actor.Entity, actor.Model, actor.EntityBound, actor.PlayerControlled, actor.TalkEnabled, actor.CollisionEnabled, actor.CollisionRadius, actor.TalkRadius }),
-                Lines = process.Lines.Select(line => new { line.Entity, line.Enabled, line.SlipDisabled, line.X1, line.Y1, line.Z1, line.X2, line.Y2, line.Z2 })
-            }) : string.Empty;
+            string entryWitness = canAccept ? ReadEntryWitness(identity, navigationKey, process.Actors) : string.Empty;
             entryStable = entryReadiness.Observe(session.FieldGeneration, session.Machine.Tick, entryWitness, canAccept);
         }
         canAccept = canAccept && entryStable;

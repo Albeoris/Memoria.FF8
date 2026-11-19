@@ -10,6 +10,7 @@ public sealed class Ff7FieldLighting
     private readonly Vector3 red;
     private readonly Vector3 green;
     private readonly Vector3 blue;
+    private readonly bool zeroFloor;
 
     public Ff7FieldLighting(PcFieldModelDescriptor descriptor)
     {
@@ -31,6 +32,30 @@ public sealed class Ff7FieldLighting
             green += direction * color.Y;
             blue += direction * color.Z;
         }
+    }
+
+    public Ff7FieldLighting(IReadOnlyList<byte> colors, IReadOnlyList<short> directions, Matrix4x4 partNormalTransform)
+    {
+        ArgumentNullException.ThrowIfNull(colors);
+        ArgumentNullException.ThrowIfNull(directions);
+        if (colors.Count != 12 || directions.Count != 9)
+        {
+            throw new InvalidDataException("Custom field lighting requires four RGB triples and nine signed direction words.");
+        }
+        // The PC WORD converters transpose both matrices; custom color bytes become 8.8 values.
+        Matrix4x4 color = new(colors[3] / 256f, colors[4] / 256f, colors[5] / 256f, 0, colors[6] / 256f, colors[7] / 256f, colors[8] / 256f, 0, colors[9] / 256f, colors[10] / 256f, colors[11] / 256f, 0, 0, 0, 0, 1);
+        Matrix4x4 direction = new(directions[0] / 4096f, directions[3] / 4096f, directions[6] / 4096f, 0, directions[1] / 4096f, directions[4] / 4096f, directions[7] / 4096f, 0, directions[2] / 4096f, directions[5] / 4096f, directions[8] / 4096f, 0, 0, 0, 0, 1);
+        Matrix4x4 rotation = new(partNormalTransform.M11, partNormalTransform.M12, partNormalTransform.M13, 0, partNormalTransform.M21, partNormalTransform.M22, partNormalTransform.M23, 0, partNormalTransform.M31, partNormalTransform.M32, partNormalTransform.M33, 0, 0, 0, 0, 1);
+        Matrix4x4 combined = color * direction * Matrix4x4.Transpose(rotation);
+        red = new(combined.M11, combined.M12, combined.M13);
+        green = new(combined.M21, combined.M22, combined.M23);
+        blue = new(combined.M31, combined.M32, combined.M33);
+        ambient = new Vector3(colors[0], colors[1], colors[2]) * (1f / 255);
+        if (!Finite(red) || !Finite(green) || !Finite(blue))
+        {
+            throw new InvalidDataException("Custom field lighting requires a finite sampled part transform.");
+        }
+        zeroFloor = true;
     }
 
     /// <summary>Native group-local vertex ownership: the first encountered corner supplies its P normal index.</summary>
@@ -75,7 +100,7 @@ public sealed class Ff7FieldLighting
         }
         float Channel(Vector3 coefficients, float minimum, byte original, int tint)
         {
-            float factor = MathF.Max(minimum, Vector3.Dot(coefficients, normal) + minimum);
+            float factor = MathF.Max(zeroFloor ? 0 : minimum, Vector3.Dot(coefficients, normal) + minimum);
             float value = MathF.Min(255, original * factor);
             return MathF.Round(tint == 255 ? value : value * tint / 255f, MidpointRounding.ToEven) / 255;
         }

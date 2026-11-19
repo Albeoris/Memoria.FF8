@@ -264,7 +264,7 @@ public sealed partial class Ff7FieldHost
             bool proceduralColorWritten = eligible && modelEffect is not null && (modelEffect.Applied || modelEffect.Restored && actor.ModelEffect?.Restored != true);
             bool transparencyWritten = eligible && original.NativeTransparency is { Pending: true };
             bool colorWritten = eligible && (transparencyWritten || original.NativeColorOffset is { Pending: true } || !ReferenceEquals(actor.NativeColorOffset, original.NativeColorOffset) || proceduralColorWritten);
-            Ff7NativeCustomLightingState? customLighting = actor.NativeCustomLighting is null ? null : Ff7NativeCustomLighting.Advance(actor.NativeCustomLighting, eligible);
+            Ff7NativeCustomLightingState? customLighting = actor.NativeCustomLighting is null ? null : Ff7NativeCustomLighting.Advance(actor.NativeCustomLighting, eligible, Ff7NativeCustomLighting.CapturePose(actor));
             bool customLightingWritten = eligible && customLighting?.Displayed is not null && !ReferenceEquals(customLighting.Displayed, actor.NativeCustomLighting?.Displayed);
             if (customLighting is not null && colorWritten)
             {

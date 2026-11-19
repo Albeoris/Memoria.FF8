@@ -15,10 +15,28 @@ internal static class AutoPlayEntryReadinessTests
         Check(readiness.Observe(1, 3, "later-event", false) && readiness.Observe(1, 4, "changed-after-admission", true), "A completed entry admission was reset by ordinary later field activity.");
         Check(!readiness.Observe(2, 0, "blocked-eight", false) && !readiness.Observe(2, 1, "blocked-eight", true), "A new field generation inherited a previous entry admission.");
         Check(readiness.Observe(2, 2, "blocked-eight", true), "A new field generation failed to establish its own stable entry witness.");
+        CheckEntryWitnessScope();
         CheckSameTickAndColdObservation();
         CheckBusyReset();
         CheckObservationBudget();
         CheckOriginalEntryReadiness();
+    }
+
+    private static void CheckEntryWitnessScope()
+    {
+        Ff7Actor player = new() { Slot = 0, Entity = 1, Model = 2, PlayerControlled = true };
+        Ff7Actor background = new() { Slot = 1, Entity = 3, Model = 4, TalkEnabled = true, CollisionEnabled = true };
+        string witness = Ff7AutoPlayDiscovery.ReadEntryWitness("program", "component", [player, background]);
+        string ambientChanged = Ff7AutoPlayDiscovery.ReadEntryWitness("program", "component", [player, background with { TalkEnabled = false, CollisionEnabled = false, X4096 = 4096, TalkRadius = 200 }]);
+        Check(witness == ambientChanged, "Ambient actor geometry or interaction flags reset native entry readiness.");
+        Ff7AutoPlayEntryReadiness readiness = new();
+        Check(!readiness.Observe(1, 1, witness, true) && readiness.Observe(1, 2, ambientChanged, true), "A free player with stable topology failed to settle while ambient field activity continued.");
+        Check(witness != Ff7AutoPlayDiscovery.ReadEntryWitness("other-program", "component", [player, background]), "A changed native program retained entry ownership.");
+        Check(witness != Ff7AutoPlayDiscovery.ReadEntryWitness("program", "other-component", [player, background]), "A changed navigation component retained entry readiness.");
+        foreach (Ff7Actor replacement in new[] { player with { Slot = 2 }, player with { Entity = 2 }, player with { Model = 3 }, player with { EntityBound = false }, player with { PlayerControlled = false } })
+        {
+            Check(witness != Ff7AutoPlayDiscovery.ReadEntryWitness("program", "component", [replacement, background]), "A changed native player binding retained entry ownership.");
+        }
     }
 
     private static void CheckOriginalEntryReadiness()

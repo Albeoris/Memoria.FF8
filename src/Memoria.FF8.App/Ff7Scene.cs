@@ -493,6 +493,7 @@ internal sealed partial class Ff7Scene : IDisposable
         }
         if (renderer is null || renderedGeneration != session.FieldGeneration)
         {
+            customLightingEffects.Clear();
             renderer = new Ff7FieldRenderer(session.Field, session.Models.Select((model, index) => (model, index)).ToDictionary(pair => pair.index, pair => pair.model), new(session.FieldNearPlane, projection.FarPlane), appearance);
             renderedGeneration = session.FieldGeneration;
         }
@@ -509,7 +510,6 @@ internal sealed partial class Ff7Scene : IDisposable
             AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled,
             NativeEyeLeft = actor.NativeEyeLeft,
             NativeEyeRight = actor.NativeEyeRight,
-            RequiresNativeCustomLighting = actor.NativeCustomLighting?.Displayed is not null,
             FirstAnimationFrame = actor.FirstAnimationFrame,
             LastAnimationFrame = actor.LastAnimationFrame,
             AnimationLoop = actor.AnimationLoop && !actor.HoldAnimation && !actor.AnimationStopped,

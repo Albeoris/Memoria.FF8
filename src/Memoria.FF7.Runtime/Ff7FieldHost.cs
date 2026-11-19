@@ -54,6 +54,11 @@ public sealed partial class Ff7FieldHost : IFieldHost
             Process = Process with { Menu = legacyNaming with { NamingPhase = legacyNaming.Completed ? Ff7NamingPhase.Completed : Ff7NamingPhase.Editing } };
         }
         Process.Validate();
+        Ff7Actor[] restoredActors = Process.Actors!;
+        if (restoredActors.Any(actor => actor.NativeCustomLighting?.Displayed is { SamplingPose: null }))
+        {
+            Process = Process with { Actors = restoredActors.Select(actor => actor.NativeCustomLighting is { } lighting ? actor with { NativeCustomLighting = Ff7NativeCustomLighting.RestoreSamplingPose(lighting, actor) } : actor).ToArray() };
+        }
         foreach (Ff7HostReceipt receipt in Process.Receipts)
         {
             receipts.Add(receipt.Request.Id, receipt);
