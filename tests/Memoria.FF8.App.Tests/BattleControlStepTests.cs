@@ -41,6 +41,27 @@ public sealed class BattleControlStepTests
             {
                 Assert.True(afterWallTime > initialCallback);
             }
+            for (int callback = 0; callback < 1800 && !battle.NativeEntryReady; callback++)
+            {
+                command.Invoke(game, [new BattleInput(BattleInputKind.Tick)]);
+            }
+            Assert.True(battle.NativeEntryReady);
+            BattleScenePresentation scene = new(battleAssets, battle.Capture().Definition);
+            typeof(RecreateGame).GetField("uiPreferences", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(game, new Memoria.FF8.GameUi.UiPreferences { BattleFps = 60 });
+            MethodInfo renderPhase = typeof(RecreateGame).GetMethod("ReadBattleRenderPhase", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            NativeBattlePreparedPresentation earlier = battle.PreparedPresentation!;
+            float phase = (float)renderPhase.Invoke(game, [battle, scene])!;
+            scene.Render(battle, 320, 216, triangleRenderer: null, presentationPhase: phase);
+            command.Invoke(game, [new BattleInput(BattleInputKind.Tick)]);
+            NativeBattlePreparedPresentation current = battle.PreparedPresentation!;
+            Assert.Equal(earlier.Callback + 1, current.Callback);
+            phase = (float)renderPhase.Invoke(game, [battle, scene])!;
+            scene.Render(battle, 320, 216, triangleRenderer: null, presentationPhase: phase);
+            Assert.Equal(!controlStep, scene.SmoothCompatibleMotion);
+            Assert.Same(controlStep ? current : earlier, scene.PresentedNativeFrame);
+            Assert.Equal(controlStep ? null : (long?)current.Callback, scene.PresentedNextNativeCallback);
+            Assert.Equal(0, scene.PresentedInterpolationAlpha);
+            afterWallTime = battle.Presentation!.NativeGraphics!.Callback;
             command.Invoke(game, [new BattleInput(BattleInputKind.Tick)]);
             long afterExplicitTick = battle.Presentation!.NativeGraphics!.Callback;
             Assert.True(afterExplicitTick > afterWallTime);

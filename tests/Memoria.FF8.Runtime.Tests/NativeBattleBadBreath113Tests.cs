@@ -87,13 +87,21 @@ public sealed class NativeBattleBadBreath113Tests
         }
         (packets, _) = packets.Publish(recipients.Length);
         NativeBattleActionMatrix view = NativeBattleCuragaMatrices.Identity8DD770();
-        NativeBattleGraphicsModel model = new(0)
+        NativeBattleGraphicsResource body = ContactModelResource();
+        NativeGlobalRandomState modelRandom = new(1);
+        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, owner =>
         {
-            Rotation14 = 0,
-            Transform = new(new(0, 0, 0), new(100, 0, 500), 0, 0, 4096),
-            GeometryWorldMatrix = view
-        };
-        NativeBattleGraphicsState graphics = NativeBattleHostedTestFixture.Graphics(roster, aliases, _ => model);
+            NativeBattleGraphicsModel cold = NativeBattleGraphicsModels.ClearUnloadedModel(0, Enumerable.Repeat<byte?>(0, 32).ToImmutableArray(), view, NativeBattleModelRetainedFields.FromColdProcess(), NativeBattleSequenceState.ColdProcessLocals());
+            NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(cold, owner.Side == BattleSide.Allies ? (byte)1 : (byte)61, 0, owner.Side == BattleSide.Allies, ref modelRandom, 0);
+            loaded = loaded with
+            {
+                Transform = new(new(0, 0, 0), new(100, 0, 500), 0, 0, 4096),
+                GeometryWorldMatrix = view,
+                Sequence = 1,
+                SequenceState = new NativeBattleSequenceState().InitializeControl5027D0(1, 0) with { Pose = 0, PoseFrame114 = 1, PoseLimit115 = 2, DecodedPose = body.PoseSource!.Sample(0, 1, 0) }
+            };
+            return NativeBattleBodyBoneMatrices.Publish508C90(loaded, body.PoseSource!);
+        });
         NativeBattleEffectTaskPool root = NativeBattleEffectTaskPool.Initialize(0x25218C8, 0x2521880, 20, 1);
         (root, _) = root.Append(0x6CACD0);
         root.Slots[0].WriteDword(12, 0).WriteDword(16, 0);
@@ -102,26 +110,50 @@ public sealed class NativeBattleBadBreath113Tests
             Pools = [root]
         };
         graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = NativeBattlePrimitiveFrame.Clear() };
-        BattleDefinition definition = new() { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] };
+        BattleDefinition definition = new()
+        {
+            Combatants = roster.Owners.Select(owner => new BattleCombatantDefinition
+            {
+                Id = owner switch { BattlePartyActorModel party => party.Actor.ActorId, BattleEnemyActorModel enemy => enemy.Actor.ActorId, _ => throw new InvalidOperationException() },
+                Name = "Actor",
+                IsPlayer = owner.Side == BattleSide.Allies,
+                ModelId = owner.Side == BattleSide.Allies ? 1 : 61
+            }).ToArray()
+        };
         var session = new BattleSession(definition, BattleAtbMode.Normal);
         ImmutableArray<sbyte> saved = Enumerable.Repeat((sbyte)-1, 16).ToImmutableArray();
         ImmutableArray<sbyte> battle = Enumerable.Repeat((sbyte)-1, 32).ToImmutableArray();
         NativeBattleGraphicsRules rules = new(NativeFieldRuntimeProfile.FF8EnExecutableHash, saved, battle) { SummonColors = NativeBattleGteColorInterpolation.CodeConstants45F270 };
-        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, [], []));
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = definition.Combatants.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)actor.ModelId), body)).ToImmutableArray();
+        NativeBattleHostedTestFixture.BindProcess(session, graphics, new(rules, bindings, []));
         Field("presentationForeignActors").SetValue(session.Presentation!, new Dictionary<BattleModelOwner, NativeBattleForeignActor>());
-        NativeBattleGraphicsResource body = new([0, 0, 0, 0]);
-        Field("presentationNativeTargets").SetValue(session.Presentation!, roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleEffectModelBinding(owner, model, body)));
+        Field("presentationNativeTargets").SetValue(session.Presentation!, roster.Owners.ToDictionary(owner => owner, owner => new NativeBattleEffectModelBinding(owner, graphics.ActorModels.Get(owner), body)));
         Field("nativeActionPackets").SetValue(session.Presentation!, packets);
         Field("nativeCrtRandom").SetValue(session.Presentation!, new NativeCrtRandomState(17));
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeEffectMemory))!.SetValue(session.Presentation!, NativeBattleEffectMemory.FromColdProcess() with { Arena = NativeBattleEffectArena.Clear() });
         typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeCamera))!.SetValue(session.Presentation!, NativeBattleCameraState.FromColdProcess() with { Projection = new(view, 100, 160, 108) });
+        typeof(BattlePresentationProcess).GetProperty(nameof(BattlePresentationProcess.NativeGlobalSoundProcess))!.SetValue(session.Presentation!, NativeGlobalSoundProcess.FromBufferlessColdProcess());
         var applied = (List<NativeBattleContactPacket>)Field("presentationContacts").GetValue(session.Presentation!)!;
         MethodInfo advance = typeof(BattlePresentationProcess).GetMethod("AdvanceNativeBadBreath113", BindingFlags.Instance | BindingFlags.NonPublic)!;
         List<(int Age, BattleModelOwner Owner)> births = [];
         int peak = 0;
+        int committedSounds = 0;
         for (int callback = 0; callback < 100 && graphics.OriginalEffect!.ReturnedDescriptor != 0; callback++)
         {
-            graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(session.Presentation!, [graphics]));
+            NativeBattleModelLifecycleServices frameServices = NativeBattleHostedTestFixture.ReadModelServices(session.Presentation!, roster);
+            Field("hostedFrameServices").SetValue(session.Presentation!, frameServices);
+            typeof(BattlePresentationProcess).GetMethod("BeginNativeFrameStack", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, []);
+            try
+            {
+                graphics = Assert.IsType<NativeBattleGraphicsState>(advance.Invoke(session.Presentation!, [graphics]));
+                NativeBattleHostedTestFixture.SetProperty(session.Presentation!, nameof(BattlePresentationProcess.NativeGraphics), graphics);
+                committedSounds += frameServices.ReadOrderedReceipts().Count(receipt => receipt is NativeBattlePresentationSoundCommitted);
+            }
+            finally
+            {
+                typeof(BattlePresentationProcess).GetMethod("EndNativeFrameStack", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(session.Presentation!, []);
+                Field("hostedFrameServices").SetValue(session.Presentation!, null);
+            }
             if (graphics.OriginalEffect!.Pools.Length == 4)
             {
                 NativeBattleEffectTaskPool particles = graphics.OriginalEffect.Pools[2];
@@ -141,11 +173,24 @@ public sealed class NativeBattleBadBreath113Tests
         Assert.Equal(new[] { roleZero, roleTwo }.Concat(extras), births.Select(birth => birth.Owner));
         Assert.Equal(new[] { 0, 3, 1, 2, 4, 5 }.Select(index => packets.ResolveContact(header, index)), applied.Select(packet => packet.Occurrence!.Value));
         Assert.True(peak > 80);
+        Assert.True(committedSounds > 0);
         Assert.Equal(0u, graphics.OriginalEffect!.ReturnedDescriptor);
         Assert.Equal(new uint[] { 0x25218C8, 0x25218B8 }, graphics.OriginalEffect.Pools.Select(pool => pool.DescriptorAddress));
         Assert.All(graphics.ActorModels.Entries, entry => Assert.Equal(0, entry.State.Flags0 & 4));
 
         static FieldInfo Field(string name) => typeof(BattlePresentationProcess).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
+    }
+
+    private static NativeBattleGraphicsResource ContactModelResource()
+    {
+        byte[] skeleton = new byte[16 + 48 * 32];
+        skeleton[0] = 32;
+        skeleton[4] = 9;
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 256);
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
+        NativeBattleDecodedPose pose = new(default, Enumerable.Repeat(new NativeBattleBonePose(default, new(1024, 1024, 1024)), 32).ToImmutableArray(), false);
+        NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), NativeBattleAnimationEncoder.Encode([ImmutableArray.Create(pose, pose)]));
+        return new([5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0xA0, 0, 0xA1]) { PoseSource = source, AnimationFrames = [2], Geometry = [], LinkedGeometry = [] };
     }
 
     private static NativeBattleBadBreath113Resources Resources()

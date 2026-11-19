@@ -117,7 +117,7 @@ public static class NativeBattleSequenceMachine
         void PublishBodyPose508C90()
         {
             model = resource.PoseSource is { } bodySource
-                ? NativeBattleBodyBoneMatrices.Publish508C90(model with { SequenceState = state }, bodySource)
+                ? NativeBattleLinkedContact.Publish(NativeBattleBodyBoneMatrices.Publish508C90(model with { SequenceState = state }, bodySource), bodySource)
                 : model with { CurrentBodyBoneMatrices = null };
         }
 

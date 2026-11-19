@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Reflection;
 using System.Text.Json;
 using Memoria.FF8.Assets;
@@ -118,7 +118,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         NativeRandomEncounterState random = session.State.RandomEncounters?.Native ?? NativeRandomEncounterState.FromColdProcess();
         session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, WeaponLimitBattlePreparation.Formation, program)));
         WeaponLimitBattlePreparation.SaveField(session, world, recipient, assets.ReadWeaponProfile(weapon).ResourceOwner, family, cardSlots, source, directory);
-        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: 4));
+        world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_PAIR_PROBE") is null ? (byte)4 : (byte)0));
         BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
         BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
         int contacts = 0;
@@ -311,9 +311,14 @@ public sealed class InstalledLimitLoadoutBattleTests
         void TickOnce()
         {
             object before = Context();
+            NativeBattlePreparedPresentation? previousPrepared = battle.PreparedPresentation;
             try
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
+                if (recipient == 0 && family == BattleLimitFamily.BloodPain && previousPrepared is not null && battle.PreparedPresentation is { } currentPrepared && battle.Presentation?.LastFrameServices?.ReadOrderedReceipts().OfType<NativeBattlePresentationContactReceived>().Any() == true)
+                {
+                    InstalledLoadoutPairProbe.Capture(assets, battle, previousPrepared, currentPrepared);
+                }
                 if (family == BattleLimitFamily.Renzokuken && weaponDonor == 6 && battle.GetNativeRenzokuken(actor.Id) is { } renzokuken)
                 {
                     Assert.Null(renzokuken.FinisherActionId);

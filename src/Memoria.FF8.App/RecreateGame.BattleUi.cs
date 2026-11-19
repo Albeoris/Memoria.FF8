@@ -624,9 +624,9 @@ internal sealed partial class RecreateGame
         byte[] pixels;
         try
         {
-            battleScene!.SmoothCompatibleMotion = uiPreferences.BattleFps == 60;
-            battleScene.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
-            pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, presentationTiming.SamplePresentationPhase(active, active.PreparedPresentation, CanAdvanceBattleRenderPhase, battleScene.SmoothCompatibleMotion));
+            float renderPhase = ReadBattleRenderPhase(active, battleScene!);
+            battleScene!.PilotDiagnosticsEnabled = diagnosticTelemetry?.VisualChangesEnabled == true;
+            pixels = battleScene.Render(active, size.Width, size.Height, battleGpu, renderPhase);
             InvalidateTexturePresentation();
             texturePresentedBattle = active;
             if (diagnosticTelemetry?.VisualChangesEnabled == true && battleGpu is not null)
@@ -649,6 +649,17 @@ internal sealed partial class RecreateGame
             battleTexture!.SetData(pixels);
         }
         metrics.Render(renderMilliseconds, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
+    private float ReadBattleRenderPhase(BattleSession active, BattleScenePresentation scene)
+    {
+        scene.SmoothCompatibleMotion = uiPreferences.BattleFps == 60 && !options.ControlStep;
+        return presentationTiming.SamplePresentationPhase(active, active.PreparedPresentation, CanAdvanceBattleRenderPhase, scene.SmoothCompatibleMotion);
+    }
+
+    private static object? ReadBattlePreparedFrameIdentity(NativeBattlePreparedPresentation? frame)
+    {
+        return frame is null ? null : new { frame.Version, frame.Callback, frame.Frame, Actors = frame.Actors.Select(actor => new { actor.Id, actor.WeaponId, HasLinkedTextures = actor.LinkedTextures is not null }).ToArray() };
     }
 
     private void DrawBattle(Rectangle bounds)
@@ -690,7 +701,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, active.CanAdmitDebugOutcome, active.CanReturnToField, active.NativeEntryAdvantage, active.NativeRenzokukenTriggerWindowOpen, NativeControllers = active.Combatants.Where(actor => actor.IsPlayer).Select(actor => new { actor.Id, Shot = active.GetNativeShot(actor.Id)?.Phase.ToString(), Duel = active.GetNativeDuel(actor.Id)?.Phase.ToString(), Renzokuken = active.GetNativeRenzokuken(actor.Id) is null ? null : "Active" }).ToArray(), NativePresentation = active.Presentation is { } presentation ? new { presentation.EntryReady, presentation.HasActiveAction, NativeCallback = presentation.Graphics.Callback, Outcome = presentation.Graphics.NativeOutcome, Party = presentation.Graphics.ActorModels.Party.Entries.Select(entry => new { entry.State.ModelId4, entry.State.Phase6, entry.State.Sequence, entry.State.SequenceFrame, entry.State.ActiveAnimationBank, entry.State.EquipmentPresentationRole, DefaultSequence = entry.State.SequenceState?.Default2, Pose = entry.State.SequenceState?.Pose, PoseFrame = entry.State.SequenceState?.PoseFrame114, PoseLimit = entry.State.SequenceState?.PoseLimit115 }).ToArray(), DescriptorTasks = presentation.Graphics.Descriptors.Tasks.Where(task => task.Flags != 0).Select(task => new { task.Kind, task.Phase }).ToArray() } : null, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, active.CanQueueNativeScanInput, active.CanAdmitDebugOutcome, active.CanReturnToField, active.NativeEntryAdvantage, active.NativeRenzokukenTriggerWindowOpen, NativeControllers = active.Combatants.Where(actor => actor.IsPlayer).Select(actor => new { actor.Id, Shot = active.GetNativeShot(actor.Id)?.Phase.ToString(), Duel = active.GetNativeDuel(actor.Id)?.Phase.ToString(), Renzokuken = active.GetNativeRenzokuken(actor.Id) is null ? null : "Active" }).ToArray(), NativePresentation = active.Presentation is { } presentation ? new { presentation.EntryReady, presentation.HasActiveAction, NativeCallback = presentation.Graphics.Callback, Prepared = ReadBattlePreparedFrameIdentity(active.PreparedPresentation), Presented = ReadBattlePreparedFrameIdentity(battleScene?.PresentedNativeFrame), PresentedNextCallback = battleScene?.PresentedNextNativeCallback, PresentedInterpolationAlpha = battleScene?.PresentedInterpolationAlpha, Outcome = presentation.Graphics.NativeOutcome, Party = presentation.Graphics.ActorModels.Party.Entries.Select(entry => new { entry.State.ModelId4, entry.State.Phase6, entry.State.Sequence, entry.State.SequenceFrame, entry.State.ActiveAnimationBank, entry.State.EquipmentPresentationRole, DefaultSequence = entry.State.SequenceState?.Default2, Pose = entry.State.SequenceState?.Pose, PoseFrame = entry.State.SequenceState?.PoseFrame114, PoseLimit = entry.State.SequenceState?.PoseLimit115 }).ToArray(), DescriptorTasks = presentation.Graphics.Descriptors.Tasks.Where(task => task.Flags != 0).Select(task => new { task.Kind, task.Phase }).ToArray() } : null, RecentEvents = active.Events.TakeLast(12).ToArray(), BattlePolicy = ReadCurrentUiPreferences().BattlePolicy, DebugMenuOpen = battleDebug is not null, DiagnosticOwners = world?.IsDiagnosticBattle == true ? active.ObserveDiagnosticOwners() : null };
     }
 
     private object DispatchBattleControl(ControlRequest request)

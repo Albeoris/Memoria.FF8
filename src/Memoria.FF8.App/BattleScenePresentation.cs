@@ -20,6 +20,8 @@ internal sealed partial class BattleScenePresentation
     private NativeBattlePreparedPrimitiveFrame? renderedPrimitiveFrame;
     private NativeBattlePrimitiveCapabilities? renderedPrimitiveCapabilities;
     internal NativeBattlePreparedPresentation? PresentedNativeFrame { get; private set; }
+    internal long? PresentedNextNativeCallback { get; private set; }
+    internal float PresentedInterpolationAlpha { get; private set; }
     private NativeBattlePcRenderTailReceipt? renderedPcRenderTail;
     private NativeBattlePcUiFrame? renderedPcUiFrame;
     private NativeBattleEffectTextureState? renderedTextures;
@@ -131,6 +133,8 @@ internal sealed partial class BattleScenePresentation
         if (prepared is null && process.Graphics.Callback == 0)
         {
             PresentedNativeFrame = null;
+            PresentedNextNativeCallback = null;
+            PresentedInterpolationAlpha = 0;
             byte[] blank = renderer.RenderNativePrimitiveFrame(new NativeBattlePreparedPrimitiveFrame([], []), null);
             renderedGpu = triangleRenderer as GpuTriangleRenderer;
             renderedGpuVersion = renderedGpu?.PresentationVersion ?? 0;
@@ -142,6 +146,8 @@ internal sealed partial class BattleScenePresentation
             throw new InvalidOperationException("Battle rendering requires a completed prepared presentation.");
         }
         PresentedNativeFrame = prepared;
+        PresentedNextNativeCallback = pilotNext?.Callback;
+        PresentedInterpolationAlpha = pilotNext is null ? 0 : pilotAlpha;
         renderer.ObservePilotSource(prepared, pilotNext, pilotAlpha, pilotInterval);
         if (prepared.GuardianAnimationSkipPending)
         {

@@ -85,6 +85,47 @@ public sealed class NativeBattleAnimationRetargetTests
         Assert.Null(NativeBattleLinkedContact.Publish(restored, recipient).LinkedContactOffset);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sequence_frame_publication_synchronizes_transferred_contact_without_changing_native_linked_motion(bool transferred)
+    {
+        NativeBattlePoseSource source = Source([Pose(0, 0), Pose(1, 300), Pose(2, 600)], 512);
+        NativeBattlePoseSource recipient = Source([Pose(0, 0)], 1024);
+        NativeBattlePoseSource body = transferred ? new NativeBattlePoseRetargeter(source, recipient, [new("root", 0, 0), new("hand-a", 1, 1)], 1).Compile(source) : source;
+        NativeBattleGraphicsResource resource = new([1, 0, 4, 0, 0xA1]) { PoseSource = body, AnimationFrames = [3] };
+        NativeBattleGraphicsModel model = new(2)
+        {
+            ModelId4 = 0,
+            Flags2 = 4,
+            Flags8 = 0,
+            Sequence = 1,
+            ResourceFlags44 = 8,
+            SequenceState = new() { Pose = 0, PoseFrame114 = 1, PoseLimit115 = 3, DecodedPose = body.Sample(0, 1, 0) },
+            LinkedTransform = new(new(100, 200, 300), new(10, 20, 30))
+        };
+        model = NativeBattleBodyBoneMatrices.Publish508F60(model, body, null);
+
+        NativeBattleGraphicsModel advanced = NativeBattleSequenceMachine.Advance(Memoria.FF8.Tests.NativeBattleTypedFixture.OriginalOwner(0), model, resource, new(null, null)).Model;
+
+        Assert.Equal((byte)2, advanced.SequenceState!.PoseFrame114);
+        Assert.Equal((byte)1, advanced.SequenceState.Callback42);
+        Assert.Equal((ushort)0, advanced.SequenceState.Offset46);
+        Assert.Equal(model.LinkedTransform, advanced.LinkedTransform);
+        NativeBattleGraphicsModel expected = NativeBattleLinkedContact.Publish(advanced with { LinkedContactOffset = null }, body);
+        Assert.Equal(expected.LinkedContactOffset, advanced.LinkedContactOffset);
+        Assert.Equal(advanced.LinkedContactOffset, NativeBattleLinkedContact.Publish(advanced, body).LinkedContactOffset);
+        if (transferred)
+        {
+            Assert.NotEqual(model.LinkedContactOffset, advanced.LinkedContactOffset);
+        }
+        else
+        {
+            Assert.Null(advanced.LinkedContactOffset);
+            Assert.Equal(model.ReadEffectiveLinkedTransform(), advanced.ReadEffectiveLinkedTransform());
+        }
+    }
+
     [Fact]
     public void Already_compiled_external_bank_restores_its_own_contact_metadata_after_native_row_resolution()
     {
