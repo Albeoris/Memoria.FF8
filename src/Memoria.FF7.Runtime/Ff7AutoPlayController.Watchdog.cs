@@ -6,6 +6,7 @@ public sealed partial class Ff7AutoPlayController
 {
     private void ObserveProgress(string progress)
     {
+        progress += ":physical-planning:" + driver.PhysicalPlanningWork;
         if (readPlanningProgress?.Invoke() is string planning)
         {
             progress += ":planning:" + planning;

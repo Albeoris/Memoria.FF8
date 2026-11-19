@@ -96,6 +96,7 @@ public sealed partial class Ff7AutoplayDriver
                 {
                     try
                     {
+                        driver.BeginPlanningStep();
                         Ff7Actor current = branch.Host.Process.Actors.Single(actor => actor.PlayerControlled);
                         backwardCompleted |= recoveryRequest is not null && current.Ladder is { Completed: true, Step: 0 } completed && completed.RequestId == recoveryRequest.Id;
                         Ff7AutoplayInput input;
@@ -141,6 +142,10 @@ public sealed partial class Ff7AutoplayDriver
                             {
                                 input = driver.ApproachNativeRouteTarget(target, false);
                             }
+                        }
+                        if (driver.PlanningPending)
+                        {
+                            return true;
                         }
                         steps.Add(new(ReadNativeRouteFingerprint(branch), input));
                         driver.Apply(input);
@@ -194,7 +199,7 @@ public sealed partial class Ff7AutoplayDriver
                         return false;
                     }
                 }
-                for (int callback = 0; callback < 256; callback++)
+                for (int callback = 0; callback < 256;)
                 {
                     // Yield before each detached callback so a retained iterator
                     // never executes another callback without its caller's allowance.
@@ -203,6 +208,10 @@ public sealed partial class Ff7AutoplayDriver
                     if (!AdvanceCallback(callback))
                     {
                         break;
+                    }
+                    if (!driver.PlanningPending)
+                    {
+                        callback++;
                     }
                 }
                 if (probe.Result is not null)

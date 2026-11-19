@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--physical-search-continuation-only", StringComparer.Ordinal))
+{
+    PhysicalSearchContinuationTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-talk-floor-only", StringComparer.Ordinal))
+{
+    NativeTalkFloorContactTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-talk-floor-original-only", StringComparer.Ordinal))
+{
+    NativeTalkFloorContactTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--admitted-cycle-approach-only", StringComparer.Ordinal))
 {
     AdmittedCycleApproachTests.Run();

@@ -337,8 +337,8 @@ internal static class NativeAutoPlayPhysicalAvailabilityTests
         Check(detour.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && detour.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(0, 1), new Ff7AutoplayInput(1, 0) }), "The bounded native search failed to take a physically admitted away detour around a blocked portal.");
         var refused = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, Preview, (_, _) => false, 16);
         Check(refused is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Inputs.Length: 0 }, "A physical detour bypassed selected-target movement admission.");
-        var limited = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, (actor, _) => new(actor with { Y4096 = actor.Y4096 + 10 * 4096 }, false, true, []), (_, _) => true, 1);
-        Check(limited is { Status: Ff7AutoPlayPhysicalSearchStatus.Limited, Inputs.Length: 0 }, "A bounded search failure became global physical absence or an unproved advancing route.");
+        var pending = Ff7AutoplayDriver.SearchPhysicalEscape(source, waypoint, Remaining, (actor, _) => new(actor with { Y4096 = actor.Y4096 + 10 * 4096 }, false, true, []), (_, _) => true, 1);
+        Check(pending is { Status: Ff7AutoPlayPhysicalSearchStatus.Pending, Inputs.Length: 0 }, "A scheduling yield became global physical absence or an unproved advancing route.");
         Ff7Actor lower = source with { X4096 = 10 * 4096, Z4096 = 0 };
         Check(!Ff7AutoplayDriver.HasPhysicalRouteProgress(source, lower, waypoint, _ => 0), "Lower-floor XY proximity falsely completed a three-dimensional terminal approach.");
         PcWalkmeshTriangle[] mesh = [new(0, new(0, 0, 100), new(10, 0, 100), new(0, 10, 100), 1, -1, -1), new(1, new(10, 0, 100), new(10, 10, 110), new(0, 10, 100), 0, -1, -1)];

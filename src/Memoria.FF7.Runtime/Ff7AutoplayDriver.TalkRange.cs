@@ -101,8 +101,23 @@ public sealed partial class Ff7AutoplayDriver
         {
             return Approach(targetPoint, target.Triangle, run);
         }
+        var (candidates, blockingEntities) = DiscoverTalkContacts(target, player, reachable);
+        if (candidates.Count == 0)
+        {
+            throw new Ff7AutoPlayNavigationUnavailableException(target.Entity, "FFVII talk target has no reachable native floor point satisfying its original interaction predicate.", blockingEntities.Order().ToArray());
+        }
+        Vector3 current = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
+        var goal = candidates.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
+        return Approach(goal.Point, goal.Triangle, run);
+    }
+
+    internal (IReadOnlyList<(Vector3 Point, int Triangle)> Contacts, int[] BlockingEntities) DiscoverTalkContacts(Ff7Actor target, Ff7Actor player, IReadOnlySet<int>? reachable = null)
+    {
+        reachable ??= ReachableTriangles(player.Triangle);
+        Vector3 targetPoint = new(target.X4096 >> 12, target.Y4096 >> 12, target.Z4096 >> 12);
         List<(Vector3 Point, int Triangle)> candidates = [];
         HashSet<int> blockingEntities = [];
+        byte[] headings = Directions.Select(direction => (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255)).ToArray();
         foreach (int index in reachable.Order())
         {
             var triangle = session.Field.Walkmesh[index];
@@ -134,7 +149,19 @@ public sealed partial class Ff7AutoplayDriver
                 Ff7Actor? selected = session.PreviewTalkTarget(projected);
                 if (selected?.Entity == target.Entity)
                 {
-                    candidates.Add((point, index));
+                    Ff7Actor? admitted = ReadNativeTalkFloorContact(projected, session.Host.Movement!, session.Host.Process.Actors, session.Host.Process.BlockedTriangles, session.Host.Process.LineBlocked, headings, actual =>
+                    {
+                        Ff7Actor? actualSelected = session.PreviewTalkTarget(actual);
+                        if (actualSelected is not null && actualSelected.Entity != target.Entity && session.PreviewTalkTarget(actual, [target])?.Entity == target.Entity)
+                        {
+                            blockingEntities.Add(actualSelected.Entity);
+                        }
+                        return actualSelected?.Entity == target.Entity;
+                    }, blockingEntities);
+                    if (admitted is not null)
+                    {
+                        candidates.Add((Position3D(admitted), admitted.Triangle));
+                    }
                 }
                 else if (selected is not null && session.PreviewTalkTarget(projected, [target])?.Entity == target.Entity)
                 {
@@ -142,13 +169,30 @@ public sealed partial class Ff7AutoplayDriver
                 }
             }
         }
-        if (candidates.Count == 0)
+        return (candidates, blockingEntities.Order().ToArray());
+    }
+
+    internal static Ff7Actor? ReadNativeTalkFloorContact(Ff7Actor projected, Ff7NativeMovement movement, IReadOnlyList<Ff7Actor> actors, byte[] blockedTriangles, bool lineBlocked, IReadOnlyList<byte> headings, Func<Ff7Actor, bool> acceptsTalk, ISet<int>? blockingEntities = null)
+    {
+        // Zero stride evaluates the native footprint while retaining its corrected floor and facing.
+        return SelectNativeTalkFloorContact(headings, heading => movement.StepDirection(projected with { MoveSpeed = 0 }, heading, actors, blockedTriangles, playerLocked: false, lineBlocked: lineBlocked), acceptsTalk, blockingEntities);
+    }
+
+    internal static Ff7Actor? SelectNativeTalkFloorContact(IReadOnlyList<byte> headings, Func<byte, Ff7NativeMoveResult> preview, Func<Ff7Actor, bool> acceptsTalk, ISet<int>? blockingEntities = null)
+    {
+        foreach (byte heading in headings)
         {
-            throw new Ff7AutoPlayNavigationUnavailableException(target.Entity, "FFVII talk target has no reachable native floor point satisfying its original interaction predicate.", blockingEntities.Order().ToArray());
+            Ff7NativeMoveResult footprint = preview(heading);
+            if (footprint.Moved && acceptsTalk(footprint.Actor))
+            {
+                return footprint.Actor;
+            }
+            foreach (int entity in footprint.PushEntities)
+            {
+                blockingEntities?.Add(entity);
+            }
         }
-        Vector3 current = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
-        var goal = candidates.OrderBy(candidate => Vector3.DistanceSquared(current, candidate.Point)).ThenBy(candidate => candidate.Triangle).First();
-        return Approach(goal.Point, goal.Triangle, run);
+        return null;
     }
 
     /// <summary>Admits a direct physical approach only after the native mover reaches the actual interaction predicate.</summary>

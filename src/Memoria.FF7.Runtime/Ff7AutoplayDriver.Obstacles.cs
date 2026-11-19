@@ -7,7 +7,7 @@ internal enum Ff7AutoPlayPhysicalSearchStatus
 {
     Progress,
     Exhausted,
-    Limited
+    Pending
 }
 
 internal sealed record Ff7AutoPlayPhysicalRoute(Ff7AutoPlayPhysicalSearchStatus Status, Ff7AutoplayInput[] Inputs, int Expanded);
@@ -19,6 +19,10 @@ public sealed partial class Ff7AutoplayDriver
     private long obstacleGeneration = -1;
     private Vector3? obstacleTarget;
     private int obstacleSpeed;
+    private PhysicalSearchCursor? obstacleSearch;
+    private string? obstacleSearchContext;
+    private Vector3? obstacleSearchAlternative;
+    internal long PhysicalPlanningWork { get; private set; }
 
     private sealed record EscapeStep(Ff7AutoplayInput Input, int X4096, int Y4096, int Z4096, int Triangle);
     private sealed record SearchNode(Ff7Actor Actor, SearchNode? Parent, Ff7AutoplayInput Input, float Cost);
@@ -64,6 +68,14 @@ public sealed partial class Ff7AutoplayDriver
         obstacleHistory.Clear();
         obstacleEscape.Clear();
         obstacleGeneration = -1;
+        CancelObstacleSearch();
+    }
+
+    private void CancelObstacleSearch()
+    {
+        obstacleSearch = null;
+        obstacleSearchContext = null;
+        obstacleSearchAlternative = null;
     }
 
     private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, int destination, int nextTriangle, int[] routeDistance, bool blockedForward, IReadOnlyList<int> blockingEntities, Ff7NativeMovement movement, out Ff7AutoplayInput input)
@@ -78,13 +90,19 @@ public sealed partial class Ff7AutoplayDriver
         if (obstacleSpeed != player.MoveSpeed)
         {
             obstacleEscape.Clear();
+            CancelObstacleSearch();
             obstacleSpeed = player.MoveSpeed;
+        }
+        string context = $"{ReadApproachGuideContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
+        if (obstacleSearchContext != context)
+        {
+            CancelObstacleSearch();
         }
         if (TakeEscapeStep(player, movement, out input))
         {
             return true;
         }
-        if (!blockedForward)
+        if (!blockedForward && obstacleSearch is null)
         {
             Vector3 position = Position3D(player);
             obstacleHistory.Enqueue(position);
@@ -105,10 +123,13 @@ public sealed partial class Ff7AutoplayDriver
             var direction = Directions.Single(value => value.X == action.Horizontal && value.Y == action.Vertical);
             return movement.StepDirection(actor, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
         }
-        Ff7AutoPlayPhysicalRoute route = SearchPhysicalEscape(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
-        if (route.Status != Ff7AutoPlayPhysicalSearchStatus.Progress && blockedForward && nextTriangle != player.Triangle && !approachAdviceExclusions.Contains((player.Triangle, nextTriangle)))
+        obstacleSearch ??= new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
+        obstacleSearchContext = context;
+        Ff7NativePlanningQuantum quantum = new();
+        Ff7AutoPlayPhysicalRoute route = ResumePhysicalSearch(obstacleSearch, quantum);
+        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Exhausted && obstacleSearchAlternative is null && blockedForward && nextTriangle != player.Triangle && !approachAdviceExclusions.Contains((player.Triangle, nextTriangle)))
         {
-            // Try one alternate guide after the original bounded search: at most two 1024-node searches per decision.
+            // Try alternate advice only after exhausting the original represented search graph.
             // A failed physical prefix rejects this advice, not the native portal itself.
             HashSet<(int From, int To)> alternatives = ReadNavigationOwnedPortals(session.Field.Walkmesh);
             alternatives.UnionWith(approachAdviceExclusions);
@@ -119,16 +140,23 @@ public sealed partial class Ff7AutoplayDriver
             {
                 var triangle = session.Field.Walkmesh[alternative];
                 Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
-                Ff7AutoPlayPhysicalRoute refined = SearchPhysicalEscape(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove);
-                if (refined.Status == Ff7AutoPlayPhysicalSearchStatus.Progress)
-                {
-                    approachAdviceExclusions.Add((player.Triangle, nextTriangle));
-                    committedWaypoint = alternativeWaypoint;
-                    waypointSourceTriangle = player.Triangle;
-                    route = refined;
-                }
+                obstacleSearchAlternative = alternativeWaypoint;
+                obstacleSearch = new(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove);
+                route = ResumePhysicalSearch(obstacleSearch, quantum);
             }
         }
+        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending)
+        {
+            DeferPlanning();
+            return true;
+        }
+        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && obstacleSearchAlternative is Vector3 acceptedWaypoint)
+        {
+            approachAdviceExclusions.Add((player.Triangle, nextTriangle));
+            committedWaypoint = acceptedWaypoint;
+            waypointSourceTriangle = player.Triangle;
+        }
+        CancelObstacleSearch();
         if (route.Status != Ff7AutoPlayPhysicalSearchStatus.Progress)
         {
             if (blockedForward)
@@ -172,53 +200,107 @@ public sealed partial class Ff7AutoplayDriver
         return true;
     }
 
-    internal static Ff7AutoPlayPhysicalRoute SearchPhysicalEscape(Ff7Actor player, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows, int maximumNodes = 1024)
+    internal Ff7AutoPlayPhysicalRoute ResumePhysicalSearch(PhysicalSearchCursor cursor, Ff7NativePlanningQuantum quantum)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maximumNodes, 1);
-        float cell = Math.Max(1, player.MoveSpeed * 4);
-        (int X, int Y, int Z, int Triangle) Key(Ff7Actor actor) => ((int)MathF.Floor(actor.X4096 / cell), (int)MathF.Floor(actor.Y4096 / cell), (int)MathF.Floor(actor.Z4096 / cell), actor.Triangle);
-        SearchNode source = new(player, null, default, 0);
-        Dictionary<(int X, int Y, int Z, int Triangle), float> costs = new() { [Key(player)] = 0 };
-        PriorityQueue<SearchNode, (int Remaining, float Score)> pending = new();
-        pending.Enqueue(source, (remaining(player.Triangle), Vector3.Distance(Position3D(player), waypoint)));
-        int expanded = 0;
-        while (expanded < maximumNodes && pending.TryDequeue(out SearchNode? current, out _))
+        int before = cursor.Expanded;
+        Ff7AutoPlayPhysicalRoute route = cursor.Resume(quantum);
+        PhysicalPlanningWork += cursor.Expanded - before;
+        return route;
+    }
+
+    // A one-quantum adapter; callers needing completion retain a cursor and resume Pending work.
+    internal static Ff7AutoPlayPhysicalRoute SearchPhysicalEscape(Ff7Actor player, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows, int operationQuantum = 1024)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(operationQuantum, 1);
+        return new PhysicalSearchCursor(player, waypoint, remaining, preview, allows).Resume(new(operationQuantum, TimeSpan.MaxValue));
+    }
+
+    // This retains the existing advisory position buckets, not an exact continuous reachability proof.
+    internal sealed class PhysicalSearchCursor
+    {
+        private readonly Ff7Actor source;
+        private readonly Vector3 waypoint;
+        private readonly Func<int, int> remaining;
+        private readonly Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview;
+        private readonly Func<Ff7Actor, Ff7NativeMoveResult, bool> allows;
+        private readonly float cell;
+        private readonly Dictionary<(int X, int Y, int Z, int Triangle), float> costs = new();
+        private readonly PriorityQueue<SearchNode, (int Remaining, float Score)> pending = new();
+        private int expanded;
+        private Ff7AutoPlayPhysicalRoute? completed;
+        internal int Expanded => expanded;
+
+        internal PhysicalSearchCursor(Ff7Actor source, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows)
         {
-            if (costs[Key(current.Actor)] < current.Cost)
-            {
-                continue;
-            }
-            expanded++;
-            foreach (var direction in Directions)
-            {
-                Ff7AutoplayInput action = new(direction.X, direction.Y);
-                Ff7NativeMoveResult step = preview(current.Actor, action);
-                if (!step.Moved || !allows(current.Actor, step))
-                {
-                    continue;
-                }
-                Ff7Actor actor = step.Actor;
-                float cost = current.Cost + Vector3.Distance(Position3D(current.Actor), Position3D(actor));
-                var key = Key(actor);
-                if (costs.TryGetValue(key, out float known) && known <= cost)
-                {
-                    continue;
-                }
-                costs[key] = cost;
-                SearchNode next = new(actor, current, action, cost);
-                if (HasPhysicalRouteProgress(player, actor, waypoint, remaining))
-                {
-                    Stack<Ff7AutoplayInput> path = new();
-                    for (SearchNode? node = next; node?.Parent is not null; node = node.Parent)
-                    {
-                        path.Push(node.Input);
-                    }
-                    return new(Ff7AutoPlayPhysicalSearchStatus.Progress, path.ToArray(), expanded);
-                }
-                pending.Enqueue(next, (remaining(actor.Triangle), cost + Vector3.Distance(Position3D(actor), waypoint)));
-            }
+            this.source = source;
+            this.waypoint = waypoint;
+            this.remaining = remaining;
+            this.preview = preview;
+            this.allows = allows;
+            cell = Math.Max(1, source.MoveSpeed * 4);
+            costs[Key(source)] = 0;
+            pending.Enqueue(new(source, null, default, 0), (remaining(source.Triangle), Vector3.Distance(Position3D(source), waypoint)));
         }
-        return new(pending.Count > 0 ? Ff7AutoPlayPhysicalSearchStatus.Limited : Ff7AutoPlayPhysicalSearchStatus.Exhausted, [], expanded);
+
+        private (int X, int Y, int Z, int Triangle) Key(Ff7Actor actor)
+        {
+            return ((int)MathF.Floor(actor.X4096 / cell), (int)MathF.Floor(actor.Y4096 / cell), (int)MathF.Floor(actor.Z4096 / cell), actor.Triangle);
+        }
+
+        internal Ff7AutoPlayPhysicalRoute Resume(Ff7NativePlanningQuantum quantum)
+        {
+            if (completed is not null)
+            {
+                return completed;
+            }
+            while (pending.Count > 0)
+            {
+                if (!quantum.TryBeginOperation())
+                {
+                    return new(Ff7AutoPlayPhysicalSearchStatus.Pending, [], expanded);
+                }
+                SearchNode current = pending.Dequeue();
+                if (costs[Key(current.Actor)] < current.Cost)
+                {
+                    continue;
+                }
+                expanded++;
+                foreach (var direction in Directions)
+                {
+                    Ff7AutoplayInput action = new(direction.X, direction.Y);
+                    Ff7NativeMoveResult step = preview(current.Actor, action);
+                    if (!step.Moved || !allows(current.Actor, step))
+                    {
+                        continue;
+                    }
+                    Ff7Actor actor = step.Actor;
+                    float cost = current.Cost + Vector3.Distance(Position3D(current.Actor), Position3D(actor));
+                    var key = Key(actor);
+                    if (costs.TryGetValue(key, out float known) && known <= cost)
+                    {
+                        continue;
+                    }
+                    costs[key] = cost;
+                    SearchNode next = new(actor, current, action, cost);
+                    if (HasPhysicalRouteProgress(source, actor, waypoint, remaining))
+                    {
+                        Stack<Ff7AutoplayInput> path = new();
+                        for (SearchNode? node = next; node?.Parent is not null; node = node.Parent)
+                        {
+                            path.Push(node.Input);
+                        }
+                        completed = new(Ff7AutoPlayPhysicalSearchStatus.Progress, path.ToArray(), expanded);
+                        pending.Clear();
+                        costs.Clear();
+                        return completed;
+                    }
+                    pending.Enqueue(next, (remaining(actor.Triangle), cost + Vector3.Distance(Position3D(actor), waypoint)));
+                }
+            }
+            completed = new(Ff7AutoPlayPhysicalSearchStatus.Exhausted, [], expanded);
+            costs.Clear();
+            return completed;
+        }
     }
 
     internal static bool HasPhysicalRouteProgress(Ff7Actor source, Ff7Actor actor, Vector3 waypoint, Func<int, int> remaining)

@@ -49,11 +49,11 @@ public sealed partial class Ff7AutoplayDriver
     private bool? navigationActionProgress;
     private bool navigationEscapeAction;
 
-    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions);
+    private sealed record NavigationModeState(long WaypointGeneration, int WaypointDestination, Vector3? CommittedWaypoint, int WaypointSourceTriangle, Vector3? FinalTarget, bool FinalApproach, long ObstacleGeneration, Vector3? ObstacleTarget, int ObstacleSpeed, Vector3[] ObstacleHistory, EscapeStep[] ObstacleEscape, bool? RunMode, bool? ActionProgress, bool LineRejected, bool EscapeAction, string? ApproachGuideContext, (int From, int To)[] ApproachAdviceExclusions, PhysicalSearchCursor? ObstacleSearch, string? ObstacleSearchContext, Vector3? ObstacleSearchAlternative);
 
     private NavigationModeState CaptureNavigationMode()
     {
-        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction, approachGuideContext, approachAdviceExclusions.ToArray());
+        return new(waypointGeneration, waypointDestination, committedWaypoint, waypointSourceTriangle, finalTarget, finalApproach, obstacleGeneration, obstacleTarget, obstacleSpeed, obstacleHistory.ToArray(), obstacleEscape.ToArray(), navigationRunMode, navigationActionProgress, navigationLineRejected, navigationEscapeAction, approachGuideContext, approachAdviceExclusions.ToArray(), obstacleSearch, obstacleSearchContext, obstacleSearchAlternative);
     }
 
     private void RestoreNavigationMode(NavigationModeState state)
@@ -84,6 +84,9 @@ public sealed partial class Ff7AutoplayDriver
         navigationActionProgress = state.ActionProgress;
         navigationLineRejected = state.LineRejected;
         navigationEscapeAction = state.EscapeAction;
+        obstacleSearch = state.ObstacleSearch;
+        obstacleSearchContext = state.ObstacleSearchContext;
+        obstacleSearchAlternative = state.ObstacleSearchAlternative;
     }
     internal bool? PlannedActionAdvances => navigationActionProgress;
 
@@ -105,7 +108,9 @@ public sealed partial class Ff7AutoplayDriver
         NavigationModeState initialState = CaptureNavigationMode();
         try
         {
-            foreach (bool run in new[] { true, false })
+            // Resume a retained walk search in its own mode before trying speculative alternatives.
+            bool firstRun = obstacleSearch is null ? true : navigationRunMode ?? true;
+            foreach (bool run in new[] { firstRun, !firstRun })
             {
                 RestoreNavigationMode(initialState);
                 if (navigationRunMode != run)
@@ -114,6 +119,7 @@ public sealed partial class Ff7AutoplayDriver
                     committedWaypoint = null;
                     finalApproach = false;
                     obstacleEscape.Clear();
+                    CancelObstacleSearch();
                     navigationRunMode = run;
                 }
                 navigationLineInput = ProjectNavigationInput(new(Horizontal: 1, Run: run), session.Machine.Input);
