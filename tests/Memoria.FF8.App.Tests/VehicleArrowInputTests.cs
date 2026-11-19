@@ -7,6 +7,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class VehicleArrowInputTests
 {
     [Theory]
+    [InlineData(0x1000, 127, 0f)]
+    [InlineData(0x4000, -127, 0f)]
+    [InlineData(0x5000, 127, 0f)]
+    [InlineData(0x3000, 127, 0f)]
+    [InlineData(0xC000, -127, 0f)]
+    [InlineData(0x1010, 127, 1f)]
+    [InlineData(0x4080, -127, -1f)]
+    public void Ragnarok_arrows_keep_altitude_without_adding_throttle(int buttons, int altitude, float throttle)
+    {
+        // Host routing marker only; no simulation state is consumed by this adapter.
+        NativeRagnarokWorldAllocation allocation = new("", "", "", 0, 0, 0, 0, [], [], 0, null!, null!, 0, 0);
+        GameState state = new() { Scene = SceneKind.WorldMap, World = new WorldState { NativeRagnarokRuntime = new(allocation, [], null!) } };
+        InputFrame input = new(0, altitude > 0 ? -1 : 1, false, false, false, false);
+        PlayerAction action = ControllerGameplayInput.CreateWorldAction(input, state, (ushort)buttons);
+
+        Assert.Equal(PlayerActionKind.WorldButtons, action.Kind);
+        Assert.Equal(buttons, action.Value);
+        Assert.Equal(throttle, ControllerGameplayInput.ReadVehicleAxes((uint)action.Value, action.Horizontal, action.Vertical).Vertical);
+        Assert.Equal(altitude, NativeRagnarokWorldInput.ReadDigitalButtons((uint)action.Value).Vertical12);
+    }
+
+    [Theory]
     [InlineData(0x1000, 0x1080, -1f)]
     [InlineData(0x4000, 0x4010, 1f)]
     [InlineData(0x5000, 0x5000, 0f)]

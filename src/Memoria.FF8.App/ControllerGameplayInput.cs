@@ -19,8 +19,8 @@ internal static class ControllerGameplayInput
         {
             // Pause is consumed by the host before world simulation.
             int vehicleButtons = buttons & ~0x800;
-            // Directional throttle is a host convenience; explicit throttle buttons retain priority.
-            if ((vehicleButtons & 0x90) == 0)
+            // Directional throttle is a host convenience for ground vehicles; Ragnarok uses these arrows for altitude.
+            if (world.NativeRagnarokRuntime is null && (vehicleButtons & 0x90) == 0)
             {
                 vehicleButtons |= (buttons & 0x5000) switch
                 {
