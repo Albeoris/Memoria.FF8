@@ -8,7 +8,9 @@ internal enum PlayerSaveMenuMode
     Save,
     Load,
     QuickLoad,
-    QuickSave
+    QuickSave,
+    CompletedSource,
+    SaveCompleted
 }
 
 internal sealed class PlayerSaveMenu
@@ -66,8 +68,9 @@ internal sealed class PlayerSaveMenu
     public int PageCount => Math.Max(1, (Entries.Count + PageCapacity - 1) / PageCapacity);
     public int SelectedSlot => Entries.Count == 0 ? 0 : Entries[Selection].Slot;
     public bool IsQuick => Mode is PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.QuickLoad;
-    public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave;
-    public bool CanTransfer => !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanCopy;
+    public bool IsSaving => Mode is PlayerSaveMenuMode.Save or PlayerSaveMenuMode.QuickSave or PlayerSaveMenuMode.SaveCompleted;
+    public bool IsCompletedMode => Mode is PlayerSaveMenuMode.CompletedSource or PlayerSaveMenuMode.SaveCompleted;
+    public bool CanTransfer => !IsCompletedMode && !IsQuick && !IsTransferring && Entries.Count > 0 && Entries[Selection].CanCopy;
     public IReadOnlyList<PlayerSaveEntry> VisibleEntries => Entries.Skip(Page * PageCapacity).Take(PageCapacity).Select(LocalizeEntry).ToArray();
     public bool ConfirmOverwrite { get; private set; }
     public bool IsTransferring => transferSource is not null;
@@ -134,7 +137,7 @@ internal sealed class PlayerSaveMenu
             "save.slot.create-quick" => SystemText("save.slot.create-quick", "Create a rotating quick save."),
             _ => entry.ReadLocation is { } read ? read() ?? SystemText("save.location.unavailable", "Unavailable") : entry.Details
         };
-        return entry with { Label = EntryLabel(entry), Details = details };
+        return entry with { Label = EntryLabel(entry), Details = entry.IsCompletedGame ? SystemText("ngplus.completed", "Completed Game") : details };
     }
 
     public static string GetBankLabel(int bank)
@@ -160,7 +163,7 @@ internal sealed class PlayerSaveMenu
         Message = null;
         confirmRequested = false;
         cancelRequested = false;
-        Bank = IsQuick ? 0 : rememberedBanks.GetValueOrDefault(mode);
+        Bank = IsQuick || IsCompletedMode ? 0 : rememberedBanks.GetValueOrDefault(mode);
         Page = 0;
         RefreshEntries();
         if (IsQuick)
@@ -172,6 +175,10 @@ internal sealed class PlayerSaveMenu
         else
         {
             SetSelectedSlot(rememberedSlots.GetValueOrDefault((mode, Bank), Entries.FirstOrDefault()?.Slot ?? store.FirstSlot(Bank)));
+        }
+        if (Mode == PlayerSaveMenuMode.CompletedSource && Entries.Count == 0)
+        {
+            SetSystemMessage(() => SystemText("ngplus.no-sources", "No compatible Completed Game saves are available."));
         }
         IsOpen = true;
     }
@@ -191,7 +198,7 @@ internal sealed class PlayerSaveMenu
 
     public bool SelectBank(int bank)
     {
-        if (!IsOpen || IsQuick || bank == Bank)
+        if (!IsOpen || IsQuick || IsCompletedMode || bank == Bank)
         {
             return false;
         }
@@ -299,7 +306,7 @@ internal sealed class PlayerSaveMenu
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
-        if (input.Save || input.QuickLoad)
+        if (!IsCompletedMode && (input.Save || input.QuickLoad))
         {
             ConfirmOverwrite = false;
             try
@@ -343,7 +350,7 @@ internal sealed class PlayerSaveMenu
             }
             return;
         }
-        if (input.CardChallenge && !IsQuick && !IsTransferring)
+        if (input.CardChallenge && CanTransfer)
         {
             BeginTransfer();
             return;
@@ -525,6 +532,8 @@ internal sealed class PlayerSaveMenu
         PlayerSaveMenuMode.Load => SystemText("save.operation.load", "Load"),
         PlayerSaveMenuMode.QuickSave => SystemText("save.operation.quick-save", "Quick save"),
         PlayerSaveMenuMode.QuickLoad => SystemText("save.operation.quick-load", "Quick load"),
+        PlayerSaveMenuMode.CompletedSource => SystemText("ngplus.title", "New Game+"),
+        PlayerSaveMenuMode.SaveCompleted => SystemText("ngplus.save", "Save Completed Game"),
         _ => throw new InvalidOperationException("Unknown save operation.")
     };
 
@@ -540,6 +549,8 @@ internal sealed class PlayerSaveMenu
     {
         SetEntries(Mode switch
         {
+            PlayerSaveMenuMode.CompletedSource => store.ReadCompletedEntries(),
+            PlayerSaveMenuMode.SaveCompleted => store.ReadEntries(0, false),
             PlayerSaveMenuMode.QuickLoad => store.ReadQuickEntries(),
             PlayerSaveMenuMode.QuickSave => [new PlayerSaveEntry(0, "New Quick Save", null, "Create a rotating quick save.", false) { DetailsSystemId = "save.slot.create-quick" }],
             _ => store.ReadEntries(Bank, Mode == PlayerSaveMenuMode.Load && !IsTransferring)

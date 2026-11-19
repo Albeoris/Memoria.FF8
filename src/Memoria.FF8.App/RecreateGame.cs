@@ -425,6 +425,16 @@ internal sealed partial class RecreateGame : Game
         UpdateDiagnosticExit(gameTime);
         noticeWindow.Advance(gameTime.ElapsedGameTime);
         drawPointNoticeSeconds = Math.Max(0, drawPointNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        if (UpdateCompletedGame(input))
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
+        if (session.State.Scene == SceneKind.Title)
+        {
+            RefreshCompletedDiscovery();
+        }
         if (UpdateAutoPlay(gameTime, input))
         {
             base.Update(gameTime);
@@ -507,15 +517,27 @@ internal sealed partial class RecreateGame : Game
                 }
                 titleSelection = nextSelection;
             }
-            if (input.Confirm)
+            if (input.Confirm || ReadTitlePointer())
             {
                 fieldAudio?.PlayUiSound(GameUi.MenuSound.Confirm);
-                if (titleSelection == 0)
+                if (titleActions[titleSelection].Action == TitleAction.NewGamePlus)
+                {
+                    if (playerSaves.ReadCompletedEntries().Count == 0)
+                    {
+                        RefreshCompletedDiscovery(force: true);
+                        ShowSaveNotice(LocalizeUiText("ngplus.no-sources", "No compatible Completed Game saves are available. Choose another save or return after completing the game."));
+                    }
+                    else
+                    {
+                        saveMenu.Open(PlayerSaveMenuMode.CompletedSource);
+                    }
+                }
+                else if (titleActions[titleSelection].Action == TitleAction.NewGame)
                 {
                     newGameMagicPreferences = newGameMagicPreferences with { ChocoboWorldMode = DefaultChocoboWorldMode };
                     gameMenus!.Open("new-game-options", false);
                 }
-                else if (titleSelection == 1)
+                else if (titleActions[titleSelection].Action == TitleAction.Continue)
                 {
                     OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
                 }
@@ -991,15 +1013,15 @@ internal sealed partial class RecreateGame : Game
 
     private bool UpdatePlayerSaves(InputFrame input)
     {
-        if (input.LoadMenu || input.SaveMenu)
-        {
-            OpenPlayerSaveMenu(input.LoadMenu ? PlayerSaveMenuMode.Load : PlayerSaveMenuMode.Save);
-            return true;
-        }
         if (saveMenu.IsOpen)
         {
             UpdatePlayerSavePointer();
             UpdatePlayerSaveMenuAsync(input);
+            return true;
+        }
+        if (input.LoadMenu || input.SaveMenu)
+        {
+            OpenPlayerSaveMenu(input.LoadMenu ? PlayerSaveMenuMode.Load : PlayerSaveMenuMode.Save);
             return true;
         }
         if (input.Save || input.QuickLoad)
@@ -1141,11 +1163,22 @@ internal sealed partial class RecreateGame : Game
             return;
         }
         Memoria.FF7.Runtime.CombinedSessionSave? savedCrossover = CrossoverSaveAdapter.ReadEnvelope(playerSaves.GetPath(slot));
-        if (savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7)
+        if (savedCrossover?.ActiveGame == Memoria.FF7.Runtime.SessionGame.Ff7 && !CrossoverSaveAdapter.HasCompletedFf8(savedCrossover))
         {
             throw new InvalidOperationException("Switch to the FFVII world before loading FFVII saves.");
         }
         GameState state = playerSaves.Load(slot);
+        if (saveMenu.Mode == PlayerSaveMenuMode.CompletedSource && state.CompletedGame is null)
+        {
+            throw new InvalidDataException("The selected file is no longer a Completed Game save. Choose another source.");
+        }
+        if (state.CompletedGame is not null)
+        {
+            using FileStream sourceStream = File.OpenRead(playerSaves.GetPath(slot));
+            string revision = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceStream));
+            OpenNewGamePlusSource(state, revision);
+            return;
+        }
         ValidatePlayerState(state);
         StopAutoPlayForPlayerSession();
         RestorePlayerState(state);

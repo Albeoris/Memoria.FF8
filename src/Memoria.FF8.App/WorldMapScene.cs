@@ -354,7 +354,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             NativePartySwitchInput.Validate(action);
             NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Switch requires the saved character owner.");
-            byte entry = session.State.WorldControls?.Menu209 ?? 0;
+            byte entry = NewGamePlusPartyPolicy.EffectiveMenuSelection(session.State);
             int capacity = ReadBattlePartyCapacity?.Invoke() ?? BattlePartySelectionPolicy.ResolveCapacity(session.State, Math.Max(3, session.State.GameplayPreferences.BattleAllyCount));
             if (HasPendingBattle?.Invoke() == true || CurrentDialogue is not null || !NativePartySwitchInput.CanExchange(vitals, action.Value, action.Quantity!.Value, entry, capacity))
             {

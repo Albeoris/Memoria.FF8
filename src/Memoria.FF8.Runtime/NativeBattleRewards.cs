@@ -158,8 +158,9 @@ public static class NativeBattleRewardDistribution
         return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray()) { Offers = offers.ToArray() };
     }
 
-    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null, GameplayTuning? tuning = null, IReadOnlyList<byte>? battleRows = null)
+    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience, IReadOnlyList<BattleEnemyRemainingExperience>? remainingEnemies = null, GameplayTuning? tuning = null, IReadOnlyList<byte>? battleRows = null, NewGamePlusRewardRules? newGamePlusRewards = null)
     {
+        newGamePlusRewards?.Validate();
         tuning ??= new();
         tuning.Validate();
         vitals.Validate();
@@ -169,9 +170,9 @@ public static class NativeBattleRewardDistribution
             throw new InvalidDataException("Battle experience requires its actual nonempty combat party.");
         }
         int averageLevel = party.Sum(row => NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId])) / party.Count;
-        Dictionary<byte, ushort> personal = [];
-        Dictionary<byte, ushort> guardian = [];
-        ushort shared = 0;
+        Dictionary<byte, int> personal = [];
+        Dictionary<byte, int> guardian = [];
+        int shared = 0;
         foreach (BattleEnemyDefeat defeat in defeats)
         {
             defeat.Validate();
@@ -181,7 +182,7 @@ public static class NativeBattleRewardDistribution
             {
                 continue;
             }
-            shared = Accumulate(shared, ScaledExperience(definition.SharedExperience, defeat.Level, averageLevel));
+            shared = Accumulate(shared, ScaledExperience(definition.SharedExperience, defeat.Level, averageLevel), newGamePlusRewards);
             if (defeat.KillerRow is byte killerRow && !party.Contains(killerRow))
             {
                 throw new InvalidDataException("Enemy defeat credit belongs to a character outside the actual battle party.");
@@ -191,7 +192,7 @@ public static class NativeBattleRewardDistribution
             {
                 byte row = defeat.KillerRow!.Value;
                 int level = NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId]);
-                personal[row] = Accumulate(personal.GetValueOrDefault(row), ScaledExperience(definition.KillExperience, defeat.Level, level));
+                personal[row] = Accumulate(personal.GetValueOrDefault(row), ScaledExperience(definition.KillExperience, defeat.Level, level), newGamePlusRewards);
             }
             else if (defeat.Credit == BattleDefeatCredit.GuardianForce)
             {
@@ -201,7 +202,7 @@ public static class NativeBattleRewardDistribution
                     throw new InvalidDataException("GF defeat credit requires its actual junctioned summoner.");
                 }
                 int level = NativeStatDefinitions.Level(vitals.GuardianForces[id].Experience, vitals.Definitions.GuardianForces[id]);
-                guardian[id] = Accumulate(guardian.GetValueOrDefault(id), ScaledExperience(definition.KillExperience, defeat.Level, level));
+                guardian[id] = Accumulate(guardian.GetValueOrDefault(id), ScaledExperience(definition.KillExperience, defeat.Level, level), newGamePlusRewards);
             }
         }
         foreach (BattleEnemyRemainingExperience enemy in remainingEnemies ?? [])
@@ -215,15 +216,16 @@ public static class NativeBattleRewardDistribution
             int scaled = 5 * basis * enemy.Level / averageLevel - basis;
             int partial = unchecked((enemy.MaximumHp - enemy.CurrentHp) * scaled) / enemy.MaximumHp;
             ushort amount = partial < 1 ? (ushort)1 : Math.Min(unchecked((ushort)partial), (ushort)60000);
-            shared = Accumulate(shared, amount);
+            shared = Accumulate(shared, amount, newGamePlusRewards);
         }
-        Dictionary<byte, ushort> characters = [];
+        Dictionary<byte, int> characters = [];
         foreach (byte row in party)
         {
             NativeCharacterVital character = vitals.Records[row];
             if ((character.Status & 5) == 0)
             {
-                characters[row] = unchecked((ushort)(shared + personal.GetValueOrDefault(row)));
+                int subtotal = checked(shared + personal.GetValueOrDefault(row));
+                characters[row] = newGamePlusRewards is null ? unchecked((ushort)subtotal) : subtotal;
             }
             if ((character.Status & 1) != 0 && (character.Status & 4) != 0)
             {
@@ -239,15 +241,16 @@ public static class NativeBattleRewardDistribution
                     guardian.Remove(guardianId);
                     continue;
                 }
-                guardian[guardianId] = unchecked((ushort)(guardian.GetValueOrDefault(guardianId) + shared / assigned.Length));
+                int subtotal = checked(guardian.GetValueOrDefault(guardianId) + shared / assigned.Length);
+                guardian[guardianId] = newGamePlusRewards is null ? unchecked((ushort)subtotal) : subtotal;
             }
         }
-        return noExperience ? new BattleExperienceAwards(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>()) : new BattleExperienceAwards(ScaleAwards(characters, tuning.ExperienceMultiplier), ScaleAwards(guardian, tuning.GuardianExperienceMultiplier));
+        return noExperience ? new BattleExperienceAwards(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>()) : new BattleExperienceAwards(ScaleAwards(characters, tuning.ExperienceMultiplier, newGamePlusRewards), ScaleAwards(guardian, tuning.GuardianExperienceMultiplier, newGamePlusRewards));
     }
 
-    private static Dictionary<byte, ushort> ScaleAwards(Dictionary<byte, ushort> awards, int multiplier)
+    private static Dictionary<byte, ushort> ScaleAwards(Dictionary<byte, int> awards, int multiplier, NewGamePlusRewardRules? newGamePlusRewards)
     {
-        return awards.ToDictionary(pair => pair.Key, pair => checked((ushort)Math.Min(ushort.MaxValue, (long)pair.Value * multiplier)));
+        return awards.ToDictionary(pair => pair.Key, pair => newGamePlusRewards?.ScaleExperience(pair.Value) ?? checked((ushort)Math.Min(ushort.MaxValue, (long)pair.Value * multiplier)));
     }
 
     private static ushort ScaledExperience(ushort basis, int enemyLevel, int recipientLevel)
@@ -260,5 +263,9 @@ public static class NativeBattleRewardDistribution
         return value < 1 ? (ushort)1 : Math.Min(unchecked((ushort)value), (ushort)60000);
     }
 
-    private static ushort Accumulate(ushort accumulated, ushort amount) => Math.Min(unchecked((ushort)(accumulated + amount)), (ushort)60000);
+    private static int Accumulate(int accumulated, ushort amount, NewGamePlusRewardRules? newGamePlusRewards)
+    {
+        // Legacy reward banks retain their original WORD arithmetic. New Game+ resolves the whole recipient subtotal before applying the award cap.
+        return newGamePlusRewards is null ? Math.Min(unchecked((ushort)(accumulated + amount)), (ushort)60000) : checked(accumulated + amount);
+    }
 }

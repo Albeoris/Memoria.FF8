@@ -17,6 +17,22 @@ internal static class GameplaySaveSessionLoader
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
+        if (document.CompletedGame is not null)
+        {
+            GameSession transfer = GameWorld.CreateColdProcess(gameDirectory);
+            transfer.StartNewGame();
+            using (MovieClock transferClock = new(transfer, gameDirectory))
+            using (GameWorld transferWorld = new(transfer, gameDirectory, transferClock, resources, sharedAssets: sharedAssets, modelOverrides: modelOverrides, readGameplayPolicy: readGameplayPolicy))
+            {
+                // Resource owners only; do not load or advance an ending scene.
+            }
+            GameState transferInitialized = transfer.State;
+            if (prepareCharacterDefinitions is not null)
+            {
+                transferInitialized = transferInitialized with { CharacterVitals = prepareCharacterDefinitions(transferInitialized.CharacterVitals!) };
+            }
+            return CompletedGameData.ToTransferState(document, transferInitialized);
+        }
         if (document.Progression is { RuntimeOwnershipVersion: null } legacy)
         {
             const string warning = "Older save: missing presentation values use hidden bars, no camera shake and a hidden salary notification; missing music playback uses the saved scene selection and default settings. Existing saved values and gameplay progress are preserved.";
@@ -115,7 +131,7 @@ internal static class GameplaySaveSessionLoader
 
     private static GameplaySaveSceneFacts RequireSupportedReconstruction(GameplaySaveComponentDocument document)
     {
-        if (document.Version != GameplaySaveComponentDocument.CurrentVersion || document.Progression?.SceneFacts is not { PersistentBattleMode: not null, ActiveBattleMode: not null } facts)
+        if (document.Version is not (2 or GameplaySaveComponentDocument.CurrentVersion) || document.Progression?.SceneFacts is not { PersistentBattleMode: not null, ActiveBattleMode: not null } facts)
         {
             throw new NotSupportedException("Gameplay loading requires complete current components and current scene battle-mode words.");
         }

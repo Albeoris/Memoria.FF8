@@ -1,4 +1,6 @@
 using Memoria.FF8.Ui;
+using Memoria.FF8.GameUi;
+using System.Diagnostics;
 
 namespace Memoria.FF8;
 
@@ -27,7 +29,7 @@ internal sealed partial class PlayerSaveView : UiElement
     {
         this.menu = menu;
         this.textScale = textScale;
-        navigationSuffix = menu.IsQuick ? "" : "    " + navigationHint;
+        navigationSuffix = menu.IsQuick || menu.IsCompletedMode ? "" : "    " + navigationHint;
         UiAnchorPanel root = new();
         content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
         content.ColumnDefinitions.Add(UiGridLength.Star());
@@ -35,7 +37,7 @@ internal sealed partial class PlayerSaveView : UiElement
         content.RowDefinitions.Add(UiGridLength.Auto);
         content.RowDefinitions.Add(UiGridLength.Star());
         content.RowDefinitions.Add(UiGridLength.Pixel(ActionHeight(textScale)));
-        UiGrid banks = BuildBanks(menu.Bank, menu.IsQuick, textScale, menu);
+        UiGrid banks = BuildBanks(menu.Bank, menu.IsQuick || menu.IsCompletedMode, textScale, menu);
         foreach (UiButton tab in banks.Children.OfType<UiButton>())
         {
             int bank = tab.GridColumn;
@@ -59,6 +61,8 @@ internal sealed partial class PlayerSaveView : UiElement
         {
             PlayerSaveMenuMode.QuickLoad => menu.SystemText("save.view.quick-load", "Quick Load"),
             PlayerSaveMenuMode.QuickSave => menu.SystemText("save.view.quick-save", "Quick Save"),
+            PlayerSaveMenuMode.CompletedSource => menu.SystemText("ngplus.title", "New Game+"),
+            PlayerSaveMenuMode.SaveCompleted => menu.SystemText("ngplus.save", "Save Completed Game"),
             PlayerSaveMenuMode.Load => menu.SystemText("save.view.load", "Load"),
             _ => menu.SystemText("save.view.save", "Save")
         };
@@ -66,6 +70,7 @@ internal sealed partial class PlayerSaveView : UiElement
         header.Children.Add(title);
         information.Children.Add(header);
         string instruction = menu.IsTransferring ? menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-transfer-overwrite", "Confirm transfer overwrite") : menu.SystemText("save.view.choose-destination-block", "Choose destination block") : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-overwrite", "Confirm overwrite") : menu.IsSaving ? menu.SystemText("save.view.choose-block-to-save", "Choose block to save") : menu.SystemText("save.view.choose-block-to-load", "Choose block to load");
+        transferHint = menu.IsCompletedMode ? "" : transferHint;
         string detail = menu.TransferSource is int source ? $"{menu.SlotLabel(source)}  →  {menu.SlotLabel(menu.SelectedSlot)}" : menu.ConfirmOverwrite ? menu.SystemText("save.view.confirm-again-to-overwrite-the-selected-save", "Confirm again to overwrite the selected save.") : menu.IsQuick ? menu.IsSaving ? menu.SystemText("save.view.create-a-new-quick-save", "Create a new quick save.") : menu.SystemText("save.view.choose-a-quick-save-to-load", "Choose a quick save to load.") : menu.FormatSystemText("save.view.navigation", "{0}    {1}: Select    {2}: Back", transferHint, confirmHint, cancelHint);
         if (menu.IsFf7 && menu.Bank > 0 && (menu.IsSaving || menu.IsTransferring))
         {
@@ -81,19 +86,38 @@ internal sealed partial class PlayerSaveView : UiElement
         content.Children.Add(information);
         blocks = CreateVisibleBlocks();
         content.Children.Add(blocks);
-        actions = new() { GridRow = 3, Columns = menu.IsQuick ? 4 : 5, Rows = 1, Gap = 5 };
+        actions = new() { GridRow = 3, Columns = menu.IsQuick || menu.IsCompletedMode ? 4 : 5, Rows = 1, Gap = 5 };
         actions.Children.Add(new UiButton { Id = "save-confirm", GridColumn = 0, Text = menu.ConfirmOverwrite ? menu.SystemText("save.view.overwrite", "Overwrite") : menu.IsTransferring ? menu.SystemText("save.view.copy-here", "Copy here") : menu.IsSaving ? menu.SystemText("save.view.save", "Save") : menu.SystemText("save.view.load", "Load"), FontSize = 18 * textScale, Enabled = menu.Entries.Count > 0 && (menu.IsTransferring || menu.IsSaving || menu.Entries[menu.Selection].CanLoad), Click = menu.RequestConfirm, PointerSize = 0 });
-        if (!menu.IsQuick)
+        if (!menu.IsQuick && !menu.IsCompletedMode)
         {
             actions.Children.Add(new UiButton { Id = "save-transfer", GridColumn = 1, Text = menu.IsTransferring ? menu.SystemText("save.view.cancel-copy", "Cancel copy") : menu.Bank == 0 ? menu.SystemText("save.view.copy-to-original", "Copy to original") : menu.SystemText("save.view.copy-to-memoria", "Copy to Memoria"), FontSize = 16 * textScale, Enabled = menu.IsTransferring || menu.CanTransfer, Click = menu.IsTransferring ? menu.CancelTransfer : menu.RequestTransfer, PointerSize = 0 });
         }
-        int pageColumn = menu.IsQuick ? 1 : 2;
+        int pageColumn = menu.IsQuick || menu.IsCompletedMode ? 1 : 2;
         actions.Children.Add(new UiButton { Id = "save-previous", GridColumn = pageColumn, Text = menu.SystemText("save.view.previous", "Previous"), FontSize = 18 * textScale, Enabled = menu.Page > 0, Click = () => menu.RequestPage(-1), PointerSize = 0 });
         actions.Children.Add(new UiButton { Id = "save-next", GridColumn = pageColumn + 1, Text = menu.SystemText("save.view.next", "Next"), FontSize = 18 * textScale, Enabled = menu.Page + 1 < menu.PageCount, Click = () => menu.RequestPage(1), PointerSize = 0 });
         actions.Children.Add(new UiButton { Id = "save-back", GridColumn = pageColumn + 2, Text = menu.SystemText("save.view.back", "Back"), FontSize = 18 * textScale, Click = menu.RequestCancel, PointerSize = 0 });
         content.Children.Add(actions);
         root.Children.Add(content);
         Children.Add(root);
+    }
+
+    public override void Draw(IUiCanvas canvas, UiTheme theme)
+    {
+        double seconds = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+        UpdateCompletedColors(this, LearnedAbilityHighlight.Color(seconds));
+        base.Draw(canvas, theme);
+    }
+
+    private static void UpdateCompletedColors(UiElement parent, UiColor color)
+    {
+        foreach (UiElement child in parent.Children)
+        {
+            if (child is UiLabel { Id: "completed-save-text" } label)
+            {
+                label.Color = color;
+            }
+            UpdateCompletedColors(child, color);
+        }
     }
 
     public override void Arrange(UiRect bounds)
@@ -258,7 +282,7 @@ internal sealed partial class PlayerSaveView : UiElement
             metadata.ColumnDefinitions.Add(UiGridLength.Star());
             metadata.ColumnDefinitions.Add(UiGridLength.Pixel(204));
             UiThickness columnGap = new(0, 0, 6 * textScale, 0);
-            metadata.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
+            metadata.Children.Add(new UiLabel { Id = entry.IsCompletedGame ? "completed-save-text" : null, Text = entry.Label, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
             metadata.Children.Add(new UiLabel { GridRow = 1, Text = entry.Details, FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center, Muted = loading && !entry.CanLoad });
             metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.CanLoad || entry.PlayTime.HasValue ? entry.PlayTimeText : "", FontSize = 20 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });
             metadata.Children.Add(new UiLabel { GridRow = 1, GridColumn = 1, Text = entry.SavedAtText, FontSize = 16 * textScale, Margin = columnGap, TextFlow = UiTextFlow.SingleLine, VerticalTextAlignment = UiAlignment.Center });

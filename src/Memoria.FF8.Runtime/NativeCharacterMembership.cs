@@ -5,6 +5,11 @@ public sealed partial record NativeCharacterVitals
     public NativeCharacterVitals WithMemberFlags(int rawCharacter, bool enabled)
     {
         Validate();
+        if (!enabled && IsPermanentNewGamePlusGuest(rawCharacter) && !DreamEnabled)
+        {
+            // Story membership still changes its event flags, while this run keeps the independently selected reserve owner.
+            return DeepCopy();
+        }
         NativeCharacterVitals state = enabled ? this : ResetGuardianForces(rawCharacter);
         if (rawCharacter is 8 or 9 or 10)
         {

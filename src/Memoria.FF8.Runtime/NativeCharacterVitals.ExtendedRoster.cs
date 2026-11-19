@@ -10,6 +10,14 @@ public sealed partial record NativeCharacterVitals
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ExtendedRosterEnabled { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? NewGamePlusPermanentGuests { get; init; }
+
+    public bool IsPermanentNewGamePlusGuest(int identity)
+    {
+        return identity is >= 6 and <= 10 && (NewGamePlusPermanentGuests.GetValueOrDefault() & (1 << identity)) != 0;
+    }
+
     // The native JUNCTION backup contains only original physical row references.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ExtendedRosterPartyBeforeDream { get; init; }
@@ -18,17 +26,17 @@ public sealed partial record NativeCharacterVitals
 
     public bool IsRosterMember(int row)
     {
-        return IsRosterMember(Records, row, ExtendedRosterEnabled, DreamEnabled);
+        return IsRosterMember(Records, row, ExtendedRosterEnabled, DreamEnabled, NewGamePlusPermanentGuests);
     }
 
-    private static bool IsRosterMember(NativeCharacterVital[] records, int row, bool extendedRosterEnabled, bool dreamEnabled)
+    private static bool IsRosterMember(NativeCharacterVital[] records, int row, bool extendedRosterEnabled, bool dreamEnabled, ushort? permanentGuests = null)
     {
         bool extended = extendedRosterEnabled && !dreamEnabled;
         if ((uint)row >= records.Length || row >= NativeRecordCount && !extended)
         {
             return false;
         }
-        return extended && IsExtendedRosterCharacter(row) || IsNativeRosterMember(records, row);
+        return extended && IsExtendedRosterCharacter(row) && (permanentGuests is null || (permanentGuests.Value & (1 << row)) != 0) || IsNativeRosterMember(records, row);
     }
 
     public byte GetBattleWeapon(int row)

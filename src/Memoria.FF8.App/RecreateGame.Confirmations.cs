@@ -69,6 +69,16 @@ internal sealed partial class RecreateGame
 
     private async Task SavePlayerSlotAsync(int slot)
     {
+        await ReviewCompletedOverwriteAsync(slot);
+        if (saveMenu.Mode == PlayerSaveMenuMode.SaveCompleted)
+        {
+            playerSaves.SaveCompleted(slot, completedTransfer ?? throw new InvalidOperationException("The completed game is unavailable."));
+            completedTransfer = null;
+            completedPromptStarted = false;
+            ReturnToTitleScreen();
+            RefreshCompletedDiscovery(force: true);
+            return;
+        }
         if (InFf7 || slot <= PlayerSaveStore.MemoriaSlotCount)
         {
             SavePlayerSlot(slot);

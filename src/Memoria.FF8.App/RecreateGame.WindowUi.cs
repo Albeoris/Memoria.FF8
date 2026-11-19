@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private static readonly string[] TitleChoices = ["NEW GAME", "Continue", "Config"];
+    private string[] TitleChoices => titleActions.Select(choice => choice.Text).ToArray();
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -22,10 +22,12 @@ internal sealed partial class RecreateGame
         float blackAreaTop = bounds.Y + bounds.Height * (530f / 900f);
         float groupHeight = rowHeight * (TitleChoices.Length - 1) + text.MeasureWrapped(TitleChoices[^1], size, float.PositiveInfinity, "Times New Roman").Y;
         float top = (blackAreaTop + bounds.Bottom - groupHeight) / 2;
+        titleHitTargets.Clear();
         for (int index = 0; index < TitleChoices.Length; index++)
         {
             Vector2 measured = text.MeasureWrapped(TitleChoices[index], size, float.PositiveInfinity, "Times New Roman");
             float y = top + rowHeight * index;
+            titleHitTargets.Add((new Rectangle((int)(bounds.Center.X - measured.X / 2 - size), (int)y, (int)(measured.X + size * 2), (int)rowHeight), index));
             text.DrawCentered(batch, TitleChoices[index], size, new Vector2(bounds.Center.X, y), Color.White, "Times New Roman");
             if (index == titleSelection)
             {

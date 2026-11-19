@@ -101,6 +101,7 @@ public static partial class SystemTextCatalog
         AddJunctionDefaults(defaults);
         AddWorkbenchDefaults(defaults);
         InitializeChocoboDefaults(defaults);
+        InitializeNewGamePlusDefaults(defaults);
         return defaults;
     }
 

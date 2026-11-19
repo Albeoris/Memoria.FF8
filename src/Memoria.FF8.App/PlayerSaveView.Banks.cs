@@ -48,6 +48,10 @@ internal sealed partial class PlayerSaveView
             UiRect label = new(textLeft, Bounds.Y + 6, Math.Max(0, Bounds.Right - textLeft - 10), rowHeight);
             string name = menu?.IsFf7 == true ? menu.BankLabel(bank) : bank == 0 ? SystemText("save.bank.memoria", "Memoria") : SystemText("save.bank.original", "Original");
             string details = (active ? SystemText("save.bank.active", "ACTIVE  ·  ") : "") + (quick ? SystemText("save.bank.quick", "Quick saves") : FormatSystemText("save.bank.slots", "{0} slots", (menu?.BankSize(bank) ?? PlayerSaveStore.GetBankSlotCount(bank))));
+            if (menu?.IsCompletedMode == true)
+            {
+                details = menu.Mode == PlayerSaveMenuMode.CompletedSource ? SystemText("ngplus.completed-sources", "Completed Game saves") : FormatSystemText("save.bank.slots", "{0} slots", PlayerSaveStore.MemoriaSlotCount);
+            }
             canvas.Text(name, 24 * textScale, label, foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             UiRect capacity = new(textLeft, label.Bottom, label.Width, rowHeight);
             canvas.Text(details, 15 * textScale, capacity, foreground, UiAlignment.Center, UiTextFlow.SingleLine);

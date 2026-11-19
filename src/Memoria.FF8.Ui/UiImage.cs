@@ -25,7 +25,8 @@ public enum UiImageKind
     ChocoboPortrait,
     GrieverPortrait,
     ItemUseImage,
-    SystemTimerDigit
+    SystemTimerDigit,
+    GuardianForcePortraitGrayscale
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

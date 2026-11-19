@@ -8,7 +8,7 @@ public static class GameplaySaveStateRestoration
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(initialized);
         document.Validate();
-        if (document.Version != GameplaySaveComponentDocument.CurrentVersion || document.Progression is null)
+        if (document.Version is not (2 or GameplaySaveComponentDocument.CurrentVersion) || document.Progression is null)
         {
             throw new NotSupportedException("Component-only gameplay documents cannot restore a complete game.");
         }
@@ -86,6 +86,8 @@ public static class GameplaySaveStateRestoration
             ScannedModels = scanned,
             RefinedCardIds = collections.RefinedCardIds,
             GameplayPreferences = rules.Preferences,
+            NewGamePlus = saved.NewGamePlus,
+            NewGamePlusRewards = saved.NewGamePlusRewards,
             ConfiguredGameplayTuning = rules.ConfiguredTuning,
             PendingGameplayPreferences = rules.PendingPreferences,
             PendingMagicModeReview = rules.PendingMagicModeReview,

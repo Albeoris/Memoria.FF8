@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -206,7 +206,7 @@ internal static class CrossoverBattleVitalsSettlement
             byte[] guestParty = bindings.Select(binding => checked((byte)binding.OriginRow)).Concat(Enumerable.Repeat(byte.MaxValue, 3 - bindings.Length)).ToArray();
             int[] eligible = BattleResultProjection.EligibleGuardianForces(rewarded with { CombatParty = guestParty });
             // Native AP saturates the current learning byte without carrying into the next ability.
-            ushort points = checked((ushort)Math.Min(ushort.MaxValue, reward.Ff8AbilityPoints));
+            ushort points = document.NewGamePlusRewards?.ScaleAbilityPoints((int)Math.Min(int.MaxValue, reward.Ff8AbilityPoints)) ?? checked((ushort)Math.Min(ushort.MaxValue, reward.Ff8AbilityPoints));
             foreach (int id in eligible)
             {
                 rewarded = rewarded.AwardGuardianForceAbilityPoints(id, points);

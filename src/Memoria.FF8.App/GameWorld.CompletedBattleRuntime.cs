@@ -18,6 +18,10 @@ internal sealed partial class GameWorld
         {
             installed = GameplaySaveGuardianForceDefinitions.Select(installed, profile.AppliedLayers);
         }
+        if (expected.NewGamePlus is { } run)
+        {
+            installed = NewGamePlusGuardianForceDefinitions.BindEmbedded(installed, run.InitialGuardianForceTemplates, run.GuardianForceExcludedDocuments);
+        }
         NativeCharacterVitals reconstructed = GameplaySaveCharacters.Capture(current).Restore(installed);
         NativeShotAvailabilityState? shots = expected.ShotAvailability is { } retainedShots ? assets.ReadNewGameShotAvailability() with { Flags770 = retainedShots.Flags770 } : null;
         if (reconstructed.InitOutSha256 != expected.Economy?.InitOutSha256 || expected.CharacterAppearance is { } appearance && appearance.InitOutSha256 != reconstructed.InitOutSha256 || expected.SavedBattleFlags is { } flags && ((flags.Value & 1) != 0) != reconstructed.DreamEnabled)

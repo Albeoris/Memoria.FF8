@@ -10,6 +10,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record SaveSummary(SceneKind Scene, int FieldId, string FieldName, NativePlaytimeState? Playtime, int[] PartyPortraits, int? PlaceId, int? WorldX, int? WorldZ)
 {
     public DateTimeOffset? SavedLocalAt { get; init; }
+    public bool IsCompletedGame { get; init; }
 
     public GameState ToLocationState()
     {
@@ -30,7 +31,7 @@ public sealed record SaveSummary(SceneKind Scene, int FieldId, string FieldName,
         {
             placeId = id;
         }
-        return new(state.Scene, state.FieldId, state.FieldName, state.Playtime, CapturePartyPortraits(state), placeId, state.World?.X, state.World?.Z);
+        return new(state.Scene, state.FieldId, state.FieldName, state.Playtime, CapturePartyPortraits(state), placeId, state.World?.X, state.World?.Z) { IsCompletedGame = state.CompletedGame is not null };
     }
 
     public static int[] CapturePartyPortraits(GameState state)

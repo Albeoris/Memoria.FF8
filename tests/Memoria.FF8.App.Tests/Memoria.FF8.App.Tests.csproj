@@ -9,6 +9,7 @@
   </PropertyGroup>
   <Import Project="../../AppRuntime.props" />
   <ItemGroup>
+    <Compile Include="../Shared/CompletedSaveFixture.cs" Link="CompletedSaveFixture.cs" />
     <Compile Include="../Shared/NativeBattleFixtureState.cs" Link="NativeBattleFixtureState.cs" />
     <Compile Include="../Shared/NativeBattleTypedFixture.cs" Link="NativeBattleTypedFixture.cs" />
     <Compile Include="../Shared/NativeBattleOriginalModelObservations.cs" Link="NativeBattleOriginalModelObservations.cs" />

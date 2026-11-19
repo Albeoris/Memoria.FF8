@@ -821,6 +821,10 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Saved gameplay preferences cannot be null.");
         }
         state.GameplayPreferences.Validate();
+        state.Ff8Completion?.Validate();
+        state.CompletedGame?.Validate();
+        state.NewGamePlus?.Validate();
+        state.NewGamePlusRewards?.Validate();
         state.ConfiguredGameplayTuning?.Validate();
         if (state.Battle is { } tunedBattle && tunedBattle.Definition.Tuning != state.GameplayPreferences.Tuning)
         {

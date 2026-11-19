@@ -5,7 +5,8 @@ namespace Memoria.FF8.Runtime;
 public enum GameplaySaveResumeKind
 {
     Field,
-    World
+    World,
+    Completed
 }
 
 public sealed record GameplaySaveFieldPosition([property: JsonRequired] float X, [property: JsonRequired] float Y, [property: JsonRequired] int Triangle, [property: JsonRequired] byte Direction);
@@ -25,6 +26,14 @@ public sealed record GameplaySaveResumeDescriptor([property: JsonRequired] int V
         if (Version != 1 || !Enum.IsDefined(Kind) || FieldId is < 72 or > ushort.MaxValue || PreviousFieldId is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("Gameplay resume descriptor has an unsupported version, kind or field identity.");
+        }
+        if (Kind == GameplaySaveResumeKind.Completed)
+        {
+            if (Field is not null || World is not null || PreviousFieldId is not null)
+            {
+                throw new InvalidDataException("Completed games cannot carry a resumable position.");
+            }
+            return;
         }
         if (Kind == GameplaySaveResumeKind.Field ? Field is null || World is not null : World is null || Field is not null)
         {

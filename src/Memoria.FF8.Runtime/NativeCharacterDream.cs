@@ -22,9 +22,9 @@ public sealed partial record NativeCharacterVitals
         if ((rawOperand & 1) != 0 && !DreamEnabled && ExtendedRosterEnabled && CombatParty.Any(row => IsExtendedRosterCharacter(row)))
         {
             NativeCharacterVitals native = this with { CombatParty = ProjectNativeCombatParty(fieldParty), ExtendedRosterPartyBeforeDream = CombatParty.ToArray() };
-            return native.PrepareNativeJunction(rawOperand, fieldParty, guestFlags);
+            return ReconcileNewGamePlusDreamExperience(native.PrepareNativeJunction(rawOperand, fieldParty, guestFlags));
         }
-        return PrepareNativeJunction(rawOperand, fieldParty, guestFlags);
+        return ReconcileNewGamePlusDreamExperience(PrepareNativeJunction(rawOperand, fieldParty, guestFlags));
     }
 
     private NativeJunctionResult PrepareNativeJunction(int rawOperand, IReadOnlyList<int> fieldParty, uint guestFlags)
@@ -94,7 +94,7 @@ public sealed partial record NativeCharacterVitals
         Validate();
         NativeCharacterVital[] rows = Records.ToArray();
         rows[0] = rows[0] with { CharacterId = 0 };
-        return this with { DreamEnabled = false, Records = rows };
+        return ReconcileNewGamePlusDreamExperience(new(this with { DreamEnabled = false, Records = rows }, [])).Vitals;
     }
 
     public NativeJunctionResult CompleteGuestSelectionMenu(IReadOnlyList<byte> selected, byte guestFlags)
@@ -127,7 +127,7 @@ public sealed partial record NativeCharacterVitals
         (combat[0], combat[1]) = (combat[1], combat[0]);
         ReorderNativeDreamCombatParty(combat);
         NativeCharacterVitals next = (this with { DreamEnabled = true, Records = rows, CombatParty = combat }).RebuildParty();
-        return new NativeJunctionResult(next, field);
+        return ReconcileNewGamePlusDreamExperience(new NativeJunctionResult(next, field));
     }
 
     private static void ReorderNativeDreamCombatParty(byte[] combat)

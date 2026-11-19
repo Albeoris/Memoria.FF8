@@ -260,6 +260,10 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (NavigateNewGamePlus(input))
+        {
+            return;
+        }
         if (NavigateJunctionDashboard(input))
         {
             return;
@@ -506,6 +510,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (BackNewGamePlus())
+        {
+            return;
+        }
         if (ScreenId == "shop-junk" && SelectedIndex >= Data.Characters.Count && Data.Characters.Count > 0)
         {
             _selections[ScreenId] = Math.Max(0, Data.Characters.FindIndex(character => character.Id == weaponShopCharacterId));
@@ -836,6 +844,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteNewGamePlus(action))
+        {
+            return;
+        }
         if (TryExecuteJunctionDashboard(action))
         {
             return;

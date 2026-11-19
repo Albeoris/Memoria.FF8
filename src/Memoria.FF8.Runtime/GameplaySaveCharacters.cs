@@ -19,6 +19,10 @@ public sealed record GameplaySaveCharacters
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ExtendedRosterEnabled { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? NewGamePlusPermanentGuests { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ImmutableSortedDictionary<byte, uint>? NewGamePlusDreamExperienceBackup { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ExtendedRosterPartyBeforeDream { get; init; }
     [JsonRequired]
     public required GameplaySaveGuardianForce[] GuardianForces { get; init; }
@@ -46,6 +50,8 @@ public sealed record GameplaySaveCharacters
             AdditionalCombatPartyMinimumCapacities = source.AdditionalCombatPartyMinimumCapacities,
             DreamEnabled = source.DreamEnabled,
             ExtendedRosterEnabled = source.ExtendedRosterEnabled,
+            NewGamePlusPermanentGuests = source.NewGamePlusPermanentGuests,
+            NewGamePlusDreamExperienceBackup = source.NewGamePlusDreamExperienceBackup,
             ExtendedRosterPartyBeforeDream = source.ExtendedRosterPartyBeforeDream,
             GuardianForces = source.GuardianForces.Select((gf, id) => GameplaySaveGuardianForce.Capture(gf) with { AbilityBindings = source.MenuDefinitions.ResolveLearning(id).Select(rule => rule.Ability).ToImmutableArray() }).ToArray(),
             DreamWeapons = source.DreamWeapons,
@@ -75,6 +81,8 @@ public sealed record GameplaySaveCharacters
             AdditionalCombatPartyMinimumCapacities = detached.AdditionalCombatPartyMinimumCapacities,
             DreamEnabled = detached.DreamEnabled,
             ExtendedRosterEnabled = detached.ExtendedRosterEnabled,
+            NewGamePlusPermanentGuests = detached.NewGamePlusPermanentGuests,
+            NewGamePlusDreamExperienceBackup = detached.NewGamePlusDreamExperienceBackup,
             ExtendedRosterPartyBeforeDream = detached.ExtendedRosterPartyBeforeDream,
             GuardianForces = guardianForces,
             DreamWeapons = detached.DreamWeapons,
@@ -90,6 +98,14 @@ public sealed record GameplaySaveCharacters
 
     public void Validate()
     {
+        if (NewGamePlusPermanentGuests is ushort guests && (guests & ~0x7C0) != 0)
+        {
+            throw new InvalidDataException("New Game+ permanent guests require stable additional character identities.");
+        }
+        if (NewGamePlusDreamExperienceBackup is { } backup && (!DreamEnabled || backup.Keys.Any(row => row >= NativeCharacterVitals.NativeRecordCount)))
+        {
+            throw new InvalidDataException("New Game+ dream experience backup requires its live physical dream rows.");
+        }
         if (Records is null || !NativeCharacterVitals.IsValidRosterShape(Records, CombatParty, ExtendedRosterEnabled, DreamEnabled, ExtendedRosterPartyBeforeDream) || GuardianForces is not { Length: 16 } || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 } || Magic is null || Magic.AttackModes?.Length != Records.Length)
         {
             throw new InvalidDataException("Gameplay characters require valid character records, party slots, sixteen GFs and complete dream/junction state.");

@@ -103,7 +103,7 @@ internal sealed partial class PlayerSaveStore
         {
             string path = Path.Combine(directory, $"slot-{slot:00}.json");
             ValidatePath(path);
-            CombinedSessionCodec.Save(path, saved);
+            WriteReviewedCombined(path, saved);
             entries.Remove(path);
             return;
         }
@@ -115,16 +115,19 @@ internal sealed partial class PlayerSaveStore
         }
         string target = NextQuickPath(sequence);
         ValidatePath(target);
-        QuickSaveFile[] obsolete = files.Skip(quickSaveCount - 1).ToArray();
+        QuickSaveFile[] obsolete = files.Skip(quickSaveCount - 1).Where(file => !IsCompletedPath(file.Path)).ToArray();
         ValidateRemoval(obsolete);
-        CombinedSessionCodec.Save(target, saved);
+        WriteReviewedCombined(target, saved);
         if (files.Count > 0 && File.GetLastWriteTimeUtc(target) <= files[0].SavedAtUtc)
         {
             File.SetLastWriteTimeUtc(target, files[0].SavedAtUtc.AddMilliseconds(1));
         }
         foreach (QuickSaveFile file in obsolete)
         {
-            File.Delete(file.Path);
+            if (!IsCompletedPath(file.Path))
+            {
+                File.Delete(file.Path);
+            }
         }
     }
 
@@ -255,7 +258,7 @@ internal sealed partial class PlayerSaveStore
         try
         {
             CombinedSessionSave? saved = CrossoverSaveAdapter.ReadEnvelope(path);
-            return Game == SessionGame.Ff7 ? saved?.ActiveGame == SessionGame.Ff7 : saved?.ActiveGame != SessionGame.Ff7;
+            return Game == SessionGame.Ff7 ? saved?.ActiveGame == SessionGame.Ff7 : saved?.ActiveGame != SessionGame.Ff7 || CrossoverSaveAdapter.HasCompletedFf8(saved);
         }
         catch (Exception error) when (IsUnavailable(error))
         {

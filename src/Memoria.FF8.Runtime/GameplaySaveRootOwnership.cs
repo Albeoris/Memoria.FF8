@@ -27,6 +27,10 @@ internal static class GameplaySaveRootOwnership
                 members.Add(name, new(component, requirement));
             }
         }
+        Add("CompletedGame", GameplaySavePersistenceRequirement.Durable, nameof(GameState.CompletedGame));
+        Add("NewGamePlus", GameplaySavePersistenceRequirement.Durable, nameof(GameState.NewGamePlus));
+        Add("NewGamePlusRewards", GameplaySavePersistenceRequirement.Durable, nameof(GameState.NewGamePlusRewards));
+        Add("Verified terminal ending transition; completed saves retain the receipt in CompletedGame.Completion", GameplaySavePersistenceRequirement.Derived, nameof(GameState.Ff8Completion));
         Add("AudioPresentation", GameplaySavePersistenceRequirement.Split, nameof(GameState.AudioPresentation));
         Add("Characters", GameplaySavePersistenceRequirement.Durable, nameof(GameState.CharacterVitals));
         Add("Economy", GameplaySavePersistenceRequirement.Durable, nameof(GameState.Economy));

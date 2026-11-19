@@ -15,7 +15,16 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
-    public const int CurrentSnapshotSchemaVersion = 9;
+    public const int CurrentSnapshotSchemaVersion = 10;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff8CompletionState? Ff8Completion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CompletedGameData? CompletedGame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NewGamePlusDefinition? NewGamePlus { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NewGamePlusRewardRules? NewGamePlusRewards { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveAudioPresentation? AudioPresentation { get; init; }

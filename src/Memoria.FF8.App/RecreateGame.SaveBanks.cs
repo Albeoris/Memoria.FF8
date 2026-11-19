@@ -77,6 +77,7 @@ internal sealed partial class RecreateGame
 
     private async Task TransferPlayerSaveAsync(int source, int destination)
     {
+        await ReviewCompletedOverwriteAsync(destination);
         if (InFf7)
         {
             playerSaves.TransferFf7(source, destination);

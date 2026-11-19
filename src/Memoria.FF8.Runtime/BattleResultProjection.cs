@@ -14,8 +14,9 @@ public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, N
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
 public static partial class BattleResultProjection
 {
-    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience, NativeItemOrderAliases? itemOrderAliases = null, BattleDefinition? admittedBattle = null)
+    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience, NativeItemOrderAliases? itemOrderAliases = null, BattleDefinition? admittedBattle = null, NewGamePlusRewardRules? newGamePlusRewards = null)
     {
+        newGamePlusRewards?.Validate();
         result.Validate();
         sourceVitals.Validate();
         sourceEconomy.Validate();
@@ -179,7 +180,7 @@ public static partial class BattleResultProjection
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome is BattleOutcome.Victory or BattleOutcome.Escaped && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
-            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning, party);
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience, result.RemainingEnemyExperience, result.Tuning, party, newGamePlusRewards);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition, party);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems, itemOrderAliases);
             List<byte> grantedCards = [.. loot.CardsGranted];
@@ -204,21 +205,21 @@ public static partial class BattleResultProjection
         ushort abilityPointsNotice = 0;
         if (eligible.Length > 0)
         {
-            ushort points = 0;
+            int subtotal = 0;
             foreach (int slot in result.RewardPolicy == BattleRewardPolicy.NativeCombat ? result.EnemyDefeats.Select(defeat => defeat.Slot) : result.DefeatedEnemySlots)
             {
                 if (!currentEnemyAbilityPoints.TryGetValue(slot, out int amount) || amount is < 0 or > 255)
                 {
                     throw new InvalidDataException("Battle rewards require each defeated enemy's current original AP record.");
                 }
-                points = unchecked((ushort)(points + amount));
+                subtotal = newGamePlusRewards is null ? unchecked((ushort)(subtotal + amount)) : checked(subtotal + amount);
             }
-            points = checked((ushort)Math.Min(ushort.MaxValue, (long)points * result.Tuning.ApMultiplier));
+            ushort points = newGamePlusRewards?.ScaleAbilityPoints(subtotal) ?? checked((ushort)Math.Min(ushort.MaxValue, (long)subtotal * result.Tuning.ApMultiplier));
             foreach (int id in eligible)
             {
                 if (vitals.GuardianForceAbilities(id).Any(ability => !ability.Learned && ability.Ability == vitals.GuardianForces[id].Learning))
                 {
-                    abilityPointsNotice = result.Tuning.ApMultiplier == 1 ? unchecked((byte)points) : points;
+                    abilityPointsNotice = newGamePlusRewards is null && result.Tuning.ApMultiplier == 1 ? unchecked((byte)points) : points;
                 }
                 vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
                 abilityPoints[id] = points;

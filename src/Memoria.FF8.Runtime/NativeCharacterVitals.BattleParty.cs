@@ -16,7 +16,7 @@ public sealed partial record NativeCharacterVitals
 
     public byte[] GetBattlePartyRows(int capacity, bool allowAdditionalMembers = true)
     {
-        return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers);
+        return GetBattlePartyRows(Records, CombatParty, AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, ExtendedRosterEnabled, DreamEnabled, capacity, allowAdditionalMembers, NewGamePlusPermanentGuests);
     }
 
     public NativeCharacterVitals RemoveAdditionalCombatPartyRows(IEnumerable<byte> rows)
@@ -28,7 +28,7 @@ public sealed partial record NativeCharacterVitals
         return this with { AdditionalCombatParty = remaining.Length == 0 ? null : remaining, AdditionalCombatPartyMinimumCapacities = capacities is { Count: > 0 } ? capacities : null };
     }
 
-    internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, ImmutableSortedDictionary<byte, byte>? minimumCapacities, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true)
+    internal static byte[] GetBattlePartyRows(NativeCharacterVital[] records, byte[] combatParty, byte[]? additionalCombatParty, ImmutableSortedDictionary<byte, byte>? minimumCapacities, bool extendedRosterEnabled, bool dreamEnabled, int capacity, bool allowAdditionalMembers = true, ushort? permanentGuests = null)
     {
         ValidateBattlePartyCapacity(capacity);
         if (!IsValidAdditionalCombatParty(additionalCombatParty, minimumCapacities, records.Length))
@@ -41,7 +41,7 @@ public sealed partial record NativeCharacterVitals
             return nativeRows;
         }
 
-        return [.. nativeRows, .. additionalCombatParty.Where(row => (minimumCapacities?.GetValueOrDefault(row) ?? 0) <= capacity && !nativeRows.Contains(row) && IsRosterMember(records, row, extendedRosterEnabled, dreamEnabled)).Take(capacity - nativeRows.Length)];
+        return [.. nativeRows, .. additionalCombatParty.Where(row => (minimumCapacities?.GetValueOrDefault(row) ?? 0) <= capacity && !nativeRows.Contains(row) && IsRosterMember(records, row, extendedRosterEnabled, dreamEnabled, permanentGuests)).Take(capacity - nativeRows.Length)];
     }
 
     public NativeCharacterVitals WithBattleParty(IReadOnlyList<byte> rows, int capacity)

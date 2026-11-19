@@ -14,6 +14,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | [GF transformations](players/guardian-forms.md) | Optional Ifrit form, commands, HP, lifetime and finisher Skip. |
 | [GF ability editor](players/gf-ability-editor.md) | Create native GF mods or save-local changes from inside the game. |
 | [Localization projects](players/localization.md) | Create/convert translation projects, choose active stacks and review resource-coverage gaps. |
+| [New Game+](players/new-game-plus.md) | Completed saves, carryover, custom starting choices and continuing rules. |
 | [Saves](players/saves.md) | Save locations, standalone snapshots and loading limitations. |
 | [Error reporting](error-reporting.md) | Privacy-filtered diagnostics ZIP and manual GitHub attachment. |
 | [Debug Room](players/debug-room.md) | Service tools, names, fixture previews and the battle laboratory. |
@@ -39,6 +40,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | Guide | What you will find |
 | --- | --- |
 | [Build and test](developers/building-and-testing.md) | A clean checkout, distribution layout, test projects and optional local inputs. |
+| [New Game+ ownership](developers/new-game-plus.md) | Completion purpose, detached setup, starting definitions, reward policies and migrations. |
 | [Excluded runtime ownership](developers/gameplay-runtime-ownership.md) | Nested state classification, restoration sources and required save regression checks. |
 | [Cross-platform migration](developers/cross-platform.md) | Portable projects, launcher/audio contracts and remaining native host gates. |
 | [Windows graphics hosts](developers/graphics-backends.md) | Shared-source DX11/Vulkan payloads, backend selection and initialization diagnostics. |

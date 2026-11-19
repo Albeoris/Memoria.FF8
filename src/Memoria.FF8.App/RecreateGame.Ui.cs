@@ -76,6 +76,10 @@ internal sealed partial class RecreateGame
         {
             gameMenus!.Open("mods-catalog");
         }
+        else if (session.State.CompletedGame is not null)
+        {
+            OpenNewGamePlusSource(session.State);
+        }
     }
 
     private void InitializeSessionMenus()
@@ -184,13 +188,13 @@ internal sealed partial class RecreateGame
         data.Settings["Native font profile"] = uiPreferences.NativeFontProfileId;
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
-        GameplayPreferences magicPreferences = session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences;
+        GameplayPreferences magicPreferences = newGamePlusPreferences ?? (session.State.Scene == SceneKind.Title ? newGameMagicPreferences : session.State.PendingGameplayPreferences ?? session.State.GameplayPreferences);
         magicPreferences = (magicPreferences with { Difficulty = ReadCurrentUiPreferences().Difficulty }).NormalizeForDifficulty();
         data.Settings["Shared magic stock"] = magicPreferences.SharedMagicStock ? "On" : "Off";
         data.Settings["Infinite magic"] = magicPreferences.InfiniteMagic ? "On" : "Off";
-        data.MagicPreferencesUnavailableReason = MagicRuleBoundaryUnavailableReason;
+        data.MagicPreferencesUnavailableReason = newGamePlusDraft is null ? MagicRuleBoundaryUnavailableReason : null;
         data.Settings["Chocobo World"] = ChocoboWorldSettings.Label(magicPreferences.ChocoboWorldMode ?? DefaultChocoboWorldMode);
-        data.ChocoboWorldUnavailableReason = ChocoboWorldBoundaryUnavailableReason;
+        data.ChocoboWorldUnavailableReason = newGamePlusDraft is null ? ChocoboWorldBoundaryUnavailableReason : null;
         data.SupportedActions.Add("config:Chocobo World");
         data.SupportedActions.UnionWith(["config:Shared magic stock", "config:Infinite magic", "attack-mode"]);
         data.Settings["Limit once per turn"] = ReadCurrentUiPreferences().LimitOncePerTurn ? "On" : "Off";
@@ -323,6 +327,27 @@ internal sealed partial class RecreateGame
         {
             return;
         }
+        if (newGamePlusDraft is not null && action.Kind == "config")
+        {
+            if (action.SubjectId is "Shared magic stock" or "Infinite magic" or "Chocobo World")
+            {
+                GameplayPreferences preferences = newGamePlusPreferences!;
+                newGamePlusPreferences = action.SubjectId switch
+                {
+                    "Shared magic stock" => preferences with { SharedMagicStock = action.Value == "On" },
+                    "Infinite magic" => preferences with { InfiniteMagic = action.Value == "On" },
+                    _ => preferences with { ChocoboWorldMode = ChocoboWorldSettings.Parse(action.Value) }
+                };
+            }
+            else
+            {
+                newGamePlusDraft.Settings = NewGameSettings.Normalize(newGamePlusDraft.Settings.WithSetting(action.SubjectId, action.Value, true));
+            }
+            newGamePlusPreferences = ResolveNewGamePlusPreferences(newGamePlusDraft.Settings);
+            newGamePlusDraft.ConvertMagic(newGamePlusPreferences);
+            gameMenus!.InvalidateLiveData();
+            return;
+        }
         if (ApplyHardcoreMenuAction(action))
         {
             return;
@@ -342,6 +367,11 @@ internal sealed partial class RecreateGame
         }
         if (action.Kind == "new-game-start")
         {
+            if (newGamePlusDraft is not null)
+            {
+                ConfigureNewGamePlus();
+                return;
+            }
             StartNewGameSession();
             return;
         }
@@ -533,6 +563,10 @@ internal sealed partial class RecreateGame
 
     private UiPreferences ReadCurrentUiPreferences()
     {
+        if (newGamePlusDraft is not null)
+        {
+            return newGamePlusDraft.Settings;
+        }
         if (session.State.Scene == SceneKind.Title)
         {
             return uiPreferences;

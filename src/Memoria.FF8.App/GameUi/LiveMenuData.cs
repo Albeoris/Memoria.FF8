@@ -115,19 +115,19 @@ public static class LiveMenuData
                 }
                 return text;
             }
-            if (junction is null && state.Scene is SceneKind.Field or SceneKind.WorldMap && !vitals.DreamEnabled && ((state.WorldControls?.Menu209 ?? 0) & 2) != 0)
+            if (junction is null && state.Scene is SceneKind.Field or SceneKind.WorldMap && !vitals.DreamEnabled && (NewGamePlusPartyPolicy.EffectiveMenuSelection(state) & 2) != 0)
             {
                 result.SupportedActions.Add("party-switch");
                 for (int source = 0; source < vitals.Records.Length; source++)
                 {
                     for (int target = 0; target < vitals.Records.Length; target++)
                     {
-                        if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, state.WorldControls!.Menu209, result.PartyCapacity))
+                        if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, target, NewGamePlusPartyPolicy.EffectiveMenuSelection(state), result.PartyCapacity))
                         {
                             result.SupportedActions.Add($"party-switch:character-{source}:character-{target}");
                         }
                     }
-                    if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, Memoria.FF8.Events.NativePartySwitchInput.EmptySlot, state.WorldControls!.Menu209, result.PartyCapacity))
+                    if (Memoria.FF8.Events.NativePartySwitchInput.CanExchange(vitals, source, Memoria.FF8.Events.NativePartySwitchInput.EmptySlot, NewGamePlusPartyPolicy.EffectiveMenuSelection(state), result.PartyCapacity))
                     {
                         result.SupportedActions.Add($"party-switch:character-{source}:{MenuController.EmptySwitchSlotId}");
                         result.SupportedActions.Add($"party-switch:{MenuController.EmptySwitchSlotId}:character-{source}");

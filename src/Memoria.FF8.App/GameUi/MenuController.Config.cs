@@ -115,7 +115,7 @@ public sealed partial class MenuController
         }
         if (newGame)
         {
-            entries.Add(new MenuEntry("begin", SystemText("ui.configentries.entry.label.begin", "Begin"), MagicText("SettingBeginHelp"), Action: new MenuAction("new-game-start")));
+            entries.Add(new MenuEntry("begin", IsNewGamePlusSetup ? NgText("configure", "Configure New Game+") : SystemText("ui.configentries.entry.label.begin", "Begin"), MagicText("SettingBeginHelp"), Action: new MenuAction("new-game-start")));
         }
         return entries;
     }

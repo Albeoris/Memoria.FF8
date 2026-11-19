@@ -29,7 +29,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
 
     internal static bool IsCardImage(UiImageSource source) => source.Kind is UiImageKind.TripleTriadCapture or UiImageKind.TripleTriadOutcome or UiImageKind.Card or UiImageKind.CardElement or UiImageKind.CardFace or UiImageKind.CardFaceGrayscale or UiImageKind.CardBack or UiImageKind.TripleTriadBackground or UiImageKind.TripleTriadBoardBackground;
 
-    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.CharacterPortraitGrayscale or UiImageKind.GuardianForcePortrait or UiImageKind.AngeloPortrait or UiImageKind.ChocoboPortrait or UiImageKind.GrieverPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton or UiImageKind.ItemUseImage;
+    internal static bool IsResourceImage(UiImageSource source) => IsCardImage(source) || source.Kind is UiImageKind.CharacterPortrait or UiImageKind.CharacterPortraitGrayscale or UiImageKind.GuardianForcePortrait or UiImageKind.GuardianForcePortraitGrayscale or UiImageKind.AngeloPortrait or UiImageKind.ChocoboPortrait or UiImageKind.GrieverPortrait or UiImageKind.Icon or UiImageKind.NativeTutorialPage or UiImageKind.Magazine or UiImageKind.MagazineButton or UiImageKind.ControllerButton or UiImageKind.ItemUseImage;
 
     public PixelImage? ReadControllerButton(int nativeIconId)
     {
@@ -84,6 +84,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory, ResourceService?
             UiImageKind.CharacterPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id),
             UiImageKind.CharacterPortraitGrayscale => TrackGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetCharacterPortrait(source.Id)),
             UiImageKind.GuardianForcePortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id),
+            UiImageKind.GuardianForcePortraitGrayscale => TrackGrayscale((portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GetGuardianForcePortrait(source.Id)),
             UiImageKind.AngeloPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).AngeloPortrait,
             UiImageKind.ChocoboPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).ChocoboPortrait,
             UiImageKind.GrieverPortrait => (portraits ??= NativeMenuArtwork.Load(gameDirectory, resources)).GrieverPortrait,

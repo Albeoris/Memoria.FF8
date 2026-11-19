@@ -42,6 +42,10 @@ public static class GameplaySaveCodec
     public static SaveSummary ReadSummary(Stream source)
     {
         GameplaySaveComponentDocument document = Read(source);
+        if (document.CompletedGame is { } completed)
+        {
+            return new(SceneKind.Title, document.Resume.FieldId, "", completed.Playtime, completed.Portraits, null, null, null) { IsCompletedGame = true, SavedLocalAt = document.SavedLocalAt };
+        }
         GameplaySaveProgression progression = document.Progression ?? throw new NotSupportedException("Partial gameplay components do not describe a loadable player save.");
         GameplaySaveCharacters characters = document.Characters;
         GameplaySaveStory story = progression.Story;

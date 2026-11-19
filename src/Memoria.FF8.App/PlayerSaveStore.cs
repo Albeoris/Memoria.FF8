@@ -8,6 +8,7 @@ namespace Memoria.FF8;
 internal sealed record PlayerSaveEntry(int Slot, string Label, DateTime? SavedAt, string Details, bool CanLoad)
 {
     internal bool CanCopy { get; init; } = CanLoad;
+    internal bool IsCompletedGame { get; init; }
     internal SessionGame? ActiveGame { get; init; }
     internal string? DetailsSystemId { get; init; }
     internal string? DetailsError { get; init; }
@@ -76,7 +77,7 @@ internal sealed partial class PlayerSaveStore
             throw new ArgumentOutOfRangeException(nameof(count));
         }
         List<QuickSaveFile> files = FindQuickSaves();
-        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).ToArray();
+        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).Where(file => !IsCompletedPath(file.Path)).ToArray();
         ValidateRemoval(obsolete);
         return obsolete.Length;
     }
@@ -88,7 +89,7 @@ internal sealed partial class PlayerSaveStore
             throw new ArgumentOutOfRangeException(nameof(count));
         }
         List<QuickSaveFile> files = FindQuickSaves();
-        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).ToArray();
+        QuickSaveFile[] obsolete = count > quickSaveCount ? [] : files.Skip(count).Where(file => !IsCompletedPath(file.Path)).ToArray();
         ValidateRemoval(obsolete);
         if (obsolete.Length != confirmedRemovalCount)
         {
@@ -101,9 +102,12 @@ internal sealed partial class PlayerSaveStore
         {
             try
             {
-                File.Delete(file.Path);
-                entries.Remove(file.Path);
-                removed++;
+                if (!IsCompletedPath(file.Path))
+                {
+                    File.Delete(file.Path);
+                    entries.Remove(file.Path);
+                    removed++;
+                }
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -153,7 +157,7 @@ internal sealed partial class PlayerSaveStore
 
     public static bool RequiresMemoriaFormat(GameState state, bool allowGuardianForceProjection = false)
     {
-        return RequiresMemoriaBattleRoster(state) || state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
+        return state.CompletedGame is not null || state.NewGamePlus is not null || state.NewGamePlusRewards is not null || RequiresMemoriaBattleRoster(state) || state.GameplayPreferences.ChocoboWorldMode is not null || state.ChocoboRewards.HasState || (!allowGuardianForceProjection && state.CharacterVitals?.GuardianForceRequiresMemoriaFormat == true) || state.GameplayPreferences.LimitOncePerTurn || state.GameplayPreferences.SelphieCardSlots || state.GameplayPreferences.WeaponMagazineRequired || state.GameplayPreferences.WeaponUpgradeOrder || state.WeaponRecipes?.ObtainedWeaponsBits is > 0 || state.WeaponRecipes?.MagazineRecipeBits is > 0 || state.GameplayPreferences.CardModOnce || !state.RefinedCardIds.IsEmpty || state.GameplayPreferences.DrawOncePerSpell || state.GameplayPreferences.Difficulty != BattleDifficulty.Normal || state.CharacterVitals?.MagicSystem.RequiresMemoriaFormat == true || state.GameplayPreferences.SharedMagicStock || state.GameplayPreferences.InfiniteMagic || state.GameplayPreferences.GuardianFormsEnabled || state.PendingGameplayPreferences is not null;
     }
 
     internal static void ValidateOriginalBattleRoster(GameState state)
@@ -220,7 +224,7 @@ internal sealed partial class PlayerSaveStore
         }
         string path = NextQuickPath(sequence);
         ValidatePath(path);
-        QuickSaveFile[] obsolete = files.Skip(quickSaveCount - 1).ToArray();
+        QuickSaveFile[] obsolete = files.Skip(quickSaveCount - 1).Where(file => !IsCompletedPath(file.Path)).ToArray();
         ValidateRemoval(obsolete);
         DateTime savedAt = DateTime.UtcNow;
         if (files.Count > 0 && files[0].SavedAtUtc >= savedAt)
@@ -231,19 +235,34 @@ internal sealed partial class PlayerSaveStore
         entries.Remove(path);
         foreach (QuickSaveFile file in obsolete)
         {
-            File.Delete(file.Path);
-            entries.Remove(file.Path);
+            if (!IsCompletedPath(file.Path))
+            {
+                File.Delete(file.Path);
+                entries.Remove(file.Path);
+            }
         }
     }
 
-    private static void WriteMemoria(string path, GameSession session, Action<GameState>? validateContinuation, DateTime? savedAtUtc, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay)
+    private void WriteMemoria(string path, GameSession session, Action<GameState>? validateContinuation, DateTime? savedAtUtc, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay)
     {
-        if (writeGameplay is not null)
+        string? revision = ValidateCompletedOverwrite(path);
+        string staging = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            _ = writeGameplay(path, validateContinuation, savedAtUtc);
-            return;
+            if (writeGameplay is not null)
+            {
+                _ = writeGameplay(staging, validateContinuation, savedAtUtc);
+            }
+            else
+            {
+                session.Save(staging, compact: true, validateContinuation: validateContinuation, savedAtUtc: savedAtUtc);
+            }
+            PublishReviewed(staging, path, revision);
         }
-        session.Save(path, compact: true, validateContinuation: validateContinuation, savedAtUtc: savedAtUtc);
+        finally
+        {
+            File.Delete(staging);
+        }
     }
 
     public GameState Load(int slot)
@@ -323,7 +342,7 @@ internal sealed partial class PlayerSaveStore
             try
             {
                 CombinedSessionSave? combined = slot <= MemoriaSlotCount ? CrossoverSaveAdapter.ReadEnvelope(path) : null;
-                if (combined?.ActiveGame == SessionGame.Ff7)
+                if (combined?.ActiveGame == SessionGame.Ff7 && (Game == SessionGame.Ff7 || !CrossoverSaveAdapter.HasCompletedFf8(combined)))
                 {
                     entry = ReadFf7Summary(slot, label, path, savedAt, combined);
                 }
@@ -331,7 +350,7 @@ internal sealed partial class PlayerSaveStore
                 {
                     summary = slot > MemoriaSlotCount ? ReadOriginalSummary(path) : CrossoverSaveAdapter.ReadSummary(path);
                     GameState state = summary?.ToLocationState() ?? (Game == SessionGame.Ff8 ? LoadPath(path) : GameSession.Load(path));
-                    if (state.Scene == SceneKind.Title)
+                    if (state.Scene == SceneKind.Title && state.CompletedGame is null && summary?.IsCompletedGame != true)
                     {
                         throw new InvalidDataException("This save contains no active game.");
                     }
@@ -345,7 +364,8 @@ internal sealed partial class PlayerSaveStore
                         SavedAtUtc = savedAtUtc,
                         SavedLocalAt = summary?.SavedLocalAt,
                         PlayTime = playtime is not null ? TimeSpan.FromSeconds(playtime.Seconds) : null,
-                        PartyPortraits = summary?.PartyPortraits ?? SaveSummary.CapturePartyPortraits(state)
+                        PartyPortraits = summary?.PartyPortraits ?? SaveSummary.CapturePartyPortraits(state),
+                        IsCompletedGame = summary?.IsCompletedGame ?? state.CompletedGame is not null
                     };
                 }
             }
@@ -369,7 +389,7 @@ internal sealed partial class PlayerSaveStore
             throw new InvalidDataException("Switch to the save's game world before loading it.");
         }
         GameState state = loadMemoria is null ? GameSession.Load(path) : loadMemoria(path);
-        if (state.Scene == SceneKind.Title)
+        if (state.Scene == SceneKind.Title && state.CompletedGame is null)
         {
             throw new InvalidDataException("This save contains no active game.");
         }

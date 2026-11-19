@@ -79,6 +79,22 @@ internal static class CrossoverSaveAdapter
         }
     }
 
+    internal static bool HasCompletedFf8(CombinedSessionSave? save)
+    {
+        if (save?.Ff8Payload is not { Length: > 0 })
+        {
+            return false;
+        }
+        try
+        {
+            return ReadFf8(save).CompletedGame is not null;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
     internal static SaveSummary? ReadSummary(string path)
     {
         CombinedSessionSave? save = ReadEnvelope(path);
@@ -86,7 +102,7 @@ internal static class CrossoverSaveAdapter
         {
             return GameSession.ReadSummary(path);
         }
-        if (save.ActiveGame != SessionGame.Ff8)
+        if (save.ActiveGame != SessionGame.Ff8 && !HasCompletedFf8(save))
         {
             throw new NotSupportedException("An active FFVII save requires its own game summary.");
         }

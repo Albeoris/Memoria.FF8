@@ -45,7 +45,7 @@ internal sealed partial class RecreateGame
         NativeCharacterVitals? current = session.State.Scene == SceneKind.Title ? null : session.State.CharacterVitals;
         GuardianForceAbilityProfile? profile = current?.GuardianForceProfile;
         NativeCharacterVitals source = guardianSourceVitals!;
-        if (profile is not null && profile.SourceFingerprint == guardianSourceRevision)
+        if (profile is not null && (profile.SourceFingerprint == guardianSourceRevision || profile.SourceFingerprint == NewGamePlusGuardianForceDefinitions.EmbeddedSourceFingerprint))
         {
             source = source with
             {
@@ -70,12 +70,16 @@ internal sealed partial class RecreateGame
         return new(source, current, EffectiveGuardianLayers(resourceHost!.GuardianForceMods, resourceHost.Mods.Catalog, profile), profile?.LocalDocuments ?? [], excluded);
     }
 
-    private static ImmutableArray<GuardianForceAbilityPatchLayer> EffectiveGuardianLayers(GuardianForceAbilityMods mods, ModCatalogSnapshot catalog, GuardianForceAbilityProfile? profile) => GuardianForceAbilityProfileCoordinator.ResolveLayers(mods, catalog, profile);
+    private static ImmutableArray<GuardianForceAbilityPatchLayer> EffectiveGuardianLayers(GuardianForceAbilityMods mods, ModCatalogSnapshot catalog, GuardianForceAbilityProfile? profile)
+    {
+        ImmutableArray<GuardianForceAbilityPatchLayer> layers = GuardianForceAbilityProfileCoordinator.ResolveLayers(mods, catalog, profile);
+        return profile?.SourceFingerprint == NewGamePlusGuardianForceDefinitions.EmbeddedSourceFingerprint ? layers.Where(layer => !profile.ExcludedDocuments.Contains(layer.Document.DocumentId, StringComparer.Ordinal)).ToImmutableArray() : layers;
+    }
 
     private GuardianForceAbilityProfile GuardianProfile(GuardianForceEditorContext context, ImmutableArray<GuardianForceAbilityPatchLayer>? layers = null, ImmutableArray<GuardianForceAbilityPatchDocument>? locals = null, ImmutableArray<string>? exclusions = null)
     {
         var aliases = context.Current?.GuardianForceProfile?.LocalOwnershipAliases ?? ImmutableDictionary<string, string>.Empty;
-        return new(context.Source.ResolveGuardianForceTemplates(), guardianSourceRevision, layers ?? context.Layers, locals ?? context.LocalDocuments, exclusions ?? context.ExcludedDocuments)
+        return new(context.Source.ResolveGuardianForceTemplates(), context.Current?.GuardianForceProfile?.SourceFingerprint == NewGamePlusGuardianForceDefinitions.EmbeddedSourceFingerprint ? NewGamePlusGuardianForceDefinitions.EmbeddedSourceFingerprint : guardianSourceRevision, layers ?? context.Layers, locals ?? context.LocalDocuments, exclusions ?? context.ExcludedDocuments)
         {
             LocalOwnershipAliases = aliases
         };
@@ -349,7 +353,7 @@ internal sealed partial class RecreateGame
         }
         EnsureGuardianSource();
         var layers = EffectiveGuardianLayers(resourceHost.GuardianForceMods, resourceHost.Mods.Catalog, profile);
-        if (profile is not null && profile.SourceFingerprint == guardianSourceRevision && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(layers), JsonSerializer.SerializeToElement(profile.AppliedLayers)))
+        if (profile is not null && (profile.SourceFingerprint == guardianSourceRevision || profile.SourceFingerprint == NewGamePlusGuardianForceDefinitions.EmbeddedSourceFingerprint) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(layers), JsonSerializer.SerializeToElement(profile.AppliedLayers)))
         {
             return;
         }

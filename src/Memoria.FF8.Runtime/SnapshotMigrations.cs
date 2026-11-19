@@ -61,6 +61,10 @@ internal static class SnapshotMigrations
                 case 8:
                     // Historical Angelo omissions may be completed by a resource-aware reader.
                     break;
+                case 9:
+                    // Completion and New Game+ are explicit optional owners. Older saves remain ordinary.
+                    SnapshotSoundPresentationMigration.Apply(saved, options);
+                    break;
                 default:
                     throw new InvalidDataException($"No forward migration is available for snapshot schema {version}.");
             }

@@ -562,6 +562,7 @@ public sealed partial class EventEngine
         }
         ValidateNativeTimerExpiryAfterVm();
         AcceptNativeGameOverAfterCallback();
+        PublishFf8CompletionAfterCallback();
     }
 
     private void ConfirmDialogueCore(int? choice = null, string? name = null)

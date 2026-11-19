@@ -49,7 +49,7 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        Events.ConfigureExtendedRoster(policy.ExtendedRosterEnabled);
+        Events.ConfigureExtendedRoster(policy.ExtendedRosterEnabled || state.NewGamePlus?.RequiresExpandedRoster == true);
     }
 
     public void ConfigureGameplayPreferences(GameplayPreferences preferences)

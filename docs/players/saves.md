@@ -131,3 +131,7 @@ The magazine restriction uses the same saved known-recipe flag that normally mak
 The upgrade-order restriction requires the previous weapon in the character's recipe sequence to have been obtained. This sequence comes from the recipe data. Equipped weapons and successful remodels are remembered even while the restriction is off; changing weapons or toggling the mode does not erase that history. Existing saves without history start with their currently equipped weapons when entering a workshop; earlier ownership cannot be recovered.
 
 Both settings and retained weapon history require a Memoria save. Original FF8 saves cannot preserve them.
+
+## Completed Game saves
+
+After the ending and credits, save a Completed Game to a manual Memoria slot. It opens the [New Game+ setup](new-game-plus.md) instead of resuming the ending. Ordinary New Game+ saves resume gameplay normally. Completed sources are protected against accidental overwrites and quick-save cleanup.

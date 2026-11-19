@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record GameplaySaveComponentDocument
 {
     public const string CurrentFormat = "memoria-ff8-gameplay-components";
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
     public const string InitialCoverage = "characters,economy,limits";
     public const string CurrentCoverage = "characters,economy,limits,durable-progression";
 
@@ -34,8 +34,19 @@ public sealed record GameplaySaveComponentDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GameplaySaveAudioPresentation? AudioPresentation { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CompletedGameData? CompletedGame { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NewGamePlusDefinition? NewGamePlus { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NewGamePlusRewardRules? NewGamePlusRewards { get; init; }
+
     public NativeCharacterVitals RestoreCharacterVitals(NativeCharacterVitals installed)
     {
+        if (NewGamePlus is { } run)
+        {
+            installed = NewGamePlusGuardianForceDefinitions.BindEmbedded(installed, run.InitialGuardianForceTemplates, run.GuardianForceExcludedDocuments);
+        }
         return Characters.Restore(installed) with { LevelBasedStatBonuses = Progression?.Rules.Preferences.Tuning.LevelBasedStatBonuses ?? false };
     }
 
@@ -66,14 +77,14 @@ public sealed record GameplaySaveComponentDocument
         {
             throw new NotSupportedException("Gameplay progression document requires its character, economy, Limit and matching scene owners.");
         }
-        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state), AudioPresentation = state.AudioPresentation };
+        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state), AudioPresentation = state.AudioPresentation, NewGamePlus = state.NewGamePlus, NewGamePlusRewards = state.NewGamePlusRewards };
         result.Validate();
         return result;
     }
 
     public void Validate()
     {
-        if (Format != CurrentFormat || (Version == 1 ? Coverage != InitialCoverage || Progression is not null : Version != CurrentVersion || Coverage != CurrentCoverage || Progression is null))
+        if (Format != CurrentFormat || (Version == 1 ? Coverage != InitialCoverage || Progression is not null : Version is not (2 or CurrentVersion) || Coverage != CurrentCoverage || Progression is null && CompletedGame is null) || Version < 3 && (CompletedGame is not null || NewGamePlus is not null || NewGamePlusRewards is not null))
         {
             throw new InvalidDataException("Unsupported gameplay component document format, version or coverage.");
         }
@@ -86,5 +97,12 @@ public sealed record GameplaySaveComponentDocument
         Economy.Validate();
         Limits.Validate();
         Progression?.Validate();
+        CompletedGame?.Validate();
+        NewGamePlus?.Validate();
+        NewGamePlusRewards?.Validate();
+        if ((Resume.Kind == GameplaySaveResumeKind.Completed) != (CompletedGame is not null) || CompletedGame is not null && Progression is not null)
+        {
+            throw new InvalidDataException("Completed games require a dedicated non-resumable transfer purpose.");
+        }
     }
 }

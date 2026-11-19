@@ -103,6 +103,10 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, valid character records or combat slots.");
         }
+        if (NewGamePlusPermanentGuests is ushort guests && (guests & ~0x7C0) != 0 || NewGamePlusDreamExperienceBackup is { } dreamBackup && dreamBackup.Keys.Any(row => row >= NativeRecordCount))
+        {
+            throw new InvalidDataException("New Game+ character rules require bounded guest identities and physical dream rows.");
+        }
         if (!IsValidAdditionalCombatParty(AdditionalCombatParty, AdditionalCombatPartyMinimumCapacities, Records.Length))
         {
             throw new InvalidDataException("Saved additional battle party rows are invalid.");

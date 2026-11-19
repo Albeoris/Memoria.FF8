@@ -74,7 +74,7 @@ internal sealed partial class PlayerSaveStore
                 GameState state = reviewedSource ?? Load(sourceSlot);
                 if (destinationSlot <= MemoriaSlotCount && writeGameplay is not null)
                 {
-                    _ = writeGameplay(state, destination, validateContinuation);
+                    WriteMemoria(destination, new GameSession(state), validateContinuation, null, (path, validate, timestamp) => writeGameplay(state, path, validate));
                 }
                 else
                 {
@@ -91,6 +91,7 @@ internal sealed partial class PlayerSaveStore
         {
             throw new InvalidDataException("Switch to the save's game world before copying it.");
         }
+        string? revision = ValidateCompletedOverwrite(destination);
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         string temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         bool temporaryCreated = false;
@@ -104,12 +105,12 @@ internal sealed partial class PlayerSaveStore
                 output.Flush(flushToDisk: true);
             }
             Memoria.FF7.Runtime.CombinedSessionSave? combined = CrossoverSaveAdapter.ReadEnvelope(temporary);
-            if (combined?.ActiveGame != Memoria.FF7.Runtime.SessionGame.Ff7)
+            if (combined?.ActiveGame != Memoria.FF7.Runtime.SessionGame.Ff7 && !IsCompletedPath(temporary))
             {
                 GameState candidate = LoadPath(temporary);
                 validateContinuation?.Invoke(candidate);
             }
-            File.Move(temporary, destination, overwrite: true);
+            PublishReviewed(temporary, destination, revision);
         }
         finally
         {
