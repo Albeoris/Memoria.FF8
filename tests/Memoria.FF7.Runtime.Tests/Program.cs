@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-temporal-planning-only", StringComparer.Ordinal))
+{
+    NativeTemporalPlanningTests.Run();
+    return 0;
+}
+
 if (args.Contains("--active-native-planning-only", StringComparer.Ordinal))
 {
     ActiveNativePlanningTests.Run();

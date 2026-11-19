@@ -5,6 +5,12 @@ using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
+internal enum Ff7NativePlanningWait
+{
+    RetainPhysicalSearch,
+    AdvanceNativeTime
+}
+
 public sealed record Ff7AutoPlayRouteStep(string Before, Ff7AutoplayInput Input);
 public sealed record Ff7AutoPlayNativeRoute(string EventId, string ConditionFingerprint, long Generation, Ff7AutoPlayRouteStep[] Steps, string After, bool BattleBoundary = false, int Cursor = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Ff7NativeGatewayDeparture? GatewayDeparture = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SourceReleased = false);
 
@@ -35,7 +41,7 @@ public sealed partial class Ff7AutoplayDriver
         return probe.Result;
     }
 
-    internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe)
+    internal IEnumerable<int> EnumerateNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe, Ff7NativePlanningWait pendingWait = Ff7NativePlanningWait.RetainPhysicalSearch)
     {
         if (!SupportsNativeRouteTarget(target))
         {
@@ -53,11 +59,27 @@ public sealed partial class Ff7AutoplayDriver
         }
         IEnumerable<int>[] candidates = (from run in new[] { true, false }
                                          from direction in Directions
-                                         select EnumerateNativeRouteCandidate(target, targets, requireIntermediate, probe, player, initialDistance, run, direction)).ToArray();
+                                         select EnumerateNativeRouteCandidate(target, targets, requireIntermediate, probe, player, initialDistance, run, direction, pendingWait)).ToArray();
         foreach (int signal in EnumerateFairNativeCandidates(candidates, () => probe.Result is not null))
         {
             yield return signal;
         }
+    }
+
+    internal IEnumerable<int>[] EnumerateNativeRouteModes(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, Ff7NativeRouteProbe probe)
+    {
+        return (from wait in new[] { Ff7NativePlanningWait.RetainPhysicalSearch, Ff7NativePlanningWait.AdvanceNativeTime }
+                from intermediate in new[] { true, false }
+                select EnumerateNativeRoute(target, targets, intermediate, probe, wait)).ToArray();
+    }
+
+    internal static Ff7AutoplayInput? ReadNativePlanningWaitInput(Ff7NativePlanningWait mode, bool physicalPending, Ff7AutoplayInput input)
+    {
+        if (physicalPending && mode == Ff7NativePlanningWait.RetainPhysicalSearch)
+        {
+            return null;
+        }
+        return physicalPending ? default(Ff7AutoplayInput) : input;
     }
 
     internal static IEnumerable<int> EnumerateFairNativeCandidates(IEnumerable<IEnumerable<int>> candidates, Func<bool> completed)
@@ -104,7 +126,7 @@ public sealed partial class Ff7AutoplayDriver
         }
     }
 
-    private IEnumerable<int> EnumerateNativeRouteCandidate(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe, Ff7Actor player, int initialDistance, bool run, (int X, int Y, int Direction) direction)
+    private IEnumerable<int> EnumerateNativeRouteCandidate(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate, Ff7NativeRouteProbe probe, Ff7Actor player, int initialDistance, bool run, (int X, int Y, int Direction) direction, Ff7NativePlanningWait pendingWait)
     {
         Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
         Ff7NativeMoveResult move = session.Host.Movement!.StepDirection(controlled, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
@@ -220,10 +242,16 @@ public sealed partial class Ff7AutoplayDriver
                             input = driver.ApproachNativeRouteTarget(target, false);
                         }
                     }
-                    if (driver.PlanningPending)
+                    Ff7AutoplayInput? resolved = ReadNativePlanningWaitInput(pendingWait, driver.PlanningPending, input);
+                    if (resolved is null)
                     {
                         return true;
                     }
+                    if (driver.PlanningPending)
+                    {
+                        driver.BeginPlanningStep();
+                    }
+                    input = resolved.Value;
                     steps.Add(new(ReadNativeRouteFingerprint(branch), input));
                     if (queuedLineWait)
                     {

@@ -84,7 +84,7 @@ public sealed partial class Ff7AutoPlayPolicy
     {
         AutoPlayTravelGoal? goal = State.NavigationGoal;
         Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, target, branch, actual) };
-        IEnumerable<int>[] modes = [driver.EnumerateNativeRoute(target, observation.Events, true, probe), driver.EnumerateNativeRoute(target, observation.Events, false, probe)];
+        IEnumerable<int>[] modes = driver.EnumerateNativeRouteModes(target, observation.Events, probe);
         foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(modes, () => probe.Result is not null))
         {
             nativePlanningPhase = probe.Progress;
@@ -202,7 +202,7 @@ public sealed partial class Ff7AutoPlayPolicy
         IEnumerable<int> EnumerateTarget(Ff7AutoPlayTarget target)
         {
             Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, target, branch, actual) };
-            IEnumerable<int>[] modes = [driver.EnumerateNativeRoute(target, observation.Events, true, probe), driver.EnumerateNativeRoute(target, observation.Events, false, probe)];
+            IEnumerable<int>[] modes = driver.EnumerateNativeRouteModes(target, observation.Events, probe);
             foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(modes, () => probe.Result is not null))
             {
                 nativePlanningPhase = probe.Progress;
