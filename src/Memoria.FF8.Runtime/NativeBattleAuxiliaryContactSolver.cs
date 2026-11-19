@@ -3,13 +3,11 @@ using System.Numerics;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Compiles recipient auxiliary articulation with exact native geometry; it owns no live or persisted state.</summary>
+/// <summary>Refines recipient auxiliary articulation within a fixed budget using exact native geometry; remaining contacts are reported without changing physical motion.</summary>
 public static partial class NativeBattleAuxiliaryContactSolver
 {
     private const int MaximumEvaluations = 8192;
-    private const int ExactTargetReserve = 256;
     private const int NativeLatticeReserve = 64;
-    private const int MaximumHomotopyAttempts = 64;
     private const int MaximumNonlinearIterations = 12;
     private const int MaximumLinearSweeps = 24;
 
@@ -21,7 +19,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
     {
         private readonly NativeBattlePoseSource rig;
         private readonly NativeBattleAuxiliaryContactCalibration calibration;
-        private readonly NativeBattleDecodedPose rest;
         private readonly int[] parents;
         private readonly int[] variables;
         private readonly int[] vertexBones;
@@ -30,7 +27,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
         private readonly int[] bodyIds;
         private readonly int[][] segments;
         private readonly HashSet<int> physical;
-        private readonly Quaternion[] restLocal;
         private readonly PreparedGeometry geometry;
 
         public Prepared(NativeBattlePoseSource rig, NativeBattleAuxiliaryContactCalibration calibration)
@@ -42,7 +38,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
             {
                 throw new InvalidDataException("Auxiliary contact geometry leaves its selected recipient skeleton.");
             }
-            rest = rig.Sample(0, 1, 0);
+            NativeBattleDecodedPose rest = rig.Sample(0, 1, 0);
             parents = Enumerable.Range(0, rig.BoneCount).Select(bone => NativeBattlePoseRetargeter.Parent(rig, bone)).ToArray();
             physical = calibration.PhysicalBones.ToHashSet();
             HashSet<int> protectedBones = new(physical);
@@ -60,7 +56,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
             clothIds = Enumerable.Range(0, triangles.Length).Where(index => triangles[index].Any(vertex => auxiliary.Contains(vertexBones[vertex]))).ToArray();
             bodyIds = Enumerable.Range(0, triangles.Length).Where(index => triangles[index].All(vertex => physical.Contains(vertexBones[vertex])) && triangles[index].Any(vertex => calibration.ContactBones.Contains(vertexBones[vertex]))).ToArray();
             segments = calibration.BodySegments.Select(segment => new[] { segment.A, segment.B }).ToArray();
-            restLocal = Quaternions(rest);
             geometry = new(Read(rest), parents, vertexBones, triangles, clothIds, bodyIds, variables, segments);
         }
 
@@ -83,46 +78,27 @@ public static partial class NativeBattleAuxiliaryContactSolver
             {
                 return target;
             }
-            Quaternion[] targetLocal = initialTarget.Local;
-            NativeState Evaluate(double progress, Quaternion[]? auxiliary)
+            NativeState Evaluate(Quaternion[]? auxiliary)
             {
-                ImmutableArray<NativeBattleBonePose>.Builder bones = rest.Bones.ToBuilder();
-                for (int bone = 0; bone < rig.BoneCount; bone++)
+                ImmutableArray<NativeBattleBonePose>.Builder bones = target.Bones.ToBuilder();
+                if (auxiliary is not null)
                 {
-                    if (physical.Contains(bone))
-                    {
-                        if (progress == 1)
-                        {
-                            bones[bone] = target.Bones[bone];
-                        }
-                        else if (progress != 0)
-                        {
-                            NativeBattleVector rotation = NativeBattlePoseRetargeter.Angles(Matrix4x4.CreateFromQuaternion(Quaternion.Slerp(restLocal[bone], targetLocal[bone], (float)progress)));
-                            NativeBattleVector scale = Lerp(rest.Bones[bone].Scale, target.Bones[bone].Scale, progress);
-                            bones[bone] = new(rotation, scale);
-                        }
-                    }
-                    else if (auxiliary is not null && Array.BinarySearch(variables, bone) >= 0)
+                    foreach (int bone in variables)
                     {
                         bones[bone] = new(NativeBattlePoseRetargeter.Angles(Matrix4x4.CreateFromQuaternion(auxiliary[bone])), target.Bones[bone].Scale);
                     }
-                    else if (progress == 1 && Array.BinarySearch(variables, bone) < 0)
-                    {
-                        bones[bone] = target.Bones[bone];
-                    }
                 }
-                NativeBattleVector translation = progress == 1 ? target.Translation : Lerp(rest.Translation, target.Translation, progress);
-                NativeBattleDecodedPose evaluated = new(translation, bones.ToImmutable(), progress == 0 ? rest.HasScale : target.HasScale);
-                if (evaluated.Translation == target.Translation && evaluated.HasScale == target.HasScale && evaluated.Bones.AsSpan().SequenceEqual(target.Bones.AsSpan()))
+                NativeBattleDecodedPose evaluated = target with { Bones = bones.ToImmutable() };
+                if (evaluated.Bones.AsSpan().SequenceEqual(target.Bones.AsSpan()))
                 {
                     return initialTarget;
                 }
                 NativeState state = Read(evaluated);
-                state.InvalidGeometry = progress == 1 && geometry.HasCollapsedCorrection(initialTarget, state);
+                state.InvalidGeometry = geometry.HasCollapsedCorrection(initialTarget, state);
                 return state;
             }
-            Solution solution = Run(Evaluate, geometry, initialTarget, initialFacts, calibration.PhysicalBones);
-            NativeBattleDecodedPose corrected = Evaluate(1, solution.Local).Pose;
+            Solution solution = Run(Evaluate, geometry, initialTarget, initialFacts);
+            NativeBattleDecodedPose corrected = solution.Pose;
             ImmutableArray<NativeBattleActionMatrix> originalGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, target);
             ImmutableArray<NativeBattleActionMatrix> correctedGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, corrected);
             foreach (int bone in physical)
@@ -170,7 +146,6 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
         private static Quaternion[] Quaternions(NativeBattleDecodedPose pose) => pose.Bones.Select(bone => Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(NativeBattlePoseRetargeter.LocalRotation(bone.Rotation)))).ToArray();
 
-        private static NativeBattleVector Lerp(NativeBattleVector a, NativeBattleVector b, double progress) => new(checked((short)Math.Round(a.X + (b.X - a.X) * progress)), checked((short)Math.Round(a.Y + (b.Y - a.Y) * progress)), checked((short)Math.Round(a.Z + (b.Z - a.Z) * progress)));
 
         private static bool SameMatrix(NativeBattleActionMatrix a, NativeBattleActionMatrix b) => a.X == b.X && a.Y == b.Y && a.Z == b.Z && a.Scale == b.Scale && a.Rotation.AsSpan().SequenceEqual(b.Rotation.AsSpan());
     }
@@ -185,7 +160,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
         public bool InvalidGeometry;
     }
 
-    private sealed record Solution(Quaternion[] Local, NativeBattleAuxiliaryContactReport Report);
+    private sealed record Solution(NativeBattleDecodedPose Pose, NativeBattleAuxiliaryContactReport Report);
 
     private sealed class Layer
     {
@@ -204,6 +179,9 @@ public static partial class NativeBattleAuxiliaryContactSolver
         public double Value;
         public string Kind = "";
         public bool Hard = true;
+        public double[]? Derivative;
+        public int[]? BodyTriangle;
+        public SeparationAxis? EscapeAxis;
     }
 
     private sealed class Facts
@@ -219,158 +197,111 @@ public static partial class NativeBattleAuxiliaryContactSolver
         public bool InvalidGeometry;
     }
 
-    private static Solution Run(Func<double, Quaternion[]?, NativeState> evaluate, PreparedGeometry geometry, NativeState initialTarget, Facts initialFacts, ImmutableArray<int> physicalBones)
+    private static Solution Run(Func<Quaternion[]?, NativeState> evaluate, PreparedGeometry geometry, NativeState initialTarget, Facts initialFacts)
     {
         int evaluations = 0;
-        NativeState rest = geometry.Rest;
-        evaluations++;
-        Quaternion[] canonical = geometry.Canonical;
         int[] variables = geometry.Variables;
-        Quaternion[] current = (Quaternion[])canonical.Clone();
-        double progress = 0;
-        double step = 1;
-        NativeState acceptedState = rest;
-        Facts acceptedFacts = geometry.RestFacts;
-        bool forceExactTarget = false;
-        int stageEvaluationLimit = MaximumEvaluations;
-        if (acceptedFacts.CorrectableCrossings != 0 || acceptedFacts.Violation > 0)
+        NativeState bestTarget = initialTarget;
+        Facts bestTargetFacts = initialFacts;
+        int nonlinearLimit = MaximumEvaluations - NativeLatticeReserve;
+        NativeState state = evaluate(geometry.Canonical);
+        evaluations++;
+        Quaternion[] trialLocal = (Quaternion[])state.Local.Clone();
+        Facts facts = ReadFacts(state);
+        for (int iteration = 0; iteration < MaximumNonlinearIterations && !Feasible(facts) && evaluations < nonlinearLimit; iteration++)
         {
-            throw Unsupported("recipient rest is not feasible", acceptedFacts);
-        }
-        for (int attempt = 0; attempt < MaximumHomotopyAttempts && progress < 1 && evaluations < MaximumEvaluations; attempt++)
-        {
-            bool exactTargetPhase = forceExactTarget || evaluations >= MaximumEvaluations - ExactTargetReserve || attempt == MaximumHomotopyAttempts - 1;
-            stageEvaluationLimit = exactTargetPhase ? MaximumEvaluations : MaximumEvaluations - ExactTargetReserve;
-            int nonlinearLimit = exactTargetPhase ? stageEvaluationLimit - NativeLatticeReserve : stageEvaluationLimit;
-            double next = exactTargetPhase ? 1 : Math.Min(1, progress + step);
-            NativeState state = evaluate(next, current);
-            evaluations++;
-            Quaternion[] trialLocal = (Quaternion[])state.Local.Clone();
-            Facts facts = ReadFacts(state);
-            for (int iteration = 0; iteration < MaximumNonlinearIterations && !Feasible(facts) && evaluations < nonlinearLimit; iteration++)
+            Constraint[] active = facts.Constraints.Where(item => item.Hard && item.Value < 0).ToArray();
+            if (active.Length == 0)
             {
-                Constraint[] active = facts.Constraints.Where(item => item.Hard && item.Value < 0).ToArray();
-                if (active.Length == 0)
+                break;
+            }
+            double[][] rows = active.Select(constraint => Jacobian(constraint, state)).ToArray();
+            double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out double[] dual);
+            // Select the canonical-rest solution within the active hard-contact tangent space.
+            double[] gradient = geometry.RestDirection(state);
+            for (int coordinate = 0; coordinate < gradient.Length; coordinate++)
+            {
+                gradient[coordinate] -= delta[coordinate];
+            }
+            for (int sweep = 0; sweep < MaximumLinearSweeps; sweep++)
+            {
+                for (int row = 0; row < rows.Length; row++)
                 {
-                    break;
-                }
-                double[][] rows = active.Select(constraint => Jacobian(constraint, state)).ToArray();
-                double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out double[] dual);
-                // Select the canonical-rest solution within the active hard-contact tangent space.
-                double[] gradient = geometry.RestDirection(state);
-                for (int coordinate = 0; coordinate < gradient.Length; coordinate++)
-                {
-                    gradient[coordinate] -= delta[coordinate];
-                }
-                for (int sweep = 0; sweep < MaximumLinearSweeps; sweep++)
-                {
-                    for (int row = 0; row < rows.Length; row++)
+                    double norm = Dot(rows[row], rows[row]);
+                    if (dual[row] > 0 && norm > 0)
                     {
-                        double norm = Dot(rows[row], rows[row]);
-                        if (dual[row] > 0 && norm > 0)
-                        {
-                            Add(gradient, rows[row], -Dot(gradient, rows[row]) / norm);
-                        }
+                        Add(gradient, rows[row], -Dot(gradient, rows[row]) / norm);
                     }
                 }
-                Add(delta, gradient, 1);
-                bool improved = false;
-                NativeState lineState = state;
-                Facts lineFacts = facts;
-                for (double fraction = 1; fraction >= 1.0 / 4096 && evaluations < nonlinearLimit; fraction /= 2)
-                {
-                    NativeState candidate = evaluate(next, Apply(trialLocal, delta, fraction));
-                    evaluations++;
-                    Facts candidateFacts = ReadFacts(candidate);
-                    if (Better(candidateFacts, lineFacts))
-                    {
-                        lineState = candidate;
-                        lineFacts = candidateFacts;
-                        improved = true;
-                    }
-                }
-                state = lineState;
-                facts = lineFacts;
-                trialLocal = (Quaternion[])state.Local.Clone();
-                if (!improved && evaluations < nonlinearLimit)
-                {
-                    NativeState bestState = state;
-                    Facts bestFacts = facts;
-                    for (int coordinate = 0; coordinate < variables.Length * 3 && evaluations < nonlinearLimit; coordinate++)
-                    {
-                        foreach (int sign in new[] { -1, 1 })
-                        {
-                            if (evaluations >= nonlinearLimit)
-                            {
-                                break;
-                            }
-                            double[] unit = new double[variables.Length * 3];
-                            unit[coordinate] = sign * Math.Tau / 4096;
-                            NativeState candidate = evaluate(next, Apply(trialLocal, unit, 1));
-                            evaluations++;
-                            Facts candidateFacts = ReadFacts(candidate);
-                            if (Better(candidateFacts, bestFacts))
-                            {
-                                bestState = candidate;
-                                bestFacts = candidateFacts;
-                                improved = true;
-                            }
-                        }
-                    }
-                    state = bestState;
-                    facts = bestFacts;
-                    trialLocal = (Quaternion[])state.Local.Clone();
-                }
-                if (!improved)
-                {
-                    break;
-                }
             }
-            if (!Feasible(facts))
+            Add(delta, gradient, 1);
+            bool improved = false;
+            NativeState lineState = state;
+            Facts lineFacts = facts;
+            for (double fraction = 1; fraction >= 1.0 / 4096 && evaluations < nonlinearLimit; fraction /= 2)
             {
-                RepairLattice(next, ref state, ref facts);
-                trialLocal = (Quaternion[])state.Local.Clone();
-            }
-            if (Feasible(facts))
-            {
-                progress = next;
-                current = trialLocal;
-                acceptedState = state;
-                acceptedFacts = facts;
-                step = Math.Min(1 - progress, step * 2);
-            }
-            else
-            {
-                if (exactTargetPhase)
-                {
-                    NotSupportedException exception = Unsupported($"exact target after canonical body progress {progress:R}", facts);
-                    exception.Data[nameof(NativeBattleDecodedPose)] = state.Pose;
-                    throw exception;
-                }
-                if (evaluations >= stageEvaluationLimit)
-                {
-                    forceExactTarget = true;
-                    continue;
-                }
-                step /= 2;
-                NativeState finer = evaluate(Math.Min(1, progress + step), current);
+                NativeState candidate = evaluate(Apply(trialLocal, delta, fraction));
                 evaluations++;
-                if (SamePhysicalPose(finer.Pose, acceptedState.Pose, physicalBones))
+                Facts candidateFacts = ReadFacts(candidate);
+                if (Better(candidateFacts, lineFacts))
                 {
-                    forceExactTarget = true;
+                    lineState = candidate;
+                    lineFacts = candidateFacts;
+                    improved = true;
                 }
             }
+            state = lineState;
+            facts = lineFacts;
+            trialLocal = (Quaternion[])state.Local.Clone();
+            if (!improved && evaluations < nonlinearLimit)
+            {
+                NativeState bestState = state;
+                Facts bestFacts = facts;
+                for (int coordinate = 0; coordinate < variables.Length * 3 && evaluations < nonlinearLimit; coordinate++)
+                {
+                    foreach (int sign in new[] { -1, 1 })
+                    {
+                        if (evaluations >= nonlinearLimit)
+                        {
+                            break;
+                        }
+                        double[] unit = new double[variables.Length * 3];
+                        unit[coordinate] = sign * Math.Tau / 4096;
+                        NativeState candidate = evaluate(Apply(trialLocal, unit, 1));
+                        evaluations++;
+                        Facts candidateFacts = ReadFacts(candidate);
+                        if (Better(candidateFacts, bestFacts))
+                        {
+                            bestState = candidate;
+                            bestFacts = candidateFacts;
+                            improved = true;
+                        }
+                    }
+                }
+                state = bestState;
+                facts = bestFacts;
+                trialLocal = (Quaternion[])state.Local.Clone();
+            }
+            if (!improved)
+            {
+                break;
+            }
         }
-        if (progress != 1 || !Feasible(acceptedFacts))
+        if (!Feasible(facts))
         {
-            throw Unsupported($"fixed compilation budget at body progress {progress:R}", acceptedFacts);
+            RepairLattice(ref state, ref facts);
         }
-        MinimizeRest(ref acceptedState, ref acceptedFacts);
-        return Finish(acceptedState, acceptedFacts);
-
-        Solution Finish(NativeState state, Facts facts) => new(state.Local, Report(facts));
-
-        NotSupportedException Unsupported(string reason, Facts facts) => new($"Auxiliary contact compilation cannot satisfy {reason}; native evaluations {evaluations}, total/immutable/correctable crossings {facts.Crossings}/{facts.ImmutableCrossings}/{facts.CorrectableCrossings}, hard/soft layer violations {facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Hard && item.Value < 0)}/{facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && !item.Hard && item.Value < 0)}, invalid corrected geometry {facts.InvalidGeometry}, squared HARD residual {facts.Violation:R}; hard witnesses {string.Join("; ", facts.Constraints.Where(item => item.Hard && item.Value < 0).Take(3).Select(item => $"{item.Kind} body {item.Body}, cloth [{string.Join(',', item.Cloth)}], signed {item.Value:R}"))}.");
+        if (Feasible(bestTargetFacts))
+        {
+            NativeState refined = bestTarget;
+            Facts refinedFacts = bestTargetFacts;
+            MinimizeRest(ref refined, ref refinedFacts);
+        }
+        if (bestTarget.InvalidGeometry)
+        {
+            throw new InvalidDataException("Auxiliary refinement has no valid complete native target pose.");
+        }
+        return new(bestTarget.Pose, Report(bestTargetFacts));
 
         bool Feasible(Facts facts) => !facts.InvalidGeometry && facts.CorrectableCrossings == 0 && facts.Violation == 0;
 
@@ -415,7 +346,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                             break;
                         }
                         List<Constraint> barriers = originalFacts.Constraints.Where(item => item.Hard && item.Kind == "OwnRestOutwardLayer").ToList();
-                        foreach (Constraint witness in blockedFacts.Constraints.Where(item => item.Hard && item.Kind == "CurrentSignedVertexFace"))
+                        foreach (Constraint witness in blockedFacts.Constraints.Where(item => item.Hard && item.Kind == "TriangleSeparation"))
                         {
                             if (geometry.ContactAt(witness, original) is Constraint barrier)
                             {
@@ -433,7 +364,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     }
                     for (double fraction = 1; fraction >= 1.0 / 4096 && evaluations < limit; fraction /= 2)
                     {
-                        NativeState candidate = evaluate(1, Apply(original.Local, direction, fraction));
+                        NativeState candidate = evaluate(Apply(original.Local, direction, fraction));
                         evaluations++;
                         Facts candidateFacts = ReadFacts(candidate);
                         if (Feasible(candidateFacts) && candidateFacts.RestRotation < facts.RestRotation)
@@ -459,17 +390,28 @@ public static partial class NativeBattleAuxiliaryContactSolver
             }
         }
 
-        void RepairLattice(double at, ref NativeState state, ref Facts facts)
+        void RepairLattice(ref NativeState state, ref Facts facts)
         {
-            int limit = Math.Min(stageEvaluationLimit, evaluations + NativeLatticeReserve);
+            int limit = Math.Min(MaximumEvaluations, evaluations + NativeLatticeReserve);
             for (int iteration = 0; iteration < MaximumNonlinearIterations && !Feasible(facts) && evaluations < limit; iteration++)
             {
                 Constraint[] active = facts.Constraints.Where(item => item.Hard && item.Value < 0).ToArray();
                 NativeState original = state;
                 double[][] rows = active.Select(item => Jacobian(item, original).Select(value => value * Math.Tau / 4096).ToArray()).ToArray();
                 List<double[]> candidates = [];
+                void AddCandidate(double[] proposal)
+                {
+                    if (!candidates.Any(existing => existing.AsSpan().SequenceEqual(proposal)))
+                    {
+                        candidates.Add(proposal);
+                    }
+                }
                 double[] coupled = Project(rows, active.Select(item => -item.Value).ToArray(), out _);
-                candidates.Add(coupled.Select(value => Math.Sign(value) * Math.Ceiling(Math.Abs(value))).ToArray());
+                AddCandidate(coupled.Select(value => Math.Sign(value) * Math.Ceiling(Math.Abs(value))).ToArray());
+                AddCandidate(coupled.Select(Math.Truncate).ToArray());
+                AddCandidate(coupled.Select(Math.Floor).ToArray());
+                AddCandidate(coupled.Select(value => Math.Round(value)).ToArray());
+                AddCandidate(coupled.Select(Math.Ceiling).ToArray());
                 for (int coordinate = 0; coordinate < variables.Length * 3; coordinate++)
                 {
                     foreach (int sign in new[] { -1, 1 })
@@ -492,10 +434,10 @@ public static partial class NativeBattleAuxiliaryContactSolver
                         }
                         double[] units = new double[variables.Length * 3];
                         units[coordinate] = Math.Ceiling(required) * sign;
-                        candidates.Add(units);
+                        AddCandidate(units);
                         double[] adjacent = (double[])units.Clone();
                         adjacent[coordinate] += sign;
-                        candidates.Add(adjacent);
+                        AddCandidate(adjacent);
                     }
                 }
                 Facts before = facts;
@@ -505,7 +447,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     {
                         break;
                     }
-                    NativeState candidate = evaluate(at, Apply(original.Local, units.Select(value => value * Math.Tau / 4096).ToArray(), 1));
+                    NativeState candidate = evaluate(Apply(original.Local, units.Select(value => value * Math.Tau / 4096).ToArray(), 1));
                     evaluations++;
                     Facts candidateFacts = ReadFacts(candidate);
                     if (candidateFacts.CorrectableCrossings <= facts.CorrectableCrossings && Better(candidateFacts, facts))
@@ -521,7 +463,16 @@ public static partial class NativeBattleAuxiliaryContactSolver
             }
         }
 
-        Facts ReadFacts(NativeState state) => ReferenceEquals(state, initialTarget) ? initialFacts : geometry.ReadFacts(state);
+        Facts ReadFacts(NativeState candidate)
+        {
+            Facts candidateFacts = ReferenceEquals(candidate, initialTarget) ? initialFacts : geometry.ReadFacts(candidate);
+            if (!candidate.InvalidGeometry && Better(candidateFacts, bestTargetFacts))
+            {
+                bestTarget = candidate;
+                bestTargetFacts = candidateFacts;
+            }
+            return candidateFacts;
+        }
         double[] Jacobian(Constraint constraint, NativeState state) => geometry.Jacobian(constraint, state);
         Quaternion[] Apply(Quaternion[] original, double[] delta, double fraction) => geometry.Apply(original, delta, fraction);
     }
@@ -530,24 +481,11 @@ public static partial class NativeBattleAuxiliaryContactSolver
     {
         ImmutableBoundaryCrossings = facts.ImmutableCrossings,
         HardViolatingLayers = facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Hard && item.Value < 0),
-        MaximumHardLayerPenetration = (float)facts.Constraints.Where(item => item.Kind == "OwnRestOutwardLayer" && item.Hard).Select(item => Math.Max(0, -item.Value)).DefaultIfEmpty().Max()
+        MaximumHardLayerPenetration = (float)facts.Constraints.Where(item => item.Kind == "OwnRestOutwardLayer" && item.Hard).Select(item => Math.Max(0, -item.Value)).DefaultIfEmpty().Max(),
+        HardResidualSquared = facts.Violation,
+        CanonicalRestEnergy = facts.RestRotation,
+        SoftResidualSquared = facts.SoftViolation
     };
-
-    private static bool SamePhysicalPose(NativeBattleDecodedPose first, NativeBattleDecodedPose second, ImmutableArray<int> physicalBones)
-    {
-        if (first.Translation != second.Translation)
-        {
-            return false;
-        }
-        foreach (int bone in physicalBones)
-        {
-            if (first.Bones[bone] != second.Bones[bone])
-            {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private static bool Better(Facts candidate, Facts current)
     {
@@ -704,22 +642,4 @@ public static partial class NativeBattleAuxiliaryContactSolver
         return fraction > 0 && fraction < 1 && barycentric.X > 0 && barycentric.Y > 0 && barycentric.Z > 0;
     }
 
-    internal static Vector3 PlaneProjectionWeights(Vector3 point, Vector3 a, Vector3 b, Vector3 c)
-    {
-        Vector3 ab = b - a;
-        Vector3 ac = c - a;
-        Vector3 ap = point - a;
-        double nx = (double)ab.Y * ac.Z - (double)ab.Z * ac.Y;
-        double ny = (double)ab.Z * ac.X - (double)ab.X * ac.Z;
-        double nz = (double)ab.X * ac.Y - (double)ab.Y * ac.X;
-        double squared = nx * nx + ny * ny + nz * nz;
-        if (squared == 0)
-        {
-            throw new InvalidDataException("An auxiliary signed-plane derivative requires a nondegenerate face.");
-        }
-        // Orthogonal projection onto the affine plane permits negative barycentrics; clamping would discard its rotation derivative.
-        double second = (((double)ap.Y * ac.Z - (double)ap.Z * ac.Y) * nx + ((double)ap.Z * ac.X - (double)ap.X * ac.Z) * ny + ((double)ap.X * ac.Y - (double)ap.Y * ac.X) * nz) / squared;
-        double third = (((double)ab.Y * ap.Z - (double)ab.Z * ap.Y) * nx + ((double)ab.Z * ap.X - (double)ab.X * ap.Z) * ny + ((double)ab.X * ap.Y - (double)ab.Y * ap.X) * nz) / squared;
-        return new((float)(1 - second - third), (float)second, (float)third);
-    }
 }

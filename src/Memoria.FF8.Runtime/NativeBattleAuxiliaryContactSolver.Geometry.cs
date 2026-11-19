@@ -5,12 +5,12 @@ namespace Memoria.FF8.Runtime;
 public static partial class NativeBattleAuxiliaryContactSolver
 {
     // Resource-only preparation is immutable and shared by independent frame solves.
-    private sealed class PreparedGeometry
+    private sealed partial class PreparedGeometry
     {
-        private readonly NativeState rest;
         private readonly int[] parents;
         private readonly int[] vertexBones;
         private readonly int[] variables;
+        private readonly int[][] triangles;
         private readonly Quaternion[] canonical;
         private readonly List<Layer> layers;
         private readonly (int A, int B)[] orderedEdges;
@@ -18,14 +18,14 @@ public static partial class NativeBattleAuxiliaryContactSolver
         private readonly bool[,] influences;
         private readonly bool[] auxiliaryInfluenced;
         private readonly int[][] clothFaces;
-        private readonly (int[] Cloth, int[] Body)[] contactPairs;
+        private readonly (int Cloth, int Body)[] contactPairs;
 
         public PreparedGeometry(NativeState rest, int[] parents, int[] vertexBones, int[][] triangles, int[] clothIds, int[] bodyIds, int[] variables, int[][] semanticSegments)
         {
-            this.rest = rest;
             this.parents = parents;
             this.vertexBones = vertexBones;
             this.variables = variables;
+            this.triangles = triangles;
             canonical = (Quaternion[])rest.Local.Clone();
             layers = Calibrate(rest, vertexBones, triangles, clothIds, bodyIds, semanticSegments);
             HashSet<(int, int)> edges = new HashSet<(int, int)>();
@@ -62,14 +62,11 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     }
                 }
             }
-            contactPairs = clothIds.SelectMany(cloth => bodyIds.Where(body => !triangles[cloth].Any(vertex => triangles[body].Contains(vertex))).Select(body => (triangles[cloth], triangles[body]))).ToArray();
-            RestFacts = ReadFacts(rest);
+            contactPairs = clothIds.SelectMany(cloth => bodyIds.Where(body => !triangles[cloth].Any(vertex => triangles[body].Contains(vertex))).Select(body => (cloth, body))).ToArray();
         }
 
-        public NativeState Rest => rest;
         public Quaternion[] Canonical => canonical;
         public int[] Variables => variables;
-        public Facts RestFacts { get; }
 
         public Facts ReadFacts(NativeState state)
         {
@@ -100,10 +97,23 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     }
                 }
             }
+            TriangleBounds[] bounds = new TriangleBounds[triangles.Length];
+            for (int triangle = 0; triangle < triangles.Length; triangle++)
+            {
+                int[] face = triangles[triangle];
+                Vector3 first = state.Points[face[0]];
+                Vector3 second = state.Points[face[1]];
+                Vector3 third = state.Points[face[2]];
+                bounds[triangle] = new(Vector3.Min(first, Vector3.Min(second, third)), Vector3.Max(first, Vector3.Max(second, third)));
+            }
             foreach (var pair in contactPairs)
             {
-                int[] cloth = pair.Cloth;
-                int[] body = pair.Body;
+                if (bounds[pair.Cloth].Disjoint(bounds[pair.Body]))
+                {
+                    continue;
+                }
+                int[] cloth = triangles[pair.Cloth];
+                int[] body = triangles[pair.Body];
                 if (!Crosses(state.Points, cloth, body))
                 {
                     continue;
@@ -114,28 +124,13 @@ public static partial class NativeBattleAuxiliaryContactSolver
                     facts.ImmutableCrossings++;
                     continue;
                 }
-                Vector3 restCross = Vector3.Cross(rest.Points[cloth[1]] - rest.Points[cloth[0]], rest.Points[cloth[2]] - rest.Points[cloth[0]]);
-                Vector3 currentCross = Vector3.Cross(state.Points[cloth[1]] - state.Points[cloth[0]], state.Points[cloth[2]] - state.Points[cloth[0]]);
-                if (restCross.LengthSquared() == 0 || currentCross.LengthSquared() == 0)
+                if (SelectSeparation(state, cloth, body) is Constraint contact)
                 {
-                    continue;
-                }
-                Vector3 restNormal = Vector3.Normalize(restCross);
-                Vector3 restCentre = (rest.Points[body[0]] + rest.Points[body[1]] + rest.Points[body[2]]) / 3;
-                float sign = MathF.Sign(Vector3.Dot(restCentre - rest.Points[cloth[0]], restNormal));
-                if (sign == 0)
-                {
-                    continue;
-                }
-                Vector3 normal = -sign * Vector3.Normalize(currentCross);
-                int penetrating = body.OrderBy(vertex => Vector3.Dot(state.Points[cloth[0]] - state.Points[vertex], normal)).First();
-                Vector3 bodyPoint = state.Points[penetrating];
-                double value = Vector3.Dot(state.Points[cloth[0]] - bodyPoint, normal);
-                if (value < 0)
-                {
-                    Vector3 barycentric = PlaneProjectionWeights(bodyPoint, state.Points[cloth[0]], state.Points[cloth[1]], state.Points[cloth[2]]);
-                    facts.Constraints.Add(new Constraint { Body = penetrating, Cloth = cloth, Weights = barycentric, Normal = normal, Value = value, Kind = "CurrentSignedVertexFace" });
-                    facts.Violation += value * value;
+                    facts.Constraints.Add(contact);
+                    if (contact.Value < 0)
+                    {
+                        facts.Violation += contact.Value * contact.Value;
+                    }
                 }
             }
             for (int index = 0; index < orderedEdges.Length; index++)
@@ -155,6 +150,11 @@ public static partial class NativeBattleAuxiliaryContactSolver
                 facts.RestRotation += angle * angle;
             }
             return facts;
+        }
+
+        private readonly record struct TriangleBounds(Vector3 Minimum, Vector3 Maximum)
+        {
+            public bool Disjoint(TriangleBounds other) => Maximum.X < other.Minimum.X || other.Maximum.X < Minimum.X || Maximum.Y < other.Minimum.Y || other.Maximum.Y < Minimum.Y || Maximum.Z < other.Minimum.Z || other.Maximum.Z < Minimum.Z;
         }
 
         public bool HasCollapsedCorrection(NativeState original, NativeState candidate)
@@ -199,19 +199,7 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
         public Constraint? ContactAt(Constraint witness, NativeState state)
         {
-            int[] face = witness.Cloth;
-            Vector3 cross = Vector3.Cross(state.Points[face[1]] - state.Points[face[0]], state.Points[face[2]] - state.Points[face[0]]);
-            if (cross.LengthSquared() == 0)
-            {
-                return null;
-            }
-            Vector3 normal = Vector3.Normalize(cross);
-            if (Vector3.Dot(normal, witness.Normal) < 0)
-            {
-                normal = -normal;
-            }
-            Vector3 body = state.Points[witness.Body];
-            return new Constraint { Body = witness.Body, Cloth = face, Weights = PlaneProjectionWeights(body, state.Points[face[0]], state.Points[face[1]], state.Points[face[2]]), Normal = normal, Value = Vector3.Dot(state.Points[face[0]] - body, normal), Kind = witness.Kind };
+            return witness.BodyTriangle is { } body && witness.EscapeAxis is { } axis ? SeparationAt(state, witness.Cloth, body, axis) : null;
         }
 
         private bool ImmutableBoundaryCrossing(Vector3[] points, int[] cloth, int[] body)
@@ -240,6 +228,10 @@ public static partial class NativeBattleAuxiliaryContactSolver
 
         public double[] Jacobian(Constraint constraint, NativeState state)
         {
+            if (constraint.Derivative is { } cachedDerivative)
+            {
+                return cachedDerivative;
+            }
             double[] row = new double[variables.Length * 3];
             for (int variable = 0; variable < variables.Length; variable++)
             {

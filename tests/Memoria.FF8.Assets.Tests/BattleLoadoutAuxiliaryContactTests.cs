@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Numerics;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -30,6 +31,8 @@ public sealed class BattleLoadoutAuxiliaryContactTests
         var expectedMatrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, expected);
         var actualMatrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, actual);
         Assert.Equal(expected.Translation, actual.Translation);
+        Assert.Equal(expected.HasScale, actual.HasScale);
+        Assert.Equal(expected.Bones.Select(bone => bone.Scale).ToArray(), actual.Bones.Select(bone => bone.Scale).ToArray());
         foreach (int bone in calibration.PhysicalBones)
         {
             Assert.Equal(expected.Bones[bone].Scale, actual.Bones[bone].Scale);
@@ -37,14 +40,10 @@ public sealed class BattleLoadoutAuxiliaryContactTests
             Assert.Equal((expectedMatrices[bone].X, expectedMatrices[bone].Y, expectedMatrices[bone].Z), (actualMatrices[bone].X, actualMatrices[bone].Y, actualMatrices[bone].Z));
         }
         // Inspect against the original recipient's own rest bank, not the imported bank's first pose.
+        var originalReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, expected, calibration);
         var report = NativeBattleAuxiliaryContactSolver.Inspect(rig, actual, calibration);
-        Assert.Equal(0, report.CorrectableCrossings);
-        Assert.Equal(report.ImmutableBoundaryCrossings, report.ClothBodyCrossings);
-        Assert.Equal(0, report.HardViolatingLayers);
-        Assert.Equal(0, report.MaximumHardLayerPenetration);
-        Assert.Equal(report.SoftViolatingLayers, report.ViolatingLayers);
-        Assert.True(float.IsFinite(report.MaximumLayerPenetration));
-        Assert.True(float.IsFinite(report.SharedEdgeStrain));
+        AssertNonregression(originalReport, report);
+        AssertNoCollapsedCorrection(calibration, expectedMatrices, actualMatrices);
     }
 
     [Theory]
@@ -56,7 +55,7 @@ public sealed class BattleLoadoutAuxiliaryContactTests
     [InlineData(10, 28, 7)]
     [InlineData(10, 12, 11)]
     [InlineData(10, 12, 16)]
-    public void Cold_original_motion_preserves_physical_joints_and_clears_auxiliary_contacts(int owner, byte animation, byte frame)
+    public void Cold_original_motion_preserves_physical_joints_and_does_not_regress_the_bounded_objective(int owner, byte animation, byte frame)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
         BattleModel source = assets.LoadPlayer(owner);
@@ -72,6 +71,7 @@ public sealed class BattleLoadoutAuxiliaryContactTests
         var after = NativeBattlePoseMatrices.StageBoneMatrices(rig, corrected);
         Assert.Equal(original.Translation, corrected.Translation);
         Assert.Equal(original.HasScale, corrected.HasScale);
+        Assert.Equal(original.Bones.Select(bone => bone.Scale).ToArray(), corrected.Bones.Select(bone => bone.Scale).ToArray());
         foreach (int bone in calibration.PhysicalBones)
         {
             Assert.Equal(original.Bones[bone], corrected.Bones[bone]);
@@ -79,13 +79,8 @@ public sealed class BattleLoadoutAuxiliaryContactTests
             Assert.Equal((before[bone].X, before[bone].Y, before[bone].Z), (after[bone].X, after[bone].Y, after[bone].Z));
         }
         var report = NativeBattleAuxiliaryContactSolver.Inspect(rig, corrected, calibration);
-        Assert.Equal(0, report.CorrectableCrossings);
-        Assert.Equal(report.ImmutableBoundaryCrossings, report.ClothBodyCrossings);
-        Assert.Equal(0, report.HardViolatingLayers);
-        Assert.Equal(0, report.MaximumHardLayerPenetration);
-        Assert.Equal(report.SoftViolatingLayers, report.ViolatingLayers);
-        Assert.True(float.IsFinite(report.MaximumLayerPenetration));
-        Assert.True(float.IsFinite(report.SharedEdgeStrain));
+        AssertNonregression(originalReport, report);
+        AssertNoCollapsedCorrection(calibration, before, after);
         ImmutableArray<byte> encoded = NativeBattleAnimationEncoder.Encode([ImmutableArray.Create(corrected)]);
         NativeBattlePoseSource roundTrip = rig with { Animations = encoded };
         roundTrip.Validate();
@@ -100,16 +95,54 @@ public sealed class BattleLoadoutAuxiliaryContactTests
             Assert.Equal((after[bone].X, after[bone].Y, after[bone].Z), (decodedMatrices[bone].X, decodedMatrices[bone].Y, decodedMatrices[bone].Z));
         }
         var encodedReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, decoded, calibration);
-        Assert.Equal(0, encodedReport.CorrectableCrossings);
-        Assert.Equal(encodedReport.ImmutableBoundaryCrossings, encodedReport.ClothBodyCrossings);
-        Assert.Equal(0, encodedReport.HardViolatingLayers);
-        Assert.Equal(0, encodedReport.MaximumHardLayerPenetration);
-        Assert.Equal(encodedReport.SoftViolatingLayers, encodedReport.ViolatingLayers);
+        AssertValidReport(encodedReport);
         Assert.Equal(report.ClothBodyCrossings, encodedReport.ClothBodyCrossings);
         Assert.Equal(report.ImmutableBoundaryCrossings, encodedReport.ImmutableBoundaryCrossings);
         Assert.Equal(report.ViolatingLayers, encodedReport.ViolatingLayers);
-        Assert.True(float.IsFinite(encodedReport.MaximumLayerPenetration));
-        Assert.True(encodedReport.MaximumLayerPenetration >= 0);
+        Assert.Equal(report.HardViolatingLayers, encodedReport.HardViolatingLayers);
+    }
+
+    private static void AssertNonregression(NativeBattleAuxiliaryContactReport original, NativeBattleAuxiliaryContactReport corrected)
+    {
+        AssertValidReport(original);
+        AssertValidReport(corrected);
+        var before = (original.HardResidualSquared, original.CorrectableCrossings, original.CanonicalRestEnergy, original.SoftResidualSquared, original.SharedEdgeStrain);
+        var after = (corrected.HardResidualSquared, corrected.CorrectableCrossings, corrected.CanonicalRestEnergy, corrected.SoftResidualSquared, corrected.SharedEdgeStrain);
+        Assert.True(after.CompareTo(before) <= 0, $"Bounded auxiliary objective regressed from {before} to {after}.");
+    }
+
+    private static void AssertValidReport(NativeBattleAuxiliaryContactReport report)
+    {
+        Assert.InRange(report.ImmutableBoundaryCrossings, 0, report.ClothBodyCrossings);
+        Assert.InRange(report.HardViolatingLayers, 0, report.ViolatingLayers);
+        Assert.True(double.IsFinite(report.HardResidualSquared) && report.HardResidualSquared >= 0);
+        Assert.True(double.IsFinite(report.CanonicalRestEnergy) && report.CanonicalRestEnergy >= 0);
+        Assert.True(double.IsFinite(report.SoftResidualSquared) && report.SoftResidualSquared >= 0);
+        Assert.True(float.IsFinite(report.MaximumLayerPenetration) && report.MaximumLayerPenetration >= 0);
+        Assert.True(float.IsFinite(report.MaximumHardLayerPenetration) && report.MaximumHardLayerPenetration >= 0);
+        Assert.True(float.IsFinite(report.SharedEdgeStrain) && report.SharedEdgeStrain >= 0);
+    }
+
+    private static void AssertNoCollapsedCorrection(NativeBattleAuxiliaryContactCalibration calibration, ImmutableArray<NativeBattleActionMatrix> before, ImmutableArray<NativeBattleActionMatrix> after)
+    {
+        Vector3[] Points(ImmutableArray<NativeBattleActionMatrix> matrices) => calibration.Vertices.Select(vertex =>
+        {
+            NativeBattleActionMatrix matrix = matrices[vertex.Bone];
+            NativeBattleVector point = NativeBattleGfMatrices.RotateShort56C4F0(matrix, vertex.Position);
+            return new Vector3(matrix.X + point.X, matrix.Y + point.Y, matrix.Z + point.Z);
+        }).ToArray();
+        Vector3[] original = Points(before);
+        Vector3[] corrected = Points(after);
+        foreach (NativeBattleAuxiliaryTriangle face in calibration.Triangles)
+        {
+            float originalArea = Vector3.Cross(original[face.B] - original[face.A], original[face.C] - original[face.A]).LengthSquared();
+            float correctedArea = Vector3.Cross(corrected[face.B] - corrected[face.A], corrected[face.C] - corrected[face.A]).LengthSquared();
+            Assert.True(float.IsFinite(correctedArea));
+            if (originalArea > 0)
+            {
+                Assert.True(correctedArea > 0, $"Auxiliary correction collapsed native triangle {face}.");
+            }
+        }
     }
 
     [Fact]

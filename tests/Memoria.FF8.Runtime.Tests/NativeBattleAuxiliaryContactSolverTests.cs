@@ -159,16 +159,7 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
     [Fact]
     public void Leaving_a_closed_covering_panel_remains_a_hard_layer_violation_without_triangle_crossings()
     {
-        NativeBattlePoseSource rig = Rig();
-        byte[] skeleton = rig.Skeleton.ToArray();
-        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
-        rig = rig with { Skeleton = skeleton.ToImmutableArray() };
-        NativeBattleAuxiliaryContactCalibration calibration = new(
-            [new(1, new(10, -1, -1)), new(1, new(10, 1, -1)), new(1, new(10, 0, 1)), new(2, new(20, 20, 20)), new(2, new(20, -20, -20)), new(2, new(-20, 20, -20)), new(2, new(-20, -20, 20))],
-            [new(0, 1, 2), new(3, 5, 4), new(3, 4, 6), new(3, 6, 5), new(4, 5, 6)],
-            [0, 1],
-            [1],
-            [new(0, 1)]);
+        (NativeBattlePoseSource rig, NativeBattleAuxiliaryContactCalibration calibration) = ClosedPanelFixture();
         NativeBattleDecodedPose rest = Pose(0);
         NativeBattleAuxiliaryContactReport restReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, rest, calibration);
         Assert.Equal(0, restReport.ClothBodyCrossings);
@@ -183,23 +174,55 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
     }
 
     [Fact]
-    public void Outside_face_plane_projection_retains_the_movable_corner_derivative()
+    public void Bounded_refinement_of_an_unreachable_closed_panel_preserves_the_full_physical_target_and_reports_the_residual()
+    {
+        (NativeBattlePoseSource rig, NativeBattleAuxiliaryContactCalibration calibration) = ClosedPanelFixture();
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleDecodedPose target = rest with { HasScale = true, Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Scale = new(4096, 1024, 1024) }) };
+        NativeBattleDecodedPose solved = NativeBattleAuxiliaryContactSolver.Solve(rig, target, calibration);
+        AssertPhysicalUnchanged(rig, target, solved);
+        NativeBattleAuxiliaryContactReport report = NativeBattleAuxiliaryContactSolver.Inspect(rig, solved, calibration);
+        Assert.False(report.Converged);
+        Assert.True(report.HardViolatingLayers > 0);
+        Assert.True(report.HardResidualSquared > 0);
+        Assert.True(double.IsFinite(report.HardResidualSquared));
+        Assert.True(double.IsFinite(report.CanonicalRestEnergy));
+        Assert.True(double.IsFinite(report.SoftResidualSquared));
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, solved);
+        Vector3 Point(int vertex)
+        {
+            NativeBattleAuxiliaryVertex definition = calibration.Vertices[vertex];
+            NativeBattleActionMatrix matrix = matrices[definition.Bone];
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, definition.Position);
+            return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+        Assert.Equal(40, Point(0).X - matrices[1].X);
+        foreach (NativeBattleAuxiliaryTriangle face in calibration.Triangles.Skip(1))
+        {
+            Vector3 normal = Vector3.Cross(Point(face.B) - Point(face.A), Point(face.C) - Point(face.A));
+            Assert.True(float.IsFinite(normal.LengthSquared()));
+            Assert.True(normal.LengthSquared() > 0);
+        }
+    }
+
+    [Fact]
+    public void Fixed_support_separation_includes_rotation_of_the_selected_axis()
     {
         Vector3 a = Vector3.Zero;
         Vector3 b = new(100, 0, 0);
         Vector3 c = new(0, 100, 0);
         Vector3 body = new(-100, -100, -10);
-        Vector3 weights = NativeBattleAuxiliaryContactSolver.PlaneProjectionWeights(body, a, b, c);
-        Assert.Equal(new Vector3(3, -1, -1), weights);
         Vector3 pivot = new(0, 0, 100);
         Vector3 cornerVelocity = Vector3.Cross(Vector3.UnitX, c - pivot);
-        float derivative = Vector3.Dot(weights.Z * cornerVelocity, -Vector3.UnitZ);
-        Assert.Equal(100, derivative);
+        Vector3 axis = -Vector3.Cross(b - a, c - a);
+        Vector3 axisVelocity = -Vector3.Cross(b - a, cornerVelocity);
+        double derivative = NativeBattleAuxiliaryContactSolver.SeparationDerivative(a, body, Vector3.Normalize(axis), axis.Length(), axisVelocity, Vector3.Zero, Vector3.Zero);
+        Assert.Equal(-100, derivative);
         double SignedPlaneDistance(double angle)
         {
             Vector3 corner = pivot + Vector3.Transform(c - pivot, Matrix4x4.CreateRotationX((float)angle));
             Vector3 normal = -Vector3.Normalize(Vector3.Cross(b - a, corner - a));
-            return Vector3.Dot(a - body, normal);
+            return Vector3.Dot(body - a, normal);
         }
         const double step = 0.001;
         double centralDifference = (SignedPlaneDistance(step) - SignedPlaneDistance(-step)) / (2 * step);
@@ -387,6 +410,20 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
         byte[] skeleton = rig.Skeleton.ToArray();
         BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 256);
         return rig with { Skeleton = skeleton.ToImmutableArray() };
+    }
+
+    private static (NativeBattlePoseSource Rig, NativeBattleAuxiliaryContactCalibration Calibration) ClosedPanelFixture()
+    {
+        NativeBattlePoseSource rig = Rig();
+        byte[] skeleton = rig.Skeleton.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        NativeBattleAuxiliaryContactCalibration calibration = new(
+            [new(1, new(10, -1, -1)), new(1, new(10, 1, -1)), new(1, new(10, 0, 1)), new(2, new(20, 20, 20)), new(2, new(20, -20, -20)), new(2, new(-20, 20, -20)), new(2, new(-20, -20, 20))],
+            [new(0, 1, 2), new(3, 5, 4), new(3, 4, 6), new(3, 6, 5), new(4, 5, 6)],
+            [0, 1],
+            [1],
+            [new(0, 1)]);
+        return (rig with { Skeleton = skeleton.ToImmutableArray() }, calibration);
     }
 
     private static NativeBattlePoseSource Rig()

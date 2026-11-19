@@ -42,4 +42,8 @@ public sealed record NativeBattleAuxiliaryContactReport(int ClothBodyCrossings, 
     public int HardViolatingLayers { get; init; }
     public int SoftViolatingLayers => ViolatingLayers - HardViolatingLayers;
     public float MaximumHardLayerPenetration { get; init; }
+    public double HardResidualSquared { get; init; }
+    public double CanonicalRestEnergy { get; init; }
+    public double SoftResidualSquared { get; init; }
+    public bool Converged => CorrectableCrossings == 0 && HardViolatingLayers == 0;
 }
