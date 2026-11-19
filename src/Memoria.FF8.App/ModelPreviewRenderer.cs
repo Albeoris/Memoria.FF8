@@ -5,27 +5,30 @@ using Memoria.FF8.Rendering;
 
 namespace Memoria.FF8;
 
+internal readonly record struct ModelPreviewBounds(Vector3 Minimum, Vector3 Maximum)
+{
+    public ModelPreviewBounds Union(ModelPreviewBounds other)
+    {
+        return new(Vector3.Min(Minimum, other.Minimum), Vector3.Max(Maximum, other.Maximum));
+    }
+}
+
 /// <summary>Fits the selected model to a stable orbit preview without advancing the game.</summary>
 internal static class ModelPreviewRenderer
 {
-    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, float yaw, float pitch, float zoom, float seconds, int animation = 0, bool loop = true)
+    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, float yaw, float pitch, float zoom, float seconds, int animation = 0, bool loop = true, ModelPreviewBounds? framing = null)
     {
         ModelPreviewCamera camera = new();
         camera.Rotate(yaw, pitch);
         camera.ZoomBy(zoom);
-        Render(renderer, model, width, height, camera, seconds, animation, loop);
+        Render(renderer, model, width, height, camera, seconds, animation, loop, framing);
     }
 
-    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, ModelPreviewCamera camera, float seconds, int animation = 0, bool loop = true)
+    public static void Render(ITriangleRenderer renderer, EditableModel model, int width, int height, ModelPreviewCamera camera, float seconds, int animation = 0, bool loop = true, ModelPreviewBounds? framing = null)
     {
-        IReadOnlyList<Vector3[]> rest = ModelExchange.ToAuthoringSpace(model, ModelExchange.Pose(model, 0, 0));
-        Vector3 minimum = new(float.PositiveInfinity);
-        Vector3 maximum = new(float.NegativeInfinity);
-        foreach (Vector3 point in rest.SelectMany(mesh => mesh))
-        {
-            minimum = Vector3.Min(minimum, point);
-            maximum = Vector3.Max(maximum, point);
-        }
+        ModelPreviewBounds bounds = framing ?? Measure(model);
+        Vector3 minimum = bounds.Minimum;
+        Vector3 maximum = bounds.Maximum;
         Vector3 center = (minimum + maximum) * 0.5f;
         float radius = Vector3.Distance(minimum, maximum) * 0.5f;
         if (!float.IsFinite(radius) || radius <= 0)
@@ -61,5 +64,17 @@ internal static class ModelPreviewRenderer
         {
             renderer.End();
         }
+    }
+    public static ModelPreviewBounds Measure(EditableModel model)
+    {
+        IReadOnlyList<Vector3[]> rest = ModelExchange.ToAuthoringSpace(model, ModelExchange.Pose(model, 0, 0));
+        Vector3 minimum = new(float.PositiveInfinity);
+        Vector3 maximum = new(float.NegativeInfinity);
+        foreach (Vector3 point in rest.SelectMany(mesh => mesh))
+        {
+            minimum = Vector3.Min(minimum, point);
+            maximum = Vector3.Max(maximum, point);
+        }
+        return new(minimum, maximum);
     }
 }

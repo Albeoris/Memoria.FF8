@@ -1,3 +1,4 @@
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Platform;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
@@ -74,37 +75,59 @@ internal sealed partial class MonoGameUiCanvas
         }
     }
 
-    private readonly Dictionary<int, (Albeoris.Games.FF8.Imaging.PixelImage Image, Texture2D Texture)> comparisonTextures = [];
+    private sealed class ComparisonTexture(Texture2D texture)
+    {
+        public Texture2D Texture { get; } = texture;
+        public Color[] Pixels { get; } = new Color[checked(texture.Width * texture.Height)];
+        public PixelImage? Image { get; set; }
+        public long Revision { get; set; }
+    }
+
+    private readonly Dictionary<int, ComparisonTexture> comparisonTextures = [];
     private bool comparisonDrawn;
 
-    public void RasterImage(Albeoris.Games.FF8.Imaging.PixelImage image, UiRect bounds, int slot)
+    public void RasterImage(PixelImage image, UiRect bounds, int slot, long revision = 0)
     {
         if (bounds.IsEmpty)
         {
             return;
         }
         comparisonDrawn = true;
-        if (!comparisonTextures.TryGetValue(slot, out var cached) || !ReferenceEquals(cached.Image, image))
+        if (!comparisonTextures.TryGetValue(slot, out ComparisonTexture? cached) || cached.Texture.Width != image.Width || cached.Texture.Height != image.Height)
         {
-            if (comparisonTextures.Remove(slot, out var previous))
-            {
-                previous.Texture.Dispose();
-            }
-            Texture2D replacement = new(device, image.Width, image.Height);
+            Texture2D texture = new(device, image.Width, image.Height);
+            ComparisonTexture replacement;
             try
             {
-                replacement.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
-                cached = (image, replacement);
-                comparisonTextures.Add(slot, cached);
+                replacement = new(texture);
+                Upload(replacement, image, revision);
             }
             catch
             {
-                replacement.Dispose();
+                texture.Dispose();
                 throw;
             }
+            cached?.Texture.Dispose();
+            comparisonTextures[slot] = cached = replacement;
+        }
+        else if (!ReferenceEquals(cached.Image, image) || cached.Revision != revision)
+        {
+            Upload(cached, image, revision);
         }
         UiRect fitted = UiImage.Fit(bounds, image.Width, image.Height);
         SystemTextRenderer.DrawClipped(batch, cached.Texture, new Vector2(fitted.X, fitted.Y), Color.White, CurrentClip, fitted.Width / image.Width);
+    }
+
+    private static void Upload(ComparisonTexture destination, PixelImage image, long revision)
+    {
+        for (int index = 0; index < image.Pixels.Length; index++)
+        {
+            Rgba32 color = image.Pixels[index];
+            destination.Pixels[index] = Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
+        }
+        destination.Texture.SetData(destination.Pixels);
+        destination.Image = image;
+        destination.Revision = revision;
     }
 
     private void TrimComparisonTextures()

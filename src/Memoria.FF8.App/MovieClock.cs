@@ -14,7 +14,7 @@ internal sealed partial class MovieClock : IDisposable
     private IResourceSource? nativeSource;
     private IGameFileSource NativeFiles => (nativeSource ??= GameDataSourceFactory.Open(gameDirectory)) as IGameFileSource ?? throw new NotImplementedException("The selected resource provider does not implement movie file resolution.");
     private readonly string toolsDirectory;
-    private readonly Dictionary<NativeMovieSource, MovieInformation> movies = [];
+    private readonly Dictionary<NativeMovieSource, MovieInformation> movies;
     private readonly Dictionary<string, MovieInformation> presentationMovies = new(StringComparer.OrdinalIgnoreCase);
     private NativeMovieSource? presentationSource;
     private int? presentationFrame;
@@ -24,13 +24,21 @@ internal sealed partial class MovieClock : IDisposable
     private MovieFileVersion? pinnedMovieVersion;
     private string? pinnedCameraPath;
 
-    public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null, Func<string, string>? resolveGameFile = null)
+    public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null, Func<string, string>? resolveGameFile = null) : this(session, gameDirectory, toolsDirectory, resolveGameFile, [])
+    {
+    }
+
+    private MovieClock(GameSession session, string gameDirectory, string? toolsDirectory, Func<string, string>? resolveGameFile, Dictionary<NativeMovieSource, MovieInformation> movies)
     {
         this.session = session;
         ResolveGameFile = resolveGameFile;
         this.gameDirectory = gameDirectory;
         this.toolsDirectory = MediaToolsInstallation.ResolveDirectory(toolsDirectory);
+        this.movies = movies;
     }
+
+    /// <summary>Allows a synchronized peer to reuse the installed clip's verified native timing while keeping its own playback state.</summary>
+    internal MovieClock CreateSynchronizedPeer(GameSession peer) => new(peer, gameDirectory, toolsDirectory, ResolveGameFile, movies);
 
     public MoviePlaybackState State => session.State.MoviePlayback ?? new MoviePlaybackState(0, 0, session.IsMoviePlaying, false, false);
     public string ToolsDirectory => toolsDirectory;

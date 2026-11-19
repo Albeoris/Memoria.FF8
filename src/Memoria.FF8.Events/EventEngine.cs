@@ -307,7 +307,7 @@ public sealed partial class EventEngine
                 actors[^1].NativeAnimationBackup = new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0);
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
-                actors[^1].PolygonColor = new Vector3(128);
+                actors[^1].PolygonColor = NativeFieldActorInitialPolygonColor;
                 actors[^1].NativeLadderAnimation = new NativeLadderAnimationState(0, 0, 0);
                 actors[^1].NativeMovementGroundContact600 = 0;
                 actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));

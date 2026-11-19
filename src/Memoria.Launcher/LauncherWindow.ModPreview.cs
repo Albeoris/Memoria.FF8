@@ -27,7 +27,10 @@ internal sealed partial class LauncherWindow
         {
             return null;
         }
-        ModPreviewResourcesProfile profile = CatalogPreviewPresentation.CreateProfile(game.Directory, selectedModelSourceDirectory, SelectedResourceLanguage, mediaDirectory);
+        ModPreviewResourcesProfile profile = CatalogPreviewPresentation.CreateProfile(game.Directory, selectedModelSourceDirectory, SelectedResourceLanguage) with
+        {
+            DecodeMedia = (input, video, seconds, token) => LauncherCatalogPreviewMedia.Decode(mediaDirectory, input, video, seconds, token)
+        };
         Button button = new() { Content = "Preview changes", Margin = new Thickness(0, 0, 8, 0) };
         button.Click += async (_, _) => await ShowLauncherModPreviewAsync(library, entry, installed?.Package, profile);
         return button;
@@ -43,7 +46,7 @@ internal sealed partial class LauncherWindow
         float yaw = 0.4f;
         float pose = 0;
         double videoSeconds = 0;
-        using CatalogPreviewPresentation.AudioComparison audio = new();
+        using LauncherCatalogPreviewMedia.AudioComparison audio = new();
         Window window = new()
         {
             Title = (entry?.Name ?? installed?.Name ?? "Mod") + " · Preview changes",
@@ -171,7 +174,7 @@ internal sealed partial class LauncherWindow
                             AddInteraction("South", token => readyWorld.RenderAsync(0, 900, token));
                             AddInteraction("East", token => readyWorld.RenderAsync(900, 0, token));
                         }
-                        else if (item.Category == "Video")
+                        else if (item.IsMedia && item.Category == "Video")
                         {
                             AddInteraction("−3 s", token => StepVideo(-3, token));
                             AddInteraction("+3 s", token => StepVideo(3, token));

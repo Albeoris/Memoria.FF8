@@ -51,6 +51,17 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
 
     public void Play(MusicSegment music, int hundredthDecibels = 0, int startPoint = 0)
     {
+        Play(music, hundredthDecibels, startPoint, music.Repeats);
+    }
+
+    /// <summary>Plays one full authored segment from its configured start, including the tail beyond the gameplay loop.</summary>
+    public void PlayPreview(MusicSegment music)
+    {
+        Play(music, 0, music.PlayStart, 0);
+    }
+
+    private void Play(MusicSegment music, int hundredthDecibels, int startPoint, uint repeatCount)
+    {
         if (startPoint < 0 || startPoint >= music.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(startPoint));
@@ -76,7 +87,7 @@ public sealed class SegmentSynthesizer(DlsBank bank, int sampleRate = 44100) : I
             loopEndSeconds = music.SecondsAt(music.LoopEnd);
             loopStartSeconds = music.SecondsAt(music.LoopStart);
             lengthSeconds = music.SecondsAt(music.Length);
-            repeats = music.Repeats;
+            repeats = repeatCount;
             seconds = music.SecondsAt(startPoint);
             eventIndex = 0;
             gain = Gain(hundredthDecibels);

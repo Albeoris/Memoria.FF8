@@ -6,6 +6,10 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeMovieCameraReader
 {
+    private const int HeaderSize = 8;
+    private const int RecordSize = 44;
+    private const int CameraSize = 40;
+
     public static NativeMovieCameraFlags Read(ReadOnlySpan<byte> bytes)
     {
         return Read(bytes, allowRecordCountHeader: false);
@@ -17,11 +21,20 @@ public static class NativeMovieCameraReader
         return Read(bytes, allowRecordCountHeader: true);
     }
 
+    public static FieldCamera ReadCamera(ReadOnlySpan<byte> bytes, int record)
+    {
+        if (record < 0 || HeaderSize + (record + 1L) * RecordSize > bytes.Length)
+        {
+            throw new InvalidDataException("Native movie camera record is outside its original CAM bank.");
+        }
+        return FieldCamera.Read(bytes.Slice(HeaderSize + record * RecordSize, CameraSize).ToArray());
+    }
+
     private static NativeMovieCameraFlags Read(ReadOnlySpan<byte> bytes, bool allowRecordCountHeader)
     {
-        int records = (bytes.Length - 8) / 44;
-        int header = bytes.Length >= 8 ? BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(6, 2)) : -1;
-        if (bytes.Length < 96 || (bytes.Length - 8) % 44 != 0 || header < 1 || header >= records && (!allowRecordCountHeader || header != records))
+        int records = (bytes.Length - HeaderSize) / RecordSize;
+        int header = bytes.Length >= HeaderSize ? BinaryPrimitives.ReadUInt16LittleEndian(bytes.Slice(6, 2)) : -1;
+        if (records < 2 || (bytes.Length - HeaderSize) % RecordSize != 0 || header < 1 || header >= records && (!allowRecordCountHeader || header != records))
         {
             throw new NotSupportedException("Native CAM requires its original eight-byte header and complete 44-byte record bank.");
         }
@@ -31,7 +44,7 @@ public static class NativeMovieCameraReader
         byte[] flags = new byte[playableRecords];
         for (int index = 0; index < flags.Length; index++)
         {
-            flags[index] = bytes[8 + index * 44 + 40];
+            flags[index] = bytes[HeaderSize + index * RecordSize + CameraSize];
         }
         NativeMovieCameraFlags result = new(1, Convert.ToHexString(SHA256.HashData(bytes)), flags);
         result.Validate();

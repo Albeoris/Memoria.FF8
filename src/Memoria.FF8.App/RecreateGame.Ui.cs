@@ -107,7 +107,13 @@ internal sealed partial class RecreateGame
         gameMenus.ConnectMods(resourceHost.Mods);
         gameMenus.ConnectModLibrary(resourceHost.ModLibrary);
         gameMenus.ConnectCatalogClipboard(authoringClipboard.Paste, authoringClipboard.Copy);
-        gameMenus.ConnectModPreview(CatalogPreviewPresentation.CreateProfile(options.GameDirectory, options.ModelSourceDirectory, resourceHost.Resources.ResourceLanguage, options.MediaToolsDirectory));
+        ModPreviewResourcesProfile previewProfile = CatalogPreviewPresentation.CreateProfile(options.GameDirectory, options.ModelSourceDirectory, resourceHost.Resources.ResourceLanguage) with
+        {
+            Ff7GameDirectory = options.Ff7GameDirectory,
+            ResolveFieldActorModel = CatalogFieldActorModel,
+            CompareFieldScene = CatalogPreviewPresentation.CompareFieldScene
+        };
+        gameMenus.ConnectModPreview(previewProfile, movieClock.ToolsDirectory, options.AudioEnabled, audioOutput);
         gameMenus.ConnectGameplayTuning(() =>
         {
             world ??= CreateWorld();

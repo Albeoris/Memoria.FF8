@@ -6,7 +6,8 @@ public sealed partial class EventEngine
 {
     private sealed record NativeDialogueConsumer(int Version, int Operation, int OperandCount, int Channel, bool ConfirmationReceived = false, bool Closing = false, int? PendingSelection = null);
 
-    private bool CanReceiveDialogueInput(DialogueState dialogue)
+    /// <summary>Checks presentation readiness for a dialogue window that the script allows the player to confirm.</summary>
+    public bool CanReceiveDialogueInput(DialogueState dialogue)
     {
         return NativeRuntimeProfile is not { IsVerified: true } || dialogue.IsNamePrompt || dialogue.NativeWindow is { Progress: 4096, Delta: >= 0 } window && window.Text is not { Ready: false };
     }

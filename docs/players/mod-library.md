@@ -41,7 +41,11 @@ Choose **Preview changes** on an installed Memoria or Junction package, or on a 
 
 Choose a change in the tree, then select **Expand comparison** to give both sides more space. World map comparisons apply the package's world resources together and move both views to the same position. Use the shared orientation and pose controls for supported model comparisons. The **Use item** button previews the package's image action inside the comparison.
 
-Reviewed Junction patches describe their gameplay effects in text. Supported audio tracks can play short samples. Supported videos show frames at the same selected time. Text previews show selected changed lines. An unavailable comparison identifies the resource so you can still see what the package contains.
+Reviewed Junction patches describe their gameplay effects in text. Other supported gameplay changes report the original and applied rules, table entries or models. Field scene comparisons include supported actor placements and the background states named in the package. For files with changed text or movie camera records, use **Previous line** and **Next line** to read the paired entries.
+
+In the game, choose **Play** to start both media sides. **Sound · Before / After** changes which side you hear at the current position. Click the timeline to seek or focus it and use Left, Right, Page Up and Page Down. The timeline reaches the end of the longer source. A shorter video holds its last frame. DirectMusic previews play the full authored segment, with **Replay** available from the beginning.
+
+For a localization package, choose **Play from the beginning** and expand the comparison. Both sessions start with the opening. They receive the same movement and interaction input, including native tutorial controls and ordinary battle commands. Use **Interact** to confirm, **Scene Cancel** or the Card shortcut to cancel within the scene, and Back to return to the change list. Individual changed lines remain available through the tree.
 
 ## Controls and storage
 

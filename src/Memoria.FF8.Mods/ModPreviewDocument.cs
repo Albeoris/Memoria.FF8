@@ -12,7 +12,10 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Mods;
 
-public sealed record ModPreviewEntry(string Id, string Category, string Group, string Name);
+public sealed record ModPreviewEntry(string Id, string Category, string Group, string Name)
+{
+    public bool IsMedia => Category == "Audio" || Category == "Video" && Group != "Camera tracks";
+}
 public sealed record ModPreviewSide(string Text, PixelImage? Image = null)
 {
     public EditableModel? Model { get; init; }
@@ -20,16 +23,60 @@ public sealed record ModPreviewSide(string Text, PixelImage? Image = null)
     public byte[]? AudioPcm { get; init; }
 }
 
-public sealed record ModPreviewComparison(ModPreviewSide Before, ModPreviewSide After);
+public sealed record ModPreviewTextRow(string Title, string Before, string After);
+
+public sealed record ModPreviewComparison(ModPreviewSide Before, ModPreviewSide After)
+{
+    public IReadOnlyList<ModPreviewTextRow> TextRows { get; init; } = [];
+
+    public ModPreviewComparison SelectTextRow(int index)
+    {
+        ModPreviewTextRow row = TextRows[index];
+        return this with { Before = new(row.Title + "\n" + row.Before), After = new(row.Title + "\n" + row.After) };
+    }
+}
 public sealed record ModPreviewResourcesProfile(string GameDirectory, string? ModelSourceDirectory = null, string? Language = null)
 {
     public Func<FieldAssets, PixelImage>? RenderField { get; init; }
     public Func<FieldAssets, IReadOnlyList<FieldBackgroundPatch>, PixelImage>? RenderFieldPatch { get; init; }
+    public Func<FieldAssets, FieldAssets, IReadOnlyList<FieldScenePatch>, Func<int, FieldAssets>, CancellationToken, ModPreviewComparison>? CompareFieldScene { get; init; }
     public Func<ModPreviewMediaInput, bool, double, CancellationToken, ModPreviewSide>? DecodeMedia { get; init; }
     public double MediaSeconds { get; init; }
+    public string? Ff7GameDirectory { get; init; }
+    public Func<FieldAssets, int, int?>? ResolveFieldActorModel { get; init; }
 }
 
-public sealed record ModPreviewMediaInput(string Name, string? Path, Func<byte[]>? Read = null);
+public sealed record ModPreviewMediaInput(string Name, string? Path, Func<byte[]>? Read = null)
+{
+    public Action<Stream>? CopyTo { get; init; }
+    public ModFileSegment? Segment { get; init; }
+    public string? InstrumentBank { get; init; }
+    public ExternalMusicSelection? ExternalMusic { get; init; }
+    public Func<Stream, CancellationToken, Task>? WriteWave { get; init; }
+}
+
+/// <summary>Keeps mounted original media available until playback and all child decoders close.</summary>
+public sealed class ModPreviewMediaSources : IDisposable
+{
+    private IResourceSource? source;
+
+    internal ModPreviewMediaSources(IResourceSource source, ModPreviewMediaInput? before, ModPreviewMediaInput after, bool video)
+    {
+        this.source = source;
+        Before = before;
+        After = after;
+        Video = video;
+    }
+
+    public ModPreviewMediaInput? Before { get; }
+    public ModPreviewMediaInput After { get; }
+    public bool Video { get; }
+
+    public void Dispose()
+    {
+        Interlocked.Exchange(ref source, null)?.Dispose();
+    }
+}
 
 /// <summary>Browse a single checked package. The selected installation supplies the unmodified resources.</summary>
 public sealed class ModPreviewDocument
@@ -42,14 +89,29 @@ public sealed class ModPreviewDocument
     private readonly SemaphoreSlim comparisonGate = new(1, 1);
     private const string FieldScenePrefix = "scene:field/";
 
-    private ModPreviewDocument(ModPackage package, List<ModFile> files, JunctionManifestMetadata? junction)
+    private ModPreviewDocument(ModPackage package, List<ModFile> files, JunctionManifestMetadata? junction, ModCatalogSnapshot? preferences)
     {
         Name = package.Name;
-        catalog = new(0, [package], files);
+        package = package with
+        {
+            Status = ModEffectiveStatus.Active,
+            HasLocalization = package.HasLocalization || files.Any(file => file.RelativePath.Equals(LocalizationProjectIO.ManifestRelativePath, StringComparison.OrdinalIgnoreCase))
+        };
+        catalog = new(0, [package], files)
+        {
+            StatusPreferences = preferences?.StatusPreferences ?? System.Collections.Immutable.ImmutableDictionary<string, int>.Empty,
+            Hardcore = preferences?.Hardcore == true
+        };
         this.files = files.ToDictionary(file => file.RelativePath, StringComparer.OrdinalIgnoreCase);
         this.junction = junction;
         localization = new(() => LocalizationProjectIO.ReadForAuthoring(package.RootDirectory));
-        List<ModPreviewEntry> entries = files.Where(file => !file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase)).Select(GetEntry).ToList();
+        List<ModPreviewEntry> entries = files.Where(file => !file.RelativePath.EndsWith(TextureModMapping.Extension, StringComparison.OrdinalIgnoreCase)).Select(file => GetEntry(file, junction?.VideoExtension)).ToList();
+        entries.AddRange(ModPreviewResources.DescribeBundledGameplay(package));
+        entries.AddRange(ModPreviewResources.DescribeFieldGameplay(catalog));
+        if (package.HasLocalization)
+        {
+            entries.Add(new(LocalizationSceneId, "Text", "Playthrough", "Play from the beginning"));
+        }
         if (entries.Any(entry => entry.Category == "World map" || entry.Id.StartsWith("models/world/", StringComparison.OrdinalIgnoreCase)))
         {
             entries.Add(new(WorldSceneId, "World map", "Explore", "World map comparison"));
@@ -70,8 +132,9 @@ public sealed class ModPreviewDocument
     public IReadOnlyList<ModPreviewEntry> Entries { get; }
     public ModCatalogSnapshot PackageCatalog => catalog;
     public const string WorldSceneId = "scene:world";
+    public const string LocalizationSceneId = "scene:localization";
 
-    internal static ModPreviewDocument Open(ModPackage package, CancellationToken cancellationToken, bool useInstalledOptions = true)
+    internal static ModPreviewDocument Open(ModPackage package, CancellationToken cancellationToken, bool useInstalledOptions = true, ModCatalogSnapshot? preferences = null)
     {
         List<ModFile> files = [];
         JunctionManifestMetadata? junction = null;
@@ -123,7 +186,7 @@ public sealed class ModPreviewDocument
         {
             throw new NotSupportedException("This package format does not support comparison.");
         }
-        return new(package, files, junction);
+        return new(package, files, junction, preferences);
     }
 
     public Task<ModPreviewComparison> CompareAsync(ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken cancellationToken = default)
@@ -159,29 +222,24 @@ public sealed class ModPreviewDocument
             var detail = Gameplay(rule);
             return new(new(detail.Before), new(detail.After));
         }
-        if (!files.TryGetValue(entry.Id, out ModFile? file))
+        files.TryGetValue(entry.Id, out ModFile? file);
+        if (ModPreviewResources.CompareGameplay(catalog, entry, file, profile, cancellationToken) is { } gameplay)
+        {
+            return gameplay;
+        }
+        if (file is null)
         {
             throw new ArgumentException("The selected change does not belong to this package.", nameof(entry));
         }
-        if (file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("fields/", StringComparison.OrdinalIgnoreCase) && profile.RenderFieldPatch is { } renderPatch)
+        if (file.Format == ModFormat.Memoria && file.RelativePath.StartsWith("fields/", StringComparison.OrdinalIgnoreCase) && (profile.CompareFieldScene is not null || profile.RenderFieldPatch is not null))
         {
-            return CompareFieldPatch(file, profile, renderPatch);
+            return CompareFieldPatch(file, profile, cancellationToken);
         }
-        if (file.Format == ModFormat.Memoria && file.RelativePath.Equals(GuardianForceAbilityMods.PayloadPath, StringComparison.OrdinalIgnoreCase))
+        if (entry.Category == "Text" && entry.Group == "Localization")
         {
-            return CompareGuardianAbilities(file, profile);
-        }
-        if (file.Format == ModFormat.Memoria && EncounterMods.IsPayloadPath(file.RelativePath))
-        {
-            return CompareEncounter(file);
-        }
-        if (StatusMods.IsStatusDocument(file))
-        {
-            return CompareStatus(file);
-        }
-        if (entry.Category == "Text" && entry.Group == "Localization" && !TextureModPaths.IsImage(file.RelativePath))
-        {
-            return CompareLocalization(file, cancellationToken);
+            return TextureModPaths.IsImage(file.RelativePath)
+                ? CompareLocalizationArtwork(file, profile, cancellationToken)
+                : CompareLocalization(file, cancellationToken);
         }
         if (ItemOverrideMods.IsItemDocument(file))
         {
@@ -195,9 +253,13 @@ public sealed class ModPreviewDocument
                 return model;
             }
         }
-        if (entry.Category is "Audio" or "Video" && profile.DecodeMedia is { } decode)
+        if (entry.IsMedia && profile.DecodeMedia is { } decode)
         {
             return CompareMedia(file, profile, entry.Category == "Video", decode, cancellationToken);
+        }
+        if (file.Format == ModFormat.Junction && entry is { Category: "Video", Group: "Camera tracks" })
+        {
+            return CompareMovieCamera(file, profile, cancellationToken);
         }
         if (TextureModPaths.IsImage(file.RelativePath))
         {
@@ -218,7 +280,7 @@ public sealed class ModPreviewDocument
         return new(new("Original resource preview unavailable."), new($"{file.RelativePath}\nThis resource type does not have a comparison view."));
     }
 
-    private ModPreviewComparison CompareFieldPatch(ModFile file, ModPreviewResourcesProfile profile, Func<FieldAssets, IReadOnlyList<FieldBackgroundPatch>, PixelImage> render)
+    private ModPreviewComparison CompareFieldPatch(ModFile file, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
     {
         if (!FieldSceneMods.TryPrepare(catalog, out FieldSceneMods scenes, out IReadOnlyList<ModDiagnostic> diagnostics))
         {
@@ -232,6 +294,11 @@ public sealed class ModPreviewDocument
         {
             throw new InvalidDataException("The field patch does not match the selected installation.");
         }
+        if (profile.CompareFieldScene is { } compare)
+        {
+            return compare(field, field, [patch], assets.LoadField, cancellationToken);
+        }
+        var render = profile.RenderFieldPatch!;
         List<string> effects = [field.Name];
         if (patch.Backgrounds.Count != 0)
         {
@@ -248,78 +315,20 @@ public sealed class ModPreviewDocument
         return new(new(field.Name, render(field, [])), new(string.Join(" · ", effects), render(field, patch.Backgrounds)));
     }
 
-    private static ModPreviewComparison CompareGuardianAbilities(ModFile file, ModPreviewResourcesProfile profile)
+    public Task<ModPreviewMediaSources> OpenMediaAsync(ModPreviewEntry entry, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
     {
-        using IResourceSource source = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
-        using GameAssets assets = new(profile.GameDirectory, resources: new(source, profile.Language));
-        NativeCharacterVitals stock = assets.ReadNewGameCharacterVitals();
-        GuardianForceAbilityPatchDocument patch = GuardianForceAbilityMods.Parse(file.ReadBytes());
-        var before = stock.ResolveGuardianForceTemplates();
-        GuardianForceAbilityComposition after = GuardianForceAbilityComposer.Compose(before, [new(file.PackageId, patch)]);
-        int[] modified = patch.Operations.Select(operation => operation.GuardianForce).Distinct().Order().ToArray();
-        string Read(IEnumerable<GuardianForceAbilityTemplate> list) => string.Join(", ", list.Select(ability => ability.InitialLearned ? $"{ability.Ability} (learned)" : $"{ability.Ability} ({ability.RequiredPoints} AP)"));
-        string oldText = string.Join("\n\n", modified.Select(id => $"GF {id}\n{Read(before[id])}"));
-        string newText = string.Join("\n\n", modified.Select(id => $"GF {id}\n{Read(after.Templates[id])}"));
-        return new(new(oldText), new(newText));
-    }
-
-    private ModPreviewComparison CompareEncounter(ModFile file)
-    {
-        if (!EncounterMods.TryPrepare(catalog, out EncounterMods encounters, out IReadOnlyList<ModDiagnostic> diagnostics))
+        if (!entry.IsMedia || !files.TryGetValue(entry.Id, out ModFile? file))
         {
-            throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(error => error.Message)));
+            throw new ArgumentException("Select an audio or video resource from this package.", nameof(entry));
         }
-        EncounterPatchDocument patch = encounters.Layers.Single(layer => layer.PayloadPath == file.RelativePath).Document;
-        string title = patch.Title ?? patch.Encounter;
-        string changes = string.Join("\n", patch.Operations.Select(operation =>
-            string.Join(" · ", new[] { operation.Kind.ToString(), operation.Actor ?? operation.ActorTemplate ?? operation.Group, operation.Property, operation.Value.ValueKind == JsonValueKind.Undefined ? null : operation.Value.ToString() }.Where(value => !string.IsNullOrEmpty(value)))));
-        return new(new($"{title}\nOriginal encounter rules."), new($"{title}\n{changes}"));
+        return Task.Run(() => ResolveMedia(file, profile, entry.Category == "Video", cancellationToken), cancellationToken);
     }
 
     private ModPreviewComparison CompareMedia(ModFile file, ModPreviewResourcesProfile profile, bool video, Func<ModPreviewMediaInput, bool, double, CancellationToken, ModPreviewSide> decode, CancellationToken token)
     {
-        string name = Path.GetFileName(file.RelativePath);
-        string stem = Path.GetFileNameWithoutExtension(name);
-        if (!video && Path.GetExtension(name).ToLowerInvariant() is not (".ogg" or ".wav" or ".flac" or ".mp3" or ".opus"))
-        {
-            return new(new("Audio sample unavailable."), new("This audio format has no decoder for the comparison."));
-        }
-        using IResourceSource source = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
-        ResourceService resources = new(source, profile.Language);
-        IGameFileSource? original = resources.GetSource<IGameFileSource>();
-        string? originalPath = null;
-        if (original is not null && video)
-        {
-            originalPath = new[] { $"movies/{stem}.avi", $"movies/{stem}h.avi", $"movies/{name}", file.RelativePath }.Select(original.ResolveFile).FirstOrDefault(File.Exists);
-        }
-        if (original is not null && !video)
-        {
-            var names = new List<string> { file.RelativePath, $"music/stream/{name}", $"music/stream/{stem}.wav" };
-            if (junction is not null)
-            {
-                ExternalMusicResolver resolver = new(catalog);
-                try
-                {
-                    NativeMusicCatalog music = new(resources);
-                    for (int track = 0; track < 117; track++)
-                    {
-                        string native = music.MusicFileResolved(track).Replace('\\', '/');
-                        if (resolver.Resolve(native)?.File == file && native.StartsWith("Data/", StringComparison.OrdinalIgnoreCase))
-                        {
-                            names.Insert(0, native[5..]);
-                        }
-                    }
-                }
-                catch (NotSupportedException)
-                {
-                    // Some installations expose loose tracks without a supported executable music table.
-                }
-            }
-            originalPath = names.Select(original.ResolveFile).FirstOrDefault(File.Exists);
-        }
-        ModPreviewSide before = originalPath is null ? new("Original media could not be matched.") : Decode(new(Path.GetFileName(originalPath), originalPath));
-        ModPreviewSide after = Decode(new(name, file.AbsolutePath, file.ReadBytes));
-        return new(before, after);
+        using ModPreviewMediaSources pair = ResolveMedia(file, profile, video, token);
+        ModPreviewSide before = pair.Before is null ? new("Original media could not be matched.") : Decode(pair.Before);
+        return new(before, Decode(pair.After));
 
         ModPreviewSide Decode(ModPreviewMediaInput input)
         {
@@ -335,34 +344,215 @@ public sealed class ModPreviewDocument
         }
     }
 
-    private ModPreviewComparison CompareStatus(ModFile file)
+    private ModPreviewMediaSources ResolveMedia(ModFile file, ModPreviewResourcesProfile profile, bool video, CancellationToken token)
     {
-        if (!StatusMods.TryPrepare(catalog, out StatusMods status, out IReadOnlyList<ModDiagnostic> diagnostics))
+        token.ThrowIfCancellationRequested();
+        string name = Path.GetFileName(file.RelativePath);
+        string stem = Path.GetFileNameWithoutExtension(name);
+        IResourceSource source = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
+        try
         {
-            throw new InvalidDataException(string.Join(Environment.NewLine, diagnostics.Select(error => error.Message)));
+            ResourceService resources = new(source, profile.Language);
+            IGameFileSource? original = resources.GetSource<IGameFileSource>();
+            List<string> candidates = [file.RelativePath];
+            ExternalMusicSelection? external = null;
+            if (video)
+            {
+                candidates.AddRange([$"movies/{stem}.avi", $"movies/{stem}h.avi", $"movies/{name}"]);
+            }
+            else
+            {
+                candidates.AddRange([$"music/stream/{name}", $"music/stream/{stem}.wav", $"music/dmusic/{name}"]);
+                if (junction is not null)
+                {
+                    external = AddNativeMusicPaths(resources, file, candidates, token);
+                }
+            }
+            ModPreviewMediaInput? before = null;
+            foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                token.ThrowIfCancellationRequested();
+                if (FindFile(candidate) is { } path)
+                {
+                    before = new(Path.GetFileName(candidate), path);
+                    break;
+                }
+            }
+            string? bank = !video && (IsSegment(name) || before?.Path is { } originalPath && IsSegment(originalPath))
+                ? FindFile("music/dmusic/ff8.dls")
+                : null;
+            if (before is not null)
+            {
+                before = before with { InstrumentBank = bank };
+            }
+            token.ThrowIfCancellationRequested();
+            ModPreviewMediaInput after = new(name, file.AbsolutePath, file.ReadBytes)
+            {
+                CopyTo = file.CopyTo,
+                Segment = file.ResolveFileSegment(),
+                InstrumentBank = bank,
+                ExternalMusic = external
+            };
+
+            string? FindFile(string relative)
+            {
+                try
+                {
+                    string? physical = original?.ResolveFile(relative);
+                    return File.Exists(physical) ? physical : null;
+                }
+                catch (FileNotFoundException)
+                {
+                    // Remastered archives throw for an absent member, while loose sources return its path.
+                    return null;
+                }
+            }
+            return new(source, before, after, video);
         }
-        StatusStatModifier[] changed = status.Modifiers.Where(rule => status.ModifierSource(rule.Status, rule.Stat) == file).ToArray();
-        string Before(StatusStatModifier rule)
+        catch
         {
-            int reduction = StatusStatRules.Native.FirstOrDefault(native => native.Status == rule.Status && native.Stat == rule.Stat).Value;
-            return $"{rule.Status} · {rule.Stat} −{reduction}%";
+            source.Dispose();
+            throw;
         }
-        return new(new(string.Join("\n", changed.Select(Before))), new(string.Join("\n", changed.Select(rule => $"{rule.Status} · {rule.Stat} −{rule.Value}%"))));
+    }
+
+    private static bool IsSegment(string path) => Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase);
+
+    private static ModPreviewComparison CompareMovieCamera(ModFile file, ModPreviewResourcesProfile profile, CancellationToken token)
+    {
+        string name = Path.GetFileName(file.RelativePath);
+        using IResourceSource source = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
+        IGameFileSource original = new ResourceService(source, profile.Language).GetSource<IGameFileSource>()
+            ?? throw new NotSupportedException("The installation cannot resolve the original movie camera.");
+        byte[] beforeBytes = File.ReadAllBytes(original.ResolveFile("movies/" + name));
+        byte[] afterBytes = file.ReadBytes();
+        NativeMovieCameraFlags before = NativeMovieCameraReader.Read(beforeBytes);
+        NativeMovieCameraFlags after = NativeMovieCameraReader.ReadPresentation(afterBytes);
+        List<ModPreviewTextRow> rows = [];
+        for (int index = 0; index < Math.Max(before.Flags.Length, after.Flags.Length); index++)
+        {
+            token.ThrowIfCancellationRequested();
+            FieldCamera? originalCamera = ReadCamera(beforeBytes, before, index);
+            FieldCamera? changedCamera = ReadCamera(afterBytes, after, index);
+            int? beforeFlags = index < before.Flags.Length ? before.Flags[index] : null;
+            int? afterFlags = index < after.Flags.Length ? after.Flags[index] : null;
+            if (originalCamera != changedCamera || beforeFlags != afterFlags)
+            {
+                rows.Add(new($"Camera record {index + 1}", Describe(originalCamera, beforeFlags), Describe(changedCamera, afterFlags)));
+            }
+        }
+        ModPreviewComparison comparison = new(new($"{before.Flags.Length:N0} original camera records"), new($"{after.Flags.Length:N0} package camera records\n{rows.Count:N0} changed records"))
+        {
+            TextRows = rows
+        };
+        return rows.Count == 0 ? comparison : comparison.SelectTextRow(0);
+
+        static FieldCamera? ReadCamera(byte[] input, NativeMovieCameraFlags flags, int index)
+        {
+            return index < flags.Flags.Length ? NativeMovieCameraReader.ReadCamera(input, index) : null;
+        }
+
+        static string Describe(FieldCamera? camera, int? flags)
+        {
+            if (camera is null)
+            {
+                return "No camera record.";
+            }
+            return $"Position {camera.Translation}\nPan {camera.Pan} · Focal length {camera.FocalLength:G}\nOrientation {camera.AxisX} / {camera.AxisY} / {camera.AxisZ}\nField compositing flags 0x{flags:X2}";
+        }
+    }
+
+    private ExternalMusicSelection? AddNativeMusicPaths(ResourceService resources, ModFile file, List<string> candidates, CancellationToken token)
+    {
+        ExternalMusicResolver resolver = new(catalog);
+        NativeMusicCatalog music;
+        try
+        {
+            music = new(resources);
+        }
+        catch (NotSupportedException)
+        {
+            // Loose streams remain available in installations without an authenticated music table.
+            return resolver.Resolve(file.RelativePath);
+        }
+        ExternalMusicSelection? selected = null;
+        for (int track = 0; track < 117; track++)
+        {
+            token.ThrowIfCancellationRequested();
+            string native;
+            try
+            {
+                native = music.MusicFileResolved(track).Replace('\\', '/');
+            }
+            catch (InvalidDataException)
+            {
+                continue;
+            }
+            ExternalMusicSelection? match = resolver.Resolve(native);
+            if (match?.File != file)
+            {
+                match = resolver.Resolve(native, noIntro: true);
+            }
+            if (match?.File == file && native.StartsWith("Data/", StringComparison.OrdinalIgnoreCase))
+            {
+                candidates.Insert(0, native[5..]);
+                selected ??= match;
+            }
+        }
+        return selected ?? resolver.Resolve(file.RelativePath);
     }
 
     private ModPreviewComparison CompareLocalization(ModFile file, CancellationToken cancellationToken)
     {
         LocalizationProject project = localization.Value;
-        string name = Path.GetFileNameWithoutExtension(file.RelativePath);
-        var changed = project.Entries.Where(row => !string.IsNullOrEmpty(row.Target) && row.Target != row.Source);
-        var matching = changed.Where(row => Path.GetFileNameWithoutExtension(row.File ?? "").Equals(name, StringComparison.OrdinalIgnoreCase)).Take(10).ToArray();
-        cancellationToken.ThrowIfCancellationRequested();
-        if (matching.Length == 0)
+        LocalizationPayload? payload = LocalizationProjectIO.DiscoverPayloads(catalog.Packages[0].RootDirectory, project.Manifest)
+            .FirstOrDefault(item => item.Path.Equals(file.RelativePath, StringComparison.OrdinalIgnoreCase));
+        if (payload is null && !file.RelativePath.Equals(LocalizationProjectIO.ManifestRelativePath, StringComparison.OrdinalIgnoreCase))
         {
-            matching = changed.OrderBy(row => row.Category == "Fields" ? 0 : 1).ThenBy(row => row.File, StringComparer.OrdinalIgnoreCase).Take(10).ToArray();
+            return new(new("Original localization metadata"), new("This package file supports the translation. Open a text payload or play from the beginning to see its changes."));
         }
-        string Format(bool original) => matching.Length == 0 ? "No translated text is available." : string.Join("\n\n", matching.Select(row => $"{row.File}\n{(original ? row.Source : row.Target) ?? "—"}"));
-        return new(new(Format(true)), new(Format(false)));
+        List<ModPreviewTextRow> rows = [];
+        foreach (LocalizationRecord row in project.Entries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrEmpty(row.Target) && row.Target != row.Source
+                && (payload?.Category is null || row.Category == payload.Category)
+                && (payload?.File is null || row.File == payload.File))
+            {
+                rows.Add(new($"{row.File} · {row.Key}", row.Source ?? "—", row.Target));
+            }
+        }
+        return CompareTextRows(rows);
+    }
+
+    private ModPreviewComparison CompareLocalizationArtwork(ModFile file, ModPreviewResourcesProfile profile, CancellationToken token)
+    {
+        LocalizationArtworkFile? artwork = localization.Value.Artwork.FirstOrDefault(item =>
+            item.Declaration.TargetImage?.Equals(file.RelativePath, StringComparison.OrdinalIgnoreCase) == true
+            || item.Declaration.SourceImage.Equals(file.RelativePath, StringComparison.OrdinalIgnoreCase));
+        if (artwork is null || artwork.TargetPng is null)
+        {
+            ModPreviewSide source = new("Reference artwork", ModImageDecoder.Decode(file).Image);
+            return new(source, new("This file has no translated artwork."));
+        }
+        token.ThrowIfCancellationRequested();
+        using IResourceSource sourceResources = GameDataSourceFactory.OpenTextureAuthoring(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
+        ResourceService resources = new(sourceResources, profile.Language);
+        using GameAssets assets = new(profile.GameDirectory, resources: resources);
+        TextureKey key = artwork.Declaration.Key;
+        TextureTarget target = new("ff8", key.Owner.Path, key.Subresource, key.Palette);
+        TextureCatalogEntry? entry = assets.FindCatalogTextureTarget(target, token);
+        PixelImage original = entry is null
+            ? ModImageDecoder.Decode(artwork.SourcePng, artwork.Declaration.SourceImage).Image
+            : resources.ResolveOriginalForExport(assets.LoadCatalogTexture(entry)).Image;
+        return new(new(entry is null ? "Source artwork recorded by the translation" : key.Owner.Path, original),
+            new(key.Owner.Path, ModImageDecoder.Decode(artwork.TargetPng, artwork.Declaration.TargetImage!).Image));
+    }
+
+    private static ModPreviewComparison CompareTextRows(IReadOnlyList<ModPreviewTextRow> rows)
+    {
+        ModPreviewComparison difference = new(new("No text changes."), new("No text changes.")) { TextRows = rows };
+        return rows.Count == 0 ? difference : difference.SelectTextRow(0);
     }
 
     private ModPreviewComparison CompareField(string field, ModPreviewResourcesProfile profile, Func<FieldAssets, PixelImage> render, CancellationToken cancellationToken)
@@ -392,15 +582,20 @@ public sealed class ModPreviewDocument
         {
             return new(new("This field is unavailable in the selected game resources."), new(field));
         }
-        PixelImage before = render(original.LoadField(id));
+        FieldAssets before = original.LoadField(id);
         cancellationToken.ThrowIfCancellationRequested();
         using IResourceSource modifiedSource = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
         ResourceService modifiedResources = new(modifiedSource, profile.Language);
         modifiedResources.Prepare(new OrderedTextureResolver(textures, new FfnxTextureResolver(subset)), encodedResources: replacements).Commit();
         using GameAssets modified = new(profile.GameDirectory, resources: modifiedResources);
         FieldAssets applied = modified.LoadField(id);
-        FieldBackgroundPatch[] patches = scenes.Patches.Where(owned => owned.Patch.FieldId == id).SelectMany(owned => owned.Patch.Backgrounds).ToArray();
-        return new(new(field, before), new(field, patches.Length != 0 && profile.RenderFieldPatch is { } renderPatches ? renderPatches(applied, patches) : render(applied)));
+        FieldScenePatch[] patches = scenes.Patches.Where(owned => owned.Patch.FieldId == id).Select(owned => owned.Patch).ToArray();
+        if (patches.Length != 0 && profile.CompareFieldScene is { } compare)
+        {
+            return compare(before, applied, patches, modified.LoadField, cancellationToken);
+        }
+        FieldBackgroundPatch[] backgrounds = patches.SelectMany(patch => patch.Backgrounds).ToArray();
+        return new(new(field, render(before)), new(field, backgrounds.Length != 0 && profile.RenderFieldPatch is { } renderPatches ? renderPatches(applied, backgrounds) : render(applied)));
     }
 
     private ModPreviewComparison CompareItem(ModFile document, ModPreviewResourcesProfile profile)
@@ -427,7 +622,12 @@ public sealed class ModPreviewDocument
 
     private ModPreviewComparison? CompareJunctionModel(ModFile file, ModPreviewResourcesProfile profile, CancellationToken cancellationToken)
     {
-        if (JunctionEncodedResources.Address(file.RelativePath) is not { } key || !key.Path.StartsWith("battle/", StringComparison.Ordinal))
+        if (JunctionEncodedResources.Address(file.RelativePath) is not { } key)
+        {
+            return null;
+        }
+        bool modelLibrary = key.Path.StartsWith("field/main_chr/", StringComparison.Ordinal);
+        if (!modelLibrary && !key.Path.StartsWith("battle/", StringComparison.Ordinal))
         {
             return null;
         }
@@ -438,7 +638,9 @@ public sealed class ModPreviewDocument
         }
         using IResourceSource beforeSource = GameDataSourceFactory.Open(profile.GameDirectory, profile.ModelSourceDirectory, profile.Language);
         using GameAssets beforeAssets = new(profile.GameDirectory, resources: new(beforeSource, profile.Language));
-        ModelCatalogEntry? entry = beforeAssets.EnumerateModelCatalog(cancellationToken).FirstOrDefault(model => model.ResourcePath.Equals(key.Path, StringComparison.OrdinalIgnoreCase));
+        ModelCatalogEntry? entry = modelLibrary
+            ? beforeAssets.EnumerateFieldModelSources(cancellationToken).FirstOrDefault(model => StringComparer.OrdinalIgnoreCase.Equals(model.ModelLibraryResource, key.Path))
+            : beforeAssets.EnumerateModelCatalog(cancellationToken).FirstOrDefault(model => model.ResourcePath.Equals(key.Path, StringComparison.OrdinalIgnoreCase));
         if (entry is null)
         {
             return null;
@@ -493,9 +695,11 @@ public sealed class ModPreviewDocument
         var encoding = NativeTextEncoding.CreateField(resources.Source.Language, field);
         IReadOnlyList<string> before = MsdFile.Read(resources.Read(key), encoding).Texts;
         IReadOnlyList<string> after = MsdFile.Read(file.ReadBytes(), encoding).Texts;
-        int[] changed = Enumerable.Range(0, Math.Max(before.Count, after.Count)).Where(index => !string.Equals(before.ElementAtOrDefault(index), after.ElementAtOrDefault(index), StringComparison.Ordinal)).Take(12).ToArray();
-        string Sample(IReadOnlyList<string> lines) => changed.Length == 0 ? "No text changes." : string.Join("\n\n", changed.Select(index => $"Message {index}\n{lines.ElementAtOrDefault(index) ?? "—"}"));
-        return new(new(Sample(before)), new(Sample(after)));
+        ModPreviewTextRow[] rows = Enumerable.Range(0, Math.Max(before.Count, after.Count))
+            .Where(index => !string.Equals(before.ElementAtOrDefault(index), after.ElementAtOrDefault(index), StringComparison.Ordinal))
+            .Select(index => new ModPreviewTextRow($"Message {index}", before.ElementAtOrDefault(index) ?? "—", after.ElementAtOrDefault(index) ?? "—"))
+            .ToArray();
+        return CompareTextRows(rows);
     }
 
     private static bool IsPackageMetadata(string path)
@@ -508,9 +712,13 @@ public sealed class ModPreviewDocument
         return path.Equals("mod.json", StringComparison.OrdinalIgnoreCase) || path.Equals("mod.ini", StringComparison.OrdinalIgnoreCase) || stem is "readme" or "license" or "notice";
     }
 
-    private static ModPreviewEntry GetEntry(ModFile file)
+    private static ModPreviewEntry GetEntry(ModFile file, string? junctionVideoExtension)
     {
         string path = file.RelativePath;
+        if (ModPreviewResources.DescribeGameplayPath(file) is { } gameplay)
+        {
+            return gameplay;
+        }
         if (ModPreviewResources.DescribeTexturePath(file) is { } texture)
         {
             return new(path, texture.Category, texture.Group, texture.Name);
@@ -522,6 +730,7 @@ public sealed class ModPreviewDocument
         ResourceKey? address = file.Format == ModFormat.Junction ? JunctionEncodedResources.Address(path) : null;
         string[] target = (address?.Path ?? path).Split('/');
         string owner = target[0].ToLowerInvariant();
+        bool moviePath = root == "movies" || (parts.Length == 1 && name.StartsWith("disc", StringComparison.OrdinalIgnoreCase));
         (string category, string group) = (root, owner, extension) switch
         {
             ("items", _, _) => ("Inventory", "Items"),
@@ -532,10 +741,12 @@ public sealed class ModPreviewDocument
             (_, "field", ".mch") => ("Models", "Field models"),
             (_, "field", _) => ("Fields", address is { } fieldKey ? JunctionEncodedResources.FieldGroup(fieldKey) ?? "Field resources" : "Field resources"),
             (_, "world", _) => ("World map", "World resources"),
+            (_, _, ".cam") when file.Format == ModFormat.Junction && moviePath => ("Video", "Camera tracks"),
+            (_, _, _) when file.Format == ModFormat.Junction && moviePath && junctionVideoExtension is not null && extension.Equals("." + junctionVideoExtension, StringComparison.OrdinalIgnoreCase) => ("Video", "Movies"),
             ("music", _, _) => ("Audio", "Music"),
             ("voice", _, _) => ("Audio", "Voices"),
-            (_, _, ".ogg" or ".wav" or ".flac" or ".mp3" or ".opus" or ".sgt") => ("Audio", "Tracks"),
-            (_, _, ".avi" or ".mp4" or ".webm" or ".mkv" or ".bik") => ("Video", "Movies"),
+            (_, _, ".ogg" or ".wav" or ".flac" or ".mp3" or ".opus" or ".sgt" or ".psf" or ".minipsf") => ("Audio", "Tracks"),
+            (_, _, ".avi" or ".mp4" or ".webm" or ".mkv" or ".bik" or ".mov" or ".wmv" or ".mpg" or ".mpeg" or ".m4v") => ("Video", "Movies"),
             (_, _, ".png" or ".dds") => ("Textures", TextureGroup(parts)),
             (_, _, ".mch" or ".dat") when owner is "field" or "battle" or "world" => ("Models", owner),
             ("statuses" or "encounters" or "abilities" or "gameplay" or "difficulty", _, _) => ("Gameplay", root),

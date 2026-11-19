@@ -5,6 +5,9 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    /// <summary>Primitive RGB for a freshly allocated native field actor before script color writes.</summary>
+    public static Vector3 NativeFieldActorInitialPolygonColor => new(128);
+
     private int[] NativePolygonColorBodies()
     {
         if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeFieldInitialization is null || program is null)

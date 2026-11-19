@@ -87,7 +87,8 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
         }
         if (installed is { Format: ModFormat.Memoria or ModFormat.Junction, IsSettingsGroup: false })
         {
-            return Task.Run(() => ModPreviewDocument.Open(installed, cancellationToken), cancellationToken);
+            ModCatalogSnapshot preferences = mods.Catalog;
+            return Task.Run(() => ModPreviewDocument.Open(installed, cancellationToken, preferences: preferences), cancellationToken);
         }
         return Task.FromException<ModPreviewDocument>(new InvalidOperationException("Download and check this release to preview it."));
     }

@@ -70,7 +70,11 @@ internal sealed partial class RecreateGame
         presentationTiming.DiscardPendingTime();
         presentationPacer.Reset();
         ResetElapsedTime();
-        fieldAudio?.SetFocusPaused(worldTransfer is not null || pause || InFf7);
+        if (pause)
+        {
+            gameMenus?.PauseModMediaForFocus();
+        }
+        SynchronizeFieldAudioPause();
         ff7Scene?.SetFocusPaused(worldTransfer is not null || pause || updateSave.Paused);
         SynchronizeUiMoviePause();
         controllerFeedback?.Update(session.State.VibrationProcess, false, keyboard.Profile.Controller.VibrationEnabled);
@@ -80,6 +84,11 @@ internal sealed partial class RecreateGame
             discardFocusElapsed = true;
             battleEntryCallbackStarted = Stopwatch.GetTimestamp();
         }
+    }
+
+    private void SynchronizeFieldAudioPause()
+    {
+        fieldAudio?.SetFocusPaused(worldTransfer is not null || focusPaused || InFf7 || gameMenus?.IsModMediaPreviewOpen == true);
     }
 
     private bool UpdateFocusPause()

@@ -18,7 +18,7 @@ public sealed record LocalizationPreparation(LocalizationCatalog Catalog, IReadO
 public static class LocalizationRuntime
 {
     /// <summary>Validates an authoring destination and its declared base chain, then exposes only the selected contribution as a temporary overlay.</summary>
-    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool watchForPublication = false)
+    public static LocalizationPreparation PrepareAuthoringProject(ModCatalogSnapshot catalog, string selectedPackageId, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool watchForPublication = false, bool readOnly = false)
     {
         ModPackage selected = catalog.Packages.Single(package => package.Id.Equals(selectedPackageId, StringComparison.OrdinalIgnoreCase) && package.HasLocalization);
         Dictionary<string, LocalizationManifest> manifests = new(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +61,7 @@ public static class LocalizationRuntime
             visiting.Remove(manifest.ProjectId);
         }
         Add(selected);
-        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation, watchForPublication: watchForPublication);
+        LocalizationPreparation prepared = Prepare(new ModCatalogSnapshot(catalog.Generation, chain, [], catalog.Diagnostics), chain.Select(package => package.Id).ToArray(), source, cancellation, allowMissingPayloads: false, watchForPublication, readCache: null, readOnly);
         try
         {
             Dictionary<string, LocalizationValue> values = prepared.Catalog.Values.Where(pair => pair.Value.PackageId.Equals(selected.Id, StringComparison.OrdinalIgnoreCase)).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -79,10 +79,15 @@ public static class LocalizationRuntime
     /// <summary>Reads a complete candidate off the publication thread. The displayed order is low to high.</summary>
     public static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation = default, bool allowMissingPayloads = false, bool watchForPublication = false, LocalizationProjectReadCache? readCache = null)
     {
+        return Prepare(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, watchForPublication, readCache, readOnly: false);
+    }
+
+    private static LocalizationPreparation Prepare(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, bool watchForPublication, LocalizationProjectReadCache? readCache, bool readOnly)
+    {
         LocalizationInputRevision inputs = LocalizationInputRevision.Capture(candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization).Select(package => package.RootDirectory), watchForPublication);
         try
         {
-            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache);
+            return PrepareCore(candidate, acceptedOrder, source, cancellation, allowMissingPayloads, inputs, readCache, readOnly);
         }
         catch
         {
@@ -91,14 +96,14 @@ public static class LocalizationRuntime
         }
     }
 
-    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache)
+    private static LocalizationPreparation PrepareCore(ModCatalogSnapshot candidate, IReadOnlyList<string>? acceptedOrder, ResourceSourceDescriptor source, CancellationToken cancellation, bool allowMissingPayloads, LocalizationInputRevision inputs, LocalizationProjectReadCache? readCache, bool readOnly)
     {
         Stopwatch elapsed = Stopwatch.StartNew();
         List<LocalizationLayer> layers = [];
         foreach (ModPackage package in candidate.Packages.Where(package => package.Status == ModEffectiveStatus.Active && package.HasLocalization))
         {
             cancellation.ThrowIfCancellationRequested();
-            LocalizationProject project = LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads, readCache);
+            LocalizationProject project = readOnly ? LocalizationProjectIO.ReadForAuthoring(package.RootDirectory, allowMissingPayloads, readCache) : LocalizationProjectIO.Read(package.RootDirectory, allowMissingPayloads, readCache);
             if (project.Manifest.MappingVersion != FieldCorrespondenceCatalog.Version)
             {
                 throw new InvalidDataException($"{package.Name}: localization mapping version is not supported.");

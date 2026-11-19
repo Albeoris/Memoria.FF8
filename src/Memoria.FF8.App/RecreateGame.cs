@@ -250,6 +250,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
             }
             RefreshLocalizationPresentation();
             gameMenus?.RefreshModView();
+            SynchronizeFieldAudioPause();
             UpdateModLibraryNotifications();
             UpdateDisplayFrame(gameTime);
             SynchronizeFieldVoices();

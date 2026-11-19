@@ -39,16 +39,7 @@ internal sealed partial class GameWorld
             return field.GetCamera(Events.Scene.CameraIndex);
         }
         int record = playback.AppliedRecord + (beforeCameraSelection ? 0 : 1);
-        return ReadNativeMovieCamera(movieCameraBytes[(source.DiscIndex, source.MovieIndex)], record);
-    }
-
-    internal static FieldCamera ReadNativeMovieCamera(ReadOnlySpan<byte> bytes, int record)
-    {
-        if (record < 0 || 8L + (record + 1L) * 44 > bytes.Length)
-        {
-            throw new InvalidDataException("Native movie camera record is outside its original CAM bank.");
-        }
-        return FieldCamera.Read(bytes.Slice(8 + record * 44, 40).ToArray());
+        return NativeMovieCameraReader.ReadCamera(movieCameraBytes[(source.DiscIndex, source.MovieIndex)], record);
     }
 
     private NativeMovieCameraFlags ReadNativeMovieCameraFlags(byte disc, int movie)
@@ -112,7 +103,7 @@ internal sealed partial class GameWorld
             cameraBytes = presentation.Bytes;
             drawValue = presentation.DrawValue(record);
         }
-        FieldCamera camera = ReadNativeMovieCamera(cameraBytes, record);
+        FieldCamera camera = NativeMovieCameraReader.ReadCamera(cameraBytes, record);
         IEnumerable<ActorVisual> actors = drawActors ? Events.Actors.Select(CreateVisual) : [];
         FieldMovieMask? mask = currentField.Information?.NativeMovieMaskFlag14 == 1 && drawValue == 0 ? currentField.MovieMask ?? throw new NotSupportedException("Movie presentation requires its original INF-selected MSK triangle bank.") : null;
         if (movieRenderer is null || movieRendererField != currentField || movieRenderer.OutputWidth != renderWidth || movieRenderer.OutputHeight != renderHeight)

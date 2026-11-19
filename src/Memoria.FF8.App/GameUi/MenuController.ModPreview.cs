@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Memoria.FF8.Events;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Ui;
 
@@ -20,15 +22,20 @@ public sealed partial class MenuController
     private string modPreviewFocus = "preview-tree";
     private float modPreviewYaw;
     private float modPreviewTextOffset;
+    private int modPreviewTextRow;
     private float modPreviewPose;
-    private double modPreviewMediaSeconds;
-    private CatalogPreviewPresentation.AudioComparison? modPreviewAudio;
+    private LocalizationModPreview? modPreviewLocalization;
+    private PlayerAction? queuedPreviewAction;
+    private long previewSceneUpdated;
     private int modPreviewTreeOffset;
     private readonly HashSet<string> modPreviewCollapsed = new(StringComparer.OrdinalIgnoreCase);
 
-    internal void ConnectModPreview(ModPreviewResourcesProfile profile)
+    internal void ConnectModPreview(ModPreviewResourcesProfile profile, string? mediaTools = null, bool mediaAudioEnabled = true, PcmAudioOutput? audioOutput = null)
     {
         modPreviewProfile = profile;
+        modPreviewMediaTools = mediaTools;
+        modPreviewMediaAudioEnabled = mediaAudioEnabled;
+        modPreviewMediaAudioOutput = audioOutput;
     }
 
     private void RegisterModPreviewScreen()
@@ -85,16 +92,29 @@ public sealed partial class MenuController
         modPreviewWorld = null;
         modPreviewYaw = 0.4f;
         modPreviewPose = 0;
-        modPreviewMediaSeconds = 0;
-        StopPreviewAudio();
+        EndModMediaPreview();
+        EndLocalizationPreview();
         modPreviewUseItem = false;
         modPreviewTextOffset = 0;
+        modPreviewTextRow = 0;
         modPreviewResult = null;
         modPreviewMessage = "Comparing with the original game…";
         modPreviewCancellation = new();
-        modPreviewComparing = selection.Id == ModPreviewDocument.WorldSceneId
-            ? (modPreviewWorld = new(modPreviewProfile!, modPreviewDocument!.PackageCatalog)).RenderAsync(0, 0, modPreviewCancellation.Token)
-            : CatalogPreviewPresentation.CompareAsync(modPreviewDocument!, selection, modPreviewProfile!, modPreviewCancellation.Token);
+        if (selection.IsMedia)
+        {
+            modPreviewMediaOpening = OpenModPreviewMediaAsync(modPreviewDocument!, selection, modPreviewProfile!, modPreviewCancellation.Token);
+        }
+        else if (selection.Id == ModPreviewDocument.LocalizationSceneId)
+        {
+            modPreviewLocalization = new(modPreviewProfile!, modPreviewDocument!.PackageCatalog, modPreviewMediaTools, modService?.View.Packages.Select(view => view.Package).ToArray());
+            modPreviewComparing = modPreviewLocalization.RenderAsync(null, modPreviewCancellation.Token);
+        }
+        else
+        {
+            modPreviewComparing = selection.Id == ModPreviewDocument.WorldSceneId
+                ? (modPreviewWorld = new(modPreviewProfile!, modPreviewDocument!.PackageCatalog)).RenderAsync(0, 0, modPreviewCancellation.Token)
+                : CatalogPreviewPresentation.CompareAsync(modPreviewDocument!, selection, modPreviewProfile!, modPreviewCancellation.Token);
+        }
     }
 
     private void MovePreviewWorld(float east, float south)
@@ -119,37 +139,57 @@ public sealed partial class MenuController
         modPreviewComparing = Task.Run(() => CatalogPreviewPresentation.DrawModels(current, angle, pose), modPreviewCancellation!.Token);
     }
 
-    private void StepPreviewVideo(int seconds)
+    private void MoveModPreviewText(int direction)
     {
-        if (modPreviewSelected is not { Category: "Video" } entry || modPreviewComparing is not null)
+        if (modPreviewResult is not { TextRows.Count: > 1 } result)
         {
             return;
         }
-        double next = Math.Max(0, modPreviewMediaSeconds + seconds);
-        if (next != modPreviewMediaSeconds)
+        int next = Math.Clamp(modPreviewTextRow + direction, 0, result.TextRows.Count - 1);
+        if (next != modPreviewTextRow)
         {
-            modPreviewMediaSeconds = next;
-            modPreviewComparing = CatalogPreviewPresentation.CompareAsync(modPreviewDocument!, entry, modPreviewProfile! with { MediaSeconds = next }, modPreviewCancellation!.Token);
-        }
-    }
-
-    private void PlayPreviewAudio(byte[] pcm)
-    {
-        try
-        {
-            (modPreviewAudio ??= new()).Play(pcm);
-        }
-        catch (IOException error)
-        {
-            modPreviewMessage = error.Message;
+            modPreviewTextRow = next;
+            modPreviewResult = result.SelectTextRow(next);
+            modPreviewTextOffset = 0;
             _view = null;
         }
     }
 
-    private void StopPreviewAudio()
+    private void SendLocalizationAction(PlayerAction action)
     {
-        modPreviewAudio?.Dispose();
-        modPreviewAudio = null;
+        if (modPreviewLocalization is null)
+        {
+            return;
+        }
+        queuedPreviewAction = action;
+        UpdateLocalizationPreview();
+    }
+
+    private void UpdateLocalizationPreview()
+    {
+        if (modPreviewLocalization is not { } scene || modPreviewComparing is not null || modPreviewResult is null)
+        {
+            return;
+        }
+        PlayerAction? action = queuedPreviewAction;
+        if (action is null && modPreviewExpanded && Stopwatch.GetElapsedTime(previewSceneUpdated).TotalMilliseconds >= 66)
+        {
+            action = new(PlayerActionKind.Wait, Frames: 2, WaitWhilePlayable: true);
+        }
+        if (action is not null)
+        {
+            queuedPreviewAction = null;
+            previewSceneUpdated = Stopwatch.GetTimestamp();
+            modPreviewComparing = scene.RenderAsync(action, modPreviewCancellation!.Token);
+        }
+    }
+
+    private void EndLocalizationPreview()
+    {
+        modPreviewLocalization?.Dispose();
+        modPreviewLocalization = null;
+        queuedPreviewAction = null;
+        previewSceneUpdated = Stopwatch.GetTimestamp();
     }
 
     private void PollModPreview()
@@ -158,6 +198,7 @@ public sealed partial class MenuController
         {
             return;
         }
+        PollModMedia();
         if (modPreviewOpening is { IsCompleted: true } opening)
         {
             modPreviewOpening = null;
@@ -182,6 +223,7 @@ public sealed partial class MenuController
         }
         if (modPreviewComparing is { IsCompleted: true } comparing)
         {
+            bool rebuild = modPreviewLocalization is null || modPreviewResult is null;
             modPreviewComparing = null;
             if (comparing.IsCompletedSuccessfully)
             {
@@ -191,9 +233,15 @@ public sealed partial class MenuController
             else
             {
                 modPreviewMessage = comparing.Exception?.GetBaseException().Message ?? "The comparison was cancelled.";
+                EndLocalizationPreview();
+                rebuild = true;
             }
-            _view = null;
+            if (rebuild)
+            {
+                _view = null;
+            }
         }
+        UpdateLocalizationPreview();
     }
 
     private bool NavigateModPreview(MenuInput input)
@@ -212,9 +260,47 @@ public sealed partial class MenuController
             }
             return true;
         }
+        if (modPreviewExpanded && modPreviewLocalization is not null && input == MenuInput.Alternate)
+        {
+            SendLocalizationAction(new(PlayerActionKind.Cancel));
+            return true;
+        }
+        if (modPreviewExpanded && modPreviewLocalization is not null && input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right)
+        {
+            float horizontal = input == MenuInput.Left ? -1 : input == MenuInput.Right ? 1 : 0;
+            float vertical = input == MenuInput.Up ? -1 : input == MenuInput.Down ? 1 : 0;
+            SendLocalizationAction(new(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical, Frames: 8));
+            return true;
+        }
         if (modPreviewExpanded && modPreviewWorld is not null && input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right)
         {
             MovePreviewWorld(input == MenuInput.Left ? -900 : input == MenuInput.Right ? 900 : 0, input == MenuInput.Up ? -900 : input == MenuInput.Down ? 900 : 0);
+            return true;
+        }
+        if (input is MenuInput.FocusLeft or MenuInput.FocusRight or MenuInput.ReverseTab)
+        {
+            UiView view = BuildView();
+            UiElement[] targets = FocusableDescendants(view.Root)
+                .Where(element => element.Visible && element.Enabled && !element.Bounds.IsEmpty).ToArray();
+            if (targets.Length != 0)
+            {
+                UiElement? target;
+                if (input == MenuInput.ReverseTab)
+                {
+                    int index = Array.IndexOf(targets, view.FocusedElement);
+                    target = targets[(Math.Max(0, index) + targets.Length - 1) % targets.Length];
+                }
+                else
+                {
+                    string id = input == MenuInput.FocusLeft ? "preview-tree" : "preview-action-0";
+                    target = targets.FirstOrDefault(element => element.Id == id)
+                        ?? targets.FirstOrDefault(element => element.Id == "preview-timeline");
+                }
+                if (target is not null)
+                {
+                    view.Focus(target);
+                }
+            }
             return true;
         }
         UiKey? key = input switch
@@ -279,7 +365,8 @@ public sealed partial class MenuController
     private void CloseModPreview()
     {
         CancelModPreviewWork();
-        StopPreviewAudio();
+        EndModMediaPreview();
+        EndLocalizationPreview();
         modPreviewWorld?.Dispose();
         modPreviewWorld = null;
         modPreviewDocument = null;
@@ -294,6 +381,7 @@ public sealed partial class MenuController
         private readonly UiButton expand;
         private readonly UiButton back;
         private readonly UiButton use;
+        private readonly PreviewMediaTimeline timeline;
         private readonly UiScrollPanel beforeText;
         private readonly UiScrollPanel afterText;
         private readonly List<UiButton> interaction = [];
@@ -349,7 +437,9 @@ public sealed partial class MenuController
             expand = Button("preview-expand", menus.modPreviewExpanded ? "Show change list" : "Expand comparison", () =>
             {
                 menus.modPreviewExpanded = !menus.modPreviewExpanded;
-                menus.modPreviewFocus = menus.modPreviewExpanded ? "preview-expand" : "preview-tree";
+                menus.modPreviewFocus = menus.modPreviewExpanded
+                    ? menus.modPreviewLocalization is null ? "preview-expand" : "preview-action-0"
+                    : "preview-tree";
                 menus._view = null;
             });
             expand.Visible = menus.modPreviewDocument?.Entries.Count > 0;
@@ -365,6 +455,9 @@ public sealed partial class MenuController
             Children.Add(expand);
             Children.Add(back);
             Children.Add(use);
+            timeline = new(menus) { Id = "preview-timeline", Focusable = true, Visible = menus.modPreviewMedia?.Playback.DurationSeconds > 0 };
+            TrackFocus(timeline);
+            Children.Add(timeline);
             if (menus.modPreviewResult is not null && menus.modPreviewWorld is not null)
             {
                 AddControl("West", () => menus.MovePreviewWorld(-900, 0));
@@ -372,27 +465,27 @@ public sealed partial class MenuController
                 AddControl("South", () => menus.MovePreviewWorld(0, 900));
                 AddControl("East", () => menus.MovePreviewWorld(900, 0));
             }
-            else if (menus.modPreviewResult is { } media && menus.modPreviewSelected is { Category: "Audio" })
+            else if (menus.modPreviewMedia?.Playback is { DurationSeconds: > 0 } media)
             {
-                if (media.Before.AudioPcm is { } before)
+                AddControl(media.IsPlaying ? "Pause" : media.PositionSeconds >= media.DurationSeconds ? "Replay" : "Play", menus.ToggleModMediaPlayback);
+                if (menus.modPreviewMediaAudioEnabled && (media.Before.HasAudio || media.After.HasAudio))
                 {
-                    AddControl("Play before", () => menus.PlayPreviewAudio(before));
-                }
-                if (media.After.AudioPcm is { } after)
-                {
-                    AddControl("Play after", () => menus.PlayPreviewAudio(after));
-                }
-                if (interaction.Count != 0)
-                {
-                    AddControl("Stop", menus.StopPreviewAudio);
+                    AddControl(media.ListenAfter ? "Sound · After" : "Sound · Before", menus.ToggleModMediaSound);
                 }
             }
-            else if (menus.modPreviewResult is not null && menus.modPreviewSelected is { Category: "Video" })
+            else if (menus.modPreviewResult is not null && menus.modPreviewLocalization is not null)
             {
-                AddControl("−3 s", () => menus.StepPreviewVideo(-3));
-                AddControl("+3 s", () => menus.StepPreviewVideo(3));
+                AddControl("Interact", () => menus.SendLocalizationAction(new(PlayerActionKind.Confirm)));
+                AddControl("Scene Cancel", () => menus.SendLocalizationAction(new(PlayerActionKind.Cancel)));
             }
-            else if (menus.modPreviewResult is { Before.Model: not null })
+            else if (menus.modPreviewResult is { TextRows.Count: > 1 } text)
+            {
+                AddControl("Previous line", () => menus.MoveModPreviewText(-1));
+                AddControl("Next line", () => menus.MoveModPreviewText(1));
+                interaction[0].Enabled = menus.modPreviewTextRow > 0;
+                interaction[1].Enabled = menus.modPreviewTextRow + 1 < text.TextRows.Count;
+            }
+            else if (menus.modPreviewResult is { Before.Model: not null } or { After.Model: not null })
             {
                 AddControl("Rotate left", () => menus.RotatePreviewModels(-0.35f, 0));
                 AddControl("Next pose", () => menus.RotatePreviewModels(0, 0.15f));
@@ -453,7 +546,8 @@ public sealed partial class MenuController
             UiRect inner = bounds.Inset(10);
             float footer = 30 * menus.TextScale;
             float top = inner.Y + 33 * menus.TextScale;
-            float height = Math.Max(0, inner.Bottom - footer - top - 8);
+            float timelineHeight = timeline.Visible ? footer + 6 : 0;
+            float height = Math.Max(0, inner.Bottom - footer - top - 8 - timelineHeight);
             float sidebar = tree.Visible ? Math.Min(inner.Width * 0.32f, 335 * menus.TextScale) : 0;
             tree.Arrange(new(inner.X, top, Math.Max(0, sidebar - 8), height));
             if (tree.Visible)
@@ -461,11 +555,12 @@ public sealed partial class MenuController
                 tree.ScrollOffset = menus.modPreviewTreeOffset;
             }
             comparison = new(inner.X + sidebar, top, Math.Max(0, inner.Width - sidebar), height);
+            timeline.Arrange(new(inner.X, comparison.Bottom + 4, inner.Width, timeline.Visible ? footer : 0));
             back.Arrange(new(inner.X, inner.Bottom - footer, 95 * menus.TextScale, footer));
             expand.Arrange(new(inner.Right - 180 * menus.TextScale, inner.Bottom - footer, 180 * menus.TextScale, footer));
             use.Arrange(new(comparison.X + comparison.Width * 0.5f + 10, comparison.Bottom - footer - 8, 112 * menus.TextScale, footer));
             float usable = Math.Max(0, expand.Bounds.X - back.Bounds.Right - 16);
-            float width = Math.Min(120 * menus.TextScale, usable / Math.Max(1, interaction.Count));
+            float width = Math.Min((timeline.Visible ? 144 : 120) * menus.TextScale, usable / Math.Max(1, interaction.Count));
             for (int index = 0; index < interaction.Count; index++)
             {
                 interaction[index].Arrange(new(back.Bounds.Right + 8 + index * width, expand.Bounds.Y, Math.Max(0, width - 4), footer));
@@ -481,9 +576,14 @@ public sealed partial class MenuController
                 canvas.Text(menus.modPreviewMessage, 17 * scale, comparison.Inset(12), theme.Foreground, UiAlignment.Start, UiTextFlow.Wrap);
                 return;
             }
-            if (menus.modPreviewMessage.Length != 0)
+            string status = menus.modPreviewMessage;
+            if (status.Length == 0 && result.TextRows.Count > 1)
             {
-                canvas.Text(menus.modPreviewMessage, 14 * scale, new(comparison.X, Bounds.Y + 8, comparison.Width, 26 * scale), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+                status = $"Line {menus.modPreviewTextRow + 1} of {result.TextRows.Count}";
+            }
+            if (status.Length != 0)
+            {
+                canvas.Text(status, 14 * scale, new(comparison.X, Bounds.Y + 8, comparison.Width, 26 * scale), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
             }
             float width = Math.Max(0, (comparison.Width - 8) / 2);
             DrawSide("Before", result.Before, new(comparison.X, comparison.Y, width, comparison.Height), beforeText, 0);
@@ -495,21 +595,26 @@ public sealed partial class MenuController
                 UiRect area = rect.Inset(10);
                 canvas.Text(title, 18 * scale, new(area.X, area.Y, area.Width, 25 * scale), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
                 bool reveal = !side.CanUseItem || menus.modPreviewUseItem;
-                float textHeight = side.Image is null ? area.Height - 31 * scale : 60 * scale;
+                CatalogMediaSide? media = menus.ModMediaSide(slot);
+                var image = media?.Image ?? side.Image;
+                float textHeight = image is null ? area.Height - 31 * scale : 60 * scale;
                 UiRect body = new(area.X, area.Y + 31 * scale, area.Width, Math.Max(0, textHeight));
-                if (scroll.Bounds != body)
+                UiLabel label = (UiLabel)scroll.Children[0];
+                if (scroll.Bounds != body || label.Text != side.Text)
                 {
+                    label.Text = side.Text;
+                    scroll.Visible = side.Text.Length != 0;
                     float offset = menus.modPreviewTextOffset;
                     scroll.Arrange(body);
                     float content = MeasureCatalogText(canvas, side.Text, 16 * scale, Math.Max(1, body.Width - scroll.ScrollbarWidth));
                     scroll.ContentHeight = content;
                     scroll.Offset = offset;
                 }
-                if (side.Image is { } image && reveal)
+                if (image is not null && reveal)
                 {
                     float top = area.Y + 31 * scale + textHeight;
                     float bottom = side.CanUseItem ? use.Bounds.Y - 8 : area.Bottom;
-                    canvas.RasterImage(image, new(area.X, top, area.Width, Math.Max(0, bottom - top)), slot);
+                    canvas.RasterImage(image, new(area.X, top, area.Width, Math.Max(0, bottom - top)), slot, media?.ImageRevision ?? 0);
                 }
             }
         }

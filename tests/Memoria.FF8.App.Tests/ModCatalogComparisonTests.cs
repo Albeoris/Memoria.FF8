@@ -13,6 +13,49 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ModCatalogComparisonTests
 {
     [Fact]
+    public async Task JunctionMovieCameraUsesTheOriginalTrackAndHonorsTheConfiguredVideoExtension()
+    {
+        string game = TestResources.GameDirectory;
+        CancellationToken token = TestContext.Current.CancellationToken;
+        using IResourceSource source = GameDataSourceFactory.Open(game);
+        IGameFileSource original = new ResourceService(source).GetSource<IGameFileSource>()!;
+        byte[] camera = await File.ReadAllBytesAsync(original.ResolveFile("movies/disc00_00.cam"), token);
+        ushort focal = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(camera.AsSpan(8 + 36, 2));
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(camera.AsSpan(8 + 36, 2), (ushort)(focal ^ 1));
+        string root = Path.Combine(Path.GetTempPath(), "catalog-movie-camera-" + Guid.NewGuid().ToString("N"));
+        string payload = Path.Combine(root, "payload");
+        string folder = Path.Combine(payload, "movies");
+        Directory.CreateDirectory(folder);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(payload, "mod.xml"), "<ModInfo><Name>Movie sample</Name><FFNxConfig><ffmpeg_video_ext>qt</ffmpeg_video_ext></FFNxConfig></ModInfo>", token);
+            await File.WriteAllBytesAsync(Path.Combine(folder, "disc00_00.cam"), camera, token);
+            await File.WriteAllBytesAsync(Path.Combine(folder, "disc00_00h.qt"), [], token);
+            using ModRuntime mods = new(root, watch: false);
+            ModPackageInstaller installer = new(Path.Combine(root, "state"), Path.Combine(root, "Mods"), "Classic/en/test");
+            using ModLibraryService library = new(Path.Combine(root, "cache"), installer, mods, "Classic/en/test", false);
+            await library.StopAsync();
+            ModPackage package = new("Junction/synthetic", "Movie sample", ModFormat.Junction, null, false, ModEffectiveStatus.Disabled, payload);
+            ModPreviewDocument preview = await library.OpenPreviewAsync(null, package, token);
+            ModPreviewEntry movie = Assert.Single(preview.Entries, entry => entry.IsMedia);
+            using ModPreviewMediaSources media = await preview.OpenMediaAsync(movie, new(game), token);
+            Assert.Equal("disc00_00h.avi", media.Before?.Name);
+            Assert.Equal("disc00_00h.qt", media.After.Name);
+
+            ModPreviewEntry track = Assert.Single(preview.Entries, entry => entry.Group == "Camera tracks");
+            Assert.False(track.IsMedia);
+            ModPreviewComparison pair = await preview.CompareAsync(track, new(game), token);
+            ModPreviewTextRow row = Assert.Single(pair.TextRows);
+            Assert.Contains($"Focal length {focal}", row.Before);
+            Assert.Contains($"Focal length {focal ^ 1}", row.After);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task MemoriaItemActionComparesStockItemAndOnlyTheSelectedPackageImage()
     {
         string game = TestResources.GameDirectory;
