@@ -1,6 +1,8 @@
 namespace Memoria.FF8.Runtime;
 
 internal delegate void NativeBattleEffect314ReadSpan<TFrame>(TFrame frame, uint address, Span<byte> data, Span<bool> known);
+internal delegate NativeBattleEffectArena? NativeBattleEffect314ReadProjectionRow<TFrame>(TFrame frame, uint address, Span<byte> data, Span<bool> known, out long version);
+internal delegate TFrame NativeBattleEffect314WriteProjectionRow<TFrame>(TFrame frame, uint address, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known, long version);
 
 public sealed record NativeBattleEffect314Frame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeCrtRandomState Random, NativeBattleEffect314State State)
 {
@@ -18,6 +20,8 @@ public sealed record NativeBattleEffect314AddressStep(NativeBattleEffect314Frame
 public sealed record NativeBattleEffect314Inputs(NativeBattleSummonColors Colors, Func<NativeBattleEffect314Frame, NativeBattleActionPacketsState> ReadPackets, Func<NativeBattleEffect314Frame, BattleModelOwner, NativeBattleGraphicsModel> ReadModel, Func<NativeBattleEffect314Frame, NativeBattlePackedMatrix32> ReadView, Func<NativeBattleEffect314Frame, NativeBattleCameraProjection> ReadProjection, Func<NativeBattleEffect314Frame, short> ReadCameraRoll, Func<NativeBattleEffect314Frame, uint, int, NativeBattleEffectArena> ReadArena, Func<NativeBattleEffect314Frame, BattleModelOwner, uint> ReadGeometryAddress, Func<NativeBattleEffect314Frame, BattleModelOwner, int, uint> ResolveBoneRecord, Func<NativeBattleEffect314Frame, int, NativeBattleEffect314AddressStep> AllocateTemporary, Func<NativeBattleEffect314Frame, int, NativeBattleEffect314Frame> ReleaseTemporary, Func<NativeBattleEffect314Frame, NativeBattleEffect314Operation, NativeBattleEffect314Frame> Execute, Func<NativeBattleEffect314Frame, BattleModelOwner, BattleModelOwner> ResolveCompanion, Func<NativeBattleEffect314Frame, BattleModelOwner, int, int, NativeBattleEffectArena> ReadModelField)
 {
     internal NativeBattleEffect314ReadSpan<NativeBattleEffect314Frame>? ReadBytes { get; init; }
+    internal NativeBattleEffect314ReadProjectionRow<NativeBattleEffect314Frame>? ReadProjectionRow { get; init; }
+    internal NativeBattleEffect314WriteProjectionRow<NativeBattleEffect314Frame>? WriteProjectionRow { get; init; }
     public Func<NativeBattleEffect314Frame, BattleModelOwner, NativeBattleModelGeometrySource>? ReadGeometrySource { get; init; }
     public Func<NativeBattleEffect314Frame, BattleModelOwner, int, NativeBattlePackedMatrix32>? ReadBoneMatrix { get; init; }
     public Func<NativeBattleEffect314Frame, BattleModelOwner, int, NativeBattlePackedMatrix32, NativeBattleEffect314Frame>? WriteBoneMatrix { get; init; }

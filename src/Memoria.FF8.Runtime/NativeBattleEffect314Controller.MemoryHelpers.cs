@@ -80,6 +80,12 @@ public static partial class NativeBattleEffect314Controller
         }
     }
 
+    internal static NativeBattleEffectArena? ReadProjectionRow(NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known, out long version)
+    {
+        ImmutableDictionary<int, NativeBattleResourcePointer?>? pointers = ReadBytesCore(frame, address, data, known, out version);
+        return pointers is { Count: > 0 } ? NativeBattleEffectArena.CreateOwnedRead(data.ToArray(), known, pointers, version) : null;
+    }
+
     private static ImmutableDictionary<int, NativeBattleResourcePointer?>? ReadBytesCore(NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known, out long version)
     {
         int length = data.Length;
@@ -171,13 +177,46 @@ public static partial class NativeBattleEffect314Controller
 
     public static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena source, int length)
     {
+        return WriteBytes(frame, address, new WriteSource(source), length);
+    }
+
+    internal static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, NativeBattleEffect314WriteSourceSnapshot source)
+    {
+        return WriteBytes(frame, address, new WriteSource(source), source.Data.Length);
+    }
+
+    private readonly struct WriteSource
+    {
+        private readonly NativeBattleEffectArena? arena;
+        private readonly NativeBattleEffect314WriteSourceSnapshot snapshot;
+        private readonly bool detached;
+
+        internal WriteSource(NativeBattleEffectArena arena)
+        {
+            this.arena = arena;
+            snapshot = default;
+            detached = false;
+        }
+
+        internal WriteSource(NativeBattleEffect314WriteSourceSnapshot snapshot)
+        {
+            arena = null;
+            this.snapshot = snapshot;
+            detached = true;
+        }
+
+        internal NativeBattleEffect314WriteSourceSnapshot Capture(int offset, int length) => detached ? snapshot.Slice(offset, length) : NativeBattleEffect314WriteSourceSnapshot.Capture(arena!, offset, length);
+    }
+
+    private static NativeBattleEffect314Frame WriteBytes(NativeBattleEffect314Frame frame, uint address, WriteSource source, int length)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(length);
         int copied = 0;
         while (copied < length)
         {
             uint current = checked(address + (uint)copied);
             int count = RegionLength(frame, current, length - copied, out int poolIndex, out int stateKind);
-            NativeBattleEffect314WriteSourceSnapshot selected = NativeBattleEffect314WriteSourceSnapshot.Capture(source, copied, count);
+            NativeBattleEffect314WriteSourceSnapshot selected = source.Capture(copied, count);
             if (poolIndex >= 0)
             {
                 NativeBattleEffectTaskPool pool = frame.Effect.Pools[poolIndex];

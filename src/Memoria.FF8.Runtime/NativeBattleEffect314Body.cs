@@ -64,7 +64,7 @@ public static class NativeBattleEffect314Body
                 frame = LoadMatrix(frame, matrix);
                 context = (raw + 2).Write(context, 0x54);
                 frame = Write(frame, inputs, contextAddress, context, 0x64);
-                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection) { GeometrySource = geometry, CaptureVertex = worlds is null ? null : (address, world) => worlds[address] = world };
+                NativeBattleEffect314ProjectionServices<NativeBattleEffect314Frame> projection = new(inputs.ReadArena, (current, address, data, length) => Write(current, inputs, address, data, length), current => current.Memory, (current, memory) => current with { Memory = memory }, inputs.ReadView, inputs.ReadProjection) { ReadRow = inputs.ReadProjectionRow, WriteRow = inputs.WriteProjectionRow, GeometrySource = geometry, CaptureVertex = worlds is null ? null : (address, world) => worlds[address] = world };
                 frame = NativeBattleEffect314Projection663760.ProjectGroup(frame, projection, contextAddress, false);
             }
             context = inputs.ReadArena(frame, contextAddress, 0x64);

@@ -4,6 +4,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffect314ProjectionServices<TFrame>(Func<TFrame, uint, int, NativeBattleEffectArena> ReadArena, Func<TFrame, uint, NativeBattleEffectArena, int, TFrame> WriteArena, Func<TFrame, NativeBattleEffectMemory> ReadMemory, Func<TFrame, NativeBattleEffectMemory, TFrame> WriteMemory, Func<TFrame, NativeBattlePackedMatrix32> ReadView, Func<TFrame, NativeBattleCameraProjection> ReadProjection)
 {
+    internal NativeBattleEffect314ReadProjectionRow<TFrame>? ReadRow { get; init; }
+    internal NativeBattleEffect314WriteProjectionRow<TFrame>? WriteRow { get; init; }
     public NativeBattleModelGeometrySource? GeometrySource { get; init; }
     public Action<uint, System.Numerics.Vector3>? CaptureVertex { get; init; }
 }
@@ -41,18 +43,31 @@ public static class NativeBattleEffect314Projection663760
         }
         raw += 2;
         int stride = expanded ? 16 : 8;
+        bool spanRows = services.ReadRow is not null && services.WriteRow is not null;
+        Span<byte> rowData = stackalloc byte[16];
+        Span<bool> rowKnown = stackalloc bool[16];
         NativeBattleGeometryRegisterStep registers = Registers(frame);
         for (int index = 0; index < count; index++)
         {
             NativeBattleVector point = Vector(raw.Read(6));
             registers = NativeBattleGeometry.Transform(NativeBattleGeometry.LoadVector(registers, 0, point, 0));
             uint destination = output + unchecked((uint)(index * stride + (expanded ? 8 : 0)));
-            NativeBattleEffectArena xyz = NativeBattleEffectArena.Clear().MarkUnknown(0, 6);
+            scoped ProjectionRow xyz;
+            if (spanRows)
+            {
+                rowData[..6].Clear();
+                rowKnown[..6].Clear();
+                xyz = new(null, rowData[..6], rowKnown[..6], 1);
+            }
+            else
+            {
+                xyz = new(NativeBattleEffectArena.Clear().MarkUnknown(0, 6));
+            }
             for (int axis = 0; axis < 3; axis++)
             {
-                xyz = PutWord(xyz, axis * 2, registers.Colors.Ir[axis] ?? throw new NotSupportedException("The vertex requires its current transformed IR value."));
+                xyz.PutWord(axis * 2, registers.Colors.Ir[axis] ?? throw new NotSupportedException("The vertex requires its current transformed IR value."));
             }
-            frame = services.WriteArena(Publish(frame, registers), destination, xyz, 6);
+            frame = xyz.Publish(Publish(frame, registers), services, destination, 6);
             raw += 6;
         }
         NativeBattlePackedMatrix32 view = services.ReadView(frame);
@@ -63,37 +78,134 @@ public static class NativeBattleEffect314Projection663760
         for (int index = 0; index < count; index++)
         {
             uint rowAddress = output + unchecked((uint)(index * stride));
-            NativeBattleEffectArena row = services.ReadArena(frame, rowAddress, stride);
+            scoped ProjectionRow row;
+            if (spanRows)
+            {
+                NativeBattleEffectArena? fallback = services.ReadRow!(frame, rowAddress, rowData[..stride], rowKnown[..stride], out long version);
+                row = new(fallback, rowData[..stride], rowKnown[..stride], version);
+            }
+            else
+            {
+                row = new(services.ReadArena(frame, rowAddress, stride));
+            }
             int pointOffset = expanded ? 8 : 0;
-            NativeBattleVector point = Vector(row, pointOffset);
+            NativeBattleVector point = row.Vector(pointOffset);
             services.CaptureVertex?.Invoke(rowAddress, NativeBattleEffect32Presentation.World(view.ReadMatrix(), point, projection));
-            registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, point, Padding(row, pointOffset + 6)), projection, controls.Dqa, controls.Dqb);
+            registers = NativeBattleGeometry.ProjectSingle(NativeBattleGeometry.LoadVector(registers, 0, point, row.Padding(pointOffset + 6)), projection, controls.Dqa, controls.Dqb);
             context = PutDword(context, 0x1C, registers.Geometry.Sxy[2] ?? throw new NotSupportedException("The vertex requires its projected screen coordinates."));
             uint depth = unchecked((uint)(unchecked((int)(registers.Geometry.Sz[3] ?? throw new NotSupportedException("The vertex requires its projected depth."))) >> 2));
             context = PutDword(context, 0x20, depth);
             if (unchecked((short)depth) > 0)
             {
                 byte gray = Gray(point.Y, Word(context, expanded ? 0x6C : 0x4C));
-                row = PutDword(row, 0, Dword(context, 0x1C));
+                row.PutDword(0, Dword(context, 0x1C));
                 if (expanded)
                 {
-                    row = PutWord(row, 4, unchecked((int)depth)).Write(6, [gray]);
+                    row.PutWord(4, unchecked((int)depth));
+                    row.PutByte(6, gray);
                 }
                 else
                 {
                     context = context.Write(0x22, [gray]);
-                    row = Copy(context, 0x20, row, 4, 4);
+                    row.CopyFrom(context, 0x20, 4, 4);
                 }
             }
             else
             {
-                row = PutWord(row, 4, 0);
+                row.PutWord(4, 0);
             }
-            frame = services.WriteArena(Publish(frame, registers), rowAddress, row, stride);
+            frame = row.Publish(Publish(frame, registers), services, rowAddress, stride);
         }
         context = PutDword(raw.Write(context, cursorOffset), cursorOffset + 4, output + unchecked((uint)(count * stride)));
         return services.WriteArena(Publish(frame, registers), address, context, length);
     }
+    private ref struct ProjectionRow
+    {
+        private NativeBattleEffectArena? arena;
+        private readonly Span<byte> data;
+        private readonly Span<bool> known;
+        private readonly NativeBattleEffect314ReadOnlyCapture captured;
+        private long version;
+
+        internal ProjectionRow(NativeBattleEffectArena arena)
+        {
+            this.arena = arena;
+            data = default;
+            known = default;
+            captured = default;
+            version = 0;
+        }
+
+        internal ProjectionRow(NativeBattleEffectArena? arena, Span<byte> data, Span<bool> known, long version)
+        {
+            this.arena = arena;
+            this.data = data;
+            this.known = known;
+            captured = arena is null ? NativeBattleEffect314ReadOnlyCapture.FromBytes(data, known) : default;
+            this.version = version;
+        }
+
+        internal NativeBattleVector Vector(int offset) => arena is null ? new(captured.ReadInt16(offset), captured.ReadInt16(offset + 2), captured.ReadInt16(offset + 4)) : NativeBattleEffect314Projection663760.Vector(arena, offset);
+
+        internal short? Padding(int offset)
+        {
+            return arena is not null ? NativeBattleEffect314Projection663760.Padding(arena, offset) : known[offset] && known[offset + 1] ? BinaryPrimitives.ReadInt16LittleEndian(data.Slice(offset, 2)) : null;
+        }
+
+        internal void PutWord(int offset, int value)
+        {
+            if (arena is not null)
+            {
+                arena = NativeBattleEffect314Projection663760.PutWord(arena, offset, value);
+                return;
+            }
+            BinaryPrimitives.WriteInt16LittleEndian(data.Slice(offset, 2), unchecked((short)value));
+            known.Slice(offset, 2).Fill(true);
+            version++;
+        }
+
+        internal void PutDword(int offset, uint value)
+        {
+            if (arena is not null)
+            {
+                arena = NativeBattleEffect314Projection663760.PutDword(arena, offset, value);
+                return;
+            }
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(offset, 4), value);
+            known.Slice(offset, 4).Fill(true);
+            version++;
+        }
+
+        internal void PutByte(int offset, byte value)
+        {
+            if (arena is not null)
+            {
+                arena = arena.Write(offset, [value]);
+                return;
+            }
+            data[offset] = value;
+            known[offset] = true;
+            version++;
+        }
+
+        internal void CopyFrom(NativeBattleEffectArena source, int from, int to, int length)
+        {
+            if (arena is not null)
+            {
+                arena = Copy(source, from, arena, to, length);
+                return;
+            }
+            source.RequireRange(from, length);
+            source.ReadWithKnownness(from, data.Slice(to, length), known.Slice(to, length));
+            version++;
+        }
+
+        internal TFrame Publish<TFrame>(TFrame frame, NativeBattleEffect314ProjectionServices<TFrame> services, uint address, int length)
+        {
+            return arena is not null ? services.WriteArena(frame, address, arena, length) : services.WriteRow!(frame, address, data[..length], known[..length], version);
+        }
+    }
+
     private static uint Dword(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadUInt32LittleEndian(arena.Read(offset, 4));
     private static short Word(NativeBattleEffectArena arena, int offset) => BinaryPrimitives.ReadInt16LittleEndian(arena.Read(offset, 2));
     private static NativeBattleEffectArena PutDword(NativeBattleEffectArena arena, int offset, uint value) => arena.Write(offset, BitConverter.GetBytes(value));

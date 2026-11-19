@@ -32,6 +32,17 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect314Controller.ReadWithKnownness(frame, address, data, known);
     }
 
+    private NativeBattleEffectArena? ReadNativeEffect314ProjectionRow(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint address, Span<byte> data, Span<bool> known, out long version)
+    {
+        NativeBattleEffectArena? owner = ReadNativeEffect314ArenaOverride(graphics, frame, address, data.Length);
+        if (owner is not null)
+        {
+            version = 0;
+            return owner;
+        }
+        return NativeBattleEffect314Controller.ReadProjectionRow(frame, address, data, known, out version);
+    }
+
     private NativeBattleEffectArena? ReadNativeEffect314ArenaOverride(NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, uint address, int length)
     {
         if (address == 0x1D8E054 && length == 4)
@@ -117,19 +128,47 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleEffect314Frame WriteNativeEffect314Arena(NativeBattleEffect314Frame frame, uint address, NativeBattleEffectArena data, int length)
     {
+        return TryNativeEffect314CpuWrite(address, length, out NativeBattleModelCpuResources? cpu, out int bank, out int offset)
+            ? WriteNativeEffect314Cpu(frame, cpu!, bank, offset, data, length)
+            : NativeBattleEffect314Controller.WriteBytes(frame, address, data, length);
+    }
+
+    private NativeBattleEffect314Frame WriteNativeEffect314ProjectionRow(NativeBattleEffect314Frame frame, uint address, ReadOnlySpan<byte> data, ReadOnlySpan<bool> known, long version)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(version);
+        if (TryNativeEffect314CpuWrite(address, data.Length, out NativeBattleModelCpuResources? cpu, out int bank, out int offset))
+        {
+            NativeBattleEffectArena source = NativeBattleEffectArena.CreateOwnedRead(data.ToArray(), known, null, version);
+            return WriteNativeEffect314Cpu(frame, cpu!, bank, offset, source, data.Length);
+        }
+        return NativeBattleEffect314Controller.WriteBytes(frame, address, NativeBattleEffect314WriteSourceSnapshot.Capture(data, known));
+    }
+
+    private bool TryNativeEffect314CpuWrite(uint address, int length, out NativeBattleModelCpuResources? cpu, out int selectedBank, out int offset)
+    {
         for (int bank = 0; bank < 3; bank++)
         {
             NativeBattlePartyCpuLayout layout = (NativeModelCpuResources ?? throw new NotSupportedException("The effect requires its current CPU allocation.")).Cpu.EffectiveLayout;
             uint first = checked(layout.BaseAddress + (uint)(bank * layout.BankLength));
             if (address >= first && (ulong)address + (uint)length <= (ulong)first + (uint)layout.BankLength)
             {
-                NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its physical CPU bank.");
-                NativeBattleModelCpuBank updated = cpu.Cpu.Banks[bank].Write(checked((int)(address - first)), data.Read(0, length));
-                NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(bank, updated) } };
-                return frame;
+                cpu = NativeModelCpuResources ?? throw new NotSupportedException("Effect314 requires its physical CPU bank.");
+                selectedBank = bank;
+                offset = checked((int)(address - first));
+                return true;
             }
         }
-        return NativeBattleEffect314Controller.WriteBytes(frame, address, data, length);
+        cpu = null;
+        selectedBank = 0;
+        offset = 0;
+        return false;
+    }
+
+    private NativeBattleEffect314Frame WriteNativeEffect314Cpu(NativeBattleEffect314Frame frame, NativeBattleModelCpuResources cpu, int bank, int offset, NativeBattleEffectArena data, int length)
+    {
+        NativeBattleModelCpuBank updated = cpu.Cpu.Banks[bank].Write(offset, data.Read(0, length));
+        NativeModelCpuResources = cpu with { Cpu = cpu.Cpu with { Banks = cpu.Cpu.Banks.SetItem(bank, updated) } };
+        return frame;
     }
 
     private NativeBattleEffect314Frame DeliverNativeEffect314Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, NativeBattleGfGeometryBatch batch, uint cursorGlobal, NativeBattleEffectPresentationPackets.Collector presentationPackets, ushort flags = 0)

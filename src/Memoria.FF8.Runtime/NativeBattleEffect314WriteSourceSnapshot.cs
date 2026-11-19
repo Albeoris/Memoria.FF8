@@ -9,12 +9,35 @@ internal readonly record struct NativeBattleEffect314WriteSourceSnapshot(byte[] 
     {
         source.RequireRange(offset, length);
         (byte[] data, bool[] known) = source.ReadSnapshot(offset, length);
-        ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder? pointers = null;
-        if (source.MayHaveResourcePointers())
+        return CaptureOwned(data, known, source.MayHaveResourcePointers() ? source.EnumerateResourcePointers() : null, offset);
+    }
+
+    internal static NativeBattleEffect314WriteSourceSnapshot Capture(ReadOnlySpan<byte> data, ReadOnlySpan<bool> known)
+    {
+        if (data.Length > NativeBattleEffectArena.Length || data.Length != known.Length)
         {
-            foreach ((int field, NativeBattleResourcePointer? pointer) in source.EnumerateResourcePointers())
+            throw new InvalidDataException("Native detached write requires bounded bytes and matching knownness.");
+        }
+        return new(data.ToArray(), known.ToArray(), ImmutableDictionary<int, NativeBattleResourcePointer?>.Empty);
+    }
+
+    internal NativeBattleEffect314WriteSourceSnapshot Slice(int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > Data.Length - length)
+        {
+            throw new InvalidDataException("Native effect memory access exceeds20DFAB8..21DFAB8.");
+        }
+        return offset == 0 && length == Data.Length ? this : CaptureOwned(Data.AsSpan(offset, length).ToArray(), Known.AsSpan(offset, length).ToArray(), Pointers, offset);
+    }
+
+    private static NativeBattleEffect314WriteSourceSnapshot CaptureOwned(byte[] data, bool[] known, IEnumerable<KeyValuePair<int, NativeBattleResourcePointer?>>? sourcePointers, int offset)
+    {
+        ImmutableDictionary<int, NativeBattleResourcePointer?>.Builder? pointers = null;
+        if (sourcePointers is not null)
+        {
+            foreach ((int field, NativeBattleResourcePointer? pointer) in sourcePointers)
             {
-                if (field >= offset && field - offset <= length - 4)
+                if (field >= offset && field - offset <= data.Length - 4)
                 {
                     (pointers ??= ImmutableDictionary.CreateBuilder<int, NativeBattleResourcePointer?>()).Add(field - offset, pointer);
                 }
