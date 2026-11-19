@@ -1,5 +1,11 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Events;
+
+if (args.Contains("--native-trigonometry-only", StringComparer.Ordinal))
+{
+    NativeTrigonometryOpcodeTests.Run();
+    return 0;
+}
 
 if (args.Contains("--native-custom-lighting-only", StringComparer.Ordinal))
 {
@@ -284,6 +290,7 @@ var tests = new (string Name, Action Run)[]
     ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native word talk radius operands and cold continuation", NativeWordTalkRadiusTests.Run),
+    ("native SIN/COS operands and cold continuation", NativeTrigonometryOpcodeTests.Run),
     ("native party direction query and cold continuation", NativePartyDirectionQueryTests.Run),
     ("native background layer depth operands and cold continuation", NativeBackgroundDepthTests.Run),
     ("native background scroll operands and cold continuation", NativeBackgroundScrollTests.Run),

@@ -147,6 +147,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
     private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum, out bool controllable)
     {
         controllable = false;
+        ObserveFieldDestinationArrival();
         ordinaryObservation = null;
         ordinaryPhysicalGuards = null;
         nativePlanningQuantum = quantum;
@@ -213,10 +214,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 resumedNativeAvailability = new(admittedCoverage.Unavailable, new(admittedCoverage.UnavailableVariants, StringComparer.Ordinal), admittedCoverage.AvailabilityFingerprint);
             }
             nativeProofCompleted = true;
-        }
-        if (State.DestinationField == session.MapId)
-        {
-            State.DestinationField = null;
         }
         controllable = true;
         driver.ConfigureSpatialBoundaries(observation.Events);
@@ -701,9 +698,19 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         return $"{navigationKey}|{target.Id}|{target.EntryInputContract}";
     }
 
+    private void ObserveFieldDestinationArrival()
+    {
+        if (session.World is null && State.DestinationField == session.MapId)
+        {
+            State.DestinationField = null;
+            Publish();
+        }
+    }
+
     private void ObserveTick(Ff7NativeTickObservation observation)
     {
         ObserveNativeRouteBoundary();
+        ObserveFieldDestinationArrival();
         if (State.Active is not { } active || active.Generation != observation.Generation)
         {
             return;

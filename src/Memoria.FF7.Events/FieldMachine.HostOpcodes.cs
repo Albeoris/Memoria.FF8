@@ -1,4 +1,4 @@
-namespace Memoria.FF7.Events;
+﻿namespace Memoria.FF7.Events;
 
 public sealed partial class FieldMachine
 {
@@ -443,6 +443,15 @@ public sealed partial class FieldMachine
                 return Host(id, new FieldLineCommand(FieldLineOperation.Enable, Value: B(id, 1)), 2);
             case 0xD3:
                 return Host(id, new FieldLineCommand(FieldLineOperation.Replace, R16(id, 1, 4), R16(id, 2, 6), R16(id, 3, 8), R16(id, 4, 10), R16(id, 5, 12), R16(id, 6, 14)), 16);
+            case 0xD4:
+            case 0xD5:
+                float degrees = R16(id, 1, 3) * 0.087890625f;
+                double radians = degrees * 0.017453292519944444;
+                int wave = (int)((opcode == 0xD4 ? Math.Sin(radians) : Math.Cos(radians)) * 4096d);
+                int scaled = unchecked(wave * R16(id, 2, 5) + R16(id, 3, 7));
+                Variables.WriteWord(Bank(id, 4), B(id, 9), unchecked((short)(scaled >> 12)));
+                Advance(id, 10);
+                return false;
             case 0xD6:
                 if (!entities[id].ModelBound)
                 {

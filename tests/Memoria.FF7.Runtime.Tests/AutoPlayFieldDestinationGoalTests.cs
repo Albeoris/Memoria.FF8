@@ -1,6 +1,9 @@
 ﻿using System.Numerics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Memoria.AutoPlay;
+using Memoria.FF7.Events;
 using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -9,6 +12,7 @@ internal static class AutoPlayFieldDestinationGoalTests
 {
     internal static void Run()
     {
+        CheckLockedDestinationArrival();
         RunWorldBridge();
         CheckKnownComponentDeparture();
         Ff7AutoPlayTarget entrance = new("entrance", 1, 3, Ff7AutoPlayTargetKind.LineCross, "current", false, Vector3.Zero, DestinationField: 300, ChangesField: true);
@@ -164,6 +168,50 @@ internal static class AutoPlayFieldDestinationGoalTests
             planner.ObserveNavigation(observation.VisitId, observation.NavigationKey, [native]);
             Check(Ff7AutoPlayPolicy.ResolveFieldDestinationGoal(state, observation with { Events = [changed] }, _ => []) is null && state.NavigationGoal?.Conditions == changed.ConditionFingerprint, "A genuinely unconsumed changed native guard must remain eligible without requiring an earlier successful transfer.");
         }
+    }
+
+    private static void CheckLockedDestinationArrival()
+    {
+        Ff7Session session = (Ff7Session)RuntimeHelpers.GetUninitializedObject(typeof(Ff7Session));
+        Ff7FieldHost host = (Ff7FieldHost)RuntimeHelpers.GetUninitializedObject(typeof(Ff7FieldHost));
+        typeof(Ff7FieldHost).GetProperty(nameof(Ff7FieldHost.Process))!.SetValue(host, new Ff7FieldProcess { PlayerLocked = true, MenuDisabled = true });
+        FieldMachine machine = new(new FieldProgram([0, 0], [new ushort[32]]));
+        machine.Initialize();
+        typeof(Ff7Session).GetProperty(nameof(Ff7Session.Host))!.SetValue(session, host);
+        typeof(Ff7Session).GetProperty(nameof(Ff7Session.Machine))!.SetValue(session, machine);
+        typeof(Ff7Session).GetProperty(nameof(Ff7Session.MapId))!.SetValue(session, (ushort)100);
+        session.AutoPlayState = new() { DestinationField = 300 };
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("Arrival metadata must not create checkpoints."));
+        Ff7AutoPlayActiveEvent active = new("source", "native-owner", "condition", 7, 0, 3, Ff7AutoPlayTargetKind.LineCross, 300, 1, "before", Accepted: true);
+        Ff7AutoPlayNativeRoute proof = new(active.EventId, active.ConditionFingerprint, active.Generation, [new(new('A', 64), new(1, 0))], new('B', 64));
+        AutoPlayTravelGoal goal = new("source-component", active.EventId, active.ConditionFingerprint);
+        policy.State.Active = active;
+        policy.State.NativeRoute = proof;
+        policy.State.NavigationGoal = goal;
+        AutoPlayPlanner<Ff7AutoPlayDeferral> planner = Ff7AutoPlayPolicy.CreatePlanner(policy.State);
+        planner.Observe(new("source", "native"), [new(active.EventId, AutoPlayEventKind.Transition, ConditionSignature: active.ConditionFingerprint)]);
+        string native = JsonSerializer.Serialize(new { Process = host.Process, Vm = machine.Capture() });
+        string history = JsonSerializer.Serialize(policy.State.Coverage);
+        void Tick()
+        {
+            Action<Ff7NativeTickObservation> observed = (Action<Ff7NativeTickObservation>)typeof(Ff7Session).GetField("NativeTickCompleted", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session)!;
+            observed(new("destination", 99, 1, [], null, "native"));
+        }
+        Tick();
+        Check(policy.State.DestinationField == 300, "A predicted destination or unrelated native tick completed a field request before actual arrival.");
+        typeof(Ff7Session).GetProperty(nameof(Ff7Session.MapId))!.SetValue(session, (ushort)300);
+        Tick();
+        Check(host.Process.PlayerLocked && policy.State.DestinationField is null && session.AutoPlayState?.DestinationField is null, "A locked script-only arrival must publish completion before owner-generation or input-readiness early returns.");
+        Check(ReferenceEquals(policy.State.Active, active) && ReferenceEquals(policy.State.NativeRoute, proof) && ReferenceEquals(policy.State.NavigationGoal, goal), "Destination arrival replaced an accepted native owner, proof or navigation goal.");
+        Check(JsonSerializer.Serialize(policy.State.Coverage) == history && JsonSerializer.Serialize(new { Process = host.Process, Vm = machine.Capture() }) == native, "Destination metadata completion changed native progress, PCs, locks or event consumption history.");
+        typeof(Ff7Session).GetProperty(nameof(Ff7Session.MapId))!.SetValue(session, (ushort)400);
+        Tick();
+        Check(policy.State.DestinationField is null, "A later automatic departure revived the completed field request.");
+        policy.State.DestinationField = 400;
+        policy.State.PendingRestore = new("pending-choice");
+        MethodInfo choose = typeof(Ff7AutoPlayPolicy).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).Single(method => method.Name == "ChooseInput" && method.GetParameters().Length == 3);
+        choose.Invoke(policy, [new Ff7AutoplayDriver(session), new Ff7NativePlanningQuantum(), false]);
+        Check(policy.State.DestinationField is null && session.AutoPlayState?.DestinationField is null && policy.State.PendingRestore is not null && ReferenceEquals(policy.State.Active, active) && ReferenceEquals(policy.State.NativeRoute, proof), "A queued continuation prevented arrival completion or lost native ownership before its early return.");
     }
 
     private static void CheckKnownComponentDeparture()
