@@ -146,8 +146,6 @@ public sealed partial class BattleHudController
         BattleActionDefinition action = MagicStockChoices().Single(action => action.Id == recovery.ActionId);
         magicSection = ClassifyMagic(action);
         actionIndex = ActionChoices.ToList().FindIndex(candidate => candidate.Id == recovery.ActionId);
-        magicCastCount = 1;
-        magicCastCountSelected = true;
         selectedMagicTargets.Clear();
         if (confirm)
         {

@@ -183,6 +183,66 @@ public sealed class BattleMagicSectionNavigationTests
         Assert.Equal(2, hud.SelectedAction!.Id);
     }
 
+    [Theory]
+    [InlineData(0x20000u, 2, 0)]
+    [InlineData(0x40000u, 3, 0)]
+    [InlineData(0x20000u, 2, 1)]
+    [InlineData(0x40000u, 3, 1)]
+    [InlineData(0x40000u, 3, 2)]
+    public void RecoveryShortcutPreservesRepeatedCastsUntilTargetsAreSelected(uint status, int count, int finishAfter)
+    {
+        List<BattleInput> inputs = [];
+        BattleHudController hud = Create([Spell(1, BattleActionEffect.Damage, false), Spell(2, BattleActionEffect.Heal, true)], injured: true, execute: inputs.Add, status: status);
+        hud.Choose(0);
+        hud.Navigate(MenuInput.Alternate);
+        Assert.True(hud.ShowingMagicList);
+        Assert.Equal(2, hud.SelectedAction!.Id);
+        hud.Navigate(MenuInput.Alternate);
+        Assert.True(hud.SelectingTarget);
+        Assert.Equal("injured", hud.SelectedTarget!.Id);
+        Assert.Equal(count, hud.MagicCastCount);
+        Assert.False(hud.CanConfirmMagicTargets);
+        hud.Navigate(MenuInput.Alternate);
+        Assert.True(hud.SelectingTarget);
+        Assert.Empty(inputs);
+        int selectedCount = finishAfter == 0 ? count : finishAfter;
+        string[] targets = Enumerable.Range(0, selectedCount).Select(index => index % 2 == 0 ? "injured" : "caster").ToArray();
+        foreach (string target in targets)
+        {
+            Assert.Empty(inputs);
+            hud.SelectTarget(target, true);
+        }
+        if (finishAfter > 0)
+        {
+            Assert.Empty(inputs);
+            Assert.True(hud.CanConfirmMagicTargets);
+            hud.Navigate(MenuInput.Alternate);
+        }
+        BattleInput submitted = Assert.Single(inputs);
+        Assert.Equal(2, submitted.ActionId);
+        Assert.Equal(targets, submitted.MagicTargets.ToArray());
+        Assert.False(hud.SelectingTarget);
+    }
+
+    [Theory]
+    [InlineData(0x20000u)]
+    [InlineData(0x40000u)]
+    public void RecoveryShortcutPreservesAnExplicitSingleCast(uint status)
+    {
+        List<BattleInput> inputs = [];
+        BattleHudController hud = Create([Spell(1, BattleActionEffect.Damage, false), Spell(2, BattleActionEffect.Heal, true)], injured: true, execute: inputs.Add, status: status);
+        hud.Choose(0);
+        hud.Navigate(MenuInput.PageDown);
+        hud.Navigate(MenuInput.PageDown);
+        Assert.Equal(1, hud.MagicCastCount);
+        hud.Navigate(MenuInput.Alternate);
+        hud.Navigate(MenuInput.Alternate);
+        Assert.Equal(1, hud.MagicCastCount);
+        hud.SelectTarget("injured", true);
+        Assert.Empty(Assert.Single(inputs).MagicTargets);
+        Assert.False(hud.SelectingTarget);
+    }
+
     [Fact]
     public void ShortcutWithoutUsefulRecoveryLeavesSelectionAndSectionUntouched()
     {
@@ -216,18 +276,21 @@ public sealed class BattleMagicSectionNavigationTests
         return new(BattleAbility.Magic, id, $"Spell {id}", effect, 20, allies);
     }
 
-    private static BattleHudController Create(BattleActionDefinition[] actions, bool injured = false, Action<BattleInput>? execute = null)
+    private static BattleHudController Create(BattleActionDefinition[] actions, bool injured = false, Action<BattleInput>? execute = null, uint status = 0)
     {
         BattleSession session = new(new BattleDefinition
         {
             Combatants =
             [
-                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, MaximumHp = 1000, CurrentHp = 1000, Magic = 20, Abilities = [BattleAbility.Magic], MagicStocks = actions.Select(action => new BattleStock(action.Id, 10)).ToArray() },
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, MaximumHp = 1000, CurrentHp = 1000, NativeStatus1 = status, Magic = 20, Abilities = [BattleAbility.Magic], MagicStocks = actions.Select(action => new BattleStock(action.Id, 10)).ToArray() },
                 new() { Id = "injured", Name = "Ally", IsPlayer = true, MaximumHp = 1000, CurrentHp = injured ? 400 : 1000 },
                 new() { Id = "enemy", Name = "Enemy" }
             ],
-            ActionDefinitions = actions
+            ActionDefinitions = actions.Select(action => action.NativeAction is not null ? action : action with
+            {
+                NativeAction = new(2, (ushort)action.Id, 1, action.Id) { AttackType = (byte)(action.Effect == BattleActionEffect.Heal ? 3 : action.Effect == BattleActionEffect.Scan ? 12 : 2), Power = (byte)(action.Effect is BattleActionEffect.Status or BattleActionEffect.Scan ? 0 : action.Power), MagicId = (ushort)action.Id, DamagePresentation = 0, ElementPercent = null, Hit = null, Critical = null, LevelModifier = null, PowerModifier = null, HitCount = 1, TargetFlags = (byte)((action.Allies ? 0 : 0x40) | (action.AllTargets ? 0 : 0x10)), AttackFlags = 1, Element = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = [], SupplementalRecord = [] }
+            }).ToArray()
         }, BattleAtbMode.TurnBased);
-        return new(session, (_, _) => { }, () => { }, () => { }, execute: execute);
+        return new(session, (_, _) => { }, () => { }, () => { }, execute: execute, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 }
