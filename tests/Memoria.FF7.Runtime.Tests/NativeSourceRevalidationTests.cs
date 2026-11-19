@@ -54,10 +54,13 @@ internal static class NativeSourceRevalidationTests
         legacyAttempt.SourceRevalidationAttempts.Add(guideOnlyReceipt);
         string preTalkTerminalReceipt = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Source = "remote", Event = repair.Id, Condition = "pending", Revision = 4, Facts = legacyFacts })));
         legacyAttempt.SourceRevalidationAttempts.Add(preTalkTerminalReceipt);
-        Check(Ff7AutoPlayPolicy.LocalSourceProverRevision == 5 && preTalkTerminalReceipt != debt[0].ReceiptKey, "Expanded native talk terminal contract reused its older negative-attempt namespace.");
+        string backwardOnlyReceipt = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { Source = "remote", Event = repair.Id, Condition = "pending", Revision = 5, Facts = legacyFacts })));
+        legacyAttempt.SourceRevalidationAttempts.Add(backwardOnlyReceipt);
+        Check(backwardOnlyReceipt != debt[0].ReceiptKey, "Backward-only ladder search suppressed the expanded owned-ladder input space.");
+        Check(Ff7AutoPlayPolicy.LocalSourceProverRevision == 6 && preTalkTerminalReceipt != debt[0].ReceiptKey, "Expanded native talk terminal contract reused its older negative-attempt namespace.");
         Check(legacyReceipt != debt[0].ReceiptKey && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Single().NavigationKey == "remote", "A retired prover's receipt suppressed a genuine unfinished remote source.");
         Ff7AutoPlayPolicy.RecordSourceRevalidationAttempt(legacyAttempt, "remote", repair.Id, "pending");
-        Check(legacyAttempt.SourceRevalidationAttempts.Contains(legacyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(rejectedOwnerReceipt) && rejectedOwnerReceipt != debt[0].ReceiptKey && guideOnlyReceipt != debt[0].ReceiptKey && legacyAttempt.SourceRevalidationAttempts.Contains(guideOnlyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(preTalkTerminalReceipt) && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Length == 0, "Current prover completion failed to suppress the same unchanged source attempt or erased its history.");
+        Check(legacyAttempt.SourceRevalidationAttempts.Contains(legacyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(rejectedOwnerReceipt) && rejectedOwnerReceipt != debt[0].ReceiptKey && guideOnlyReceipt != debt[0].ReceiptKey && legacyAttempt.SourceRevalidationAttempts.Contains(guideOnlyReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(preTalkTerminalReceipt) && legacyAttempt.SourceRevalidationAttempts.Contains(backwardOnlyReceipt) && Ff7AutoPlayPolicy.ReadPendingSourceRevalidations(legacyAttempt, observation).Length == 0, "Current prover completion failed to suppress the same unchanged source attempt or erased its history.");
         string positiveCapability = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("physical|native-continuation:2")));
         Check(Ff7AutoPlayPolicy.ReadNativeContinuationAvailability("physical") == positiveCapability && JsonSerializer.Serialize(legacyAttempt.Coverage) == coverage && JsonSerializer.Serialize(legacyAttempt.NavigationGuards) == guards, "Negative-attempt versioning changed positive capability, consumed completion or refusal history.");
         pending.Conditions!.ConsumedEntries.Add("pending");
@@ -75,7 +78,11 @@ internal static class NativeSourceRevalidationTests
         Check(taskCold.NativeRevalidation == state.NativeRevalidation && taskCold.SourceRevalidationAttempts.Count == 0, "Cold travel changed or completed its local task.");
         taskCold.NativeRevalidation = null;
         Check(taskCold.SourceRevalidationAttempts.Count == 0, "Cancellation fabricated a completed local probe.");
-        taskCold.NativeRevalidation = state.NativeRevalidation with { ArrivalAcknowledged = true };
+        taskCold.NativeRevalidation = state.NativeRevalidation with { ArrivalAcknowledged = true, DepartureReceiptKey = backwardOnlyReceipt };
+        Ff7AutoPlayState oldTask = taskCold.Clone();
+        Check(Ff7AutoPlayPolicy.HasArrivedSourceRevalidation(oldTask, arrival), "An old-revision arrived task was refused instead of continuing from saved facts.");
+        Ff7AutoPlayPolicy.CompleteSourceRevalidation(oldTask, "remote", repair.Id, "pending");
+        Check(oldTask.NativeRevalidation is null && oldTask.SourceRevalidationAttempts.Contains(debt[0].ReceiptKey) && !oldTask.SourceRevalidationAttempts.Contains(backwardOnlyReceipt), "Old arrived task completion used a stale departure key instead of new actual-source revision.");
         Check(Ff7AutoPlayPolicy.HasArrivedSourceRevalidation(taskCold, arrival), "Acknowledged arrival did not request its local probe.");
         Check(!Ff7AutoPlayPolicy.HasArrivedSourceRevalidation(taskCold, arrival with { Events = [] }), "A vanished source condition still authorized the local probe.");
         Ff7AutoPlayState released = taskCold.Clone();

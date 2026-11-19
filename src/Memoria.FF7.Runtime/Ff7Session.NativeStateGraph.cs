@@ -267,7 +267,13 @@ public sealed partial class Ff7AutoplayDriver
         Vector3 position = new(player.X4096 / 4096f, player.Y4096 / 4096f, player.Z4096 / 4096f);
         if (debt is not null)
         {
-            yield return new(Ff7NativeGraphEdgeKind.OwnerSettlement, position);
+            NativeGraphOwnership ownership = new(debt, null);
+            ownership.ObserveLadder(branch, player);
+            FieldHostRequest[] requests = player.Ladder is { Completed: false } ? branch.Machine.Capture().PendingRequests ?? [] : [];
+            foreach (Ff7AutoplayInput? input in ReadNativeLadderSettlementInputs(player, branch.Host.Process.PlayerLocked, requests, ownership))
+            {
+                yield return new(Ff7NativeGraphEdgeKind.OwnerSettlement, position, Input: input);
+            }
             yield break;
         }
         yield return new(Ff7NativeGraphEdgeKind.Wait, position);
@@ -306,6 +312,19 @@ public sealed partial class Ff7AutoplayDriver
         }
     }
 
+    internal static Ff7AutoplayInput?[] ReadNativeLadderSettlementInputs(Ff7Actor player, bool playerLocked, IReadOnlyList<FieldHostRequest> requests, NativeGraphOwnership ownership)
+    {
+        if (!player.PlayerControlled || playerLocked || player.Ladder is not { Completed: false } ladder)
+        {
+            return [null];
+        }
+        if (!ownership.OwnsCurrentLadder(ladder, requests))
+        {
+            throw new NotSupportedException("A controllable native ladder has no authenticated graph request owner.");
+        }
+        return [new(Held: ForwardLadderKey(ladder.Mode), Run: false), new(Held: BackwardLadderKey(ladder.Mode), Run: false), new Ff7AutoplayInput(Run: false)];
+    }
+
     internal static IEnumerable<Ff7AutoplayInput> ReadNativeMovementInputs()
     {
         foreach (var direction in Directions)
@@ -334,6 +353,14 @@ public sealed partial class Ff7AutoplayDriver
         {
             if (actor.Ladder is { Completed: false } ladder && ownership.OwnsLadder)
             {
+                if (edge.Input is Ff7AutoplayInput ladderInput)
+                {
+                    if (!ReadNativeLadderSettlementInputs(actor, branch.Host.Process.PlayerLocked, branch.Machine.Capture().PendingRequests ?? [], ownership).Contains(ladderInput))
+                    {
+                        throw new NotSupportedException("A native ladder callback does not belong to the current owned request.");
+                    }
+                    return ladderInput;
+                }
                 return new(Held: BackwardLadderKey(ladder.Mode), Run: false);
             }
             Ff7AutoPlayScriptedInput scripted = new(branch);
@@ -506,6 +533,11 @@ public sealed partial class Ff7AutoplayDriver
                 ladderRoot = owners.LastOrDefault(owner => owner.Entity == ladderEntity && owner.Priority == ladderPriority)?.Root ?? -1;
             }
             backwardCompleted = source?.BackwardCompleted ?? false;
+        }
+
+        internal bool OwnsCurrentLadder(Ff7LadderProcess ladder, IReadOnlyList<FieldHostRequest> requests)
+        {
+            return ladderRequest == ladder.RequestId && requests.Any(request => request.Id == ladderRequest && request.Entity == ladderEntity && request.Priority == ladderPriority && request.Command is FieldActorLadder command && command.X << 12 == ladder.TargetX && command.Y << 12 == ladder.TargetY && command.Z << 12 == ladder.TargetZ && command.Triangle == ladder.TargetTriangle && command.Mode == ladder.Mode) && owners.Any(owner => owner.Entity == ladderEntity && owner.Priority == ladderPriority && owner.Root == ladderRoot && !owner.Returned);
         }
 
         internal bool OwnsInput(int entity, int priority) => owners.Any(owner => owner.Entity == entity && owner.Priority == priority && !owner.Returned);

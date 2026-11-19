@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-owned-ladder-graph-only", StringComparer.Ordinal))
+{
+    NativeOwnedLadderGraphTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-actor-source-release-only", StringComparer.Ordinal))
 {
     NativeActorRouteTests.RunSourceRelease();

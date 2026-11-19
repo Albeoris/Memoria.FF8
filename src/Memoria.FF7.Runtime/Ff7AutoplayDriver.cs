@@ -213,7 +213,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         if (player.Ladder is { Completed: false } ladder)
         {
-            return new(Held: ladder.Mode switch { 0 => 0x4000, 1 => 0x1000, 2 => 0x2000, 3 => 0x8000, _ => throw new InvalidDataException("Invalid native ladder mode.") });
+            return new(Held: ForwardLadderKey(ladder.Mode));
         }
         int dx = (int)target.X - (player.X4096 >> 12);
         int dy = (int)target.Y - (player.Y4096 >> 12);
@@ -250,7 +250,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         if (player.Ladder is { Completed: false } ladder)
         {
-            return new(Held: ladder.Mode switch { 0 => 0x4000, 1 => 0x1000, 2 => 0x2000, 3 => 0x8000, _ => throw new InvalidDataException("Invalid native ladder mode.") });
+            return new(Held: ForwardLadderKey(ladder.Mode));
         }
         IReadOnlyList<PcWalkmeshTriangle> mesh = session.Field.Walkmesh;
         int destination = targetTriangle ?? mesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, target))!.Index;

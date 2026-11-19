@@ -95,6 +95,18 @@ public sealed partial class Ff7AutoplayDriver
         return target.Kind == Ff7AutoPlayTargetKind.ActorTalk || target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: >= 0, DestinationField: not null };
     }
 
+    internal static ushort ForwardLadderKey(int mode)
+    {
+        return mode switch
+        {
+            0 => 0x4000,
+            1 => 0x1000,
+            2 => 0x2000,
+            3 => 0x8000,
+            _ => throw new NotSupportedException("The native ladder mode is unsupported.")
+        };
+    }
+
     internal static ushort BackwardLadderKey(int mode)
     {
         return mode switch
