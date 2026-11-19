@@ -233,36 +233,12 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private Ff7AutoplayInput ChooseTalkInput(int entity, bool run)
     {
-        Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
         Ff7Actor target = session.Host.GetActor(entity);
         if (!target.TalkEnabled)
         {
             return default;
         }
-        int dx = (target.X4096 >> 12) - (player.X4096 >> 12);
-        int dy = (target.Y4096 >> 12) - (player.Y4096 >> 12);
-        if (session.GetTalkTarget()?.Entity == entity)
-        {
-            return new(Talk: true, Run: run);
-        }
-        int range = target.TalkRadius + player.CollisionRadius;
-        if (dx * dx + dy * dy >= range * range)
-        {
-            return ApproachTalkRange(target, run);
-        }
-        Ff7NativeMovement movement = session.Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement.");
-        int desired = dx == 0 && dy == 0 ? player.Direction : movement.Direction(dx, dy);
-        Ff7Actor controlled = player with { MoveSpeed = unchecked((ushort)session.GetPlayerMovementSpeed(run)) };
-        foreach (var direction in Directions.OrderBy(direction => Math.Abs(((direction.Direction + session.Field.Triggers.ControlDirection - desired + 128) & 255) - 128)))
-        {
-            Ff7NativeMoveResult preview = movement.StepDirection(controlled, (byte)((direction.Direction + session.Field.Triggers.ControlDirection) & 255), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, playerLocked: false, lineBlocked: session.Host.Process.LineBlocked);
-            if (AllowsPlannedMove(controlled, preview) && session.PreviewTalkTarget(preview.Actor)?.Entity == entity)
-            {
-                navigationActionProgress = true;
-                return new(direction.X, direction.Y, Run: run);
-            }
-        }
-        return ApproachTalkRange(target, run);
+        return ChooseNativeTalkContactInput(target, run) ?? ApproachTalkRange(target, run);
     }
 
     public Ff7AutoplayInput Approach(Vector3 target, int? targetTriangle = null, bool run = true)

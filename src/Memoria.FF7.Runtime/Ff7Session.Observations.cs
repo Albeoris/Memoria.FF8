@@ -21,6 +21,7 @@ public sealed partial class Ff7Session
     public event Action<Ff7NativeTickObservation>? NativeTickCompleted;
     public event Action<int, int, bool>? InteractionScriptRequested;
     internal event Action<FieldExternalScriptAdmission>? NativeInteractionScriptRequested;
+    internal event Action<FieldExternalScriptAdmission>? NativeActorTalkRequested;
     internal event Action<Ff7NativeGatewayDeparture?>? NativeFieldDeparting;
     internal Ff7NativeGatewayDeparture? GatewayDeparture { get; private set; }
     private bool deferNavigationFieldDeparture;
@@ -66,10 +67,14 @@ public sealed partial class Ff7Session
     public AutoPlayEventCoverageState? EventCoverage { get; internal set; }
     internal Ff7AutoPlayEventCoverage? CoverageOwner { get; set; }
 
-    private bool RequestInteractionScript(int entity, int script)
+    private bool RequestInteractionScript(int entity, int script, bool actorTalk = false)
     {
         FieldExternalScriptAdmission admission = Machine.RequestExternalScript(entity, script);
         NativeInteractionScriptRequested?.Invoke(admission);
+        if (actorTalk)
+        {
+            NativeActorTalkRequested?.Invoke(admission);
+        }
         InteractionScriptRequested?.Invoke(entity, script, admission.Accepted);
         return admission.Accepted;
     }

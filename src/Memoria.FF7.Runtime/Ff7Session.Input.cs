@@ -87,7 +87,7 @@ public sealed partial class Ff7Session
         }
         bool lineTalk = Host.RequestLineTalk(player);
         Ff7Actor? selected = GetTalkTarget();
-        bool actorTalk = selected is not null && RequestInteractionScript(selected.Entity, 1);
+        bool actorTalk = selected is not null && RequestInteractionScript(selected.Entity, 1, actorTalk: true);
         return actorTalk || lineTalk;
     }
 
@@ -117,6 +117,11 @@ public sealed partial class Ff7Session
             return null;
         }
         Ff7NativeMovement movement = Host.Movement ?? throw new NotSupportedException("FFVII interaction requires native movement direction tables.");
+        return SelectNativeTalkTarget(player, candidates, movement);
+    }
+
+    internal static Ff7Actor? SelectNativeTalkTarget(Ff7Actor player, IEnumerable<Ff7Actor> candidates, Ff7NativeMovement movement)
+    {
         int best = 64;
         Ff7Actor? selected = null;
         foreach (Ff7Actor actor in candidates.OrderBy(actor => actor.Slot))

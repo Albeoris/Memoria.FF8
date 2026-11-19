@@ -8,7 +8,7 @@ internal sealed record Ff7NativeSourceRevalidation(string NavigationKey, string 
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal const int LocalSourceProverRevision = 4;
+    internal const int LocalSourceProverRevision = 5;
 
     internal static Ff7NativeSourceRevalidation[] ReadPendingSourceRevalidations(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {

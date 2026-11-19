@@ -92,7 +92,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static bool SupportsNativeRouteTarget(Ff7AutoPlayTarget target)
     {
-        return target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: >= 0, DestinationField: not null };
+        return target.Kind == Ff7AutoPlayTargetKind.ActorTalk || target.Kind is >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave || target is { Kind: Ff7AutoPlayTargetKind.Gateway, GatewayIndex: >= 0, DestinationField: not null };
     }
 
     internal static ushort BackwardLadderKey(int mode)
@@ -152,9 +152,7 @@ public sealed partial class Ff7AutoplayDriver
     private int ReadNativeRouteDistance(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets)
     {
         Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-        var contacts = target.Kind == Ff7AutoPlayTargetKind.Gateway
-            ? DiscoverGatewayContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[target.GatewayIndex!.Value])
-            : DiscoverLineContacts(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Host.Process.Lines.Last(line => line.Entity == target.Entity));
+        var contacts = ReadNativeTargetContacts(session, player, target);
         return contacts.Select(contact => ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, contact.Triangle, ReadSpatialBoundaryTriangles(targets), target.Triangle).Distance[player.Triangle]).DefaultIfEmpty(int.MaxValue).Min();
     }
 }
