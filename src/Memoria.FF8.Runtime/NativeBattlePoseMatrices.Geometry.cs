@@ -76,7 +76,7 @@ public static partial class NativeBattlePoseMatrices
 
     private static ImmutableArray<NativeBattleActionMatrix> ComposeLinkedGeometry(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleActionMatrix basis)
     {
-        NativeBattleLinkedModelTransform local = model.LinkedTransform ?? throw new NotSupportedException("Native linked geometry requires its actual local WORDs20..32.");
+        NativeBattleLinkedModelTransform local = model.ReadEffectiveLinkedTransform() ?? throw new NotSupportedException("Native linked geometry requires its actual local WORDs20..32.");
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native linked geometry requires its independent pose owner.");
         NativeBattleDecodedPose pose = ReadLinkedDecodedPose(state, source);
         Matrix parent = new(basis.Rotation.ToArray(), basis.X, basis.Y, basis.Z);

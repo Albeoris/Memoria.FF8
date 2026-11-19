@@ -19,6 +19,8 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, [property: JsonIgno
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool PreferResourceStorage { get; init; }
+    public byte? CombatStyleModelId { get; init; }
+    public int SharedWeaponBodyObjectIndex { get; init; } = 1;
     [JsonIgnore]
     public bool UseResourceStorage => RequiresResourceStorage || PreferResourceStorage || OriginalSlot is null;
     [JsonIgnore]
@@ -26,11 +28,11 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, [property: JsonIgno
     [JsonIgnore]
     public bool RequiresResourceStorage => RequiredCapacity > Layout.BankLength;
 
-    internal static NativeBattlePartyLoadPlan Create(byte model, BattlePartyModelOwner owner, NativeBattleModelSlot? originalSlot, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources)
+    internal static NativeBattlePartyLoadPlan Create(byte model, BattlePartyModelOwner owner, NativeBattleModelSlot? originalSlot, byte bodySelector129, byte linkedSelector128, NativeBattlePartyCpuLayout layout, IReadOnlyList<NativeBattleModelDatSource> sources, byte? combatStyleModelId = null, int sharedWeaponBodyObjectIndex = 1)
     {
-        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, owner, originalSlot, 0, linkedSelector128, bodySelector129).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
-        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), owner, originalSlot, 0, linkedSelector128, bodySelector129).Task;
-        NativeBattlePartyLoadPlan plan = new(model, owner, originalSlot, layout, Part(body), linked is null ? null : Part(linked));
+        NativeBattleModelLoadTask body = NativeBattleModelLoader.Queue507080(model, owner, originalSlot, 0, linkedSelector128, bodySelector129, combatStyleModelId, sharedWeaponBodyObjectIndex).Task ?? throw new InvalidDataException("A party body load requires its selected callback.");
+        NativeBattleModelLoadTask? linked = NativeBattleModelLoader.Queue507080(checked((ushort)(model + 0x1000)), owner, originalSlot, 0, linkedSelector128, bodySelector129, combatStyleModelId, sharedWeaponBodyObjectIndex).Task;
+        NativeBattlePartyLoadPlan plan = new(model, owner, originalSlot, layout, Part(body), linked is null ? null : Part(linked)) { CombatStyleModelId = combatStyleModelId, SharedWeaponBodyObjectIndex = sharedWeaponBodyObjectIndex };
         plan.Validate();
         return plan;
 
@@ -50,7 +52,8 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, [property: JsonIgno
         Layout.Validate();
         Body.Validate();
         Linked?.Validate();
-        if (Body.Callback != (ModelId == 7 ? 0x5079B0u : 0x5077B0u) || (ModelId == 7) != (Linked is null) || Linked is { } linked && linked.Callback != (ModelId is 1 or 9 ? 0x507E20u : 0x507BF0u) || Body.CopiedLength > int.MaxValue - (Linked?.CopiedLength ?? 0))
+        byte linkedStyle = CombatStyleModelId ?? ModelId;
+        if (linkedStyle >= 16 || SharedWeaponBodyObjectIndex is < 0 or > 31 || Body.Callback != (ModelId == 7 ? 0x5079B0u : 0x5077B0u) || (linkedStyle == 7) != (Linked is null) || Linked is { } linked && linked.Callback != (linkedStyle is 1 or 9 ? 0x507E20u : 0x507BF0u) || Body.CopiedLength > int.MaxValue - (Linked?.CopiedLength ?? 0))
         {
             throw new InvalidDataException("Party load planning disagrees with its native body/linked copy callbacks.");
         }
@@ -68,7 +71,7 @@ public sealed record NativeBattlePartyLoadPlan(byte ModelId, [property: JsonIgno
     {
         Validate();
         NativeBattlePartyLoadPart selected = task.Callback == Body.Callback ? Body : Linked is { } linked && task.Callback == linked.Callback ? linked : throw new InvalidDataException("The model callback does not belong to its selected party load plan.");
-        if (task.ModelId != ModelId || task.Owner != Owner || task.OriginalSlot != OriginalSlot || task.Selector != selected.Selector || task.File is { } file && file != selected.File)
+        if (task.SharedWeaponBodyObjectIndex != SharedWeaponBodyObjectIndex || task.ModelId != ModelId || task.Owner != Owner || task.OriginalSlot != OriginalSlot || task.Selector != selected.Selector || task.File is { } file && file != selected.File)
         {
             throw new InvalidDataException("The model task no longer matches its selected complete party load.");
         }

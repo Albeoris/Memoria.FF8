@@ -6,13 +6,13 @@ public sealed record NativeBattleVictoryResourceBinding(NativeBattleFileStaging 
 
 public static class NativeBattleVictoryResources
 {
-    public static NativeBattleVictoryResourceBinding Bind5022C0(NativeBattleFileStaging staging, NativeBattleModelCpuResources cpu, NativeBattleGraphicsModel model, uint row, uint directory)
+    public static NativeBattleVictoryResourceBinding Bind5022C0(NativeBattleFileStaging staging, NativeBattleModelCpuResources cpu, NativeBattleGraphicsModel model, uint row, uint directory, bool? independentLinked = null)
     {
-        (NativeBattleGraphicsModel modelResult, uint next) = Bind5022C0(staging.ReadDat(directory), cpu, model, row, directory, address => staging.ReadResourcePointer(address), (address, pointer) => staging = staging.WriteResourcePointer(address, pointer));
+        (NativeBattleGraphicsModel modelResult, uint next) = Bind5022C0(staging.ReadDat(directory), cpu, model, row, directory, address => staging.ReadResourcePointer(address), (address, pointer) => staging = staging.WriteResourcePointer(address, pointer), independentLinked);
         return new(staging, modelResult, next);
     }
 
-    public static (NativeBattleGraphicsModel Model, uint NextRow) Bind5022C0(ImmutableArray<byte> bytes, NativeBattleModelCpuResources cpu, NativeBattleGraphicsModel model, uint row, uint directory, Func<uint, NativeBattleResourcePointer?> readPointer, Action<uint, NativeBattleResourcePointer?> writePointer)
+    public static (NativeBattleGraphicsModel Model, uint NextRow) Bind5022C0(ImmutableArray<byte> bytes, NativeBattleModelCpuResources cpu, NativeBattleGraphicsModel model, uint row, uint directory, Func<uint, NativeBattleResourcePointer?> readPointer, Action<uint, NativeBattleResourcePointer?> writePointer, bool? independentLinked = null)
     {
         int animations = NativeBattleDatDirectory.Section(bytes.AsSpan(), 0);
         int sequences = NativeBattleDatDirectory.Section(bytes.AsSpan(), 1);
@@ -23,7 +23,7 @@ public static class NativeBattleVictoryResources
         Copy(source, row, 12);
         uint next = checked(row + 16);
         uint? linkedRow = model.LinkedStagedResourceRow;
-        if (model.LinkedTransform is not null)
+        if (independentLinked ?? (model.LinkedTransform is not null))
         {
             NativeBattleResourceRowReference linkedSource = linkedRow is uint previous ? new(null, previous) : new(model.LinkedTextureResourceIndex ?? throw new NotSupportedException("Native5022C0 requires the actual linked object's resource row."), null);
             writePointer(checked(next + 8), new(null, checked(directory + (uint)linked), bytes.Length - linked));
@@ -80,7 +80,7 @@ public static class NativeBattleVictoryResources
     public static NativeBattleGraphicsResource Resolve(NativeBattleGraphicsModel model, NativeBattleGraphicsResource original, Func<uint, NativeBattleResourcePointer?> readPointer, Func<NativeBattleResourcePointer, int, byte[]> read)
     {
         uint row = model.ActiveStagedResourceRow100 ?? throw new InvalidOperationException("No staged resource row is selected.");
-        NativeBattlePoseSource pose = new(Skeleton(row), Block(checked(row + 8)));
+        NativeBattlePoseSource pose = new(Skeleton(row), Block(checked(row + 8))) { ActionBoneAliases = original.PoseSource?.ActionBoneAliases ?? [], RetargetBinding = original.PoseSource?.RetargetBinding };
         NativeBattlePoseSource? linked = model.LinkedStagedResourceRow is uint linkedRow ? new(Skeleton(linkedRow), Block(checked(linkedRow + 8))) : original.LinkedPoseSource;
         NativeBattleGraphicsResource resource = original with { SequenceSection = Block(checked(row + 12)), PoseSource = pose, AnimationFrames = NativeBattlePoseDecoder.ReadFrameCounts(pose.Animations.AsSpan()), LinkedPoseSource = linked, LinkedAnimationFrames = linked is null ? [] : NativeBattlePoseDecoder.ReadFrameCounts(linked.Animations.AsSpan()) };
         resource = resource.ApplyAnimationBankOverrides(model.ActiveAnimationBank, model.ActiveAnimationDirectory);

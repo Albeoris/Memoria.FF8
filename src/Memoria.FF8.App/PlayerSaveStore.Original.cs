@@ -35,7 +35,7 @@ internal sealed partial class PlayerSaveStore
         return bank == 0 ? MemoriaSlotCount : OriginalSlotsPerBank;
     }
 
-    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null, Func<GameState, string, Action<GameState>?, GameState>? writeGameplay = null)
+    public void Transfer(int sourceSlot, int destinationSlot, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, GameState? reviewedSource = null, short? originalPlaceId = null, Func<GameState, string, Action<GameState>?, GameState>? writeGameplay = null, bool allowBattleLoadoutLoss = false)
     {
         if (Game != Memoria.FF7.Runtime.SessionGame.Ff8)
         {
@@ -78,7 +78,7 @@ internal sealed partial class PlayerSaveStore
                 }
                 else
                 {
-                    Save(destinationSlot, new GameSession(state), validateContinuation, targetSource, allowGuardianForceLoss, originalPlaceId);
+                    Save(destinationSlot, new GameSession(state), validateContinuation, targetSource, allowGuardianForceLoss, originalPlaceId, allowBattleLoadoutLoss: allowBattleLoadoutLoss);
                 }
             }
         }

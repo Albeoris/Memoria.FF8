@@ -491,10 +491,11 @@ public static class NativeBattleModelResourceCopies
             {
                 throw new NotSupportedException("Native507E20 relative geometry patch requires the body's actual shared CPU bank.");
             }
-            _ = changed.Read(geometry.Offset + 8, 4);
+            int directoryEntry = checked(geometry.Offset + 4 * (task.SharedWeaponBodyObjectIndex + 1));
+            _ = changed.Read(directoryEntry, 4);
             byte[] relative = new byte[4];
             BinaryPrimitives.WriteInt32LittleEndian(relative, checked(origin - geometry.Offset + 8));
-            changed = changed.Write(geometry.Offset + 8, relative);
+            changed = changed.Write(directoryEntry, relative);
             body = body with { Lengths = body.Lengths.SetItem(16, checked(origin + length - geometry.Offset)) };
             rows = rows.SetItem(bodyRow, body);
         }

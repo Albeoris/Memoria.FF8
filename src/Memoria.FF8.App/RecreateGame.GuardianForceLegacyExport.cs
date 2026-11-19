@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
         }
         GameState snapshot = session.PrepareSnapshot();
         (NativeCharacterVitals targetSource, short? placeId) = await ReviewOriginalGuardianForceExportAsync(snapshot);
-        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId, combinedSession: crossover is not null);
+        playerSaves.Save(slot, session, ValidatePlayerState, targetSource, allowGuardianForceLoss: true, originalPlaceId: placeId, combinedSession: crossover is not null, allowBattleLoadoutLoss: true);
     }
 
     private async Task<(NativeCharacterVitals Source, short? PlaceId)> ReviewOriginalGuardianForceExportAsync(GameState snapshot)
@@ -28,6 +28,22 @@ internal sealed partial class RecreateGame
             try
             {
                 confirmed = await GuardianForceLegacyExportReview.ConfirmAsync(Window.Handle, plan, LocalizeUiText);
+            }
+            finally
+            {
+                DrainGuardianEditorDialogInput();
+            }
+            if (!confirmed)
+            {
+                throw new OperationCanceledException("Original save export cancelled.");
+            }
+        }
+        if (snapshot.BattleLoadouts?.Characters.Count > 0)
+        {
+            bool confirmed;
+            try
+            {
+                confirmed = await ModelBrowserDialogs.ShowConfirmationAsync(new GameConfirmationRequest(LocalizeUiText("save.loadout-export.explanation", "Original FFVIII saves cannot retain foreign weapons or custom ordered Limit families, including explicit removal of all Limits. This exported copy uses each character's recorded native equipment and original Limit assignments. The active Memoria game and source save keep all customizations."), LocalizeUiText("save.loadout-export.title", "Original FFVIII loadout conversion"), LocalizeUiText("save.loadout-export.cancel", "Cancel"), LocalizeUiText("save.loadout-export.export", "Export this copy"), LocalizeUiText("model.dialog.scroll-review", "Up / Down: scroll review")));
             }
             finally
             {

@@ -35,6 +35,7 @@ internal static class GameplaySaveRootOwnership
         Add("Characters", GameplaySavePersistenceRequirement.Durable, nameof(GameState.CharacterVitals));
         Add("Economy", GameplaySavePersistenceRequirement.Durable, nameof(GameState.Economy));
         Add("Limits", GameplaySavePersistenceRequirement.Durable, nameof(GameState.LimitProgress));
+        Add("BattleLoadouts", GameplaySavePersistenceRequirement.Durable, nameof(GameState.BattleLoadouts));
         Add("Native import and legacy read carrier", GameplaySavePersistenceRequirement.Split, nameof(GameState.OriginalSave));
         Add("Progression.NativeInteroperability", GameplaySavePersistenceRequirement.Durable, nameof(GameState.NativeSaveInteroperability));
         Add("Progression.SceneFacts", GameplaySavePersistenceRequirement.Split, nameof(GameState.GameplaySceneFacts));

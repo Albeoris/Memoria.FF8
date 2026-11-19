@@ -13,19 +13,21 @@ public sealed partial class BattleAssets
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor)) { InitialPosition = actor.IsPlayer ? NativeBattleFormation.PartyPosition(Array.IndexOf(party, actor), party.Length) : encounter is null ? null : encounter.Slots.Single(slot => slot.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Native graphics formation lacks its original scene position WORDs.") }).ToImmutableArray();
         //47DAC0 queues enemy103 completions before47DD30/47DBA0 player102/103 descriptors.
         ImmutableArray<string> order = actors.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(actors.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToImmutableArray();
-        return new(rules, bindings, order) { PrimitiveTables = ReadNativePrimitiveTables(), SoftwarePrimitiveTable = ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PcUiIcons = ReadNativePcUiIcons().Binding };
+        return new(rules, bindings, order) { PrimitiveTables = ReadNativePrimitiveTables(), SoftwarePrimitiveTable = ReadNativeSoftwarePrimitiveTable(), PrimitiveCapabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8(), PcUiIcons = ReadNativePcUiIcons().Binding, LimitPresentations = ReadNativeLimitPresentations(actors, bindings) };
     }
 
     public NativeBattleGraphicsResource ReadNativeGraphicsResource(BattleCombatantDefinition actor)
     {
         if (actor.IsPlayer)
         {
-            BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
+            BattleModel body = LoadPlayerForWeapon(actor.ModelId, actor.Costume, actor.WeaponId);
             BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
             BattleModel? linked = actor.WeaponId is int weapon ? ResolveWeaponModel(actor.ModelId, weapon, body) : null;
             //507BF0/507E20 replace the primary resource's sequence pointer while retaining its body animation pointer.
             NativeBattleGraphicsResource result = (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank, TextureAnimations = body.NativeTextureAnimations, BodyTexturePack = body.NativeBodyTexturePack, LinkedTexturePack = owner.NativeWeaponTexturePack, LinkedGeometryUsesBodySkeleton = owner.NativeWeaponUsesBodySkeleton, Geometry = body.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(body.NativeControlMeshes ?? body.Meshes), LinkedGeometry = owner.NativeWeaponUsesBodySkeleton == true ? owner.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(owner.NativeControlMeshes ?? owner.Meshes) : linked is null ? [] : linked.NativeRenderGeometry ?? NativeBattleGeometryMetadata.FromMeshes(linked.NativeControlMeshes ?? linked.Meshes) };
-            return BindNativeModelLoadSources(BindNativeAnimationBankOverrides(result, body, linked, actor.ModelId), actor);
+            result = BindNativeAnimationBankOverrides(result, body, linked, actor.ModelId);
+            result = BindLoadoutAnimationBanks(result, actor, LoadPlayer(actor.ModelId, actor.Costume));
+            return BindNativeModelLoadSources(result, actor);
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }

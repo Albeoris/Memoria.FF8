@@ -12,6 +12,28 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class GameplaySaveComponentTests
 {
     [Fact]
+    public void Optional_loadout_component_preserves_absent_and_explicit_empty_families()
+    {
+        GameplaySaveComponentDocument document = Document() with
+        {
+            BattleLoadouts = new()
+            {
+                Characters = ImmutableSortedDictionary<int, BattleCharacterLoadoutOverride>.Empty
+                    .Add(0, new() { WeaponId = 33, LimitFamilies = [] })
+                    .Add(8, new() { LimitFamilies = [BattleLimitFamily.Combine, BattleLimitFamily.Duel, BattleLimitFamily.Slot] })
+            }
+        };
+        using MemoryStream stream = new();
+        GameplaySaveCodec.Write(stream, document);
+        stream.Position = 0;
+        GameplaySaveComponentDocument loaded = GameplaySaveCodec.Read(stream);
+        Assert.Equal(33, loaded.BattleLoadouts!.Get(0)!.WeaponId);
+        Assert.Empty(loaded.BattleLoadouts.Get(0)!.LimitFamilies!);
+        Assert.Equal([BattleLimitFamily.Combine, BattleLimitFamily.Duel, BattleLimitFamily.Slot], loaded.BattleLoadouts.Get(8)!.LimitFamilies!);
+        Assert.Null(Document().BattleLoadouts);
+    }
+
+    [Fact]
     public void Format_detection_preserves_position_and_does_not_accept_a_truncated_marker()
     {
         using MemoryStream stream = new();
@@ -155,7 +177,7 @@ public sealed class GameplaySaveComponentTests
         }
         Assert.Contains(typeof(GameplaySaveGuardianForce), visited);
         Assert.Contains(typeof(NativeCharacterJunction), visited);
-        Type[] allowed = [typeof(GameplaySaveAudioPresentation), typeof(GameplaySaveAudioTrack), typeof(GameplaySaveAudioVoice), typeof(GameplaySaveAudioPosition), typeof(GameplaySaveComponentDocument), typeof(GameplaySaveResumeDescriptor), typeof(GameplaySaveResumeKind), typeof(GameplaySaveFieldPosition), typeof(GameplaySaveWorldPosition), typeof(GameplaySaveCharacters), typeof(GameplaySaveGuardianForce), typeof(GameplaySaveGuardianForceRecovery), typeof(GameplaySaveGuardianForceRecoveryRow), typeof(GameplaySaveGuardianForceRecoveryAbility), typeof(GameplaySaveGuardianForceIntent), typeof(GameplaySaveGuardianForceDocument), typeof(GameplaySaveGuardianForceOperation), typeof(GameplaySaveGuardianForceProducer), typeof(GuardianForceAbilityOperationKind), typeof(GameplaySaveMagic), typeof(GameplaySaveEconomy), typeof(GameplaySaveLimitProgress), typeof(NativeCharacterVital), typeof(NativeStatBonusSources), typeof(NativeStatBonusGroup), typeof(NativeHpWord), typeof(NativeCharacterJunction), typeof(NativeMagicStock), typeof(NativeGuardianForceLearnedBank), typeof(NativeGuardianForceOpaqueBytes), typeof(GuardianForceProgression), typeof(GuardianForceAbilityProgress), typeof(MagicAttackMode), typeof(NativeItemStock)];
+        Type[] allowed = [typeof(BattleLoadoutOverrides), typeof(BattleCharacterLoadoutOverride), typeof(BattleLimitFamily), typeof(GameplaySaveAudioPresentation), typeof(GameplaySaveAudioTrack), typeof(GameplaySaveAudioVoice), typeof(GameplaySaveAudioPosition), typeof(GameplaySaveComponentDocument), typeof(GameplaySaveResumeDescriptor), typeof(GameplaySaveResumeKind), typeof(GameplaySaveFieldPosition), typeof(GameplaySaveWorldPosition), typeof(GameplaySaveCharacters), typeof(GameplaySaveGuardianForce), typeof(GameplaySaveGuardianForceRecovery), typeof(GameplaySaveGuardianForceRecoveryRow), typeof(GameplaySaveGuardianForceRecoveryAbility), typeof(GameplaySaveGuardianForceIntent), typeof(GameplaySaveGuardianForceDocument), typeof(GameplaySaveGuardianForceOperation), typeof(GameplaySaveGuardianForceProducer), typeof(GuardianForceAbilityOperationKind), typeof(GameplaySaveMagic), typeof(GameplaySaveEconomy), typeof(GameplaySaveLimitProgress), typeof(NativeCharacterVital), typeof(NativeStatBonusSources), typeof(NativeStatBonusGroup), typeof(NativeHpWord), typeof(NativeCharacterJunction), typeof(NativeMagicStock), typeof(NativeGuardianForceLearnedBank), typeof(NativeGuardianForceOpaqueBytes), typeof(GuardianForceProgression), typeof(GuardianForceAbilityProgress), typeof(MagicAttackMode), typeof(NativeItemStock)];
         Assert.All(visited.Where(type => !type.IsArray && type.Namespace == typeof(GameState).Namespace), type => Assert.Contains(type, allowed));
         string[] characterMembers = ["CharacterId", "HitPoints", "Status", "Junction", "Experience", "HitPointBonus", "Weapon", "StatBonuses", "MagicInventory", "MemberFlags", "KillCount", "NativeByte90", "DeathCount", "GuardianForceCompatibility", "BonusSources", "Growth"];
         Assert.Equal(characterMembers.Order(), typeof(NativeCharacterVital).GetProperties().Select(property => property.Name).Order());

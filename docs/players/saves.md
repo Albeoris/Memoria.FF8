@@ -132,6 +132,12 @@ The upgrade-order restriction requires the previous weapon in the character's re
 
 Both settings and retained weapon history require a Memoria save. Original FF8 saves cannot preserve them.
 
+## Debug weapon and Limit assignments
+
+Weapon and Limit assignments from Debug Room belong to the Memoria playthrough. Older saves without this optional extension use native defaults. Explicitly removing all families remains empty after loading; learned progress is retained independently.
+
+Original FFVIII files cannot represent these custom assignments. Native-slot saves and transfers review this loss before exporting a separate copy with recorded native weapons and default Limit assignments. The Memoria source and running session retain their customizations. Command-line export requires `--allow-loadout-loss` together with `--game-dir` to authorize this omission; GF losses still require their separate consent flag.
+
 ## Completed Game saves
 
 After the ending and credits, save a Completed Game to a manual Memoria slot. It opens the [New Game+ setup](new-game-plus.md) instead of resuming the ending. Ordinary New Game+ saves resume gameplay normally. Completed sources are protected against accidental overwrites and quick-save cleanup.

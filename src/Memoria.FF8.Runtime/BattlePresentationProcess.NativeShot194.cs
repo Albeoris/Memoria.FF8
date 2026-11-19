@@ -81,7 +81,7 @@ public sealed partial class BattlePresentationProcess
         static NativeBattleActionMatrix LinkedWorld(NativeBattleGraphicsModel model)
         {
             NativeBattleActionMatrix parent = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native Flame Shot requires its original parent world matrix.");
-            NativeBattleLinkedModelTransform linked = model.LinkedTransform ?? throw new NotSupportedException("Native Flame Shot requires its actual linked weapon transform.");
+            NativeBattleLinkedModelTransform linked = model.ReadEffectiveLinkedTransform() ?? throw new NotSupportedException("Native Flame Shot requires its actual linked weapon transform.");
             NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(linked.Rotation) with { X = linked.Position.X, Y = linked.Position.Y, Z = linked.Position.Z };
             return NativeBattleGfMatrices.Compose56C2F0(parent, local);
         }

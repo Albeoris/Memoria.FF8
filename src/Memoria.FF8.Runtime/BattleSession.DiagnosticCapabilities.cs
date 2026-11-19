@@ -50,7 +50,7 @@ public sealed partial class BattleSession
                 }
             }
         }
-        BattleDefinition next = source with { Combatants = source.Combatants.Select(candidate => candidate.Id == actorId ? candidate with { NativeLimit = originalOwner } : candidate).ToArray() };
+        BattleDefinition next = source with { Combatants = source.Combatants.Select(candidate => candidate.Id == actorId ? candidate with { NativeLimitFamilies = [new(BattleLimitFamily.BlueMagic, originalOwner)] } : candidate).ToArray() };
         BattleDiagnosticBorrowedLimitReceipt receipt = new(actorId, actor.ModelId, originalOwner.CharacterId, originalOwner.Command, progress.BlueMagicFlags, source.NativeCommandSequences[15], [19, 20, 29], "Original command/crisis/kernel records; initiating actor retains Squall body, weapon and sequence resources. Effect resources resolve normally and unsupported pose requirements fail explicitly.");
         return (next, receipt);
     }

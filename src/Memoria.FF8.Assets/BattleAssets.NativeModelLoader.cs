@@ -9,11 +9,44 @@ public sealed partial class BattleAssets
     {
         byte body = checked((byte)actor.Costume);
         byte? linked = actor.WeaponId is int weapon ? checked((byte)WeaponDefinitions.Single(item => item.Id == weapon).Tier) : null;
+        int style = actor.WeaponId is int selectedWeapon ? WeaponOwner(selectedWeapon) : actor.ModelId;
         System.Collections.Immutable.ImmutableArray<NativeBattleModelDatSource>.Builder sources = System.Collections.Immutable.ImmutableArray.CreateBuilder<NativeBattleModelDatSource>();
-        sources.Add(ReadNativeModelDatSource(checked((byte)actor.ModelId), false, body));
-        if (linked is byte selector && actor.ModelId != 7)
+        NativeBattleModelDatSource bodySource = ReadNativeModelDatSource(checked((byte)actor.ModelId), false, body);
+        if (style != actor.ModelId)
         {
-            sources.Add(ReadNativeModelDatSource(checked((byte)actor.ModelId), true, selector));
+            NativeBattlePoseSource pose = resource.PoseSource ?? throw new InvalidDataException("A composed battle body requires its compiled recipient motion.");
+            Dictionary<int, System.Collections.Immutable.ImmutableArray<byte>> replacements = new()
+            {
+                [0] = pose.Skeleton,
+                [2] = pose.Animations
+            };
+            if (resource.ActionCameraBank is { } camera)
+            {
+                replacements[4] = camera.Data;
+            }
+            BattleModel composed = LoadPlayerForWeapon(actor.ModelId, actor.Costume, actor.WeaponId);
+            if (composed.NativeGeometryBytes is { } geometry)
+            {
+                replacements[1] = geometry;
+            }
+            int sections = BinaryPrimitives.ReadInt32LittleEndian(bodySource.Bytes.AsSpan());
+            if (sections is 9 or 10)
+            {
+                replacements[5] = resource.SequenceSection;
+            }
+            bodySource = ReplaceNativeDatSections(bodySource, replacements);
+        }
+        sources.Add(bodySource);
+        if (linked is byte selector && style != 7)
+        {
+            NativeBattleModelDatSource equipment = ReadNativeModelDatSource(checked((byte)style), true, selector);
+            if (style != actor.ModelId && style is 1 or 9 && actor.WeaponId is int sharedWeapon)
+            {
+                BattleModel composed = LoadPlayerForWeapon(actor.ModelId, actor.Costume, actor.WeaponId);
+                BattleModel model = ResolvePlayerRenderWeapon(actor.ModelId, sharedWeapon, composed) ?? throw new InvalidDataException("A shared weapon has no admitted equipment geometry.");
+                equipment = ReplaceNativeDatSections(equipment, new Dictionary<int, System.Collections.Immutable.ImmutableArray<byte>> { [0] = model.NativeGeometryBytes ?? throw new InvalidDataException("A shared weapon requires its rewritten native bone groups.") });
+            }
+            sources.Add(equipment with { ModelId = checked((byte)actor.ModelId) });
         }
         return resource with { BodyFileSelector129 = body, LinkedFileSelector128 = linked, ModelLoadSources = sources.ToImmutable() };
     }

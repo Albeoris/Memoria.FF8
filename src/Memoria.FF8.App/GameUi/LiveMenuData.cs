@@ -98,7 +98,7 @@ public static class LiveMenuData
             vitals.Validate();
             state.WorldControls?.Validate();
             byte[] partyRows = vitals.GetBattlePartyRows(result.PartyCapacity);
-            ProjectionCache projection = new(vitals, catalog, state.WorldControls, junction?.ReadRules);
+            ProjectionCache projection = new(vitals, catalog, state.WorldControls, junction?.ReadRules, state.BattleLoadouts);
             Dictionary<string, MenuMagic>? baselineMagic = junction?.Baseline?.Magic.ToDictionary(magic => magic.Id, StringComparer.Ordinal);
             Dictionary<int, (string Name, string Description)> magicMetadata = [];
             Dictionary<int, string> casterNames = [];
@@ -172,7 +172,7 @@ public static class LiveMenuData
                 }
                 else
                 {
-                    int weapon = vitals.GetBattleWeapon(row);
+                    int weapon = state.BattleLoadouts?.Get(native.CharacterId)?.WeaponId ?? vitals.GetBattleWeapon(row);
                     character = new()
                     {
                         SavedStatuses = native.Status,
@@ -264,12 +264,12 @@ public static class LiveMenuData
                         character.JunctionPreview = (slotName, spellId) =>
                         {
                             NativeCharacterVitals preview = Preview(slotName, spellId);
-                            return Statistics(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
+                            return Statistics(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.Get(preview.Records[characterRow].CharacterId)?.WeaponId), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                         };
                         character.JunctionEffectsPreview = (slotName, spellId) =>
                         {
                             NativeCharacterVitals preview = Preview(slotName, spellId);
-                            return JunctionEffects(catalog.ReadStatRules(preview, characterRow), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
+                            return JunctionEffects(catalog.ReadStatRules(preview, characterRow, state.BattleLoadouts?.Get(preview.Records[characterRow].CharacterId)?.WeaponId), preview.Records[characterRow], preview.GetMagicInventory(characterRow));
                         };
                     }
                     for (int slot = 0; slot < 19; slot++)
@@ -438,7 +438,7 @@ public static class LiveMenuData
         return result;
     }
 
-    private sealed class ProjectionCache(NativeCharacterVitals vitals, LiveMenuCatalog? catalog, NativeWorldControlState? controls, Func<int, BattleNativePlayerStatRules>? readRules)
+    private sealed class ProjectionCache(NativeCharacterVitals vitals, LiveMenuCatalog? catalog, NativeWorldControlState? controls, Func<int, BattleNativePlayerStatRules>? readRules, BattleLoadoutOverrides? loadouts)
     {
         private readonly Dictionary<int, BattleNativePlayerStatRules> rules = [];
         private readonly Dictionary<int, IReadOnlyList<NativeMagicStock>> inventories = [];
@@ -450,7 +450,7 @@ public static class LiveMenuData
         {
             if (!rules.TryGetValue(row, out BattleNativePlayerStatRules? result))
             {
-                result = readRules?.Invoke(row) ?? catalog!.ReadStatRules(vitals, row);
+                result = readRules?.Invoke(row) ?? catalog!.ReadStatRules(vitals, row, loadouts?.Get(vitals.Records[row].CharacterId)?.WeaponId);
                 rules.Add(row, result);
             }
             return result;
@@ -651,7 +651,7 @@ public sealed partial class LiveMenuCatalog
         abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => ability.Description), .. kernel.CommandAbilities.Select(ability => ability.Description), .. kernel.CharacterStatAbilities.Select(ability => ability.Description), .. kernel.CharacterAbilities.Select(ability => ability.Description), .. kernel.PartyAbilities.Select(ability => ability.Description), .. kernel.GuardianAbilities.Select(ability => ability.Description), .. kernel.MenuAbilities.Select(ability => ability.Description)];
     }
 
-    public BattleNativePlayerStatRules ReadStatRules(NativeCharacterVitals vitals, int row) => statistics.ReadRules(vitals, row);
+    public BattleNativePlayerStatRules ReadStatRules(NativeCharacterVitals vitals, int row, int? weaponId = null) => statistics.ReadRules(vitals, row, weaponId);
 
     public static LiveMenuCatalog ReadInstalled(GameAssets assets)
     {

@@ -12,6 +12,8 @@ public sealed record BattleDebugCatalog
     public BattleCombatantDefinition[] Enemies { get; init; } = [];
     public BattleDebugEquipment[] Weapons { get; init; } = [];
     public BattleDebugEquipment[] Equipment { get; init; } = [];
+    public BattleNativeLimitFamilyDefinition[] LimitFamilies { get; init; } = [];
+    public Func<BattleCombatantDefinition, int, BattleCombatantDefinition>? ResolveWeapon { get; init; }
     public int[] StageIds { get; init; } = [];
     public Dictionary<int, int[]> PlayerCostumes { get; init; } = [];
 }
@@ -392,14 +394,57 @@ public sealed class BattleDebugController
         AddNumber(prefix + "Initial ATB", actor.InitialAtb, 0, BattleSession.AtbMaximum, 1000, value => actors[index] = actors[index] with { InitialAtb = value }, readLabel: () => FormatSystemText("debug.actor.label.0.initial.atb", "{0}Initial ATB", DisplayActorPrefix(actor.IsPlayer, index)));
         if (actor.IsPlayer)
         {
-            BattleDebugEquipment[] weapons = catalog.Weapons.Where(weapon => weapon.CharacterId is null || weapon.CharacterId == actor.ModelId).ToArray();
-            rows.Add(new(prefix + "Weapon", actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", "Choose a weapon for this character. Adjust Attack explicitly for the scenario; native equipment stat formulas are unproved.", direction =>
+            BattleDebugEquipment[] weapons = catalog.Weapons.Where(weapon => catalog.ResolveWeapon is not null || weapon.CharacterId is null || weapon.CharacterId == actor.ModelId).ToArray();
+            rows.Add(new(prefix + "Weapon", actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", "Choose an effective weapon and combat style for this isolated scenario. Native initialized actors use the weapon contributions while retaining recipient stats.", direction =>
             {
                 int current = actor.WeaponId.HasValue ? Array.FindIndex(weapons, weapon => weapon.Id == actor.WeaponId.Value) + 1 : 0;
                 int next = (current + direction + weapons.Length + 1) % (weapons.Length + 1);
                 BattleDebugEquipment? weapon = next == 0 ? null : weapons[next - 1];
-                actors[index] = actor with { WeaponId = weapon?.Id, WeaponName = weapon?.Name };
-            }) { ReadLabel = () => FormatSystemText("debug.addactor.label.0.weapon", "{0}Weapon", DisplayActorPrefix(actor.IsPlayer, index)), ReadValue = () => actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", ReadHelp = () => SystemText("debug.addactor.help.choose.a.weapon.for.this.character.adjust.attack", "Choose a weapon for this character. Adjust Attack explicitly for the scenario; native equipment stat formulas are unproved.") });
+                if (catalog.ResolveWeapon is not null)
+                {
+                    if (weapon is null)
+                    {
+                        return;
+                    }
+                    try
+                    {
+                        actors[index] = catalog.ResolveWeapon(actor, weapon.Id);
+                    }
+                    catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or ArgumentException)
+                    {
+                        message = exception.Message;
+                        messageText = null;
+                    }
+                }
+                else
+                {
+                    actors[index] = actor with { WeaponId = weapon?.Id, WeaponName = weapon?.Name };
+                }
+            }) { ReadLabel = () => FormatSystemText("debug.addactor.label.0.weapon", "{0}Weapon", DisplayActorPrefix(actor.IsPlayer, index)), ReadValue = () => actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", ReadHelp = () => SystemText("debug.addactor.help.choose.a.weapon.for.this.character.adjust.attack", "Choose an effective weapon and combat style for this isolated scenario. Native initialized actors use the weapon contributions while retaining recipient stats.") });
+        }
+        if (actor.IsPlayer && catalog.LimitFamilies.Length > 0)
+        {
+            BattleNativeLimitFamilyDefinition[] assigned = actor.NativeLimitFamilies ?? catalog.LimitFamilies.Where(entry => BattleLimitFamilyRules.NativeFamilies(actor.ModelId).Contains(entry.Family)).ToArray();
+            rows.Add(new(prefix + "Remove all Limits", "Stage empty set", "Laboratory only. Keeps learned progress and the live playthrough unchanged.", _ => actors[index] = actor with { NativeLimitFamilies = [] }));
+            foreach (BattleNativeLimitFamilyDefinition family in catalog.LimitFamilies)
+            {
+                bool enabled = assigned.Any(entry => entry.Family == family.Family);
+                rows.Add(new(prefix + "Limit: " + family.Family, enabled ? "Assigned" : "Absent", "Toggle this family in the isolated scenario. Native unlock and weapon requirements still apply.", _ =>
+                {
+                    actors[index] = actor with { NativeLimitFamilies = enabled ? assigned.Where(entry => entry.Family != family.Family).ToArray() : [.. assigned, family] };
+                }));
+            }
+            foreach (BattleNativeLimitFamilyDefinition family in assigned)
+            {
+                rows.Add(new(prefix + "Limit order: " + family.Family, (Array.IndexOf(assigned, family) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), "Left / right changes this family's selector order in the isolated scenario.", direction =>
+                {
+                    int source = Array.IndexOf(assigned, family);
+                    int target = Math.Clamp(source + direction, 0, assigned.Length - 1);
+                    BattleNativeLimitFamilyDefinition[] reordered = assigned.ToArray();
+                    (reordered[source], reordered[target]) = (reordered[target], reordered[source]);
+                    actors[index] = actor with { NativeLimitFamilies = reordered };
+                }));
+            }
         }
         rows.Add(new(prefix + "Equipment", actor.EquipmentIds.Length == 0 ? "None" : string.Join(", ", actor.EquipmentIds.Select(id => catalog.Equipment.FirstOrDefault(item => item.Id == id)?.Name ?? id.ToString())), "Select scenario equipment metadata. Adjust battle statistics explicitly above.", direction =>
         {
@@ -445,7 +490,7 @@ public sealed class BattleDebugController
         {
             "Identity" => label is "Character / model" or "Costume",
             "Vitals and stats" => label is "Maximum HP" or "Current HP" or "Speed" or "Attack" or "Defense" or "Initial ATB",
-            "Equipment and abilities" => label is "Weapon" or "Equipment" || label.StartsWith("Ability:", StringComparison.Ordinal),
+            "Equipment and abilities" => label is "Weapon" or "Equipment" or "Remove all Limits" || label.StartsWith("Ability:", StringComparison.Ordinal) || label.StartsWith("Limit:", StringComparison.Ordinal) || label.StartsWith("Limit order:", StringComparison.Ordinal),
             _ => label.StartsWith("Poison", StringComparison.Ordinal) || label.StartsWith("Regen", StringComparison.Ordinal) || label.StartsWith("Haste", StringComparison.Ordinal) || label.StartsWith("Slow", StringComparison.Ordinal)
         };
     }

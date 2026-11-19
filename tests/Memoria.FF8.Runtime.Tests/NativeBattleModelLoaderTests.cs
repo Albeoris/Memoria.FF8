@@ -7,6 +7,23 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleModelLoaderTests
 {
+    [Theory]
+    [InlineData(0, 9, 0x5077B0u)]
+    [InlineData(7, 0, 0x5079B0u)]
+    [InlineData(0x1000, 9, 0x507E20u)]
+    [InlineData(0x1001, 0, 0x507BF0u)]
+    [InlineData(0x1007, 0, 0x507BF0u)]
+    public void Body_layout_stays_with_recipient_while_linked_callback_follows_selected_style(ushort request, byte style, uint callback)
+    {
+        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 4, 5, style, 3);
+
+        Assert.Equal(callback, queued.Task!.Callback);
+        Assert.Equal(request >= 0x1000 ? request - 0x1000 : request, queued.Task.ModelId);
+        Assert.Equal(3, queued.Task.SharedWeaponBodyObjectIndex);
+        queued.Validate();
+        Assert.Null(NativeBattleModelLoader.Queue507080(0x1000, OriginalOwner(0), NativeBattleModelSlot.Decode(0), 0, 4, 5, 7).Task);
+    }
+
     [Fact]
     public void Singleton_queue_keeps_selected_BYTEs_signed_IO_gate_and_resource_only_completion()
     {
@@ -78,8 +95,10 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(complete, restored.Banks[0].Read(0, complete.Length));
     }
 
-    [Fact]
-    public void Body_then_shared_weapon_copy_preserves_body_alias_and_patches_the_existing_geometry_directory()
+    [Theory]
+    [InlineData(1, 8)]
+    [InlineData(2, 12)]
+    public void Body_then_shared_weapon_copy_preserves_body_alias_and_patches_the_selected_geometry_directory(int weaponObjectIndex, int directoryOffset)
     {
         NativeBattleModelDatSource body = Source(1, false, 0);
         NativeBattleModelDatSource weapon = Source(1, true, 0);
@@ -89,9 +108,10 @@ public sealed class NativeBattleModelLoaderTests
         Assert.Equal(new NativeBattleModelCpuReference(0, 0), first.Rows[4].Require(16));
         Assert.Equal(new NativeBattleModelCpuReference(0, 16), first.Rows[4].Require(8));
         NativeBattleModelResourceBind linkedBind = Complete(0x1001, weapon);
+        linkedBind = linkedBind with { Task = linkedBind.Task with { SharedWeaponBodyObjectIndex = weaponObjectIndex } };
         NativeBattleModelResourceCompletion second = NativeBattleModelResourceCopies.Complete(linkedBind, first.Cpu, first.Rows, 4, null);
         Assert.Equal(first.Rows[4].Require(16), second.Rows[4].Require(16));
-        Assert.Equal(24, BinaryPrimitives.ReadInt32LittleEndian(second.Cpu.Banks[0].Read(8, 4)));
+        Assert.Equal(24, BinaryPrimitives.ReadInt32LittleEndian(second.Cpu.Banks[0].Read(directoryOffset, 4)));
         Assert.Equal(new NativeBattleModelCpuReference(0, 20), second.Rows[4].Require(24));
         Assert.Null(second.ActiveLinkedRow);
         Assert.Null(second.AnimationCopy);

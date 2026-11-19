@@ -6,6 +6,53 @@ public sealed partial class LiveMenuCatalog
 {
     public void ProjectLimit(MenuCharacter character, int weaponId, GameState state, IReadOnlyDictionary<int, string>? names = null)
     {
+        if (character.NativeId is int identity && state.BattleLoadouts?.Get(identity)?.LimitFamilies is { } families)
+        {
+            character.LimitMoves.Clear();
+            character.LimitSettings.Clear();
+            character.LimitToggles.Clear();
+            character.LimitAvailability.Clear();
+            character.NativeLimitCommand = null;
+            List<string> labels = [];
+            foreach (BattleLimitFamily family in families)
+            {
+                MenuCharacter source = new() { NativeId = BattleLimitFamilyRules.SourceCharacter(family) };
+                ProjectNativeLimit(source, weaponId, state, names, family);
+                labels.Add(source.LimitBreak);
+                foreach (MenuLimitMove move in source.LimitMoves)
+                {
+                    if (families.Length > 1)
+                    {
+                        move.Id = family + "/" + move.Id;
+                        move.Name = source.LimitBreak + " · " + move.Name;
+                    }
+                    character.LimitMoves.Add(move);
+                }
+                foreach ((string key, string value) in source.LimitSettings)
+                {
+                    character.LimitSettings[families.Length > 1 ? source.LimitBreak + " · " + key : key] = value;
+                }
+                if (families.Length == 1)
+                {
+                    character.NativeLimitCommand = source.NativeLimitCommand;
+                    foreach ((string key, bool value) in source.LimitToggles)
+                    {
+                        character.LimitToggles[key] = value;
+                    }
+                    foreach ((string key, bool value) in source.LimitAvailability)
+                    {
+                        character.LimitAvailability[key] = value;
+                    }
+                }
+            }
+            character.LimitBreak = labels.Count == 0 ? "None" : string.Join(" / ", labels);
+            return;
+        }
+        ProjectNativeLimit(character, weaponId, state, names);
+    }
+
+    private void ProjectNativeLimit(MenuCharacter character, int weaponId, GameState state, IReadOnlyDictionary<int, string>? names, BattleLimitFamily? family = null)
+    {
         if (character.NativeId is not int id || (uint)id >= kernel.Characters.Count)
         {
             return;
@@ -17,6 +64,15 @@ public sealed partial class LiveMenuCatalog
         byte command = kernel.Characters[id].LimitId;
         character.NativeLimitCommand = command;
         character.LimitBreak = CommandName(command) ?? "Unavailable";
+        if (family is BattleLimitFamily.Combine or BattleLimitFamily.AngelWing)
+        {
+            int choice = family == BattleLimitFamily.Combine ? 0 : 1;
+            character.LimitBreak = LocalizedKernel(nameof(kernel.RinoaLimits), "Name", choice, kernel.RinoaLimits[choice].Name) ?? family.ToString()!;
+            if (family == BattleLimitFamily.AngelWing)
+            {
+                character.NativeLimitCommand = null;
+            }
+        }
         NativeLimitProgress? progress = state.LimitProgress;
         if (command == 11)
         {
@@ -34,7 +90,7 @@ public sealed partial class LiveMenuCatalog
                 character.LimitMoves.Add(LimitMove(index, LocalizedKernel(nameof(kernel.BlueMagics), "Name", index, move.Name), LocalizedKernel(nameof(kernel.BlueMagics), "Description", index, move.Description), progress is null ? null : (progress.BlueMagicFlags & (1 << index)) != 0));
             }
         }
-        else if (command == 19)
+        else if (command == 19 && family != BattleLimitFamily.AngelWing)
         {
             character.LimitSettings["Angelo name"] = FormatText("{Char Angelo2}", names, terms)!;
             for (int index = 0; index < 8; index++)
@@ -49,11 +105,15 @@ public sealed partial class LiveMenuCatalog
                 move.IsLearning = progress is not null && progress.TrainingSelection == index && move.Learned == false;
                 character.LimitMoves.Add(move);
             }
-            if (state.SavedBattleFlags is { } flags && (flags.EffectiveKnownMask & 0x20) != 0)
+            if (family != BattleLimitFamily.Combine && state.SavedBattleFlags is { } flags && (flags.EffectiveKnownMask & 0x20) != 0)
             {
                 character.LimitSettings["Angel Wing"] = (flags.Value & 0x20) != 0 ? "Available" : "Unavailable";
                 character.LimitAvailability["Angel Wing"] = (flags.Value & 0x20) != 0;
             }
+        }
+        else if (family == BattleLimitFamily.AngelWing)
+        {
+            character.LimitSettings["Angel Wing"] = state.SavedBattleFlags is { } flags && (flags.EffectiveKnownMask & 0x20) != 0 && (flags.Value & 0x20) != 0 ? "Available" : "Unavailable";
         }
         else if (command == 16)
         {
@@ -85,11 +145,11 @@ public sealed partial class LiveMenuCatalog
             character.LimitSettings["Indicator"] = (options & 0x8000) == 0 ? "On" : "Off";
             character.LimitToggles["Indicator"] = (options & 0x8000) == 0;
         }
-        if ((uint)weaponId >= kernel.Weapons.Count || kernel.Weapons[weaponId].CharacterId != id)
+        if ((uint)weaponId >= kernel.Weapons.Count)
         {
             throw new InvalidDataException("Renzokuken information requires the character's equipped weapon record.");
         }
-        byte finishers = kernel.Weapons[weaponId].RenzokukenFinishers;
+        byte finishers = kernel.Weapons[weaponId].CharacterId == 0 ? kernel.Weapons[weaponId].RenzokukenFinishers : (byte)0;
         for (int index = 0; index < kernel.SquallLimits.Count; index++)
         {
             var move = kernel.SquallLimits[index];

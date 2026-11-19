@@ -28,7 +28,7 @@ public sealed partial class BattleAssets
         }
         var character = battleKernel.Characters[characterId];
         ImmutableArray<byte> timers = NativeKernelRecords.Single(record => record.Section == 29).Bytes;
-        BattleNativeLimitDefinition result = new(characterId, character.LimitId, character.LimitParam, character.CrisisLevel, timers.AsSpan().Slice(16, 32).ToArray().ToImmutableArray());
+        BattleNativeLimitDefinition result = new(characterId, character.LimitId, character.LimitParam, character.CrisisLevel, timers.AsSpan().Slice(16, 32).ToArray().ToImmutableArray()) { RenzokukenPower = NativeKernelRecords.Single(record => record.Section == 6 && record.Index == characterId).Bytes[33] };
         if (character.LimitId == 19)
         {
             result = result with { InvocationChoices = battleKernel.RinoaLimits.Select((choice, index) => new BattleNativeCommandBinding(19, choice.Name ?? throw new InvalidDataException("Native Rinoa Limit menu choice has no name."), choice.Target, (byte)index)).ToImmutableArray() };

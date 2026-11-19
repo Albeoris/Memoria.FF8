@@ -47,17 +47,18 @@ public sealed partial class BattlePresentationProcess
             graphics = ApplyNativeGraphicsStatus509CD0(graphics, index, status & 0x400);
             model = graphics.ActorModels.Get(index);
             ImmutableArray<NativeBattleVictoryModelSection> mappings = this.resources.NativeGraphics!.Rules.VictoryModelSections ?? throw new NotSupportedException("Native503040 requires its six original B8B7E0 model/section pairs.");
-            NativeBattleVictoryModelSection? selected = mappings.FirstOrDefault(candidate => candidate.Model == model.ModelId4);
+            NativeBattleGraphicsResource previous = NativeGraphicsPoseResource(graphics, index);
+            byte? styleModel = previous.CombatStyleModelId ?? model.ModelId4;
+            NativeBattleVictoryModelSection? selected = mappings.FirstOrDefault(candidate => candidate.Model == styleModel);
             if (selected is null)
             {
                 graphics = SelectNativeHeaderSequence(graphics, index, 18);
                 continue;
             }
-            NativeBattleGraphicsResource previous = NativeGraphicsPoseResource(graphics, index);
             model = RetainNativeDecodedPoseBeforeResourceChange(model, previous);
             NativeBattleFileStaging staging = NativeFileStaging ?? throw new InvalidDataException("Native503040 lost its current shared staging bytes.");
             uint directory = checked(NativeBattleFileStaging.Address + BinaryPrimitives.ReadUInt32LittleEndian(staging.Read(checked(NativeBattleFileStaging.Address + (uint)(selected.Section + 1) * 4), 4)));
-            NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native503040 requires its current physical CPU resource owners."), model, row, directory);
+            NativeBattleVictoryResourceBinding binding = NativeBattleVictoryResources.Bind5022C0(staging, NativeModelCpuResources ?? throw new NotSupportedException("Native503040 requires its current physical CPU resource owners."), model, row, directory, previous.LinkedPoseSource is not null && previous.LinkedGeometryUsesBodySkeleton != true);
             NativeFileStaging = binding.Staging;
             row = binding.NextRow;
             graphics = SelectNativeHeaderSequence(graphics with { ActorModels = graphics.ActorModels.Set(index, binding.Model with { ActiveAnimationBank = "victory-" + selected.Section }) }, index, 1);

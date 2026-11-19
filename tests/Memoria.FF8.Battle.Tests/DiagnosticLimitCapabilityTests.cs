@@ -21,8 +21,9 @@ public sealed class DiagnosticLimitCapabilityTests
         Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "squall").ModelId);
         Assert.Equal(3, receipt.CommandOwner);
         Assert.Equal((byte)15, receipt.Command);
-        Assert.Equal(owner, adapted.Combatants[0].NativeLimit);
-        Assert.Equal(source.Combatants[0], adapted.Combatants[0] with { NativeLimit = source.Combatants[0].NativeLimit });
+        Assert.Equal(owner, Assert.Single(adapted.Combatants[0].NativeLimitFamilies!).Definition);
+        Assert.Equal(source.Combatants[0], adapted.Combatants[0] with { NativeLimitFamilies = null });
+        Assert.Equal(source.Combatants[0].NativeLimit, battle.Combatants.Single(actor => actor.Id == "squall").NativeLimitReadiness);
         BattleActionDefinition choice = Assert.Single(battle.GetNativePlayerActionChoices("squall", limits: true));
         Assert.Equal(15 << 16, choice.Id);
         Assert.Equal(selection.CrisisSelections.Last(), choice.NativeAction!.CrisisLevel);

@@ -5,6 +5,20 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeMovementProgressTests
 {
+    [Fact]
+    public void Foreign_Combine_presence_trains_the_single_canonical_counter_and_empty_assignment_disables_native_owner()
+    {
+        NativeCharacterVitals vitals = MagicSystemFixture.Create();
+        NativeLimitProgress original = Limits(2);
+        NativeMovementProgressResult borrowed = NativeMovementProgress.Sample(Memory(angelo: 591), vitals, original, [0, 1, 255], Flags(), 1, combineInParty: true);
+        NativeMovementProgressResult removed = NativeMovementProgress.Sample(Memory(angelo: 591), vitals, original, [4, 255, 255], Flags(), 1, combineInParty: false);
+
+        Assert.Equal(1, borrowed.Limits!.TrainingCounters[3]);
+        Assert.Equal(2, original.TrainingCounters[3]);
+        Assert.Equal(original, removed.Limits);
+        Assert.False(borrowed.LearnedAngelo);
+    }
+
     private static NativeSavedBattleFlags Flags(byte value = 0) => new(NativeInputConfiguration.OriginalInitHash, value);
     private static NativeEventMemory Memory(uint total = 0, uint recovery = 0, uint angelo = 0) => NativeEventMemory.FromDWords(new Dictionary<int, int> { [4] = unchecked((int)total), [12] = unchecked((int)recovery), [244] = unchecked((int)angelo) });
     private static uint Read(NativeEventMemory memory, int address) => unchecked((uint)memory.Read(address, 4).RequireExact());

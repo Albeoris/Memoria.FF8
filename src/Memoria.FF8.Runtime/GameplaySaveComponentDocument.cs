@@ -41,6 +41,9 @@ public sealed record GameplaySaveComponentDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NewGamePlusRewardRules? NewGamePlusRewards { get; init; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleLoadoutOverrides? BattleLoadouts { get; init; }
+
     public NativeCharacterVitals RestoreCharacterVitals(NativeCharacterVitals installed)
     {
         if (NewGamePlus is { } run)
@@ -77,7 +80,7 @@ public sealed record GameplaySaveComponentDocument
         {
             throw new NotSupportedException("Gameplay progression document requires its character, economy, Limit and matching scene owners.");
         }
-        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state), AudioPresentation = state.AudioPresentation, NewGamePlus = state.NewGamePlus, NewGamePlusRewards = state.NewGamePlusRewards };
+        GameplaySaveComponentDocument result = Capture(resume, state.CharacterVitals, state.Economy, state.LimitProgress) with { Version = CurrentVersion, Coverage = CurrentCoverage, Progression = GameplaySaveProgression.Capture(state), AudioPresentation = state.AudioPresentation, NewGamePlus = state.NewGamePlus, NewGamePlusRewards = state.NewGamePlusRewards, BattleLoadouts = state.BattleLoadouts?.DeepCopy() };
         result.Validate();
         return result;
     }
@@ -96,6 +99,7 @@ public sealed record GameplaySaveComponentDocument
         Characters.Validate();
         Economy.Validate();
         Limits.Validate();
+        BattleLoadouts?.Validate();
         Progression?.Validate();
         CompletedGame?.Validate();
         NewGamePlus?.Validate();

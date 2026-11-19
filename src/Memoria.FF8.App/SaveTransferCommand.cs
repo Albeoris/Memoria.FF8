@@ -48,7 +48,7 @@ internal static class SaveTransferCommand
                     throw new DirectoryNotFoundException("Export requires the selected installed game directory.");
                 }
                 using GameAssets assets = new(gameDirectory);
-                original = NativePcSaveConverter.Export(state, assets.ReadNewGameCharacterVitals(), options.AllowGuardianForceLoss, OriginalSaveExportPlace.Read(state, gameDirectory));
+                original = NativePcSaveConverter.Export(state, assets.ReadNewGameCharacterVitals(), options.AllowGuardianForceLoss, OriginalSaveExportPlace.Read(state, gameDirectory), options.AllowBattleLoadoutLoss);
             }
             else
             {
@@ -72,9 +72,19 @@ internal static class SaveTransferCommand
         string? modsDirectory = null;
         string? modelSourceDirectory = null;
         bool allowGuardianForceLoss = false;
+        bool allowBattleLoadoutLoss = false;
         for (int index = 1; index < args.Length; index++)
         {
             string argument = args[index];
+            if (argument == "--allow-loadout-loss" && !import)
+            {
+                if (allowBattleLoadoutLoss)
+                {
+                    throw new ArgumentException("Specify --allow-loadout-loss only once.");
+                }
+                allowBattleLoadoutLoss = true;
+                continue;
+            }
             if (argument == "--allow-gf-loss" && !import)
             {
                 if (allowGuardianForceLoss)
@@ -142,7 +152,11 @@ internal static class SaveTransferCommand
         {
             throw new ArgumentException("Export with --allow-gf-loss requires --game-dir to declare the original GF definitions.");
         }
-        return new(source, output, gameDirectory, modsDirectory, modelSourceDirectory, allowGuardianForceLoss);
+        if (allowBattleLoadoutLoss && gameDirectory is null)
+        {
+            throw new ArgumentException("Export with --allow-loadout-loss requires --game-dir. This explicitly omits custom weapons and Limit assignments from the exported copy; the Memoria source is preserved.");
+        }
+        return new(source, output, gameDirectory, modsDirectory, modelSourceDirectory, allowGuardianForceLoss, allowBattleLoadoutLoss);
     }
 
     private static void WriteNewOutput(string output, Action<string> write, bool original = false)
@@ -171,5 +185,5 @@ internal static class SaveTransferCommand
         }
     }
 
-    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory, string? ModelSourceDirectory = null, bool AllowGuardianForceLoss = false);
+    internal sealed record Options(string SourcePath, string OutputPath, string? GameDirectory, string? ModsDirectory, string? ModelSourceDirectory = null, bool AllowGuardianForceLoss = false, bool AllowBattleLoadoutLoss = false);
 }

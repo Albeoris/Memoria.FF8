@@ -58,7 +58,8 @@ public static class NativeBattleCureActorAssembly
         ImmutableArray<NativeBattleRawMesh> body = resource.Geometry ?? throw new NotSupportedException("Native actor drawing requires its original body geometry.");
         ImmutableArray<NativeBattleRawMesh> linked = resource.LinkedGeometry ?? throw new NotSupportedException("Native actor drawing requires observed linked geometry presence.");
         bool shared = !linked.IsEmpty && (resource.LinkedGeometryUsesBodySkeleton ?? throw new NotSupportedException("Native actor drawing requires its actual linked resource shape."));
-        if (shared && (body.Length < 2 || linked.Length != 1))
+        int weaponObject = resource.SharedWeaponBodyObjectIndex ?? 1;
+        if (shared && ((uint)weaponObject >= body.Length || linked.Length != 1))
         {
             throw new NotSupportedException("Native507E20 requires body directory slot1 and its single weapon object.");
         }
@@ -67,7 +68,7 @@ public static class NativeBattleCureActorAssembly
         {
             if ((mask & (1u << (index & 31))) != 0)
             {
-                bool weapon = shared && index == 1;
+                bool weapon = shared && index == weaponObject;
                 Add(weapon ? linked[0] : body[index], weapon ? model.LinkedTextureSlots : model.BodyTextureSlots, !weapon && resource.GeometryRelocated507550, index);
             }
         }

@@ -4,9 +4,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeCommandBinding(byte Command, string Name, byte TargetFlags, byte ActionId);
 
+public sealed record BattleNativeLimitFamilyDefinition(BattleLimitFamily Family, BattleNativeLimitDefinition Definition);
+
+public sealed record BattleNativeLimitFamilyChoice(BattleLimitFamily Family, string Name, bool Available, string? UnavailableReason);
+
 /// <summary>Character/kernel inputs consumed by native4941F0,48CCE0 and48D200.</summary>
 public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, byte Parameter, byte HitPointCoefficient, ImmutableArray<byte> StatusWeights)
 {
+    public byte? RenzokukenPower { get; init; }
     public ImmutableArray<BattleNativeCommandBinding> InvocationChoices { get; init; } = [];
     public ImmutableArray<byte> SlotsSelectionBytes { get; init; } = [];
     public ImmutableArray<byte> SlotsSpellBytes { get; init; } = [];

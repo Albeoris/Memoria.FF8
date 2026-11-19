@@ -76,6 +76,7 @@ public static class GameplaySaveStateRestoration
             CharacterAppearance = appearance,
             Economy = economy,
             LimitProgress = limits,
+            BattleLoadouts = saved.BattleLoadouts?.DeepCopy(),
             CardInventory = collections.Cards,
             ShopHistory = shops,
             WeaponRecipes = recipes,

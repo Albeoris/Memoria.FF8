@@ -5,8 +5,9 @@ public sealed partial class BattleSession
     public bool SupportsPlayerLimitSelection(string actorId)
     {
         BattleCombatant actor = GetActor(actorId);
-        return actor.NativeLimit is { } limit && (limit.Command is 5 or 11 or 14 or 15 or 16 ||
-            HasExpandedCombine(actor) || HasExpandedAngelWing(actor) || actor.ModelId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId))));
+        return AssignedNativeLimitFamilies(actor).Any(entry => entry.Definition.Command is 5 or 11 or 14 or 15 or 16 ||
+            entry.Definition.Command == 19 && (HasExpandedCombine(actor) || HasExpandedAngelWing(actor)) ||
+            entry.Definition.CharacterId is >= 6 and <= 10 && SupportsExpandedLimit(FindInstalledNativeAction(entry.Definition.Command, NativeBattleLimitRules.GuestActionId(entry.Definition.CharacterId))));
     }
 
     private static bool SupportsExpandedLimit(BattleNativeAction action)

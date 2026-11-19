@@ -53,7 +53,12 @@ public static partial class NativeBattlePoseMatrices
 
     public static NativeBattleVector ReadBone(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction)
     {
-        NativeBattleBoneAnchorProducer producer = ResolveBoneAnchor502170(model, source, selector, fraction);
+        return ReadBone(model, source, selector, fraction, false);
+    }
+
+    public static NativeBattleVector ReadBone(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction, bool actionBinding)
+    {
+        NativeBattleBoneAnchorProducer producer = ResolveBoneAnchor502170(model, source, selector, fraction, actionBinding);
         if (!producer.Enabled)
         {
             return producer.DisabledPosition;
@@ -62,7 +67,7 @@ public static partial class NativeBattlePoseMatrices
         return new(unchecked((short)mac.X), unchecked((short)mac.Y), unchecked((short)mac.Z));
     }
 
-    public static NativeBattleBoneAnchorProducer ResolveBoneAnchor502170(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction)
+    public static NativeBattleBoneAnchorProducer ResolveBoneAnchor502170(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction, bool actionBinding = false)
     {
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502170 requires its model transform owner.");
         if ((model.Flags0 & 2) == 0)
@@ -72,6 +77,7 @@ public static partial class NativeBattlePoseMatrices
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502170 requires a decoded model pose.");
         ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
         int bone = selector;
+        bool actionBone = actionBinding && selector < 240;
         if (selector >= 240)
         {
             if (model.ModelId4 == 0x8F)
@@ -90,12 +96,21 @@ public static partial class NativeBattlePoseMatrices
                     throw new NotSupportedException("Native selector exceeds its skeleton header aliases.");
                 }
                 bone = offset == 4 ? state.Geometry4 ?? source.Skeleton[offset] : offset == 5 ? state.Geometry5 ?? source.Skeleton[offset] : source.Skeleton[offset];
+                actionBone = offset == 4 && state.Geometry4 is not null || offset == 5 && state.Geometry5 is not null;
             }
             if ((bone & 0x80) != 0)
             {
                 fraction = 4096;
                 bone &= 0x7F;
             }
+        }
+        if (actionBone && !source.ActionBoneAliases.IsDefaultOrEmpty)
+        {
+            if ((uint)bone >= source.ActionBoneAliases.Length || source.ActionBoneAliases[bone] == byte.MaxValue)
+            {
+                throw new NotSupportedException($"The transferred action reaches unmapped source bone {bone}.");
+            }
+            bone = source.ActionBoneAliases[bone];
         }
         if (bone >= bones.Length)
         {

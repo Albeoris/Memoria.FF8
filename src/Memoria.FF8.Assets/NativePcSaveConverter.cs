@@ -98,6 +98,7 @@ public static partial class NativePcSaveConverter
             GameplaySceneFacts = GameplaySaveSceneFacts.FromOriginalSave(original, fieldId, module == 1 ? SceneKind.Field : SceneKind.WorldMap),
             GameplayFieldLocation = module == 1 ? new GameplaySaveFieldLocation((ushort)fieldId, W(3316), Enumerable.Range(0, 3).Select(slot => (NativeFieldLocationPose?)original.ReadFieldPartyPosition(slot)).ToArray()) { IsNativeImport = true } : null,
             GameplayPreferences = new GameplayPreferences { AtbMode = defaults.GameplayPreferences.AtbMode, GunbladeMode = defaults.GameplayPreferences.GunbladeMode },
+            BattleLoadouts = null,
             RefinedCardIds = [],
             Scene = module == 1 ? SceneKind.Field : SceneKind.WorldMap,
             FieldId = fieldId,

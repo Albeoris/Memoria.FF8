@@ -48,6 +48,7 @@ internal sealed record BattlePresentationServices(
     Action<NativeBattleDuelWidgetUpdated> PublishDuelWidget)
 {
     internal Func<bool>? ObservesFollowupTextures { get; init; }
+    internal Func<BattleModelOwner, BattleLimitFamily?>? ReadActiveLimitFamily { get; init; }
     internal Action<NativeBattleGraphicsState, int, NativeBattleAuxiliaryTask, NativeBattleGraphicsModel>? TextureAnimationReleased { get; init; }
 }
 

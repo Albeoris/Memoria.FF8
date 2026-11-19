@@ -9,19 +9,19 @@ public sealed record BattlePlayerStats(int Strength, int Vitality, int Magic, in
 /// <summary>Copies original kernel inputs for the shared native runtime player-stat projector.</summary>
 public sealed class BattlePlayerStatReader(byte[] kernel)
 {
-    public BattlePlayerStats Read(NativeCharacterVitals vitals, int row)
+    public BattlePlayerStats Read(NativeCharacterVitals vitals, int row, int? weaponId = null)
     {
-        BattleNativePlayerStatRules rules = ReadRules(vitals, row);
+        BattleNativePlayerStatRules rules = ReadRules(vitals, row, weaponId);
         NativeCharacterVital character = vitals.Records[row];
         BattleNativePlayerStatistics stats = rules.Project(vitals.GetMagicInventory(row), character.Growth);
         return new BattlePlayerStats(stats.Strength, stats.Vitality, stats.Magic, stats.Spirit, stats.Speed, stats.Luck, stats.Hit, stats.Evasion, stats.ElementDefenses.ToArray(), stats.ElementAttack, stats.ElementAttackPercent);
     }
 
-    public BattleNativePlayerStatRules ReadRules(NativeCharacterVitals vitals, int row)
+    public BattleNativePlayerStatRules ReadRules(NativeCharacterVitals vitals, int row, int? weaponId = null)
     {
         vitals.Validate();
         NativeCharacterVital character = vitals.Records[row];
-        int weapon = vitals.GetBattleWeapon(row);
+        int weapon = weaponId ?? vitals.GetBattleWeapon(row);
         BattleNativePlayerStatRules rules = new(character.CharacterId, NativeStatDefinitions.Level(character.Experience, vitals.Definitions.Characters[character.CharacterId]), Record(6, character.CharacterId, 36).ToArray().ToImmutableArray(), Record(4, weapon, 12).ToArray().ToImmutableArray(), Enumerable.Range(0, 57).Select(index => Record(1, index, 60).ToArray().ToImmutableArray()).ToImmutableArray(), Enumerable.Range(0, 19).Select(index => Record(13, index, 8).ToArray().ToImmutableArray()).ToImmutableArray(), character.Junction.MagicJunctions.ToImmutableArray(), character.Junction.Abilities, vitals.Definitions);
         uint statusPassiveFlags = 0;
         for (int slot = 0; slot < 4; slot++)

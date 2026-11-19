@@ -11,7 +11,7 @@ public sealed partial class BattleHudController
     private ushort nativeCommandHeldButtons;
     private int nativeSlotsChoice;
 
-    public bool SelectingNativeSlots => SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16;
+    public bool SelectingNativeSlots => !SelectingNativeLimitFamilies && SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16;
     public string? NativeSlotsLabel => SelectingNativeSlots && SelectedAction is { } action ? SlotsResultLabel(ChoiceLabel(action), action.Available) : null;
 
     private string SlotsResultLabel(string name, bool available)
@@ -51,7 +51,7 @@ public sealed partial class BattleHudController
 
     public bool CommandMenuHidden => session.Outcome == BattleOutcome.Active && PresentationUi.CommandMenuHidden;
 
-    public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.SupportsPlayerLimitSelection(actor.Id) && session.GetNativeLimitLevel(actor.Id) > 0;
+    public bool NativeLimitAvailable => !HasGuardianFormCommands && SelectedActor is { } actor && session.SupportsPlayerLimitSelection(actor.Id) && session.GetNativeLimitFamilies(actor.Id).Any(family => family.Available) && session.GetNativeLimitLevel(actor.Id) > 0;
     private bool NativeLimitDirectTarget => SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command is 5 or 11;
 
     public void SetNativeCommandButtons(ushort buttons)
@@ -249,6 +249,8 @@ public sealed partial class BattleHudController
             magicCastCountSelected = false;
             session.CloseNativeActionMenu();
         }
+        SelectingNativeLimitFamilies = false;
+        nativeLimitFamilyChosen = false;
         nativeLimitSelectionActorId = actor?.Id;
         nativeLimitCommandSelected = false;
         limitCommandReveal = 0;

@@ -199,6 +199,7 @@ public sealed partial class GameSession : IEventServices
 
     private void ResetTransientGameplayState()
     {
+        battleLoadoutSessionEpoch++;
         liveFieldMemory = null;
         preparedFieldMemory = null;
         liveBattle = null;
@@ -899,6 +900,7 @@ public sealed partial class GameSession : IEventServices
             ValidateSeeDAliases(state.EventMemory);
         }
         state.CharacterVitals?.Validate();
+        state.BattleLoadouts?.Validate();
         if (state.CharacterVitals is not null)
         {
             ValidateJunctionPartyBackupAliases(state.EventMemory);

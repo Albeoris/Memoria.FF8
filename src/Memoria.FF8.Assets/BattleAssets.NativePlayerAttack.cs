@@ -6,12 +6,12 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    public BattleNativePlayerStatRules ReadPlayerNativeStatRules(NativeCharacterVitals vitals, int row)
+    public BattleNativePlayerStatRules ReadPlayerNativeStatRules(NativeCharacterVitals vitals, int row, int? weaponId = null)
     {
-        return playerStats.ReadRules(vitals, row);
+        return playerStats.ReadRules(vitals, row, weaponId);
     }
 
-    public BattleNativeAction ReadPlayerNativeAttackData(NativeCharacterVitals vitals, int row)
+    public BattleNativeAction ReadPlayerNativeAttackData(NativeCharacterVitals vitals, int row, int? effectiveWeaponId = null)
     {
         vitals.Validate();
         if ((uint)row >= vitals.Records.Length)
@@ -19,7 +19,7 @@ public sealed partial class BattleAssets
             throw new ArgumentOutOfRangeException(nameof(row));
         }
         NativeCharacterVital character = vitals.Records[row];
-        int weaponId = vitals.GetBattleWeapon(row);
+        int weaponId = effectiveWeaponId ?? vitals.GetBattleWeapon(row);
         ImmutableArray<byte> weapon = NativeKernelRecords.Single(record => record.Section == 4 && record.Index == weaponId).Bytes;
         int spellId = character.Junction.MagicJunctions[10];
         ImmutableArray<byte> spell = NativeKernelRecords.Single(record => record.Section == 1 && record.Index == spellId).Bytes;
@@ -35,7 +35,7 @@ public sealed partial class BattleAssets
         {
             battleStatuses |= 8;
         }
-        BattlePlayerStats stats = ReadPlayerStats(vitals, row);
+        BattlePlayerStats stats = ReadPlayerStats(vitals, row, weaponId);
         return new BattleNativeAction(1, 0, 4, weaponId)
         {
             Name = ReadNativeCommand(1).Name,

@@ -6,7 +6,7 @@ public sealed record NativeMovementProgressResult(NativeEventMemory Memory, Nati
 
 public static class NativeMovementProgress
 {
-    public static NativeMovementProgressResult Sample(NativeEventMemory memory, NativeCharacterVitals? vitals, NativeLimitProgress? limits, IReadOnlyList<byte>? fieldParty, NativeSavedBattleFlags? savedFlags, uint units)
+    public static NativeMovementProgressResult Sample(NativeEventMemory memory, NativeCharacterVitals? vitals, NativeLimitProgress? limits, IReadOnlyList<byte>? fieldParty, NativeSavedBattleFlags? savedFlags, uint units, bool? combineInParty = null)
     {
         uint Read(int address) => unchecked((uint)memory.Read(address, 4).RequireExact());
         NativeEventMemory Write(NativeEventMemory current, int address, uint before, uint after)
@@ -43,7 +43,7 @@ public static class NativeMovementProgress
                     {
                         throw new NotSupportedException("Angelo movement training requires the saved field party identities.");
                     }
-                    if (fieldParty.Contains((byte)4))
+                    if (combineInParty ?? fieldParty.Contains((byte)4))
                     {
                         NativeLimitProgress current = limits ?? throw new NotSupportedException("Angelo movement training requires its saved learning progress.");
                         current.Validate();

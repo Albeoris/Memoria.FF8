@@ -122,7 +122,7 @@ public sealed partial class BattlePresentationProcess
             return (model.Transform ?? throw new NotSupportedException("Native502170 requires its model position WORDs.")).Position28;
         }
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, owner).PoseSource ?? throw new NotSupportedException("Native bone projection requires its original skeleton and compressed animation source.");
-        return NativeBattlePoseMatrices.ReadBone(model, source, selector, fraction);
+        return NativeBattlePoseMatrices.ReadBone(model, source, selector, fraction, true);
     }
 
     internal NativeBattleCameraPoint TransformNativeGraphicsCameraPoint(BattleModelOwner owner, byte lowNibble, NativeBattleCameraPoint local, bool mirror)

@@ -2,6 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeLimitState(string ActorId, byte CrisisLevel)
 {
+    public BattleLimitFamily? SelectedFamily { get; init; }
+    public bool? HasCrisisSelection { get; init; }
     public BattleNativeSlotsRoll? Slots { get; init; }
     public BattleNativeShotState? Shot { get; init; }
     public BattleNativeDuelState? Duel { get; init; }
@@ -52,9 +54,9 @@ public sealed partial class BattleSession
                 progress.Validate();
                 choices.AddRange(definition.NativeActions.Where(action => action.Command == 15 && action.CrisisLevel == crisis && (progress.BlueMagicFlags & (1 << action.ActionId)) != 0));
             }
-            else if (actor.ModelId is >= 6 and <= 10)
+            else if (limit.CharacterId is >= 6 and <= 10)
             {
-                choices.Add(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(actor.ModelId), crisis));
+                choices.Add(FindInstalledNativeAction(limit.Command, NativeBattleLimitRules.GuestActionId(limit.CharacterId), crisis));
             }
             else if (limit.Command == 19)
             {
@@ -156,7 +158,7 @@ public sealed partial class BattleSession
     {
         RequireNoPendingSlotsDeal();
         BattleCombatant actor = GetActor(actorId);
-        if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId) || actor.NativeLimit is not { } limit)
+        if (Outcome != BattleOutcome.Active || !CanChoosePlayerCommand(actorId) || actor.NativeLimitReadiness is not { } limit)
         {
             throw new InvalidOperationException("Native Limit selection requires a ready player with its original character record.");
         }
@@ -202,6 +204,7 @@ public sealed partial class BattleSession
         }
         if (limit)
         {
+            RequireSelectedNativeLimitFamily(actor);
             byte currentCrisis = nativeLimitLevels.GetValueOrDefault(actorId);
             if (currentCrisis == 0 || crisis is not null && crisis != currentCrisis)
             {
@@ -261,9 +264,9 @@ public sealed partial class BattleSession
                 throw new InvalidOperationException("Blue Magic spell has not been learned.");
             }
         }
-        else if (actor.ModelId is >= 6 and <= 10)
+        else if (actor.NativeLimit?.CharacterId is >= 6 and <= 10)
         {
-            if (actionId != NativeBattleLimitRules.GuestActionId(actor.ModelId))
+            if (actionId != NativeBattleLimitRules.GuestActionId(actor.NativeLimit!.CharacterId))
             {
                 throw new InvalidOperationException("Guest Limit command selected another character's native row.");
             }
@@ -304,12 +307,14 @@ public sealed partial class BattleSession
 
     private BattleNativeLimitState[] CaptureNativeLimits()
     {
-        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value)
+        return nativeLimitLevels.Keys.Concat(allies.Where(actor => actor.SelectedNativeLimitFamily is not null).Select(actor => actor.Id)).Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal).Select(id => new BattleNativeLimitState(id, nativeLimitLevels.GetValueOrDefault(id))
         {
-            Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key),
-            Shot = GetNativeShot(pair.Key),
-            Duel = OwnsHostedDuelRestore(expandedHostedEvent, pair.Key) ? nativeDuelProcesses.GetValueOrDefault(pair.Key) : GetNativeDuel(pair.Key),
-            Renzokuken = GetNativeRenzokuken(pair.Key)
+            SelectedFamily = GetActor(id).SelectedNativeLimitFamily,
+            HasCrisisSelection = GetActor(id).SelectedNativeLimitFamily is null || nativeLimitLevels.ContainsKey(id) ? null : false,
+            Slots = nativeSlotsRolls.GetValueOrDefault(id),
+            Shot = GetNativeShot(id),
+            Duel = OwnsHostedDuelRestore(expandedHostedEvent, id) ? nativeDuelProcesses.GetValueOrDefault(id) : GetNativeDuel(id),
+            Renzokuken = GetNativeRenzokuken(id)
         }).ToArray();
     }
 
@@ -330,7 +335,16 @@ public sealed partial class BattleSession
         nativeRenzokukenProcesses.Clear();
         foreach (BattleNativeLimitState state in states)
         {
-            nativeLimitLevels.Add(state.ActorId, state.CrisisLevel);
+            BattleCombatant owner = GetActor(state.ActorId);
+            if (state.SelectedFamily is { } family && !AssignedNativeLimitFamilies(owner).Any(entry => entry.Family == family))
+            {
+                throw new InvalidDataException("Saved selected Limit family is no longer assigned.");
+            }
+            owner.SelectedNativeLimitFamily = state.SelectedFamily;
+            if (state.HasCrisisSelection != false)
+            {
+                nativeLimitLevels.Add(state.ActorId, state.CrisisLevel);
+            }
             if (state.Slots is { } roll)
             {
                 if (byId[state.ActorId].NativeLimit!.Command != 16 || state.CrisisLevel == 0 || roll.Repetitions == 0)

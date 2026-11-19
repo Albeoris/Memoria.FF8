@@ -116,6 +116,7 @@ internal sealed partial class RecreateGame
             world.EditGameplayTuning(tuning);
         }, field => world?.GameplayTuningUnavailableReason(field) ?? resourceHost.GameplayPolicy.UnavailableReason(field), () => world?.GameplayTuningStatus ?? "Changes apply to this playthrough.");
         ConnectGuardianAbilityEditor();
+        ConnectBattleLoadoutEditor();
         ConnectLocalizationTools();
         ConnectLocalizationWorkbench();
         ConnectLightingAuthoring();

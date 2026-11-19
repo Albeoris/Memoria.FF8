@@ -7,6 +7,37 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeAngeloSupportTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Duplicate_Combine_holders_share_one_periodic_chance_and_select_first_eligible_search_owner(bool firstBlocked)
+    {
+        using GameAssets game = new(TestResources.GameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition source = Create(game, assets, 8, false, expanded: true, periodic: true).Capture().Definition;
+        BattleNativeLimitDefinition combine = assets.ReadNativeLimitDefinition(4);
+        BattleCombatantDefinition[] actors = source.Combatants.ToArray();
+        for (int index = 0; index < 2; index++)
+        {
+            actors[index] = actors[index] with { NativeLimit = assets.ReadNativeLimitDefinition(index), NativeLimitFamilies = [new(BattleLimitFamily.Combine, combine)], InitialUntargetable = index == 0 && firstBlocked };
+        }
+        int nativeRinoa = Array.FindIndex(actors, actor => actor.Id == "rinoa");
+        actors[nativeRinoa] = actors[nativeRinoa] with { NativeLimitFamilies = [] };
+        BattleSession initial = new(source with { Combatants = actors }, BattleAtbMode.Normal);
+        BattleSnapshot before = initial.Capture();
+        BattleSession battle = BattleSession.Restore(before with { NativeSupport = before.NativeSupport! with { Cooldown = 0 } });
+        NativeBattleRandomState expected = before.Random!.Draw(out _);
+
+        battle.Tick();
+
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions, action => action.NativePlayerReaction == BattleNativePlayerReaction.AngeloPeriodic);
+        Assert.Equal(firstBlocked ? "ally-1" : "ally-0", queued.TargetId);
+        Assert.Equal((ushort)14, queued.NativeAction!.ActionId);
+        Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
+        Assert.Equal(JsonSerializer.Serialize(before.Definition.LimitProgress), JsonSerializer.Serialize(battle.Capture().Definition.LimitProgress));
+        Assert.False(battle.HasNativeLimitFamily("rinoa", BattleLimitFamily.Combine));
+    }
+
+    [Theory]
     [InlineData(1, false, 11, 91, "enemy")]
     [InlineData(3, false, 12, 93, "rinoa")]
     [InlineData(4, true, 13, 94, "rinoa")]

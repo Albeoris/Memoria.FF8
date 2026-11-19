@@ -40,7 +40,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native field movement progress requires its preceding accepted movement sample and atomic owner publication.");
         }
-        return NativeMovementProgress.Sample(EventMemory, services.CharacterVitals, services.LimitProgress, Scene.Party.Select(value => unchecked((byte)value)).ToArray(), (services as GameSession)?.State.SavedBattleFlags, Scene.NativeSalaryMovementUnits.Value);
+        GameState? state = (services as GameSession)?.State;
+        bool? combineInParty = state is null ? null : Scene.Party.Any(character => BattleLimitFamilyRules.HasAssignment(state.BattleLoadouts, character, BattleLimitFamily.Combine));
+        return NativeMovementProgress.Sample(EventMemory, services.CharacterVitals, services.LimitProgress, Scene.Party.Select(value => unchecked((byte)value)).ToArray(), state?.SavedBattleFlags, Scene.NativeSalaryMovementUnits.Value, combineInParty);
     }
 
     private void ValidateNativePlayerInput(ActorState player, bool beforeScripts = false)

@@ -46,7 +46,8 @@ public sealed record NativeBattleBodyBoneMatrices(string SkeletonSha256, Immutab
     public static NativeBattleGraphicsModel Publish508F60(NativeBattleGraphicsModel model, NativeBattlePoseSource bodySource, NativeBattlePoseSource? linkedSource)
     {
         model = Publish508C90(model, bodySource);
-        return linkedSource is null ? model : PublishLinked508C90(model, linkedSource);
+        model = linkedSource is null ? model : PublishLinked508C90(model, linkedSource);
+        return NativeBattleLinkedContact.Publish(model, bodySource);
     }
 
     public static NativeBattleBodyBoneMatrices ReadLoadedSkeleton(NativeBattlePoseSource source)

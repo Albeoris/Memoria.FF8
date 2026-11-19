@@ -170,7 +170,7 @@ internal sealed partial class PlayerSaveStore
 
     private static bool RequiresMemoriaBattleRoster(GameState state) => state.CharacterVitals?.AdditionalCombatParty is { Length: > 0 };
 
-    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false)
+    public void Save(int slot, GameSession session, Action<GameState>? validateContinuation = null, NativeCharacterVitals? targetSource = null, bool allowGuardianForceLoss = false, short? originalPlaceId = null, Func<string, Action<GameState>?, DateTime?, GameState>? writeGameplay = null, bool combinedSession = false, bool allowBattleLoadoutLoss = false)
     {
         if (Game != SessionGame.Ff8)
         {
@@ -206,7 +206,7 @@ internal sealed partial class PlayerSaveStore
                 {
                     throw new InvalidOperationException("Original world preview projection requires target game definitions.");
                 }
-                byte[] bytes = targetSource is null ? NativePcSaveConverter.Export(snapshot) : NativePcSaveConverter.Export(snapshot, targetSource, allowGuardianForceLoss, originalPlaceId);
+                byte[] bytes = targetSource is null ? NativePcSaveConverter.Export(snapshot) : NativePcSaveConverter.Export(snapshot, targetSource, allowGuardianForceLoss, originalPlaceId, allowBattleLoadoutLoss);
                 SaveOriginal(target, bytes, validateContinuation, refreshPreview: true);
             }
             else

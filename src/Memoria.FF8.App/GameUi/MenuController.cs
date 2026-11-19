@@ -41,6 +41,7 @@ public sealed partial class MenuController
         RegisterFontPickerScreen();
         RegisterQuickSaveRetentionScreen();
         RegisterGameplayTuningScreens();
+        RegisterBattleLoadoutScreens();
         RegisterNamingScreens();
         RegisterChocoboWorldScreens();
         RegisterMagazineScreens();
@@ -876,7 +877,7 @@ public sealed partial class MenuController
         {
             return;
         }
-        if (ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action) || ExecuteGameplayTuningAction(action))
+        if (ExecuteBattleLoadoutAction(action) || ExecuteFixtureAction(action) || ExecuteFontPickerAction(action) || ExecuteQuickSaveRetentionAction(action) || ExecuteGameplayTuningAction(action))
         {
             return;
         }

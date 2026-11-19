@@ -87,7 +87,7 @@ public sealed partial class BattlePresentationProcess
         {
             return GuardianFormResources(2).VisualResource;
         }
-        return ReadOriginalPresentationModelResource(owner);
+        return ReadLimitPresentationBinding(owner)?.Resource ?? ReadOriginalPresentationModelResource(owner);
     }
 
     private static NativeBattleGraphicsBinding? FindHostedAllocationBinding(HostedModelRegistry? registry, BattleModelOwner owner)

@@ -28,7 +28,7 @@ public sealed partial class BattleSession
 
     private void RunNativePlayerDamageSupport(BattleCombatant actor)
     {
-        if (actor.ModelId != 4 || actor.LastAttackerId is not { } attackerId || GetActor(attackerId) is not { IsPlayer: false } attacker)
+        if (!HasNativeLimitFamily(actor.Id, BattleLimitFamily.Combine) || actor.LastAttackerId is not { } attackerId || GetActor(attackerId) is not { IsPlayer: false } attacker)
         {
             return;
         }
@@ -51,7 +51,7 @@ public sealed partial class BattleSession
     private bool ShouldRunNativePlayerDeathSupport(BattleCombatant actor, BattleCombatant? attacker)
     {
         // NG-005: Original482F10 excludes encounter317.
-        if (actor.ModelId != 4 || (attacker is not { IsPlayer: false }) || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
+        if (!HasNativeLimitFamily(actor.Id, BattleLimitFamily.Combine) || (attacker is not { IsPlayer: false }) || definition.EncounterId == 317 || (NativeBattleStatusBits(actor) & 0x10000) != 0)
         {
             return false;
         }

@@ -130,6 +130,8 @@ public sealed record BattleCombatantDefinition
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands { get; init; } = [];
     public ImmutableArray<byte> NativeCommandSlots { get; init; } = [];
     public BattleNativeLimitDefinition? NativeLimit { get; init; }
+    public BattleNativeLimitFamilyDefinition[]? NativeLimitFamilies { get; init; }
+    public BattleWeaponProfile? WeaponProfile { get; init; }
     public ImmutableArray<ushort> NativeRenzokukenMagicIds { get; init; } = [];
     public BattleNativeAction? NativeAttack { get; init; }
     public BattleNativePlayerStatRules? NativePlayerStatRules { get; init; }
@@ -511,7 +513,12 @@ public sealed partial class BattleCombatant
     public int Costume => definition.Costume;
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands => definition.NativeCommands;
     public ImmutableArray<byte> NativeCommandSlots => definition.NativeCommandSlots;
-    public BattleNativeLimitDefinition? NativeLimit => definition.NativeLimit;
+    public BattleNativeLimitDefinition? NativeLimitReadiness => definition.NativeLimit;
+    public IReadOnlyList<BattleNativeLimitFamilyDefinition>? NativeLimitFamilies => definition.NativeLimitFamilies;
+    public BattleWeaponProfile? WeaponProfile => definition.WeaponProfile;
+    public BattleLimitFamily? SelectedNativeLimitFamily { get; internal set; }
+    public BattleLimitFamily? ActiveNativeLimitFamily => SelectedNativeLimitFamily ?? definition.NativeLimitFamilies?.FirstOrDefault()?.Family;
+    public BattleNativeLimitDefinition? NativeLimit => definition.NativeLimitFamilies is { } families ? families.FirstOrDefault(family => family.Family == SelectedNativeLimitFamily)?.Definition ?? families.FirstOrDefault()?.Definition : definition.NativeLimit;
     public ImmutableArray<ushort> NativeRenzokukenMagicIds => definition.NativeRenzokukenMagicIds;
     public BattleNativeAction? NativeAttack => definition.NativeAttack;
     public int? SceneSlot => definition.SceneSlot;

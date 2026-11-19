@@ -1074,6 +1074,21 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Battle requires a supported actor roster and authored inactive enemy slots.");
         }
+        foreach (BattleCombatantDefinition actor in source.Combatants)
+        {
+            if (actor.NativeLimitFamilies is not { } families)
+            {
+                continue;
+            }
+            if (!actor.IsPlayer || families.Any(entry => entry is null || !Enum.IsDefined(entry.Family) || entry.Definition is null || entry.Definition.CharacterId != BattleLimitFamilyRules.SourceCharacter(entry.Family)) || families.Select(entry => entry.Family).Distinct().Count() != families.Length || families.Length != 0 && actor.NativeLimit is null)
+            {
+                throw new InvalidDataException("Assigned Limit families require distinct recognized families, their original source definitions and the recipient readiness profile.");
+            }
+            foreach (BattleNativeLimitFamilyDefinition family in families)
+            {
+                family.Definition.Validate();
+            }
+        }
         if (source.UsesOriginalEnemySlots)
         {
             BattleCombatantDefinition[] enemyDefinitions = source.Combatants.Where(actor => !actor.IsPlayer).ToArray();

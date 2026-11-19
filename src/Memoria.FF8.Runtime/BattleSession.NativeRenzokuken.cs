@@ -32,6 +32,11 @@ public sealed partial class BattleSession
         return definition.NativeRenzokukenResources.SingleOrDefault(resource => resource.MagicId == magicId) ?? throw new NotSupportedException($"Native Renzokuken resource {magicId} has no original effect-service projection.");
     }
 
+    private static byte NativeRenzokukenFinisherMask(BattleCombatant actor)
+    {
+        return actor.WeaponProfile?.RenzokukenFinisherMask ?? actor.NativePlayerStatRules!.WeaponRecord[2];
+    }
+
     private void QueueNativeRenzokuken(BattleCombatant actor, BattleCombatant target, byte crisis)
     {
         ushort options = RequireNativeRenzokukenOptions();
@@ -59,7 +64,7 @@ public sealed partial class BattleSession
             }
             for (byte index = 0; index < 4; index++)
             {
-                if ((rules.WeaponRecord[2] & (1 << index)) != 0)
+                if ((NativeRenzokukenFinisherMask(actor) & (1 << index)) != 0)
                 {
                     ValidateExpandedRenzokukenFinisher(FindInstalledNativeAction(249, index));
                 }
@@ -81,9 +86,9 @@ public sealed partial class BattleSession
         ushort magicId = target.NativeRenzokukenMagicIds[crisis + NextRandomByte() % 2 + 1];
         _ = RenzokukenResource(magicId);
         byte? finisher = null;
-        if (NativeBattleRenzokukenRules.HasFinisher(crisis, checked((byte)NextRandomByte())))
+        if (NativeBattleRenzokukenRules.HasFinisher(crisis, checked((byte)NextRandomByte())) && NativeRenzokukenFinisherMask(actor) != 0)
         {
-            finisher = NativeBattleRenzokukenRules.Finisher(actor.NativePlayerStatRules!.WeaponRecord[2], checked((byte)(NextRandomByte() % 4)));
+            finisher = NativeBattleRenzokukenRules.Finisher(NativeRenzokukenFinisherMask(actor), checked((byte)(NextRandomByte() % 4)));
             _ = FindInstalledNativeAction(249, finisher.Value);
         }
         return (magicId, finisher);
@@ -137,7 +142,7 @@ public sealed partial class BattleSession
         bool hosted = OwnsHostedRenzokukenRestore(hostedEvent, actorId);
         if ((ActiveAction is not null && !hosted || timed.Command.NativeRenzokuken is not { } invocation || GetActor(timed.Command.TargetId) is not { IsPlayer: false } target || !target.IsActive && !hosted ||
             target.NativeRenzokukenMagicIds.Length != 7 || process.MagicId != target.NativeRenzokukenMagicIds[invocation.CrisisLevel + 1] && process.MagicId != target.NativeRenzokukenMagicIds[invocation.CrisisLevel + 2] ||
-            process.FinisherActionId is byte finisher && (GetActor(actorId).NativePlayerStatRules!.WeaponRecord[2] & (1 << finisher)) == 0))
+            process.FinisherActionId is byte finisher && (NativeRenzokukenFinisherMask(GetActor(actorId)) & (1 << finisher)) == 0))
         {
             throw new InvalidDataException("Saved expanded Renzokuken disagrees with its installed target selectors or equipped finishers.");
         }

@@ -104,9 +104,9 @@ public sealed partial class BattleSession
         {
             BattleNativePlayerReaction.Counter => flags.HasValue && ability == BattleAbility.Attack && native?.Command == 1 && native.ActionId == 0 && (flags & 4) != 0,
             BattleNativePlayerReaction.AutoPotion => flags.HasValue && ability == BattleAbility.Item && native?.Command == 4 && native.ActionId is 1 or 2 or 3 or 4 or 5 or 9 && (flags & 0x40000) != 0,
-            BattleNativePlayerReaction.AngeloRush => (learned & 1) != 0 && ability == BattleAbility.EnemyAbility && actor.ModelId == 4 && native?.Command == 240 && native.ActionId == 11,
-            BattleNativePlayerReaction.AngeloRecover => (learned & 2) != 0 && ability == BattleAbility.EnemyAbility && actor.ModelId == 4 && native?.Command == 240 && native.ActionId == 12,
-            BattleNativePlayerReaction.AngeloReverse => (learned & 4) != 0 && ability == BattleAbility.EnemyAbility && actor.ModelId == 4 && native?.Command == 240 && native.ActionId == 13,
+            BattleNativePlayerReaction.AngeloRush => (learned & 1) != 0 && ability == BattleAbility.EnemyAbility && HasNativeLimitFamily(actor.Id, BattleLimitFamily.Combine) && native?.Command == 240 && native.ActionId == 11,
+            BattleNativePlayerReaction.AngeloRecover => (learned & 2) != 0 && ability == BattleAbility.EnemyAbility && HasNativeLimitFamily(actor.Id, BattleLimitFamily.Combine) && native?.Command == 240 && native.ActionId == 12,
+            BattleNativePlayerReaction.AngeloReverse => (learned & 4) != 0 && ability == BattleAbility.EnemyAbility && HasNativeLimitFamily(actor.Id, BattleLimitFamily.Combine) && native?.Command == 240 && native.ActionId == 13,
             BattleNativePlayerReaction.AngeloPeriodic => ability == BattleAbility.EnemyAbility && native?.Command == 240 && native.ActionId is 12 or 13 or 14 && (learned & (native.ActionId == 12 ? 2 : native.ActionId == 13 ? 4 : 8)) != 0,
             BattleNativePlayerReaction.AutomaticGuardian => ability == BattleAbility.EnemyAbility && native?.Command == 245 && native.ActionId is 0 or 1 or 7 or 8 or 9 or 10,
             BattleNativePlayerReaction.PhoenixRevival => ability == BattleAbility.EnemyAbility && native?.Command == 0 && native.ActionId == 8,

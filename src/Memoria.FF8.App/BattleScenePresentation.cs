@@ -73,7 +73,7 @@ internal sealed partial class BattleScenePresentation
         activeVisualModels[actorId] = visualModelId;
         BattleCombatantDefinition actor = definitions[actorId];
         bool playerResource = actor.IsPlayer && visualModelId is null;
-        BattleModel model = visualModelId is int formModel ? assets.LoadEnemy(formModel) : playerResource ? assets.LoadPlayer(actor.ModelId, actor.Costume) : assets.LoadEnemy(actor.ModelId);
+        BattleModel model = visualModelId is int formModel ? assets.LoadEnemy(formModel) : playerResource ? assets.LoadPlayerForWeapon(actor.ModelId, actor.Costume, actor.WeaponId) : assets.LoadEnemy(actor.ModelId);
         if (!actor.IsPlayer && actor.WeaponId is not null)
         {
             throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");

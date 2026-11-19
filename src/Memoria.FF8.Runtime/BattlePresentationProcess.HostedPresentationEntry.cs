@@ -190,13 +190,14 @@ public sealed partial class BattlePresentationProcess
         NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new InvalidDataException("Hosted entry model completion lacks its CPU resource owner.");
         NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Hosted entry model completion lacks its texture alias owner.");
         RequireHostedModelLoadAlias(cpu, cache, body, owner, isParty ? (byte)1 : (byte)3, binding.ModelId);
-        if (isParty && binding.ModelId != 7)
+        byte linkedStyle = binding.Resource.CombatStyleModelId ?? binding.ModelId;
+        if (isParty && linkedStyle != 7)
         {
             if (model.LinkedTextureSlots is null)
             {
                 throw new InvalidDataException("Hosted entry party model completion requires its finished linked resource publication.");
             }
-            if (binding.ModelId is not (1 or 9))
+            if (linkedStyle is not (1 or 9))
             {
                 int linked = model.LinkedTextureResourceIndex ?? throw new InvalidDataException("Hosted linked model completion lacks its allocated alias.");
                 RequireHostedModelLoadAlias(cpu, cache, linked, owner, 2, binding.ModelId);

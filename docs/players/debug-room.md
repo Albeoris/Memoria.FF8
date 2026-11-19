@@ -41,6 +41,16 @@ The Session name list edits characters, Guardian Forces and other supported name
 
 This edits the running session without advancing simulation frames. Save the game to retain the changes in a game snapshot. Naming is available in an eligible field or world session, and is disabled during active battles, title/movie sessions and faulted fields.
 
+## Weapons & Limit Breaks
+
+Choose **Battle / Weapons & Limit Breaks** for the **Current game** editor. Select an available character, assign an installed weapon, and add, remove or reorder its Limit families. Weapons and families are independent. Several characters may share the same definition. **Remove All Limits** stores an explicit empty set; **Reset Character** stages native defaults without erasing learning.
+
+**Swap Weapons**, **Move Limit** and **Swap Limit Sets** stage both participants together. Choose a different destination; a family already on the destination is kept once. Asterisks identify changed characters. Review each changed recipient's equipment, key statistics and family requirements before applying. An incompatible family stays assigned with an explanation.
+
+**Apply** validates the complete draft and publishes it together. **Cancel** discards it. Apply is unavailable during active/pending battles, field transitions, scripted party changes and tutorials. Reopen stale drafts after session or resource changes. Opening the editor does not save or advance the game. Save normally to retain applied assignments. At Title, use the isolated laboratory instead.
+
+The laboratory's **Equipment and abilities** group has its own weapon and family controls. Initialized native actors recompute weapon contributions while retaining recipient statistics; a scenario without the required native inputs explains why a weapon edit is unavailable. Laboratory changes and explicit presets remain separate from the current game.
+
 ## Battle settings and laboratory
 
 The Battle section shows whether actions target a **Game battle** or **Laboratory battle**. **Win current battle** and **Lose current battle** require that displayed battle to be active. **Encounter execution** selects Full combat or Automatic victory for the current game (the new-game default at Title). Choosing Automatic victory can finish an active or pending encounter and requires confirmation of that immediate consequence. Merely opening the page changes nothing. Save the game to retain session rules.

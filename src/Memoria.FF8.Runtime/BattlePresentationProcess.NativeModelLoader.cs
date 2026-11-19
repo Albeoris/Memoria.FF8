@@ -30,9 +30,13 @@ public sealed partial class BattlePresentationProcess
         }
         NativeBattleGraphicsModel model = graphics.ActorModels.Get(owner);
         bool linked = request >= 0x1000;
+        NativeBattleGraphicsResource? selectedResource = ReadStandingPresentationModelResource(graphics, owner);
+        byte? combatStyleModel = request < 16 || linked ? selectedResource?.CombatStyleModelId : null;
+        int sharedWeaponObject = selectedResource?.SharedWeaponBodyObjectIndex ?? 1;
+        int linkedStyle = combatStyleModel ?? (linked ? request - 0x1000 : request);
         byte body = linked || request >= 16 ? (byte)0 : model.FileSelector129 ?? throw new NotSupportedException("Native5077B0 requires the observed model BYTE129 costume selector.");
-        byte weapon = !linked || request == 0x1007 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
-        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, owner, originalSlot, argument, weapon, body);
+        byte weapon = !linked || linkedStyle == 7 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Native507BF0/507E20 requires the observed model BYTE128 kernel weapon selector.");
+        NativeBattleModelLoader queued = NativeBattleModelLoader.Queue507080(request, owner, originalSlot, argument, weapon, body, combatStyleModel, sharedWeaponObject);
         if (actorMaterial && queued.Task is { } hostedTask)
         {
             if (hostedTask.Callback is 0x507BF0 or 0x507E20)
@@ -48,10 +52,10 @@ public sealed partial class BattlePresentationProcess
         if (!linked && request < 16)
         {
             NativeBattleModelCpuResources cpu = NativeModelCpuResources ?? throw new NotSupportedException("Complete party load planning requires its current CPU resource owner.");
-            byte linkedSelector = request == 7 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Complete party load planning requires its selected BYTE128 weapon resource.");
+            byte linkedSelector = linkedStyle == 7 ? (byte)0 : model.FileSelector128 ?? throw new NotSupportedException("Complete party load planning requires its selected BYTE128 weapon resource.");
             BattlePartyModelOwner party = owner as BattlePartyModelOwner ?? throw new InvalidDataException("Party loading requires its party model owner.");
             cpu = cpu.BindPartyOwner(party, originalSlot);
-            NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(checked((byte)request), party, originalSlot, body, linkedSelector, cpu.Cpu.EffectiveLayout, NativeModelResourceSources());
+            NativeBattlePartyLoadPlan plan = NativeBattlePartyLoadPlan.Create(checked((byte)request), party, originalSlot, body, linkedSelector, cpu.Cpu.EffectiveLayout, NativeModelResourceSources(), combatStyleModel, sharedWeaponObject);
             if (plan.RequiresResourceStorage)
             {
                 NativeBattleModelResourceCopies.RequirePlannedTransition(cpu, party, graphics);

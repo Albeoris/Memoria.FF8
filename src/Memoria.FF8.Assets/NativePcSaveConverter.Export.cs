@@ -7,19 +7,21 @@ namespace Memoria.FF8.Assets;
 
 public static partial class NativePcSaveConverter
 {
-    public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false, short? originalPlaceId = null)
+    public static byte[] Export(GameState state, NativeCharacterVitals targetSource, bool allowGuardianForceLoss = false, short? originalPlaceId = null, bool allowBattleLoadoutLoss = false)
     {
+        RequireBattleLoadoutExportConsent(state, allowBattleLoadoutLoss);
         NativeGuardianForceLegacyExportPlan plan = NativeGuardianForceLegacyCompatibility.Analyze(state, targetSource);
         if (plan.RequiresConfirmation && !allowGuardianForceLoss)
         {
             throw new NotSupportedException("Original FF8 export requires confirmation of GF configuration/progression losses: " + string.Join("; ", plan.Losses.Select(loss => loss.Description)));
         }
-        return ExportCore(CompleteOpaqueExportState(plan.ProjectedState, targetSource), originalPlaceId);
+        return ExportCore(CompleteOpaqueExportState(plan.ProjectedState with { BattleLoadouts = null }, targetSource), originalPlaceId);
     }
 
     public static byte[] Export(GameState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        RequireBattleLoadoutExportConsent(state, false);
         if (state.CharacterVitals is { } vitals && (vitals.GuardianForceProfile is not null || vitals.GuardianForceRecoveryProfile is not null || !vitals.GuardianForceRecoveryProgression.IsDefaultOrEmpty || vitals.GuardianForceOpaqueBaseline || !vitals.MenuDefinitions.Templates.IsDefault || vitals.GuardianForces.Any(gf => gf.Progression is not null)))
         {
             if (vitals.MenuDefinitions.SourceTemplates.IsDefault)
@@ -30,6 +32,16 @@ public static partial class NativePcSaveConverter
             return Export(state, target);
         }
         return ExportCore(state with { CharacterVitals = state.CharacterVitals?.ForOriginalSaveExport() });
+    }
+
+    private static void RequireBattleLoadoutExportConsent(GameState state, bool allowLoss)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        state.BattleLoadouts?.Validate();
+        if (!allowLoss && state.BattleLoadouts?.Characters.Count > 0)
+        {
+            throw new NotSupportedException("Original FF8 export requires confirmation that weapon and Limit Break assignments will be omitted. The Memoria save retains these assignments.");
+        }
     }
 
     private static GameState CompleteOpaqueExportState(GameState state, NativeCharacterVitals targetSource)

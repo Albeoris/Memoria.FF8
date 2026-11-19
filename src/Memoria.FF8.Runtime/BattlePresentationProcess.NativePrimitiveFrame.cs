@@ -135,20 +135,20 @@ public sealed partial class BattlePresentationProcess
         bool bodyDraw = ResetAndEnterNativeModelRenderer5099D0(color);
         if (bodyDraw && shared)
         {
-            //507E20 patches body geometry directory DWORD2 to the single weapon object at copied resource+8.
-            if (geometry.Length < 2 || linked.Length != 1)
+            int weaponObject = resource.SharedWeaponBodyObjectIndex ?? 1;
+            if ((uint)weaponObject >= geometry.Length || linked.Length != 1)
             {
                 throw new NotSupportedException("Native507E20 shared-skeleton geometry requires its original single weapon object and body directory slot1.");
             }
             NativeBattleModelPrimitiveBatch.Builder primitives = new();
             for (int index = 0; index < geometry.Length; index++)
             {
-                if ((mask & (1u << (index & 31))) == 0)
+                if ((mask & (1u << (index & 31))) == 0 || index == weaponObject && (model.Flags0 & 0x200) != 0)
                 {
                     continue;
                 }
-                NativeBattleRawMesh mesh = index == 1 ? linked[0] : geometry[index];
-                NativeBattleModelTextureBinding selectedBinding = index == 1 ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
+                NativeBattleRawMesh mesh = index == weaponObject ? linked[0] : geometry[index];
+                NativeBattleModelTextureBinding selectedBinding = index == weaponObject ? model.LinkedTextureSlots ?? throw new NotSupportedException("Native507E20 requires its executed weapon texture relocation.") : binding;
                 NativeBattleRawGeometryPackets.AppendModel5099D0(primitives, [mesh], matrices, projection, color, 1, null, 17, 4, selectedBinding, publishProjectedScratch: PublishNativeBodyProjectionScratch, viewport: SceneGeometryViewport, pilotIdentity: NativePilotModelIdentity(0x502D40, owner, index), actorId: actorId, material: material);
             }
             bodyPrimitives = primitives.Freeze();

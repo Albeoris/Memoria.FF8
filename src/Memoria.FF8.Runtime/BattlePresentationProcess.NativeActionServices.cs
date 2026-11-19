@@ -71,6 +71,7 @@ public sealed partial class BattlePresentationProcess
 
     private NativeBattleGraphicsState SelectNativeHeaderSequence(NativeBattleGraphicsState graphics, BattleModelOwner index, int requestedSequence, NativeBattleCastingSequenceProvenance? presentationSource = null)
     {
+        graphics = SynchronizeLimitPresentationScope(graphics, index);
         graphics = ScheduleNativeRingSequence505C00(graphics, index, requestedSequence);
         return graphics with { ModuleEffects = graphics.ModuleEffects.BindCastingSequence(index, presentationSource) };
     }

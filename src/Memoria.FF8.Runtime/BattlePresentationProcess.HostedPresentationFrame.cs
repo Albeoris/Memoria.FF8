@@ -106,6 +106,7 @@ public sealed partial class BattlePresentationProcess
                 {
                     AdvanceTerminalScriptTasks();
                 }
+                NativeGraphics = SynchronizeLimitPresentationScopes(NativeGraphics!);
                 PumpNativeFileIo482590();
                 AdvanceNativeGraphicsFrameCore(frameServices);
                 if (hostedTerminal is not null)

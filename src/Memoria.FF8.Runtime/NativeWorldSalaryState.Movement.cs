@@ -7,7 +7,9 @@ public sealed partial record NativeWorldSalaryState
 
     public NativeWorldSalaryState PrepareMovementProgress(uint units)
     {
-        NativeMovementProgressResult progress = NativeMovementProgress.Sample(MovementProgress?.Memory ?? Departure.EventMemory, MovementProgress?.Vitals ?? Departure.CharacterVitals, MovementProgress?.Limits ?? Departure.LimitProgress, FieldParty(), Departure.SavedBattleFlags, units);
+        byte[]? party = FieldParty();
+        bool? combineInParty = party?.Any(character => BattleLimitFamilyRules.HasAssignment(Departure.BattleLoadouts, character, BattleLimitFamily.Combine));
+        NativeMovementProgressResult progress = NativeMovementProgress.Sample(MovementProgress?.Memory ?? Departure.EventMemory, MovementProgress?.Vitals ?? Departure.CharacterVitals, MovementProgress?.Limits ?? Departure.LimitProgress, party, Departure.SavedBattleFlags, units, combineInParty);
         return this with { MovementProgress = progress };
     }
 

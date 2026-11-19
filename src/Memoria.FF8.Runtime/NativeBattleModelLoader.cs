@@ -22,6 +22,7 @@ public sealed record NativeBattleModelLoadTask(byte ModelId, [property: System.T
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleModelDatSource? ResourceSource { get; init; }
     public int? EnemyResourceIndex { get; init; }
+    public int SharedWeaponBodyObjectIndex { get; init; } = 1;
     public NativeBattleModelFileSelection? File { get; init; }
     public NativeBattleModelTextureBinding? TextureBinding { get; init; }
     public NativeBattleEffectHeapAllocation? OriginalTexturePack { get; init; }
@@ -52,7 +53,7 @@ public sealed record NativeBattleModelLoader([property: System.Text.Json.Seriali
         bool enemyResource = task.Callback is 0x507120 or 0x507F80;
         bool validOwner = task.Owner is not null && (task.OriginalSlot is not { } slot || slot.Side == task.Owner.Side) &&
             (enemyResource || task.Owner is BattlePartyModelOwner && task.ModelId < 16);
-        if (!validOwner || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
+        if (!validOwner || task.SharedWeaponBodyObjectIndex is < 0 or > 31 || task.Callback is not (0x507120 or 0x507F80 or 0x5077B0 or 0x5079B0 or 0x507BF0 or 0x507E20) || task.Phase > (task.Callback == 0x5079B0 ? 3 : 2) || task.Phase != 0 && task.File is null || task.Phase >= 2 && (task.TextureBinding is null || task.OriginalTexturePack is null))
         {
             throw new InvalidDataException("Native507070 requires its original bounded task and staging owners.");
         }
@@ -70,7 +71,7 @@ public sealed record NativeBattleModelLoader([property: System.Text.Json.Seriali
         }
     }
 
-    public static NativeBattleModelLoader Queue507080(ushort request, BattleModelOwner owner, NativeBattleModelSlot? originalSlot, uint argument, byte linkedSelector128, byte bodySelector129)
+    public static NativeBattleModelLoader Queue507080(ushort request, BattleModelOwner owner, NativeBattleModelSlot? originalSlot, uint argument, byte linkedSelector128, byte bodySelector129, byte? combatStyleModelId = null, int sharedWeaponBodyObjectIndex = 1)
     {
         ArgumentNullException.ThrowIfNull(owner);
         if (originalSlot is { } slot && slot.Side != owner.Side)
@@ -87,9 +88,14 @@ public sealed record NativeBattleModelLoader([property: System.Text.Json.Seriali
         {
             throw new NotSupportedException("Party model reload requires a party model owner.");
         }
-        uint callback = linked ? model is 1 or 9 ? 0x507E20u : 0x507BF0u : model == 7 ? 0x5079B0u : 0x5077B0u;
+        int linkedStyle = combatStyleModelId ?? model;
+        if (linkedStyle >= 16 || sharedWeaponBodyObjectIndex is < 0 or > 31)
+        {
+            throw new InvalidDataException("Party model loading requires a bounded combat style and shared weapon object index.");
+        }
+        uint callback = linked ? linkedStyle is 1 or 9 ? 0x507E20u : 0x507BF0u : model == 7 ? 0x5079B0u : 0x5077B0u;
         //507080 reinitializes the one-slot list even when model7's linked request appends no callback.
-        return new(Task: linked && model == 7 ? null : new((byte)model, owner, originalSlot, argument, linked ? linkedSelector128 : bodySelector129, callback, 0));
+        return new(Task: linked && linkedStyle == 7 ? null : new((byte)model, owner, originalSlot, argument, linked ? linkedSelector128 : bodySelector129, callback, 0) { SharedWeaponBodyObjectIndex = sharedWeaponBodyObjectIndex });
     }
 
     public NativeBattleModelLoadStep Poll507070(int signed508470Result, IReadOnlyList<NativeBattleModelDatSource> sources, NativeBattleFileStaging staging, ushort enemyBlockedSlots = 63, bool ownedEnemySource = false)
@@ -148,7 +154,7 @@ public sealed record NativeBattleModelLoader([property: System.Text.Json.Seriali
             NativeBattleModelDatSource source = ReadCurrentStaging(task, staging);
             PartyPlan?.RequireSource(task, source, false);
             NativeBattleModelTextureBinding binding = task.TextureBinding ?? throw new InvalidDataException("Native resource completion lost its executed507400 binding.");
-            NativeBattleModelLoader next = this with { Task = null, PartyPlan = task.Callback is 0x5077B0 && PartyPlan?.Linked is not null ? PartyPlan : null };
+            NativeBattleModelLoader next = this with { Task = null, PartyPlan = task.Callback is 0x5077B0 or 0x5079B0 && PartyPlan?.Linked is not null ? PartyPlan : null };
             return new(next, staging, 0, null, null, new(task, source, binding) { OriginalTexturePack = task.OriginalTexturePack ?? throw new InvalidDataException("Native resource completion lost its pre-relocation texture pack."), PartyPlan = PartyPlan });
         }
         throw new InvalidDataException("Native model loader phase has no original callback branch.");

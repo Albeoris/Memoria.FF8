@@ -9,6 +9,51 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudNativeLimitTests
 {
     [Fact]
+    public void Five_family_selector_scrolls_enters_native_flow_and_cancels_without_crisis_roll()
+    {
+        BattleSnapshot snapshot = Create().Capture();
+        BattleCombatantDefinition actor = snapshot.Definition.Combatants[0];
+        BattleNativeLimitDefinition original = actor.NativeLimit!;
+        BattleNativeLimitFamilyDefinition[] families =
+        [
+            new(BattleLimitFamily.Renzokuken, original),
+            new(BattleLimitFamily.Duel, original with { CharacterId = 1, Command = 11, InvocationChoices = [new(11, "Duel", 0x50, 0)] }),
+            new(BattleLimitFamily.BlueMagic, original with { CharacterId = 3, Command = 15 }),
+            new(BattleLimitFamily.Slot, original with { CharacterId = 5, Command = 16 }),
+            new(BattleLimitFamily.AngelWing, original with { CharacterId = 4, Command = 19 })
+        ];
+        BattleDefinition definition = snapshot.Definition with { Combatants = [actor with { NativeLimitFamilies = families, WeaponProfile = new(0, 0, 0, BattleWeaponCapabilities.Gunblade, 1) }, snapshot.Definition.Combatants[1]] };
+        BattleSession battle = BattleSession.Restore(snapshot with { Definition = definition });
+        BattleHudController hud = Hud(battle);
+        string random = JsonSerializer.Serialize(battle.Capture().Random);
+        byte crisis = battle.GetNativeLimitLevel("squall");
+
+        hud.Navigate(MenuInput.Right);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingNativeLimitFamilies);
+        Assert.Equal(5, hud.ChoiceLabels.Count);
+        for (int index = 0; index < 4; index++)
+        {
+            hud.Navigate(MenuInput.Down);
+        }
+        Assert.True(hud.ChoiceStart > 0);
+        for (int index = 0; index < 3; index++)
+        {
+            hud.Navigate(MenuInput.Up);
+        }
+        hud.Navigate(MenuInput.Confirm);
+        Assert.False(hud.SelectingNativeLimitFamilies);
+        Assert.True(hud.SelectingTarget);
+        Assert.Equal((byte)11, hud.SelectedActor!.NativeLimit!.Command);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.True(hud.SelectingNativeLimitFamilies);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.False(hud.SelectingAction);
+        Assert.Equal(crisis, battle.GetNativeLimitLevel("squall"));
+        Assert.Equal(random, JsonSerializer.Serialize(battle.Capture().Random));
+    }
+
+    [Fact]
     public void Limit_arrow_uses_native_artwork_and_blinks_without_advancing_battle_or_rerolling()
     {
         BattleSession battle = Create();
@@ -213,7 +258,7 @@ public sealed class BattleHudNativeLimitTests
     public void Losing_the_selected_actor_closes_its_Limit_targeting_before_selecting_the_next_actor()
     {
         BattleSession battle = Create(twoPlayers: true);
-        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: _ => { });
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: _ => { }, readPresentationUi: BattleHudTestPresentation.Visible);
         hud.Navigate(MenuInput.Right);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingTarget);
@@ -242,7 +287,7 @@ public sealed class BattleHudNativeLimitTests
 
     private static BattleHudController Hud(BattleSession battle, Action<BattleInput>? execute = null)
     {
-        return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute);
+        return new(battle, (_, _) => { }, () => { }, () => { }, execute: execute, readPresentationUi: BattleHudTestPresentation.Visible);
     }
 
     private static BattleSession Create(bool twoPlayers = false, byte crisis = 4, bool terminal = false)

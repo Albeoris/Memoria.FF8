@@ -82,7 +82,7 @@ public sealed partial class BattleAssets : IDisposable
     public IReadOnlyList<BattleNativeAction> NativeActions { get; }
     public IReadOnlyList<BattleNativeKernelRecord> NativeKernelRecords { get; }
     public string?[] ReadNativeGlobalBattleMessages() => battleKernel.MiscTexts.ToArray();
-    public BattlePlayerStats ReadPlayerStats(Memoria.FF8.Runtime.NativeCharacterVitals vitals, int row) => playerStats.Read(vitals, row);
+    public BattlePlayerStats ReadPlayerStats(Memoria.FF8.Runtime.NativeCharacterVitals vitals, int row, int? weaponId = null) => playerStats.Read(vitals, row, weaponId);
 
     public Memoria.FF8.Runtime.BattleDrawSpell[] ReadEnemyDrawSpells(int modelId, int level)
     {
@@ -204,20 +204,19 @@ public sealed partial class BattleAssets : IDisposable
     {
         BattleModel? model = ResolvePlayerRenderWeapon(characterId, savedWeaponId, body);
         // The original reduced loader for Zell and Kiros creates no second render header.
-        return characterId is 1 or 9 ? null : model;
+        return WeaponOwner(savedWeaponId) is 1 or 9 ? null : model;
     }
 
     public BattleModel? ResolvePlayerRenderWeapon(int characterId, int savedWeaponId, BattleModel body)
     {
-        if ((uint)savedWeaponId >= WeaponDefinitions.Count || WeaponDefinitions[savedWeaponId].CharacterId != characterId)
-        {
-            throw new NotSupportedException($"Saved weapon {savedWeaponId} does not belong to character {characterId}.");
-        }
-        if (characterId == 7)
+        int sourceCharacter = WeaponOwner(savedWeaponId);
+        if (sourceCharacter == 7)
         {
             return null;
         }
-        return LoadWeapon(ResolvePlayerWeaponName(characterId, savedWeaponId), body);
+        BattleModel sourceBody = sourceCharacter == characterId ? body : LoadPlayer(sourceCharacter);
+        BattleModel weaponModel = LoadWeapon(ResolvePlayerWeaponName(sourceCharacter, savedWeaponId), sourceBody);
+        return sourceCharacter != characterId && weaponModel.NativeWeaponUsesBodySkeleton == true ? RebindSharedWeapon(savedWeaponId, sourceCharacter, sourceBody, characterId, body, weaponModel) : weaponModel;
     }
 
     public BattleSequenceSet LoadPlayerSequences(int characterId, int? savedWeaponId, BattleModel character)
@@ -227,6 +226,12 @@ public sealed partial class BattleAssets : IDisposable
 
     private BattleModel LoadPlayerSequenceOwner(int characterId, int? savedWeaponId, BattleModel character)
     {
+        if (savedWeaponId is int weapon && WeaponOwner(weapon) is int source && source != characterId)
+        {
+            BattleModel sourceBody = LoadPlayer(source);
+            BattleModel owner = LoadPlayerSequenceOwner(source, weapon, sourceBody);
+            return owner.NativeWeaponUsesBodySkeleton == true ? RebindSharedWeapon(weapon, source, sourceBody, characterId, character, owner) : owner;
+        }
         if (character.Sequences is not null)
         {
             return character;

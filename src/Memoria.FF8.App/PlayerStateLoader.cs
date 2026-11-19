@@ -88,11 +88,18 @@ internal static partial class PlayerStateLoader
         GameAssets? ownedAssets = null;
         try
         {
-            return GameSession.Load(path, () =>
+            GameState loaded = GameSession.Load(path, () =>
             {
                 GameAssets assets = sharedAssets ?? (ownedAssets ??= openAssets?.Invoke() ?? new GameAssets(gameDirectory ?? LaunchOptions.ConfiguredGameDirectory, resources: resources));
                 return assets.ReadNewGameLimitProgress();
             });
+            if (loaded.NativeBattleMemory?.EffectMemory is { ModuleSpriteBillboard21DFED0: null } effects)
+            {
+                GameAssets assets = sharedAssets ?? (ownedAssets ??= openAssets?.Invoke() ?? new GameAssets(gameDirectory ?? LaunchOptions.ConfiguredGameDirectory, resources: resources));
+                NativeBattleEffectMemory reset = assets.ReadColdProcessNativeBattleMemory().EffectMemory ?? throw new InvalidDataException("Selected resources do not supply battle presentation initialization.");
+                loaded = loaded with { NativeBattleMemory = loaded.NativeBattleMemory with { EffectMemory = effects with { ModuleSpriteBillboard21DFED0 = reset.ModuleSpriteBillboard21DFED0 } } };
+            }
+            return loaded;
         }
         finally
         {

@@ -14,6 +14,8 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
 {
     public ImmutableArray<bool> SkeletonKnownBytes { get; init; } = [];
     public ImmutableArray<byte> Model8FBoneAliases { get; init; } = [];
+    public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
+    public NativeBattlePoseRetargetBinding? RetargetBinding { get; init; }
 
     public int BoneCount => Skeleton.IsDefaultOrEmpty ? throw new InvalidDataException("Native pose lacks its original skeleton.") : Skeleton[0];
 
@@ -24,6 +26,10 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
         if (!Model8FBoneAliases.IsDefaultOrEmpty && Model8FBoneAliases.Length != 16)
         {
             throw new InvalidDataException("Native model8F requires its complete selectorF0..FF directory.");
+        }
+        if (!ActionBoneAliases.IsDefaultOrEmpty && (ActionBoneAliases.Length > 128 || ActionBoneAliases.Any(bone => bone != byte.MaxValue && bone >= BoneCount)))
+        {
+            throw new InvalidDataException("Transferred action bone aliases require valid recipient joints or an explicit unsupported marker.");
         }
         if (Skeleton.IsDefaultOrEmpty || BoneCount is < 1 or > 128 || Skeleton.Length < 16 + 48 * BoneCount || Animations.IsDefaultOrEmpty)
         {

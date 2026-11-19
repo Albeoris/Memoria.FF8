@@ -4,7 +4,11 @@ using System.Security.Cryptography;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>An explicit owner-scoped source bank replacement, resolved before native pose decoding.</summary>
-public sealed record NativeBattleAnimationBankOverride(string Bank, uint? SourceDirectory, bool Linked, string SourceFingerprint, ImmutableArray<byte> Animations);
+public sealed record NativeBattleAnimationBankOverride(string Bank, uint? SourceDirectory, bool Linked, string SourceFingerprint, ImmutableArray<byte> Animations)
+{
+    public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
+    public NativeBattlePoseRetargetBinding? RetargetBinding { get; init; }
+}
 
 public sealed partial record NativeBattleGraphicsResource
 {
@@ -37,7 +41,7 @@ public sealed partial record NativeBattleGraphicsResource
                 }
                 throw new InvalidDataException("An animation bank override no longer matches its bound source revision.");
             }
-            NativeBattlePoseSource result = source with { Animations = replacement.Animations };
+            NativeBattlePoseSource result = source with { Animations = replacement.Animations, ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
             result.Validate();
             return result;
         }

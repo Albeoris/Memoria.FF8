@@ -17,7 +17,7 @@ public static partial class NativeBattleRenzokuken160Controller
         NativeBattleActionMatrix bone = bones[1];
         var first = NativeBattleGfMatrices.RotateLong56C600(bone, 0, 0, -4096);
         var direction = NativeBattleActionGeometryRules.NormalizeVector56BC50(first.X, first.Y, first.Z);
-        NativeBattleLinkedModelTransform local = model.LinkedTransform ?? throw new NotSupportedException("Native5FFEE0 requires its actual linked local transform.");
+        NativeBattleLinkedModelTransform local = model.ReadEffectiveLinkedTransform() ?? throw new NotSupportedException("Native5FFEE0 requires its actual linked local transform.");
         NativeBattleActionMatrix localMatrix = NativeBattleGfMatrices.Euler56CD50(local.Rotation) with { X = local.Position.X, Y = local.Position.Y, Z = local.Position.Z };
         NativeBattleActionMatrix parent = NativeBattlePoseMatrices.Compose56C2F0(model.GeometryWorldMatrix ?? throw new NotSupportedException("Native5FFEE0 requires its current model matrix64."), localMatrix);
         var rotated = NativeBattleGfMatrices.RotateLong56C600(parent, direction.X, direction.Y, direction.Z);
