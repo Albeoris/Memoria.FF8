@@ -323,6 +323,11 @@ public sealed partial class Ff7Session : IDisposable
 
     public Ff7SessionSave Capture()
     {
+        return Capture(includeObservations: true);
+    }
+
+    private Ff7SessionSave Capture(bool includeObservations)
+    {
         if (fieldLoadIncomplete || tickTailInProgress || Highway is not null)
         {
             throw new InvalidOperationException("Snapshots require a completed field load outside an active highway chase and an atomic field-update tail.");
@@ -332,7 +337,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             vm = vm with { PersistentVariables = World.Machine.CopyPersistent() };
         }
-        return new Ff7SessionSave { GatewayDeparture = GatewayDeparture, NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = AutoPlayState, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
+        return new Ff7SessionSave { GatewayDeparture = GatewayDeparture, NativeSaveData = nativeSaveData?.ToArray(), ResourceProfile = installation.Layout.ToString(), Language = installation.Language, FieldName = Field.Name, FieldGeneration = FieldGeneration, Progress = Progress, Vm = vm, Process = Host.Capture(), TickContinuation = tickContinuation is null ? null : tickContinuation with { ScriptReturns = tickContinuation.ScriptReturns?.ToArray() }, World = World?.Process, WorldPartyMenuPending = World is null ? null : worldPartyMenuPending, EventCoverage = !includeObservations || EventCoverage is null ? null : new Memoria.AutoPlay.AutoPlayEventCoverageLedger(EventCoverage).Capture(), AutoPlay = includeObservations ? AutoPlayState : null, Battle = Battle?.Capture(), ChocoboRace = ChocoboRace?.Capture(), ChocoboCarry = chocoboCarry, BattleBigShotChargeRotation = Battle?.BigShotChargeRotation ?? battleBigShotChargeRotation, BattleBigShotCounterRotation = Battle?.BigShotCounterRotation ?? battleBigShotCounterRotation, BattleSearchScopeScaleCounter = Battle?.SearchScopeScaleCounter ?? battleSearchScopeScaleCounter, BattleSilkDirection = Battle?.SilkDirection ?? battleSilkDirection, BattleCameraPresentationCounter = Battle?.CameraPresentationCounter ?? battleCameraPresentationCounter };
     }
 
     private bool fieldLoadIncomplete;

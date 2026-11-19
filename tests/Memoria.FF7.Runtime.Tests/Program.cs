@@ -3,6 +3,24 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-route-fork-resources-original-only", StringComparer.Ordinal))
+{
+    NativeRouteForkResourceTests.RunOriginal();
+    return 0;
+}
+
+if (args.Contains("--native-route-fair-only", StringComparer.Ordinal))
+{
+    NativeRouteFairSchedulingTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-route-fair-original-only", StringComparer.Ordinal))
+{
+    NativeRouteFairSchedulingTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--physical-search-continuation-only", StringComparer.Ordinal))
 {
     PhysicalSearchContinuationTests.Run();

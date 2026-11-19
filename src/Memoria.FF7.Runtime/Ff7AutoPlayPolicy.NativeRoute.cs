@@ -102,24 +102,16 @@ public sealed partial class Ff7AutoPlayPolicy
         {
             yield break;
         }
-        Ff7AutoPlaySourceRevalidationTask? required = HasArrivedSourceRevalidation(State, observation) ? State.NativeRevalidation : null;
         Ff7AutoPlayTarget[] candidates = ReadNativeProbeCandidates(State, observation, completedTask);
-        foreach (Ff7AutoPlayTarget target in PrioritizeNativeProbeCandidates(State, planner, observation, candidates, facts, NeedsVisitRefresh))
+        AutoPlayPlanStep? planned = null;
+        IEnumerable<int> EnumerateTarget(Ff7AutoPlayTarget target)
         {
             Ff7NativeRouteProbe probe = new() { SourceRelease = (branch, actual) => CanReleaseNativeSource(State, observation, target, branch, actual) };
-            foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, true, probe))
+            IEnumerable<int>[] modes = [driver.EnumerateNativeRoute(target, observation.Events, true, probe), driver.EnumerateNativeRoute(target, observation.Events, false, probe)];
+            foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(modes, () => probe.Result is not null))
             {
                 nativePlanningPhase = probe.Progress;
-                yield return null;
-            }
-            bool intermediate = probe.Result is not null;
-            if (!intermediate)
-            {
-                foreach (int _ in driver.EnumerateNativeRoute(target, observation.Events, false, probe))
-                {
-                    nativePlanningPhase = probe.Progress;
-                    yield return null;
-                }
+                yield return 0;
             }
             Ff7AutoPlayNativeRoute? proof = probe.Result;
             CompleteSourceRevalidation(State, observation.NavigationKey, target.Id, target.ConditionFingerprint);
@@ -127,11 +119,7 @@ public sealed partial class Ff7AutoPlayPolicy
             nativePlanningIntent = ReadNativePlanningIntent();
             if (proof is null)
             {
-                if (required is not null)
-                {
-                    yield break;
-                }
-                continue;
+                yield break;
             }
             // The original negative receipts remain intact. This availability
             // is a distinct, finite native continuation from the exact source.
@@ -158,14 +146,19 @@ public sealed partial class Ff7AutoPlayPolicy
                 coverage.Unavailable = availability.Unavailable;
                 coverage.UnavailableVariants = availability.UnavailableVariants;
                 State.NativeRoute = proof;
-                yield return next;
+                planned = next;
                 yield break;
             }
             components[observation.NavigationKey] = facts;
-            if (required is not null)
-            {
-                yield break;
-            }
+        }
+        IEnumerable<int>[] targets = PrioritizeNativeProbeCandidates(State, planner, observation, candidates, facts, NeedsVisitRefresh).Select(EnumerateTarget).ToArray();
+        foreach (int _ in Ff7AutoplayDriver.EnumerateFairNativeCandidates(targets, () => planned is not null))
+        {
+            yield return null;
+        }
+        if (planned is not null)
+        {
+            yield return planned;
         }
     }
 
