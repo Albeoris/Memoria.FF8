@@ -73,6 +73,72 @@ public sealed class ResourceReaderTests
     }
 
     [Fact]
+    public void LgpIndependentReadersOwnTheirStreamsAndKeepTheirValidatedCatalog()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "memoria-lgp-reader-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "fixture.lgp");
+        try
+        {
+            using MemoryStream fixture = BuildArchive();
+            File.WriteAllBytes(path, fixture.ToArray());
+            using LgpArchive parent = LgpArchive.Open(path);
+            using LgpArchive first = parent.ForkReader();
+            using LgpArchive second = parent.ForkReader();
+            Assert.Equal(OperatingSystem.IsWindows(), ReferenceEquals(parent.Entries, first.Entries));
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.Throws<IOException>(() => File.Open(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete).Dispose());
+                Assert.Throws<IOException>(() => File.Move(path, path + ".moved"));
+            }
+            parent.Dispose();
+            Assert.Throws<ObjectDisposedException>(() => parent.ForkReader());
+            Parallel.For(0, 64, index =>
+            {
+                LgpArchive reader = index % 2 == 0 ? first : second;
+                int member = index % 3;
+                Assert.Equal(new byte[] { checked((byte)(member + 1)) }, reader.ReadEntry(reader.Entries[member]));
+            });
+            first.Dispose();
+            Assert.Equal(new byte[] { 3 }, second.ReadEntry(second.Entries[2]));
+            using LgpArchive child = second.ForkReader();
+            second.Dispose();
+            Assert.Equal(new byte[] { 1 }, child.ReadEntry(child.Entries[0]));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void LgpFreshOpenRevalidatesChangedSourceAfterReadersClose()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "memoria-lgp-epoch-" + Guid.NewGuid().ToString("N") + ".lgp");
+        try
+        {
+            using MemoryStream fixture = BuildArchive();
+            File.WriteAllBytes(path, fixture.ToArray());
+            using (LgpArchive parent = LgpArchive.Open(path))
+            {
+                using LgpArchive reader = parent.ForkReader();
+                if (OperatingSystem.IsWindows())
+                {
+                    parent.Dispose();
+                    Assert.Throws<IOException>(() => File.WriteAllBytes(path, [0, 0]));
+                    Assert.Throws<IOException>(() => File.Move(path, path + ".moved"));
+                }
+            }
+            File.WriteAllBytes(path, [0, 0]);
+            Assert.Throws<InvalidDataException>(() => LgpArchive.Open(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void PcFieldPreservesHeaderAndSectionPayloadAndRejectsOverlap()
     {
         byte[] decoded = new byte[42 + 9 * 5];

@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace Memoria.FF7.Formats;
 
@@ -13,8 +16,15 @@ public sealed class LgpArchive : IDisposable
     private readonly Stream source;
     private readonly bool leaveOpen;
     private readonly object sync = new();
+    private readonly string? lockedPath;
+    private bool disposed;
 
     public LgpArchive(Stream source, bool leaveOpen = false, int maximumEntries = 1_000_000)
+        : this(source, leaveOpen, maximumEntries, null, null)
+    {
+    }
+
+    private LgpArchive(Stream source, bool leaveOpen, int maximumEntries, string? lockedPath, IReadOnlyList<LgpEntry>? catalog)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfNegative(maximumEntries);
@@ -24,9 +34,10 @@ public sealed class LgpArchive : IDisposable
         }
         this.source = source;
         this.leaveOpen = leaveOpen;
+        this.lockedPath = lockedPath;
         try
         {
-            Entries = ReadDirectory(maximumEntries);
+            Entries = catalog ?? ReadDirectory(maximumEntries);
         }
         catch
         {
@@ -42,7 +53,67 @@ public sealed class LgpArchive : IDisposable
 
     public static LgpArchive Open(string path, int maximumEntries = 1_000_000)
     {
-        return new LgpArchive(File.OpenRead(path), maximumEntries: maximumEntries);
+        string fullPath = Path.GetFullPath(path);
+        return new LgpArchive(File.OpenRead(fullPath), false, maximumEntries, fullPath, null);
+    }
+
+    /// <summary>Opens an independently owned reader within the source archive's read-locked file epoch.</summary>
+    public LgpArchive ForkReader()
+    {
+        lock (sync)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (lockedPath is null)
+            {
+                throw new NotSupportedException("Independent LGP readers require a file-backed archive opened with read-only sharing.");
+            }
+            if (!OperatingSystem.IsWindows())
+            {
+                return Open(lockedPath, Entries.Count);
+            }
+            FileStream reader = File.OpenRead(lockedPath);
+            try
+            {
+                if (reader.Length != source.Length || !SameFile((FileStream)source, reader))
+                {
+                    throw new InvalidDataException("The independent LGP reader does not match its validated source catalog.");
+                }
+                return new LgpArchive(reader, false, Entries.Count, lockedPath, Entries);
+            }
+            catch
+            {
+                reader.Dispose();
+                throw;
+            }
+        }
+    }
+
+    private static bool SameFile(FileStream first, FileStream second)
+    {
+        if (!GetFileInformationByHandle(first.SafeFileHandle, out FileInformation left) || !GetFileInformationByHandle(second.SafeFileHandle, out FileInformation right))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        return left.VolumeSerialNumber == right.VolumeSerialNumber && left.FileIndexHigh == right.FileIndexHigh && left.FileIndexLow == right.FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(SafeFileHandle file, out FileInformation information);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FileInformation
+    {
+        internal uint Attributes;
+        internal System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        internal System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        internal System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        internal uint VolumeSerialNumber;
+        internal uint FileSizeHigh;
+        internal uint FileSizeLow;
+        internal uint NumberOfLinks;
+        internal uint FileIndexHigh;
+        internal uint FileIndexLow;
     }
 
     public IReadOnlyList<LgpEntry> Find(string fullPath)
@@ -66,6 +137,7 @@ public sealed class LgpArchive : IDisposable
         }
         lock (sync)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
             source.Position = entry.DataOffset;
             byte[] data = new byte[entry.Length];
             source.ReadExactly(data);
@@ -75,9 +147,17 @@ public sealed class LgpArchive : IDisposable
 
     public void Dispose()
     {
-        if (!leaveOpen)
+        lock (sync)
         {
-            source.Dispose();
+            if (disposed)
+            {
+                return;
+            }
+            disposed = true;
+            if (!leaveOpen)
+            {
+                source.Dispose();
+            }
         }
     }
 

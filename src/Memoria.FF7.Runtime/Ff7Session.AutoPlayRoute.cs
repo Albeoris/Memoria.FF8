@@ -12,12 +12,12 @@ public sealed partial class Ff7Session
 {
     internal Ff7SessionSave CaptureAutoPlayNavigation() => Capture(includeObservations: false);
 
-    internal Ff7Session RestoreAutoPlayNavigation(Ff7SessionSave snapshot) => Restore(installation, snapshot);
+    internal Ff7Session RestoreAutoPlayNavigation(Ff7SessionSave snapshot) => RestoreNavigationSnapshot(snapshot);
 
     internal Ff7Session ForkAutoPlayNavigation()
     {
         // Detached native execution owns no planner or coverage ledger; the caller owns its proof policy.
-        return Restore(installation, Capture(includeObservations: false));
+        return RestoreNavigationSnapshot(Capture(includeObservations: false));
     }
 }
 
@@ -109,7 +109,7 @@ public sealed partial class Ff7AutoplayDriver
 
     internal static string ReadNativeRouteFingerprint(Ff7Session source)
     {
-        return ReadNativeRouteFingerprint(source.Capture());
+        return ReadNativeRouteFingerprint(source.CaptureAutoPlayNavigation());
     }
 
     internal static string ReadNativeRouteFingerprint(Ff7SessionSave state)

@@ -32,6 +32,25 @@ public sealed partial class Ff7Session : IDisposable
         }
         catch
         {
+            characters?.Dispose();
+            fields.Dispose();
+            throw;
+        }
+    }
+
+    private Ff7Session(Ff7Session source)
+    {
+        installation = source.installation;
+        executable = source.executable;
+        materiaTypes = source.materiaTypes;
+        mapList = source.mapList;
+        fields = source.fields.ForkReader();
+        try
+        {
+            characters = source.characters.ForkReader();
+        }
+        catch
+        {
             fields.Dispose();
             throw;
         }
@@ -90,6 +109,17 @@ public sealed partial class Ff7Session : IDisposable
 
     public static Ff7Session Restore(Ff7Installation installation, Ff7SessionSave save)
     {
+        return Restore(installation, save, null);
+    }
+
+    private Ff7Session RestoreNavigationSnapshot(Ff7SessionSave save)
+    {
+        // Windows read-only archive handles pin the selected resource epoch until every reader closes.
+        return Restore(installation, save, OperatingSystem.IsWindows() ? this : null);
+    }
+
+    private static Ff7Session Restore(Ff7Installation installation, Ff7SessionSave save, Ff7Session? resourceSource)
+    {
         ArgumentNullException.ThrowIfNull(save);
         save.Validate();
         if (save.World is null && (save.Vm.PendingRequests ?? []).Any(request => request.Command is FieldActorMove or FieldActorJump or FieldActorLadder && save.Vm.Entities[request.Entity].Priority < request.Priority))
@@ -100,7 +130,7 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new InvalidDataException("The FFVII save requires a different resource profile or language.");
         }
-        Ff7Session session = new(installation);
+        Ff7Session session = resourceSource is null ? new(installation) : new(resourceSource);
         try
         {
             int map = Array.IndexOf(session.mapList.ToArray(), save.FieldName);
@@ -116,7 +146,8 @@ public sealed partial class Ff7Session : IDisposable
             session.battleSilkDirection = save.BattleSilkDirection;
             session.battleCameraPresentationCounter = save.BattleCameraPresentationCounter;
             session.FieldGeneration = save.FieldGeneration;
-            session.LoadField(checked((ushort)map), null, save.Process);
+            Ff7FieldProcess process = resourceSource is null ? save.Process : save.Process with { Actors = save.Process.Actors.ToArray() };
+            session.LoadField(checked((ushort)map), null, process, resourceSource: resourceSource);
             session.Host.RestorePlayerSelection();
             session.Host.RestoreDialoguePresentation();
             FieldEntitySnapshot[] fieldEntities = save.Vm.Entities.ToArray();
@@ -342,7 +373,7 @@ public sealed partial class Ff7Session : IDisposable
 
     private bool fieldLoadIncomplete;
 
-    private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null, Action<Ff7FieldHost>? prepareHost = null)
+    private void LoadField(ushort map, FieldVariables? variables, Ff7FieldProcess? process = null, Action<Ff7FieldHost>? prepareHost = null, Ff7Session? resourceSource = null)
     {
         bool enteringField = process is null;
         if (enteringField)
@@ -360,8 +391,9 @@ public sealed partial class Ff7Session : IDisposable
         {
             throw new InvalidDataException("FFVII field transition is outside the original maplist.");
         }
-        Ff7FieldResources loadedField = Ff7FieldResources.Load(fields, mapList[map]);
-        Ff7FieldModelResources[] loadedModels = loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model, executable, fields)).ToArray();
+        bool sameField = resourceSource?.Field.Name == mapList[map];
+        Ff7FieldResources loadedField = sameField ? resourceSource!.Field : Ff7FieldResources.Load(fields, mapList[map]);
+        Ff7FieldModelResources[] loadedModels = sameField ? resourceSource!.models.ToArray() : loadedField.Models.Models.Select(model => Ff7FieldModelResources.Load(characters, model, executable, fields)).ToArray();
         IReadOnlyList<PcFieldEncounterTable> loadedEncounterTables = PcFieldEncounterTable.Read(loadedField.Container.GetSection(PcFieldSectionKind.Encounters).Span);
         Ff7FieldHost loadedHost = new(loadedField, (model, animation) => loadedModels[model].Animations[Path.ChangeExtension(loadedField.Models.Models[model].Animations[animation], ".a")].Frames.Count, process, map)
         {

@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text.Json;
+using Memoria.FF7.Events;
+using Memoria.FF7.Formats;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
@@ -12,109 +15,93 @@ internal static class NativeRouteForkResourceTests
         string path = Environment.GetEnvironmentVariable("MEMORIA_FF7_NATIVE_FAIR_SAVE") ?? throw new InvalidOperationException("Select an external native navigation fixture.");
         byte[] bytes = File.ReadAllBytes(path);
         using MemoryStream stream = new(bytes, writable: false);
-        using Ff7Session source = Ff7Session.Restore(Ff7Installation.Discover(root), CombinedSessionCodec.Read(stream).Ff7!);
+        Ff7Installation installation = Ff7Installation.Discover(root);
+        using Ff7Session source = Ff7Session.Restore(installation, CombinedSessionCodec.Read(stream).Ff7!);
         string before = JsonSerializer.Serialize(source.Capture());
-        string nativeBefore = JsonSerializer.Serialize(source.Capture() with { AutoPlay = null, EventCoverage = null });
-        long baseline = GC.GetTotalMemory(true);
+        Ff7SessionSave snapshot = source.CaptureAutoPlayNavigation();
+        string nativeBefore = JsonSerializer.Serialize(snapshot);
+        string definitions = Definitions(source);
+        Check(Ff7AutoplayDriver.ReadNativeRouteFingerprint(source.Capture()) == Ff7AutoplayDriver.ReadNativeRouteFingerprint(source), "Omitting observational capture changed the existing native proof fingerprint.");
+
         long allocated = GC.GetAllocatedBytesForCurrentThread();
-        using (Ff7Session first = source.ForkAutoPlayNavigation())
+        Stopwatch elapsed = Stopwatch.StartNew();
+        using Ff7Session cold = Ff7Session.Restore(installation, snapshot);
+        double coldSeconds = elapsed.Elapsed.TotalSeconds;
+        long coldAllocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        allocated = GC.GetAllocatedBytesForCurrentThread();
+        elapsed.Restart();
+        using Ff7Session first = source.RestoreAutoPlayNavigation(snapshot);
+        double forkSeconds = elapsed.Elapsed.TotalSeconds;
+        long forkAllocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        using Ff7Session second = source.RestoreAutoPlayNavigation(snapshot);
+
+        Check(!ReferenceEquals(source.Machine, first.Machine) && !ReferenceEquals(source.Host, first.Host) && !ReferenceEquals(source.Host.Process.Actors, first.Host.Process.Actors), "A fork shared mutable native execution owners.");
+        Check(!ReferenceEquals(source.Host.Process.PaletteRows, first.Host.Process.PaletteRows) && !ReferenceEquals(source.Host.Process.PaletteRows[0], first.Host.Process.PaletteRows[0]), "A fork shared mutable palette presentation buffers.");
+        Check(!ReferenceEquals(source.Models, first.Models), "A fork shared its model binding array.");
+        Check(!ReferenceEquals(source.Field, cold.Field), "Public cold restore skipped its fresh resource validation.");
+        if (OperatingSystem.IsWindows())
         {
-            long firstRetained = GC.GetTotalMemory(true) - baseline;
-            long firstAllocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
-            using (Ff7Session second = source.ForkAutoPlayNavigation())
+            Check(ReferenceEquals(source.Field, first.Field) && source.Models.Zip(first.Models).All(pair => ReferenceEquals(pair.First, pair.Second)), "A source-scoped fork redecoded its immutable field/model definitions.");
+            Check(ReferenceEquals(Member(source, "executable"), Member(first, "executable")), "A source-scoped fork reloaded its immutable recognized execution data.");
+            foreach (string name in new[] { "fields", "characters" })
             {
-                long secondRetained = GC.GetTotalMemory(true) - baseline;
-                Console.WriteLine($"Two-fork profile: first retained delta={firstRetained}, first allocated={firstAllocated}, two retained delta={secondRetained}, total allocated={GC.GetAllocatedBytesForCurrentThread() - allocated} bytes.");
-                Console.WriteLine($"Resource identity: field={ReferenceEquals(source.Field, first.Field)}, models={ReferenceEquals(source.Models, first.Models)}, executable={ReferenceEquals(Member(source, "executable"), Member(first, "executable"))}; mutable VM={ReferenceEquals(source.Machine, first.Machine)}, host={ReferenceEquals(source.Host, first.Host)}, actors={ReferenceEquals(source.Host.Process.Actors, first.Host.Process.Actors)}.");
-                var graphs = typeof(Ff7Session).GetFields(BindingFlags.Instance | BindingFlags.NonPublic).Select(field => (Name: field.Name, Root: field.GetValue(first))).Where(entry => entry.Root is not null && entry.Root is not Delegate).Select(entry => (entry.Name, Type: entry.Root!.GetType().Name, Payload: ArrayPayload(entry.Root))).OrderByDescending(entry => entry.Payload).Take(12).ToArray();
-                foreach (var graph in graphs)
-                {
-                    Console.WriteLine($"Resource array payload (overlapping roots): {graph.Name}, {graph.Type}, {graph.Payload} bytes.");
-                }
-                Check(first.AutoPlayState is null && second.AutoPlayState is null && first.EventCoverage is null && second.EventCoverage is null, "A detached native fork retained a duplicate or shared observational policy ledger.");
-                Check(before == JsonSerializer.Serialize(source.Capture()) && nativeBefore == JsonSerializer.Serialize(first.Capture()) && nativeBefore == JsonSerializer.Serialize(second.Capture()), "Constructing two detached forks changed native state beyond the two observational ledgers.");
+                LgpArchive original = (LgpArchive)Member(source, name)!;
+                LgpArchive reader = (LgpArchive)Member(first, name)!;
+                Check(!ReferenceEquals(original, reader) && ReferenceEquals(original.Entries, reader.Entries), "Independent archive readers did not share only the validated immutable catalog.");
             }
         }
-        Check(before == JsonSerializer.Serialize(source.Capture()) && bytes.SequenceEqual(File.ReadAllBytes(path)), "The bounded two-fork profile changed its source or standalone bytes.");
-        Console.WriteLine($"Two-fork profile released; full-GC managed heap={GC.GetTotalMemory(true)} bytes; source unchanged.");
+        Check(first.AutoPlayState is null && second.AutoPlayState is null && first.EventCoverage is null && second.EventCoverage is null, "A detached fork retained observational state.");
+        Check(nativeBefore == JsonSerializer.Serialize(first.Capture()) && nativeBefore == JsonSerializer.Serialize(second.Capture()), "Constructing forks changed native state.");
+        first.AdvanceTick(false);
+        cold.AdvanceTick(false);
+        string advanced = JsonSerializer.Serialize(first.Capture());
+        Check(advanced == JsonSerializer.Serialize(cold.Capture()), "A fork's next native callback differed from independent cold restore.");
+        Check(before == JsonSerializer.Serialize(source.Capture()) && nativeBefore == JsonSerializer.Serialize(second.Capture()), "Advancing one fork changed its source or sibling VM/pose/lighting state.");
+        Check(nativeBefore == JsonSerializer.Serialize(snapshot), "A native callback mutated its input graph-node snapshot.");
+        Check(definitions == Definitions(source) && definitions == Definitions(first) && definitions == Definitions(second), "A native callback mutated shared field/model/animation definitions.");
+        source.Dispose();
+        first.Dispose();
+        second.AdvanceTick(false);
+        Check(advanced == JsonSerializer.Serialize(second.Capture()), "Disposing a parent or sibling invalidated a retained fork.");
+        Check(nativeBefore == JsonSerializer.Serialize(snapshot), "Sibling callbacks mutated their shared input graph-node snapshot.");
+        MutatePresentationAndBlockers(second);
+        Check(nativeBefore == JsonSerializer.Serialize(snapshot), "Palette or walkmesh commands mutated their input graph-node snapshot.");
+        Check(advanced == JsonSerializer.Serialize(cold.Capture()), "Sibling palette or walkmesh commands mutated an independent cold session.");
+        Check(definitions == Definitions(second), "Palette or walkmesh commands mutated shared resource definitions.");
+        using Ff7Session retained = second.RestoreAutoPlayNavigation(snapshot);
+        Check(nativeBefore == JsonSerializer.Serialize(retained.Capture()), "A later graph edge restored a corrupted parent snapshot.");
+        second.Dispose();
+        retained.AdvanceTick(false);
+        Check(advanced == JsonSerializer.Serialize(retained.Capture()) && nativeBefore == JsonSerializer.Serialize(snapshot), "A descendant depended on disposed sibling readers or mutated its graph-node snapshot.");
+        Check(bytes.SequenceEqual(File.ReadAllBytes(path)), "The resource reuse check changed its standalone source.");
+        Console.WriteLine($"Source-scoped fork resources passed: cold {coldSeconds:F4}s/{coldAllocated} allocated bytes; fork {forkSeconds:F4}s/{forkAllocated} allocated bytes. One next native callback matched cold restore; source, sibling and definitions unchanged.");
+    }
+
+    private static void MutatePresentationAndBlockers(Ff7Session session)
+    {
+        long id = session.Host.Process.Receipts.Select(receipt => receipt.Request.Id).DefaultIfEmpty().Max() + 100;
+        FieldCommand[] commands =
+        [
+            new FieldPaletteCommand(FieldPaletteOperation.Store, 0, 0, 1),
+            new FieldPaletteCommand(FieldPaletteOperation.Add, 0, 0, 1, Red: 1),
+            new FieldPaletteCommand(FieldPaletteOperation.Load, 0, 0, 1),
+            new FieldTriangleCommand(0, (session.Host.Process.BlockedTriangles[0] & 1) == 0)
+        ];
+        foreach (FieldCommand command in commands)
+        {
+            Check(session.Host.Execute(new(id++, 0, 0, 0, command)).Completed, "A bounded host mutation did not complete.");
+        }
+    }
+
+    private static string Definitions(Ff7Session session)
+    {
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(new { session.Field, session.Models }, new JsonSerializerOptions { IncludeFields = true });
+        return Convert.ToHexString(SHA256.HashData(bytes));
     }
 
     private static object? Member(Ff7Session session, string name)
     {
         return typeof(Ff7Session).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(session);
-    }
-
-    private static long ArrayPayload(object root)
-    {
-        HashSet<object> visited = new(ReferenceEqualityComparer.Instance);
-        Stack<object> pending = new();
-        pending.Push(root);
-        long bytes = 0;
-        while (pending.TryPop(out object? current))
-        {
-            Type type = current.GetType();
-            if (current is Delegate or Stream or Type || type.IsPrimitive || type.IsEnum || !visited.Add(current))
-            {
-                continue;
-            }
-            if (current is string text)
-            {
-                bytes += text.Length * 2L;
-                continue;
-            }
-            if (current is Array array)
-            {
-                Type element = type.GetElementType()!;
-                bytes += array.LongLength * (int)typeof(NativeRouteForkResourceTests).GetMethod(nameof(ElementSize), BindingFlags.Static | BindingFlags.NonPublic)!.MakeGenericMethod(element).Invoke(null, null)!;
-                if (element.IsPrimitive || element.IsEnum || !element.IsValueType && element == typeof(string))
-                {
-                    if (element == typeof(string))
-                    {
-                        foreach (object? value in array)
-                        {
-                            if (value is not null)
-                            {
-                                pending.Push(value);
-                            }
-                        }
-                    }
-                    continue;
-                }
-                bool containsReferences = (bool)typeof(NativeRouteForkResourceTests).GetMethod(nameof(ContainsReferences), BindingFlags.Static | BindingFlags.NonPublic)!.MakeGenericMethod(element).Invoke(null, null)!;
-                if (containsReferences)
-                {
-                    foreach (object? value in array)
-                    {
-                        if (value is not null)
-                        {
-                            pending.Push(value);
-                        }
-                    }
-                }
-                continue;
-            }
-            for (Type? owner = type; owner is not null; owner = owner.BaseType)
-            {
-                foreach (FieldInfo field in owner.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
-                {
-                    if (!field.FieldType.IsPointer && field.GetValue(current) is object value)
-                    {
-                        pending.Push(value);
-                    }
-                }
-            }
-        }
-        return bytes;
-    }
-
-    private static int ElementSize<T>()
-    {
-        return Unsafe.SizeOf<T>();
-    }
-
-    private static bool ContainsReferences<T>()
-    {
-        return RuntimeHelpers.IsReferenceOrContainsReferences<T>();
     }
 
     private static void Check(bool value, string reason)
