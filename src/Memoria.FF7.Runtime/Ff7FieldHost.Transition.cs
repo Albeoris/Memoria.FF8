@@ -1,4 +1,4 @@
-namespace Memoria.FF7.Runtime;
+﻿namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7FieldHost
 {
@@ -25,6 +25,7 @@ public sealed partial class Ff7FieldHost
             SavedNativeMusicTrack = saved,
             MusicVolume = Process.MusicVolume,
             MusicVolumeFade = Process.MusicVolumeFade,
+            MusicTransition = Process.MusicTransition,
             SoundChannelLoopIds = (int[])Process.SoundChannelLoopIds.Clone(),
             SoundChannelPans = (int[])Process.SoundChannelPans.Clone(),
             SoundChannelPanVersions = (long[])Process.SoundChannelPanVersions.Clone(),

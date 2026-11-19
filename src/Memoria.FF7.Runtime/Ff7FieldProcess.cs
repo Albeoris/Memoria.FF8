@@ -150,6 +150,13 @@ public sealed record Ff7Motion(long RequestId, int Entity, int TargetX, int Targ
 public sealed record Ff7EntityMotionTarget(int Entity, int X4096, int Y4096, short Radius);
 public sealed record Ff7AnimationRequest(long RequestId, int Entity);
 public sealed record Ff7SoundVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, bool Started = false);
+public enum Ff7MusicTransitionPhase
+{
+    FadeOut,
+    FadeIn,
+    Gain
+}
+public sealed record Ff7MusicTransition(int Track, int Duration, Ff7MusicTransitionPhase Phase);
 public sealed record Ff7MusicVolumeFade(int Target, int RatePerSecond, int AccumulatedMilliseconds = 0, int SubmillisecondTicks = 0);
 public enum Ff7GlobalCommand
 {
@@ -207,6 +214,8 @@ public sealed record Ff7FieldProcess
     public int? SavedNativeMusicTrack { get; init; }
     public int MusicVolume { get; init; } = 127;
     public Ff7MusicVolumeFade? MusicVolumeFade { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7MusicTransition? MusicTransition { get; init; }
     public bool SoundGainStateInitialized { get; init; }
     public int[] SoundChannelGainPublications { get; init; } = [127, 127, 127, 127, 127];
     public long[] SoundChannelGainVersions { get; init; } = new long[5];
@@ -321,6 +330,10 @@ public sealed record Ff7FieldProcess
         if (MusicVolumeFade is { } musicFade && (musicFade.Target is < 0 or > 127 || musicFade.RatePerSecond is < -7620 or > 7620 || musicFade.SubmillisecondTicks is < 0 or >= (int)TimeSpan.TicksPerMillisecond))
         {
             throw new InvalidDataException("FFVII music volume fade continuation is corrupt.");
+        }
+        if (MusicTransition is { } transition && (transition.Track is <= 0 or > 98 || transition.Duration < 10 || !Enum.IsDefined(transition.Phase) || MusicVolumeFade is null || transition.Phase != Ff7MusicTransitionPhase.FadeOut && NativeMusicTrack != transition.Track))
+        {
+            throw new InvalidDataException("The pending native MIDI transition has invalid track, phase or gain ownership.");
         }
         if (MusicTicks < 0 || NativeMusicTrack is < 0 or > 98 || SavedNativeMusicTrack is < 0 or > 98 || MusicVolume is < 0 or > 127)
         {

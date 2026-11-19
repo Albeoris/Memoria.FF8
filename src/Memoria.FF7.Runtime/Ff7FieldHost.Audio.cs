@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -101,7 +101,20 @@ public sealed partial class Ff7FieldHost
         {
             return;
         }
-        Process = Process with { NativeMusicTrack = track, MusicTicks = 0 };
+        Ff7MusicTransition? interrupted = Process.MusicTransition;
+        Process = Process with { NativeMusicTrack = track, MusicTicks = 0, MusicTransition = null };
+        if (interrupted is not null)
+        {
+            if (track == 0)
+            {
+                Process = Process with { MusicVolume = 127, MusicVolumeFade = null };
+            }
+            else
+            {
+                Process = Process with { MusicTransition = new(track, interrupted.Duration, Ff7MusicTransitionPhase.FadeIn) };
+                BeginNativeTransitionGain(127, interrupted.Duration);
+            }
+        }
     }
 
     private void ApplyMusic(FieldMusicCommand music)
@@ -396,7 +409,11 @@ public sealed partial class Ff7FieldHost
         {
             return;
         }
-        if (Process.MusicVolumeFade is { } fade)
+        if (Process.MusicTransition is not null)
+        {
+            AdvanceNativeMusicTransition(elapsed);
+        }
+        else if (Process.MusicVolumeFade is { } fade)
         {
             long ticks = checked(elapsed.Ticks + fade.SubmillisecondTicks);
             (int volume, int accumulated) = Ff7NativeVolumeRamp.Advance(Process.MusicVolume, fade.Target, fade.RatePerSecond, fade.AccumulatedMilliseconds, unchecked((int)(ticks / TimeSpan.TicksPerMillisecond)));

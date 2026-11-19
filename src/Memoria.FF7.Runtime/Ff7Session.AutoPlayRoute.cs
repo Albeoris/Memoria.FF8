@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF7.Events;
@@ -158,7 +158,7 @@ public sealed partial class Ff7AutoplayDriver
     internal static bool HasNativeRouteClockContract(Ff7Session source)
     {
         Ff7FieldProcess process = source.Host.Process;
-        return source.Clock.CountdownSeconds == 0 && !process.Dialogues.Any(dialogue => !dialogue.Completed) && process.Menu is not { Completed: false } && process.MusicVolumeFade is null && process.SoundChannelVolumeFades.All(fade => fade is null) && process.SoundChannelPanFades.All(fade => fade is null) && process.SoundChannelFrequencyFades.All(fade => fade is null);
+        return source.Clock.CountdownSeconds == 0 && !process.Dialogues.Any(dialogue => !dialogue.Completed) && process.Menu is not { Completed: false } && process.MusicVolumeFade is null && process.MusicTransition is null && process.SoundChannelVolumeFades.All(fade => fade is null) && process.SoundChannelPanFades.All(fade => fade is null) && process.SoundChannelFrequencyFades.All(fade => fade is null);
     }
 
     private int ReadNativeRouteDistance(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets)
