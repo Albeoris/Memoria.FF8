@@ -109,8 +109,10 @@ public sealed class GameplaySaveWorldMetadataResolverTests
         Assert.Throws<InvalidOperationException>(() => GameplaySaveWorldMetadataResolver.ResolvePolicy(new(1, GameplaySaveResumeKind.Field, 106, 105, new(0, 0, 0, 0), null), Saved(), (_, _) => 7));
     }
 
-    [Fact]
-    public void Configured_installed_lookup_uses_selected_resources_without_allocating_a_scene()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion)]
+    public void Configured_installed_lookup_uses_selected_resources_without_allocating_a_scene(int version)
     {
         string directory = TestResources.GameDirectory;
         using GameAssets selected = new(directory);
@@ -118,7 +120,7 @@ public sealed class GameplaySaveWorldMetadataResolverTests
         session.StartNewGame();
         GameState source = session.State with { Scene = SceneKind.WorldMap, CharacterVitals = selected.ReadNewGameCharacterVitals(), Economy = selected.ReadNewGameEconomy(), LimitProgress = selected.ReadNewGameLimitProgress() };
         GameplaySaveResumeDescriptor resume = Resume() with { FieldId = source.FieldId, World = Position() with { AnimationVariant = 0, MapDisplayMode = 2 } };
-        GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume);
+        GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume) with { Version = version };
         GameplaySaveWorldResumeMetadata metadata = GameplaySaveWorldMetadataResolver.Resolve(document, directory, selected.Resources);
         using WorldAssets lookup = new(directory, selected.Resources);
         Assert.Equal(lookup.GetNativeMapLocationId(resume.World!.X, resume.World.Z), metadata.MapLocation);

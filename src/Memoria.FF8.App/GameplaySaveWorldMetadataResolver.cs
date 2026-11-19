@@ -11,7 +11,7 @@ internal static class GameplaySaveWorldMetadataResolver
     {
         ArgumentNullException.ThrowIfNull(document);
         document.Validate();
-        if (document.Version != GameplaySaveComponentDocument.CurrentVersion || document.Progression?.World is not { } saved)
+        if (document.Version is not (2 or GameplaySaveComponentDocument.CurrentVersion) || document.Progression?.World is not { } saved)
         {
             throw new NotSupportedException("World resume metadata requires complete current gameplay components.");
         }

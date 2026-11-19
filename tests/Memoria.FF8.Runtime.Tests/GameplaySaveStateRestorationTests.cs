@@ -387,27 +387,42 @@ public sealed class GameplaySaveStateRestorationTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(6)]
-    [InlineData(32)]
-    [InlineData(33)]
-    [InlineData(34)]
-    [InlineData(35)]
-    [InlineData(36)]
-    [InlineData(37)]
-    [InlineData(38)]
-    [InlineData(39)]
-    [InlineData(40)]
-    [InlineData(48)]
-    [InlineData(50)]
-    public void World_completion_uses_current_pose_and_metadata_for_supported_normal_reload(int entity)
+    [InlineData(2, 0)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 0)]
+    [InlineData(2, 1)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 1)]
+    [InlineData(2, 2)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 2)]
+    [InlineData(2, 6)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 6)]
+    [InlineData(2, 32)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 32)]
+    [InlineData(2, 33)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 33)]
+    [InlineData(2, 34)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 34)]
+    [InlineData(2, 35)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 35)]
+    [InlineData(2, 36)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 36)]
+    [InlineData(2, 37)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 37)]
+    [InlineData(2, 38)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 38)]
+    [InlineData(2, 39)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 39)]
+    [InlineData(2, 40)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 40)]
+    [InlineData(2, 48)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 48)]
+    [InlineData(2, 50)]
+    [InlineData(GameplaySaveComponentDocument.CurrentVersion, 50)]
+    public void World_completion_uses_current_pose_and_metadata_for_supported_normal_reload(int version, int entity)
     {
         GameState field = Source();
         GameState source = field with { Scene = SceneKind.WorldMap, EventState = null, WorldEventState = field.EventState };
         GameplaySaveResumeDescriptor resume = new(1, GameplaySaveResumeKind.World, 106, 105, null, new(54321, -12345, 123, 2048, (byte)entity));
-        GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume);
+        GameplaySaveComponentDocument document = GameplaySaveComponentDocument.CaptureProgression(source, resume) with { Version = version };
         GameState pending = GameplaySaveStateRestoration.Restore(document, Initialized());
         Assert.Null(pending.WorldArrival);
         GameplaySaveWorldResumeMetadata metadata = new(3072, 1, 2, 47);

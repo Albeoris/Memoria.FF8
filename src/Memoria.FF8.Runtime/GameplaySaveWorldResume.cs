@@ -45,7 +45,7 @@ public static class GameplaySaveWorldResume
         ArgumentNullException.ThrowIfNull(restored);
         ArgumentNullException.ThrowIfNull(metadata);
         document.Validate();
-        if (document.Version != GameplaySaveComponentDocument.CurrentVersion || document.Progression?.World is null || document.Resume is not { Kind: GameplaySaveResumeKind.World, World: { } current } resume || restored.Scene != SceneKind.WorldMap || restored.FieldId != resume.FieldId || restored.World is not null || restored.WorldArrival is not null || restored.EventState is not null || restored.WorldEventState is not null || restored.DepartingFieldState is not null || restored.SavedWorld is not { Origin.Kind: NativeSavedWorldOriginKind.GameplaySave } parked || restored.WorldEntryMemory is null || restored.WorldControls is null)
+        if (document.Version is not (2 or GameplaySaveComponentDocument.CurrentVersion) || document.Progression?.World is null || document.Resume is not { Kind: GameplaySaveResumeKind.World, World: { } current } resume || restored.Scene != SceneKind.WorldMap || restored.FieldId != resume.FieldId || restored.World is not null || restored.WorldArrival is not null || restored.EventState is not null || restored.WorldEventState is not null || restored.DepartingFieldState is not null || restored.SavedWorld is not { Origin.Kind: NativeSavedWorldOriginKind.GameplaySave } parked || restored.WorldEntryMemory is null || restored.WorldControls is null)
         {
             throw new InvalidOperationException("Gameplay world completion requires an unallocated restored world, current resume descriptor and initialized semantic owners.");
         }
