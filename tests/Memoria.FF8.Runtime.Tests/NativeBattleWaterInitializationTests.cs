@@ -18,6 +18,7 @@ public sealed class NativeBattleWaterInitializationTests
     {
         var fixture = Fixture();
         NativeBattleScriptedEffectMemory warm = new NativeBattleScriptedEffectMemory(NativeBattleEffectArena.Clear()).Write(NativeBattleScriptedEffectMemory.Address, Enumerable.Repeat((byte)0xA5, NativeBattleScriptedEffectMemory.Length).ToArray());
+        warm = warm with { PresentationActors = NativeBattleCinematicActorContext.FromGraphics(fixture.Inputs.Selection.Models) };
         NativeBattleWaterInitializationResult result = NativeBattleWaterInitialization.InitializeA9B200(warm, fixture.Arena, fixture.Profile, fixture.Inputs);
         Assert.Equal(NativeBattleEffectNodeMemory.ArenaAddress + File0 + 0x70u, Dword(result.Core, Manager + 0x94));
         Assert.Equal(fixture.Inputs.InitializationDirectoryAddress + 0x123u, Dword(result.Core, Manager + 0x98));

@@ -79,7 +79,7 @@ public sealed class NativeBattleWaterActorAnchorTests
         frame = frame with { Core = frame.Core.MarkUnknown(0x2797454, 128) };
         byte[] cached = Enumerable.Repeat((byte)0xA6, 12).ToArray();
         byte[] angles = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
-        frame = frame with { Arena = frame.Arena.Write(0x201B, [2]).Write(0x2050, cached).Write(0x208C, angles) };
+        frame = frame with { Arena = frame.Arena.Write(0x2050, cached).Write(0x208C, angles) };
         NativeBattleWaterSlotBank bank = new(0, 0x4000, 2, 0x2000);
         NativeBattleWaterScriptProgram program = new(0x100, 4, NativeBattleEffectNodeMemory.ArenaAddress + 0x100);
         frame = frame with { Arena = frame.Arena.Write(0x102, [1, 0]) };

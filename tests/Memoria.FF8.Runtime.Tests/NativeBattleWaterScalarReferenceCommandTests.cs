@@ -96,7 +96,7 @@ public sealed partial class NativeBattleWaterScalarReferenceCommandTests
     [InlineData(0x1C75, -300, -2, 153600)]
     public void Height_selects_actual_bounds_anchor_or_Scale38_and_updates_before_cache(ushort instruction, short scale, short operand, uint expected)
     {
-        NativeBattleWaterExecutionFrame frame = Fixture(instruction, operand);
+        NativeBattleWaterExecutionFrame frame = NativeBattleCinematicTypedTestFixture.BindActor(Fixture(instruction, operand), OriginalOwner(0));
         frame = WaterSchedulerFixture.CoreDword(frame, 0x2797068 + 0x60, 0x1D972C0);
         List<string> order = [];
         NativeBattleGraphicsModel model = new(3) { Transform = new(new(0, 0, 0), new(0, 0, 0), 0, 0, scale) };

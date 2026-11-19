@@ -90,9 +90,24 @@ public static class NativeBattleWaterScriptScheduler
 
 internal static class NativeBattleWaterExecutionFields
 {
-    public static uint CoreDword(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt32LittleEndian(frame.Core.Read(address, 4));
-    public static ushort CoreWord(NativeBattleWaterExecutionFrame frame, uint address) => BinaryPrimitives.ReadUInt16LittleEndian(frame.Core.Read(address, 2));
-    public static ushort SlotWord(NativeBattleWaterExecutionFrame frame, int offset) => BinaryPrimitives.ReadUInt16LittleEndian(ReadSlot(frame, offset, 2));
+    public static uint CoreDword(NativeBattleWaterExecutionFrame frame, uint address)
+    {
+        Span<byte> bytes = stackalloc byte[4];
+        frame.Core.ReadInto(address, bytes);
+        return BinaryPrimitives.ReadUInt32LittleEndian(bytes);
+    }
+
+    public static ushort CoreWord(NativeBattleWaterExecutionFrame frame, uint address)
+    {
+        Span<byte> bytes = stackalloc byte[2];
+        frame.Core.ReadInto(address, bytes);
+        return BinaryPrimitives.ReadUInt16LittleEndian(bytes);
+    }
+
+    public static ushort SlotWord(NativeBattleWaterExecutionFrame frame, int offset)
+    {
+        return frame.Arena.ReadUInt16(SlotOffset(frame, offset, 2));
+    }
 
     public static int ArenaOffset(uint address, int length)
     {
@@ -119,27 +134,31 @@ internal static class NativeBattleWaterExecutionFields
     {
         Span<byte> bytes = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return frame with { Core = frame.Core.Write(address, bytes) };
+        frame.Core.Write(address, bytes);
+        return frame;
     }
 
     public static NativeBattleWaterExecutionFrame WriteCoreWord(NativeBattleWaterExecutionFrame frame, uint address, ushort value)
     {
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return frame with { Core = frame.Core.Write(address, bytes) };
+        frame.Core.Write(address, bytes);
+        return frame;
     }
 
     public static NativeBattleWaterExecutionFrame WriteSlotWord(NativeBattleWaterExecutionFrame frame, int offset, ushort value)
     {
         Span<byte> bytes = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(bytes, value);
-        return frame with { Arena = frame.Arena.Write(SlotOffset(frame, offset, 2), bytes) };
+        frame.Arena.Write(SlotOffset(frame, offset, 2), bytes);
+        return frame;
     }
 
     public static NativeBattleWaterExecutionFrame WriteSlotDword(NativeBattleWaterExecutionFrame frame, int offset, uint value)
     {
         Span<byte> bytes = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-        return frame with { Arena = frame.Arena.Write(SlotOffset(frame, offset, 4), bytes) };
+        frame.Arena.Write(SlotOffset(frame, offset, 4), bytes);
+        return frame;
     }
 }
