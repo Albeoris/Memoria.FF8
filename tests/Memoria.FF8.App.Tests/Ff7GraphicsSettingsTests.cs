@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
@@ -42,15 +43,15 @@ public sealed class Ff7GraphicsSettingsTests
         for (int frame = 0; frame < samples.Length; frame++)
         {
             Choose("Window mode", frame == 5 ? "Borderless" : "Windowed");
-            WindowModeController window = (WindowModeController)Field(typeof(RecreateGame), "windowMode").GetValue(game)!;
+            WindowModeController window = (WindowModeController)Field(typeof(GamePresentationHost), "windowMode").GetValue(game)!;
             Assert.Equal(frame == 5, window.CaptureTransfer().Borderless);
             int requested = samples[frame];
             Choose("Anti-aliasing", new GraphicsPreferences { MsaaSamples = requested }.AntiAliasingLabel);
             Choose("V-Sync", frame % 2 == 0 ? "Off" : "On");
             Choose("Menu FPS", frame % 2 == 0 ? "30" : "60");
-            Assert.Equal(frame % 2 == 0 ? 30 : 60, Field(typeof(RecreateGame), "appliedFrameLimit").GetValue(game));
+            Assert.Equal(frame % 2 == 0 ? 30 : 60, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
             Assert.Equal(requested, UiPreferences.Load(paths.UiPreferencesPath).Graphics.MsaaSamples);
-            Assert.Equal(frame % 2 != 0, ((GraphicsDeviceManager)Field(typeof(RecreateGame), "graphics").GetValue(game)!).SynchronizeWithVerticalRetrace);
+            Assert.Equal(frame % 2 != 0, ((GraphicsDeviceManager)game.Services.GetService<IGraphicsDeviceManager>()!).SynchronizeWithVerticalRetrace);
             GraphicsDevice device = game.GraphicsDevice;
             using RenderTarget2D reference = new(device, 1, 1, false, SurfaceFormat.Color, DepthFormat.Depth24, requested, RenderTargetUsage.PreserveContents);
             int supported = reference.MultiSampleCount;
@@ -79,20 +80,67 @@ public sealed class Ff7GraphicsSettingsTests
         Ff7Session session = (Ff7Session)RuntimeHelpers.GetUninitializedObject(typeof(Ff7Session));
         Field(typeof(Ff7Scene), "<Session>k__BackingField").SetValue(scene, session);
         Invoke(game, "ApplyDisplaySettings");
-        Assert.Equal(30, Field(typeof(RecreateGame), "appliedFrameLimit").GetValue(game));
+        Assert.Equal(30, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
         Field(typeof(Ff7Session), "<World>k__BackingField").SetValue(session, RuntimeHelpers.GetUninitializedObject(typeof(Ff7WorldRuntime)));
         Invoke(game, "ApplyDisplaySettings");
-        Assert.Equal(60, Field(typeof(RecreateGame), "appliedFrameLimit").GetValue(game));
+        Assert.Equal(60, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
         Field(typeof(Ff7Session), "<Battle>k__BackingField").SetValue(session, RuntimeHelpers.GetUninitializedObject(typeof(Ff7BattleSession)));
         Invoke(game, "ApplyDisplaySettings");
-        Assert.Equal(15, Field(typeof(RecreateGame), "appliedFrameLimit").GetValue(game));
+        Assert.Equal(15, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
         Field(typeof(Ff7Scene), "<Session>k__BackingField").SetValue(scene, null);
         Invoke(game, "ApplyDisplaySettings");
-        Assert.Equal(90, Field(typeof(RecreateGame), "appliedFrameLimit").GetValue(game));
+        Assert.Equal(90, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
         Choose("Graphics backend", "Vulkan");
         Assert.True((bool)Field(typeof(RecreateGame), "graphicsRestartPromptOpen").GetValue(game)!);
         Assert.Equal(Memoria.FF8.Platform.GraphicsBackend.Vulkan, UiPreferences.Load(paths.UiPreferencesPath).Graphics.Backend);
         Assert.Null(Field(typeof(RecreateGame), "error").GetValue(game));
+    }
+
+    [Fact]
+    public void Standalone_host_reports_first_present_and_applies_live_display_settings()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_GRAPHICS_HOST_TEST") == "1", "An optional installed-game graphics host diagnostic is required.");
+        string? ff7Directory = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(ff7Directory), "Select original FFVII presentation resources.");
+        string directory = TestResources.ArtifactFile("ff7-standalone-graphics");
+        Directory.CreateDirectory(directory);
+        string readyPath = Path.Combine(directory, "ready.json");
+        const string readinessVariable = "MEMORIA_FF8_HOST_READY_FILE";
+        string? previousReadiness = Environment.GetEnvironmentVariable(readinessVariable);
+        string savePath = Path.Combine(directory, "unused.ffsave");
+        LaunchOptions options = new() { GameDirectory = TestResources.GameDirectory, SettingsDirectory = directory, ControlDirectory = directory, ControlExclusive = true, MuteAudio = true, Width = 640, Height = 480, ResolutionSpecified = true, SavePath = savePath };
+        GlobalSettingsPaths paths = new(isolatedDirectory: directory);
+        UiPreferences preferences = new() { Graphics = new() { MsaaSamples = 0 }, VSync = false, MenuFps = 60 };
+        preferences.Save(paths.UiPreferencesPath);
+        try
+        {
+            Environment.SetEnvironmentVariable(readinessVariable, readyPath);
+            using Ff7Game game = new(Ff7Installation.Discover(ff7Directory!), "", savePath, new(50, 32000), _ => throw new InvalidOperationException("This presentation diagnostic does not play movies."), launchOptions: options);
+            Assert.False(File.Exists(readyPath));
+            game.RunOneFrame();
+            using JsonDocument report = JsonDocument.Parse(File.ReadAllText(readyPath));
+            Assert.Equal(GraphicsHostReadiness.Backend, report.RootElement.GetProperty("backend").GetString());
+            Assert.Equal(Environment.ProcessId, report.RootElement.GetProperty("processId").GetInt32());
+            Assert.Equal(0, report.RootElement.GetProperty("capabilities").GetProperty("backBufferSamples").GetInt32());
+
+            Ff7Scene scene = (Ff7Scene)Field(typeof(Ff7Game), "scene").GetValue(game)!;
+            Invoke(scene, "EnsurePlayerMenu");
+            Invoke(scene, "ApplyPlayerMenuAction", new MenuAction("config", "Anti-aliasing", Value: new GraphicsPreferences { MsaaSamples = 4 }.AntiAliasingLabel));
+            Invoke(scene, "ApplyPlayerMenuAction", new MenuAction("config", "V-Sync", Value: "On"));
+            Invoke(scene, "ApplyPlayerMenuAction", new MenuAction("config", "Menu FPS", Value: "30"));
+            game.RunOneFrame();
+
+            GraphicsDeviceManager graphics = (GraphicsDeviceManager)game.Services.GetService<IGraphicsDeviceManager>()!;
+            Assert.Equal(4, GraphicsDeviceSettings.SceneMsaaSamples(game.GraphicsDevice));
+            Assert.Equal(0, game.GraphicsDevice.PresentationParameters.MultiSampleCount);
+            Assert.True(graphics.SynchronizeWithVerticalRetrace);
+            Assert.Equal(30, Field(typeof(GamePresentationHost), "appliedFrameLimit").GetValue(game));
+            Assert.Null(scene.Error);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(readinessVariable, previousReadiness);
+        }
     }
 
     private static FieldInfo Field(Type owner, string name) => owner.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;

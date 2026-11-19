@@ -1,20 +1,21 @@
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
+using Memoria.FF8.Audio;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
 internal sealed partial class Ff7Scene
 {
-    private PcmAudioOutput? audioOutput;
+    private static readonly object MusicDecodeOwner = new();
     private PcmLoopPlayback? musicPlayback;
     private readonly Ff7SoundChannels soundChannels = new();
     private readonly Dictionary<int, (PcmAudio Pcm, bool Streamed, bool Loop, int LoopStart, int LoopEnd, string Fingerprint, int NativeRate, double? LoopDelay)> soundCache = [];
     private Ff7PcExecutableData? audioNative;
-    private CancellationTokenSource? musicCancellation;
-    private Task<(PcmAudio Pcm, ExternalMusicLoop Loop, string Fingerprint)>? musicDecode;
+    private AudioDecodeQueue? musicDecoder;
     private Ff7FieldHost? audioHost;
     private int audioTrack = -1;
     private bool audioPaused;
@@ -85,67 +86,55 @@ internal sealed partial class Ff7Scene
                 {
                     throw new InvalidDataException("FFVII music state exceeds the admitted native table.");
                 }
-                BeginMusicDecode(audioNative.MusicNames[track]);
+                Ff7NativeMusicTimeline timeline = session.Host.DescribeNativeMusic(track);
+                PcmMusicRepeat repeat = timeline.Loops ? PcmMusicRepeat.SeparateLoop : PcmMusicRepeat.None;
+                BeginMusicDecode(audioNative.MusicNames[track], repeat, (prepared, fingerprint) => StartFieldMusic(track, timeline, prepared, fingerprint));
                 Console.WriteLine($"ff7-music={audioNative.MusicNames[track]} nativeTrack={track}");
             }
         }
-        if (musicDecode is { IsCompleted: true })
-        {
-            (PcmAudio pcm, ExternalMusicLoop loop, string fingerprint) = musicDecode.GetAwaiter().GetResult();
-            musicDecode = null;
-            audioOutput ??= new PcmAudioOutput();
-            bool repeats = session.Host.DescribeNativeMusic(track).Loops;
-            musicRepeats = repeats;
-            byte[] primary = pcm.Bytes.AsSpan(0, loop.EndByte).ToArray();
-            byte[] repeat = pcm.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray();
-            PcmAudioOutput.Buffer musicBuffer = audioOutput.Create(primary, pcm.SampleRate, pcm.Channels);
-            PcmAudioOutput.Buffer? musicLoopBuffer = repeats ? audioOutput.Create(repeat, pcm.SampleRate, pcm.Channels) : null;
-            Ff7MusicVoicePosition? savedPosition = ResumeMusicPosition(track, fingerprint, pcm, loop);
-            long resumeFrames = ResolveNativeMusicResumeFrames(savedPosition, session.Host.DescribeNativeMusic(track), state.MusicTicks, pcm.SampleRate, loop.EndByte / (pcm.Channels * sizeof(short)), legacyMusicPosition);
-            if (!repeats && savedPosition is { LoopStarted: true })
-            {
-                Console.Error.WriteLine("FFVII compatibility: a captured finite music loop resumes approximately from recorded native music time; recorded progress is preserved.");
-            }
-            long elapsed = checked(resumeFrames * pcm.Channels * sizeof(short));
-            legacyMusicPosition = false;
-            bool musicLoopStarted = repeats && (savedPosition?.LoopStarted ?? elapsed >= loop.EndByte);
-            if (musicLoopStarted)
-            {
-                musicLoopBuffer!.Position(checked((int)((elapsed - loop.StartByte) % repeat.Length)) / 4 * 4);
-                musicLoopBuffer.Play(true);
-            }
-            else if (elapsed < primary.Length)
-            {
-                musicBuffer.Position(checked((int)elapsed) / 4 * 4);
-                musicBuffer.Play(false);
-            }
-            int bytesPerSecond = checked(pcm.SampleRate * pcm.Channels * sizeof(short));
-            musicPlayback = new PcmLoopPlayback(musicBuffer, musicLoopBuffer, 100, (loop.EndByte - elapsed) / (double)bytesPerSecond, bytesPerSecond, repeat.Length, musicLoopStarted, pcm.Channels * sizeof(short));
-            musicSource = new(track, fingerprint, pcm.SampleRate, pcm.Channels, 0, loop.StartByte / (pcm.Channels * sizeof(short)), loop.EndByte / (pcm.Channels * sizeof(short)), false);
-            SetAudioPaused(audioPaused);
-        }
+        musicDecoder?.Pump();
         musicPlayback?.Update();
-        int gain = NativeGain(ApplyRelativeMusicGain(state.MusicVolume, mixedCombat?.ActiveGuest?.CurrentRelativeMusicGain), dialoguePreferences?.Invoke().MusicVolume ?? 100);
-        musicPlayback?.SetGain(gain);
+        musicPlayback?.SetGain(FieldMusicGain(state));
         soundChannels.RetireFinished(audioPaused);
-        audioOutput?.ThrowIfFailed();
+        audioOutput.ThrowIfFailed();
     }
 
-    private void BeginMusicDecode(string name)
+    private int FieldMusicGain(Ff7FieldProcess state)
+    {
+        return NativeGain(ApplyRelativeMusicGain(state.MusicVolume, mixedCombat?.ActiveGuest?.CurrentRelativeMusicGain), dialoguePreferences?.Invoke().MusicVolume ?? 100);
+    }
+
+    private void StartFieldMusic(int track, Ff7NativeMusicTimeline timeline, PreparedPcmMusic prepared, string fingerprint)
+    {
+        Ff7FieldProcess state = Session!.Host.Process;
+        PcmAudio pcm = prepared.Pcm;
+        Ff7MusicVoicePosition? savedPosition = ResumeMusicPosition(track, fingerprint, prepared);
+        long resumeFrames = ResolveNativeMusicResumeFrames(savedPosition, timeline, state.MusicTicks, pcm.SampleRate, prepared.EndFrames, legacyMusicPosition);
+        if (!timeline.Loops && savedPosition is { LoopStarted: true })
+        {
+            Console.Error.WriteLine("FFVII compatibility: a captured finite music loop resumes approximately from recorded native music time; recorded progress is preserved.");
+        }
+        musicPlayback = prepared.Start(audioOutput, resumeFrames, savedPosition?.LoopStarted ?? false, FieldMusicGain(state), 100, audioPaused);
+        legacyMusicPosition = false;
+        musicRepeats = timeline.Loops;
+        musicSource = new(track, fingerprint, pcm.SampleRate, pcm.Channels, 0, prepared.LoopStartFrames, prepared.EndFrames, false);
+    }
+
+    private void BeginMusicDecode(string name, PcmMusicRepeat repeat, Action<PreparedPcmMusic, string> start)
     {
         string path = Path.Combine(installation.GetRequired(Ff7ResourceRole.Music).Path, name.ToLowerInvariant() + ".ogg");
         if (!File.Exists(path))
         {
             throw new NotSupportedException("FFVII music playback requires the selected installation's original OGG track.");
         }
-        musicCancellation = new CancellationTokenSource();
-        CancellationToken token = musicCancellation.Token;
-        musicDecode = Task.Run(async () =>
+        musicDecoder ??= new AudioDecodeQueue(ExceptionDispatchInfo.Throw);
+        musicDecoder.Queue(MusicDecodeOwner, async token =>
         {
             PcmAudio pcm = await PcmAudioDecoder.ReadFileAsync(mediaToolsDirectory, path, token).ConfigureAwait(false);
             byte[] encoded = await File.ReadAllBytesAsync(path, token).ConfigureAwait(false);
-            return (pcm, ExternalMusicLoop.Read(encoded, pcm), Convert.ToHexString(SHA256.HashData(encoded)));
-        }, token);
+            PreparedPcmMusic prepared = PreparedPcmMusic.FromVorbis(pcm, encoded, repeat);
+            return (Music: prepared, Fingerprint: Convert.ToHexString(SHA256.HashData(encoded)));
+        }, result => start(result.Music, result.Fingerprint));
     }
 
     private void RefreshNativeGains()
@@ -305,7 +294,6 @@ internal sealed partial class Ff7Scene
             return;
         }
         var decoded = DecodeSound(request.Sound);
-        audioOutput ??= new PcmAudioOutput();
         Ff7FieldHost host = Session!.Host;
         int pan = host.ResolveNativeSoundPlaybackPan(request, decoded.Streamed);
         audioNative ??= Ff7PcExecutableData.Load(installation);
@@ -334,7 +322,6 @@ internal sealed partial class Ff7Scene
             return;
         }
         var decoded = DecodeSound(request.Sound);
-        audioOutput ??= new PcmAudioOutput();
         audioNative ??= Ff7PcExecutableData.Load(installation);
         if (request.PlayCached)
         {
@@ -398,14 +385,7 @@ internal sealed partial class Ff7Scene
 
     private void StopMusicAudio()
     {
-        musicCancellation?.Cancel();
-        musicCancellation?.Dispose();
-        musicCancellation = null;
-        if (musicDecode is not null)
-        {
-            _ = musicDecode.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
-            musicDecode = null;
-        }
+        musicDecoder?.Cancel(MusicDecodeOwner);
         musicPlayback?.Dispose();
         musicPlayback = null;
         musicSource = null;
@@ -424,8 +404,8 @@ internal sealed partial class Ff7Scene
         soundChannels.Dispose();
         guestSoundOutput?.Dispose();
         guestSoundOutput = null;
-        audioOutput?.Dispose();
-        audioOutput = null;
+        musicDecoder?.Dispose();
+        musicDecoder = null;
         audioTrack = -1;
         audioPaused = false;
     }

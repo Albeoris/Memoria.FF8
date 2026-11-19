@@ -1,66 +1,27 @@
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
     private readonly PresentationTiming presentationTiming = new();
-    private readonly PresentationPacer presentationPacer = new();
-#if !MEMORIA_NATIVE
-    private WindowsDisplayRefreshRate? displayRefreshRate;
-#endif
-    private int? appliedFrameLimit;
-    private int? appliedSoftwareFrameLimit;
-    private int appliedMsaaSamples;
     private bool battlePresentationUpdated;
     private bool CanAdvanceBattleRenderPhase => !focusPaused && !discardFocusElapsed && !updateSave.Paused && !userPaused && !dialogContext.IsBusy && !dialogInputBlocked && pendingCapture is null && battleEntryTransition is null && !capturingControls && !fieldFaulted && autoPlay?.Paused != true;
 
     private void ApplyDisplaySettings()
     {
-        windowMode?.Apply(uiPreferences.BorderlessWindow);
-#if MEMORIA_NATIVE
-        nativeBackBuffer?.Synchronize();
-#endif
-        bool menu = InFf7 ? ff7Scene!.IsMenuPresentation || saveMenu.IsOpen || crossoverSetup is not null : startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || saveMenu.IsOpen || battleDebug is not null || world?.ActiveTripleTriad is not null;
-        int frameLimit = InFf7 ? PresentationTiming.FrameLimit(uiPreferences, menu, ff7Scene!.Session?.Battle is not null, ff7Scene.Session?.World is not null) : PresentationTiming.FrameLimit(uiPreferences, menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
-        if (appliedFrameLimit != frameLimit)
-        {
-            // Simulation has its own clocks. Every host tick must reach Draw, including under load.
-            IsFixedTimeStep = false;
-            if (frameLimit != 0)
-            {
-                TargetElapsedTime = TimeSpan.FromSeconds(1d / frameLimit);
-            }
-            MaxElapsedTime = PresentationTiming.MaximumElapsed;
-            appliedFrameLimit = frameLimit;
-            presentationPacer.Reset();
-        }
-        bool samplesChanged = appliedMsaaSamples != uiPreferences.Graphics.MsaaSamples;
-        if (GraphicsDeviceSettings.Apply(graphics, uiPreferences, ref appliedMsaaSamples))
-        {
-#if !MEMORIA_NATIVE
-            displayRefreshRate?.Invalidate();
-#endif
-            if (samplesChanged)
-            {
-                fieldGpu?.InvalidatePresentation();
-                battleGpu?.InvalidatePresentation();
-                ff7Scene?.InvalidateGraphicsPresentation();
-            }
-        }
-        int softwareFrameLimit = frameLimit;
-#if !MEMORIA_NATIVE
-        if (uiPreferences.VSync && GraphicsDevice.PresentationParameters.PresentationInterval == PresentInterval.One)
-        {
-            displayRefreshRate ??= new WindowsDisplayRefreshRate(Window.Handle);
-            // VSync owns the display deadline when its rate already satisfies the requested cap.
-            softwareFrameLimit = PresentationPacingPolicy.SoftwareFrameLimit(frameLimit, true, displayRefreshRate.RefreshRate);
-        }
-#endif
-        appliedSoftwareFrameLimit = softwareFrameLimit;
-        presentationPacer.RequestFrameLimit(softwareFrameLimit);
+        bool hostMenuOpen = saveMenu.IsOpen || crossoverSetup is not null;
+        bool ff8Menu = hostMenuOpen || startup.Active || session.State.Scene == SceneKind.Title || gameMenus?.IsOpen == true || battleDebug is not null || world?.ActiveTripleTriad is not null;
+        int frameLimit = InFf7 ? ff7Scene!.GetPresentationFrameLimit(uiPreferences, hostMenuOpen) : PresentationTiming.FrameLimit(uiPreferences, ff8Menu, ActiveBattle is not null, session.State.Scene == SceneKind.WorldMap);
+        ApplyPresentationSettings(uiPreferences, frameLimit, InvalidateSceneTargets);
+    }
+
+    private void InvalidateSceneTargets()
+    {
+        fieldGpu?.InvalidatePresentation();
+        battleGpu?.InvalidatePresentation();
+        ff7Scene?.InvalidateGraphicsPresentation();
     }
 
     private void UpdateDisplayFrame(GameTime gameTime)

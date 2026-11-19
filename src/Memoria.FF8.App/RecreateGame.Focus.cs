@@ -104,13 +104,5 @@ internal sealed partial class RecreateGame
         return false;
     }
 
-    protected override bool BeginDraw()
-    {
-        if (!(worldTransfer?.CanDraw ?? !focusPaused) || !base.BeginDraw())
-        {
-            return false;
-        }
-        presentationPacer.WaitBeforeDraw(Stopwatch.GetTimestamp());
-        return true;
-    }
+    protected override bool CanPresentFrame => worldTransfer?.CanDraw ?? !focusPaused;
 }

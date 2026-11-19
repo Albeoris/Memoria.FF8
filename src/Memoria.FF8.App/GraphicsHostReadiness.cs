@@ -16,7 +16,7 @@ internal sealed class GraphicsHostReadiness
 #endif
     private readonly GraphicsHostCapabilities capabilities;
     private readonly GraphicsDevice device;
-    private bool reported;
+    internal bool FirstFramePresented { get; private set; }
 
     internal static T Initialize<T>(Func<T> initialize)
     {
@@ -88,7 +88,7 @@ internal sealed class GraphicsHostReadiness
 
     internal void Presented(GameWindow? window = null)
     {
-        if (reported)
+        if (FirstFramePresented)
         {
             return;
         }
@@ -111,7 +111,7 @@ internal sealed class GraphicsHostReadiness
                 File.Delete(temporary);
             }
         }
-        reported = true;
+        FirstFramePresented = true;
     }
 
     private sealed record GraphicsHostCapabilities(string Device, int VendorId, int DeviceId, string Profile, string ColorFormat, string DepthFormat, string TitleColorFormat, int BackBufferSamples, int SceneSamples, int BackBufferWidth = 0, int BackBufferHeight = 0, int ViewportWidth = 0, int ViewportHeight = 0, int? ClientWidth = null, int? ClientHeight = null)

@@ -122,10 +122,10 @@ public sealed class WorldTests
         byte[] rgba = [180, 20, 120, 255, 40, 80, 160, 255];
         FieldColorComposite.Apply(rgba, new NativeFadeDraw(NativeFadeDrawMode.Subtract, 100, 10, 30));
         Assert.Equal(new byte[] { 80, 10, 90, 255, 0, 70, 130, 255 }, rgba);
-        Assert.False(MoviePresentation.IsComplete(13.6, 13.667, true, true, 0));
-        Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, true, 1));
-        Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, false, 0));
-        Assert.True(MoviePresentation.IsComplete(13.7, 13.667, true, true, 0));
+        Assert.False(MoviePresentation.IsComplete(13.6, 13.667, true, true, false));
+        Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, true, true));
+        Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, false, false));
+        Assert.True(MoviePresentation.IsComplete(13.7, 13.667, true, true, false));
     }
 
     [Theory]

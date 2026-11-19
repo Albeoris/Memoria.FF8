@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Memoria.FF8.Media;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
@@ -10,19 +9,25 @@ namespace Memoria.FF8;
 internal sealed class MoviePresentation : IDisposable
 {
     private readonly FfmpegMovieDecoder decoder;
-    private readonly DynamicSoundEffectInstance sound = new(44100, AudioChannels.Stereo);
+    private readonly PcmAudioOutput audioOutput;
+    private readonly MoviePcmPlayback sound;
+    private readonly bool audioEnabled;
     private readonly Stopwatch clock = new();
     private bool started;
+    private bool suspended;
+    private bool soundAttached;
     private readonly MovieFrameTimeline? nativeTimeline;
     private readonly MovieInformation? nativeInformation;
     private bool callbackActive = true;
     private byte[] decodedPixels = [];
     private int decodedMediaFrame = -1;
 
-    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null)
+    public MoviePresentation(GraphicsDevice device, PcmAudioOutput audioOutput, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null)
     {
-        sound.Volume = audioEnabled ? 1 : 0;
+        this.audioOutput = audioOutput;
+        this.audioEnabled = audioEnabled;
         decoder = new FfmpegMovieDecoder(toolsDirectory, path, startSeconds, information);
+        sound = new MoviePcmPlayback(() => decoder.TryGetAudio(out byte[]? buffer) ? buffer : null);
         Texture = new Texture2D(device, decoder.Information.Width, decoder.Information.Height);
         this.nativeInformation = nativeInformation ?? (decoder.Information.FrameCount > 0 ? decoder.Information : null);
         if (this.nativeInformation is not null)
@@ -34,7 +39,20 @@ internal sealed class MoviePresentation : IDisposable
     public Texture2D Texture { get; }
     public ReadOnlySpan<byte> DecodedPixels => decodedPixels;
     public double PositionSeconds => decoder.StartSeconds + clock.Elapsed.TotalSeconds;
-    public bool Finished => started && IsComplete(PositionSeconds, decoder.Information.DurationSeconds, decoder.VideoFinished, decoder.AudioFinished, sound.PendingBufferCount);
+    public bool Finished
+    {
+        get
+        {
+            if (!started)
+            {
+                return false;
+            }
+            bool videoFinished = decoder.VideoFinished;
+            bool audioFinished = decoder.AudioFinished;
+            bool pendingAudio = videoFinished && audioFinished && (soundAttached ? audioOutput.CapturePlaybackPosition(sound.HasPendingAudio) : sound.HasPendingAudio(0));
+            return IsComplete(PositionSeconds, decoder.Information.DurationSeconds, videoFinished, audioFinished, pendingAudio);
+        }
+    }
     public bool HasFrame => started;
     internal object InspectDecodedFrame()
     {
@@ -50,24 +68,26 @@ internal sealed class MoviePresentation : IDisposable
     }
     public void Suspend()
     {
+        suspended = true;
         clock.Stop();
-        sound.Pause();
+        sound.Pause(true);
     }
 
     public void Resume()
     {
+        suspended = false;
         if (started)
         {
             clock.Start();
-            sound.Resume();
         }
+        sound.Pause(false);
     }
     public string? Error => decoder.Error;
     public MoviePlaybackState Playback => nativeTimeline is not null && nativeInformation is not null ? new(nativeTimeline.Frame, nativeInformation.FrameCount - 1, !Finished, Finished, false) : throw new NotSupportedException("Script movie playback requires an exact native movie timeline.");
 
-    internal static bool IsComplete(double position, double duration, bool videoFinished, bool audioFinished, int pendingAudioBuffers)
+    internal static bool IsComplete(double position, double duration, bool videoFinished, bool audioFinished, bool pendingAudio)
     {
-        return position >= duration && videoFinished && audioFinished && pendingAudioBuffers == 0;
+        return position >= duration && videoFinished && audioFinished && !pendingAudio;
     }
 
     public void Update(Func<MoviePlaybackState, double, bool>? decodedFrame = null, Action<int>? mediaFrame = null)
@@ -76,9 +96,9 @@ internal sealed class MoviePresentation : IDisposable
         {
             throw new NotSupportedException("Script movie callbacks require an exact native movie timeline.");
         }
-        while (sound.PendingBufferCount < 3 && decoder.TryGetAudio(out byte[]? buffer))
+        if (soundAttached)
         {
-            sound.SubmitBuffer(buffer!);
+            audioOutput.ThrowIfFailed();
         }
         while (decoder.TryGetNextFrame(clock.Elapsed.TotalSeconds, out MovieFrame? frame))
         {
@@ -94,9 +114,16 @@ internal sealed class MoviePresentation : IDisposable
             if (!started)
             {
                 Console.WriteLine($"movie-frame={frame.Index} bytes={frame.Rgba.Length}");
-                sound.Play();
-                Console.WriteLine($"movie-audio={sound.State} buffered={sound.PendingBufferCount} pcm=44100Hz/stereo");
-                clock.Start();
+                if (audioEnabled)
+                {
+                    audioOutput.AddSource(sound, audioOutput.Movie);
+                    soundAttached = true;
+                }
+                Console.WriteLine($"movie-audio={(soundAttached ? "Playing" : "Muted")} pcm=44100Hz/stereo");
+                if (!suspended)
+                {
+                    clock.Start();
+                }
                 started = true;
             }
             double seconds = mediaIndex / decoder.Information.FramesPerSecond;
@@ -104,6 +131,10 @@ internal sealed class MoviePresentation : IDisposable
             {
                 break;
             }
+        }
+        if (started && !audioEnabled)
+        {
+            sound.AdvanceSilently(clock.Elapsed.TotalSeconds);
         }
         if (callbackActive && Finished && nativeInformation is not null)
         {
@@ -139,9 +170,12 @@ internal sealed class MoviePresentation : IDisposable
 
     public void Dispose()
     {
-        Console.WriteLine($"movie-dispose position={PositionSeconds:F3} video-eof={decoder.VideoFinished} audio-eof={decoder.AudioFinished} pending-audio={sound.PendingBufferCount} state={sound.State}");
-        sound.Stop();
-        sound.Dispose();
+        Console.WriteLine($"movie-dispose position={PositionSeconds:F3} video-eof={decoder.VideoFinished} audio-eof={decoder.AudioFinished}");
+        if (soundAttached)
+        {
+            audioOutput.RemoveSource(sound);
+            soundAttached = false;
+        }
         decoder.Dispose();
         Texture.Dispose();
     }

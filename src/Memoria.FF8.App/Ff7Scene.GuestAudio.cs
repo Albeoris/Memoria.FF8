@@ -24,7 +24,7 @@ internal sealed partial class Ff7Scene
         if (guestSoundOutput is null)
         {
             string directory = identityFf8Directory ?? throw new InvalidOperationException("Select the FFVIII installation in the launcher to play guest sounds.");
-            guestSoundOutput = new(directory, mediaToolsDirectory) { OutputFactory = () => audioOutput ??= new PcmAudioOutput(), OwnsSoundOutput = false };
+            guestSoundOutput = new(directory, mediaToolsDirectory) { OutputFactory = () => audioOutput, OwnsSoundOutput = false };
             guestSoundOutput.SetFocusPaused(audioPaused);
         }
         return guestSoundOutput;

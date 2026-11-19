@@ -37,10 +37,9 @@ public sealed partial class FieldRenderer
                 movieImage = new PixelImage(movieWidth, movieHeight);
             }
             MemoryMarshal.Cast<byte, Rgba32>(moviePixels).CopyTo(movieImage.Pixels);
-            TriangleMaterial material = GpuMaterial(movieImage, TriangleBlend.Replace, false) with
+            TriangleMaterial material = GpuMaterial(movieImage, TriangleBlend.Replace, false, TriangleSamplingProfile.Video) with
             {
                 DepthComparison = TriangleDepthComparison.Always,
-                Sampler = TriangleSampler.LinearClamp,
                 DynamicTexture = true
             };
             GpuQuad(new Vector2(offsetX, offsetY), new Vector2(Width * scale, NativeDrawingHeight * scale), 0, Vector4.One, material, Vector2.One);

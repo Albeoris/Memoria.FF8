@@ -5,6 +5,7 @@ using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Media;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -134,6 +135,9 @@ public sealed class Ff7MovieTransitionTests
         Set(scene, "sharedClock", new GameplayClock());
         Set(scene, "soundChannels", new Ff7SoundChannels());
         Set(scene, "movieSkipGesture", new MovieSkipGesture());
+        Set(scene, "fieldHistory", new CommittedPresentationHistory<(Ff7FieldHost, long), Ff7FieldPresentationFrame>((first, second) => first == second, (_, _) => false));
+        Set(scene, "chocoboHistory", new CommittedPresentationHistory<(Ff7ChocoboRuntime, long), Ff7ChocoboSnapshot>((first, second) => first == second, (_, _) => false));
+        Set(scene, "waterAppearanceEffects", new Dictionary<int, (Ff7NativeWaterEffectSample, IFf7ActorAppearance, Ff7NativePartVisibilityState?, Ff7ModelRenderOverrides)>());
         Set(scene, "noticeWindow", new NoticeWindow());
         Set(scene, "locationMovement", new LocationMovementGate());
         Set(scene, "envelope", new CombinedSessionSave { ActiveGame = SessionGame.Ff7 });

@@ -44,7 +44,7 @@ internal sealed partial class FieldAudioPresentation
             Decoder.Queue(MusicKind.Stream, token => DecodeAsync(path, null, token), pcm =>
             {
                 streamedMusic?.Dispose();
-                PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+                PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels, Sound.Music);
                 try
                 {
                     buffer.Volume(OutputGain(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)), musicPreference));

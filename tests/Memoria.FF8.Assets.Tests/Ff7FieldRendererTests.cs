@@ -38,6 +38,13 @@ public sealed class Ff7FieldRendererTests
         Assert.Equal(origin, capture.Positions[0]);
         Assert.Equal(origin, capture.Positions[6]);
         Assert.Equal(origin, capture.Positions[^6]);
+        Assert.All(capture.Materials.Take(2), material =>
+        {
+            Assert.Equal(TriangleSampler.PointClamp, material.Sampler);
+            Assert.False(material.CentroidTextureSampling);
+        });
+        Assert.Equal(TriangleSampler.LinearClamp, capture.Materials[2].Sampler);
+        Assert.True(capture.Materials[2].CentroidTextureSampling);
         Assert.All(capture.Clips.Take(capture.Count - 2), clip => Assert.Equal(new Vector4(clipLeft, height * 8f / 240, clipRight, height * 232f / 240), clip));
         Assert.Equal(new Vector2(scroll, 7), frame.CameraOffsetPixels);
 
@@ -58,9 +65,11 @@ public sealed class Ff7FieldRendererTests
 
     private sealed class ViewportAppearance : IFf7ActorAppearance
     {
+        private readonly Albeoris.Games.FF8.Imaging.PixelImage texture = new(2, 2);
+
         public bool TryCreate(Ff7ActorVisual actor, PcFieldModelDescriptor descriptor, Ff7FieldModelResources original, out IReadOnlyList<Ff7AppearanceTriangle> triangles)
         {
-            triangles = [new(new(Vector3.Zero, Vector2.Zero, Vector4.One), new(Vector3.UnitX, Vector2.Zero, Vector4.One), new(Vector3.UnitY, Vector2.Zero, Vector4.One), new TriangleMaterial(null))];
+            triangles = [new(new(Vector3.Zero, Vector2.Zero, Vector4.One), new(Vector3.UnitX, Vector2.Zero, Vector4.One), new(Vector3.UnitY, Vector2.Zero, Vector4.One), new TriangleMaterial(texture, Sampler: TriangleSampler.LinearClamp))];
             return true;
         }
     }
@@ -534,7 +543,8 @@ public sealed class Ff7FieldRendererTests
         PcFieldBackground background = new(320, 240, new byte[] { 1 }, [[first, second], [], [blended, inactive], []], [page]);
         PcFieldPalettes raw = new(0, 0, 3, new IReadOnlyList<ushort>[] { new ushort[] { 31, 0, 31 << 5 } });
         PcFieldCamera camera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, Vector3.Zero, 0, 0);
-        Ff7FieldResources field = new("atlas-fixture", null!, null!, null!, [camera], [], null!, raw, background);
+        PcFieldTriggers triggers = new("atlas", 0, 0, -160, -120, 160, 120, [], [], [], []);
+        Ff7FieldResources field = new("atlas-fixture", null!, null!, null!, [camera], [], triggers, raw, background);
         Ff7FieldRenderer renderer = new(field, new Dictionary<int, Ff7FieldModelResources>(), new(50, 32000));
         ushort[] parameters = new ushort[256];
         ushort[][] rows = raw.CreateCachedBackgroundRows(background);
@@ -552,7 +562,7 @@ public sealed class Ff7FieldRendererTests
         Assert.All(visible.Materials, material => Assert.Same(atlas, material.Texture));
         Assert.Equal(new[] { 140f, 150f, 145f }, visible.Positions.Where((_, index) => index % 6 == 0).Select(position => position.X));
         Assert.Equal(new[] { TriangleBlend.Replace, TriangleBlend.Replace, TriangleBlend.Add }, visible.Materials.Where((_, index) => index % 2 == 0).Select(material => material.Blend));
-        Assert.Equal(0.4f, visible.Depths[12]);
+        Assert.Equal(0.9998f, visible.Depths[12]);
         Assert.False(visible.Materials[4].DepthWrite);
 
         PcFieldTile[] orderedTiles = [first, second, blended];

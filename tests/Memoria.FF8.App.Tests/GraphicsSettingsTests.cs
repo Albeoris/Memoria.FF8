@@ -97,14 +97,11 @@ public sealed class GraphicsSettingsTests
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_GRAPHICS_HOST_TEST") == "1", "An optional installed-game graphics host diagnostic is required.");
         string directory = TestResources.ArtifactFile("graphics-settings-" + initialSamples);
-        GlobalSettingsPaths paths = new(directory);
+        GlobalSettingsPaths paths = new(isolatedDirectory: directory);
         UiPreferences preferences = new() { Graphics = new() { MsaaSamples = initialSamples }, VSync = false };
         preferences.Save(paths.UiPreferencesPath);
         GameSession session = GameSession.CreateColdProcess();
-        using RecreateGame game = new(new LaunchOptions { GameDirectory = TestResources.GameDirectory, DebugUiScreen = "config-graphics", MuteAudio = true, ExitAfterSeconds = 10, SavePath = Path.Combine(directory, "unused.json") }, session);
-        Field("globalSettings").SetValue(game, paths);
-        Field("uiPreferences").SetValue(game, preferences);
-        Field("appliedMsaaSamples").SetValue(game, initialSamples);
+        using RecreateGame game = new(new LaunchOptions { GameDirectory = TestResources.GameDirectory, SettingsDirectory = directory, DebugUiScreen = "config-graphics", MuteAudio = true, ExitAfterSeconds = 10, SavePath = Path.Combine(directory, "unused.json") }, session);
         using QualityObserver observer = new(game, paths, initialSamples);
         game.Components.Add(observer);
         game.Run();
@@ -137,7 +134,7 @@ public sealed class GraphicsSettingsTests
             AssertSamples(requested);
             Assert.True(renderer.PresentationVersion > version);
             int preparations = 0;
-            GraphicsDeviceManager manager = (GraphicsDeviceManager)Field("graphics").GetValue(game)!;
+            GraphicsDeviceManager manager = (GraphicsDeviceManager)game.Services.GetService<IGraphicsDeviceManager>()!;
             EventHandler<PreparingDeviceSettingsEventArgs> changed = (_, _) => preparations++;
             manager.PreparingDeviceSettings += changed;
             try

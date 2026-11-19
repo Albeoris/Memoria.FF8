@@ -41,6 +41,38 @@ public sealed class CommittedPresentationHistoryTests
         Assert.Null(history.Previous);
     }
 
+    [Fact]
+    public void FrameValidationAndSkippedCallbacksBreakHistoryUntilAnotherContinuousCommit()
+    {
+        var history = new CommittedPresentationHistory<int, string>((first, second) => first == second, (first, second) => second == first + 1, (_, second) => second != "cut");
+        Assert.Equal((null, "start"), history.Sample(0, 0.5f, () => "start"));
+        history.Commit(1, () => "next");
+        Assert.Equal(("start", "next"), history.Sample(1, 0.5f, () => "unused"));
+        history.Commit(2, () => "cut");
+        Assert.Equal((null, "cut"), history.Sample(2, 0.5f, () => "unused"));
+        history.Commit(4, () => "skipped");
+        Assert.Equal((null, "skipped"), history.Sample(4, 0.5f, () => "unused"));
+        history.Commit(5, () => "before edit");
+        Assert.Equal((null, "edited"), history.Sample(5, 0.5f, () => "edited", frame => frame == "edited"));
+        history.Commit(6, () => "after edit");
+        Assert.Equal(("edited", "after edit"), history.Sample(6, 0.5f, () => "unused"));
+        history.Reset();
+        history.Commit(7, () => "after reset");
+        Assert.Equal((null, "after reset"), history.Sample(7, 0.5f, () => "unused"));
+    }
+
+    [Theory]
+    [InlineData(30, 30d, 0.5d, 1f)]
+    [InlineData(60, 30d, 0.5d, 0.5f)]
+    [InlineData(60, 30.5d, 0.5d, 0.5f)]
+    [InlineData(120, 20d, -0.5d, 0f)]
+    [InlineData(120, 20d, 1.5d, 1f)]
+    public void PresentationFractionUsesTheSceneCallbackRate(int presentationFps, double callbackRate, double remainderInCallbacks, float expected)
+    {
+        float fraction = CommittedPresentationTime.ShouldInterpolate(presentationFps, callbackRate) ? CommittedPresentationTime.Fraction(remainderInCallbacks / callbackRate, callbackRate) : 1f;
+        Assert.Equal(expected, fraction);
+    }
+
     [Theory]
     [InlineData(30, 4)]
     [InlineData(60, 2)]

@@ -21,20 +21,26 @@ public sealed class Ff7TitleMusicTests
         Ff7Scene scene = (Ff7Scene)RuntimeHelpers.GetUninitializedObject(typeof(Ff7Scene));
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
+        using AudioDecodeQueue decoder = new(exception => throw exception);
         PcmAudio music = new(new byte[44100 * sizeof(short)], 44100, 1);
+        PreparedPcmMusic prepared = new(music, new(0, music.Bytes.Length), PcmMusicRepeat.SeparateLoop);
+        object owner = typeof(Ff7Scene).GetField("MusicDecodeOwner", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        MethodInfo start = typeof(Ff7Scene).GetMethod("StartTitleMusic", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Set("audioEnabled", true);
         Set("audioOutput", output);
-        Set("musicDecode", Task.FromResult((music, new ExternalMusicLoop(0, music.Bytes.Length), "synthetic")));
+        Set("musicDecoder", decoder);
+        decoder.Queue(owner, _ => Task.FromResult(prepared), track => start.Invoke(scene, [track]));
+        Assert.True(SpinWait.SpinUntil(() => decoder.ReadyCount == 1, TimeSpan.FromSeconds(5)));
         Update();
         using PcmLoopPlayback playback = Assert.IsType<PcmLoopPlayback>(Get("musicPlayback"));
-        Assert.Null(Get("musicDecode"));
+        Assert.False(decoder.IsPending(owner));
         Assert.Null(Get("musicSource"));
         mixer.Render(new short[20]);
         var position = playback.CapturePosition(0, 0);
         Update();
         Assert.Same(playback, Get("musicPlayback"));
         Assert.Equal(position, playback.CapturePosition(0, 0));
-        Assert.Null(Get("musicDecode"));
+        Assert.False(decoder.IsPending(owner));
         Assert.Null(Get("musicSource"));
 
         object? Get(string name) => typeof(Ff7Scene).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(scene);
@@ -47,7 +53,7 @@ public sealed class Ff7TitleMusicTests
     {
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
-        using PcmLoopPlayback playback = Ff7Scene.CreateTitleMusicPlayback(output, Music(), new(2, 6), 0, false);
+        using PcmLoopPlayback playback = Ff7Scene.CreateTitleMusicPlayback(output, new(Music(), new(2, 6), PcmMusicRepeat.SeparateLoop), 0, false);
         AssertFrame(mixer, 0);
         Assert.Equal((2, false), playback.CapturePosition(0, 2));
         playback.SetGain(0);
@@ -60,7 +66,7 @@ public sealed class Ff7TitleMusicTests
     {
         PcmMixer mixer = new();
         using PcmAudioOutput output = new(mixer);
-        using PcmLoopPlayback playback = Ff7Scene.CreateTitleMusicPlayback(output, Music(), new(2, 6), 100, true);
+        using PcmLoopPlayback playback = Ff7Scene.CreateTitleMusicPlayback(output, new(Music(), new(2, 6), PcmMusicRepeat.SeparateLoop), 100, true);
         AssertFrame(mixer, 0);
         Assert.Equal((0, false), playback.CapturePosition(0, 2));
         playback.Pause(false);

@@ -151,7 +151,7 @@ internal sealed partial class Ff7Scene
             PublishMovieCameraFrame(Session!.Host, source, state.Frame);
             double startSeconds = state.Frame / source.LogicalFramesPerSecond;
             MovieInformation native = new(source.Information.Width, source.Information.Height, source.LogicalFramesPerSecond, source.NativeFrameCount / source.LogicalFramesPerSecond, source.NativeFrameCount);
-            movie = new MoviePresentation(device, mediaToolsDirectory, source.Path, startSeconds, source.Information, audioEnabled: audioEnabled, nativeInformation: native);
+            movie = new MoviePresentation(device, audioOutput, mediaToolsDirectory, source.Path, startSeconds, source.Information, audioEnabled: audioEnabled, nativeInformation: native);
         }
         if (movieCompletionPending)
         {

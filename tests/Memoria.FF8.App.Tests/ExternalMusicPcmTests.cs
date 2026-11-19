@@ -1,3 +1,5 @@
+using Memoria.FF8.Audio;
+
 namespace Memoria.FF8.App.Tests;
 
 public sealed class ExternalMusicPcmTests
@@ -45,6 +47,33 @@ public sealed class ExternalMusicPcmTests
     public void OutOfRangeLoopTagsFailBeforeDeviceCreation()
     {
         Assert.Throws<InvalidDataException>(() => ExternalMusicLoop.Read(Ogg(44100, "LOOPSTART=100"), new PcmAudio(new byte[400], 44100, 2)));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(20, true)]
+    public void PreparedMusicRestoresFractionalCursorsForWholeTrackAndTaggedLoops(int loopStart, bool repeating)
+    {
+        using PcmAudioOutput output = new(new PcmMixer());
+        PcmAudio pcm = new(new byte[400], 44100, 2);
+        PreparedPcmMusic music = new(pcm, new(loopStart, 320), PcmMusicRepeat.TaggedRange);
+        using PcmLoopPlayback playback = music.Start(output, 13.5, repeating, 0, 100, false);
+        Assert.Equal(320, music.Pcm.Bytes.Length);
+        Assert.Equal((13.5, repeating), playback.CaptureFramePosition(0, music.LoopStartFrames));
+    }
+
+    [Fact]
+    public void FiniteMusicResumedAtEndStaysSilentAndRetainsItsCursor()
+    {
+        PcmMixer mixer = new();
+        using PcmAudioOutput output = new(mixer);
+        PcmAudio pcm = new(Enumerable.Repeat((byte)0x11, 400).ToArray(), 44100, 2);
+        PreparedPcmMusic music = new(pcm, new(20, 320), PcmMusicRepeat.None);
+        using PcmLoopPlayback playback = music.Start(output, 80, false, 0, 100, false);
+        short[] samples = new short[2];
+        mixer.Render(samples);
+        Assert.Equal(new short[2], samples);
+        Assert.Equal((80d, false), playback.CaptureFramePosition(0, music.LoopStartFrames));
     }
 
     internal static byte[] Ogg(int sourceRate, params string[] tags)

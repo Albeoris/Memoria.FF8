@@ -373,12 +373,10 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        TriangleMaterial material = GpuMaterial(texture, TriangleBlend.Replace, true) with
+        TriangleMaterial material = GpuMaterial(texture, TriangleBlend.Replace, true, ModelSampling) with
         {
             DepthComparison = TriangleDepthComparison.Less,
             PerspectiveDepth = true,
-            CentroidTextureSampling = true,
-            Sampler = modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp,
             FieldLighting = FieldLightingPass.Model
         };
         Vector4 tint = new((actor.PresentationPolygonColor ?? actor.PolygonColor!.Value) / 128, 1);

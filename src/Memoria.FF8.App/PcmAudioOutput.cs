@@ -2,51 +2,90 @@ using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
-/// <summary>Compatibility facade over the common portable PCM mixer and SDL3 device.</summary>
+/// <summary>Owns the game's shared PCM mixer and opens the SDL3 device on first playback.</summary>
 internal sealed class PcmAudioOutput : IDisposable
 {
-    private readonly SdlAudioOutput? output;
-    private readonly PcmMixer mixer;
+    private readonly object gate = new();
+    private readonly PcmMixer? offlineMixer;
+    private SdlAudioOutput? output;
+    private bool disposed;
 
     public PcmAudioOutput()
     {
-        output = new SdlAudioOutput();
-        mixer = output.Mixer;
     }
 
     internal PcmAudioOutput(PcmMixer mixer)
     {
-        this.mixer = mixer;
+        offlineMixer = mixer;
     }
 
-    internal T CapturePlaybackPosition<T>(Func<int, T> capture) => output is null ? capture(0) : output.CapturePlaybackPosition(capture);
-
-    public Exception? Error => output?.Error;
-
-    public Buffer Create(byte[] pcm, int rate, int channels)
+    internal T CapturePlaybackPosition<T>(Func<int, T> capture)
     {
-        output?.ThrowIfFailed();
-        return new Buffer(mixer.Create(pcm, rate, channels));
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return output is null ? capture(0) : output.CapturePlaybackPosition(capture);
+        }
     }
 
-    internal void AddSource(IAudioSource source)
+    public PcmMixBus Music { get; } = new();
+    public PcmMixBus Effects { get; } = new();
+    public PcmMixBus Voice { get; } = new();
+    public PcmMixBus Movie { get; } = new();
+
+    public Exception? Error => Volatile.Read(ref output)?.Error;
+
+    public Buffer Create(byte[] pcm, int rate, int channels, PcmMixBus? bus = null)
     {
-        output?.ThrowIfFailed();
-        mixer.Add(source);
+        lock (gate)
+        {
+            return new Buffer(PlaybackMixer().Create(pcm, rate, channels, bus ?? Effects));
+        }
+    }
+
+    internal void AddSource(IAudioSource source, PcmMixBus bus)
+    {
+        lock (gate)
+        {
+            PlaybackMixer().Add(source, bus);
+        }
     }
 
     internal void RemoveSource(IAudioSource source)
     {
-        mixer.Remove(source);
+        lock (gate)
+        {
+            (offlineMixer ?? output?.Mixer)?.Remove(source);
+        }
     }
 
     public void ThrowIfFailed()
     {
-        output?.ThrowIfFailed();
+        Volatile.Read(ref output)?.ThrowIfFailed();
+    }
+
+    private PcmMixer PlaybackMixer()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (offlineMixer is not null)
+        {
+            return offlineMixer;
+        }
+        output ??= new SdlAudioOutput();
+        output.ThrowIfFailed();
+        return output.Mixer;
     }
 
     public void Dispose()
     {
+        lock (gate)
+        {
+            if (disposed)
+            {
+                return;
+            }
+            disposed = true;
+        }
         output?.Dispose();
     }
 

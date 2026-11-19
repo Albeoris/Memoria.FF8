@@ -124,6 +124,11 @@ internal sealed partial class FieldAudioPresentation
     {
         bool repeating = loopStarted && loop?.HasStartedBeforeQueuedFrames(queued) == true;
         double frames = repeating ? loopStart / (pcm.Channels * 2) + loop!.PositionFramesBeforeQueuedFrames(queued) : primary.PositionFramesBeforeQueuedFrames(queued);
+        return CreatePcmPosition(frames, repeating, pcm, fingerprint, loopStart, loopEnd);
+    }
+
+    private static GameplaySaveAudioPosition CreatePcmPosition(double frames, bool repeating, PcmAudio pcm, string fingerprint, int loopStart, int loopEnd)
+    {
         long whole = (long)frames;
         return new("pcm16-v1", fingerprint, "source-frames", whole, pcm.SampleRate, pcm.Channels, loopStart / (pcm.Channels * 2), loopEnd / (pcm.Channels * 2), repeating ? 1 : 0) { FractionalFrame = frames - whole };
     }

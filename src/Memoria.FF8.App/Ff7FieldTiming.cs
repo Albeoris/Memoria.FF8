@@ -11,9 +11,11 @@ internal sealed partial class Ff7Scene
 
 internal static class Ff7FieldTiming
 {
+    public const int CallbacksPerSecond = 30;
+
     public static void Advance(GameplayClock clock, TimeSpan elapsed, SceneKind scene, Func<bool> requiresRealTimeInput, Func<bool> advanceCallback, ref double remainder)
     {
-        const double callbackDuration = 1d / 30;
+        const double callbackDuration = 1d / CallbacksPerSecond;
         TimeSpan simulationElapsed = clock.Advance(elapsed, scene, scriptedInterface: requiresRealTimeInput());
         remainder += simulationElapsed.TotalSeconds;
         while (remainder + 1e-9 >= callbackDuration)

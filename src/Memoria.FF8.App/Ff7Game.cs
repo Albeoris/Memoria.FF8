@@ -9,7 +9,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed partial class Ff7Game : Game
+internal sealed partial class Ff7Game : GamePresentationHost
 {
     private readonly Ff7Installation installation;
     private readonly string mediaToolsDirectory;
@@ -18,22 +18,14 @@ internal sealed partial class Ff7Game : Game
     private readonly Func<int, Ff7MovieSource> resolveMovie;
     private readonly IFf7ActorAppearance? appearance;
     private readonly CombinedSessionSave? initialEnvelope;
-    private readonly GraphicsDeviceManager graphics;
     private readonly LaunchOptions? launchOptions;
     private readonly UiPreferences initialPresentationPreferences;
-    private int appliedMsaaSamples;
-    private WindowModeController? windowMode;
-    private readonly WindowModeHotkey windowModeHotkey = new();
-#if MEMORIA_NATIVE
-    private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
-#endif
     private SpriteBatch batch = null!;
     private Ff7Scene scene = null!;
     private readonly KeyboardInput keyboard = new();
     private readonly GameplayClock gameplayClock = new();
     private ControllerDevice? controller;
     private readonly HostPhysicalInput physicalInput;
-    private readonly PresentationPacer presentationPacer = new();
     private int updateFrames;
     private bool frameCaptured;
     private WorldTransferPresentation? worldTransfer;
@@ -52,39 +44,15 @@ internal sealed partial class Ff7Game : Game
         physicalInput = new(launchOptions?.AcceptsPhysicalInput != false, () => IsActive, Keyboard.GetState, () => controller?.Read() ?? default, Mouse.GetState);
         this.appearance = appearance;
         initialPresentationPreferences = UiPreferences.Load(new GlobalSettingsPaths(isolatedDirectory: launchOptions?.SettingsDirectory).UiPreferencesPath);
-        appliedMsaaSamples = initialPresentationPreferences.Graphics.MsaaSamples;
-        graphics = GraphicsDeviceSettings.Create(this, initialPresentationPreferences, launchOptions, () => scene?.PresentationPreferences ?? initialPresentationPreferences);
-        Window.Title = "Memoria - Final Fantasy VII";
-        Window.AllowUserResizing = true;
-        IsMouseVisible = true;
-        IsFixedTimeStep = false;
-        InactiveSleepTime = TimeSpan.Zero;
+        bool maximize = launchOptions?.IsDiagnosticGraphicalHost != true && launchOptions?.ResolutionSpecified != true && launchOptions?.ControlExclusive != true;
+        ConfigurePresentation(initialPresentationPreferences, launchOptions, () => scene?.PresentationPreferences ?? initialPresentationPreferences, "Memoria - Final Fantasy VII", maximize, pace: launchOptions?.ControlStep != true);
         InitializePlatform();
     }
 
-    protected override void Initialize()
+    protected override void LoadGameContent()
     {
-        base.Initialize();
-#if MEMORIA_NATIVE
-        nint nativeWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
-        nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeWindow);
-#endif
-        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
-        if (launchOptions?.IsDiagnosticGraphicalHost != true && launchOptions?.ResolutionSpecified != true && launchOptions?.ControlExclusive != true)
-        {
-            platform.Maximize();
-        }
-        windowMode = new WindowModeController(platform);
-        windowMode.Apply(scene.PresentationPreferences.BorderlessWindow);
-#if MEMORIA_NATIVE
-        nativeBackBuffer.Synchronize();
-#endif
-    }
-
-    protected override void LoadContent()
-    {
-        batch = new SpriteBatch(GraphicsDevice);
-        scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true);
+        batch = GraphicsHostReadiness.Initialize(() => new SpriteBatch(GraphicsDevice));
+        scene = new Ff7Scene(GraphicsDevice, installation, mediaToolsDirectory, projection, resolveMovie, initialEnvelope, appearance, launchOptions?.AudioEnabled ?? true, audioOutput);
         scene.ConfigureEnemyIntegrationMods(launchOptions?.ModsDirectory);
         scene.ReadStatusStatModifiers = difficulty =>
         {
@@ -124,7 +92,6 @@ internal sealed partial class Ff7Game : Game
         {
             controls = new ControlQueue(controlDirectory, DispatchControl);
         }
-        base.LoadContent();
     }
 
     private void RequestCrossover(CombinedSessionSave saved)
@@ -157,6 +124,7 @@ internal sealed partial class Ff7Game : Game
 
     protected override void Update(GameTime gameTime)
     {
+        BeginPresentationUpdate();
         if (worldTransfer is not null)
         {
             try
@@ -171,7 +139,7 @@ internal sealed partial class Ff7Game : Game
                 scene.SetFocusPaused(!IsActive);
                 ResetElapsedTime();
             }
-            presentationPacer.WaitForNextFrame(60);
+            presentationPacer.RequestFrameLimit(60);
             return;
         }
         PumpPlatform();
@@ -202,19 +170,8 @@ internal sealed partial class Ff7Game : Game
             }
         }
         UiPreferences preferences = scene.PresentationPreferences;
-        windowMode?.Apply(preferences.BorderlessWindow);
-#if MEMORIA_NATIVE
-        nativeBackBuffer?.Synchronize();
-#endif
-        bool samplesChanged = appliedMsaaSamples != preferences.Graphics.MsaaSamples;
-        if (GraphicsDeviceSettings.Apply(graphics, preferences, ref appliedMsaaSamples) && samplesChanged)
-        {
-            scene.InvalidateGraphicsPresentation();
-        }
-        if (launchOptions?.ControlStep != true)
-        {
-            presentationPacer.WaitForNextFrame(scene.PresentationFrameLimit);
-        }
+        int frameLimit = scene.GetPresentationFrameLimit(preferences, mappingMenu is not null || saveMenu.IsOpen);
+        ApplyPresentationSettings(preferences, frameLimit, scene.InvalidateGraphicsPresentation);
         updateFrames++;
         if (launchOptions?.ExitAfterFrames is int frames && updateFrames >= frames || launchOptions?.ExitAfterSeconds is double seconds && gameTime.TotalGameTime.TotalSeconds >= seconds)
         {
@@ -244,21 +201,14 @@ internal sealed partial class Ff7Game : Game
             Window.Title = scene.LocationWindowTitle;
         }
         GraphicsDevice.Clear(Color.Black);
-        int width = GraphicsDevice.PresentationParameters.BackBufferWidth;
-        int height = GraphicsDevice.PresentationParameters.BackBufferHeight;
-        scene.Draw(batch, new Rectangle(0, 0, width, height));
-        mappingMenu?.Draw(batch, new Rectangle(0, 0, width, height), scene.PresentationPreferences.UiFontFamily);
-        DrawPlayerSaveMenu(gameTime, new Rectangle(0, 0, width, height));
+        Rectangle bounds = BackBufferBounds;
+        scene.Draw(batch, bounds);
+        mappingMenu?.Draw(batch, bounds, scene.PresentationPreferences.UiFontFamily);
+        DrawPlayerSaveMenu(gameTime, bounds);
         string? capturePath = pendingCapture ?? (!frameCaptured && launchOptions?.CaptureFramePath is string requested && gameTime.TotalGameTime.TotalSeconds >= launchOptions.CaptureAfterSeconds ? requested : null);
         if (capturePath is string path)
         {
-            Color[] colors = new Color[width * height];
-            GraphicsDevice.GetBackBufferData(colors);
-            using Texture2D capture = new(GraphicsDevice, width, height);
-            capture.SetData(colors);
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-            using Stream output = File.Create(path);
-            capture.SaveAsPng(output, width, height);
+            WriteBackBufferPng(path);
             frameCaptured = true;
             pendingCapture = null;
             Console.WriteLine($"ff7-captured={path} frame={updateFrames} field={scene.Session?.Field.Name ?? "title"} nativeTick={scene.Session?.Host.Process.Tick ?? 0} error={scene.Error ?? "none"}");
@@ -271,10 +221,6 @@ internal sealed partial class Ff7Game : Game
         DisposePlatform();
         worldTransfer?.Dispose();
         transferPixel?.Dispose();
-        presentationPacer.Dispose();
-#if MEMORIA_NATIVE
-        nativeBackBuffer?.Dispose();
-#endif
         controller?.Dispose();
         mappingMenu?.Dispose();
         scene?.Dispose();

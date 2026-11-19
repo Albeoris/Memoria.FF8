@@ -28,7 +28,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 float fieldScale = descriptor.ScaleWord / 4096f * 30.43090057373047f;
                 Matrix4x4 transform = Matrix4x4.CreateRotationX(-MathF.PI / 2) * Matrix4x4.CreateScale(descriptor.Scale / fieldScale) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits) * Matrix4x4.CreateTranslation(nativePosition);
                 Ff7WorldVertex Convert(Ff7WorldVertex vertex) => vertex with { Position = Vector3.Transform(vertex.Position, transform), Normal = vertex.Normal is Vector3 normal ? Vector3.TransformNormal(normal, transform) : null };
-                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1, CentroidTextureSampling = true }, false)).ToArray();
+                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), WorldModelMaterial(triangle.Material), false)).ToArray();
             }
         }
         Matrix4x4 normalBasis = Matrix4x4.CreateRotationX(MathF.PI) * Rotation(direction, nativeTilt ?? Vector3.Zero, pitchUnits);
@@ -61,7 +61,7 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                 }
                 Matrix4x4 transform = inverseFieldBasis * basis;
                 Ff7WorldVertex Convert(Ff7WorldVertex vertex) => vertex with { Position = Vector3.Transform(vertex.Position, transform), Normal = vertex.Normal is Vector3 normal ? Vector3.TransformNormal(normal, transform) : null };
-                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), triangle.Material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1, CentroidTextureSampling = true }, false)).ToArray();
+                return mapped.Select(triangle => new Ff7WorldModelTriangle(Convert(triangle.A), Convert(triangle.B), Convert(triangle.C), WorldModelMaterial(triangle.Material), false)).ToArray();
             }
         }
         return CreateOriginal(resources.Animations[descriptor.Animations[animationIndex]], 0, scale, basis, normalBasis, phase: phase);
@@ -97,13 +97,12 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
                     }
                 }
                 int[] normals = Ff7FieldLighting.BindNormals(model, group);
-                TriangleMaterial material = new(image, materialState.Blend, materialState.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, materialState.DepthWrite, materialState.AlphaReference, materialState.Sampler)
+                TriangleMaterial material = TriangleSamplingProfile.Model(materialState.Sampler).Apply(new TriangleMaterial(image, materialState.Blend, materialState.DepthTest ? TriangleDepthComparison.GreaterEqual : TriangleDepthComparison.Always, materialState.DepthWrite, materialState.AlphaReference)
                 {
                     DepthMapping = TriangleDepthMapping.Positive,
                     DepthScale = 1,
-                    CentroidTextureSampling = true,
                     PreserveTargetAlpha = false
-                };
+                });
                 Ff7WorldVertex Vertex(int local)
                 {
                     int index = group.VertexStart + local;
@@ -138,6 +137,11 @@ public sealed class Ff7WorldModelAdapter(Ff7WorldCharacterDescriptor descriptor,
             }
         }
         return triangles.AsReadOnly();
+    }
+
+    private static TriangleMaterial WorldModelMaterial(TriangleMaterial material)
+    {
+        return TriangleSamplingProfile.Model(material.Sampler).Apply(material with { DepthComparison = TriangleDepthComparison.GreaterEqual, DepthMapping = TriangleDepthMapping.Positive, DepthScale = 1 });
     }
 
     public static int Draw(ITriangleRenderer renderer, IReadOnlyList<Ff7WorldModelTriangle> triangles, Ff7WorldView view, bool underwater = false, int nativeColorWeight = 255)

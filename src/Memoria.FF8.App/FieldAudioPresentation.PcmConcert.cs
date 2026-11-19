@@ -88,7 +88,7 @@ internal sealed partial class FieldAudioPresentation
 
         public void Start()
         {
-            output.AddSource(source);
+            output.AddSource(source, output.Music);
             attached = true;
         }
 

@@ -38,7 +38,7 @@ public sealed class Ff7NativeTransparencyMaterialTests
         PcFieldCamera camera = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 0, new(0, 0, 1000), 0, 100);
         PcFieldModelDescriptor descriptor = new("actor", 0, "actor.hrc", "512", Enumerable.Repeat(new PcFieldLight(0, Vector3.Zero), 3).ToArray(), 0, ["pose"]);
         PcFieldTile tile = new(0, 0, 0, 0, 0, 0, 0, 0, 16, 16, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, ReadOnlyMemory<byte>.Empty);
-        PcFieldBackground background = new(320, 240, [0], [[tile, tile with { Index = 1, Blending = 1 }]], [new(0, 0, 1, new byte[256 * 256])]);
+        PcFieldBackground background = new(320, 240, [0], [[tile], [tile with { Layer = 1, Blending = 1 }]], [new(0, 0, 1, new byte[256 * 256])]);
         PcTexture splash = new(1, 1, 4, [], new byte[] { 255, 255, 255, 255 }, new byte[0xEC]);
         Ff7FieldResources field = new("transparency-order", null!, null!, new(0, 512, [descriptor]), [camera], [], null!, new(0, 0, 1, [[0x7FFF]]), background) { WaterSplashTextures = [splash] };
         Ff7FieldModelResources model = new("actor.hrc", null!, [], new Dictionary<string, PcFieldAnimation>());
@@ -96,6 +96,11 @@ public sealed class Ff7NativeTransparencyMaterialTests
         Assert.NotEmpty(opaque.Materials);
         Assert.Equal(opaque.Vertices.Count, transparent.Vertices.Count);
         Assert.Contains(opaque.Materials, material => material.Texture is not null);
+        Assert.All(opaque.Materials.Where(material => material.Texture is not null), material =>
+        {
+            Assert.True(material.CentroidTextureSampling);
+            Assert.Contains(material.Sampler, new[] { TriangleSampler.PointWrap, TriangleSampler.LinearWrap });
+        });
         for (int index = 0; index < opaque.Vertices.Count; index++)
         {
             TriangleVertex before = opaque.Vertices[index];

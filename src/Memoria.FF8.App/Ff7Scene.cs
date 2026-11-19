@@ -25,6 +25,8 @@ internal sealed partial class Ff7Scene : IDisposable
 {
     private readonly GraphicsDevice device;
     private readonly bool audioEnabled;
+    private readonly PcmAudioOutput audioOutput;
+    private readonly bool ownsAudioOutput;
     private readonly Ff7Installation installation;
     private readonly string mediaToolsDirectory;
     private readonly Ff7ProjectionDepth projection;
@@ -49,20 +51,23 @@ internal sealed partial class Ff7Scene : IDisposable
     private string? error;
     private bool focusPaused;
 
-    public Ff7Scene(GraphicsDevice device, Ff7Installation installation, string mediaToolsDirectory, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, bool audioEnabled = true)
+    public Ff7Scene(GraphicsDevice device, Ff7Installation installation, string mediaToolsDirectory, Ff7ProjectionDepth projection, Func<int, Ff7MovieSource> resolveMovie, CombinedSessionSave? envelope = null, IFf7ActorAppearance? appearance = null, bool audioEnabled = true, PcmAudioOutput? audioOutput = null)
     {
         this.device = device;
         this.audioEnabled = audioEnabled;
+        this.audioOutput = audioOutput ?? new PcmAudioOutput();
+        ownsAudioOutput = audioOutput is null;
         this.installation = installation;
         this.mediaToolsDirectory = mediaToolsDirectory;
         this.projection = projection;
         this.resolveMovie = resolveMovie;
         this.appearance = appearance;
         this.envelope = envelope ?? new CombinedSessionSave { ActiveGame = SessionGame.Ff7 };
-        font = new Ff7FontRenderer(device, Ff7FontResources.Load(installation));
-        pixel = new Texture2D(device, 1, 1);
+        var fontResources = Ff7FontResources.Load(installation);
+        font = GraphicsHostReadiness.Initialize(() => new Ff7FontRenderer(device, fontResources));
+        pixel = GraphicsHostReadiness.Initialize(() => new Texture2D(device, 1, 1));
         pixel.SetData(new[] { Color.White });
-        triangles = new GpuTriangleRenderer(device);
+        triangles = GraphicsHostReadiness.Initialize(() => new GpuTriangleRenderer(device));
     }
 
     public Ff7Session? Session { get; private set; }
@@ -327,7 +332,7 @@ internal sealed partial class Ff7Scene : IDisposable
             titleBackground ??= GraphicsHostReadiness.Initialize(() => new TitleSceneRenderer(device, TitleSceneStyle.FinalFantasyVII));
             titleArtwork ??= GraphicsHostReadiness.Initialize(() => new TitleArtworkRenderer(device, TitleSceneStyle.FinalFantasyVII));
             titleBackground.Draw(windowBounds, titleSeconds);
-            titleArtwork.Draw(windowBounds, titleSeconds);
+            titleArtwork.Draw(windowBounds, titleSeconds, GraphicsDeviceSettings.SceneMsaaSamples(device));
         }
         Memoria.FF8.Runtime.PixelBounds fit = Memoria.FF8.Runtime.ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         bounds = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
@@ -824,6 +829,10 @@ internal sealed partial class Ff7Scene : IDisposable
         arenaSurfaceCapture?.Dispose();
         highwayGaugeTexture?.Dispose();
         highwayPortraitTexture?.Dispose();
+        if (ownsAudioOutput)
+        {
+            audioOutput.Dispose();
+        }
         triangles.Dispose();
         titleBackground?.Dispose();
         titleArtwork?.Dispose();

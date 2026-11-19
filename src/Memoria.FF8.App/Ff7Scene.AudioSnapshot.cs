@@ -38,9 +38,8 @@ internal sealed partial class Ff7Scene
             Ff7MusicVoicePosition? music = pendingMusic;
             if (musicPlayback is not null && musicSource is Ff7MusicVoicePosition source)
             {
-                int alignment = source.Channels * sizeof(short);
-                (int bytes, bool repeating) = musicPlayback.CapturePosition(queued, source.LoopStartFrames * alignment);
-                long frames = bytes / alignment;
+                (double positionFrames, bool repeating) = musicPlayback.CaptureFramePosition(queued, source.LoopStartFrames);
+                long frames = (long)positionFrames;
                 if (frames >= source.LoopEndFrames)
                 {
                     if (musicRepeats)
@@ -58,7 +57,7 @@ internal sealed partial class Ff7Scene
             }
             return new() { Sounds = pendingSounds ?? soundChannels.Capture(queued), Music = music, GuestSoundPayload = CaptureGuestSounds(queued) };
         }
-        return audioOutput is null ? Capture(0) : audioOutput.CapturePlaybackPosition(Capture);
+        return audioOutput.CapturePlaybackPosition(Capture);
     }
 
     private void RestoreAudioPresentation(Ff7AudioPresentationState? saved, bool restoring)
@@ -98,7 +97,6 @@ internal sealed partial class Ff7Scene
             try
             {
                 var decoded = DecodeSound(position.SoundId);
-                audioOutput ??= new PcmAudioOutput();
                 if (!soundChannels.RestoreVoice(audioOutput, decoded.Pcm.Bytes, decoded.Pcm.SampleRate, decoded.Pcm.Channels, position.SoundId, decoded.Streamed, decoded.Loop, decoded.LoopStart, decoded.LoopEnd, decoded.Fingerprint, position, decoded.NativeRate, decoded.LoopDelay))
                 {
                     Console.Error.WriteLine("FFVII compatibility: a saved SFX resource/format no longer matches the selected installation; that presentation voice was reset.");
@@ -121,7 +119,7 @@ internal sealed partial class Ff7Scene
         return saved?.PositionFrames ?? (legacyPosition ? checked((long)((Int128)musicTicks * sampleRate / 30)) : 0);
     }
 
-    private Ff7MusicVoicePosition? ResumeMusicPosition(int track, string fingerprint, PcmAudio pcm, ExternalMusicLoop loop)
+    private Ff7MusicVoicePosition? ResumeMusicPosition(int track, string fingerprint, PreparedPcmMusic prepared)
     {
         Ff7MusicVoicePosition? saved = pendingMusic;
         pendingMusic = null;
@@ -129,8 +127,8 @@ internal sealed partial class Ff7Scene
         {
             return null;
         }
-        int alignment = pcm.Channels * sizeof(short);
-        if (saved.Track == track && saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) && saved.SampleRate == pcm.SampleRate && saved.Channels == pcm.Channels && saved.LoopStartFrames == loop.StartByte / alignment && saved.LoopEndFrames == loop.EndByte / alignment)
+        PcmAudio pcm = prepared.Pcm;
+        if (saved.Track == track && saved.Fingerprint.Equals(fingerprint, StringComparison.OrdinalIgnoreCase) && saved.SampleRate == pcm.SampleRate && saved.Channels == pcm.Channels && saved.LoopStartFrames == prepared.LoopStartFrames && saved.LoopEndFrames == prepared.EndFrames)
         {
             return saved;
         }

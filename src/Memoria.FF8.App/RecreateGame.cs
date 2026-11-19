@@ -11,14 +11,11 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed partial class RecreateGame : Game
+internal sealed partial class RecreateGame : GamePresentationHost
 {
     private readonly LaunchOptions options;
     private GameResourceHost? resourceHost;
     private GameSession session;
-    private readonly GraphicsDeviceManager graphics;
-    private ApplicationWindowIcon? applicationWindowIcon;
-    private GraphicsHostReadiness? graphicsReadiness;
     private KeyboardInput keyboard = new();
     private readonly HostPhysicalInput physicalInput;
     private ControllerDevice? controller;
@@ -103,28 +100,16 @@ internal sealed partial class RecreateGame : Game
         uiPreferences = GameUi.UiPreferences.Load(UiPreferencesPath);
         ff8PlayerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
         ff7PlayerSaves.SetQuickSaveCount(uiPreferences.QuickSaveCount);
-        appliedMsaaSamples = uiPreferences.Graphics.MsaaSamples;
-        graphics = GraphicsDeviceSettings.Create(this, uiPreferences, options, () => uiPreferences);
-        Window.Title = "Memoria - Final Fantasy VIII";
-        Window.AllowUserResizing = true;
-        IsMouseVisible = true;
-        IsFixedTimeStep = false;
-        TargetElapsedTime = TimeSpan.FromSeconds(1d / 60);
-        InactiveSleepTime = TimeSpan.Zero;
+        WorldProcessHandoff? transfer = WorldProcessHandoff.Current;
+        ConfigurePresentation(uiPreferences, options, () => uiPreferences, "Memoria - Final Fantasy VIII", !options.IsDiagnosticGraphicalHost, transfer?.Specification.Window);
         Window.TextInput += OnTextInput;
         session.StateChanged += LogSessionState;
-        achievementsSuspended = WorldProcessHandoff.Current is not null;
-        if (achievementsSuspended)
-        {
-            windowMode = WindowModeController.PrepareTransferChild(Window, graphics);
-        }
+        achievementsSuspended = transfer is not null;
         InitializeAchievements();
     }
 
-    protected override void LoadContent()
+    protected override void LoadGameContent()
     {
-        applicationWindowIcon ??= ApplicationWindowIcon.Apply(Window);
-        graphicsReadiness = GraphicsHostReadiness.Initialize(() => new GraphicsHostReadiness(GraphicsDevice));
         resourceHost = new GameResourceHost(options.GameDirectory, modsDirectory: options.ModsDirectory, resourceLanguage: options.ResourceLanguage, modelSourceDirectory: options.ModelSourceDirectory);
         resourceHost.ConnectEncounterMods();
         movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
@@ -137,7 +122,7 @@ internal sealed partial class RecreateGame : Game
         fieldTexture = GraphicsHostReadiness.Initialize(() => new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height));
         if (options.AudioEnabled)
         {
-            fieldAudio = new FieldAudioPresentation(options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog);
+            fieldAudio = new FieldAudioPresentation(options.GameDirectory, movieClock.ToolsDirectory, () => resourceHost.Mods.Catalog) { OutputFactory = () => audioOutput, OwnsSoundOutput = false };
         }
         InitializeGameUi();
         InitializeCrossover();
@@ -174,7 +159,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        presentationPacer.BeginUpdate(appliedSoftwareFrameLimit ?? appliedFrameLimit ?? 60, Stopwatch.GetTimestamp());
+        BeginPresentationUpdate();
         using DiagnosticHostPhaseTiming.Scope updateTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.Update);
         physicalInput.BeginFrame();
         if (worldTransferIncoming && UpdateWorldTransfer(gameTime))
@@ -595,7 +580,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, options.AudioEnabled, readSceneMods: () => resourceHost?.SceneMods ?? Memoria.FF8.Mods.FieldSceneMods.Empty, modelOverrides: resourceHost, readGameplayPolicy: () => resourceHost?.GameplayPolicy ?? GameplayTuningPolicy.Empty, applyEncounterMods: resourceHost is null ? null : resourceHost.ApplyEncounterMods, audioOutput: audioOutput);
         next.ConfigureMovementSpeeds(uiPreferences.FieldMovementSpeedPercent, uiPreferences.WorldMovementSpeedPercent);
         fieldAudio?.Attach(next.Events);
         drawPointNoticeSeconds = 0;
@@ -636,7 +621,7 @@ internal sealed partial class RecreateGame : Game
                 // Resume from the actual last decoded frame. Wall-clock/audio position can be ahead
                 // when drawing falls behind and must not skip native callbacks on decoder restart.
                 double startSeconds = movieClock.State.FrameIndex / information.FramesPerSecond;
-                movie = new MoviePresentation(GraphicsDevice, directory, path, startSeconds, presentationInformation, options.AudioEnabled, information);
+                movie = new MoviePresentation(GraphicsDevice, audioOutput, directory, path, startSeconds, presentationInformation, options.AudioEnabled, information);
                 movieIndex = session.State.MovieIndex;
                 movieDiscIndex = movieClock.SourceDiscIndex;
                 error = null;
@@ -1596,8 +1581,8 @@ internal sealed partial class RecreateGame : Game
             fieldTexture = next;
         }
         long started = Stopwatch.GetTimestamp();
-        bool smoothField = session.State.Scene == SceneKind.Field && uiPreferences.FieldFps == 60 && !options.ControlStep;
-        float fieldInterpolation = smoothField ? (float)Math.Clamp(fieldSeconds * EventEngine.SimulationFps, 0, 1) : 1;
+        bool smoothField = session.State.Scene == SceneKind.Field && CommittedPresentationTime.ShouldInterpolate(uiPreferences.FieldFps, EventEngine.SimulationFps) && !options.ControlStep;
+        float fieldInterpolation = smoothField ? CommittedPresentationTime.Fraction(fieldSeconds, EventEngine.SimulationFps) : 1;
         if (fieldGpu is not null)
         {
             fieldGpu.PreviewGrayFieldMaterial = lightingEditor?.PreviewGrayMaterial == true;
@@ -1858,17 +1843,10 @@ internal sealed partial class RecreateGame : Game
 
     private void CapturePresentedFrame(GameTime gameTime)
     {
-        Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         string? capturePath = pendingCapture ?? (!frameCaptured && gameTime.TotalGameTime.TotalSeconds >= options.CaptureAfterSeconds ? options.CaptureFramePath : null);
         if (capturePath is not null)
         {
-            var colors = new Color[bounds.Width * bounds.Height];
-            GraphicsDevice.GetBackBufferData(colors);
-            using var capture = new Texture2D(GraphicsDevice, bounds.Width, bounds.Height);
-            capture.SetData(colors);
-            Directory.CreateDirectory(Path.GetDirectoryName(capturePath)!);
-            using Stream output = File.Create(capturePath);
-            capture.SaveAsPng(output, bounds.Width, bounds.Height);
+            WriteBackBufferPng(capturePath);
             frameCaptured = true;
             pendingCapture = null;
             Console.WriteLine($"captured={capturePath} frame={updateFrames}");
@@ -1889,16 +1867,9 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
-#if !MEMORIA_NATIVE
-            displayRefreshRate?.Dispose();
-#endif
-            applicationWindowIcon?.Dispose();
             ff7Scene?.Dispose();
             crossoverSetup?.Dispose();
             crossoverAssets?.Dispose();
-#if MEMORIA_NATIVE
-            nativeBackBuffer?.Dispose();
-#endif
             confirmationOverlay.Dispose();
             windowCloseConfirmation.Dispose();
             if (ModelBrowserDialogs.Confirmation?.Target == this)
@@ -1929,7 +1900,6 @@ internal sealed partial class RecreateGame : Game
             worldTransfer?.Dispose();
             DisposeDiagnosticBattleImage();
             diagnosticTelemetry?.Dispose();
-            presentationPacer.Dispose();
             authoringTextInput?.Dispose();
             ReleasePreparedErrorReport();
             authoringClipboard.Dispose();

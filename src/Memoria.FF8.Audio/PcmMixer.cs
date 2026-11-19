@@ -8,19 +8,38 @@ public interface IAudioSource
     void RenderFrame(out double left, out double right);
 }
 
+/// <summary>Applies a shared linear gain without changing the playback clocks of its sources.</summary>
+public sealed class PcmMixBus
+{
+    private double gain = 1;
+
+    public double Gain
+    {
+        get => Volatile.Read(ref gain);
+        set
+        {
+            if (!double.IsFinite(value) || value is < 0 or > 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+            Volatile.Write(ref gain, value);
+        }
+    }
+}
+
 /// <summary>One synchronized PCM clock for all sources, independent of the device's output format.</summary>
 public sealed class PcmMixer(int sampleRate = 44100)
 {
     private readonly object gate = new();
     private readonly List<Voice> voices = [];
-    private readonly List<IAudioSource> sources = [];
+    private readonly List<(IAudioSource Source, PcmMixBus? Bus)> sources = [];
     public int SampleRate { get; } = sampleRate > 0 ? sampleRate : throw new ArgumentOutOfRangeException(nameof(sampleRate));
 
-    public void Add(IAudioSource source)
+    public void Add(IAudioSource source, PcmMixBus? bus = null)
     {
         lock (gate)
         {
-            sources.Add(source);
+            sources.Add((source, bus));
         }
     }
 
@@ -28,17 +47,21 @@ public sealed class PcmMixer(int sampleRate = 44100)
     {
         lock (gate)
         {
-            sources.Remove(source);
+            int index = sources.FindIndex(entry => EqualityComparer<IAudioSource>.Default.Equals(entry.Source, source));
+            if (index >= 0)
+            {
+                sources.RemoveAt(index);
+            }
         }
     }
 
-    public Voice Create(byte[] pcm, int rate, int channels)
+    public Voice Create(byte[] pcm, int rate, int channels, PcmMixBus? bus = null)
     {
         if (rate <= 0 || channels is not (1 or 2) || pcm.Length == 0 || pcm.Length % (channels * 2) != 0)
         {
             throw new InvalidDataException("Playback requires aligned PCM16 mono or stereo data and a positive sample rate.");
         }
-        var voice = new Voice(this, pcm, rate, channels);
+        var voice = new Voice(this, pcm, rate, channels, bus);
         lock (gate)
         {
             voices.Add(voice);
@@ -63,11 +86,12 @@ public sealed class PcmMixer(int sampleRate = 44100)
                     voice.Mix(ref left, ref right);
                     voice.RecordPosition();
                 }
-                foreach (IAudioSource source in sources)
+                foreach ((IAudioSource source, PcmMixBus? bus) in sources)
                 {
                     source.RenderFrame(out double l, out double r);
-                    left += l;
-                    right += r;
+                    double gain = bus?.Gain ?? 1;
+                    left += l * gain;
+                    right += r * gain;
                 }
                 stereo[frame * 2] = (short)Math.Clamp(left, short.MinValue, short.MaxValue);
                 stereo[frame * 2 + 1] = (short)Math.Clamp(right, short.MinValue, short.MaxValue);
@@ -79,6 +103,7 @@ public sealed class PcmMixer(int sampleRate = 44100)
     {
         private static readonly ConditionalWeakTable<byte[], CompressedSource> compressedSources = new();
         private readonly PcmMixer owner;
+        private readonly PcmMixBus? bus;
         private readonly byte[] pcm;
         private readonly int rate;
         private readonly int channels;
@@ -97,9 +122,10 @@ public sealed class PcmMixer(int sampleRate = 44100)
         private bool loop;
         private bool disposed;
 
-        internal Voice(PcmMixer owner, byte[] pcm, int rate, int channels)
+        internal Voice(PcmMixer owner, byte[] pcm, int rate, int channels, PcmMixBus? bus)
         {
             this.owner = owner;
+            this.bus = bus;
             this.pcm = pcm;
             this.rate = rate;
             this.channels = channels;
@@ -316,8 +342,9 @@ public sealed class PcmMixer(int sampleRate = 44100)
             double fraction = playbackCursor - first;
             double l = Read(first, 0) * (1 - fraction) + Read(second, 0) * fraction;
             double r = channels == 1 ? l : Read(first, 1) * (1 - fraction) + Read(second, 1) * fraction;
-            left += l * volume * leftPan;
-            right += r * volume * rightPan;
+            double gain = volume * (bus?.Gain ?? 1);
+            left += l * gain * leftPan;
+            right += r * gain * rightPan;
             cursor += (double)rate / owner.SampleRate * originalFrames / frames * frequencyRatio;
             if (cursor >= originalFrames)
             {

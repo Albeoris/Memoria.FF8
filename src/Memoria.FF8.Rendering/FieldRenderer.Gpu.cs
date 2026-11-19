@@ -8,13 +8,15 @@ namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
-    private TriangleMaterial GpuMaterial(PixelImage? texture, TriangleBlend blend, bool depthWrite)
+    private TriangleSamplingProfile ModelSampling => TriangleSamplingProfile.Model(modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp);
+
+    private TriangleMaterial GpuMaterial(PixelImage? texture, TriangleBlend blend, bool depthWrite, TriangleSamplingProfile? sampling = null)
     {
-        return new TriangleMaterial(texture, blend, TriangleDepthComparison.LessEqual, depthWrite, Sampler: TriangleSampler.PointClamp)
+        return (sampling ?? TriangleSamplingProfile.PixelExact).Apply(new TriangleMaterial(texture, blend, TriangleDepthComparison.LessEqual, depthWrite)
         {
             DepthMapping = TriangleDepthMapping.Positive,
             ClipRectangle = new Vector4(clipLeft, clipTop, clipRight, clipBottom)
-        };
+        });
     }
 
     private static TriangleVertex GpuVertex(ProjectedPoint point, Vector2 uv, Vector4 color, float? depthOverride = null, bool perspective = true)

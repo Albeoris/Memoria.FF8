@@ -25,17 +25,14 @@ internal sealed partial class RecreateGame
         visualFrameRate.BeginFrame();
     }
 
-    protected override void EndDraw()
+    protected override bool ObservePresentTiming => diagnosticHostPhaseTiming.Enabled || PresentedFrameObserver is not null;
+
+    protected override void OnFramePresented(long presentBegin, long presentEnd)
     {
-        bool observePacing = diagnosticHostPhaseTiming.Enabled || PresentedFrameObserver is not null;
-        long presentBegin = observePacing ? Stopwatch.GetTimestamp() : 0;
-        base.EndDraw();
-        long presentEnd = observePacing ? Stopwatch.GetTimestamp() : 0;
-        presentationPacer.CompletePresentedFrame();
+        bool observePacing = ObservePresentTiming;
         DiagnosticHostFramePhases? phases = diagnosticHostPhaseTiming.Enabled ? diagnosticHostPhaseTiming.CompleteInterval() : null;
         using DiagnosticHostPhaseTiming.Scope postPresentTiming = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.PostPresent);
         long visualTimestamp = diagnosticTelemetry?.VisualChangesEnabled == true ? Stopwatch.GetTimestamp() : 0;
-        graphicsReadiness?.Presented(Window);
         PresentationPacerObservation pacer = observePacing ? presentationPacer.TimingObservation : default;
         PresentedFrameObserver?.Invoke(presentBegin, presentEnd, pacer, phases);
         if (observePacing)

@@ -60,7 +60,7 @@ internal sealed partial class FieldAudioPresentation
             }, pcm =>
             {
                 pendingDialogueDecodes.Remove(channel);
-                PcmAudioOutput.Buffer next = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+                PcmAudioOutput.Buffer next = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels, Sound.Voice);
                 try
                 {
                     next.Volume(OutputGain(0, voicePreference));

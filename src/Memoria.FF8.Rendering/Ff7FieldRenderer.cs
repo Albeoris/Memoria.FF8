@@ -271,7 +271,7 @@ public sealed partial class Ff7FieldRenderer
                 3 => TriangleBlend.QuarterAdd,
                 _ => throw new NotSupportedException($"FF7 tile blend {tile.BlendMode} is unsupported.")
             } : TriangleBlend.Replace;
-            TriangleMaterial material = new(region.Image, blend, TriangleDepthComparison.LessEqual, !blended, Sampler: TriangleSampler.PointClamp) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
+            TriangleMaterial material = TriangleSamplingProfile.PixelExact.Apply(new(region.Image, blend, TriangleDepthComparison.LessEqual, !blended) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) });
             Vector2 origin = BackgroundTileOrigin(tile, frame);
             TrianglePrimitives.Quad(renderer, FieldPoint(origin, width, height), new Vector2(tile.PixelSize * (height / 240f)), z, FieldColor(frame), material, region.End, region.Start, pointSampleRectangle: true);
         }
@@ -331,7 +331,7 @@ public sealed partial class Ff7FieldRenderer
                 TriangleVertex c = Vertex(triangle.C);
                 if (a.ReciprocalW > 0 && b.ReciprocalW > 0 && c.ReciprocalW > 0)
                 {
-                    TriangleMaterial submittedMaterial = triangle.Material with { ClipRectangle = FieldClip(width, height), Blend = actor.NativeTransparencyMode != 0 && triangle.Material.Blend != TriangleBlend.Replace ? TriangleBlend.Alpha : triangle.Material.Blend };
+                    TriangleMaterial submittedMaterial = TriangleSamplingProfile.Model(triangle.Material.Sampler).Apply(triangle.Material with { ClipRectangle = FieldClip(width, height), Blend = actor.NativeTransparencyMode != 0 && triangle.Material.Blend != TriangleBlend.Replace ? TriangleBlend.Alpha : triangle.Material.Blend });
                     renderer.Draw(a, b, c, submittedMaterial);
                     lastActorMaterial = submittedMaterial;
                 }
@@ -386,7 +386,7 @@ public sealed partial class Ff7FieldRenderer
                     normalBindings = Ff7FieldLighting.BindNormals(model, group);
                     modelNormalBindings.Add((model, groupIndex), normalBindings);
                 }
-                TriangleMaterial material = new(texture, currentState.Blend, currentState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, currentState.DepthWrite, currentState.AlphaReference, currentState.Sampler) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) };
+                TriangleMaterial material = TriangleSamplingProfile.Model(currentState.Sampler).Apply(new(texture, currentState.Blend, currentState.DepthTest ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Always, currentState.DepthWrite, currentState.AlphaReference) { PreserveTargetAlpha = false, ClipRectangle = FieldClip(width, height) });
                 for (int index = group.PolygonStart; index < group.PolygonStart + group.PolygonCount; index++)
                 {
                     PcModelPolygon polygon = model.Polygons[index];

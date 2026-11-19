@@ -51,7 +51,8 @@ internal sealed partial class Ff7Scene
 
     private float PresentationFraction(int fps)
     {
-        return InterpolatePresentation && fps == 60 && !focusPaused && !userPaused && !debugMenu && error is null ? (float)Math.Clamp(tickRemainder * 30, 0, 1) : 1;
+        bool interpolate = InterpolatePresentation && CommittedPresentationTime.ShouldInterpolate(fps, Ff7FieldTiming.CallbacksPerSecond) && !focusPaused && !userPaused && !debugMenu && error is null;
+        return interpolate ? CommittedPresentationTime.Fraction(tickRemainder, Ff7FieldTiming.CallbacksPerSecond) : 1;
     }
 
     private (Ff7Actor[] Actors, Vector2 Camera, Vector2 Shake, IReadOnlyDictionary<int, Ff7ModelRenderOverrides> WaterEffects) SampleFieldPresentation(Ff7Session session, Ff7FieldProcess state, PcFieldCamera? movieCamera)

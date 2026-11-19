@@ -6,7 +6,7 @@ internal sealed class WorldSimulationClock
     private const double StepSeconds = 1d / WorldMapScene.SimulationFps;
     private double accumulatedSeconds;
 
-    public float Fraction => (float)Math.Clamp(accumulatedSeconds / StepSeconds, 0, 1);
+    public float Fraction => CommittedPresentationTime.Fraction(accumulatedSeconds, WorldMapScene.SimulationFps);
 
     public void Accumulate(TimeSpan elapsed)
     {

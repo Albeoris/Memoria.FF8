@@ -51,7 +51,7 @@ internal sealed partial class GameWorld : IDisposable
         return GameSession.CreateColdProcess(NativeExecutionStackSelection.Apply(memory, NativeExecutionStackSelection.Read(selectedExecutionStackPath)));
     }
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null, GameAssets? sharedAssets = null, Func<FieldSceneMods>? readSceneMods = null, IModelOverrideSource? modelOverrides = null, Func<GameplayTuningPolicy>? readGameplayPolicy = null, Func<BattleDefinition, EncounterBindingContext, BattleDefinition>? applyEncounterMods = null, GameplaySaveSceneFacts? gameplaySaveFacts = null, bool legacyGameplayProjection = false, int? expandedBattleAllyCount = null, PcmAudioOutput? audioOutput = null)
     {
         this.session = session;
         string? expandedRoster = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_ROSTER");
@@ -152,7 +152,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadBattlePartyCapacity = () => EffectiveBattleAllyCount;
         Events.PreparingCheckpoint += CaptureNativeTutorialPlayback;
         Events.IsInspectionScriptEnabled = (objectId, scriptId) => !inspectionDisabledScripts.Contains((objectId, scriptId));
-        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled, clock.ToolsDirectory)).Prepare();
+        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioEnabled, clock.ToolsDirectory, audioOutput)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();
         Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
         Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);

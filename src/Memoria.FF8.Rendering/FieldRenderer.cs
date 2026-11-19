@@ -581,12 +581,10 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            TriangleMaterial material = GpuMaterial(texture, primitiveTransparencyEnabled ? TriangleBlend.Add : TriangleBlend.Replace, !primitiveTransparencyEnabled) with
+            TriangleMaterial material = GpuMaterial(texture, primitiveTransparencyEnabled ? TriangleBlend.Add : TriangleBlend.Replace, !primitiveTransparencyEnabled, ModelSampling) with
             {
                 DepthComparison = primitiveTransparencyEnabled ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Less,
-                PerspectiveDepth = true,
-                CentroidTextureSampling = true,
-                Sampler = modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp
+                PerspectiveDepth = true
             };
             Vector4 color = new(polygonColor / 128, 1);
             TriangleRenderer.Draw(GpuVertex(a, uvA / new Vector2(texture.Width, texture.Height), color * (colorA ?? Vector4.One)), GpuVertex(b, uvB / new Vector2(texture.Width, texture.Height), color * (colorB ?? Vector4.One)), GpuVertex(c, uvC / new Vector2(texture.Width, texture.Height), color * (colorC ?? Vector4.One)), material);

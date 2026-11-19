@@ -2,73 +2,17 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private WindowModeController? windowMode;
-    private readonly WindowModeHotkey windowModeHotkey = new();
-#if MEMORIA_NATIVE
-    private NativeWindowBackBufferSynchronizer? nativeBackBuffer;
-    private nint nativeInputWindow;
-#endif
-
     protected override void Initialize()
     {
         base.Initialize();
         previousDialogContext = SynchronizationContext.Current;
         ModelBrowserDialogs.Desktop = desktopDialogs;
         ModelBrowserDialogs.Confirmation = ShowGameConfirmationAsync;
-#if MEMORIA_NATIVE
-        nativeInputWindow = OperatingSystem.IsWindows() ? NativeWindowsGameWindow.ResolveHandle(Window.Title) : 0;
-        if (windowMode?.SupportsHiddenPresentation != false)
-        {
-            nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
-        }
-#endif
-        if (WorldProcessHandoff.Current is { } transfer)
-        {
-            windowMode!.RestoreTransfer(transfer.Specification.Window);
-#if MEMORIA_NATIVE
-            nativeBackBuffer?.Synchronize();
-#endif
-            return;
-        }
-        IGameWindowPlatform platform = WindowModeController.CreatePlatform(Window, graphics);
-        if (!options.IsDiagnosticGraphicalHost)
-        {
-            platform.Maximize();
-        }
-        windowMode = new WindowModeController(platform);
-        windowMode.Apply(uiPreferences.BorderlessWindow);
-#if MEMORIA_NATIVE
-        nativeBackBuffer?.Synchronize();
-#endif
-    }
-
-    private void RevealTransferWindow()
-    {
-        windowMode!.RevealTransferChild();
-#if MEMORIA_NATIVE
-        if (nativeBackBuffer is null)
-        {
-            nativeBackBuffer = new NativeWindowBackBufferSynchronizer(Window, graphics, nativeInputWindow);
-            nativeBackBuffer.Synchronize();
-        }
-#endif
     }
 
     private bool HasPhysicalInputFocus()
     {
-        if (focusDisposed)
-        {
-            return false;
-        }
-        if (OperatingSystem.IsWindows())
-        {
-#if MEMORIA_NATIVE
-            return NativeWindowsGameWindow.HasForeground(nativeInputWindow);
-#else
-            return NativeWindowsGameWindow.HasForeground(Window?.Handle ?? 0);
-#endif
-        }
-        return IsActive;
+        return !focusDisposed && HasWindowInputFocus();
     }
 
     private void UpdateWindowModeHotkey()
@@ -79,10 +23,7 @@ internal sealed partial class RecreateGame
             var preferences = uiPreferences with { BorderlessWindow = !uiPreferences.BorderlessWindow };
             preferences.Save(UiPreferencesPath);
             uiPreferences = preferences;
-            windowMode?.Apply(preferences.BorderlessWindow);
-#if MEMORIA_NATIVE
-            nativeBackBuffer?.Synchronize();
-#endif
+            ApplyWindowMode(preferences.BorderlessWindow);
             gameMenus?.InvalidateLiveData();
         }
     }

@@ -226,7 +226,7 @@ internal sealed partial class FieldAudioPresentation
 
         public void Start()
         {
-            output.AddSource(prepared);
+            output.AddSource(prepared, output.Music);
             attached = true;
         }
 

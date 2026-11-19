@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Presentation of a resolved music cue; it owns no original CD device or simulation clock.</summary>
-internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource resource, bool audioEnabled, string? toolsDirectory = null) : IDisposable
+internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource resource, bool audioEnabled, string? toolsDirectory = null, PcmAudioOutput? sharedOutput = null) : IDisposable
 {
     private PcmAudioOutput? output;
     private PcmAudioOutput.Buffer? buffer;
@@ -44,8 +44,8 @@ internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource 
         {
             try
             {
-                output = OutputFactory?.Invoke() ?? new PcmAudioOutput();
-                buffer = output.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
+                output = sharedOutput ?? OutputFactory?.Invoke() ?? new PcmAudioOutput();
+                buffer = output.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels, output.Music);
                 buffer.Play(false);
             }
             catch (Exception exception) when (exception is IOException or NotSupportedException or InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -75,7 +75,10 @@ internal sealed class SpuWaveAudioOutput(string gameDirectory, MusicCueResource 
         finally
         {
             buffer = null;
-            output?.Dispose();
+            if (sharedOutput is null)
+            {
+                output?.Dispose();
+            }
             output = null;
         }
     }

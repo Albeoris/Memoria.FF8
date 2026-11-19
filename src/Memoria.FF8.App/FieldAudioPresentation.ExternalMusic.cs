@@ -1,6 +1,5 @@
 ﻿using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
-using Memoria.FF8.Audio;
 
 namespace Memoria.FF8;
 
@@ -54,16 +53,14 @@ internal sealed partial class FieldAudioPresentation
                 byte[] encoded = selection.File.ReadBytes();
                 token.ThrowIfCancellationRequested();
                 PcmAudio decoded = await DecodeAsync("pipe:0", encoded, token).ConfigureAwait(false);
-                ExternalMusicLoop loop = ExternalMusicLoop.Read(encoded, decoded);
+                PreparedPcmMusic music = PreparedPcmMusic.FromVorbis(decoded, encoded, PcmMusicRepeat.TaggedRange);
                 int offset = ExternalMusicPcm.OffsetBytes(decoded, selection.OffsetSeconds);
-                if (offset >= loop.EndByte)
+                if (offset >= music.Loop.EndByte)
                 {
                     throw new InvalidDataException("External music offset exceeds its loop end.");
                 }
-                PcmAudio primary = new(decoded.Bytes.AsSpan(0, loop.EndByte).ToArray(), decoded.SampleRate, decoded.Channels);
-                byte[]? repeat = loop.StartByte > 0 ? decoded.Bytes.AsSpan(loop.StartByte, loop.EndByte - loop.StartByte).ToArray() : null;
-                return new DecodedExternalMusic(primary, loop, offset, repeat);
-            }, prepared => StartExternalMusic(selection, kind, slot, track, prepared), exception => MusicDecodeFailed(slot, exception));
+                return (Music: music, Offset: offset);
+            }, prepared => StartExternalMusic(selection, kind, slot, track, prepared.Music, prepared.Offset), exception => MusicDecodeFailed(slot, exception));
         }
         catch
         {
@@ -74,19 +71,17 @@ internal sealed partial class FieldAudioPresentation
         return true;
     }
 
-    private sealed record DecodedExternalMusic(PcmAudio Primary, ExternalMusicLoop Loop, int Offset, byte[]? Repeat);
-
-    private void StartExternalMusic(ExternalMusicSelection selection, MusicKind kind, int slot, int track, DecodedExternalMusic prepared)
+    private void StartExternalMusic(ExternalMusicSelection selection, MusicKind kind, int slot, int track, PreparedPcmMusic prepared, int offset)
     {
-        PcmAudio pcm = prepared.Primary;
+        PcmAudio pcm = prepared.Pcm;
         ExternalMusicLoop loop = prepared.Loop;
-        int offset = prepared.Offset;
+        double positionFrames = offset / (pcm.Channels * sizeof(short));
         string fingerprint = PcmFingerprint(pcm, loop.StartByte, loop.EndByte);
         GameplaySaveAudioPosition? savedPosition = ResumeMusicPosition(slot, track, 0, "pcm16-v1", fingerprint);
         bool restoreLoop = false;
         if (ValidPcmPosition(savedPosition, pcm, loop.StartByte, loop.EndByte))
         {
-            offset = checked((int)(savedPosition!.Position * pcm.Channels * 2));
+            positionFrames = savedPosition!.Position + savedPosition.FractionalFrame;
             restoreLoop = savedPosition.StartPoint == 1;
         }
         int volume = Math.Clamp((int)(kind == MusicKind.Midi ? midiVolume : streamVolume), 0, 127);
@@ -99,47 +94,15 @@ internal sealed partial class FieldAudioPresentation
             streamedMusic?.Dispose();
             streamedMusic = null;
         }
-        if (offset >= loop.EndByte)
-        {
-            throw new InvalidDataException("External music offset exceeds its loop end.");
-        }
-        PcmAudioOutput.Buffer buffer = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
-        PcmAudioOutput.Buffer? repeat = null;
-        ExternalMusicOutput output;
-        try
-        {
-            buffer.Volume(ExternalGain(kind, volume, selection.Volume));
-            buffer.Position(offset);
-            if (loop.StartByte > 0)
-            {
-                repeat = Sound.Create(prepared.Repeat!, pcm.SampleRate, pcm.Channels);
-                repeat.Volume(ExternalGain(kind, volume, selection.Volume));
-            }
-            if (restoreLoop && repeat is not null)
-            {
-                repeat.Position(offset - loop.StartByte);
-                repeat.Play(true);
-            }
-            else
-            {
-                buffer.Play(repeat is null);
-            }
-            output = new ExternalMusicOutput(buffer, repeat, selection.Volume, (loop.EndByte - offset) / (double)(pcm.SampleRate * pcm.Channels * sizeof(short)), pcm.SampleRate * pcm.Channels * sizeof(short), loop.EndByte - loop.StartByte, restoreLoop);
-            if (focusPaused || nativeMidiPaused)
-            {
-                output.Pause(true);
-            }
-        }
-        catch
-        {
-            buffer.Dispose();
-            repeat?.Dispose();
-            throw;
-        }
+        PcmLoopPlayback output = prepared.Start(Sound, positionFrames, restoreLoop, ExternalGain(kind, volume, selection.Volume), selection.Volume, focusPaused || nativeMidiPaused);
         externalMusic[(int)kind]?.Dispose();
         externalMusic[(int)kind] = output;
         DiscardMusicResumePosition(slot);
-        musicPositionCaptures[slot] = queued => [CapturePcmPosition(buffer, repeat, output.LoopStarted, pcm, fingerprint, loop.StartByte, loop.EndByte, queued)];
+        musicPositionCaptures[slot] = queued =>
+        {
+            (double frames, bool repeating) = output.CaptureFramePosition(queued, prepared.LoopStartFrames);
+            return [CreatePcmPosition(frames, repeating, pcm, fingerprint, loop.StartByte, loop.EndByte)];
+        };
         musicKinds[slot] = kind;
         musicIds[slot] = track;
         Console.WriteLine($"field-music=Playing track={track} slot={slot} package={selection.File.PackageId} file={selection.File.RelativePath} offset={selection.OffsetSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)} loop={loop.StartByte}:{loop.EndByte}");
@@ -178,18 +141,6 @@ internal sealed partial class FieldAudioPresentation
                 output.Pause(paused);
             }
         }
-    }
-
-    private interface IExternalMusicOutput : IDisposable
-    {
-        int Volume { get; }
-        void Update();
-        void SetGain(int gain);
-        void Pause(bool paused);
-    }
-
-    private sealed class ExternalMusicOutput(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false) : PcmLoopPlayback(primary, loop, volume, initialSeconds, bytesPerSecond, loopBytes, restoredLoop), IExternalMusicOutput
-    {
     }
 
 }

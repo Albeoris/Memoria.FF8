@@ -29,7 +29,12 @@ internal sealed partial class Ff7Scene
                 : retainedBattleAtbMode is { } retained ? preferences with { AtbMode = retained } : preferences;
         }
     }
-    public int PresentationFrameLimit => PresentationTiming.FrameLimit(PresentationPreferences, IsMenuPresentation, Session?.Battle is not null, Session?.World is not null);
+    public int PresentationFrameLimit => GetPresentationFrameLimit(PresentationPreferences, hostMenuOpen: false);
+
+    internal int GetPresentationFrameLimit(GameUi.UiPreferences preferences, bool hostMenuOpen)
+    {
+        return PresentationTiming.FrameLimit(preferences, IsMenuPresentation || hostMenuOpen, Session?.Battle is not null, Session?.World is not null);
+    }
 
     private BattleAtbMode CurrentBattleAtbMode => PresentationPreferences.AtbMode;
 

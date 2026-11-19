@@ -2,8 +2,16 @@ using System.Diagnostics;
 
 namespace Memoria.FF8;
 
+internal interface IExternalMusicOutput : IDisposable
+{
+    int Volume { get; }
+    void Update();
+    void SetGain(int gain);
+    void Pause(bool paused);
+}
+
 /// <summary>Shared PCM intro-to-loop playback; game adapters retain track identity and saved logical time.</summary>
-internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false, int blockAlignment = 4, Func<double>? elapsedSeconds = null) : IDisposable
+internal sealed class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buffer? loop, int volume, double initialSeconds, int bytesPerSecond, int loopBytes, bool restoredLoop = false, int blockAlignment = 4, Func<double>? elapsedSeconds = null) : IExternalMusicOutput
 {
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly double externalClockOrigin = elapsedSeconds?.Invoke() ?? 0;
@@ -57,8 +65,14 @@ internal class PcmLoopPlayback(PcmAudioOutput.Buffer primary, PcmAudioOutput.Buf
 
     public (int PositionBytes, bool Repeating) CapturePosition(int queuedFrames, int loopStartBytes)
     {
+        (double frames, bool repeating) = CaptureFramePosition(queuedFrames, loopStartBytes / blockAlignment);
+        return (checked((int)frames * blockAlignment), repeating);
+    }
+
+    internal (double PositionFrames, bool Repeating) CaptureFramePosition(int queuedFrames, int loopStartFrames)
+    {
         bool repeating = LoopStarted && loop?.HasStartedBeforeQueuedFrames(queuedFrames) == true;
-        int position = repeating ? checked(loopStartBytes + loop!.PositionBytesBeforeQueuedFrames(queuedFrames)) : primary.PositionBytesBeforeQueuedFrames(queuedFrames);
+        double position = repeating ? loopStartFrames + loop!.PositionFramesBeforeQueuedFrames(queuedFrames) : primary.PositionFramesBeforeQueuedFrames(queuedFrames);
         return (position, repeating);
     }
 

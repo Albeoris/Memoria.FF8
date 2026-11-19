@@ -66,7 +66,7 @@ internal sealed partial class RecreateGame
                     return true;
                 }
                 double start = startup.Stage == StartupStage.PublisherMovie ? StartupSequence.PublisherStartSeconds : 0;
-                startupMovie ??= new MoviePresentation(GraphicsDevice, movieClock.ToolsDirectory, path, start, startupMovieInformation.GetAwaiter().GetResult(), options.AudioEnabled);
+                startupMovie ??= new MoviePresentation(GraphicsDevice, audioOutput, movieClock.ToolsDirectory, path, start, startupMovieInformation.GetAwaiter().GetResult(), options.AudioEnabled);
                 startupMovie.Update();
                 if (startupMovie.Error is string movieError)
                 {
