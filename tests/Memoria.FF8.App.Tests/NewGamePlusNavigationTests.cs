@@ -36,14 +36,14 @@ public sealed class NewGamePlusNavigationTests
     [Theory]
     [InlineData(100)]
     [InlineData(150)]
-    public void MainControlsFitMinimumViewportAndExposeMouseConfig(int scale)
+    public void MainControlsFitMinimumViewportWithoutSeparateConfigButtons(int scale)
     {
         (MenuController menus, _) = Create(scale);
         UiView view = menus.BuildView();
         view.Resize(960, 672);
         UiElement[] controls = Descendants(view.Root).Where(element => element.Id?.StartsWith("config-", StringComparison.Ordinal) == true).ToArray();
-        Assert.Equal(7, controls.Length);
-        Assert.All(controls, element => Assert.False(element.Bounds.IsEmpty));
+        Assert.Empty(controls);
+        Assert.DoesNotContain(Descendants(view.Root).OfType<UiButton>(), button => button.Text == "Config");
         Assert.Equal(2, Descendants(view.Root).OfType<UiNumericSlider>().Count());
         menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Right);
@@ -87,6 +87,33 @@ public sealed class NewGamePlusNavigationTests
 
     }
 
+    [Theory]
+    [InlineData(0, "characters")]
+    [InlineData(1, "exp")]
+    [InlineData(2, "gf")]
+    [InlineData(3, "ap")]
+    [InlineData(4, "magic")]
+    [InlineData(5, "items")]
+    [InlineData(6, "cards")]
+    public void CategoriesOpenDetailsOnlyThroughTheCardAction(int index, string category)
+    {
+        (MenuController menus, _) = Create();
+        for (int row = 0; row < index; row++)
+        {
+            menus.Navigate(MenuInput.Down);
+        }
+        Assert.Equal(category, menus.SelectedEntry!.Id);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.NotEqual("new-game-plus-config", menus.ScreenId);
+        if (menus.ScreenId == "new-game-plus-reset")
+        {
+            menus.Back();
+        }
+        menus.Navigate(MenuInput.Alternate);
+        Assert.Equal("new-game-plus-config", menus.ScreenId);
+        Assert.DoesNotContain(Descendants(menus.BuildView().Root).OfType<UiButton>(), button => button.Text == "Config");
+    }
+
     [Fact]
     public void AlternateOpensConfigAndNumericPanelSharesInlineValue()
     {
@@ -102,6 +129,19 @@ public sealed class NewGamePlusNavigationTests
         Assert.Equal(10, draft.ExperienceMultiplierTenths);
         menus.Back();
         Assert.Equal("exp", menus.SelectedEntry!.Id);
+    }
+
+    [Fact]
+    public void MagicConversionReviewUsesTheCardActionInsteadOfAConfigEntry()
+    {
+        (MenuController menus, NewGamePlusDraft draft) = Create();
+        draft.ConvertMagic(new GameplayPreferences { SharedMagicStock = true });
+        menus.OpenNewGamePlus(draft, _ => { }, () => { });
+        Assert.Equal("new-game-plus-magic-review", menus.ScreenId);
+        Assert.DoesNotContain(menus.Entries, entry => entry.Id == "config");
+        menus.Navigate(MenuInput.Alternate);
+        Assert.Equal("new-game-plus-config", menus.ScreenId);
+        Assert.DoesNotContain(Descendants(menus.BuildView().Root).OfType<UiButton>(), button => button.Text == "Config");
     }
 
     [Fact]

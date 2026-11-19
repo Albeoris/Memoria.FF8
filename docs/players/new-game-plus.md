@@ -22,7 +22,7 @@ The next screen offers these choices:
 | AP Gain | 0.0–10.0× in steps of 0.1. |
 | Magic, Items, Cards | Stored or Empty; Config edits the collection and quantities. |
 
-Each category has a mouse-accessible **Config** button. The currently bound card-game action opens Config from the selected category and opens ability details from a GF. The on-screen hint follows keyboard/controller remapping. Lists scroll; Back preserves edits. Changing a preset replaces its category only after confirmation. Edited categories display **Custom**.
+The currently bound card-game action opens Config from the selected category and opens ability details from a GF. Config is a contextual action, shown in the binding hint; it has no separate on-screen button. The on-screen hint follows keyboard/controller remapping. Lists scroll; Back preserves edits. Changing a preset replaces its category only after confirmation. Edited categories display **Custom**.
 
 **Level for All Characters = 0** means **Individual / No Override**. Values 1–100 temporarily override individual levels without erasing them. Squall must remain available for the opening party. The five additional characters are independent choices; enabling one does not unlock all five. Checked guests remain selectable through later story departures. Regular characters still follow their story availability. **Allow Party Changes on the World Map** permits switching during interactive world-map control before the usual story unlock.
 

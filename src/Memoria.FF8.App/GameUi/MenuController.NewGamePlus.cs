@@ -99,7 +99,7 @@ public sealed partial class MenuController
         {
             foreach (string category in new[] { "characters", "exp", "gf", "ap", "magic", "items", "cards" })
             {
-                entries.Add(NgAction(category, NgCategoryLabel(category), category is "exp" or "ap" ? NgRewardHelp(category == "exp") : NgText("category.help", "Choose a preset or open Config to edit starting values."), "ng-config"));
+                entries.Add(NgAction(category, NgCategoryLabel(category), category is "exp" or "ap" ? NgRewardHelp(category == "exp") : NgText("category.help", "Choose a preset or open Config to edit starting values."), "ng-category"));
             }
             entries.Add(NgAction("begin", NgText("begin", "Begin New Game+"), NgText("begin.help", "Review carryover and selected rules before starting."), "ng-review"));
         }
@@ -194,7 +194,6 @@ public sealed partial class MenuController
         else if (ScreenId == "new-game-plus-magic-review")
         {
             entries.Add(NgAction("done", NgText("done", "Done"), NgText("magic.review.keep", "Keep this conversion and continue configuring the draft."), "menu-back"));
-            entries.Add(NgAction("config", NgText("config", "Config"), NgText("magic.review.config", "Inspect the shared pool and retained personal stock."), "ng-magic-review-config"));
         }
         else if (ScreenId == "new-game-plus-magic-actions")
         {
@@ -233,12 +232,11 @@ public sealed partial class MenuController
             {
                 MenuEntry entry = Entries[index];
                 int selected = index;
-                UiGrid row = stacked ? Grid([1, 1], [1], 3) : Grid([1], [5, 1], 6);
-                UiGrid heading = Grid([1], [3, 1], 6);
+                UiGrid row = stacked ? Grid([1, 1], [1], 3) : Grid([1], [1], 6);
+                UiGrid heading = Grid([1], [1], 6);
                 if (stacked && entry.Id != "begin")
                 {
                     Place(heading, Label(entry.Label, 18, UiTextFlow.Wrap), 0);
-                    Place(heading, new UiButton { Id = "config-" + entry.Id, Text = NgText("config", "Config"), FontSize = 16 * TextScale, TextInset = 8, Click = () => OpenNgConfig(entry.Id), FocusChanged = focused => SelectConfigRow(focused, selected) }, 0, 1);
                 }
                 if (stacked)
                 {
@@ -267,11 +265,7 @@ public sealed partial class MenuController
                 }
                 control.Id = entry.Id;
                 control.FocusChanged = focused => SelectConfigRow(focused, selected);
-                Place(row, control, stacked && entry.Id != "begin" ? 1 : 0, 0, stacked && entry.Id == "begin" ? 2 : 1, !stacked && entry.Id == "begin" ? 2 : 1);
-                if (!stacked && entry.Id != "begin")
-                {
-                    Place(row, new UiButton { Id = "config-" + entry.Id, Text = NgText("config", "Config"), FontSize = 16 * TextScale, TextInset = 8, Click = () => OpenNgConfig(entry.Id), FocusChanged = focused => SelectConfigRow(focused, selected) }, 0, 1);
-                }
+                Place(row, control, stacked && entry.Id != "begin" ? 1 : 0, 0, stacked && entry.Id == "begin" ? 2 : 1);
                 Place(rows, row, index);
             }
             UiScrollPanel scroll = new() { ContentHeight = Entries.Count * (rowHeight + 4) };
@@ -304,7 +298,8 @@ public sealed partial class MenuController
                 }
             }
             Place(body, Panel(null, commands), 0);
-            UiGrid detail = Grid([1, 3, 1], [1], 8);
+            bool hasNumber = TryNgNumber(out float value, out float max);
+            UiGrid detail = Grid(hasNumber ? [1, 3, 1] : [1, 3], [1], 8);
             string title = ScreenId == "new-game-plus-review" ? NgText("review.title", "Review New Game+") : ScreenId.Contains("abilit", StringComparison.Ordinal) ? NgGuardian(newGamePlusGuardian) : NgCategoryLabel(newGamePlusCategory);
             if (TextScale > 1.5f && SelectedEntry is { } selected)
             {
@@ -319,23 +314,9 @@ public sealed partial class MenuController
             UiScrollPanel explanationScroll = new() { ContentHeight = Math.Max(320, explanation.Split('\n').Length * 42 + 120) * TextScale };
             explanationScroll.Children.Add(Label(explanation, 19, UiTextFlow.Wrap));
             Place(detail, Panel(null, explanationScroll), 1);
-            if (TryNgNumber(out float value, out float max) && !(newGamePlusCategory == "magic" && newGamePlusDraft!.Magic.MagicSystem.SharedMagicStock))
+            if (hasNumber)
             {
                 Place(detail, Panel(null, NgSlider("ng-selected-value", NgText("value", "Value"), value, 0, max, newGamePlusCategory is "exp" or "ap" ? 0.1f : 1, SetNgNumber)), 2);
-            }
-            else if (ScreenId == "new-game-plus-config" && newGamePlusCategory == "gf")
-            {
-                Place(detail, new UiButton { Text = NgText("config", "Config"), Click = OpenSelectedNgConfig, FontSize = 22 * TextScale }, 2);
-            }
-            if (ScreenId == "new-game-plus-config" && newGamePlusCategory == "magic" && newGamePlusDraft!.Magic.MagicSystem.SharedMagicStock && int.TryParse(SelectedEntry?.Id, out _))
-            {
-                UiGrid actions = Grid([1], [3, 1], 6);
-                if (TryNgNumber(out float magicValue, out float magicMax))
-                {
-                    Place(actions, NgSlider("ng-selected-value", NgText("value", "Value"), magicValue, 0, magicMax, 1, SetNgNumber), 0);
-                }
-                Place(actions, new UiButton { Text = NgText("config", "Config"), FontSize = 19 * TextScale, Click = OpenSelectedNgConfig }, 0, 1);
-                Place(detail, Panel(null, actions), 2);
             }
             if (TextScale > 1.5f)
             {
@@ -613,6 +594,11 @@ public sealed partial class MenuController
             newGamePlusGuardian = guardian;
             Push("new-game-plus-abilities");
         }
+        else if (ScreenId == "new-game-plus-magic-review")
+        {
+            Back();
+            OpenNgConfig("magic");
+        }
         else if (ScreenId == "new-game-plus-abilities")
         {
             if (int.TryParse(SelectedEntry?.Id, out int ability))
@@ -697,6 +683,8 @@ public sealed partial class MenuController
         {
             switch (action.Kind)
             {
+                case "ng-category":
+                    break;
                 case "ng-config":
                     OpenNgConfig(action.SubjectId);
                     break;
@@ -735,10 +723,6 @@ public sealed partial class MenuController
                 case "ng-reset-accept":
                     newGamePlusDraft!.Reset(newGamePlusResetCategory, newGamePlusResetPreset);
                     Back();
-                    break;
-                case "ng-magic-review-config":
-                    Back();
-                    OpenNgConfig("magic");
                     break;
                 case "ng-magic-remove-everywhere":
                     newGamePlusDraft!.RemoveMagicEverywhere(newGamePlusSpell);
