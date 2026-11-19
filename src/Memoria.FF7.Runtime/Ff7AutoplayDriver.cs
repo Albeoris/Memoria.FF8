@@ -89,7 +89,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
     private Vector3? committedWaypoint;
     private int waypointSourceTriangle = -1;
     private Vector3? finalTarget;
-    private bool finalApproach;
     private IReadOnlySet<int>? admittedGateways;
     private static readonly (int X, int Y, int Direction)[] Directions = [(-1, -1, 32), (0, -1, 0), (1, -1, 224), (-1, 0, 64), (1, 0, 192), (-1, 1, 96), (0, 1, 128), (1, 1, 160)];
 
@@ -111,7 +110,6 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         {
             committedWaypoint = null;
             waypointGeneration = -1;
-            finalApproach = false;
             ResetObstacleEscape();
         }
         ushort held = input.Held;
@@ -280,12 +278,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
         }
         IReadOnlyList<PcWalkmeshTriangle> mesh = session.Field.Walkmesh;
         int destination = targetTriangle ?? mesh.MinBy(triangle => Vector3.DistanceSquared((triangle.A + triangle.B + triangle.C) / 3, target))!.Index;
-        if (waypointGeneration != session.FieldGeneration || waypointDestination != destination || finalTarget != target)
-        {
-            finalApproach = false;
-            finalTarget = target;
-        }
-        finalApproach |= player.Triangle == destination;
+        finalTarget = target;
         string guideContext = ReadApproachGuideContext(player, target, destination);
         UpdateApproachGuideContext(guideContext);
         HashSet<(int From, int To)> adviceRestrictions = ReadNavigationOwnedPortals(mesh);
@@ -298,15 +291,7 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
             CancelObstacleSearch();
         }
         int next = previous[player.Triangle];
-        if (next < 0 && !finalApproach)
-        {
-            throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII navigation target has no unblocked native walkmesh path.", destination: target, destinationTriangle: destination);
-        }
-        Vector3 waypoint = target;
-        if (next != player.Triangle && !finalApproach)
-        {
-            waypoint = (mesh[next].A + mesh[next].B + mesh[next].C) / 3;
-        }
+        var (finalApproach, waypoint) = ReadCurrentApproachStep(mesh, player.Triangle, destination, next, target);
         Vector2 currentPosition = new(player.X4096 / 4096f, player.Y4096 / 4096f);
         if (waypointGeneration == session.FieldGeneration && waypointDestination == destination && player.Triangle == waypointSourceTriangle && committedWaypoint is Vector3 retained && Vector2.DistanceSquared(currentPosition, new(retained.X, retained.Y)) > 24 * 24)
         {
@@ -392,6 +377,16 @@ public sealed partial class Ff7AutoplayDriver(Ff7Session session)
 
     private string? approachGuideContext;
     private readonly HashSet<(int From, int To)> approachAdviceExclusions = [];
+
+    internal static (bool FinalApproach, Vector3 Waypoint) ReadCurrentApproachStep(IReadOnlyList<PcWalkmeshTriangle> mesh, int source, int destination, int next, Vector3 target)
+    {
+        bool final = source == destination;
+        if (next < 0 && !final)
+        {
+            throw new Ff7AutoPlayNavigationUnavailableException(-1, "FFVII navigation target has no unblocked native walkmesh path.", destination: target, destinationTriangle: destination);
+        }
+        return (final, !final && next != source ? (mesh[next].A + mesh[next].B + mesh[next].C) / 3 : target);
+    }
 
     private string ReadApproachGuideContext(Ff7Actor player, Vector3 target, int destination)
     {
