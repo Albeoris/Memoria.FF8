@@ -103,6 +103,7 @@ public sealed partial class Ff7AutoplayDriver
             obstacleSpeed = player.MoveSpeed;
         }
         string context = $"{ReadPhysicalApproachContext(player, target, destination)}|source:{player.Slot}:{player.X4096}:{player.Y4096}:{player.Z4096}:{player.Triangle}:{player.Direction}:{player.MoveSpeed}:{player.PlayerControlled}:{player.MovementFacingDisabled}|waypoint:{waypoint}:{nextTriangle}|mode:{navigationRunMode}|control:{session.Field.Triggers.ControlDirection}|input:{navigationLineInput}|talk:{navigationLineTalk}|targets:{string.Join(';', navigationLineTargets?.Select(candidate => $"{candidate.Id}:{candidate.ConditionFingerprint}") ?? [])}";
+        context = ReadPhysicalFailureGuideContext(context, routeDistance, approachAdviceExclusions);
         UpdatePhysicalApproachContext(context);
         if (TakeEscapeStep(player, movement, out input))
         {
@@ -131,6 +132,10 @@ public sealed partial class Ff7AutoplayDriver
         }
         if (obstacleSearch is null)
         {
+            if (TryReadPhysicalFailureReceipt(context, out Ff7AutoPlayPhysicalFailureReceipt? receipt))
+            {
+                throw new Ff7AutoPlayNavigationUnavailableException(-1, "This exact native source and local guide already exhausted its represented physical search.", blockingEntities, target, destination, ReadApproachRegion(session.Field.Walkmesh, player, nextTriangle)) { PhysicalFailure = receipt };
+            }
             obstacleSearch = new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
             List<PhysicalSearchGuide> guides = [new(obstacleSearch, waypoint, nextTriangle, [])];
             if (nextTriangle >= 0 && nextTriangle != player.Triangle)
@@ -176,7 +181,8 @@ public sealed partial class Ff7AutoplayDriver
             if (blockedForward)
             {
                 Ff7AutoPlayMovementFailure region = ReadApproachRegion(session.Field.Walkmesh, player, nextTriangle);
-                throw new Ff7AutoPlayNavigationUnavailableException(-1, $"The current native approach search {route.Status.ToString().ToLowerInvariant()} after {route.Expanded} nodes without advancing through its blocked portal; this local approach is deferred until its region or collision admission changes.", blockingEntities, target, destination, movementFailure: region);
+                Ff7AutoPlayPhysicalFailureReceipt receipt = CreatePhysicalFailureReceipt(session.CaptureAutoPlayNavigation(), context, route.Expanded);
+                throw new Ff7AutoPlayNavigationUnavailableException(-1, $"The current native approach search {route.Status.ToString().ToLowerInvariant()} after {route.Expanded} nodes without advancing through its blocked portal; this exact local attempt is deferred.", blockingEntities, target, destination, movementFailure: region) { PhysicalFailure = receipt };
             }
             return false;
         }

@@ -11,4 +11,5 @@ public sealed class Ff7AutoPlayNavigationUnavailableException(int entity, string
     public Vector3? Destination { get; } = destination;
     public int? DestinationTriangle { get; } = destinationTriangle;
     public Ff7AutoPlayMovementFailure? MovementFailure { get; } = movementFailure;
+    public Ff7AutoPlayPhysicalFailureReceipt? PhysicalFailure { get; init; }
 }

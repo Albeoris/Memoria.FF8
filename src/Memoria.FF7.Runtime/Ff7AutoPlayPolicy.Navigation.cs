@@ -133,8 +133,13 @@ public sealed partial class Ff7AutoPlayPolicy
     internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts, Func<string, Ff7AutoPlayNavigationGuard, bool?>? readSourceInside = null, Func<string, Ff7AutoPlayNavigationGuard, bool>? includeRefusal = null)
     {
         var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
-        AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key && (includeRefusal is null || includeRefusal(attempt.GuardKey, guard)) && (guard.MovementFailure is null || (readSourceInside is null ? guard.MovementSourceInside : readSourceInside(attempt.GuardKey, guard)) != false)).ToList() };
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key && !IsBoundedPhysicalApproach(attempt.GuardKey, guard) && (includeRefusal is null || includeRefusal(attempt.GuardKey, guard)) && (guard.MovementFailure is null || (readSourceInside is null ? guard.MovementSourceInside : readSourceInside(attempt.GuardKey, guard)) != false)).ToList() };
         return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))!;
+    }
+
+    internal static bool IsBoundedPhysicalApproach(string key, Ff7AutoPlayNavigationGuard guard)
+    {
+        return guard.NavigationKey is not null && guard.EventId is not null && guard.MovementFailure is { } region && key == ReadMovementFailureGuardKey(guard.NavigationKey, guard.EventId, "physical", region, guard.BlockingEntities);
     }
 
 }

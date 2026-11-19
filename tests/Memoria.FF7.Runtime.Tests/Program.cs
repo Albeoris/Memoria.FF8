@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--physical-failure-receipt-only", StringComparer.Ordinal))
+{
+    PhysicalFailureReceiptTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-graph-ownership-only", StringComparer.Ordinal))
 {
     NativeGraphOwnershipTests.Run();

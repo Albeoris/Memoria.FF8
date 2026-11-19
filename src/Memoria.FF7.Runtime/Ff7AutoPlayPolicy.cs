@@ -197,6 +197,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         controllable = true;
         driver.ConfigureSpatialBoundaries(observation.Events);
+        driver.SetPhysicalFailureReceipts(State.NavigationGuards.Where(entry => entry.Value.NavigationKey == observation.NavigationKey && IsBoundedPhysicalApproach(entry.Key, entry.Value)).Select(entry => entry.Value.PhysicalFailure).OfType<Ff7AutoPlayPhysicalFailureReceipt>());
         Dictionary<string, string> physicalGuards = new(StringComparer.Ordinal);
         foreach (var entry in State.NavigationGuards.Where(entry => entry.Value.VisitId == observation.VisitId).ToArray())
         {
@@ -431,7 +432,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         {
             string key = ReadMovementFailureGuardKey(observation.NavigationKey, current.EventId, "physical", absence.MovementFailure, absence.BlockingEntities);
             Ff7Actor player = session.Host.Process.Actors.Single(actor => actor.PlayerControlled);
-            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, player.Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: absence.MovementFailure is null ? null : ReadMovementSourceInside(absence.MovementFailure, player));
+            State.NavigationGuards[key] = new(current.VisitId, selectedTarget.Entity, absence.BlockingEntities.ToArray(), selectedTarget.Id, observation.NavigationKey, player.Triangle, absence.MovementFailure, driver.CaptureSpatialBoundaryTriangles(), MovementSourceInside: absence.MovementFailure is null ? null : ReadMovementSourceInside(absence.MovementFailure, player), PhysicalFailure: absence.PhysicalFailure);
             string fingerprint = ReadMovementFailureFingerprint(driver.ReadPhysicalAvailabilityFingerprint(selectedTarget, absence.BlockingEntities), absence.MovementFailure, session.Host.Process.Actors, absence.BlockingEntities);
             planner.MarkUnavailable(current.VisitId, current.EventId, new(selectedTarget.ConditionFingerprint, current.VisitId, key, fingerprint, current.EventId));
             State.Active = null;
