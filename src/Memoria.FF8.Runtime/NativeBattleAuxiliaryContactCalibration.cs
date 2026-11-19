@@ -33,4 +33,13 @@ public sealed class NativeBattleAuxiliaryContactCalibration
     public ImmutableArray<NativeBattleAuxiliarySegment> BodySegments { get; }
 }
 
-public sealed record NativeBattleAuxiliaryContactReport(int ClothBodyCrossings, int ViolatingLayers, float MaximumLayerPenetration, float SharedEdgeStrain);
+/// <summary>Reports all observed contacts separately from the subset that auxiliary articulation can change.</summary>
+public sealed record NativeBattleAuxiliaryContactReport(int ClothBodyCrossings, int ViolatingLayers, float MaximumLayerPenetration, float SharedEdgeStrain)
+{
+    public int ImmutableBoundaryCrossings { get; init; }
+
+    public int CorrectableCrossings => ClothBodyCrossings - ImmutableBoundaryCrossings;
+    public int HardViolatingLayers { get; init; }
+    public int SoftViolatingLayers => ViolatingLayers - HardViolatingLayers;
+    public float MaximumHardLayerPenetration { get; init; }
+}

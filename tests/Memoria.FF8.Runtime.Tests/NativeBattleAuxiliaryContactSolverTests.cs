@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -121,6 +122,174 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
         AssertPhysicalUnchanged(rig, Pose(1024), solved);
     }
 
+    [Fact]
+    public void A_material_point_can_leave_an_open_finite_panel_without_a_false_enclosure()
+    {
+        NativeBattlePoseSource rig = PanelRig();
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleDecodedPose rotated = rest with { Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Rotation = new(0, 0, 1024) }) };
+        NativeBattleAuxiliaryContactReport restReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, rest, PanelCalibration());
+        NativeBattleAuxiliaryContactReport rotatedReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, rotated, PanelCalibration());
+        Assert.Equal(0, restReport.ClothBodyCrossings);
+        Assert.Equal(0, restReport.ViolatingLayers);
+        Assert.Equal(0, rotatedReport.ClothBodyCrossings);
+        Assert.Equal(0, rotatedReport.ViolatingLayers);
+        Assert.Equal(0, rotatedReport.MaximumLayerPenetration);
+    }
+
+    [Fact]
+    public void A_body_point_behind_its_finite_outward_panel_remains_a_layer_violation_without_triangle_crossings()
+    {
+        NativeBattlePoseSource rig = PanelRig();
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleDecodedPose beyond = rest with { HasScale = true, Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Scale = new(3072, 1024, 1024) }) };
+        NativeBattleAuxiliaryContactReport report = NativeBattleAuxiliaryContactSolver.Inspect(rig, beyond, PanelCalibration());
+        Assert.Equal(0, report.ClothBodyCrossings);
+        Assert.True(report.ViolatingLayers > 0);
+        Assert.True(report.MaximumLayerPenetration > 0);
+        Assert.Equal(0, report.HardViolatingLayers);
+        Assert.Equal(report.ViolatingLayers, report.SoftViolatingLayers);
+        NativeBattleDecodedPose solved = NativeBattleAuxiliaryContactSolver.Solve(rig, beyond, PanelCalibration());
+        AssertPhysicalUnchanged(rig, beyond, solved);
+        NativeBattleAuxiliaryContactReport solvedReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, solved, PanelCalibration());
+        Assert.Equal(0, solvedReport.CorrectableCrossings);
+        Assert.Equal(0, solvedReport.HardViolatingLayers);
+    }
+
+    [Fact]
+    public void Leaving_a_closed_covering_panel_remains_a_hard_layer_violation_without_triangle_crossings()
+    {
+        NativeBattlePoseSource rig = Rig();
+        byte[] skeleton = rig.Skeleton.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        rig = rig with { Skeleton = skeleton.ToImmutableArray() };
+        NativeBattleAuxiliaryContactCalibration calibration = new(
+            [new(1, new(10, -1, -1)), new(1, new(10, 1, -1)), new(1, new(10, 0, 1)), new(2, new(20, 20, 20)), new(2, new(20, -20, -20)), new(2, new(-20, 20, -20)), new(2, new(-20, -20, 20))],
+            [new(0, 1, 2), new(3, 5, 4), new(3, 4, 6), new(3, 6, 5), new(4, 5, 6)],
+            [0, 1],
+            [1],
+            [new(0, 1)]);
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleAuxiliaryContactReport restReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, rest, calibration);
+        Assert.Equal(0, restReport.ClothBodyCrossings);
+        Assert.Equal(0, restReport.ViolatingLayers);
+        NativeBattleDecodedPose beyond = rest with { HasScale = true, Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Scale = new(3072, 1024, 1024) }) };
+        NativeBattleAuxiliaryContactReport report = NativeBattleAuxiliaryContactSolver.Inspect(rig, beyond, calibration);
+        Assert.Equal(0, report.ClothBodyCrossings);
+        Assert.True(report.ViolatingLayers > 0);
+        Assert.Equal(report.ViolatingLayers, report.HardViolatingLayers);
+        Assert.Equal(0, report.SoftViolatingLayers);
+        Assert.True(report.MaximumHardLayerPenetration > 0);
+    }
+
+    [Fact]
+    public void Outside_face_plane_projection_retains_the_movable_corner_derivative()
+    {
+        Vector3 a = Vector3.Zero;
+        Vector3 b = new(100, 0, 0);
+        Vector3 c = new(0, 100, 0);
+        Vector3 body = new(-100, -100, -10);
+        Vector3 weights = NativeBattleAuxiliaryContactSolver.PlaneProjectionWeights(body, a, b, c);
+        Assert.Equal(new Vector3(3, -1, -1), weights);
+        Vector3 pivot = new(0, 0, 100);
+        Vector3 cornerVelocity = Vector3.Cross(Vector3.UnitX, c - pivot);
+        float derivative = Vector3.Dot(weights.Z * cornerVelocity, -Vector3.UnitZ);
+        Assert.Equal(100, derivative);
+        double SignedPlaneDistance(double angle)
+        {
+            Vector3 corner = pivot + Vector3.Transform(c - pivot, Matrix4x4.CreateRotationX((float)angle));
+            Vector3 normal = -Vector3.Normalize(Vector3.Cross(b - a, corner - a));
+            return Vector3.Dot(a - body, normal);
+        }
+        const double step = 0.001;
+        double centralDifference = (SignedPlaneDistance(step) - SignedPlaneDistance(-step)) / (2 * step);
+        Assert.InRange(Math.Abs(centralDifference - derivative), 0, 0.01);
+    }
+
+    [Fact]
+    public void A_crossing_with_a_fixed_nearest_corner_can_be_repaired_by_rotating_the_other_corner()
+    {
+        NativeBattlePoseSource rig = PanelRig();
+        byte[] skeleton = rig.Skeleton.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(18), 1600);
+        rig = rig with { Skeleton = skeleton.ToImmutableArray() };
+        NativeBattleAuxiliaryContactCalibration calibration = new(
+            [new(1, new(-1600, 1600, 1760)), new(1, new(2400, -2400, 1440)), new(1, new(2560, -2240, 1440)), new(0, default), new(0, new(1600, 0, 0)), new(2, new(0, 1600, -1600))],
+            [new(0, 1, 2), new(3, 4, 5)],
+            [0, 1],
+            [1],
+            [new(0, 1)]);
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleDecodedPose target = rest with { Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Rotation = new(2048, 0, 0) }) };
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, target);
+        Vector3[] expectedPoints = [new(-100, -100, -10), new(150, 150, 10), new(160, 140, 10), Vector3.Zero, new(100, 0, 0), new(0, 100, 0)];
+        Vector3 translation = new(target.Translation.X, target.Translation.Y, target.Translation.Z);
+        for (int vertex = 0; vertex < calibration.Vertices.Length; vertex++)
+        {
+            NativeBattleAuxiliaryVertex definition = calibration.Vertices[vertex];
+            NativeBattleActionMatrix matrix = matrices[definition.Bone];
+            NativeBattleVector point = NativeBattleGfMatrices.RotateShort56C4F0(matrix, definition.Position);
+            Assert.Equal(expectedPoints[vertex] + translation, new Vector3(matrix.X + point.X, matrix.Y + point.Y, matrix.Z + point.Z));
+        }
+        NativeBattleAuxiliaryContactReport before = NativeBattleAuxiliaryContactSolver.Inspect(rig, target, calibration);
+        Assert.True(before.ClothBodyCrossings > 0);
+        Assert.Equal(0, before.ImmutableBoundaryCrossings);
+        Assert.Equal(before.ClothBodyCrossings, before.CorrectableCrossings);
+        NativeBattleDecodedPose feasible = target with { Bones = target.Bones.SetItem(2, target.Bones[2] with { Rotation = new(1024, 0, 0) }) };
+        NativeBattleAuxiliaryContactReport feasibleReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, feasible, calibration);
+        Assert.Equal(0, feasibleReport.ClothBodyCrossings);
+        Assert.Equal(0, feasibleReport.ViolatingLayers);
+        NativeBattleDecodedPose solved = NativeBattleAuxiliaryContactSolver.Solve(rig, target, calibration);
+        NativeBattleAuxiliaryContactReport after = NativeBattleAuxiliaryContactSolver.Inspect(rig, solved, calibration);
+        Assert.Equal(0, after.ClothBodyCrossings);
+        Assert.Equal(0, after.ViolatingLayers);
+        AssertPhysicalUnchanged(rig, target, solved);
+    }
+
+    [Fact]
+    public void A_crossing_fixed_boundary_edge_is_reported_without_collapsing_the_mixed_face()
+    {
+        NativeBattlePoseSource rig = Rig();
+        byte[] skeleton = rig.Skeleton.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        rig = rig with { Skeleton = skeleton.ToImmutableArray() };
+        NativeBattleAuxiliaryContactCalibration calibration = new(
+            [new(1, new(-100, -100, 100)), new(1, new(100, -100, 100)), new(1, new(0, 100, 100)), new(0, new(-10, 0, -10)), new(0, new(10, 0, 10)), new(2, new(0, 20, -80))],
+            [new(0, 1, 2), new(3, 4, 5)],
+            [0, 1],
+            [1],
+            [new(0, 1)]);
+        NativeBattleDecodedPose rest = Pose(0);
+        NativeBattleDecodedPose target = rest with { Bones = rest.Bones.SetItem(1, rest.Bones[1] with { Rotation = new(2048, 0, 0) }) };
+        NativeBattleAuxiliaryContactReport restReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, rest, calibration);
+        Assert.Equal(0, restReport.ClothBodyCrossings);
+        NativeBattleAuxiliaryContactReport before = NativeBattleAuxiliaryContactSolver.Inspect(rig, target, calibration);
+        Assert.True(before.ClothBodyCrossings > 0);
+        Assert.Equal(before.ClothBodyCrossings, before.ImmutableBoundaryCrossings);
+        Assert.Equal(0, before.CorrectableCrossings);
+        NativeBattleDecodedPose solved = NativeBattleAuxiliaryContactSolver.Solve(rig, target, calibration);
+        NativeBattleAuxiliaryContactReport after = NativeBattleAuxiliaryContactSolver.Inspect(rig, solved, calibration);
+        Assert.Equal(before.ClothBodyCrossings, after.ClothBodyCrossings);
+        Assert.Equal(after.ClothBodyCrossings, after.ImmutableBoundaryCrossings);
+        Assert.Equal(0, after.CorrectableCrossings);
+        AssertPhysicalUnchanged(rig, target, solved);
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.StageBoneMatrices(rig, solved);
+        Vector3 Point(int vertex)
+        {
+            NativeBattleAuxiliaryVertex definition = calibration.Vertices[vertex];
+            NativeBattleActionMatrix matrix = matrices[definition.Bone];
+            NativeBattleVector rotated = NativeBattleGfMatrices.RotateShort56C4F0(matrix, definition.Position);
+            return new(matrix.X + rotated.X, matrix.Y + rotated.Y, matrix.Z + rotated.Z);
+        }
+        Vector3 origin = new(matrices[0].X, matrices[0].Y, matrices[0].Z);
+        Assert.Equal(new Vector3(-100, 100, 0), Point(0) - origin);
+        Assert.Equal(new Vector3(100, 100, 0), Point(1) - origin);
+        Assert.Equal(new Vector3(0, -100, 0), Point(2) - origin);
+        Assert.Equal(new Vector3(-10, 0, -10), Point(3) - origin);
+        Assert.Equal(new Vector3(10, 0, 10), Point(4) - origin);
+        Assert.True(Vector3.Cross(Point(4) - Point(3), Point(5) - Point(3)).LengthSquared() > 0);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -175,6 +344,24 @@ public sealed class NativeBattleAuxiliaryContactSolverTests
     {
         NativeBattleVector scale = new(1024, 1024, 1024);
         return new(new(17, -9, 23), [new(default, scale), new(default, scale), new(new(auxiliaryRotation, 0, 0), scale), new(default, scale)], false);
+    }
+
+    private static NativeBattleAuxiliaryContactCalibration PanelCalibration()
+    {
+        return new(
+            [new(1, new(10, -1, -10)), new(1, new(10, 1, -10)), new(1, new(10, 0, 10)), new(2, new(20, -100, -100)), new(2, new(20, 100, -100)), new(3, new(20, 0, 100))],
+            [new(0, 1, 2), new(3, 4, 5)],
+            [0, 1],
+            [1],
+            [new(0, 1)]);
+    }
+
+    private static NativeBattlePoseSource PanelRig()
+    {
+        NativeBattlePoseSource rig = Rig();
+        byte[] skeleton = rig.Skeleton.ToArray();
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 256);
+        return rig with { Skeleton = skeleton.ToImmutableArray() };
     }
 
     private static NativeBattlePoseSource Rig()

@@ -150,6 +150,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
             actor.Atb = BattleSession.AtbMaximum;
             TickUntil(world, () => battle.CanChoosePlayerCommand(actor.Id), $"recipient {recipient}, donor {donor}, weapon {weapon}: player readiness", TraceMotion);
             TraceMotion();
+            InstalledGarmentSurfaceProbe.WaitForRequestedIdleCapture(world, actor.Id, recipient, donor, TraceMotion);
             if (readyProbeOnly)
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick, Frames: 8));
@@ -226,6 +227,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
         }
         Assert.Equal(damageTimings[0], damageTimings[1]);
         Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
+        InstalledGarmentSurfaceProbe.AssertRequestedCaptured(recipient, donor);
     }
 
     private static void EmitReadyGripProbe(BattleSession battle, BattleCombatant actor, BattleCombatantDefinition definition, BattleAssets resources)

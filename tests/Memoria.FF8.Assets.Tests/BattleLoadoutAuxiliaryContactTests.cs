@@ -38,16 +38,23 @@ public sealed class BattleLoadoutAuxiliaryContactTests
         }
         // Inspect against the original recipient's own rest bank, not the imported bank's first pose.
         var report = NativeBattleAuxiliaryContactSolver.Inspect(rig, actual, calibration);
-        Assert.Equal(0, report.ClothBodyCrossings);
-        Assert.Equal(0, report.ViolatingLayers);
-        Assert.Equal(0, report.MaximumLayerPenetration);
+        Assert.Equal(0, report.CorrectableCrossings);
+        Assert.Equal(report.ImmutableBoundaryCrossings, report.ClothBodyCrossings);
+        Assert.Equal(0, report.HardViolatingLayers);
+        Assert.Equal(0, report.MaximumHardLayerPenetration);
+        Assert.Equal(report.SoftViolatingLayers, report.ViolatingLayers);
+        Assert.True(float.IsFinite(report.MaximumLayerPenetration));
         Assert.True(float.IsFinite(report.SharedEdgeStrain));
     }
 
     [Theory]
     [InlineData(7, 0, 13)]
     [InlineData(7, 6, 4)]
+    [InlineData(7, 14, 15)]
+    [InlineData(9, 14, 11)]
+    [InlineData(9, 29, 8)]
     [InlineData(10, 28, 7)]
+    [InlineData(10, 12, 11)]
     public void Cold_original_motion_preserves_physical_joints_and_clears_auxiliary_contacts(int owner, byte animation, byte frame)
     {
         using BattleAssets assets = new(TestResources.GameDirectory);
@@ -71,9 +78,12 @@ public sealed class BattleLoadoutAuxiliaryContactTests
             Assert.Equal((before[bone].X, before[bone].Y, before[bone].Z), (after[bone].X, after[bone].Y, after[bone].Z));
         }
         var report = NativeBattleAuxiliaryContactSolver.Inspect(rig, corrected, calibration);
-        Assert.Equal(0, report.ClothBodyCrossings);
-        Assert.Equal(0, report.ViolatingLayers);
-        Assert.Equal(0, report.MaximumLayerPenetration);
+        Assert.Equal(0, report.CorrectableCrossings);
+        Assert.Equal(report.ImmutableBoundaryCrossings, report.ClothBodyCrossings);
+        Assert.Equal(0, report.HardViolatingLayers);
+        Assert.Equal(0, report.MaximumHardLayerPenetration);
+        Assert.Equal(report.SoftViolatingLayers, report.ViolatingLayers);
+        Assert.True(float.IsFinite(report.MaximumLayerPenetration));
         Assert.True(float.IsFinite(report.SharedEdgeStrain));
         ImmutableArray<byte> encoded = NativeBattleAnimationEncoder.Encode([ImmutableArray.Create(corrected)]);
         NativeBattlePoseSource roundTrip = rig with { Animations = encoded };
@@ -89,8 +99,16 @@ public sealed class BattleLoadoutAuxiliaryContactTests
             Assert.Equal((after[bone].X, after[bone].Y, after[bone].Z), (decodedMatrices[bone].X, decodedMatrices[bone].Y, decodedMatrices[bone].Z));
         }
         var encodedReport = NativeBattleAuxiliaryContactSolver.Inspect(rig, decoded, calibration);
-        Assert.Equal(0, encodedReport.ClothBodyCrossings);
-        Assert.Equal(0, encodedReport.ViolatingLayers);
+        Assert.Equal(0, encodedReport.CorrectableCrossings);
+        Assert.Equal(encodedReport.ImmutableBoundaryCrossings, encodedReport.ClothBodyCrossings);
+        Assert.Equal(0, encodedReport.HardViolatingLayers);
+        Assert.Equal(0, encodedReport.MaximumHardLayerPenetration);
+        Assert.Equal(encodedReport.SoftViolatingLayers, encodedReport.ViolatingLayers);
+        Assert.Equal(report.ClothBodyCrossings, encodedReport.ClothBodyCrossings);
+        Assert.Equal(report.ImmutableBoundaryCrossings, encodedReport.ImmutableBoundaryCrossings);
+        Assert.Equal(report.ViolatingLayers, encodedReport.ViolatingLayers);
+        Assert.True(float.IsFinite(encodedReport.MaximumLayerPenetration));
+        Assert.True(encodedReport.MaximumLayerPenetration >= 0);
     }
 
     [Fact]

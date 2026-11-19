@@ -4,7 +4,7 @@ using System.Numerics;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Compiles recipient auxiliary articulation with exact native geometry; it owns no live or persisted state.</summary>
-public static class NativeBattleAuxiliaryContactSolver
+public static partial class NativeBattleAuxiliaryContactSolver
 {
     private const int MaximumEvaluations = 8192;
     private const int ExactTargetReserve = 256;
@@ -31,6 +31,7 @@ public static class NativeBattleAuxiliaryContactSolver
         private readonly int[][] segments;
         private readonly HashSet<int> physical;
         private readonly Quaternion[] restLocal;
+        private readonly PreparedGeometry geometry;
 
         public Prepared(NativeBattlePoseSource rig, NativeBattleAuxiliaryContactCalibration calibration)
         {
@@ -60,13 +61,13 @@ public static class NativeBattleAuxiliaryContactSolver
             bodyIds = Enumerable.Range(0, triangles.Length).Where(index => triangles[index].All(vertex => physical.Contains(vertexBones[vertex])) && triangles[index].Any(vertex => calibration.ContactBones.Contains(vertexBones[vertex]))).ToArray();
             segments = calibration.BodySegments.Select(segment => new[] { segment.A, segment.B }).ToArray();
             restLocal = Quaternions(rest);
+            geometry = new(Read(rest), parents, vertexBones, triangles, clothIds, bodyIds, variables, segments);
         }
 
         public NativeBattleAuxiliaryContactReport Inspect(NativeBattleDecodedPose pose)
         {
             ValidatePose(pose);
-            NativeState target = Read(pose);
-            return Run((progress, auxiliary) => progress == 0 ? Read(rest) : target, parents, vertexBones, triangles, clothIds, bodyIds, variables, segments, true).Report;
+            return Report(geometry.ReadFacts(Read(pose)));
         }
 
         public NativeBattleDecodedPose Solve(NativeBattleDecodedPose target)
@@ -76,12 +77,13 @@ public static class NativeBattleAuxiliaryContactSolver
             {
                 return target;
             }
-            NativeBattleAuxiliaryContactReport original = Inspect(target);
-            if (original.ClothBodyCrossings == 0 && original.ViolatingLayers == 0)
+            NativeState initialTarget = Read(target);
+            Facts initialFacts = geometry.ReadFacts(initialTarget);
+            if (initialFacts.CorrectableCrossings == 0 && initialFacts.Violation == 0)
             {
                 return target;
             }
-            Quaternion[] targetLocal = Quaternions(target);
+            Quaternion[] targetLocal = initialTarget.Local;
             NativeState Evaluate(double progress, Quaternion[]? auxiliary)
             {
                 ImmutableArray<NativeBattleBonePose>.Builder bones = rest.Bones.ToBuilder();
@@ -110,9 +112,16 @@ public static class NativeBattleAuxiliaryContactSolver
                     }
                 }
                 NativeBattleVector translation = progress == 1 ? target.Translation : Lerp(rest.Translation, target.Translation, progress);
-                return Read(new(translation, bones.ToImmutable(), progress == 0 ? rest.HasScale : target.HasScale));
+                NativeBattleDecodedPose evaluated = new(translation, bones.ToImmutable(), progress == 0 ? rest.HasScale : target.HasScale);
+                if (evaluated.Translation == target.Translation && evaluated.HasScale == target.HasScale && evaluated.Bones.AsSpan().SequenceEqual(target.Bones.AsSpan()))
+                {
+                    return initialTarget;
+                }
+                NativeState state = Read(evaluated);
+                state.InvalidGeometry = progress == 1 && geometry.HasCollapsedCorrection(initialTarget, state);
+                return state;
             }
-            Solution solution = Run(Evaluate, parents, vertexBones, triangles, clothIds, bodyIds, variables, segments, false);
+            Solution solution = Run(Evaluate, geometry, initialTarget, initialFacts, calibration.PhysicalBones);
             NativeBattleDecodedPose corrected = Evaluate(1, solution.Local).Pose;
             ImmutableArray<NativeBattleActionMatrix> originalGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, target);
             ImmutableArray<NativeBattleActionMatrix> correctedGlobals = NativeBattlePoseMatrices.StageBoneMatrices(rig, corrected);
@@ -155,8 +164,7 @@ public static class NativeBattleAuxiliaryContactSolver
                 Points = points,
                 Pivots = matrices.Select(matrix => new Vector3(matrix.X, matrix.Y, matrix.Z)).ToArray(),
                 Globals = NativeBattlePoseRetargeter.GlobalRotations(rig, pose),
-                Local = Quaternions(pose),
-                MappedKey = string.Join(';', calibration.PhysicalBones.Select(bone => pose.Bones[bone].ToString())) + pose.Translation
+                Local = Quaternions(pose)
             };
         }
 
@@ -174,7 +182,7 @@ public static class NativeBattleAuxiliaryContactSolver
         public Vector3[] Pivots = [];
         public Matrix4x4[] Globals = [];
         public Quaternion[] Local = [];
-        public string MappedKey = "";
+        public bool InvalidGeometry;
     }
 
     private sealed record Solution(Quaternion[] Local, NativeBattleAuxiliaryContactReport Report);
@@ -182,10 +190,9 @@ public static class NativeBattleAuxiliaryContactSolver
     private sealed class Layer
     {
         public int Body;
-        public int[] Cloth = [];
-        public Vector3 Weights;
         public Vector3 LocalNormal;
-        public double RestGap;
+        public required Panel Panel;
+        public int OutwardPolarity;
     }
 
     private sealed class Constraint
@@ -196,68 +203,37 @@ public static class NativeBattleAuxiliaryContactSolver
         public Vector3 Normal;
         public double Value;
         public string Kind = "";
+        public bool Hard = true;
     }
 
     private sealed class Facts
     {
         public readonly List<Constraint> Constraints = [];
         public int Crossings;
+        public int ImmutableCrossings;
+        public int CorrectableCrossings => Crossings - ImmutableCrossings;
         public double Violation;
+        public double SoftViolation;
         public double Strain;
         public double RestRotation;
+        public bool InvalidGeometry;
     }
 
-    private static Solution Run(Func<double, Quaternion[]?, NativeState> evaluate, int[] parents, int[] vertexBones, int[][] triangles, int[] clothIds, int[] bodyIds, int[] variables, int[][] semanticSegments, bool inspect)
+    private static Solution Run(Func<double, Quaternion[]?, NativeState> evaluate, PreparedGeometry geometry, NativeState initialTarget, Facts initialFacts, ImmutableArray<int> physicalBones)
     {
         int evaluations = 0;
-        NativeState rest = evaluate(0, null);
+        NativeState rest = geometry.Rest;
         evaluations++;
-        Quaternion[] canonical = (Quaternion[])rest.Local.Clone();
-        List<Layer> layers = Calibrate(rest, vertexBones, triangles, clothIds, bodyIds, semanticSegments);
-        HashSet<(int, int)> edges = new HashSet<(int, int)>();
-        foreach (int triangle in clothIds)
-        {
-            int[] t = triangles[triangle];
-            for (int corner = 0; corner < 3; corner++)
-            {
-                int a = t[corner];
-                int b = t[(corner + 1) % 3];
-                if (vertexBones[a] != vertexBones[b])
-                {
-                    edges.Add(a < b ? (a, b) : (b, a));
-                }
-            }
-        }
-        (int A, int B)[] orderedEdges = edges.Where(edge => Vector3.DistanceSquared(rest.Points[edge.Item1], rest.Points[edge.Item2]) > 0).OrderBy(edge => edge.Item1).ThenBy(edge => edge.Item2).Select(edge => (edge.Item1, edge.Item2)).ToArray();
-        double[] restLengths = orderedEdges.Select(edge => (double)Vector3.Distance(rest.Points[edge.A], rest.Points[edge.B])).ToArray();
-        bool[,] influences = new bool[variables.Length, vertexBones.Length];
-        for (int variable = 0; variable < variables.Length; variable++)
-        {
-            for (int vertex = 0; vertex < vertexBones.Length; vertex++)
-            {
-                for (int bone = vertexBones[vertex]; bone >= 0; bone = parents[bone])
-                {
-                    if (bone == variables[variable])
-                    {
-                        influences[variable, vertex] = true;
-                        break;
-                    }
-                }
-            }
-        }
+        Quaternion[] canonical = geometry.Canonical;
+        int[] variables = geometry.Variables;
         Quaternion[] current = (Quaternion[])canonical.Clone();
         double progress = 0;
         double step = 1;
         NativeState acceptedState = rest;
-        Facts acceptedFacts = ReadFacts(rest);
+        Facts acceptedFacts = geometry.RestFacts;
         bool forceExactTarget = false;
         int stageEvaluationLimit = MaximumEvaluations;
-        if (inspect)
-        {
-            NativeState inspected = evaluate(1, null);
-            return Finish(inspected, ReadFacts(inspected));
-        }
-        if (acceptedFacts.Crossings != 0 || acceptedFacts.Violation > 0)
+        if (acceptedFacts.CorrectableCrossings != 0 || acceptedFacts.Violation > 0)
         {
             throw Unsupported("recipient rest is not feasible", acceptedFacts);
         }
@@ -273,7 +249,7 @@ public static class NativeBattleAuxiliaryContactSolver
             Facts facts = ReadFacts(state);
             for (int iteration = 0; iteration < MaximumNonlinearIterations && !Feasible(facts) && evaluations < nonlinearLimit; iteration++)
             {
-                Constraint[] active = facts.Constraints.Where(item => item.Value < 0).ToArray();
+                Constraint[] active = facts.Constraints.Where(item => item.Hard && item.Value < 0).ToArray();
                 if (active.Length == 0)
                 {
                     break;
@@ -282,7 +258,11 @@ public static class NativeBattleAuxiliaryContactSolver
                 double[] delta = Project(rows, active.Select(item => -item.Value).ToArray(), out double[] dual);
                 // Improve normalized shared-edge strain only in the active contact tangent space.
                 double[] gradient = new double[variables.Length * 3];
-                List<(double Residual, double[] Derivative)> edgeRows = EdgeRows(state);
+                List<(double Residual, double[] Derivative)> edgeRows = facts.Constraints.Where(item => !item.Hard && item.Value < 0).Select(item => (item.Value, Jacobian(item, state))).ToList();
+                if (edgeRows.Count == 0)
+                {
+                    edgeRows = EdgeRows(state);
+                }
                 foreach (var edge in edgeRows)
                 {
                     Add(gradient, edge.Derivative, edge.Residual);
@@ -359,7 +339,7 @@ public static class NativeBattleAuxiliaryContactSolver
                     break;
                 }
             }
-            if (facts.Crossings == 0 && !Feasible(facts))
+            if (!Feasible(facts))
             {
                 RepairLattice(next, ref state, ref facts);
                 trialLocal = (Quaternion[])state.Local.Clone();
@@ -388,7 +368,7 @@ public static class NativeBattleAuxiliaryContactSolver
                 step /= 2;
                 NativeState finer = evaluate(Math.Min(1, progress + step), current);
                 evaluations++;
-                if (finer.MappedKey == acceptedState.MappedKey)
+                if (SamePhysicalPose(finer.Pose, acceptedState.Pose, physicalBones))
                 {
                     forceExactTarget = true;
                 }
@@ -400,11 +380,11 @@ public static class NativeBattleAuxiliaryContactSolver
         }
         return Finish(acceptedState, acceptedFacts);
 
-        Solution Finish(NativeState state, Facts facts) => new(state.Local, new(facts.Crossings, facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Value < 0), (float)facts.Constraints.Where(item => item.Kind == "OwnRestOutwardLayer").Select(item => Math.Max(0, -item.Value)).DefaultIfEmpty().Max(), (float)facts.Strain));
+        Solution Finish(NativeState state, Facts facts) => new(state.Local, Report(facts));
 
         NotSupportedException Unsupported(string reason, Facts facts) => new($"Auxiliary contact compilation cannot satisfy {reason}; native evaluations {evaluations}, crossings {facts.Crossings}, squared layer/contact residual {facts.Violation:R}; witnesses {string.Join("; ", facts.Constraints.Where(item => item.Value < 0).Take(3).Select(item => $"{item.Kind} body {item.Body}, cloth [{string.Join(',', item.Cloth)}], signed {item.Value:R}"))}.");
 
-        bool Feasible(Facts facts) => facts.Crossings == 0 && facts.Violation == 0;
+        bool Feasible(Facts facts) => !facts.InvalidGeometry && facts.CorrectableCrossings == 0 && facts.Violation == 0;
 
         double[] Project(double[][] rows, double[] required, out double[] dual)
         {
@@ -432,7 +412,7 @@ public static class NativeBattleAuxiliaryContactSolver
             int limit = Math.Min(stageEvaluationLimit, evaluations + NativeLatticeReserve);
             for (int iteration = 0; iteration < MaximumNonlinearIterations && !Feasible(facts) && evaluations < limit; iteration++)
             {
-                Constraint[] active = facts.Constraints.Where(item => item.Value < 0).ToArray();
+                Constraint[] active = facts.Constraints.Where(item => item.Hard && item.Value < 0).ToArray();
                 NativeState original = state;
                 double[][] rows = active.Select(item => Jacobian(item, original).Select(value => value * Math.Tau / 4096).ToArray()).ToArray();
                 List<double[]> candidates = [];
@@ -476,7 +456,7 @@ public static class NativeBattleAuxiliaryContactSolver
                     NativeState candidate = evaluate(at, Apply(original.Local, units.Select(value => value * Math.Tau / 4096).ToArray(), 1));
                     evaluations++;
                     Facts candidateFacts = ReadFacts(candidate);
-                    if (candidateFacts.Crossings == 0 && Better(candidateFacts, facts))
+                    if (candidateFacts.CorrectableCrossings <= facts.CorrectableCrossings && Better(candidateFacts, facts))
                     {
                         state = candidate;
                         facts = candidateFacts;
@@ -489,153 +469,56 @@ public static class NativeBattleAuxiliaryContactSolver
             }
         }
 
-        Facts ReadFacts(NativeState state)
-        {
-            Facts facts = new Facts();
-            foreach (Layer layer in layers)
-            {
-                Vector3 normal = Vector3.TransformNormal(layer.LocalNormal, state.Globals[vertexBones[layer.Body]]);
-                Vector3 cloth = Weighted(state.Points, layer.Cloth, layer.Weights);
-                double value = Vector3.Dot(cloth - state.Points[layer.Body], normal);
-                Constraint constraint = new Constraint { Body = layer.Body, Cloth = layer.Cloth, Weights = layer.Weights, Normal = normal, Value = value, Kind = "OwnRestOutwardLayer" };
-                facts.Constraints.Add(constraint);
-                if (value < 0)
-                {
-                    facts.Violation += value * value;
-                }
-            }
-            foreach (int clothId in clothIds)
-            {
-                int[] cloth = triangles[clothId];
-                foreach (int bodyId in bodyIds)
-                {
-                    int[] body = triangles[bodyId];
-                    if (cloth.Intersect(body).Any() || !Crosses(state.Points, cloth, body))
-                    {
-                        continue;
-                    }
-                    facts.Crossings++;
-                    Vector3 restCross = Vector3.Cross(rest.Points[cloth[1]] - rest.Points[cloth[0]], rest.Points[cloth[2]] - rest.Points[cloth[0]]);
-                    Vector3 currentCross = Vector3.Cross(state.Points[cloth[1]] - state.Points[cloth[0]], state.Points[cloth[2]] - state.Points[cloth[0]]);
-                    if (restCross.LengthSquared() == 0 || currentCross.LengthSquared() == 0)
-                    {
-                        continue;
-                    }
-                    Vector3 restNormal = Vector3.Normalize(restCross);
-                    Vector3 restCentre = (rest.Points[body[0]] + rest.Points[body[1]] + rest.Points[body[2]]) / 3;
-                    float sign = MathF.Sign(Vector3.Dot(restCentre - rest.Points[cloth[0]], restNormal));
-                    if (sign == 0)
-                    {
-                        continue;
-                    }
-                    Vector3 normal = -sign * Vector3.Normalize(currentCross);
-                    int penetrating = body.OrderBy(vertex => Vector3.Dot(state.Points[cloth[0]] - state.Points[vertex], normal)).First();
-                    Vector3 point = Closest(state.Points[penetrating], state.Points[cloth[0]], state.Points[cloth[1]], state.Points[cloth[2]], out Vector3 barycentric);
-                    double value = Vector3.Dot(point - state.Points[penetrating], normal);
-                    if (value < 0)
-                    {
-                        facts.Constraints.Add(new Constraint { Body = penetrating, Cloth = cloth, Weights = barycentric, Normal = normal, Value = value, Kind = "CurrentSignedVertexFace" });
-                        facts.Violation += value * value;
-                    }
-                }
-            }
-            for (int index = 0; index < orderedEdges.Length; index++)
-            {
-                var edge = orderedEdges[index];
-                double residual = (Vector3.Distance(state.Points[edge.A], state.Points[edge.B]) - restLengths[index]) / restLengths[index];
-                facts.Strain += residual * residual;
-            }
-            foreach (int bone in variables)
-            {
-                double angle = 2 * Math.Acos(Math.Min(1, Math.Abs(Quaternion.Dot(state.Local[bone], canonical[bone]))));
-                facts.RestRotation += angle * angle;
-            }
-            return facts;
-        }
+        Facts ReadFacts(NativeState state) => ReferenceEquals(state, initialTarget) ? initialFacts : geometry.ReadFacts(state);
+        double[] Jacobian(Constraint constraint, NativeState state) => geometry.Jacobian(constraint, state);
+        List<(double Residual, double[] Derivative)> EdgeRows(NativeState state) => geometry.EdgeRows(state);
+        Quaternion[] Apply(Quaternion[] original, double[] delta, double fraction) => geometry.Apply(original, delta, fraction);
+    }
 
-        double[] Jacobian(Constraint constraint, NativeState state)
-        {
-            double[] row = new double[variables.Length * 3];
-            for (int variable = 0; variable < variables.Length; variable++)
-            {
-                int bone = variables[variable];
-                Matrix4x4 parent = parents[bone] < 0 ? Matrix4x4.Identity : state.Globals[parents[bone]];
-                for (int axis = 0; axis < 3; axis++)
-                {
-                    Vector3 direction = Vector3.TransformNormal(axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ, parent);
-                    Vector3 derivative = Vector3.Zero;
-                    for (int corner = 0; corner < 3; corner++)
-                    {
-                        int vertex = constraint.Cloth[corner];
-                        float weight = corner == 0 ? constraint.Weights.X : corner == 1 ? constraint.Weights.Y : constraint.Weights.Z;
-                        if (influences[variable, vertex])
-                        {
-                            derivative += weight * Vector3.Cross(direction, state.Points[vertex] - state.Pivots[bone]);
-                        }
-                    }
-                    row[variable * 3 + axis] = Vector3.Dot(derivative, constraint.Normal);
-                }
-            }
-            return row;
-        }
+    private static NativeBattleAuxiliaryContactReport Report(Facts facts) => new(facts.Crossings, facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Value < 0), (float)facts.Constraints.Where(item => item.Kind == "OwnRestOutwardLayer").Select(item => Math.Max(0, -item.Value)).DefaultIfEmpty().Max(), (float)facts.Strain)
+    {
+        ImmutableBoundaryCrossings = facts.ImmutableCrossings,
+        HardViolatingLayers = facts.Constraints.Count(item => item.Kind == "OwnRestOutwardLayer" && item.Hard && item.Value < 0),
+        MaximumHardLayerPenetration = (float)facts.Constraints.Where(item => item.Kind == "OwnRestOutwardLayer" && item.Hard).Select(item => Math.Max(0, -item.Value)).DefaultIfEmpty().Max()
+    };
 
-        List<(double Residual, double[] Derivative)> EdgeRows(NativeState state)
+    private static bool SamePhysicalPose(NativeBattleDecodedPose first, NativeBattleDecodedPose second, ImmutableArray<int> physicalBones)
+    {
+        if (first.Translation != second.Translation)
         {
-            List<(double, double[])> rows = new List<(double, double[])>();
-            for (int index = 0; index < orderedEdges.Length; index++)
-            {
-                var edge = orderedEdges[index];
-                Vector3 line = state.Points[edge.A] - state.Points[edge.B];
-                float length = line.Length();
-                if (length == 0 || restLengths[index] == 0)
-                {
-                    continue;
-                }
-                Vector3 direction = line / length;
-                double[] row = new double[variables.Length * 3];
-                for (int variable = 0; variable < variables.Length; variable++)
-                {
-                    int bone = variables[variable];
-                    Matrix4x4 parent = parents[bone] < 0 ? Matrix4x4.Identity : state.Globals[parents[bone]];
-                    for (int axis = 0; axis < 3; axis++)
-                    {
-                        Vector3 rotation = Vector3.TransformNormal(axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ, parent);
-                        Vector3 derivative = (influences[variable, edge.A] ? Vector3.Cross(rotation, state.Points[edge.A] - state.Pivots[bone]) : Vector3.Zero) - (influences[variable, edge.B] ? Vector3.Cross(rotation, state.Points[edge.B] - state.Pivots[bone]) : Vector3.Zero);
-                        row[variable * 3 + axis] = Vector3.Dot(derivative, direction) / restLengths[index];
-                    }
-                }
-                rows.Add(((length - restLengths[index]) / restLengths[index], row));
-            }
-            return rows;
+            return false;
         }
-
-        Quaternion[] Apply(Quaternion[] original, double[] delta, double fraction)
+        foreach (int bone in physicalBones)
         {
-            Quaternion[] proposed = (Quaternion[])original.Clone();
-            for (int variable = 0; variable < variables.Length; variable++)
+            if (first.Bones[bone] != second.Bones[bone])
             {
-                Vector3 vector = new Vector3((float)(delta[variable * 3] * fraction), (float)(delta[variable * 3 + 1] * fraction), (float)(delta[variable * 3 + 2] * fraction));
-                float angle = vector.Length();
-                if (angle > 0)
-                {
-                    Matrix4x4 currentMatrix = Matrix4x4.CreateFromQuaternion(original[variables[variable]]);
-                    Matrix4x4 adjustment = Matrix4x4.CreateFromAxisAngle(vector / angle, angle);
-                    proposed[variables[variable]] = Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(currentMatrix * adjustment));
-                }
+                return false;
             }
-            return proposed;
         }
+        return true;
     }
 
     private static bool Better(Facts candidate, Facts current)
     {
+        if (candidate.InvalidGeometry)
+        {
+            return false;
+        }
+        if (current.InvalidGeometry)
+        {
+            return true;
+        }
         if (candidate.Violation != current.Violation)
         {
             return candidate.Violation < current.Violation;
         }
-        if (candidate.Crossings != current.Crossings)
+        if (candidate.CorrectableCrossings != current.CorrectableCrossings)
         {
-            return candidate.Crossings < current.Crossings;
+            return candidate.CorrectableCrossings < current.CorrectableCrossings;
+        }
+        if (candidate.SoftViolation != current.SoftViolation)
+        {
+            return candidate.SoftViolation < current.SoftViolation;
         }
         if (candidate.Strain != current.Strain)
         {
@@ -662,11 +545,10 @@ public static class NativeBattleAuxiliaryContactSolver
         }
     }
 
-    private static Vector3 Weighted(Vector3[] points, int[] triangle, Vector3 weights) => points[triangle[0]] * weights.X + points[triangle[1]] * weights.Y + points[triangle[2]] * weights.Z;
-
     private static List<Layer> Calibrate(NativeState rest, int[] bones, int[][] triangles, int[] clothIds, int[] bodyIds, int[][] segments)
     {
         List<Layer> layers = new List<Layer>();
+        Dictionary<int, Panel> panels = BuildPanels(triangles, clothIds);
         foreach (int body in bodyIds.SelectMany(index => triangles[index]).Distinct().OrderBy(index => index))
         {
             Vector3 point = rest.Points[body];
@@ -704,21 +586,28 @@ public static class NativeBattleAuxiliaryContactSolver
                 {
                     continue;
                 }
-                if (Ray(origin, direction, rest.Points[cloth[0]], rest.Points[cloth[1]], rest.Points[cloth[2]], out float distance, out Vector3 weights) && distance > length && distance < nearestHit)
+                if (LineTriangle(origin, direction, rest.Points[cloth[0]], rest.Points[cloth[1]], rest.Points[cloth[2]], out float distance, out _) && distance > length && distance < nearestHit)
                 {
                     nearestHit = distance;
-                    selected = new Layer { Body = body, Cloth = cloth, Weights = weights, LocalNormal = Vector3.TransformNormal(direction, Matrix4x4.Transpose(rest.Globals[bones[body]])), RestGap = distance - length };
+                    Panel panel = panels[clothId];
+                    int[] oriented = panel.OriginalFaces[clothId];
+                    Vector3 normal = Vector3.Cross(rest.Points[oriented[1]] - rest.Points[oriented[0]], rest.Points[oriented[2]] - rest.Points[oriented[0]]);
+                    selected = new Layer { Body = body, Panel = panel, OutwardPolarity = MathF.Sign(Vector3.Dot(normal, direction)), LocalNormal = Vector3.TransformNormal(direction, Matrix4x4.Transpose(rest.Globals[bones[body]])) };
                 }
             }
             if (selected != null)
             {
+                if (selected.Panel.Ambiguous || selected.OutwardPolarity == 0)
+                {
+                    throw new NotSupportedException("Auxiliary rest coverage requires an orientable, manifold panel and a defined outward crossing.");
+                }
                 layers.Add(selected);
             }
         }
         return layers;
     }
 
-    private static bool Ray(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c, out float distance, out Vector3 weights)
+    private static bool LineTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c, out float distance, out Vector3 weights)
     {
         Vector3 first = b - a;
         Vector3 second = c - a;
@@ -736,7 +625,7 @@ public static class NativeBattleAuxiliaryContactSolver
         float v = Vector3.Dot(direction, q) / determinant;
         distance = Vector3.Dot(second, q) / determinant;
         weights = new Vector3(1 - u - v, u, v);
-        return u >= 0 && v >= 0 && u + v <= 1 && distance >= 0;
+        return u >= 0 && v >= 0 && u + v <= 1;
     }
 
     private static bool Crosses(Vector3[] points, int[] a, int[] b)
@@ -753,64 +642,29 @@ public static class NativeBattleAuxiliaryContactSolver
 
     private static bool Segment(Vector3 first, Vector3 last, Vector3 a, Vector3 b, Vector3 c)
     {
-        if (!Ray(first, last - first, a, b, c, out float fraction, out Vector3 barycentric))
+        if (!LineTriangle(first, last - first, a, b, c, out float fraction, out Vector3 barycentric))
         {
             return false;
         }
         return fraction > 0 && fraction < 1 && barycentric.X > 0 && barycentric.Y > 0 && barycentric.Z > 0;
     }
 
-    private static Vector3 Closest(Vector3 point, Vector3 a, Vector3 b, Vector3 c, out Vector3 weights)
+    internal static Vector3 PlaneProjectionWeights(Vector3 point, Vector3 a, Vector3 b, Vector3 c)
     {
         Vector3 ab = b - a;
         Vector3 ac = c - a;
         Vector3 ap = point - a;
-        float d1 = Vector3.Dot(ab, ap);
-        float d2 = Vector3.Dot(ac, ap);
-        if (d1 <= 0 && d2 <= 0)
+        double nx = (double)ab.Y * ac.Z - (double)ab.Z * ac.Y;
+        double ny = (double)ab.Z * ac.X - (double)ab.X * ac.Z;
+        double nz = (double)ab.X * ac.Y - (double)ab.Y * ac.X;
+        double squared = nx * nx + ny * ny + nz * nz;
+        if (squared == 0)
         {
-            weights = new Vector3(1, 0, 0);
-            return a;
+            throw new InvalidDataException("An auxiliary signed-plane derivative requires a nondegenerate face.");
         }
-        Vector3 bp = point - b;
-        float d3 = Vector3.Dot(ab, bp);
-        float d4 = Vector3.Dot(ac, bp);
-        if (d3 >= 0 && d4 <= d3)
-        {
-            weights = new Vector3(0, 1, 0);
-            return b;
-        }
-        float vc = d1 * d4 - d3 * d2;
-        if (vc <= 0 && d1 >= 0 && d3 <= 0)
-        {
-            float v = d1 / (d1 - d3);
-            weights = new Vector3(1 - v, v, 0);
-            return a + v * ab;
-        }
-        Vector3 cp = point - c;
-        float d5 = Vector3.Dot(ab, cp);
-        float d6 = Vector3.Dot(ac, cp);
-        if (d6 >= 0 && d5 <= d6)
-        {
-            weights = new Vector3(0, 0, 1);
-            return c;
-        }
-        float vb = d5 * d2 - d1 * d6;
-        if (vb <= 0 && d2 >= 0 && d6 <= 0)
-        {
-            float w = d2 / (d2 - d6);
-            weights = new Vector3(1 - w, 0, w);
-            return a + w * ac;
-        }
-        float va = d3 * d6 - d5 * d4;
-        if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0)
-        {
-            float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
-            weights = new Vector3(0, 1 - w, w);
-            return b + w * (c - b);
-        }
-        float inverse = 1 / (va + vb + vc);
-        weights = new Vector3(1 - vb * inverse - vc * inverse, vb * inverse, vc * inverse);
-        return a * weights.X + b * weights.Y + c * weights.Z;
+        // Orthogonal projection onto the affine plane permits negative barycentrics; clamping would discard its rotation derivative.
+        double second = (((double)ap.Y * ac.Z - (double)ap.Z * ac.Y) * nx + ((double)ap.Z * ac.X - (double)ap.X * ac.Z) * ny + ((double)ap.X * ac.Y - (double)ap.Y * ac.X) * nz) / squared;
+        double third = (((double)ab.Y * ap.Z - (double)ab.Z * ap.Y) * nx + ((double)ab.Z * ap.X - (double)ab.X * ap.Z) * ny + ((double)ab.X * ap.Y - (double)ab.Y * ap.X) * nz) / squared;
+        return new((float)(1 - second - third), (float)second, (float)third);
     }
 }
