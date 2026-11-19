@@ -132,9 +132,11 @@ internal static class TalkRegionGeometryTests
             return;
         }
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The bounded route diagnostic cannot create choice checkpoints."));
+        ushort? destinationField = null;
         if (Environment.GetEnvironmentVariable("MEMORIA_FF7_ROUTE_DESTINATION") is { Length: > 0 } destination)
         {
-            policy.SetDestinationField(ushort.Parse(destination, System.Globalization.CultureInfo.InvariantCulture));
+            destinationField = ushort.Parse(destination, System.Globalization.CultureInfo.InvariantCulture);
+            policy.SetDestinationField(destinationField.Value);
         }
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
         long start = session.Host.Process.Tick;
@@ -164,7 +166,7 @@ internal static class TalkRegionGeometryTests
                 Console.WriteLine($"DROPPED native target: {policy.State.Status}, pose=({player.X4096},{player.Y4096},{player.Z4096})/tri{player.Triangle}/dir{player.Direction}.");
                 break;
             }
-            completed = accepted && policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Any(item => item.Event.Id == $"actor:{entity}:script:1" && item.Completed);
+            completed = destinationField == session.MapId || accepted && policy.State.Coverage.Visits.SelectMany(visit => visit.Events).Any(item => item.Event.Id == $"actor:{entity}:script:1" && item.Completed);
             string? goalNavigation = policy.State.NavigationGoal?.NavigationKey;
             string owner = $"{policy.State.Active?.EventId}/goal:{policy.State.NavigationGoal?.EventId}@{goalNavigation?[(goalNavigation.LastIndexOf(':') + 1)..]}/ladder:{player.Ladder is not null}/battle:{session.Battle is not null}";
             if (owner != previousOwner && reported++ < 24)
@@ -192,6 +194,10 @@ internal static class TalkRegionGeometryTests
         Console.WriteLine($"Selected graph state: {JsonSerializer.Serialize(entries.Values.Where(item => item.EventId == $"actor:{entity}:script:1"))}");
         Console.WriteLine($"Scheduling diagnostics: noReadyCache={typeof(Ff7AutoPlayPolicy).GetField("ordinaryNoReadySource", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(policy) is not null}, alternativeCursors={alternativeDrivers.Count}, pending={string.Join(',', alternativeDrivers.Where(item => item.Value.PlanningPending).Select(item => item.Key))}.");
         Console.WriteLine($"Policy route ended: native={session.Host.Process.Tick - start}, accepted={accepted}, completed={completed}, battle={session.Battle is not null}, wall={wall.Elapsed.TotalSeconds:F3}s, calls={calls}, longestCall={longestCall:F3}s, generation={policy.NativePlanningGeneration}, cancellation={policy.NativePlanningCancellation}, publication={policy.NativePlanningPublication}, phase={policy.NativePlanningPhase}, pose=({player.X4096}, {player.Y4096}, {player.Z4096})/tri{player.Triangle}/dir{player.Direction}, active={policy.State.Active?.EventId}, goal={policy.State.NavigationGoal}, work={policy.WorkProgress}, error={controller.Error}.");
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF7_REQUIRE_ROUTE_DESTINATION") == "1")
+        {
+            Check(destinationField is not null && session.MapId == destinationField && controller.Error is null, "The public autoplay did not reach the required native destination.");
+        }
     }
 
     private static void Check(bool value, string reason)

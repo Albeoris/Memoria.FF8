@@ -137,6 +137,13 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
     }
 
+    internal static Ff7AutoplayInput WaitForQueuedNativeLine(Ff7AutoPlayState state, Ff7AutoPlayTarget queued, Action cancelSpeculation)
+    {
+        cancelSpeculation();
+        state.Status = $"Waiting for queued native LINE {queued.Entity}/script {queued.Script}";
+        return default;
+    }
+
     private Ff7AutoplayInput ChooseInput(Ff7AutoplayDriver driver, Ff7NativePlanningQuantum quantum, out bool controllable)
     {
         controllable = false;
@@ -150,21 +157,6 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         bool nativeProofCompleted = false;
         AutoPlayPlanStep? resumedNativePlan = null;
         AutoPlayEventAvailability? resumedNativeAvailability = null;
-        bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
-        if (resumeNative)
-        {
-            resumedNativePlan = ContinueNativePlanning(driver);
-            if (driver.PlanningPending)
-            {
-                return default;
-            }
-            if (resumedNativePlan is not null)
-            {
-                AutoPlayEventCoverage<Ff7AutoPlayDeferral> admittedCoverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == resumedNativePlan.VisitKey).Events.Single(item => item.Event.Id == resumedNativePlan.Event.Id);
-                resumedNativeAvailability = new(admittedCoverage.Unavailable, new(admittedCoverage.UnavailableVariants, StringComparer.Ordinal), admittedCoverage.AvailabilityFingerprint);
-            }
-            nativeProofCompleted = true;
-        }
         if (State.PendingRestore is not null || session.Battle is not null)
         {
             return default;
@@ -202,9 +194,25 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
         }
         if (driver.ReadPendingNavigationLineRequest(observation.Events) is Ff7AutoPlayTarget queuedLine)
         {
-            State.Status = $"Waiting for queued native LINE {queuedLine.Entity}/script {queuedLine.Script}";
+            driver.BeginPlanningStep();
+            Ff7AutoplayInput waiting = WaitForQueuedNativeLine(State, queuedLine, () => CancelNativePlanning("queued-native-line"));
             Publish();
-            return default;
+            return waiting;
+        }
+        bool resumeNative = nativePlanning is not null && !nativePlanningForActive;
+        if (resumeNative)
+        {
+            resumedNativePlan = ContinueNativePlanning(driver);
+            if (driver.PlanningPending)
+            {
+                return default;
+            }
+            if (resumedNativePlan is not null)
+            {
+                AutoPlayEventCoverage<Ff7AutoPlayDeferral> admittedCoverage = State.Coverage.Visits.Single(visit => visit.Visit.Key == resumedNativePlan.VisitKey).Events.Single(item => item.Event.Id == resumedNativePlan.Event.Id);
+                resumedNativeAvailability = new(admittedCoverage.Unavailable, new(admittedCoverage.UnavailableVariants, StringComparer.Ordinal), admittedCoverage.AvailabilityFingerprint);
+            }
+            nativeProofCompleted = true;
         }
         if (State.DestinationField == session.MapId)
         {

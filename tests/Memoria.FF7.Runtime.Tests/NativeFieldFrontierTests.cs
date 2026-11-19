@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Numerics;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
@@ -12,6 +12,33 @@ internal static class NativeFieldFrontierTests
         if (Ff7AutoplayDriver.ReadPendingNavigationLineRequest([enter], [line], _ => false) != enter)
         {
             throw new InvalidOperationException("An already queued effectful native LINE entry did not request an ordinary native callback.");
+        }
+        int speculativeSteps = 0;
+        bool disposed = false;
+        IEnumerable<Memoria.AutoPlay.AutoPlayPlanStep?> UnresolvedSearch()
+        {
+            try
+            {
+                while (true)
+                {
+                    speculativeSteps++;
+                    yield return null;
+                }
+            }
+            finally
+            {
+                disposed = true;
+            }
+        }
+        using Ff7NativePlanningCursor speculation = new(UnresolvedSearch().GetEnumerator());
+        speculation.Resume(new(1, TimeSpan.FromHours(1)));
+        int beforeWait = speculativeSteps;
+        Ff7AutoPlayState state = new();
+        string intent = Ff7AutoPlayPolicy.ReadNativePlanningIntent(state);
+        Ff7AutoplayInput handoff = Ff7AutoPlayPolicy.WaitForQueuedNativeLine(state, enter, speculation.Dispose);
+        if (handoff != default || !disposed || speculativeSteps != beforeWait || intent != Ff7AutoPlayPolicy.ReadNativePlanningIntent(state))
+        {
+            throw new InvalidOperationException("A real queued LINE obligation resumed unresolved speculation, manufactured input or changed planning ownership instead of yielding a native callback.");
         }
         foreach (var candidate in new[] { enter with { MayChangeNavigation = false }, enter with { Kind = Ff7AutoPlayTargetKind.ActorTalk }, enter with { Kind = Ff7AutoPlayTargetKind.LineTouch } })
         {

@@ -1,4 +1,4 @@
-namespace Memoria.FF7.Runtime;
+﻿namespace Memoria.FF7.Runtime;
 
 internal sealed class Ff7NativeGraphTrace<TStep>(Ff7NativeGraphTrace<TStep>? parent, TStep[] steps, long cost)
 {
@@ -18,7 +18,7 @@ internal sealed class Ff7NativeGraphNode<TState, TStep>(TState state, string key
 /// <summary>Retained exact-state graph with positive native-callback edge costs.</summary>
 internal sealed class Ff7NativeStateGraph<TState, TStep> : IDisposable where TState : class
 {
-    private readonly PriorityQueue<Ff7NativeGraphNode<TState, TStep>, (double Score, long Order)> frontier = new();
+    private readonly PriorityQueue<Ff7NativeGraphNode<TState, TStep>, (double Score, float Advisory, long Order)> frontier = new();
     private readonly Dictionary<string, long> costs = new(StringComparer.Ordinal);
     private Ff7NativeGraphNode<TState, TStep>? active;
     private long order;
@@ -31,7 +31,7 @@ internal sealed class Ff7NativeStateGraph<TState, TStep> : IDisposable where TSt
         CheckAdvisory(advisory);
         Ff7NativeGraphNode<TState, TStep> node = new(root, exactKey, new(null, [], 0));
         costs.Add(exactKey, 0);
-        frontier.Enqueue(node, (advisory, order++));
+        frontier.Enqueue(node, (advisory, advisory, order++));
     }
 
     internal int FrontierCount => frontier.Count;
@@ -80,7 +80,7 @@ internal sealed class Ff7NativeStateGraph<TState, TStep> : IDisposable where TSt
         }
         Ff7NativeGraphNode<TState, TStep> child = new(state, exactKey, new(parent.Trace, segment.ToArray(), cost));
         costs[exactKey] = cost;
-        frontier.Enqueue(child, (cost + advisory, order++));
+        frontier.Enqueue(child, (cost + advisory, advisory, order++));
         return child;
     }
 

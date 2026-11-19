@@ -99,6 +99,12 @@ if (args.Contains("--native-input-reservation-original-only", StringComparer.Ord
     return 0;
 }
 
+if (args.Contains("--queued-native-line-only", StringComparer.Ordinal))
+{
+    NativeFieldFrontierTests.RunQueuedLineRequests();
+    return 0;
+}
+
 if (args.Contains("--native-field-frontier-original-only", StringComparer.Ordinal))
 {
     NativeFieldFrontierTests.RunOriginal();

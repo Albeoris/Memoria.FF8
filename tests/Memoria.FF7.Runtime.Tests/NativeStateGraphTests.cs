@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Runtime;
 
 internal static class NativeStateGraphTests
@@ -9,6 +9,7 @@ internal static class NativeStateGraphTests
         CheckLastSafePrefixAndTrace();
         CheckExactIdentity();
         CheckPositiveCostAndReopening();
+        CheckAdvisoryTieOrdering();
         CheckCancellationOwnership();
         Console.WriteLine("Native state graph checks passed.");
     }
@@ -30,6 +31,38 @@ internal static class NativeStateGraphTests
     {
         Check(graph.TryBeginExpansion(out var node) && node?.State is not null, "A retained native snapshot disappeared before expansion.");
         return node!;
+    }
+
+    private static void CheckAdvisoryTieOrdering()
+    {
+        Snapshot source = new("start");
+        using Ff7NativeStateGraph<Snapshot, Step> graph = new(source, Key(source));
+        var root = Begin(graph);
+        Ff7NativeGraphNode<Snapshot, Step> Add(string name, int callbacks, float advisory)
+        {
+            List<Step> steps = [];
+            Snapshot before = source;
+            for (int callback = 1; callback <= callbacks; callback++)
+            {
+                Snapshot after = new(name, callback);
+                steps.Add(Callback(before, name, after));
+                before = after;
+            }
+            return graph.AddSuccessor(root, before, Key(before), steps, advisory)!;
+        }
+        var shallow = Add("shallow", 1, 4);
+        var deep = Add("deep", 3, 2);
+        var samePriority = Add("same-priority", 3, 2);
+        var lowerScore = Add("lower-score", 1, 3);
+        graph.CompleteExpansion(root);
+        foreach (var expected in new[] { lowerScore, deep, samePriority, shallow })
+        {
+            var actual = Begin(graph);
+            Check(ReferenceEquals(actual, expected), "Native graph ordering changed primary g+h, ignored lower-advisory plateau progress or lost FIFO among exact priority ties.");
+            CheckTrace(source, graph.ReadTrace(actual), actual.Key);
+            Check(graph.ReadTrace(actual).Length == actual.Cost, "Tie ordering changed the authenticated callback cost or parent trace.");
+            graph.CompleteExpansion(actual);
+        }
     }
 
     private static void CheckRetainedWaitAndDetour()
