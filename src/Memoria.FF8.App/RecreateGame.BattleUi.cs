@@ -141,9 +141,12 @@ internal sealed partial class RecreateGame
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianFormSkip));
         }
-        active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
-        active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
-        active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        if (!options.ControlExclusive || options.IsDiagnosticGraphicalHost)
+        {
+            active.PublishNativeEscapeButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldControlButtons);
+            active.PublishNativeScanMappedButtons(slotsOwned || duelOwned ? (ushort)0 : ReadDiagnosticScanMappedButtons(active, keyboard.HeldFieldButtons));
+            active.PublishNativeGuardianBoostMappedButtons(slotsOwned || duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+        }
         AdvanceMeasuredBattlePresentation(active, elapsed);
         battlePresentationUpdated = true;
         presentationTiming.ObservePresentationSource(active, active.PreparedPresentation, presentationElapsed.Ticks > 0 ? elapsed.Ticks / (double)presentationElapsed.Ticks : 1);
@@ -163,8 +166,11 @@ internal sealed partial class RecreateGame
         {
             return true;
         }
-        battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
-        active.SubmitNativeDuelInput(ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
+        if (!options.ControlExclusive || options.IsDiagnosticGraphicalHost)
+        {
+            battleHud.SetNativeCommandButtons(duelOwned ? (ushort)0 : keyboard.HeldFieldButtons);
+            active.SubmitNativeDuelInput(ReadDiagnosticDuelButtons(active, slotsOwned ? (ushort)0 : keyboard.HeldFieldButtons));
+        }
         ObserveDiagnosticDuelUi(active);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
@@ -587,6 +593,10 @@ internal sealed partial class RecreateGame
 
     private void AdvanceMeasuredBattlePresentation(BattleSession active, TimeSpan elapsed)
     {
+        if (options.ControlStep)
+        {
+            return;
+        }
         using DiagnosticHostPhaseTiming.Scope presentationTimingScope = diagnosticHostPhaseTiming.Measure(DiagnosticHostPhase.BattlePresentationUpdate);
         using NativeBattlePhaseTiming.ObservationScope nativeTimingScope = NativeBattlePhaseTiming.Observe(diagnosticHostPhaseTiming.Enabled ? diagnosticHostPhaseTiming : null);
         active.AdvanceNativeGraphicsPresentation(elapsed);

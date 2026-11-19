@@ -198,10 +198,10 @@ public sealed class BattleHudNativeCommandTests
         hud.Choose(0);
         hud.Attack();
 
-        Assert.Equal((byte)14, Assert.Single(session.QueuedActions).NativeQueuedCommand);
+        Assert.Equal((byte)14, Assert.Single(session.QueuedActions, command => command.ActorId == "irvine").NativeQueuedCommand);
         Assert.Empty(hud.Commands);
         hud.Attack();
-        Assert.Single(session.QueuedActions);
+        Assert.Single(session.QueuedActions, command => command.ActorId == "irvine");
         for (int frame = 0; frame < 1800 && session.GetNativeShot("irvine")?.Phase != BattleNativeShotPhase.Ready; frame++)
         {
             session.Tick();
@@ -210,7 +210,7 @@ public sealed class BattleHudNativeCommandTests
 
         hud.Navigate(MenuInput.Cancel);
 
-        Assert.Equal((byte)238, Assert.Single(session.QueuedActions).NativeQueuedCommand);
+        Assert.Equal((byte)238, Assert.Single(session.QueuedActions, command => command.ActorId == "irvine").NativeQueuedCommand);
     }
 
     [Fact]

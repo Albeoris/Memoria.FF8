@@ -6,6 +6,38 @@ namespace Memoria.FF8.Battle.Tests;
 
 public sealed class NativeLimitFamilyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Unlocked_Angel_Wing_commits_with_native_grouped_or_explicit_family_when_Combine_is_unavailable(bool explicitFamily)
+    {
+        BattleSession battle = RinoaBattle(explicitFamily ? [BattleLimitFamily.AngelWing] : null);
+        Assert.True(battle.SelectDiagnosticLimit("rinoa", new(1, 4, 256)).Accepted);
+        Assert.False(battle.GetNativeLimitFamilies("rinoa").SingleOrDefault(choice => choice.Family == BattleLimitFamily.Combine)?.Available ?? false);
+        Assert.Equal((ushort)4, Assert.Single(battle.GetNativePlayerActionChoices("rinoa", true)).NativeAction!.ActionId);
+        string random = JsonSerializer.Serialize(battle.Capture().Random);
+
+        battle.QueueNativePlayerCommand("rinoa", "rinoa", 19, 4);
+
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal((ushort)4, queued.NativeAction!.ActionId);
+        Assert.Equal("rinoa", queued.TargetId);
+        Assert.Equal(random, JsonSerializer.Serialize(battle.Capture().Random));
+    }
+
+    [Fact]
+    public void Angel_Wing_action_cannot_bypass_an_explicit_Combine_family()
+    {
+        BattleSession battle = RinoaBattle([BattleLimitFamily.Combine, BattleLimitFamily.AngelWing]);
+        Assert.True(battle.SelectDiagnosticLimit("rinoa", new(1, 4, 256)).Accepted);
+        string before = JsonSerializer.Serialize(battle.Capture());
+
+        Assert.Throws<InvalidOperationException>(() => battle.QueueNativePlayerCommand("rinoa", "rinoa", 19, 4));
+
+        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        Assert.Empty(battle.QueuedActions);
+    }
+
     [Fact]
     public void Single_Angel_Wing_assignment_uses_its_own_invocation_name_instead_of_shared_command_name()
     {
@@ -100,6 +132,26 @@ public sealed class NativeLimitFamilyTests
     private static BattleNativeLimitDefinition Limit(int source, byte command)
     {
         return new(source, command, 0, source == 9 ? (byte)250 : (byte)1, Enumerable.Repeat((byte)0, 32).ToImmutableArray());
+    }
+
+    private static BattleSession RinoaBattle(BattleLimitFamily[]? families)
+    {
+        BattleNativeLimitDefinition rinoa = Limit(4, 19) with { HitPointCoefficient = 250, InvocationChoices = [new(19, "Combine", 0x50, 0), new(19, "Angel Wing", 0x18, 1)] };
+        BattleNativeAction angelWing = GuestAction(4) with { Command = 19, CharacterId = 4, KernelSection = 25, KernelIndex = 4, AttackType = 2, Power = 0, TargetFlags = 0x18, StatusAttack = 255, Statuses1 = 0x2000000, CrisisLevel = null };
+        return new(new BattleDefinition
+        {
+            NativeLimitsDisabled = false,
+            NativeSavedBattleFlagsKnownMask = 0x30,
+            NativeSavedBattleFlags = 0x30,
+            LimitProgress = new(new string('0', 64), 0, 0, 0, 0, new byte[8].ToImmutableArray()),
+            NativeActions = [angelWing],
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            Combatants =
+            [
+                new() { Id = "rinoa", Name = "Rinoa", IsPlayer = true, ModelId = 4, MaximumHp = 100, CurrentHp = 1, InitialAtb = BattleSession.AtbMaximum, NativeLimit = rinoa, NativeLimitFamilies = families?.Select(family => new BattleNativeLimitFamilyDefinition(family, rinoa)).ToArray() },
+                new() { Id = "enemy", Name = "Enemy" }
+            ]
+        }, BattleAtbMode.TurnBased);
     }
 
     private static BattleSession CreateBattle(BattleNativeLimitFamilyDefinition[]? families = null)

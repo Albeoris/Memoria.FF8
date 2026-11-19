@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    private readonly Dictionary<(NativeBattlePoseSource Source, NativeBattlePoseSource Recipient, BattleModel? ContactWeapon, string Bank, string Revision), NativeBattleAnimationBankOverride> loadoutAnimationBanks = [];
+    private readonly Dictionary<(BattleModel Source, BattleModel Recipient, BattleModel? ContactWeapon, string Bank, uint? Directory, string Revision), NativeBattleAnimationBankOverride> loadoutAnimationBanks = [];
 
     private NativeBattleGraphicsResource BindLoadoutAnimationBanks(NativeBattleGraphicsResource resource, BattleCombatantDefinition actor, BattleModel recipient, BattleLimitFamily? selectedFamily = null)
     {
@@ -92,8 +92,21 @@ public sealed partial class BattleAssets
 
     private NativeBattleAnimationBankOverride CompileLoadoutAnimationBank(int sourceCharacter, BattleModel source, BattleModel recipient, NativeBattlePoseRetargeter compiler, NativeBattlePoseSource motion, string bank, uint? directory, string revision, BattleModel? contactWeapon = null, NativeBattlePoseSource? linkedMotion = null)
     {
+        motion.Validate();
+        if (!motion.Skeleton.AsSpan().SequenceEqual(source.NativePoseSource!.Skeleton.AsSpan()))
+        {
+            throw new InvalidDataException("A source body bank no longer matches its calibrated actor skeleton.");
+        }
+        if (linkedMotion is not null)
+        {
+            linkedMotion.Validate();
+            if (contactWeapon?.NativePoseSource is not { } weaponPose || !linkedMotion.Skeleton.AsSpan().SequenceEqual(weaponPose.Skeleton.AsSpan()))
+            {
+                throw new InvalidDataException("A source contact bank no longer matches its calibrated equipment skeleton.");
+            }
+        }
         string compiledRevision = revision + ":" + Convert.ToHexString(SHA256.HashData(motion.Animations.AsSpan())) + ":" + (linkedMotion is null ? "" : Convert.ToHexString(SHA256.HashData(linkedMotion.Animations.AsSpan())));
-        var key = (source.NativePoseSource!, recipient.NativePoseSource!, contactWeapon, bank, compiledRevision);
+        var key = (source, recipient, contactWeapon, bank, directory, compiledRevision);
         if (!loadoutAnimationBanks.TryGetValue(key, out NativeBattleAnimationBankOverride? compiled))
         {
             var contacts = contactWeapon is null ? default : BattleWeaponContactFrames.Read(sourceCharacter, source, contactWeapon, motion, linkedMotion);

@@ -150,9 +150,14 @@ public sealed partial class BattleSession
         actor.SelectedNativeLimitFamily = family;
     }
 
-    private void RequireSelectedNativeLimitFamily(BattleCombatant actor)
+    private void RequireSelectedNativeLimitFamily(BattleCombatant actor, ushort actionId)
     {
-        BattleNativeLimitFamilyDefinition? selected = AssignedNativeLimitFamilies(actor).FirstOrDefault(entry => entry.Family == actor.SelectedNativeLimitFamily) ?? AssignedNativeLimitFamilies(actor).FirstOrDefault();
+        BattleLimitFamily? family = actor.SelectedNativeLimitFamily;
+        if (family is null && actor.NativeLimitFamilies is null && actor.NativeLimitReadiness?.Command == 19)
+        {
+            family = actionId == 4 ? BattleLimitFamily.AngelWing : BattleLimitFamily.Combine;
+        }
+        BattleNativeLimitFamilyDefinition? selected = AssignedNativeLimitFamilies(actor).FirstOrDefault(entry => entry.Family == family) ?? AssignedNativeLimitFamilies(actor).FirstOrDefault();
         if (selected is null)
         {
             throw new InvalidOperationException("No Limit family is assigned.");

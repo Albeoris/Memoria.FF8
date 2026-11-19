@@ -8,6 +8,34 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleBadBreath113Tests
 {
     [Fact]
+    public void Intrinsic_hand_overlay_preserves_its_material_and_existing_sway_packets()
+    {
+        byte[] face = new byte[16];
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(4), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(face.AsSpan(10), 224 << 6);
+        NativeBattleRawMesh mesh = new([new(new(0, 0, 0), 0), new(new(64, 0, 0), 0), new(new(0, 64, 0), 0)], [new(false, face.ToImmutableArray())]);
+        byte?[] rows = new byte?[16];
+        rows[0] = 0;
+        NativeBattleCureActorGeometry body = new(mesh, new(rows.ToImmutableArray()));
+        NativeBattleModelTextureOwner material = new("recipient/intrinsic-hands/revision");
+        NativeBattleCureActorGeometry hand = body with { Layer = NativeBattleActorGeometryLayer.IntrinsicHands, MaterialOwner = material };
+        NativeBattleActionMatrix matrix = new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 1024, 4096);
+        NativeBattleCameraProjection projection = new(matrix, 216, 0, 0);
+        var wave = new short[4096].ToImmutableArray();
+        byte[] bodyScratch = new byte[24];
+        byte[] handScratch = new byte[24];
+        NativeBattleGfGeometryBatch original = NativeBattleBadBreath113ActorDrawing.Emit(body, [matrix], projection, 0x808080, 0, 0, 0, wave, bodyScratch);
+        NativeBattleGfGeometryBatch intrinsic = NativeBattleBadBreath113ActorDrawing.Emit(hand, [matrix], projection, 0x808080, 0, 0, 0, wave, handScratch);
+        NativeBattleGeometryPrimitive originalPacket = Assert.Single(original.Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!;
+        NativeBattleGeometryPrimitive handPacket = Assert.Single(intrinsic.Attempts.Where(attempt => attempt.Primitive is not null)).Primitive!;
+        Assert.Equal(originalPacket.Words.ToArray(), handPacket.Words.ToArray());
+        Assert.Equal(bodyScratch, handScratch);
+        Assert.Null(originalPacket.ModelTextureOwner);
+        Assert.Equal(material, handPacket.ModelTextureOwner);
+    }
+
+    [Fact]
     public void Zero_depth_sway_writes_only_the_rejection_word()
     {
         NativeBattleProjectedVertex prior = new(0x12345678, 0xABCD4321);

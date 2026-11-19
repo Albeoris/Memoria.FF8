@@ -210,7 +210,7 @@ public sealed partial class BattleSession
         }
         if (limit)
         {
-            RequireSelectedNativeLimitFamily(actor);
+            RequireSelectedNativeLimitFamily(actor, actionId);
             byte currentCrisis = nativeLimitLevels.GetValueOrDefault(actorId);
             if (currentCrisis == 0 || crisis is not null && crisis != currentCrisis)
             {

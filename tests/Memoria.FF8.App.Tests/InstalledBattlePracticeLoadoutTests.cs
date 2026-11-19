@@ -27,7 +27,7 @@ public sealed class InstalledBattlePracticeLoadoutTests
         Assert.Equal(assets.NativeKernelRecords.Single(record => record.Section == 4 && record.Index == weapon).Bytes, prepared.NativePlayerStatRules.WeaponRecord);
         BattleNativePlayerStatistics statistics = prepared.NativePlayerStatRules.Project(prepared.NativeMagicInventory!, prepared.NativeGrowth!);
         Assert.Equal(statistics.MaximumHp, prepared.MaximumHp);
-        Assert.Equal(Math.Min(700, statistics.MaximumHp), prepared.CurrentHp);
+        Assert.Equal(Math.Min(700, (int)statistics.MaximumHp), prepared.CurrentHp);
         Assert.Empty(prepared.NativeLimitFamilies!);
         Assert.NotNull(prepared.NativeGrowth);
         Assert.Equal(32, prepared.NativeMagicInventory!.Length);

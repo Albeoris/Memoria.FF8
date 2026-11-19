@@ -41,7 +41,9 @@ public sealed class InstalledWeaponLoadoutBattleTests
 
     [Theory]
     [InlineData(0)]
+    [InlineData(1)]
     [InlineData(6)]
+    [InlineData(9)]
     public void Native_no_override_baseline_enters_attacks_and_returns(int recipient)
     {
         Run(recipient, recipient, assignOverride: false);
@@ -93,6 +95,8 @@ public sealed class InstalledWeaponLoadoutBattleTests
         }
         BattleLoadoutOverrides? assignments = session.State.BattleLoadouts;
         List<long[]> damageTimings = [];
+        List<object> motionEncounters = [];
+        string? motionDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_PROBE");
         int sourceField = session.State.FieldId;
 
         for (int encounter = 0; encounter < 2; encounter++)
@@ -141,8 +145,39 @@ public sealed class InstalledWeaponLoadoutBattleTests
             int eventStart = battle.Events.Count;
             long commandFrame = battle.Frame;
             int targetHp = target.CurrentHp;
+            MotionPoint? stance = string.IsNullOrWhiteSpace(motionDirectory) ? null : ReadMotionPoint(battle, actor, target);
+            MotionPoint? nearest = stance;
+            MotionPoint? firstContact = null;
+            void ObserveMotion()
+            {
+                if (stance is null)
+                {
+                    return;
+                }
+                MotionPoint point = ReadMotionPoint(battle, actor, target);
+                if (nearest is null || point.WorldDistance < nearest.WorldDistance)
+                {
+                    nearest = point;
+                }
+                if (firstContact is null && battle.Events.Skip(eventStart).Any(entry => entry.Kind == "EffectContact" && entry.ActorId == actor.Id && entry.TargetId == target.Id))
+                {
+                    firstContact = point;
+                }
+            }
             world.ApplyBattleInput(new(BattleInputKind.Attack, ActorId: actor.Id, TargetId: target.Id) { ForcePhysical = true });
-            TickUntil(world, () => battle.Events.Skip(eventStart).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id) && battle.ActiveAction is null && battle.Presentation?.HasActiveAction != true, $"recipient {recipient}, donor {donor}, weapon {weapon}: native attack completion");
+            TickUntil(world, () => battle.Events.Skip(eventStart).Any(entry => entry.Kind == "ActionComplete" && entry.ActorId == actor.Id) && battle.ActiveAction is null && battle.Presentation?.HasActiveAction != true, $"recipient {recipient}, donor {donor}, weapon {weapon}: native attack completion", ObserveMotion);
+            if (stance is not null)
+            {
+                Assert.NotNull(firstContact);
+                long actionCompleteFrame = battle.Frame;
+                bool NativeReturned()
+                {
+                    NativeBattleGraphicsModel current = battle.Presentation!.NativeGraphics!.ActorModels.Get(battle.ReadPresentationModelOwner(actor.Id));
+                    return current.SequenceState is { } state && current.Sequence == state.Default2;
+                }
+                TickUntil(world, () => NativeReturned() || battle.Outcome != BattleOutcome.Active, $"recipient {recipient}, donor {donor}: native model return or terminal entry", ObserveMotion);
+                motionEncounters.Add(new { Encounter = encounter, Stance = stance, FirstContact = firstContact, MaximumApproach = nearest, Returned = ReadMotionPoint(battle, actor, target), ActionCompleteFrame = actionCompleteFrame, ReturnBoundary = NativeReturned() ? "Native model default standing sequence" : "Native terminal entry before standing sequence", Outcome = battle.Outcome.ToString() });
+            }
             BattleEvent[] damage = battle.Events.Skip(eventStart).Where(entry => entry.Kind == "Damage" && entry.ActorId == actor.Id && entry.TargetId == target.Id).ToArray();
             Assert.NotEmpty(damage);
             Assert.Contains(damage, entry => entry.Amount > 0);
@@ -164,6 +199,12 @@ public sealed class InstalledWeaponLoadoutBattleTests
             Assert.Equal(SceneKind.Field, session.State.Scene);
             Assert.Equal(sourceField, session.State.FieldId);
             Assert.Equal(assignments?.Get(recipient)?.WeaponId, session.State.BattleLoadouts?.Get(recipient)?.WeaponId);
+        }
+        if (motionEncounters.Count > 0)
+        {
+            Directory.CreateDirectory(motionDirectory!);
+            string path = Path.Combine(motionDirectory!, $"recipient-{recipient:00}-style-{donor:00}{(assignOverride ? "" : "-native")}-encounter-{Formation:000}-motion.json");
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new { Recipient = recipient, Donor = donor, WeaponId = weapon, NativeBaseline = !assignOverride, Formation, SourceResource = "weapon-limit-field-source", Encounters = motionEncounters }));
         }
         Assert.Equal(damageTimings[0], damageTimings[1]);
         Assert.Equal(sourceHash, SHA256.HashData(File.ReadAllBytes(source)));
@@ -273,11 +314,42 @@ public sealed class InstalledWeaponLoadoutBattleTests
         session.SetRandomEncounters(new(true, random, new(SceneKind.Field, session.State.FieldId, world.Events.Frame, Formation, program)));
     }
 
-    private static void TickUntil(GameWorld world, Func<bool> complete, string boundary)
+    private sealed record MotionPoint(long Frame, double WorldDistance, int? ContactDistance, int? UnadjustedDistance, object Actor, object Target);
+
+    private static MotionPoint ReadMotionPoint(BattleSession battle, BattleCombatant actor, BattleCombatant target)
+    {
+        NativeBattleGraphicsState graphics = battle.Presentation!.NativeGraphics!;
+        NativeBattleGraphicsModel model = graphics.ActorModels.Get(battle.ReadPresentationModelOwner(actor.Id));
+        NativeBattleGraphicsModel targetModel = graphics.ActorModels.Get(battle.ReadPresentationModelOwner(target.Id));
+        NativeBattleActionMatrix world = model.GeometryWorldMatrix ?? throw new InvalidDataException("Motion probe requires the actual actor world matrix.");
+        NativeBattleActionMatrix targetWorld = targetModel.GeometryWorldMatrix ?? throw new InvalidDataException("Motion probe requires the actual target world matrix.");
+        double dx = (double)world.X - targetWorld.X;
+        double dy = (double)world.Y - targetWorld.Y;
+        double dz = (double)world.Z - targetWorld.Z;
+        static object Describe(NativeBattleGraphicsModel item) => new
+        {
+            Position28 = item.Transform?.Position28,
+            Scale38 = item.Transform?.Scale38,
+            Scale154 = item.Transform?.Scale154,
+            Scale148 = item.Transform?.Scale148,
+            BodyRoot = item.CurrentBodyBoneMatrices is { Matrices.IsDefaultOrEmpty: false } body ? new { body.Matrices[0].X, body.Matrices[0].Y, body.Matrices[0].Z } : null,
+            World = item.GeometryWorldMatrix is { } matrix ? new { matrix.X, matrix.Y, matrix.Z } : null,
+            RootTranslation = item.SequenceState?.DecodedPose?.Translation,
+            item.Sequence,
+            item.SequenceFrame,
+            Pose = item.SequenceState?.Pose,
+            PoseFrame = item.SequenceState?.PoseFrame114,
+            item.ActiveAnimationBank
+        };
+        return new(battle.Frame, Math.Sqrt(dx * dx + dy * dy + dz * dz), graphics.ActionContext?.ContactDistance, graphics.ActionContext?.UnadjustedDistance, Describe(model), Describe(targetModel));
+    }
+
+    private static void TickUntil(GameWorld world, Func<bool> complete, string boundary, Action? afterTick = null)
     {
         for (int callback = 0; callback < 1800 && !complete(); callback++)
         {
             world.ApplyBattleInput(new(BattleInputKind.Tick));
+            afterTick?.Invoke();
         }
         Assert.True(complete(), "Timed out at " + boundary + ": " + string.Join(", ", world.Battle?.Events.TakeLast(8).Select(entry => entry.Kind + "/" + entry.ActorId) ?? []));
     }
