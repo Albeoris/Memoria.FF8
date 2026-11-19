@@ -423,7 +423,7 @@ internal sealed partial class GameWorld
     private BattleActionDefinition[] CreateBattleActions()
     {
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Battle actions require the canonical GF owner.");
-        return BattlePartyProjection.CreateActions(vitals, BattleResources.ActionDefinitions);
+        return BattlePartyProjection.CreateActions(vitals, BattleResources.ActionDefinitions, (modelOverrides as GameResourceHost)?.GuardianRules);
     }
 
     internal BattleDefinition BindExpandedEnemyLevels(BattleDefinition definition)

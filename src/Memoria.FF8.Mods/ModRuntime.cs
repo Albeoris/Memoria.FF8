@@ -410,6 +410,13 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     ScheduleRetry();
                     return false;
                 }
+                if (!GuardianForceRules.TryPrepare(candidate, out GuardianForceRules guardianForceRules, out IReadOnlyList<ModDiagnostic> guardianForceErrors))
+                {
+                    diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(guardianForceErrors).Append(new ModDiagnostic("reload-failed", "GF rule preparation failed; the last committed generation remains active.")).ToArray());
+                    updateOutcome = ModUpdateOutcome.Failed;
+                    ScheduleRetry();
+                    return false;
+                }
                 if (!FieldLightingMods.TryPrepare(candidate, out FieldLightingMods candidateLighting, out IReadOnlyList<ModDiagnostic> lightingDiagnostics))
                 {
                     diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(lightingDiagnostics).Append(new ModDiagnostic("reload-failed", "Lighting preparation failed; the last committed generation remains active.")).ToArray());
@@ -418,6 +425,7 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     return false;
                 }
                 candidate.PreparedStatusMods = statuses;
+                candidate.PreparedGuardianForceRules = guardianForceRules;
                 ModPreparationResult result = prepare(candidate);
                 diagnostics = Array.AsReadOnly(candidate.Diagnostics.Concat(result.Diagnostics ?? []).ToArray());
                 if (result.Deferred)
@@ -439,15 +447,19 @@ public sealed partial class ModRuntime : IModService, IDisposable
                     ScheduleRetry();
                     return false;
                 }
+                IEnumerable<ModPackage> preparedPackages = candidate.Packages;
                 if (result.UsablePackageIds is not null)
                 {
-                    HashSet<string> usable = new(result.UsablePackageIds.Concat(candidateLighting.PackageIds), StringComparer.OrdinalIgnoreCase);
-                    candidate = new(candidate.Generation, candidate.Packages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package), candidate.Files, diagnostics) { Hardcore = candidate.Hardcore, StatusPreferences = candidate.StatusPreferences, PreparedStatusMods = statuses };
+                    HashSet<string> usable = new(result.UsablePackageIds.Concat(candidateLighting.PackageIds).Concat(guardianForceRules.PackageIds), StringComparer.OrdinalIgnoreCase);
+                    preparedPackages = preparedPackages.Select(package => package.Status == ModEffectiveStatus.Active && !usable.Contains(package.Id) ? package with { Status = ModEffectiveStatus.NoUsableEntries } : package);
                 }
-                else
+                candidate = new(candidate.Generation, preparedPackages, candidate.Files, diagnostics)
                 {
-                    candidate = new(candidate.Generation, candidate.Packages, candidate.Files, diagnostics) { Hardcore = candidate.Hardcore, StatusPreferences = candidate.StatusPreferences, PreparedStatusMods = statuses };
-                }
+                    Hardcore = candidate.Hardcore,
+                    StatusPreferences = candidate.StatusPreferences,
+                    PreparedStatusMods = statuses,
+                    PreparedGuardianForceRules = guardianForceRules
+                };
                 autoEnable = nextAutoEnable;
                 installedPackages = candidate.Packages;
                 updateOutcome = ModUpdateOutcome.Updating;

@@ -51,3 +51,30 @@ A dependent edit must identify the producer it relies on. `producers` is an arra
 The document has an optional `sourceFingerprint` diagnostic hint. An unrelated source change does not invalidate every guarded operation. Supported unknown JSON metadata is retained at document and operation level; unknown schema versions are refused. Canonical serialization sorts object properties, preserves operation ordering and writes only selected-layer intent, with no current AP, flattened combined tables or undo history. Editing retains document identity; an independent copy receives a new identity and its internal producer references are updated.
 
 See the [player guide](../players/gf-ability-editor.md) for authoring/activation and the [developer contract](../developers/gf-abilities.md) for progression, migration and original-save projection.
+
+## Global ability rules
+
+Starting with engine compatibility version 0.8.15, a native package with a `mod.json` descriptor can also supply `gameplay/gf-rules.json`. Use it to change the cost or description of an existing ability, set the default cap for FFVIII summons, or grant a different cap to GFs that learn an ability. The learn-list document above controls which GFs can learn an ability.
+
+```json
+{
+  "schemaVersion": 1,
+  "defaultSummonDamageLimit": 9999,
+  "abilities": [
+    {
+      "id": 91,
+      "apCost": 200,
+      "description": {
+        "en": "Boost damage during summoning and remove this GF's summon damage limit.",
+        "ru": "Усиливает урон во время призыва и снимает ограничение урона от призыва этого стража."
+      },
+      "summonDamageLimit": "unlimited"
+    }
+  ]
+}
+```
+
+- Use existing ability IDs 1–115 and AP costs 1–255. AP changes affect learning and its menu display. Earned AP, learned abilities and selected learning targets retain their saved state. The current cost is checked when AP is awarded.
+- A description is plain text keyed by language code. Supply `en` as the fallback. Memoria selects the active content language, including a localization override. Descriptions for unmodified abilities follow the normal text pipeline.
+- Both limit properties accept a positive 32-bit integer or `"unlimited"`. The greatest limit declared by an ability learned by the summoning GF wins. With no applicable learned ability, use the package default, or the existing engine limit when the default is omitted. Positive FFVIII summon damage uses the resolved cap for that battle. Healing, other FFVIII actions and attacks resolved by the FFVII host use their own rules.
+- Supply at least one contribution and at most one entry per ability in each document. Disjoint properties from enabled packages compose. Multiple packages assigning the same property reject the candidate generation with a conflict diagnostic. Editing a document uses the ordinary mod refresh path. An active battle retains its captured summon rules.

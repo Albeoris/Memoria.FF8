@@ -7,9 +7,19 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class LiveMenuCatalog
 {
     public Func<string?>? InterfaceLanguage { get; set; }
+    internal Func<int, string?, string?>? FindAbilityDescriptionOverride { get; set; }
+
+    private string? AbilityDescriptionOverride(int ability)
+    {
+        return FindAbilityDescriptionOverride?.Invoke(ability, InterfaceLanguage?.Invoke() ?? resources?.ResourceLanguage);
+    }
 
     public string? ReadBonusAbilityDescription(int ability, bool levelBasedStatBonuses, int? characterLevel)
     {
+        if (AbilityDescriptionOverride(ability) is string authored)
+        {
+            return authored;
+        }
         if (levelBasedStatBonuses && SystemTextCatalog.LevelBasedBonusAbilityDescription(ability, InterfaceLanguage?.Invoke() ?? resources?.ResourceLanguage, characterLevel.HasValue) is string description)
         {
             int perLevel = BattleNativeCharacterGrowth.LevelBonusPerLevel(ability);
@@ -17,7 +27,7 @@ public sealed partial class LiveMenuCatalog
                 ? FormatSystemText($"mods.level-based-stat-bonuses.ability.{ability}.current", description, BattleNativeCharacterGrowth.LevelBonus(ability, level), perLevel)
                 : FormatSystemText($"mods.level-based-stat-bonuses.ability.{ability}.per-level", description, perLevel);
         }
-        return AbilityDescription(ability);
+        return NativeAbilityDescription(ability);
     }
 
     internal string SystemText(string id, string original) => resources is null ? original : SystemTextCatalog.Translate(resources.Localize, id, original);

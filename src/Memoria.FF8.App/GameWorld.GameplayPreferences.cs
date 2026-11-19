@@ -31,6 +31,10 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException(GameResourceHost.GameplayDifficultyProfilePending);
             }
         }
+        if (!session.HasActiveBattle && modelOverrides is GameResourceHost resources)
+        {
+            session.SetGuardianForceAbilityPointCosts(resources.GuardianRules.AbilityPointCosts);
+        }
         GameplayTuningPolicy policy = GameplayPolicy;
         SynchronizeExtendedRoster(policy);
         GameplayTuning configured = session.State.ConfiguredGameplayTuning ?? session.State.GameplayPreferences.Tuning;

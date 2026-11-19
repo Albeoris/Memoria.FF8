@@ -25,7 +25,7 @@ public sealed record NativeBattleContactHalf(BattleModelOwner Recipient, byte Se
 
     internal static void ValidateExtendedDamage(int? extendedDamage, byte hitFlags, ushort amount6)
     {
-        if (extendedDamage is int amount && (amount is <= short.MaxValue or > 100000 || (hitFlags & 1) != 0 || amount6 != unchecked((ushort)amount)))
+        if (extendedDamage is int amount && (amount <= short.MaxValue || (hitFlags & 1) != 0 || amount6 != unchecked((ushort)amount)))
         {
             throw new InvalidDataException("Extended contact damage must preserve its native low WORD and positive damage identity.");
         }

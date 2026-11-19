@@ -140,6 +140,25 @@ public sealed class NativeBattleContactPacketTests
         Assert.Equal((ushort)expected, half.Amount6);
     }
 
+    [Theory]
+    [InlineData(131072, "131072")]
+    [InlineData(int.MaxValue, "2147483647")]
+    public void WidePositiveDamageRetainsItsFullAmountForPresentation(int damage, string text)
+    {
+        var (bindings, models, recipient, _) = OriginalOwners();
+        NativeBattleContactHalf half = NativeBattleContactHalf.FromScratch(recipient, 5, 0, 0, 0, damage, 0) with { ExtendedDamageAmount = damage };
+        NativeBattleContactPacket packet = new(half, null);
+
+        Assert.True(NativeBattleContactPacketCodec.TryEncodeOriginal(packet, bindings, models, out NativeBattleRawContactPacket? raw));
+        Assert.NotNull(raw);
+        Assert.Equal(unchecked((ushort)damage), NativeBattleContactPacketCodec.Decode(NativeBattleContactPacketCodec.Encode(raw)).Primary.Amount6);
+        NativeBattleContactHalf restored = NativeBattleContactPacketCodec.DecodeOriginal(raw, bindings, models).Primary;
+        Assert.Equal(damage, restored.PresentedAmount);
+        NativeBattleEffectsState effects = NativeBattleEffectsState.Clear(BattleContactTaskStorageContract.OriginalArena).PrependDamageText(restored.Recipient, restored.ContactFlags, restored.PresentedAmount, models.Roster);
+        NativeBattleEffectsStep step = effects.Advance(models, _ => new(160, 100));
+        Assert.Equal(text.Select(digit => (byte)(56 + digit - '0')).Append((byte)0), Assert.Single(step.State.TextDraws).Glyphs);
+    }
+
     private static (NativeBattleModelBoundary Bindings, BattleActorModels Models, BattleModelOwner Recipient, BattleModelOwner Cover) OriginalOwners()
     {
         var bindings = new NativeBattleModelBoundary(Enumerable.Range(0, 7).Select(_ => new NativeBattleGraphicsModel(0)));

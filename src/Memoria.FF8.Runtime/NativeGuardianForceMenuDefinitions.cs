@@ -24,6 +24,13 @@ public sealed record NativeGuardianForceMenuDefinitions([property: JsonRequired]
     public ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> SourceTemplates { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<NativeGuardianForceInitialState> InitialStates { get; init; }
+    [JsonIgnore]
+    internal ImmutableDictionary<int, byte> AbilityPointCosts { get; init; } = ImmutableDictionary<int, byte>.Empty;
+
+    internal int ResolveAbilityPointCost(int ability, int fallback)
+    {
+        return AbilityPointCosts.TryGetValue(ability, out byte points) ? points : fallback;
+    }
 
     public ImmutableArray<NativeGuardianForceLearningRule> ResolveLearning(int id)
     {

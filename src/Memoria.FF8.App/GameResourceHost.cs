@@ -63,6 +63,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
     public ItemOverrideMods ItemOverrides { get; private set; } = ItemOverrideMods.Empty;
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
+    public GuardianForceRules GuardianRules { get; private set; } = GuardianForceRules.Empty;
     public Func<GuardianForceAbilityMods, ModCatalogSnapshot, ModPreparationResult>? PrepareGuardianForcePublication { get; set; }
     public EncounterMods EncounterMods { get; private set; } = EncounterMods.Empty;
     public Func<EncounterMods, ModCatalogSnapshot, IReadOnlyList<EncodedResource>, ModPreparationResult>? PrepareEncounterPublication { get; set; }
@@ -360,6 +361,10 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: guardianDiagnostics);
         }
+        if (!GuardianForceRules.TryPrepare(catalog, out GuardianForceRules guardianRules, out IReadOnlyList<ModDiagnostic> guardianRuleDiagnostics))
+        {
+            return new ModPreparationResult(false, Diagnostics: guardianRuleDiagnostics);
+        }
         ModPreparationResult guardianPublication = PrepareGuardianForcePublication?.Invoke(guardianMods, catalog) ?? ModPreparationResult.Accepted;
         if (!guardianPublication.Success)
         {
@@ -498,6 +503,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
                 CommitLocalizationLanguage(localization);
                 CommittedLocalizations = localization;
                 GuardianForceMods = guardianMods;
+                GuardianRules = guardianRules;
                 EncounterMods = encounterMods;
                 SceneMods = sceneMods;
                 ModelMods = modelMods;

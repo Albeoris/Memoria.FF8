@@ -231,6 +231,10 @@ public sealed partial class ModPackageInstaller
         {
             throw new InvalidDataException(diagnostics[0].Message);
         }
+        if (!GuardianForceRules.TryPrepare(catalog, out _, out diagnostics))
+        {
+            throw new InvalidDataException($"{diagnostics[0].RelativePath}: {diagnostics[0].Message}");
+        }
     }
 
     private static bool CanUseInstalledDestination(OfficialModComponent component, Receipt previous)

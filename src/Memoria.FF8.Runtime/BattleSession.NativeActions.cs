@@ -472,7 +472,12 @@ public sealed partial class BattleSession
             damage /= 2;
         }
         int maximum = (native.AttackFlags & 8) != 0 ? 60_000 : 9_999;
-        damage = Math.Clamp(damage, -maximum, NativePrimaryDamageLimit(native.AttackFlags));
+        int damageLimit = actor.IsPlayer && command.Ability == BattleAbility.GuardianForce && action.Ability == BattleAbility.GuardianForce &&
+            native is { Command: 254, KernelSection: 2 } && native.KernelIndex == action.Id && native.ActionId == action.Id + 64 &&
+            action.GuardianForceSummonDamageLimit is int summonLimit
+            ? summonLimit
+            : NativePrimaryDamageLimit(native.AttackFlags);
+        damage = Math.Clamp(damage, -maximum, damageLimit);
         SetNativeContactDamage(damage);
         FinalizeNativeContactPresentation();
         bool deathStatus = (NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0;

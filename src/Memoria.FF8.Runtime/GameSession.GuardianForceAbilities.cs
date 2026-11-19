@@ -64,6 +64,19 @@ public sealed class GuardianForceAbilityPreparedApply
 
 public sealed partial class GameSession
 {
+    public void SetGuardianForceAbilityPointCosts(ImmutableDictionary<int, byte> costs)
+    {
+        if (State.CharacterVitals is not { } vitals || ReferenceEquals(vitals.MenuDefinitions.AbilityPointCosts, costs))
+        {
+            return;
+        }
+        if (costs.Any(pair => pair.Key <= 0 || pair.Key >= vitals.MenuDefinitions.AbilityPoints.Length || pair.Value == 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(costs));
+        }
+        State = State with { CharacterVitals = vitals with { MenuDefinitions = vitals.MenuDefinitions with { AbilityPointCosts = costs } } };
+    }
+
     public GuardianForceAbilityApplyPreview PreviewGuardianForceAbilities(ImmutableArray<ImmutableArray<GuardianForceAbilityTemplate>> templates, GuardianForceAbilityProfile? profile = null, IEnumerable<GuardianForceAbilityReset>? resets = null, string sourceRevision = "", long modGeneration = 0)
     {
         NativeCharacterVitals source = State.CharacterVitals ?? throw new InvalidOperationException("GF editing requires an initialized playthrough.");

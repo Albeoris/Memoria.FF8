@@ -1,5 +1,6 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Mods;
 using Memoria.FF8.Runtime;
 using System.Collections.Immutable;
 
@@ -8,7 +9,7 @@ namespace Memoria.FF8;
 /// <summary>Projects the player's saved combatants into the shared battle roster.</summary>
 internal static class BattlePartyProjection
 {
-    public static BattleActionDefinition[] CreateActions(NativeCharacterVitals vitals, IReadOnlyList<BattleActionDefinition> installed)
+    public static BattleActionDefinition[] CreateActions(NativeCharacterVitals vitals, IReadOnlyList<BattleActionDefinition> installed, GuardianForceRules? rules = null)
     {
         vitals.Validate();
         return installed.Select(action =>
@@ -17,11 +18,11 @@ internal static class BattlePartyProjection
             {
                 return action with { Statuses = action.Statuses?.ToArray() };
             }
-            return ProjectGuardianForceAction(vitals, action);
+            return ProjectGuardianForceAction(vitals, action, rules);
         }).ToArray();
     }
 
-    internal static BattleActionDefinition ProjectGuardianForceAction(NativeCharacterVitals vitals, BattleActionDefinition action)
+    internal static BattleActionDefinition ProjectGuardianForceAction(NativeCharacterVitals vitals, BattleActionDefinition action, GuardianForceRules? rules = null)
     {
         NativeGuardianForceVital gf = vitals.GuardianForces[action.Id];
         int percent = 0;
@@ -38,7 +39,18 @@ internal static class BattlePartyProjection
                 flags |= modifier.Flags;
             }
         }
-        return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0 };
+        int? learnedLimit = null;
+        if (rules is not null)
+        {
+            foreach ((int ability, int limit) in rules.SummonDamageLimits)
+            {
+                if (gf.HasLearnedAbility(ability) && (learnedLimit is null || limit > learnedLimit))
+                {
+                    learnedLimit = limit;
+                }
+            }
+        }
+        return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0, GuardianForceSummonDamageLimit = learnedLimit ?? rules?.DefaultSummonDamageLimit ?? action.GuardianForceSummonDamageLimit };
     }
 
     public static BattleCombatantDefinition[] Create(GameState state, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog catalog, BattleAssets resources, IReadOnlyList<byte>? battleRows = null)

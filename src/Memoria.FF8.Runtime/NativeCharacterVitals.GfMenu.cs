@@ -62,7 +62,8 @@ public sealed partial record NativeCharacterVitals
             if (eligible && !forgotten && !result.ContainsKey(entry.Ability))
             {
                 int points = entry.NativeLearningSlots != 0 ? gf.AbilityProgress[selectedIndex] : ledger is null ? nativeIndex >= 0 ? gf.AbilityProgress[nativeIndex] : 0 : progress?.EarnedPoints ?? 0;
-                result.Add(entry.Ability, new(entry.Ability, false, entry.NativeLearningSlots != 0 ? selectedIndex : index, points, entry.RequiredPoints));
+                int requiredPoints = MenuDefinitions.ResolveAbilityPointCost(entry.Ability, entry.RequiredPoints);
+                result.Add(entry.Ability, new(entry.Ability, false, entry.NativeLearningSlots != 0 ? selectedIndex : index, points, requiredPoints));
             }
         }
         List<NativeGuardianForceAbility> display = templates.Where(entry => result.ContainsKey(entry.Ability)).Select(entry => result[entry.Ability]).ToList();

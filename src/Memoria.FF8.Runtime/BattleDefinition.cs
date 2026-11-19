@@ -53,6 +53,8 @@ public sealed record BattleActionDefinition(BattleAbility Ability, int Id, strin
     public byte? NativeAttackFlags { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
     public bool? NativeGuardianBoostAvailable { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? GuardianForceSummonDamageLimit { get; init; }
 }
 public sealed record BattleStock(int Id, int Count);
 public sealed record BattleDrawSpell(int Id, int Resistance);

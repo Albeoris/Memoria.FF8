@@ -1224,7 +1224,7 @@ public sealed partial class BattleSession
             }
             HashSet<BattleStatusKind> statusKinds = [];
         }
-        if (source.ActionDefinitions.Any(action => !Enum.IsDefined(action.Ability) || !Enum.IsDefined(action.Effect) || action.Id < 0 || string.IsNullOrWhiteSpace(action.Name) || action.Power < 0 || action.Statuses?.Any(kind => !Enum.IsDefined(kind)) == true) || source.ActionDefinitions.GroupBy(action => (action.Ability, action.Id)).Any(group => group.Count() != 1))
+        if (source.ActionDefinitions.Any(action => !Enum.IsDefined(action.Ability) || !Enum.IsDefined(action.Effect) || action.Id < 0 || string.IsNullOrWhiteSpace(action.Name) || action.Power < 0 || action.GuardianForceSummonDamageLimit is int limit && (limit <= 0 || action.Ability != BattleAbility.GuardianForce) || action.Statuses?.Any(kind => !Enum.IsDefined(kind)) == true) || source.ActionDefinitions.GroupBy(action => (action.Ability, action.Id)).Any(group => group.Count() != 1))
         {
             throw new InvalidDataException("Invalid or unsupported battle action catalog.");
         }

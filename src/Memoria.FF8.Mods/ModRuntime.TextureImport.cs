@@ -127,6 +127,14 @@ public sealed partial class ModRuntime
             ModPreparationResult result;
             try
             {
+                if (!GuardianForceRules.TryPrepare(candidate, out GuardianForceRules rules, out IReadOnlyList<ModDiagnostic> ruleErrors))
+                {
+                    diagnostics = Array.AsReadOnly(ruleErrors.Append(new ModDiagnostic("texture-import-failed", "GF rule preparation failed; destination and live generation remain unchanged.", candidatePackage.Id)).ToArray());
+                    active.Preparation?.Discard?.Invoke();
+                    explicitTextureImport = null;
+                    return TextureImportApplyResult.Failed;
+                }
+                candidate.PreparedGuardianForceRules = rules;
                 result = prepare(candidate);
                 active.Preparation = result;
             }
@@ -169,7 +177,8 @@ public sealed partial class ModRuntime
             {
                 Hardcore = candidate.Hardcore,
                 StatusPreferences = candidate.StatusPreferences,
-                PreparedStatusMods = candidate.PreparedStatusMods
+                PreparedStatusMods = candidate.PreparedStatusMods,
+                PreparedGuardianForceRules = candidate.PreparedGuardianForceRules
             };
             installedPackages = catalog.Packages;
             memoriaSettingsViews.Clear();

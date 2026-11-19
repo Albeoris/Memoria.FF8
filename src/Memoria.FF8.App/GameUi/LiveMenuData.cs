@@ -720,6 +720,11 @@ public sealed partial class LiveMenuCatalog
 
     public string? AbilityDescription(int id)
     {
+        return AbilityDescriptionOverride(id) ?? NativeAbilityDescription(id);
+    }
+
+    private string? NativeAbilityDescription(int id)
+    {
         return (uint)id < abilityDescriptions.Length && AbilityIdentity(id) is { } identity ? FormatDescription(LocalizedKernel(identity.Collection, "Description", identity.Ordinal, abilityDescriptions[id])) : null;
     }
 }

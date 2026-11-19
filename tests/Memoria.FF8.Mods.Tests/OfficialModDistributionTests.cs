@@ -354,6 +354,30 @@ public sealed class OfficialModDistributionTests : IDisposable
     }
 
     [Fact]
+    public async Task OfficialInstallerValidatesGuardianForceRules()
+    {
+        const string range = "[0.8.15,)";
+        var (validPath, validEntry) = Package("1.1.0", engineRange: range, extraFiles: new Dictionary<string, byte[]>
+        {
+            [GuardianForceRules.PayloadPath] = """{"schemaVersion":1,"abilities":[{"id":72,"apCost":200,"summonDamageLimit":"unlimited"}]}"""u8.ToArray()
+        });
+        ModPackageInstaller installer = Installer();
+        Assert.NotNull(OfficialModCatalog.CompatibilityError(validEntry.Official!, "0.8.14", "Classic", "en"));
+        Assert.Null(OfficialModCatalog.CompatibilityError(validEntry.Official!, "0.8.15", "Classic", "en"));
+        ModPackageInstallPlan valid = await installer.InspectAsync(validPath, validEntry, Token);
+        await installer.DiscardAsync(valid, Token);
+
+        var (invalidPath, invalidEntry) = Package("1.2.0", extraFiles: new Dictionary<string, byte[]>
+        {
+            [GuardianForceRules.PayloadPath] = """{"schemaVersion":1,"abilities":[{"id":72,"apCost":256}]}"""u8.ToArray()
+        });
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => installer.InspectAsync(invalidPath, invalidEntry, Token));
+        Assert.Contains(GuardianForceRules.PayloadPath, error.Message);
+        Assert.Contains("apCost", error.Message);
+        Assert.False(Directory.Exists(Mods));
+    }
+
+    [Fact]
     public async Task OfficialStatusPackageCanReplaceTheBundledDescriptorWithTheSameId()
     {
         const string id = "memoria-meltdown";

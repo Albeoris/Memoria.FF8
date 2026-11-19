@@ -214,7 +214,12 @@ public sealed record NativeBattleEffectsState([property: JsonRequired] Immutable
 
     private static bool ValidTask(NativeBattleEffectTask task, int count, BattleModelRoster roster)
     {
-        if (task is null || task.Next is < 0 || task.Next >= count || !Enum.IsDefined(task.Kind) || task.Glyphs.IsDefault || task.Glyphs.Length > 8)
+        if (task is null || task.Next is < 0 || task.Next >= count || !Enum.IsDefined(task.Kind) || task.Glyphs.IsDefault)
+        {
+            return false;
+        }
+        int glyphLimit = task.Kind == NativeBattleEffectKind.DamageText5069B0 ? 11 : 8;
+        if (task.Glyphs.Length > glyphLimit)
         {
             return false;
         }
