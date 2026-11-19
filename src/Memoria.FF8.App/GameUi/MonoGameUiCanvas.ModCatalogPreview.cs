@@ -74,8 +74,56 @@ internal sealed partial class MonoGameUiCanvas
         }
     }
 
+    private readonly Dictionary<int, (Albeoris.Games.FF8.Imaging.PixelImage Image, Texture2D Texture)> comparisonTextures = [];
+    private bool comparisonDrawn;
+
+    public void RasterImage(Albeoris.Games.FF8.Imaging.PixelImage image, UiRect bounds, int slot)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        comparisonDrawn = true;
+        if (!comparisonTextures.TryGetValue(slot, out var cached) || !ReferenceEquals(cached.Image, image))
+        {
+            if (comparisonTextures.Remove(slot, out var previous))
+            {
+                previous.Texture.Dispose();
+            }
+            Texture2D replacement = new(device, image.Width, image.Height);
+            try
+            {
+                replacement.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+                cached = (image, replacement);
+                comparisonTextures.Add(slot, cached);
+            }
+            catch
+            {
+                replacement.Dispose();
+                throw;
+            }
+        }
+        UiRect fitted = UiImage.Fit(bounds, image.Width, image.Height);
+        SystemTextRenderer.DrawClipped(batch, cached.Texture, new Vector2(fitted.X, fitted.Y), Color.White, CurrentClip, fitted.Width / image.Width);
+    }
+
+    private void TrimComparisonTextures()
+    {
+        if (!comparisonDrawn)
+        {
+            foreach (var cached in comparisonTextures.Values)
+            {
+                cached.Texture.Dispose();
+            }
+            comparisonTextures.Clear();
+        }
+        comparisonDrawn = false;
+    }
+
     private void DisposeModPreviews()
     {
+        comparisonDrawn = false;
+        TrimComparisonTextures();
         modPreviews.Dispose();
         foreach (var cached in modPreviewTextures.Values)
         {

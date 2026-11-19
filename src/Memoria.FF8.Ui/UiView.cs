@@ -514,6 +514,11 @@ public sealed class UiView
             canvas.MenuPointer(Map(bounds));
         }
 
+        public void RasterImage(Albeoris.Games.FF8.Imaging.PixelImage image, UiRect bounds, int slot)
+        {
+            canvas.RasterImage(image, Map(bounds), slot);
+        }
+
         public bool ModPreview(string url, UiRect bounds)
         {
             return canvas.ModPreview(url, Map(bounds));

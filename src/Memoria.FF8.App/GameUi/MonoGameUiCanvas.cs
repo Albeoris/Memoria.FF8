@@ -33,6 +33,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         presentedTextureImages.Clear();
         textOverflow.BeginFrame(time);
         PumpModPreview();
+        TrimComparisonTextures();
     }
 
     public void PrepareTripleTriad(TripleTriadController controller)

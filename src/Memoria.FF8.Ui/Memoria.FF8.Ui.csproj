@@ -4,4 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.Imaging/Albeoris.Games.FF8.Imaging.csproj" />
+  </ItemGroup>
 </Project>

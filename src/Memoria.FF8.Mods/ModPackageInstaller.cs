@@ -94,6 +94,28 @@ public sealed partial class ModPackageInstaller
         }, cancellationToken);
     }
 
+    internal Task<ModPreviewDocument> OpenPreviewAsync(ModPackageInstallPlan plan, CancellationToken cancellationToken)
+    {
+        return Task.Run(async () =>
+        {
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (!prepared.TryGetValue(plan.Token, out Prepared item))
+                {
+                    throw new InvalidOperationException("The checked download is no longer available. Select the installed package or check the download again.");
+                }
+                EnsureNoLinks(item.Root);
+                ModFormat format = item.NativeFiles is null ? ModFormat.Junction : ModFormat.Memoria;
+                return ModPreviewDocument.Open(new(plan.PackageId, plan.Entry.Name, format, null, true, ModEffectiveStatus.Active, item.Payload), cancellationToken, useInstalledOptions: false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }, cancellationToken);
+    }
+
     /// <summary>Removes only an uncommitted inspection owned by this installer; never touches transactions or backups.</summary>
     public Task DiscardAsync(ModPackageInstallPlan plan, CancellationToken cancellationToken = default)
     {
@@ -416,7 +438,7 @@ public sealed partial class ModPackageInstaller
         }
     }
 
-    private static IEnumerable<string> SafeFiles(string root)
+    internal static IEnumerable<string> SafeFiles(string root)
     {
         Stack<string> pending = new();
         pending.Push(root);

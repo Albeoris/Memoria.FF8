@@ -2,27 +2,45 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Memoria.FF8;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Platform;
+using Memoria.Launcher.Controller;
 
 namespace Memoria.Launcher;
 
 internal sealed partial class LauncherWindow
 {
     private readonly ListBox launcherModRows = new() { MinWidth = 180, Background = LauncherSurface, BorderBrush = LauncherBorder, BorderThickness = new Thickness(1) };
-    private readonly StackPanel launcherModDetails = new() { Spacing = 12 };
-    private readonly ScrollViewer launcherModDetailScroll = new() { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
-    private readonly StackPanel launcherModCompletion = new() { Spacing = 6 };
-    private readonly TextBlock launcherModActionStatus = new() { Foreground = LauncherMuted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis, IsVisible = false };
+    private readonly StackPanel launcherModDetails = new() { Spacing = 8 };
+    private readonly ScrollViewer launcherModDetailScroll = new() { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    private readonly Button launcherModClearFilters = LauncherModButton("Clear filters");
+    private readonly Button launcherModPrevious = LauncherModButton("← Previous");
+    private readonly Button launcherModNext = LauncherModButton("Next →");
+    private readonly Button launcherModExpand = LauncherModButton("Expand details");
+    private readonly Button launcherModIssues = LauncherModButton("View issues");
+    private readonly Button launcherModComplete = LauncherModButton("Download missing components");
+    private readonly Button launcherModRefresh = LauncherModButton("Refresh");
+    private string? launcherModInitializationError;
+    private (LauncherModRow Row, ModLibraryInstallation? Managed, bool Busy, bool TargetSupported, bool OfficialSupported, string? Language)? launcherModRenderedCard;
+    private string launcherModIssueText = "";
+    private string launcherModDetailText = "";
+    private RemoteModEntry[] launcherModMissing = [];
+    private readonly TextBlock launcherModActionStatus = new() { Foreground = LauncherMuted, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Dictionary<string, ListBoxItem> launcherModItems = new(StringComparer.Ordinal);
     private LauncherModRow[] launcherModVisible = [];
     private string? launcherModSelectedKey;
+    private readonly string?[] launcherModTabSelections = new string?[3];
     private bool launcherModChangingRows;
     private const string LauncherMemoriaGroupKey = "group:Memoria";
     private bool launcherMemoriaExpanded;
@@ -32,6 +50,7 @@ internal sealed partial class LauncherWindow
 
     internal sealed record LauncherModRow(string Key, string Name, string Description, string Category, ModPackageView? Installed, RemoteModEntry? Entry)
     {
+        public ModLibraryJob? Job { get; init; }
         public bool IsMemoria => Entry?.Official is not null || Installed is not null && ModRuntime.SettingsGroupId(Installed.Package) == ModRuntime.MemoriaPackageId;
     }
 
@@ -39,9 +58,11 @@ internal sealed partial class LauncherWindow
     {
         public override string ToString() => $"{Name} ({Count})";
     }
-    private readonly TextBox launcherModSearch = new() { Watermark = "Search mods...", MinWidth = 220 };
-    private readonly ComboBox launcherModCategory = new() { MinWidth = 160, ItemsSource = new[] { "All categories" }, SelectedIndex = 0 };
-    private readonly TextBlock launcherModSummary = new() { Foreground = LauncherMuted, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.WordEllipsis };
+    private static readonly string[] LauncherModFilters = ["All mods", "Check required", "Installed", "Downloads", "Needs attention", "Official mods"];
+    private readonly TextBox launcherModSearch = new() { Watermark = "Search mods…", MinWidth = 100, MinHeight = 32 };
+    private readonly ComboBox launcherModCategory = new() { ItemsSource = new[] { new LauncherModCategory("All categories", 0) }, SelectedIndex = 0, MinWidth = 128, MaxWidth = 170, MinHeight = 32 };
+    private readonly ComboBox launcherModFilter = new() { ItemsSource = LauncherModFilters, SelectedIndex = 0, MinWidth = 120, MinHeight = 32 };
+    private readonly TextBlock launcherModSummary = new() { Foreground = LauncherMuted, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 };
     private readonly TabControl launcherModTabs = new();
     private readonly DispatcherTimer launcherModTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private ModRuntime? launcherMods;
@@ -53,64 +74,229 @@ internal sealed partial class LauncherWindow
     private bool launcherModChangingFilter;
     private Task launcherModStopping = Task.CompletedTask;
 
+    private static Button LauncherModButton(string label)
+    {
+        return new Button { Content = label, MinHeight = 30, Padding = new Thickness(9, 4) };
+    }
+
     private Control CreateModsPage()
     {
-        Grid page = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 10 };
+        Grid page = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8 };
         StackPanel header = new() { Spacing = 6 };
-        Grid heading = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        heading.Children.Add(new TextBlock { Text = "Mods", FontSize = 25, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        Button refresh = new() { Content = "Refresh mods", HorizontalAlignment = HorizontalAlignment.Right, MinHeight = 0, Padding = new Thickness(10, 5) };
-        refresh.Click += async (_, _) => await CheckOfficialModsAsync(force: true);
-        Grid.SetColumn(refresh, 1);
-        heading.Children.Add(refresh);
-        header.Children.Add(heading);
+        Grid navigation = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         launcherModTabs.FontSize = 14;
         launcherModTabs.MinHeight = 0;
         launcherModTabs.Height = 34;
-        launcherModTabs.ItemsSource = new[] { new TabItem { Header = "Installed", FontSize = 14, MinHeight = 0, Height = 34, Padding = new Thickness(8, 4) }, new TabItem { Header = "Catalog", FontSize = 14, MinHeight = 0, Height = 34, Padding = new Thickness(8, 4) } };
-        launcherModTabs.SelectionChanged += (_, _) => RenderLauncherMods();
+        launcherModTabs.ItemsSource = new[] { "Installed", "Catalog", "Downloads" }.Select(title => new TabItem { Header = title, FontSize = 14, MinHeight = 0, Height = 34, Padding = new Thickness(8, 4) }).ToArray();
         launcherModTabs.SelectedIndex = 0;
-        Grid filters = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-        filters.Children.Add(launcherModSearch);
-        Grid.SetColumn(launcherModCategory, 1);
-        filters.Children.Add(launcherModCategory);
-        launcherModSearch.TextChanged += (_, _) => RenderLauncherMods();
-        launcherModCategory.SelectionChanged += (_, _) =>
+        launcherModTabs.SelectionChanged += (_, _) =>
         {
-            if (!launcherModChangingFilter)
+            if (!launcherModChangingFilter && launcherModTabs.SelectedIndex >= 0)
             {
+                launcherModSelectedKey = launcherModTabSelections[launcherModTabs.SelectedIndex];
+                launcherModDetailScroll.Offset = default;
                 RenderLauncherMods();
             }
         };
-        header.Children.Add(launcherModTabs);
+        navigation.Children.Add(launcherModTabs);
+        launcherModRefresh.Click += async (_, _) => await CheckOfficialModsAsync(force: true);
+        Grid.SetColumn(launcherModRefresh, 1);
+        navigation.Children.Add(launcherModRefresh);
+        header.Children.Add(navigation);
+
+        Grid filters = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
+        filters.Children.Add(launcherModSearch);
+        Grid.SetColumn(launcherModCategory, 1);
+        filters.Children.Add(launcherModCategory);
+        Grid.SetColumn(launcherModFilter, 2);
+        filters.Children.Add(launcherModFilter);
+        Grid.SetColumn(launcherModClearFilters, 3);
+        filters.Children.Add(launcherModClearFilters);
+        launcherModSearch.TextChanged += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(launcherModSearch.Text))
+            {
+                launcherMemoriaExpanded = true;
+            }
+            LauncherModFilterChanged();
+        };
+        launcherModCategory.SelectionChanged += (_, _) => LauncherModFilterChanged();
+        launcherModFilter.SelectionChanged += (_, _) => LauncherModFilterChanged();
+        launcherModClearFilters.Click += (_, _) => ClearLauncherModFilters();
+        AutomationProperties.SetName(launcherModSearch, "Search mods");
+        AutomationProperties.SetName(launcherModCategory, "Mod category");
+        AutomationProperties.SetName(launcherModFilter, "Mod status");
         header.Children.Add(filters);
-        header.Children.Add(launcherModCompletion);
-        header.Children.Add(launcherModSummary);
+
+        Grid status = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
+        status.Children.Add(launcherModSummary);
+        Grid.SetColumn(launcherModComplete, 1);
+        status.Children.Add(launcherModComplete);
+        Grid.SetColumn(launcherModIssues, 2);
+        status.Children.Add(launcherModIssues);
+        launcherModComplete.Click += (_, _) =>
+        {
+            if (launcherModLibrary is { } library)
+            {
+                QueueMissingLauncherMods(launcherModMissing, library.View);
+            }
+        };
+        launcherModIssues.Click += async (_, _) => await ShowLauncherModDetailsAsync("Mod library issues", launcherModIssueText);
+        header.Children.Add(status);
         header.Children.Add(launcherModActionStatus);
         page.Children.Add(header);
-        Grid collection = new() { ColumnDefinitions = new ColumnDefinitions("2*,10,3*") };
+
+        Grid collection = new() { ColumnDefinitions = new ColumnDefinitions("2*,10,3*"), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 6 };
         collection.ColumnDefinitions[0].MinWidth = 180;
         collection.ColumnDefinitions[2].MinWidth = 220;
+        ScrollViewer.SetHorizontalScrollBarVisibility(launcherModRows, ScrollBarVisibility.Disabled);
         collection.Children.Add(launcherModRows);
+        Border divider = new() { Width = 1, Background = LauncherBorder, HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false };
+        Grid.SetColumn(divider, 1);
+        Grid.SetRowSpan(divider, 2);
+        collection.Children.Add(divider);
         GridSplitter splitter = new() { ResizeDirection = GridResizeDirection.Columns, HorizontalAlignment = HorizontalAlignment.Stretch, Background = Brushes.Transparent };
         Grid.SetColumn(splitter, 1);
+        Grid.SetRowSpan(splitter, 2);
+        AutomationProperties.SetName(splitter, "Resize mod list and details");
+        ToolTip.SetTip(splitter, "Resize list and details");
         collection.Children.Add(splitter);
+
         launcherModDetailScroll.Content = launcherModDetails;
         Grid.SetColumn(launcherModDetailScroll, 2);
         collection.Children.Add(launcherModDetailScroll);
+        StackPanel rowNavigation = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+        rowNavigation.Children.Add(launcherModPrevious);
+        rowNavigation.Children.Add(launcherModNext);
+        Grid.SetRow(rowNavigation, 1);
+        collection.Children.Add(rowNavigation);
+        Grid.SetColumn(launcherModExpand, 2);
+        Grid.SetRow(launcherModExpand, 1);
+        launcherModExpand.HorizontalAlignment = HorizontalAlignment.Left;
+        collection.Children.Add(launcherModExpand);
+        launcherModPrevious.Click += (_, _) => MoveLauncherModSelection(-1);
+        launcherModNext.Click += (_, _) => MoveLauncherModSelection(1);
+        launcherModExpand.Click += async (_, _) => await ShowLauncherModDetailsAsync("Mod details", launcherModDetailText);
         Grid.SetRow(collection, 1);
         page.Children.Add(collection);
+
         launcherModRows.SelectionChanged += (_, _) =>
         {
             if (!launcherModChangingRows && launcherModRows.SelectedItem is ListBoxItem { Tag: string key })
             {
                 launcherModSelectedKey = key;
+                if (launcherModTabs.SelectedIndex >= 0)
+                {
+                    launcherModTabSelections[launcherModTabs.SelectedIndex] = key;
+                }
                 launcherModDetailScroll.Offset = default;
                 RenderLauncherModDetails();
             }
         };
+        launcherModRows.AddHandler(KeyDownEvent, (_, input) =>
+        {
+            if (input.Key == Key.Enter && launcherModRows.SelectedIndex >= 0)
+            {
+                if (launcherModSelectedKey == LauncherMemoriaGroupKey)
+                {
+                    ToggleLauncherMemoriaGroup();
+                }
+                else
+                {
+                    launcherModExpand.Focus();
+                }
+                input.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel);
+        ControllerNavigation.SetListCommitAction(launcherModRows, () =>
+        {
+            if (launcherModSelectedKey == LauncherMemoriaGroupKey)
+            {
+                ToggleLauncherMemoriaGroup();
+            }
+            else if (launcherModExpand.IsEnabled)
+            {
+                launcherModExpand.Focus(NavigationMethod.Directional);
+            }
+        });
+        page.AddHandler(KeyDownEvent, (_, input) =>
+        {
+            if (input.Key == Key.F && input.KeyModifiers == KeyModifiers.Control)
+            {
+                launcherModSearch.Focus();
+                launcherModSearch.SelectAll();
+                input.Handled = true;
+            }
+            else if (input.Key == Key.Escape && launcherModSearch.IsKeyboardFocusWithin && !string.IsNullOrEmpty(launcherModSearch.Text))
+            {
+                launcherModSearch.Text = "";
+                input.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel);
         launcherModTimer.Tick += (_, _) => PollLauncherMods();
         return page;
+    }
+
+    private void LauncherModFilterChanged()
+    {
+        if (!launcherModChangingFilter)
+        {
+            RenderLauncherMods();
+        }
+    }
+
+    private void ClearLauncherModFilters()
+    {
+        launcherModChangingFilter = true;
+        launcherModSearch.Text = "";
+        launcherModCategory.SelectedIndex = 0;
+        launcherModFilter.SelectedIndex = 0;
+        launcherModChangingFilter = false;
+        launcherModSearch.Focus();
+        RenderLauncherMods();
+    }
+
+    private void MoveLauncherModSelection(int direction)
+    {
+        int index = launcherModRows.SelectedIndex + direction;
+        if (index >= 0 && index < launcherModRows.ItemCount)
+        {
+            launcherModRows.SelectedIndex = index;
+            launcherModRows.ScrollIntoView(index);
+        }
+    }
+
+    private void ToggleLauncherMemoriaGroup()
+    {
+        launcherMemoriaExpanded = !launcherMemoriaExpanded;
+        launcherModSelectedKey = LauncherMemoriaGroupKey;
+        launcherModDetailScroll.Offset = default;
+        RenderLauncherMods();
+    }
+
+    private async Task ShowLauncherModDetailsAsync(string title, string detail)
+    {
+        Window dialog = new() { Title = title, Width = 720, Height = 440, MinWidth = 360, MinHeight = 240, WindowStartupLocation = WindowStartupLocation.CenterOwner, RequestedThemeVariant = ActualThemeVariant };
+        Grid layout = new() { Margin = new Thickness(18), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
+        ScrollViewer scroll = new() { Content = new SelectableTextBlock { Text = detail, TextWrapping = TextWrapping.Wrap }, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Focusable = true };
+        layout.Children.Add(scroll);
+        StackPanel actions = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button maximize = LauncherModButton("Maximize");
+        maximize.Click += (_, _) =>
+        {
+            dialog.WindowState = dialog.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            maximize.Content = dialog.WindowState == WindowState.Maximized ? "Restore size" : "Maximize";
+        };
+        Button close = LauncherModButton("Back");
+        close.IsCancel = true;
+        close.Click += (_, _) => dialog.Close();
+        actions.Children.Add(maximize);
+        actions.Children.Add(close);
+        Grid.SetRow(actions, 1);
+        layout.Children.Add(actions);
+        dialog.Content = layout;
+        dialog.Opened += (_, _) => scroll.Focus();
+        await dialog.ShowDialog(this);
     }
 
     private void UpdateOfficialModOverview()
@@ -134,7 +320,6 @@ internal sealed partial class LauncherWindow
         {
             await StopLauncherModLibraryAsync();
             RenderLauncherMods();
-            launcherModSummary.Text = "Choose an installation with supported game language resources to manage mods.";
             return;
         }
         var edition = GameInstallationSelection.ResolveEdition(selected.Directory);
@@ -185,8 +370,8 @@ internal sealed partial class LauncherWindow
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or InvalidOperationException)
         {
-            launcherModSummary.Text = "Could not open the mod library. " + exception.Message;
-            launcherModSummary.Foreground = LauncherProblem;
+            launcherModInitializationError = exception.Message;
+            RenderLauncherMods();
         }
     }
 
@@ -226,6 +411,7 @@ internal sealed partial class LauncherWindow
         launcherModLibrary = null;
         launcherMods = null;
         launcherModIdentity = null;
+        launcherModInitializationError = null;
         launcherModActionStatus.Text = "";
         launcherModActionStatus.IsVisible = false;
         launcherModRevision = -1;
@@ -267,95 +453,155 @@ internal sealed partial class LauncherWindow
 
     private void RenderLauncherMods()
     {
-        launcherModCompletion.Children.Clear();
+        launcherModClearFilters.IsEnabled = !string.IsNullOrEmpty(launcherModSearch.Text) || launcherModCategory.SelectedIndex > 0 || launcherModFilter.SelectedIndex > 0;
         if (launcherMods is null || launcherModLibrary is null)
         {
             launcherModRows.ItemsSource = null;
             launcherModItems.Clear();
             launcherModVisible = [];
-            launcherModDetails.Children.Clear();
-            launcherModSummary.Text = runningGame is not null ? "Close the running game to manage mods here, or use Mods in the game menu." : "Choose an installation to open your mod collection.";
+            launcherModMissing = [];
+            launcherModComplete.IsVisible = false;
+            launcherModRefresh.IsEnabled = !busy && runningGame is null && installations.SelectedItem is not null;
+            SetLauncherModIssues(new[] { launcherModInitializationError }.OfType<string>());
+            launcherModSummary.Foreground = launcherModInitializationError is null ? LauncherMuted : LauncherProblem;
+            launcherModSummary.Text = launcherModInitializationError is not null ? "Could not open the mod library." : runningGame is not null ? "Use Mods in the game menu while the game is running." : EffectiveResourceLanguage is null && installations.SelectedItem is not null ? "Choose an installation with supported game language resources." : "Choose an installation to open your mod collection.";
+            RenderLauncherModDetails();
             return;
         }
         ModLibrarySnapshot snapshot = launcherModLibrary.View;
         string category = (launcherModCategory.SelectedItem as LauncherModCategory)?.Name ?? "All categories";
         string search = launcherModSearch.Text?.Trim() ?? "";
-        bool installedTab = launcherModTabs.SelectedIndex == 0;
+        bool downloads = launcherModTabs.SelectedIndex == 2;
+        launcherModRefresh.IsEnabled = !busy && !snapshot.Catalog.IsRefreshing;
         IReadOnlyList<ModPackageView> packages = LauncherInstalledModViews();
         string[] target = snapshot.TargetProfile.Split('/');
         RemoteModEntry[] entries = LauncherKnownModEntries(snapshot).Where(entry => entry.Official is null || OfficialModCatalog.TargetMatches(entry.Official.Target, target[0], target[1])).ToArray();
-        LauncherModRow[] rows = installedTab
-            ? packages.Where(package => !package.Package.IsSettingsGroup).Select(package =>
+        LauncherModRow[] rows = launcherModTabs.SelectedIndex switch
+        {
+            0 => packages.Where(package => !package.Package.IsSettingsGroup).Select(package =>
             {
                 RemoteModEntry? entry = entries.FirstOrDefault(entry => FindLauncherPackage(entry, [package]) is not null);
-                return new LauncherModRow("installed:" + package.Package.Id, package.Package.Name, entry?.Description ?? package.Package.Descriptor?.DescriptionForLanguage(SelectedResourceLanguage) ?? "", entry?.Category ?? package.Package.Format.ToString(), package, entry);
-            }).ToArray()
-            : entries.Select(entry => new LauncherModRow(entry.SourceId + ":" + entry.Id, entry.Name, entry.Description, entry.Category, FindLauncherPackage(entry, packages), entry)).ToArray();
-        LauncherModRow[] searched = rows.Where(row => MatchesLauncherModFilter(row.Name, row.Description, row.Category, search, "All categories")).ToArray();
-        LauncherModCategory[] categories = CreateLauncherModCategories(searched.Select(row => row.Category));
-        launcherModChangingFilter = true;
-        launcherModCategory.ItemsSource = categories;
-        launcherModCategory.SelectedItem = categories.FirstOrDefault(item => item.Name.Equals(category, StringComparison.OrdinalIgnoreCase)) ?? categories[0];
-        launcherModChangingFilter = false;
-        category = ((LauncherModCategory)launcherModCategory.SelectedItem!).Name;
-        LauncherModRow[] filtered = searched.Where(row => category == "All categories" || row.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToArray();
-        launcherMemoriaComponents = filtered.Where(row => row.IsMemoria).ToArray();
-        bool expanded = launcherMemoriaExpanded;
-        launcherModVisible = GroupLauncherModRows(filtered, expanded);
-        launcherModSummary.Foreground = snapshot.Error is null && snapshot.Catalog.Error is null ? LauncherMuted : LauncherProblem;
-        launcherModSummary.Text = snapshot.Error ?? snapshot.Catalog.Error ?? (snapshot.Catalog.IsRefreshing ? "Refreshing catalog..." : $"{filtered.Length} matching mods | {snapshot.Jobs.Count(job => job.CanPause || job.CanResume || job.CanInstall)} active downloads");
-        RemoteModEntry[] missing = entries.Where(entry => IsLauncherDownloadComponent(entry) && FindLauncherPackage(entry, packages) is null).ToArray();
-        if (missing.Length > 0)
+                return new LauncherModRow("installed:" + package.Package.Id, package.Package.Name, entry?.Description ?? package.Package.Descriptor?.DescriptionForLanguage(SelectedResourceLanguage) ?? "", entry?.Category ?? package.Package.Format.ToString(), package, entry) { Job = LauncherEntryJob(entry, snapshot) };
+            }).ToArray(),
+            2 => snapshot.Jobs.OrderBy(LauncherJobGroup).ThenBy(job => job.Entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(job => job.Id).Select(job =>
+                new LauncherModRow("job:" + job.Id, job.Entry.Name, job.Entry.Description, job.Entry.Category, FindLauncherPackage(job.Entry, packages), job.Entry) { Job = job }).ToArray(),
+            _ => entries.OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ThenBy(entry => entry.Id).Select(entry =>
+                new LauncherModRow(entry.SourceId + ":" + entry.Id, entry.Name, entry.Description, entry.Category, FindLauncherPackage(entry, packages), entry) { Job = LauncherEntryJob(entry, snapshot) }).ToArray()
+        };
+        LauncherModCategory[] categories = CreateLauncherModCategories(rows.Select(row => row.Category));
+        if (!categories.SequenceEqual(launcherModCategory.Items.Cast<LauncherModCategory>()))
         {
-            int eligible = missing.Count(entry => LauncherModDownloadAllowed(entry, snapshot));
-            Button complete = new() { Content = $"Download missing components ({eligible})", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 0, Padding = new Thickness(10, 5), IsEnabled = !busy && eligible > 0 };
-            complete.Click += (_, _) => QueueMissingLauncherMods(missing, snapshot);
-            launcherModCompletion.Children.Add(complete);
-            string[] reasons = missing.Select(entry => LauncherModDownloadBlocker(entry, snapshot)).OfType<string>().Distinct().ToArray();
-            if (reasons.Length > 0)
-            {
-                TextBlock unavailable = LauncherDescription($"{missing.Length - eligible} unavailable: " + string.Join(" ", reasons));
-                unavailable.MaxLines = 1;
-                unavailable.TextTrimming = TextTrimming.WordEllipsis;
-                ToolTip.SetTip(unavailable, string.Join("\n", reasons));
-                launcherModCompletion.Children.Add(unavailable);
-            }
+            launcherModChangingFilter = true;
+            launcherModCategory.ItemsSource = categories;
+            launcherModCategory.SelectedItem = categories.FirstOrDefault(item => item.Name.Equals(category, StringComparison.OrdinalIgnoreCase)) ?? categories[0];
+            launcherModChangingFilter = false;
         }
+        category = ((LauncherModCategory)launcherModCategory.SelectedItem!).Name;
+        LauncherModRow[] filtered = rows.Where(row => MatchesLauncherModFilter(row.Name, row.Description + " " + row.Entry?.Author + " " + row.Category + (row.IsMemoria ? " Memoria" : ""), row.Category, search, category) && MatchesLauncherModStatus(row, snapshot, launcherModFilter.SelectedIndex)).ToArray();
+        launcherMemoriaComponents = downloads ? [] : filtered.Where(row => row.IsMemoria).ToArray();
+        bool expanded = launcherMemoriaExpanded;
+        launcherModVisible = downloads ? filtered : GroupLauncherModRows(filtered, expanded);
+
+        int activeDownloads = snapshot.Jobs.Count(job => job.Phase is not ("Installed" or "Cancelled"));
+        launcherModSummary.Foreground = snapshot.Error is null && snapshot.Catalog.Error is null ? LauncherMuted : LauncherProblem;
+        launcherModSummary.Text = snapshot.Catalog.IsRefreshing ? "Refreshing catalog…" : downloads ? $"{filtered.Length} matching downloads" : $"{filtered.Length} matching mods · {activeDownloads} pending downloads";
+        launcherModMissing = entries.Where(entry => IsLauncherDownloadComponent(entry) && FindLauncherPackage(entry, packages) is null).ToArray();
+        int eligible = launcherModMissing.Count(entry => LauncherModDownloadAllowed(entry, snapshot));
+        launcherModComplete.IsVisible = !downloads && eligible > 0;
+        launcherModComplete.IsEnabled = !busy && eligible > 0;
+        launcherModComplete.Content = $"Download missing components ({eligible})";
+        IEnumerable<string> unavailable = launcherModMissing.Select(entry => (entry.Name, Reason: LauncherModDownloadBlocker(entry, snapshot))).Where(item => item.Reason is not null).Select(item => item.Name + "\n" + item.Reason);
+        SetLauncherModIssues(new[] { snapshot.Error, snapshot.Catalog.Error }.OfType<string>().Concat(unavailable));
+
         string[] keys = launcherModVisible.Select(row => row.Key).ToArray();
         bool changed = !launcherModItems.Keys.SequenceEqual(keys);
         launcherModChangingRows = true;
         if (changed)
         {
+            ListBoxItem[] items = launcherModVisible.Select(row => launcherModItems.GetValueOrDefault(row.Key) ?? new ListBoxItem { Tag = row.Key, HorizontalContentAlignment = HorizontalAlignment.Stretch }).ToArray();
             launcherModItems.Clear();
-            foreach (LauncherModRow row in launcherModVisible)
+            foreach (ListBoxItem item in items)
             {
-                launcherModItems.Add(row.Key, new ListBoxItem { Tag = row.Key, Padding = new Thickness(10, 8), HorizontalContentAlignment = HorizontalAlignment.Stretch });
+                launcherModItems.Add((string)item.Tag!, item);
             }
-            launcherModRows.ItemsSource = launcherModItems.Values.ToArray();
+            launcherModRows.ItemsSource = items;
         }
         foreach (LauncherModRow row in launcherModVisible)
         {
+            ListBoxItem item = launcherModItems[row.Key];
             if (row.Key == LauncherMemoriaGroupKey)
             {
-                launcherModItems[row.Key].Content = CreateLauncherMemoriaHeader(expanded);
+                item.Padding = new Thickness(6, 3);
+                UpdateLauncherMemoriaHeader(item, expanded);
                 continue;
             }
-            launcherModItems[row.Key].Padding = new Thickness(row.IsMemoria ? 34 : 10, 8, 10, 8);
-            ModLibraryJob? job = row.Entry is null ? null : snapshot.Jobs.FirstOrDefault(item => item.Entry.Id == row.Entry.Id && item.Entry.SourceId == row.Entry.SourceId);
-            StackPanel label = new() { Spacing = 3 };
-            label.Children.Add(new TextBlock { Text = row.Name, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold });
-            label.Children.Add(new TextBlock { Text = job is null ? row.Installed?.StatusText ?? row.Category : LauncherModJobStatus(job), Foreground = job?.Error is null ? LauncherMuted : LauncherProblem, TextWrapping = TextWrapping.Wrap, FontSize = 12 });
-            launcherModItems[row.Key].Content = label;
+            item.Padding = new Thickness(row.IsMemoria && !downloads ? 26 : 8, 4, 8, 4);
+            if (item.Content is not StackPanel label)
+            {
+                label = new StackPanel { Spacing = 2 };
+                label.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold });
+                label.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12 });
+                item.Content = label;
+            }
+            ((TextBlock)label.Children[0]).Text = row.Name;
+            TextBlock status = (TextBlock)label.Children[1];
+            ModLibraryInstallation? managed = LauncherManagedMod(row.Entry, snapshot);
+            string state = LauncherModStatusText(row.Installed, row.Entry, row.Job, managed, snapshot);
+            status.Text = string.IsNullOrWhiteSpace(row.Category) ? state : row.Category + " · " + state;
+            status.Foreground = row.Job?.Error is null && row.Installed?.NeedsAttention != true && managed?.Error is null && row.Entry?.CompatibilityError is null ? LauncherMuted : LauncherProblem;
         }
         string? previousSelection = launcherModSelectedKey;
         launcherModSelectedKey = SelectLauncherModKey(keys, launcherModSelectedKey);
+        if (launcherModTabs.SelectedIndex >= 0)
+        {
+            launcherModTabSelections[launcherModTabs.SelectedIndex] = launcherModSelectedKey;
+        }
         if (previousSelection != launcherModSelectedKey)
         {
             launcherModDetailScroll.Offset = default;
         }
         launcherModRows.SelectedItem = launcherModSelectedKey is null ? null : launcherModItems[launcherModSelectedKey];
+        if ((changed || previousSelection != launcherModSelectedKey) && launcherModRows.SelectedIndex >= 0)
+        {
+            launcherModRows.ScrollIntoView(launcherModRows.SelectedIndex);
+        }
         launcherModChangingRows = false;
         RenderLauncherModDetails();
+    }
+
+    private void SetLauncherModIssues(IEnumerable<string> issues)
+    {
+        launcherModIssueText = string.Join("\n\n", issues.Where(issue => !string.IsNullOrWhiteSpace(issue)).Distinct());
+        launcherModIssues.IsVisible = launcherModIssueText.Length > 0;
+    }
+
+    private static int LauncherJobGroup(ModLibraryJob job)
+    {
+        return job.Phase is "Installed" or "Cancelled" ? 3 : job.Error is not null || job.CanInstall || job.CanResume || job.CanRetry ? 0 : job.Phase == "Queued" ? 2 : 1;
+    }
+
+    private static ModLibraryJob? LauncherEntryJob(RemoteModEntry? entry, ModLibrarySnapshot snapshot)
+    {
+        return entry is null ? null : snapshot.Jobs.LastOrDefault(job => job.Entry.Id == entry.Id && job.Entry.SourceId == entry.SourceId && (job.Entry.Version == entry.Version || entry.CompareVersion(job.Entry.Version) == 0) && job.Phase is not ("Installed" or "Cancelled"));
+    }
+
+    private static ModLibraryInstallation? LauncherManagedMod(RemoteModEntry? entry, ModLibrarySnapshot snapshot)
+    {
+        return entry is null ? null : snapshot.Installations.FirstOrDefault(item => item.Id == entry.Id && item.SourceId == entry.SourceId);
+    }
+
+    private static bool MatchesLauncherModStatus(LauncherModRow row, ModLibrarySnapshot snapshot, int filter)
+    {
+        ModLibraryInstallation? managed = LauncherManagedMod(row.Entry, snapshot);
+        return filter switch
+        {
+            1 => row.Entry is not null && row.Job is null && row.Installed is null && managed is null && LauncherModDownloadAllowed(row.Entry, snapshot),
+            2 => row.Installed is not null || managed is not null,
+            3 => row.Job is not null,
+            4 => row.Job?.Error is not null || row.Installed?.NeedsAttention == true || managed?.Error is not null || row.Entry?.CompatibilityError is not null,
+            5 => row.IsMemoria,
+            _ => true
+        };
     }
 
     internal static LauncherModRow[] GroupLauncherModRows(IReadOnlyList<LauncherModRow> rows, bool expanded)
@@ -369,35 +615,39 @@ internal sealed partial class LauncherWindow
         return new[] { group }.Concat(expanded ? components : []).Concat(rows.Where(row => !row.IsMemoria)).ToArray();
     }
 
-    private Control CreateLauncherMemoriaHeader(bool expanded)
+    private void UpdateLauncherMemoriaHeader(ListBoxItem item, bool expanded)
     {
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 10 };
-        Button toggle = new() { Content = expanded ? "\u25BE" : "\u25B8", Background = Brushes.Transparent, Padding = new Thickness(4), MinHeight = 0, VerticalAlignment = VerticalAlignment.Center };
-        toggle.Click += (_, _) =>
+        if (item.Content is not Grid header)
         {
-            launcherMemoriaExpanded = !expanded;
-            launcherModSelectedKey = LauncherMemoriaGroupKey;
-            RenderLauncherMods();
-        };
-        header.Children.Add(toggle);
-        if (launcherModCrest is null)
-        {
-            using Stream? stream = typeof(LauncherWindow).Assembly.GetManifestResourceStream("Memoria.Launcher.Crest.png");
-            if (stream is not null)
+            header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8 };
+            Button toggle = LauncherModButton("");
+            toggle.Background = Brushes.Transparent;
+            toggle.VerticalAlignment = VerticalAlignment.Center;
+            toggle.Click += (_, _) => ToggleLauncherMemoriaGroup();
+            header.Children.Add(toggle);
+            if (launcherModCrest is null)
             {
-                launcherModCrest = new Bitmap(stream);
-                launcherArtwork.Add(launcherModCrest);
+                using Stream? stream = typeof(LauncherWindow).Assembly.GetManifestResourceStream("Memoria.Launcher.Crest.png");
+                if (stream is not null)
+                {
+                    launcherModCrest = new Bitmap(stream);
+                    launcherArtwork.Add(launcherModCrest);
+                }
             }
+            Image crest = new() { Source = launcherModCrest, Width = 30, Height = 32, Stretch = Stretch.Uniform };
+            Grid.SetColumn(crest, 1);
+            header.Children.Add(crest);
+            StackPanel title = new() { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+            title.Children.Add(new TextBlock { Text = "Memoria", FontWeight = FontWeight.SemiBold });
+            title.Children.Add(new TextBlock { Foreground = LauncherMuted, FontSize = 12 });
+            Grid.SetColumn(title, 2);
+            header.Children.Add(title);
+            item.Content = header;
         }
-        Image crest = new() { Source = launcherModCrest, Width = 42, Height = 48, Stretch = Stretch.Uniform };
-        Grid.SetColumn(crest, 1);
-        header.Children.Add(crest);
-        StackPanel title = new() { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
-        title.Children.Add(new TextBlock { Text = "Memoria", FontWeight = FontWeight.SemiBold });
-        title.Children.Add(new TextBlock { Text = $"{launcherMemoriaComponents.Length} components", Foreground = LauncherMuted, FontSize = 12 });
-        Grid.SetColumn(title, 2);
-        header.Children.Add(title);
-        return header;
+        Button button = (Button)header.Children[0];
+        button.Content = expanded ? "\u25BE" : "\u25B8";
+        AutomationProperties.SetName(button, expanded ? "Collapse Memoria components" : "Expand Memoria components");
+        ((TextBlock)((StackPanel)header.Children[2]).Children[1]).Text = $"{launcherMemoriaComponents.Length} components";
     }
 
     internal static IEnumerable<RemoteModEntry> LauncherKnownModEntries(ModLibrarySnapshot snapshot)
@@ -422,24 +672,71 @@ internal sealed partial class LauncherWindow
         return job.Phase + (job.TotalBytes is > 0 ? $" | {job.ReceivedBytes * 100 / job.TotalBytes}%" : job.ReceivedBytes > 0 ? $" | {job.ReceivedBytes / (1024 * 1024)} MB" : "");
     }
 
+    private static string LauncherModStatusText(ModPackageView? installed, RemoteModEntry? entry, ModLibraryJob? job, ModLibraryInstallation? managed, ModLibrarySnapshot snapshot)
+    {
+        if (managed is { PendingRemoval: true })
+        {
+            return "Waiting to uninstall";
+        }
+        if (managed is { Pending: true })
+        {
+            return "Waiting to apply";
+        }
+        if (job is not null)
+        {
+            return LauncherModJobStatus(job);
+        }
+        if (managed is { Available: false })
+        {
+            return "Repair required";
+        }
+        if (entry is not null && managed is not null && entry.CompareVersion(managed.Version) is > 0)
+        {
+            return "Update available";
+        }
+        if (installed is not null)
+        {
+            return installed.StatusText;
+        }
+        return entry is not null && LauncherModDownloadAllowed(entry, snapshot) ? "Check required" : "Unavailable";
+    }
+
     private void RenderLauncherModDetails()
     {
+        launcherModPrevious.IsEnabled = launcherModRows.SelectedIndex > 0;
+        launcherModNext.IsEnabled = launcherModRows.SelectedIndex >= 0 && launcherModRows.SelectedIndex + 1 < launcherModRows.ItemCount;
+        LauncherModRow? selected = launcherModVisible.FirstOrDefault(row => row.Key == launcherModSelectedKey);
+        ModLibrarySnapshot? snapshot = launcherModLibrary?.View;
+        var previousCard = launcherModRenderedCard;
+        launcherModRenderedCard = selected is not null && selected.Key != LauncherMemoriaGroupKey && snapshot is not null
+            ? (selected, LauncherManagedMod(selected.Entry, snapshot), busy, snapshot.TargetSupported, snapshot.OfficialSupported, SelectedResourceLanguage)
+            : null;
+        if (launcherModRenderedCard.HasValue && launcherModRenderedCard.Equals(previousCard))
+        {
+            return;
+        }
+        ContentControl? focused = FocusManager?.GetFocusedElement() as ContentControl;
+        bool restoreFocus = focused is not null && selected?.Key == previousCard?.Row.Key && focused.GetLogicalAncestors().Contains(launcherModDetails);
         Vector offset = launcherModDetailScroll.Offset;
         launcherModDetails.Children.Clear();
-        LauncherModRow? selected = launcherModVisible.FirstOrDefault(row => row.Key == launcherModSelectedKey);
-        if (selected is not null && launcherModLibrary is not null)
+        launcherModDetailText = "";
+        if (selected is not null && snapshot is not null)
         {
             if (selected.Key == LauncherMemoriaGroupKey)
             {
-                launcherModDetails.Children.Add(new TextBlock { Text = "Memoria", FontSize = 22, FontWeight = FontWeight.SemiBold });
-                launcherModDetails.Children.Add(LauncherDescription("Expand the Memoria package to manage individual components."));
+                launcherModDetails.Children.Add(new TextBlock { Text = "Memoria", FontSize = 20, FontWeight = FontWeight.SemiBold });
+                launcherModDetailText = "Memoria\n\n" + string.Join("\n", launcherMemoriaComponents.Select(component =>
+                    component.Name + " · " + (component.Job is { } job ? LauncherModJobStatus(job) : component.Installed?.StatusText ?? component.Category)));
                 foreach (LauncherModRow component in launcherMemoriaComponents)
                 {
-                    Button open = new() { Content = component.Name, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left };
+                    Button open = LauncherModButton(component.Name);
+                    open.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    open.HorizontalContentAlignment = HorizontalAlignment.Left;
                     open.Click += (_, _) =>
                     {
                         launcherMemoriaExpanded = true;
                         launcherModSelectedKey = component.Key;
+                        launcherModDetailScroll.Offset = default;
                         RenderLauncherMods();
                     };
                     launcherModDetails.Children.Add(open);
@@ -447,14 +744,20 @@ internal sealed partial class LauncherWindow
             }
             else
             {
-                launcherModDetails.Children.Add(CreateLauncherModCard(selected.Installed, selected.Entry, launcherModLibrary.View));
+                launcherModDetails.Children.Add(CreateLauncherModCard(selected.Installed, selected.Entry, selected.Job, snapshot, out launcherModDetailText));
             }
         }
-        else
+        else if (launcherModLibrary is not null)
         {
-            launcherModDetails.Children.Add(LauncherDescription("No mods match your filters."));
+            launcherModDetails.Children.Add(LauncherDescription(launcherModTabs.SelectedIndex == 2 ? "No downloads match your filters." : "No mods match your filters."));
         }
+        launcherModExpand.IsEnabled = launcherModDetailText.Length > 0;
         launcherModDetailScroll.Offset = offset;
+        if (restoreFocus)
+        {
+            var replacement = launcherModDetails.GetLogicalDescendants().OfType<ContentControl>().FirstOrDefault(control => control.GetType() == focused!.GetType() && Equals(control.Content, focused.Content) && control.IsEnabled);
+            (replacement ?? launcherModExpand).Focus();
+        }
     }
 
     private void QueueMissingLauncherMods(RemoteModEntry[] missing, ModLibrarySnapshot snapshot)
@@ -471,14 +774,15 @@ internal sealed partial class LauncherWindow
             : $"Requested {allowed.Length} downloads." + (blocked > 0 ? $" Unavailable: {blocked}." : "");
         if (allowed.Length > 0)
         {
-            launcherModSearch.Text = "";
             launcherModChangingFilter = true;
+            launcherModSearch.Text = "";
             launcherModCategory.SelectedIndex = 0;
+            launcherModFilter.SelectedIndex = 0;
+            launcherModTabs.SelectedIndex = 1;
             launcherModChangingFilter = false;
             launcherMemoriaExpanded = allowed[0].Official is not null || launcherMemoriaExpanded;
             launcherModSelectedKey = allowed[0].SourceId + ":" + allowed[0].Id;
         }
-        launcherModTabs.SelectedIndex = 1;
         RenderLauncherMods();
     }
 
@@ -529,18 +833,13 @@ internal sealed partial class LauncherWindow
         return LauncherModDownloadBlocker(entry, snapshot) is null;
     }
 
-    private Control CreateLauncherModCard(ModPackageView? installed, RemoteModEntry? entry, ModLibrarySnapshot snapshot)
+    private Control CreateLauncherModCard(ModPackageView? installed, RemoteModEntry? entry, ModLibraryJob? job, ModLibrarySnapshot snapshot, out string expandedDetails)
     {
         StackPanel body = new() { Spacing = 8 };
         string description = entry?.Description ?? installed?.Package.Descriptor?.DescriptionForLanguage(SelectedResourceLanguage) ?? $"{installed?.Package.Format} mod";
-        TextBlock summary = LauncherDescription(description);
-        ModLibraryInstallation? managed = entry is null ? null : snapshot.Installations.FirstOrDefault(item => item.Id == entry.Id && item.SourceId == entry.SourceId);
-        ModLibraryJob? job = entry is null ? null : snapshot.Jobs.FirstOrDefault(item => item.Entry.Id == entry.Id && item.Entry.SourceId == entry.SourceId);
-        string state = managed is { PendingRemoval: true } ? "Waiting to uninstall" : managed is { Pending: true } ? "Waiting to apply" : installed?.StatusText ?? "Not installed";
-        if (job is not null && managed is not { Pending: true } && managed is not { PendingRemoval: true })
-        {
-            state = LauncherModJobStatus(job);
-        }
+        string title = entry?.Name ?? installed!.Package.Name;
+        ModLibraryInstallation? managed = LauncherManagedMod(entry, snapshot);
+        string state = LauncherModStatusText(installed, entry, job, managed, snapshot);
         TextBlock badge = LauncherDescription(state);
         badge.Foreground = installed?.Package.RequestedEnabled == true && installed.NeedsAttention == false && job is null ? LauncherSuccess : LauncherMuted;
         body.Children.Add(badge);
@@ -548,13 +847,13 @@ internal sealed partial class LauncherWindow
         {
             body.Children.Add(new ProgressBar { Minimum = 0, Maximum = 100, Value = job.TotalBytes is > 0 ? job.ReceivedBytes * 100d / job.TotalBytes.Value : 0, IsIndeterminate = job.TotalBytes is null or <= 0, Height = 6 });
         }
-        string? problem = job?.Error ?? managed?.Error ?? installed?.Problem ?? (entry is null || installed is not null ? null : LauncherModDownloadBlocker(entry, snapshot));
-        if (!string.IsNullOrEmpty(problem))
+        List<string> details = [title];
+        if (!string.IsNullOrWhiteSpace(entry?.Author))
         {
-            TextBlock error = LauncherDescription(problem);
-            error.Foreground = entry?.Official is { Delivery: "engine" } && job?.Error is null && installed?.Problem is null ? LauncherMuted : LauncherProblem;
-            body.Children.Add(error);
+            details.Add(entry.Author);
         }
+        details.Add(state);
+        string? blocker = entry is null || installed is not null ? null : LauncherModDownloadBlocker(entry, snapshot);
         WrapPanel actions = new() { Orientation = Orientation.Horizontal };
         if (installed is not null)
         {
@@ -577,7 +876,9 @@ internal sealed partial class LauncherWindow
         }
         void AddAction(string label, Action action)
         {
-            Button button = new() { Content = label, IsEnabled = !busy, Margin = new Thickness(0, 0, 8, 0) };
+            Button button = LauncherModButton(label);
+            button.IsEnabled = !busy;
+            button.Margin = new Thickness(0, 0, 6, 4);
             button.Click += (_, _) =>
             {
                 button.IsEnabled = false;
@@ -587,9 +888,13 @@ internal sealed partial class LauncherWindow
             };
             actions.Children.Add(button);
         }
-        if (entry is not null && managed is not { Pending: true } && (installed is null || managed is not null && entry.CompareVersion(managed.Version) is > 0) && LauncherModDownloadAllowed(entry, snapshot) && job is not { CanPause: true } and not { CanResume: true } and not { CanInstall: true })
+        if (entry is not null && job is null && managed is not { Pending: true } and not { PendingRemoval: true } && LauncherModDownloadAllowed(entry, snapshot))
         {
-            AddAction(installed is null ? "Download" : "Update", () => launcherModLibrary?.Queue(entry));
+            string? label = managed is { Available: false } ? "Download & check repair" : installed is null ? "Download & check" : managed is not null && entry.CompareVersion(managed.Version) is > 0 ? "Download update & check" : null;
+            if (label is not null)
+            {
+                AddAction(label, () => launcherModLibrary?.Queue(entry));
+            }
         }
         if (entry is not null && managed is { CanUninstall: true })
         {
@@ -626,25 +931,44 @@ internal sealed partial class LauncherWindow
                 AddAction("Cancel", () => launcherModLibrary?.Cancel(job.Id));
             }
         }
-        body.Children.Add(actions);
-        if (!string.IsNullOrWhiteSpace(job?.Details))
+        if (CreateLauncherModPreview(installed, entry) is { } preview)
         {
-            body.Children.Add(LauncherDescription(job.Details));
+            actions.Children.Add(preview);
         }
-        body.Children.Add(summary);
+        if (actions.Children.Count > 0)
+        {
+            body.Children.Add(actions);
+        }
+        foreach (string problem in new[] { job?.Error, managed?.Error, installed?.Problem, blocker }.OfType<string>().Where(problem => !string.IsNullOrWhiteSpace(problem)).Distinct())
+        {
+            TextBlock error = LauncherDescription(problem);
+            error.Foreground = problem == blocker && entry?.Official is { Delivery: "engine" } ? LauncherMuted : LauncherProblem;
+            body.Children.Add(error);
+            details.Add(problem);
+        }
+        AddDetail(null, job?.Details);
+        AddDetail(null, description);
         if (entry is not null)
         {
-            body.Children.Add(LauncherDescription($"Version {entry.Version} | {entry.Category}\nEdition: {entry.Edition} | Language: {entry.Language} | Size: {entry.PublishedSize}"));
-            if (!string.IsNullOrWhiteSpace(entry.ReleaseNotes))
-            {
-                body.Children.Add(LauncherDescription(entry.ReleaseNotes));
-            }
-            if (!string.IsNullOrWhiteSpace(entry.Requirements))
-            {
-                body.Children.Add(LauncherDescription(entry.Requirements));
-            }
+            AddDetail(null, $"Version {entry.Version} · {entry.Category}\nEdition: {entry.Edition} · Language: {entry.Language}\nSource: {entry.SourceId}");
+            AddDetail("Published size", entry.PublishedSize);
+            AddDetail("Requirements", entry.Requirements);
+            AddDetail("Release notes", entry.ReleaseNotes);
+            AddDetail("Unsupported catalog metadata", entry.UnsupportedMetadata);
         }
-        return LauncherCard(entry?.Name ?? installed!.Package.Name, entry is null ? null : entry.Author, body);
+        expandedDetails = string.Join("\n\n", details);
+        return LauncherCard(title, string.IsNullOrWhiteSpace(entry?.Author) ? null : entry.Author, body);
+
+        void AddDetail(string? heading, string? content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return;
+            }
+            string text = heading is null ? content : heading + "\n" + content;
+            body.Children.Add(LauncherDescription(text));
+            details.Add(text);
+        }
     }
 
     private static void OpenLauncherModDownloadPage(Uri uri)

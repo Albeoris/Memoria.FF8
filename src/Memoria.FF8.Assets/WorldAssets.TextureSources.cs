@@ -32,7 +32,7 @@ public sealed partial class WorldAssets
         return handle?.Value.Image ?? original;
     }
 
-    private static TextureSourceRegion SectionTextureRegion(TimImage tim, int palette)
+    internal static TextureSourceRegion SectionTextureRegion(TimImage tim, int palette)
     {
         int bits = tim.PixelMode == TimPixelMode.Indexed4 ? 4 : tim.PixelMode == TimPixelMode.Indexed8 ? 8 : 16;
         if (tim.Clut is not { } clut)

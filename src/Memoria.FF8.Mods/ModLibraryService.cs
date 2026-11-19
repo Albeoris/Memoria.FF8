@@ -78,6 +78,20 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
 
     public ModLibrarySnapshot View => Volatile.Read(ref view);
 
+    public Task<ModPreviewDocument> OpenPreviewAsync(RemoteModEntry? entry, ModPackage? installed, CancellationToken cancellationToken = default)
+    {
+        ModPackageInstallPlan? plan = entry is null ? null : View.Jobs.LastOrDefault(job => job.CanPreview && job.Entry.SourceId == entry.SourceId && job.Entry.Id == entry.Id && job.Entry.Version == entry.Version)?.PreviewPlan;
+        if (plan is not null)
+        {
+            return installer.OpenPreviewAsync(plan, cancellationToken);
+        }
+        if (installed is { Format: ModFormat.Memoria or ModFormat.Junction, IsSettingsGroup: false })
+        {
+            return Task.Run(() => ModPreviewDocument.Open(installed, cancellationToken), cancellationToken);
+        }
+        return Task.FromException<ModPreviewDocument>(new InvalidOperationException("Download and check this release to preview it."));
+    }
+
     public void RefreshCatalog() => Post(() =>
     {
         catalogRefreshRequested = true;
@@ -633,6 +647,7 @@ public sealed class ModLibraryService : IModLibraryService, IDisposable
             !pendingRemoval && !pendingInstall && !installedCache && state?.Plan is not null && state.Error is null && state.Result is null && state.Installation is null,
             state?.Error is not null || job.Phase is ModDownloadPhase.Failed or ModDownloadPhase.NeedsUserAction)
         {
+            PreviewPlan = state is { Error: null, Installation: null, Result: null } ? state.Plan : null,
             CanDeleteDownload = !pendingInstall && state?.Installation is null && (job.Phase is ModDownloadPhase.ReadyToInstall or ModDownloadPhase.Paused) && job.ArchivePath is not null,
             CanOpenDownloadPage = job.Phase == ModDownloadPhase.NeedsUserAction && openDownloadPage is not null
         };

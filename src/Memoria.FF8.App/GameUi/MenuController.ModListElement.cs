@@ -82,6 +82,13 @@ public sealed partial class MenuController
             });
             Button("mod-selected-toggle", menus.SystemText("mods.list.enable.disable", "Enable / Disable"), () => menus.Execute(new("mod-selected-toggle")));
             Button("mod-diagnostics", menus.SystemText("mods.list.view.diagnostics", "View diagnostics"), () => menus.Push("mods-diagnostics"));
+            Button("mod-preview", "Preview changes", () =>
+            {
+                if (packages.ElementAtOrDefault(selected) is { Package: { } package } && menus.HasInstalledModPreview(package))
+                {
+                    menus.OpenModPreview(null, package);
+                }
+            });
             Button("mod-settings", menus.SystemText("mods.settings.title", "Settings"), () => menus.Execute(new("mod-settings-open")));
             Button("mod-prev", menus.SystemText("mods.list.previous", "← Previous"), () => menus.MoveModSelection(-1, true));
             Button("mod-next", menus.SystemText("mods.list.next", "Next →"), () => menus.MoveModSelection(1, true));
@@ -140,14 +147,19 @@ public sealed partial class MenuController
             float headerButton = 100 * unit;
             Place("mod-refresh", right - headerButton * 2 - gap, top, headerButton, control);
             Place("mod-actions", right - headerButton, top, headerButton, control);
-            top += control + gap;
+            int tabCount = menus.modLibrary is null ? 2 : 4;
+            float tabStripWidth = tabCount == 2 ? 165 * unit + 140 * unit + gap : tabCount * 114 * unit + (tabCount - 1) * gap;
+            if (width < tabStripWidth + headerButton * 2 + gap * 2)
+            {
+                top += control + gap;
+            }
             float installedWidth = Math.Min(165 * unit, width * 0.45f);
             float createWidth = Math.Min(140 * unit, width * 0.4f);
             Place("installed-tab", x, top, installedWidth, control);
             Place("create-tab", x + installedWidth + gap, top, createWidth, control);
             if (menus.modLibrary is not null)
             {
-                float tabWidth = Math.Min(155 * unit, (width - gap * 3) / 4);
+                float tabWidth = Math.Min(114 * unit, (width - gap * 3) / 4);
                 int tabIndex = 0;
                 foreach (string id in new[] { "installed-tab", "catalog-tab", "downloads-tab", "create-tab" })
                 {
@@ -181,7 +193,7 @@ public sealed partial class MenuController
             float bottom = Math.Max(top, bounds.Bottom - footer);
             float tableWidth = wide ? width * 0.66f : width;
             inspector = new UiRect(x + tableWidth + gap, top, Math.Max(0, width - tableWidth - gap), Math.Max(0, bottom - top));
-            rowHeight = (tableWidth < 800 * unit ? 48 : 34) * unit;
+            rowHeight = (tableWidth < 800 * unit ? 44 : 32) * unit;
             menus.modPageSize = Math.Max(1, (int)((bottom - top - 28 * unit) / rowHeight));
             first = selected / menus.modPageSize * menus.modPageSize;
             menus.modTableBounds = new UiRect(x, top, tableWidth, Math.Max(0, bottom - top));
@@ -208,6 +220,7 @@ public sealed partial class MenuController
             }
             controls["mod-selected-toggle"].Visible = showInspector && packages.Length > 0 && !SelectedHasComponentSettings;
             controls["mod-diagnostics"].Visible = showInspector;
+            controls["mod-preview"].Visible = showInspector && packages.ElementAtOrDefault(selected) is { Package: { } previewPackage } && menus.HasInstalledModPreview(previewPackage);
             controls["mod-settings"].Visible = showInspector && menus.HasSelectedModSettings;
             controls["mod-selected-toggle"].Enabled = packages.ElementAtOrDefault(selected) is { CanToggle: true } selectedPackage && menus.modService?.GetPackageLockReason(selectedPackage.Package.Id) is null;
             if (packages.ElementAtOrDefault(selected) is { } package)
@@ -216,7 +229,9 @@ public sealed partial class MenuController
             }
             float actionWidth = SelectedHasComponentSettings ? 0 : Math.Min(130 * unit, inspector.Width);
             Place("mod-selected-toggle", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
-            Place("mod-diagnostics", inspector.X, inspector.Bottom - control, inspector.Width, control);
+            float secondaryWidth = Math.Min(180 * unit, controls["mod-preview"].Visible ? (inspector.Width - gap) * 0.5f : inspector.Width);
+            Place("mod-diagnostics", inspector.X, inspector.Bottom - control, secondaryWidth, control);
+            Place("mod-preview", inspector.X + secondaryWidth + gap, inspector.Bottom - control, secondaryWidth, control);
             Place("mod-settings", inspector.X + actionWidth + gap, inspector.Bottom - control * 2 - gap, Math.Max(0, inspector.Width - actionWidth - gap), control);
         }
 

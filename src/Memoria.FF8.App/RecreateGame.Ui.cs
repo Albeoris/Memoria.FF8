@@ -106,6 +106,8 @@ internal sealed partial class RecreateGame
         resourceHost!.SetGameplayDifficulty(session.State.Scene == SceneKind.Title ? uiPreferences.Difficulty : session.State.GameplayPreferences.Difficulty);
         gameMenus.ConnectMods(resourceHost.Mods);
         gameMenus.ConnectModLibrary(resourceHost.ModLibrary);
+        gameMenus.ConnectCatalogClipboard(authoringClipboard.Paste, authoringClipboard.Copy);
+        gameMenus.ConnectModPreview(CatalogPreviewPresentation.CreateProfile(options.GameDirectory, options.ModelSourceDirectory, resourceHost.Resources.ResourceLanguage, options.MediaToolsDirectory));
         gameMenus.ConnectGameplayTuning(() =>
         {
             world ??= CreateWorld();
@@ -692,6 +694,10 @@ internal sealed partial class RecreateGame
         previousUiMousePressed = mousePressed;
         bool searchOwnedInput = gameMenus.IsGuardianSearchEditing || gameMenus.IsModSearchEditing;
         bool searchOwnershipChanged = false;
+        if (gameMenus.IsCatalogSearchEditing && keyboard.UiTextEditRequested is { } edit)
+        {
+            gameMenus.EditCatalogSearch(edit.Command, edit.Extend);
+        }
         void DispatchMenuInput(MenuInput command)
         {
             if (searchOwnershipChanged)
@@ -712,7 +718,7 @@ internal sealed partial class RecreateGame
             }
         }
         bool openMenu = keyboard.GameMenuRequested && (gameMenus.IsOpen || !ControllerGameplayInput.WorldOwnsMenu(session.State));
-        if (openMenu && !saveMenu.IsOpen && (gameMenus.IsModSearchEditing || gameMenus.ScreenId is "mods-actions" or "mods-diagnostics" or "gf-mod-review"))
+        if (openMenu && !saveMenu.IsOpen && (gameMenus.IsModSearchEditing || gameMenus.ScreenId is "mods-preview" or "mods-library-details" or "mods-actions" or "mods-diagnostics" or "gf-mod-review"))
         {
             DispatchMenuInput(MenuInput.Cancel);
             return true;
@@ -873,7 +879,7 @@ internal sealed partial class RecreateGame
                     keyboard.SuppressHeldUiInput();
                 }
             }
-            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" or "mod-settings" && wheelDelta != 0)
+            if (!searchOwnershipChanged && physicalInput.CanRead && gameMenus.ScreenId is "mods" or "mods-catalog" or "mods-downloads" or "mods-library-details" or "mods-preview" or "mod-settings" && wheelDelta != 0)
             {
                 gameMenus.HandleModsWheel(mouse.X, mouse.Y, wheelDelta);
             }

@@ -4,14 +4,50 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    internal bool IsModSearchEditing => IsOpen && ScreenId is "mods-search" or "mods-catalog-search";
-    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mod-settings";
+    internal bool IsCatalogSearchEditing => IsOpen && (ScreenId == "mods-catalog-search" || ScreenId == "mods-catalog" && catalogSearchEditing);
+    internal bool IsModSearchEditing => IsCatalogSearchEditing || IsOpen && ScreenId == "mods-search";
+    internal bool IsModManager => IsOpen && ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mods-preview" or "mod-settings";
 
     private bool NavigateModManager(MenuInput input)
     {
         if (ScreenId == "mod-settings")
         {
             return NavigateModSettings(input);
+        }
+        if (ScreenId == "mods-preview")
+        {
+            return NavigateModPreview(input);
+        }
+        if (ScreenId == "mods-library-details")
+        {
+            if (input == MenuInput.Cancel)
+            {
+                Back();
+            }
+            else
+            {
+                BuildView();
+                float amount = input switch
+                {
+                    MenuInput.Up => -36 * TextScale,
+                    MenuInput.Down => 36 * TextScale,
+                    MenuInput.PageUp => -catalogDetailsScroll!.Bounds.Height * 0.85f,
+                    MenuInput.PageDown => catalogDetailsScroll!.Bounds.Height * 0.85f,
+                    _ => 0
+                };
+                catalogDetailsScroll!.ScrollBy(amount);
+            }
+            return true;
+        }
+        if (ScreenId == "mods-catalog" && catalogSearchEditing)
+        {
+            if (input is MenuInput.Cancel or MenuInput.Confirm or MenuInput.Tab or MenuInput.ReverseTab)
+            {
+                catalogSearchEditing = false;
+                modFocusedControlId = input == MenuInput.ReverseTab ? "library-refresh" : input == MenuInput.Tab ? "library-category" : "commands";
+                _view = null;
+            }
+            return true;
         }
         if (IsModSearchEditing && (input == MenuInput.Cancel || input == MenuInput.Confirm && CurrentControlDevice == ControlDevice.Keyboard))
         {
@@ -36,7 +72,14 @@ public sealed partial class MenuController
         }
         if (input == MenuInput.Actions)
         {
-            Push(IsLibraryScreen ? "mods-library-details" : "mods-actions");
+            if (IsLibraryScreen)
+            {
+                OpenLibraryDetails();
+            }
+            else
+            {
+                Push("mods-actions");
+            }
             return true;
         }
         UiView view = BuildView();

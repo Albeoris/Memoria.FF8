@@ -226,6 +226,10 @@ try {
     Invoke-DotNet (@('run', '--project', 'tools/Memoria.FF8.Distribution.Check', '-c', $Configuration, '--no-build') + $graphArguments + @('--', '--native-image', $RuntimeIdentifier, $launcherExecutable))
     if ($RuntimeIdentifier -eq 'win-x64') {
         Move-Item -LiteralPath $launcherExecutable -Destination $payload
+        $launcherNotices = Join-Path $launcher 'ThirdParty'
+        if (Test-Path -LiteralPath $launcherNotices -PathType Container) {
+            Move-Item -LiteralPath $launcherNotices -Destination (Join-Path $data 'LauncherThirdParty')
+        }
         if (@(Get-ChildItem -LiteralPath $launcher -Force).Count -ne 0) {
             throw 'The Windows single-file launcher produced unexpected companion files. Its complete runtime must be embedded before packaging.'
         }

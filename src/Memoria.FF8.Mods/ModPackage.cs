@@ -38,17 +38,30 @@ public sealed record ModFileSegment(string Path, long Offset, long Length);
 
 public sealed class ModFile
 {
-    private readonly Lazy<byte[]> content;
+    private readonly Func<byte[]> readContent;
     private readonly Action<Stream>? copyTo;
     private readonly Func<ModFileSegment?>? resolveFileSegment;
 
     public ModFile(string packageId, ModFormat format, string relativePath, long revision, Func<byte[]> readBytes, Action<Stream>? copyTo = null, Func<ModFileSegment?>? resolveFileSegment = null)
+        : this(packageId, format, relativePath, revision, readBytes, true, copyTo, resolveFileSegment)
+    {
+    }
+
+    internal ModFile(string packageId, ModFormat format, string relativePath, long revision, Func<byte[]> readBytes, bool cacheContent, Action<Stream>? copyTo = null, Func<ModFileSegment?>? resolveFileSegment = null)
     {
         PackageId = packageId;
         Format = format;
         RelativePath = ModCatalogSnapshot.NormalizePath(relativePath);
         Revision = revision;
-        content = new Lazy<byte[]>(() => readBytes().ToArray(), LazyThreadSafetyMode.ExecutionAndPublication);
+        if (cacheContent)
+        {
+            Lazy<byte[]> content = new(() => readBytes().ToArray(), LazyThreadSafetyMode.ExecutionAndPublication);
+            readContent = () => content.Value;
+        }
+        else
+        {
+            readContent = readBytes;
+        }
         this.copyTo = copyTo;
         this.resolveFileSegment = resolveFileSegment;
     }
@@ -69,7 +82,7 @@ public sealed class ModFile
 
     public byte[] ReadBytes()
     {
-        return content.Value.ToArray();
+        return readContent().ToArray();
     }
 
     public void CopyTo(Stream destination)
@@ -81,7 +94,7 @@ public sealed class ModFile
         }
         else
         {
-            destination.Write(content.Value);
+            destination.Write(readContent());
         }
     }
 }

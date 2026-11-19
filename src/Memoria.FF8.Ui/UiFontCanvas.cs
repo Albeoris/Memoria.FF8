@@ -13,6 +13,11 @@ internal sealed class UiFontCanvas(IUiCanvas canvas, string fontFamily) : IUiCan
         canvas.Paper(bounds, color);
     }
 
+    public void RasterImage(Albeoris.Games.FF8.Imaging.PixelImage image, UiRect bounds, int slot)
+    {
+        canvas.RasterImage(image, bounds, slot);
+    }
+
     public bool ModPreview(string url, UiRect bounds)
     {
         return canvas.ModPreview(url, bounds);

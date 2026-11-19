@@ -294,6 +294,43 @@ public sealed partial class GameAssets
         return ExpandFieldTextureCatalog(field, cancellationToken).FirstOrDefault(entry => entry.Target == target);
     }
 
+    /// <summary>Reads a single addressable texture source unit without scanning unrelated archives.</summary>
+    public IReadOnlyList<TextureBuildContext>? LoadAddressableCatalogTextureUnit(TextureTarget target)
+    {
+        if (target.Game != "ff8")
+        {
+            return null;
+        }
+        string[] member = target.Subresource.Split('/');
+        if (target.Owner.StartsWith("world/wmset", StringComparison.Ordinal) && target.Owner == NativeResourceNames.WorldSettings(resources.ResourceLanguage).Path && member is ["section", _, "texture", _] && int.TryParse(member[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int section) && section is 38 or 39 or 40 or 42)
+        {
+            return ReadCatalogWorldSection(section);
+        }
+        if (target.Owner == "world/texl.obj" && member is ["texl", _] && int.TryParse(member[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int page) && page is >= 0 and < 20)
+        {
+            return ReadCatalogTexl(page);
+        }
+        if (target.Owner is "cards/cards")
+        {
+            return ReadCatalogCardArtwork();
+        }
+        if ((target.Owner.StartsWith("menu/", StringComparison.Ordinal) || target.Owner.StartsWith("main/", StringComparison.Ordinal)) && target.Owner.EndsWith(".tex", StringComparison.Ordinal) && target.Subresource == "atlas")
+        {
+            return ReadCatalogTex(new(target.Owner));
+        }
+        string[] owner = target.Owner.Split('/');
+        if (owner is ["field", _, _] && owner[2] == owner[1] + ".mim" && fieldNames.Contains(owner[1], StringComparer.Ordinal))
+        {
+            return ReadCatalogBackground(owner[1]);
+        }
+        return null;
+    }
+
+    /// <summary>Reads model materials using their runtime identities before grouping them into authoring sheets.</summary>
+    public IReadOnlyList<TextureBuildContext> LoadCatalogModelMaterialUnit(ModelCatalogEntry model) => ReadCatalogModelTextures(model);
+
+    public int FindCatalogFieldId(string fieldName) => Array.IndexOf(fieldNames, fieldName);
+
     public IReadOnlyList<TextureBuildContext> LoadCatalogTextureUnit(TextureCatalogEntry entry)
     {
         ResourceKey owner = new(entry.Target.Owner);
@@ -516,6 +553,6 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> TimContexts(ResourceKey owner, string subresource, TimImage tim, string layout)
     {
         int bits = tim.PixelMode == TimPixelMode.Indexed4 ? 4 : tim.PixelMode == TimPixelMode.Indexed8 ? 8 : 16;
-        return Enumerable.Range(0, Math.Max(1, tim.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, subresource, palette), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(palette), new(tim.X, tim.Y, bits), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner))).ToArray();
+        return Enumerable.Range(0, Math.Max(1, tim.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, subresource, palette), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(palette), layout == "classic-world-section" ? WorldAssets.SectionTextureRegion(tim, palette) : new(tim.X, tim.Y, bits), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner))).ToArray();
     }
 }

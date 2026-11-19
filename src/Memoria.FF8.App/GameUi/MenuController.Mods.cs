@@ -125,6 +125,7 @@ public sealed partial class MenuController
     internal void RefreshModView()
     {
         RefreshLibraryView();
+        PollModPreview();
         if (ScreenId == "mods")
         {
             RestoreModSelection();
@@ -211,12 +212,28 @@ public sealed partial class MenuController
 
     internal void HandleModsWheel(int x, int y, int delta)
     {
+        if (ScreenId == "mods-preview")
+        {
+            ScrollModPreview(x, y, delta);
+            return;
+        }
+        if (ScreenId == "mods-library-details")
+        {
+            BuildView();
+            catalogDetailsScroll?.ScrollBy(-delta / 120f * 48 * TextScale);
+            return;
+        }
         if (ScreenId == "mod-settings")
         {
             HandleModSettingsWheel(x, y, delta);
             return;
         }
         var point = BuildView().ToDesignPoint(x, y);
+        if (IsLibraryScreen && catalogInspectorScroll is { Visible: true } details && details.Bounds.Contains(point.X, point.Y))
+        {
+            details.ScrollBy(-delta / 120f * 48 * TextScale);
+            return;
+        }
         if (!modTableBounds.Contains(point.X, point.Y))
         {
             modWheelDelta = 0;
@@ -371,12 +388,15 @@ public sealed partial class MenuController
                     EnterCatalogSearchCharacter(letter);
                 }
                 return true;
+            case "mod-catalog-alphabet":
+                catalogAlphabet = (catalogAlphabet + 1) % NamePages.Length;
+                _view = null;
+                return true;
             case "mod-catalog-delete":
                 EnterCatalogSearchCharacter('\b');
                 return true;
             case "mod-catalog-clear-search":
-                catalogSearch = "";
-                _view = null;
+                ChangeCatalogSearch("");
                 return true;
             case "mod-diagnostics-open":
                 diagnosticModId = action.SubjectId.Length == 0 ? null : action.SubjectId;

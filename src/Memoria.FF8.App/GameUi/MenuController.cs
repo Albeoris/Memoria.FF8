@@ -150,6 +150,8 @@ public sealed partial class MenuController
 
     public void Open(string screenId = "main", bool demo = false)
     {
+        CloseModPreview();
+        catalogSearchEditing = false;
         screenId = ResolveSettingsAlias(screenId);
         screenId = ResolveJunctionDashboard(screenId);
         IsFixtureContext = demo && !screenId.StartsWith("debug-", StringComparison.Ordinal);
@@ -247,6 +249,8 @@ public sealed partial class MenuController
         }
         CancelControlsCapture();
         IsOpen = false;
+        CloseModPreview();
+        catalogSearchEditing = false;
         _nameTarget = null;
         _acceptName = null;
         _nameHighSurrogate = null;
@@ -511,6 +515,10 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (ScreenId == "mods-preview")
+        {
+            CloseModPreview();
+        }
         if (BackNewGamePlus())
         {
             return;

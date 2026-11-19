@@ -8,6 +8,35 @@ public sealed partial class MenuController
     private IModLibraryService? modLibrary;
     private ModLibrarySnapshot? modLibrarySnapshot;
     private string catalogSearch = "";
+    private bool catalogSearchEditing;
+    private int catalogAlphabet;
+    private readonly UiMultilineEditor catalogSearchEditor = new() { Id = "library-search" };
+
+    internal void ConnectCatalogClipboard(Func<string> paste, Action<string> copy)
+    {
+        catalogSearchEditor.ReadClipboard = () =>
+        {
+            int available = 100 - catalogSearchEditor.Text.Length + catalogSearchEditor.SelectionLength;
+            return string.Concat(paste().Where(character => !char.IsControl(character)).Take(available));
+        };
+        catalogSearchEditor.WriteClipboard = copy;
+    }
+
+    internal void EditCatalogSearch(UiEditCommand command, bool extend)
+    {
+        if (catalogSearchEditing && ScreenId == "mods-catalog")
+        {
+            catalogSearchEditor.Command(command, extend);
+        }
+        else if (command == UiEditCommand.Backspace && IsCatalogSearchEditing)
+        {
+            EnterCatalogSearchCharacter('\b');
+        }
+    }
+    private UiScrollPanel? catalogDetailsScroll;
+    private float catalogDetailsOffset;
+    private UiScrollPanel? catalogInspectorScroll;
+    private float catalogInspectorOffset;
     private string catalogCategory = "All categories";
     private int catalogFilter;
     private string? selectedCatalogId;
@@ -40,16 +69,17 @@ public sealed partial class MenuController
         Register(new MenuScreenDefinition
         {
             Id = "mods-catalog-search", Title = "Mods · Search catalog", Columns = 8,
-            Help = "Search title, author or category. Confirm/Back finishes text entry.",
-            Entries = _ => [.. "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.".Select((letter, index) => new MenuEntry("letter-" + index, letter.ToString(), "Add to search.", Action: new("mod-catalog-letter", Value: letter.ToString()))), new("delete", "Delete", "Remove last character.", Action: new("mod-catalog-delete")), new("clear", "Clear", "Clear search.", Action: new("mod-catalog-clear-search")), new("done", "Done", "Return to catalog.", Action: new("menu-back"))],
+            Help = "Enter a search with the controller. Choose Done to return to the catalog.",
+            Entries = _ => CatalogSearchEntries(),
             Details = _ => [catalogSearch + "│"]
         });
         Register(new MenuScreenDefinition
         {
             Id = "mods-library-details", Title = "Mods · Details", Help = "Full package and download details.",
-            Entries = _ => LibraryDetailPages(),
-            Details = controller => [controller.SelectedEntry?.Help ?? "Select a details page."]
+            Entries = _ => [],
+            BuildContent = (_, panel) => panel.Children.Add(new CatalogDetailsElement(this))
         });
+        RegisterModPreviewScreen();
         _view = null;
     }
 
@@ -183,38 +213,90 @@ public sealed partial class MenuController
         }
         details.Add(modLibrarySnapshot?.Error ?? "");
         details.Add(modLibrarySnapshot?.Catalog.Error ?? "");
-        details.Add("Requirements: " + entry.Requirements);
-        details.Add("Release notes: " + entry.ReleaseNotes);
+        if (!string.IsNullOrWhiteSpace(entry.Requirements))
+        {
+            details.Add("Requirements: " + entry.Requirements);
+        }
+        if (!string.IsNullOrWhiteSpace(entry.ReleaseNotes))
+        {
+            details.Add("Release notes: " + entry.ReleaseNotes);
+        }
         details.Add(entry.UnsupportedMetadata);
         return details.Where(line => line.Length > 0).ToArray();
     }
 
-    private IReadOnlyList<MenuEntry> LibraryDetailPages()
+    private IReadOnlyList<MenuEntry> CatalogSearchEntries()
     {
-        string text = string.Join("\n", LibraryDetails());
-        List<MenuEntry> pages = [];
-        for (int offset = 0; offset < text.Length; offset += 320)
+        var page = NamePages[catalogAlphabet];
+        return
+        [
+            .. page.Characters.Where(character => character != '\0' && character != ' ').Distinct().Select((letter, index) => new MenuEntry("letter-" + index, letter.ToString(), "Add to search.", Action: new("mod-catalog-letter", Value: letter.ToString()))),
+            new("space", "Space", "Add a space.", Action: new("mod-catalog-letter", Value: " ")),
+            new("alphabet", page.Title, "Change character page.", Action: new("mod-catalog-alphabet")),
+            new("delete", "Delete", "Remove the last character.", Action: new("mod-catalog-delete")),
+            new("clear", "Clear", "Clear the search.", Action: new("mod-catalog-clear-search")),
+            new("done", "Done", "Return to the catalog.", Action: new("menu-back"))
+        ];
+    }
+
+    private void OpenLibraryDetails()
+    {
+        catalogDetailsOffset = 0;
+        Push("mods-library-details");
+    }
+
+    private void BeginCatalogSearch()
+    {
+        modFocusedControlId = "library-search";
+        if (CurrentControlDevice == ControlDevice.Controller)
         {
-            pages.Add(new("part-" + offset, "Details · " + (pages.Count + 1), text.Substring(offset, Math.Min(320, text.Length - offset))));
+            Push("mods-catalog-search");
         }
-        return pages;
+        else
+        {
+            catalogSearchEditor.SetText(catalogSearch);
+            catalogSearchEditor.Select(catalogSearch.Length, 0);
+            catalogSearchEditor.Changed = () => ChangeCatalogSearch(catalogSearchEditor.Text);
+            catalogSearchEditing = true;
+            _view = null;
+        }
+    }
+
+    private void ChangeCatalogSearch(string search)
+    {
+        catalogSearch = search;
+        retainedCatalogEntry = null;
+        selectedCatalogId = null;
+        _view = null;
     }
 
     private bool EnterCatalogSearchCharacter(char character)
     {
-        if (ScreenId != "mods-catalog-search")
+        if (!IsCatalogSearchEditing)
         {
             return false;
         }
-        if (character == '\b')
+        if (catalogSearchEditing && ScreenId == "mods-catalog")
         {
-            catalogSearch = catalogSearch.Length == 0 ? "" : catalogSearch[..^1];
+            if (character == '\b')
+            {
+                catalogSearchEditor.Command(UiEditCommand.Backspace);
+            }
+            else if (!char.IsControl(character) && catalogSearch.Length - catalogSearchEditor.SelectionLength < 100)
+            {
+                catalogSearchEditor.Insert(character.ToString());
+            }
+            return true;
+        }
+        if (character == '\b' && catalogSearch.Length > 0)
+        {
+            int[] characters = System.Globalization.StringInfo.ParseCombiningCharacters(catalogSearch);
+            ChangeCatalogSearch(catalogSearch[..characters[^1]]);
         }
         else if (!char.IsControl(character) && catalogSearch.Length < 100)
         {
-            catalogSearch += character;
+            ChangeCatalogSearch(catalogSearch + character);
         }
-        _view = null;
         return true;
     }
 
@@ -229,7 +311,7 @@ public sealed partial class MenuController
         {
             RefreshModSettingsRows();
         }
-        if (IsLibraryScreen || ScreenId == "mods")
+        if (IsLibraryScreen || ScreenId is "mods" or "mods-library-details")
         {
             _view = null;
         }

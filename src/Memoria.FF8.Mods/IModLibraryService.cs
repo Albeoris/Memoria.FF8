@@ -5,6 +5,7 @@ public interface IModLibraryService
 {
     ModLibrarySnapshot View { get; }
     void RefreshCatalog();
+    Task<ModPreviewDocument> OpenPreviewAsync(RemoteModEntry? entry, ModPackage? installed, CancellationToken cancellationToken = default) => Task.FromException<ModPreviewDocument>(new NotSupportedException("Package preview is unavailable."));
     void Queue(RemoteModEntry entry);
     void DownloadAndEnable(RemoteModEntry entry) => Queue(entry);
     void CancelPendingEnable(RemoteModEntry entry) { }
@@ -40,4 +41,6 @@ public sealed record ModLibraryJob(Guid Id, RemoteModEntry Entry, string Phase, 
 {
     public bool CanOpenDownloadPage { get; init; }
     public bool CanDeleteDownload { get; init; }
+    public bool CanPreview => PreviewPlan is not null;
+    internal ModPackageInstallPlan? PreviewPlan { get; init; }
 }

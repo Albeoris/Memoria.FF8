@@ -44,8 +44,8 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(tutorialMessage);
         }
-        bool useModViewport = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mod-settings";
-        _view = new UiView(root) { ViewportMode = IsItemImageOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 768 : PresentationProvider.DesignHeight(this), Cancel = Back };
+        bool useModViewport = ScreenId is "mods" or "mods-create" or "mods-catalog" or "mods-downloads" or "mods-library-details" or "mods-preview" or "mod-settings";
+        _view = new UiView(root) { ViewportMode = IsItemImageOpen || IsGuardianAbilityEditor || useModViewport ? UiViewportMode.Expand : PresentationProvider.ViewportMode, DesignWidth = useModViewport ? 1280 : PresentationProvider.DesignWidth(this), DesignHeight = useModViewport ? 720 : PresentationProvider.DesignHeight(this), Cancel = Back };
         _view.Resize(_view.DesignWidth, _view.DesignHeight);
         if (IsJunctionDashboard)
         {
@@ -70,6 +70,13 @@ public sealed partial class MenuController
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
         string commandListId = ScreenId == "shop-junk" && SelectedIndex < Data.Characters.Count ? "weapon-characters" : "commands";
+        if (ScreenId == "mods-preview")
+        {
+            _view.Focus(focusables.FirstOrDefault(element => element.Visible && element.Enabled && element.Id == modPreviewFocus)
+                ?? focusables.FirstOrDefault(element => element.Visible && element.Enabled && element.Id is "preview-tree" or "preview-expand")
+                ?? focusables.FirstOrDefault(element => element.Id == "preview-back"));
+            return _view;
+        }
         _view.Focus(ScreenId is "mods" or "mods-catalog" or "mods-downloads" ? focusables.FirstOrDefault(element => element.Id == modFocusedControlId) ?? focusables.FirstOrDefault(element => element.Id == "commands") : ScreenId == "mods-create" ? focusables.FirstOrDefault(element => element.Id == createModsFocusedControlId && element.Enabled) ?? focusables.FirstOrDefault(element => element.Enabled) : IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == commandListId) ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
         return _view;
     }

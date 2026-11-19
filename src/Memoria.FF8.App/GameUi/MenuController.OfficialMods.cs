@@ -118,6 +118,10 @@ public sealed partial class MenuController
                 state += " · " + FormatOfficialSize(entry.Official!.Latest!.Artifact.Size);
             }
             rows.Add(new(new("official-" + component.Id, label + " · " + state, description + "\n" + (entry.CompatibilityError ?? CatalogStatus(entry)), Action: new("official-setting", CatalogIdentity(entry), Value: action), Enabled: action.Length > 0)));
+            if (HasModPreview(entry))
+            {
+                rows.Add(new(new("official-preview-" + component.Id, "Preview changes · " + label, "Compare this component with the original game.", Action: new("official-setting", CatalogIdentity(entry), Value: "preview"))));
+            }
         }
         foreach (RemoteModEntry entry in OfficialEntries.Where(entry => ManagedMod(entry) is { CanUninstall: true, Pending: false } or { PendingRemoval: true }))
         {
@@ -192,6 +196,11 @@ public sealed partial class MenuController
             return false;
         }
         RemoteModEntry? selected = OfficialEntries.FirstOrDefault(entry => CatalogIdentity(entry) == action.SubjectId);
+        if (action.Value == "preview" && selected is not null && HasModPreview(selected))
+        {
+            OpenModPreview(selected);
+            return true;
+        }
         if (selected is null)
         {
             return true;

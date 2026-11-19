@@ -210,6 +210,68 @@ public sealed class ModCatalogUiTests
     }
 
     [Fact]
+    public void KeyboardCatalogSearchEditsInlineAndSupportsCaretDeletionAndSelectAll()
+    {
+        Library service = new();
+        MenuController menu = Menu(service);
+        Element(Arrange(menu, 1280, 720), "library-search").Key(UiKey.Confirm);
+        Assert.Equal("mods-catalog", menu.ScreenId);
+        Assert.True(menu.IsCatalogSearchEditing);
+        foreach (char letter in "Author X02")
+        {
+            Assert.True(menu.EnterModSearchCharacter(letter));
+        }
+        UiView view = Arrange(menu, 1280, 720);
+        Assert.IsType<UiMultilineEditor>(view.FocusedElement);
+        menu.EditCatalogSearch(UiEditCommand.Home, false);
+        for (int index = 0; index < 7; index++)
+        {
+            menu.EditCatalogSearch(UiEditCommand.Right, false);
+        }
+        menu.EditCatalogSearch(UiEditCommand.Delete, false);
+        Assert.Equal("Package 02", Assert.Single(menu.Entries).Label);
+        menu.EditCatalogSearch(UiEditCommand.SelectAll, false);
+        menu.EditCatalogSearch(UiEditCommand.Backspace, false);
+        Assert.Equal(service.View.Catalog.Entries.Count, menu.Entries.Count);
+        menu.Navigate(MenuInput.Confirm);
+        Assert.False(menu.IsCatalogSearchEditing);
+        Assert.Equal("commands", Arrange(menu, 1280, 720).FocusedElement!.Id);
+        Assert.Empty(service.Commands);
+    }
+
+    [Fact]
+    public void ExpandedErrorIsOneScrollViewWithReachableEndingAt720()
+    {
+        Library service = new();
+        string error = string.Join("\n", Enumerable.Repeat("The provider stopped before checking the file.", 90)) + "\nFinal diagnostic line.";
+        ModLibraryJob failed = Job(Guid.NewGuid(), service.View.Catalog.Entries[0], "Needs attention") with { Error = error };
+        service.Publish(jobs: [failed]);
+        MenuController menu = Menu(service, "mods-downloads");
+        Element(Arrange(menu, 1280, 720), "library-more").Key(UiKey.Confirm);
+        Assert.Equal("mods-library-details", menu.ScreenId);
+        Assert.Empty(menu.Entries);
+        UiView view = Arrange(menu, 1280, 720);
+        using Bitmap bitmap = new(1280, 720);
+        using PreviewCanvas canvas = new(bitmap);
+        view.Draw(canvas, new VectorUiTheme());
+        UiScrollPanel scroll = Assert.IsType<UiScrollPanel>(Element(view, "library-details-scroll"));
+        Assert.Contains("Final diagnostic line.", Assert.IsType<UiLabel>(Assert.Single(scroll.Children)).Text);
+        Assert.True(scroll.MaximumOffset > 0);
+        menu.Navigate(MenuInput.Down);
+        float offset = scroll.Offset;
+        Assert.True(offset > 0);
+        menu.HandleModsWheel(500, 450, -120);
+        Assert.True(scroll.Offset > offset);
+        for (int page = 0; page < 20; page++)
+        {
+            menu.Navigate(MenuInput.PageDown);
+        }
+        Assert.Equal(scroll.MaximumOffset, scroll.Offset);
+        menu.Navigate(MenuInput.Cancel);
+        Assert.Equal("mods-downloads", menu.ScreenId);
+    }
+
+    [Fact]
     public void HorizontalListPagingAndShoulderTabsHaveSeparateMeanings()
     {
         Library service = new();
@@ -351,11 +413,12 @@ public sealed class ModCatalogUiTests
         MenuController menu = Menu(service, "mods-downloads");
         UiView view = Arrange(menu);
         Assert.Single(menu.Entries);
-        Assert.Equal("Downloads · No pending work", Assert.IsType<UiButton>(Element(view, "library-activity")).Text);
+        Assert.False(Element(view, "library-activity").Visible);
     }
 
     [Theory]
     [InlineData(640, 448)]
+    [InlineData(1280, 720)]
     [InlineData(1280, 896)]
     [InlineData(1920, 1080)]
     [InlineData(1280, 800)]

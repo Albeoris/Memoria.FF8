@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,6 +22,11 @@ public sealed record FieldBackgroundPatch
     public required bool Visible { get; init; }
     public int? Depth { get; init; }
     public FieldBackgroundRegion? Region { get; init; }
+
+    public bool Matches(BackgroundTile tile)
+    {
+        return tile.Layer == Layer && tile.AnimationId == ModuleId && tile.AnimationState == State && (Depth is null || tile.Z == Depth) && (Region is null || Region.Contains(tile.X, tile.Y));
+    }
 }
 
 public sealed record FieldModelReference

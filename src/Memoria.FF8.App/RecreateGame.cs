@@ -882,6 +882,10 @@ internal sealed partial class RecreateGame : GamePresentationHost
             }
             return;
         }
+        if (gameMenus?.IsCatalogSearchEditing == true && args.Character is '\b' or '\u007f')
+        {
+            return;
+        }
         if (keyboard.AllowsNameText(args.Key))
         {
             if (gameMenus?.EnterGameplayNumberCharacter(args.Character) != true && gameMenus?.EnterLocalizationCharacter(args.Character) != true && gameMenus?.EnterFontSearchCharacter(args.Character) != true && gameMenus?.EnterModSearchCharacter(args.Character) != true && gameMenus?.EnterGuardianSearchCharacter(args.Character) != true)
@@ -1902,6 +1906,7 @@ internal sealed partial class RecreateGame : GamePresentationHost
             diagnosticTelemetry?.Dispose();
             authoringTextInput?.Dispose();
             ReleasePreparedErrorReport();
+            gameMenus?.Close();
             authoringClipboard.Dispose();
             localizationWorkbench.Dispose();
             authoringSelection?.Inputs?.Dispose();

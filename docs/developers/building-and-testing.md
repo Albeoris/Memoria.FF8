@@ -56,6 +56,7 @@ The complete Windows package also builds the isolated DX12 native runtime from i
 | --- | --- |
 | `artifacts/package/win-x64/Memoria.Launcher.exe` | Start the local packaged application. |
 | `artifacts/package/win-x64/Data/` | Engine, runtimes, audio host and distribution notices. |
+| `Data/LauncherThirdParty/` | Notices published by the Windows launcher dependencies. The launcher runtime stays inside the executable. |
 | `artifacts/package/win-x64/Data/Memoria.FF8.exe` | Dispatcher; selects a backend and waits for the actual game. |
 | `Data/Game/dx11/`, `Data/Game/vulkan/`, `Data/Game/dx12/` | Isolated Windows graphics hosts sharing gameplay/rendering source. |
 | `Data/BundledMods/` | Bundled native `Memoria/Depixelation` defaults, discovered after user packages. |

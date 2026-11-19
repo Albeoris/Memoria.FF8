@@ -14,6 +14,10 @@ public sealed partial class MenuController
         private readonly ModLibraryJob[] jobs;
         private readonly Dictionary<string, UiElement> controls = new();
         private readonly CatalogTable table;
+        private readonly UiScrollPanel description;
+        private readonly UiLabel descriptionText;
+        private float measuredDescriptionWidth = -1;
+        private float measuredDescriptionFont;
         private UiRect inspector;
         private UiRect status;
         private UiRect activity;
@@ -25,7 +29,7 @@ public sealed partial class MenuController
         private bool wide;
         private int Count => downloads ? jobs.Length : entries.Length;
         private bool IsMemoriaPackage => !downloads && entries.ElementAtOrDefault(selected)?.Id == CatalogMemoriaId;
-        private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected)?.Entry ?? menus.SelectedCatalog;
+        private RemoteModEntry? Entry => downloads ? Job?.Entry : entries.ElementAtOrDefault(selected)?.Entry ?? (Count == 0 && menus.catalogSearch.Length > 0 ? null : menus.SelectedCatalog);
         private bool CanUninstall => Entry is { } entry && menus.ManagedMod(entry) is { CanUninstall: true, Pending: false };
         private ModLibraryJob? Job => downloads ? jobs.ElementAtOrDefault(selected) : Entry is { } entry && menus.EntryJob(entry) is { } job && !(job.Phase == "Installed" && menus.ManagedRepairNeeded(entry)) ? job : null;
 
@@ -47,17 +51,41 @@ public sealed partial class MenuController
             }
             foreach ((string id, string title, string screen) in new[] { ("installed-tab", "Installed", "mods"), ("catalog-tab", "Catalog", "mods-catalog"), ("downloads-tab", "Downloads", "mods-downloads"), ("create-tab", "Create", "mods-create") })
             {
-                Button(id, title, () => menus.Push(screen));
+                Button(id, title, () =>
+                {
+                    if (menus.ScreenId != screen)
+                    {
+                        menus.Push(screen);
+                    }
+                });
             }
             Button("library-refresh", snapshot.Catalog.IsRefreshing ? "Refreshing…" : "Refresh", () => menus.modLibrary!.RefreshCatalog());
             controls["library-refresh"].Enabled = !snapshot.Catalog.IsRefreshing;
-            Button("library-search", menus.catalogSearch.Length == 0 ? "Search mods…" : menus.catalogSearch, () => menus.Push("mods-catalog-search"));
+            if (menus.catalogSearchEditing && !downloads)
+            {
+                UiMultilineEditor editor = menus.catalogSearchEditor;
+                editor.FocusChanged = focused =>
+                {
+                    if (!focused)
+                    {
+                        menus.catalogSearchEditing = false;
+                        menus._view = null;
+                    }
+                };
+                controls.Add("library-search", editor);
+                Children.Add(editor);
+            }
+            else
+            {
+                Button("library-search", menus.catalogSearch.Length == 0 ? "Search mods…" : menus.catalogSearch, menus.BeginCatalogSearch);
+            }
             string[] categories = menus.CatalogCategories;
             Choice("library-category", categories, Math.Max(0, Array.IndexOf(categories, menus.catalogCategory)), value => menus.catalogCategory = categories[value]);
             Choice("library-filter", CatalogFilters, menus.catalogFilter, value => menus.catalogFilter = value);
             Button("library-clear", "Clear filters", () =>
             {
-                menus.catalogSearch = "";
+                menus.catalogSearchEditing = false;
+                menus.ChangeCatalogSearch("");
                 menus.catalogCategory = "All categories";
                 menus.catalogFilter = 0;
                 menus._view = null;
@@ -66,6 +94,12 @@ public sealed partial class MenuController
             Track(table);
             controls.Add("commands", table);
             Children.Add(table);
+            description = new() { Id = "library-description", OffsetChanged = offset => menus.catalogInspectorOffset = offset };
+            descriptionText = new() { Text = InspectorDescription(), TextFlow = UiTextFlow.Wrap };
+            description.Children.Add(descriptionText);
+            Track(description);
+            Children.Add(description);
+            menus.catalogInspectorScroll = description;
             Button("mod-inspector", "Details", OpenInspector);
             Button("library-list", "← List", () =>
             {
@@ -76,6 +110,7 @@ public sealed partial class MenuController
             Button("library-primary", PrimaryLabel(), Primary);
             controls["library-primary"].Enabled = CanPrimary();
             Button("library-secondary", Job?.CanOpenDownloadPage == true ? "Open download page" : Job?.CanPause == true ? "Pause" : Job?.CanResume == true ? "Resume" : CanUninstall ? "Uninstall when available" : "More details", Secondary);
+            Button("library-preview", "Preview changes", () => menus.OpenModPreview(Entry!));
             Button("library-cancel", Job?.CanDeleteDownload == true ? "Delete download" : "Cancel job", () =>
             {
                 if (Job is { CanDeleteDownload: true } download)
@@ -87,10 +122,10 @@ public sealed partial class MenuController
                     menus.modLibrary!.Cancel(job.Id);
                 }
             });
-            Button("library-more", "Full details", () => menus.Push("mods-library-details"));
+            Button("library-more", "Expand details", () => menus.OpenLibraryDetails());
             Button("library-prev", "← Previous", () => Move(-1, true));
             Button("library-next", "Next →", () => Move(1, true));
-            Button("library-activity", ActivityLabel(), () => menus.Push("mods-downloads"));
+            Button("library-activity", "Downloads", () => menus.Push("mods-downloads"));
             UiProgressBar progress = new() { Id = "library-progress", Min = 0, Max = 1, Value = Job?.TotalBytes is > 0 ? (float)((double)Job.ReceivedBytes / Job.TotalBytes.Value) : 0 };
             controls.Add("library-progress", progress);
             Children.Add(progress);
@@ -101,7 +136,7 @@ public sealed partial class MenuController
         private string ActivityLabel()
         {
             ModLibraryJob? active = snapshot.Jobs.FirstOrDefault(job => job.Phase is not "Installed" and not "Cancelled");
-            return active is null ? "Downloads · No pending work" : "Downloads · " + active.Entry.Name + " · " + active.Phase;
+            return active is null ? "No pending downloads" : active.Entry.Name + " · " + active.Phase;
         }
 
         private string PrimaryLabel()
@@ -157,14 +192,14 @@ public sealed partial class MenuController
                 }
                 else
                 {
-                    menus.Push("mods-library-details");
+                    menus.OpenLibraryDetails();
                 }
             }
             else if (Entry is { } entry)
             {
                 if (menus.ManagedMod(entry) is { Pending: true })
                 {
-                    menus.Push("mods-library-details");
+                    menus.OpenLibraryDetails();
                 }
                 else if ((menus.ManagedRepairNeeded(entry) || menus.ManagedMod(entry) is { Version.Length: 0 }) && menus.CanDownload(entry))
                 {
@@ -177,7 +212,7 @@ public sealed partial class MenuController
                 }
                 else if (menus.ManagedMod(entry) is not null && (!menus.CatalogUpdateAvailable(entry) || !menus.CanDownload(entry)))
                 {
-                    menus.Push("mods-library-details");
+                    menus.OpenLibraryDetails();
                 }
                 else if (menus.CanDownload(entry))
                 {
@@ -206,20 +241,25 @@ public sealed partial class MenuController
             }
             else
             {
-                menus.Push("mods-library-details");
+                menus.OpenLibraryDetails();
             }
         }
 
         private void OpenInspector()
         {
             menus.catalogInspectorOpen = true;
-            menus.modFocusedControlId = "library-primary";
+            menus.modFocusedControlId = CanPrimary() ? "library-primary" : "library-more";
             menus._view = null;
         }
 
         private void Select(int index, bool invalidate = true)
         {
-            selected = Math.Clamp(index, 0, Math.Max(0, Count - 1));
+            int next = Math.Clamp(index, 0, Math.Max(0, Count - 1));
+            if (selected != next)
+            {
+                menus.catalogInspectorOffset = 0;
+            }
+            selected = next;
             if (downloads && jobs.ElementAtOrDefault(selected) is { } job)
             {
                 menus.selectedDownloadId = job.Id;
@@ -296,6 +336,10 @@ public sealed partial class MenuController
                 {
                     choice.FontSize = 16 * scale;
                 }
+                else if (element is UiMultilineEditor editor)
+                {
+                    editor.FontSize = 16 * scale;
+                }
             }
             float gap = 8;
             float control = 28 * scale;
@@ -303,9 +347,9 @@ public sealed partial class MenuController
             float width = Math.Max(0, bounds.Width - 24);
             float right = x + width;
             float top = bounds.Y + 8;
-            wide = width >= 940 * scale;
+            wide = width >= 920 * MathF.Sqrt(scale);
             menus.catalogNarrow = !wide;
-            float tabWidth = Math.Min(width / 4 - gap, 140 * scale);
+            float tabWidth = Math.Min(width / 4 - gap, 114 * scale);
             int tab = 0;
             foreach (string id in new[] { "installed-tab", "catalog-tab", "downloads-tab", "create-tab" })
             {
@@ -339,36 +383,43 @@ public sealed partial class MenuController
             float contentHeight = Math.Max(0, bounds.Bottom - top - footer);
             float listWidth = wide ? (width - gap) * 0.42f : width;
             bool showInspector = wide || menus.catalogInspectorOpen;
+            description.Visible = showInspector;
             inspector = wide ? new(x + listWidth + gap, top, width - listWidth - gap, contentHeight) : new(x, top, width, contentHeight);
             table.Arrange(new(x, top, listWidth, contentHeight));
             menus.modTableBounds = table.Bounds;
             controls["commands"].Visible = wide || !showInspector;
-            rowHeight = 64 * scale;
+            rowHeight = 46 * scale;
             pageSize = Math.Max(1, (int)(contentHeight / rowHeight));
             first = Math.Max(0, selected) / pageSize * pageSize;
             foreach (string id in new[] { "library-primary", "library-secondary", "library-more", "library-cancel" })
             {
                 controls[id].Visible = showInspector;
             }
+            controls["library-secondary"].Visible = showInspector && (Job is { CanOpenDownloadPage: true } or { CanPause: true } or { CanResume: true } || CanUninstall);
+            controls["library-preview"].Visible = showInspector && Entry is { } entry && menus.HasModPreview(entry);
             controls["library-cancel"].Visible = showInspector && (Job?.CanCancel == true || Job?.CanDeleteDownload == true);
-            float actionWidth = (inspector.Width - gap) / 2;
+            float actionWidth = Math.Min(230 * scale, (inspector.Width - gap) / 2);
             Place("library-primary", inspector.X, inspector.Bottom - control * 2 - gap, actionWidth, control);
             Place("library-secondary", inspector.X + actionWidth + gap, inspector.Bottom - control * 2 - gap, actionWidth, control);
-            Place("library-more", inspector.X, inspector.Bottom - control, actionWidth, control);
-            Place("library-cancel", inspector.X + actionWidth + gap, inspector.Bottom - control, actionWidth, control);
+            float extraWidth = controls["library-cancel"].Visible && controls["library-preview"].Visible ? Math.Min(176 * scale, (inspector.Width - 2 * gap) / 3) : actionWidth;
+            Place("library-more", inspector.X, inspector.Bottom - control, extraWidth, control);
+            Place("library-preview", inspector.X + extraWidth + gap, inspector.Bottom - control, extraWidth, control);
+            float cancelX = controls["library-preview"].Visible ? inspector.X + 2 * (extraWidth + gap) : inspector.X + extraWidth + gap;
+            Place("library-cancel", cancelX, inspector.Bottom - control, extraWidth, control);
             controls["library-progress"].Visible = showInspector && Job is { Phase: "Downloading", TotalBytes: > 0 };
             Place("library-progress", inspector.X, inspector.Bottom - control * 2 - gap - 10 * scale, inspector.Width, 5 * scale);
             float pagerY = top + contentHeight + gap;
             Place("mod-inspector", x, pagerY, Math.Min(90 * scale, width * 0.2f), control);
             Place("library-list", x, pagerY, Math.Min(90 * scale, width * 0.2f), control);
             controls["library-list"].Visible = !wide && showInspector;
-            controls["mod-inspector"].Visible = !controls["library-list"].Visible;
+            controls["mod-inspector"].Visible = !wide && !controls["library-list"].Visible;
             Place("library-prev", right - Math.Min(width * 0.45f, 250 * scale), pagerY, Math.Min(width * 0.2f, 110 * scale), control);
             Place("library-next", right - Math.Min(width * 0.2f, 100 * scale), pagerY, Math.Min(width * 0.2f, 100 * scale), control);
             controls["library-prev"].Enabled = first > 0;
             controls["library-next"].Enabled = first + pageSize < Count;
             activity = new(x, pagerY + control + gap, width, control);
-            Place("library-activity", activity.X, activity.Y, activity.Width, activity.Height);
+            Place("library-activity", activity.X, activity.Y, Math.Min(activity.Width, 108 * scale), activity.Height);
+            controls["library-activity"].Visible = !downloads;
         }
 
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
@@ -381,7 +432,12 @@ public sealed partial class MenuController
             canvas.Text(snapshot.TargetLabel + " · " + freshness, 14 * scale, status, theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             string activeTab = downloads ? "downloads-tab" : "catalog-tab";
             UiRect tab = controls[activeTab].Bounds;
-            canvas.Fill(new(tab.X, tab.Bottom - 2, tab.Width, 2), theme.Foreground);
+            canvas.Fill(new(tab.X, tab.Bottom + 1, tab.Width, 2), theme.Foreground);
+            if (!downloads)
+            {
+                UiRect activityText = new(controls["library-activity"].Bounds.Right + 8, activity.Y, Math.Max(0, activity.Right - controls["library-activity"].Bounds.Right - 8), activity.Height);
+                canvas.Text(ActivityLabel(), 14 * scale, activityText, theme.Muted, UiAlignment.Start, UiTextFlow.SingleLine);
+            }
             if (wide || menus.catalogInspectorOpen)
             {
                 canvas.PushClip(inspector);
@@ -390,18 +446,26 @@ public sealed partial class MenuController
                     float available = Math.Max(0, inspector.Height - 64 * scale - 16);
                     float previewHeight = available >= 120 * scale ? Math.Min(80 * scale, available * 0.22f) : 0;
                     UiRect preview = new(inspector.X + 10, inspector.Y + 8, Math.Max(0, inspector.Width - 20), previewHeight);
-                    if (previewHeight > 0 && !canvas.ModPreview(Entry?.PreviewUrl ?? "", preview))
+                    bool hasCover = canvas.ModPreview(previewHeight > 0 ? Entry?.PreviewUrl ?? "" : "", preview);
+                    if (!hasCover)
                     {
-                        canvas.Fill(preview, theme.BorderDark);
-                        canvas.Text(Entry?.Category is { Length: > 0 } category ? category + " · Preview unavailable" : "Package preview", 15 * scale, preview.Inset(8), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
-                    }
-                    if (previewHeight == 0)
-                    {
-                        canvas.ModPreview("", preview);
+                        preview = new(preview.X, preview.Y, preview.Width, 0);
+                        previewHeight = 0;
                     }
                     UiRect textBounds = new(inspector.X + 10, preview.Bottom + 8, Math.Max(0, inspector.Width - 20), Math.Max(0, available - previewHeight - 8));
-                    string detail = IsMemoriaPackage ? string.Join("\n", menus.LibraryDetails()) : Entry is null ? "Select a mod to see its details." : Entry.Name + "\n" + Entry.Author + "\n" + (Job?.Phase ?? menus.CatalogStatus(Entry)) + "\n" + Entry.Description + "\n\nVersion " + Entry.Version + " · " + Entry.Category + "\n" + Entry.Edition + " · " + Entry.Language + "\nSource: " + Entry.SourceId + "\n" + (Job is { } job ? DownloadProgress(job) + "\n" + job.Details + (job.Error is null ? "" : "\nNeeds attention · Full details") : "Download checks package support before installation.") + (snapshot.Error is null ? "" : "\nA library operation needs attention · Full details");
-                    canvas.Text(detail, 17 * scale, textBounds, theme.Foreground, UiAlignment.Start, UiTextFlow.Wrap);
+                    float font = 17 * scale;
+                    float width = Math.Max(1, textBounds.Width);
+                    float offset = menus.catalogInspectorOffset;
+                    description.Arrange(textBounds);
+                    if (measuredDescriptionWidth != width || measuredDescriptionFont != font)
+                    {
+                        descriptionText.FontSize = font;
+                        // Reserve scrollbar width in the measurement so its appearance cannot clip the last line.
+                        description.ContentHeight = MeasureCatalogText(canvas, descriptionText.Text, font, Math.Max(1, width - description.ScrollbarWidth));
+                        measuredDescriptionWidth = width;
+                        measuredDescriptionFont = font;
+                    }
+                    description.Offset = offset;
                 }
                 finally
                 {
@@ -411,6 +475,26 @@ public sealed partial class MenuController
             UiRect previous = controls["library-prev"].Bounds;
             canvas.Text($"{(Count == 0 ? 0 : first + 1)}–{Math.Min(Count, first + pageSize)} of {Count} · {first / pageSize + 1}/{Math.Max(1, (Count + pageSize - 1) / pageSize)}", 14 * scale, new(Bounds.X + 110 * scale, previous.Y, Math.Max(0, previous.X - Bounds.X - 118 * scale), previous.Height), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
             canvas.Text($"{menus.CurrentBindingText(ControlAction.Confirm)} Details · {menus.CurrentBindingText(ControlAction.Cancel)} Back · {menus.CurrentBindingText(ControlAction.UiTab)} Focus", 13 * scale, new(Bounds.X + 12, activity.Bottom + 4, Math.Max(0, Bounds.Width - 24), 23 * scale), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+        }
+
+        private string InspectorDescription()
+        {
+            if (IsMemoriaPackage)
+            {
+                return string.Join("\n", menus.LibraryDetails());
+            }
+            if (Entry is not { } entry)
+            {
+                return "Select a mod to see its details.";
+            }
+            List<string> lines = [entry.Name, entry.Author, Job?.Phase ?? menus.CatalogStatus(entry), entry.Description, "", $"Version {entry.Version} · {entry.Category}", $"{entry.Edition} · {entry.Language}"];
+            if (Job is { } job)
+            {
+                lines.Add(DownloadProgress(job));
+                lines.Add(job.Details ?? "");
+                lines.Add(job.Error ?? "");
+            }
+            return string.Join("\n", lines);
         }
 
         private sealed class CatalogTable(ModCatalogElement owner) : UiElement
@@ -430,9 +514,9 @@ public sealed partial class MenuController
                             theme.Selection(canvas, row);
                         }
                         theme.RowSeparator(canvas, new(row.X, row.Bottom - 1, row.Width, 1));
-                        canvas.Text(owner.downloads ? entry!.Name : owner.entries[index].Name, 17 * owner.scale, new(row.X + 8, row.Y + 4, Math.Max(0, row.Width - 16), row.Height * 0.45f), theme.Foreground, UiAlignment.Center, UiTextFlow.SingleLine);
+                        canvas.Text(owner.downloads ? entry!.Name : owner.entries[index].Name, 17 * owner.scale, new(row.X + 8, row.Y + 4, Math.Max(0, row.Width - 16), row.Height * 0.45f), theme.Foreground, UiAlignment.Start, UiTextFlow.SingleLine);
                         string caption = owner.downloads ? JobGroupLabel(owner.jobs[index]) + " · " + owner.jobs[index].Phase : entry is null ? owner.entries[index].Status : entry.Author + " · " + entry.Category + " · " + owner.menus.CatalogStatus(entry);
-                        canvas.Text(caption, 13 * owner.scale, new(row.X + 8, row.Y + row.Height * 0.5f, Math.Max(0, row.Width - 16), row.Height * 0.4f), theme.Muted, UiAlignment.Center, UiTextFlow.SingleLine);
+                        canvas.Text(caption, 13 * owner.scale, new(row.X + 8, row.Y + row.Height * 0.5f, Math.Max(0, row.Width - 16), row.Height * 0.4f), theme.Muted, UiAlignment.Start, UiTextFlow.SingleLine);
                     }
                     if (owner.Count == 0)
                     {

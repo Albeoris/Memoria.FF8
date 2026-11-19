@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
@@ -73,6 +74,9 @@ internal sealed class KeyboardInput
     public int UiCharacterPage { get; private set; }
     public bool UiDetailRequested { get; private set; }
     public bool UiConfirmRequested { get; private set; }
+    public (UiEditCommand Command, bool Extend)? UiTextEditRequested { get; private set; }
+    private Keys? repeatingTextKey;
+    private TimeSpan nextTextKey;
     public bool UiCancelRequested { get; private set; }
     public bool CancelHeld { get; private set; }
     public string CancelBindingHint { get; private set; } = "";
@@ -242,6 +246,39 @@ internal sealed class KeyboardInput
         UiDetailRequested = Pressed(ControlAction.Card);
         UiConfirmRequested = Pressed(ControlAction.Confirm);
         UiCancelRequested = Pressed(ControlAction.Cancel);
+        UiTextEditRequested = null;
+        if (TextEntryEnabled && active)
+        {
+            bool control = current.IsKeyDown(Keys.LeftControl) || current.IsKeyDown(Keys.RightControl);
+            bool extend = current.IsKeyDown(Keys.LeftShift) || current.IsKeyDown(Keys.RightShift);
+            Keys heldEdit = TextEditKeys.FirstOrDefault(key => current.IsKeyDown(key) && !disarmedKeys.Contains(key));
+            if (heldEdit != Keys.None && (RecoveryPressed(heldEdit) || repeatingTextKey == heldEdit && sampleTime >= nextTextKey))
+            {
+                UiTextEditRequested = (heldEdit switch
+                {
+                    Keys.Back => UiEditCommand.Backspace,
+                    Keys.Delete => UiEditCommand.Delete,
+                    Keys.Left => UiEditCommand.Left,
+                    Keys.Right => UiEditCommand.Right,
+                    Keys.Home => UiEditCommand.Home,
+                    _ => UiEditCommand.End
+                }, extend);
+                nextTextKey = sampleTime + TimeSpan.FromMilliseconds(repeatingTextKey == heldEdit ? 50 : 360);
+            }
+            repeatingTextKey = heldEdit == Keys.None ? null : heldEdit;
+            if (control)
+            {
+                UiTextEditRequested = RecoveryPressed(Keys.A) ? (UiEditCommand.SelectAll, false) :
+                    RecoveryPressed(Keys.V) ? (UiEditCommand.Paste, false) :
+                    RecoveryPressed(Keys.C) ? (UiEditCommand.Copy, false) :
+                    RecoveryPressed(Keys.X) ? (UiEditCommand.Cut, false) :
+                    RecoveryPressed(Keys.Z) ? (extend ? UiEditCommand.Redo : UiEditCommand.Undo, false) : UiTextEditRequested;
+            }
+        }
+        else
+        {
+            repeatingTextKey = null;
+        }
         CancelHeld = !NativeButtonsOwnInput && Down(ControlAction.Cancel);
         if (CancelHeld)
         {
@@ -274,6 +311,8 @@ internal sealed class KeyboardInput
         profileChanged = false;
         return NativeButtonsOwnInput ? default : input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal), CardChallenge = UiDetailRequested };
     }
+
+    private static readonly Keys[] TextEditKeys = [Keys.Back, Keys.Delete, Keys.Left, Keys.Right, Keys.Home, Keys.End];
 
     private static bool IsArrowKey(Keys key) => key is Keys.Up or Keys.Down or Keys.Left or Keys.Right;
 

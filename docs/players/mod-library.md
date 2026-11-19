@@ -35,11 +35,21 @@ Both the launcher and the in-game manager provide separate actions for downloade
 
 Only verified managed payloads are removed. Manual installations, migrated originals and locally modified payloads are preserved; a failed verification explains why removal could not proceed. Native component preferences stay in the central settings file. Deleting an archive and uninstalling a mod are independent operations.
 
+## Previewing changes
+
+Choose **Preview changes** on an installed Memoria or Junction package, or on a catalog release after the download is checked. In the game, individual Memoria components are listed under **Settings** on the Memoria catalog row. The comparison uses the selected game's original resources on the left and the selected package on the right. It leaves installations, mod settings and saves alone.
+
+Choose a change in the tree, then select **Expand comparison** to give both sides more space. World map comparisons apply the package's world resources together and move both views to the same position. Use the shared orientation and pose controls for supported model comparisons. The **Use item** button previews the package's image action inside the comparison.
+
+Reviewed Junction patches describe their gameplay effects in text. Supported audio tracks can play short samples. Supported videos show frames at the same selected time. Text previews show selected changed lines. An unavailable comparison identifies the resource so you can still see what the package contains.
+
 ## Controls and storage
 
-Up/Down selects a row; Confirm opens its inspector. Left/Right or page bindings change list pages. Shoulder/tab-switch bindings change destinations. Tab/Shift+Tab and pane-focus actions move between controls. Back returns from details to the narrow-layout list. Search supports typing and an on-screen character grid. The footer shows configured Confirm/Back bindings.
+Use Up and Down to select a row and Confirm to open its inspector. Left, Right and the page bindings change list pages. Shoulder or tab-switch bindings change destinations. Tab, Shift+Tab and pane-focus actions move between controls. Back returns from the inspector to the list in a narrow window.
 
-On small displays, details replace the list rather than shrinking both panes. Long descriptions and errors have a separate paged Details view. Preview failures leave a stable placeholder.
+Select the catalog search field to type directly. Use the arrow keys, Home and End to move the caret. Backspace and Delete remove characters, and Enter or Escape leaves the field. With a controller, Search opens a character grid with English, Symbols and Cyrillic pages. Choose **Done** to return to the catalog.
+
+Open **Expand details** to read the full description, requirements, release notes or download errors. Scroll with Up and Down, the page bindings or the mouse wheel. Back returns to the selected package. If the preview image is unavailable, the package details are still available.
 
 Download caches use the application's per-user cache directory, scoped to the selected target. Transaction state and verified backups use a `.memoria-mod-library-*` directory beside the chosen mod root, outside package discovery. Do not delete unresolved journals or their referenced backups. Cancel individual uncommitted jobs or remove an installed job's downloaded cache to reclaim compressed downloads. Recovery backups and abandoned preparation data are retained for review; automatic pruning is not implemented. Preview storage has its own small bounded cache.
 
