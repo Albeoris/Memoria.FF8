@@ -191,6 +191,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             State.Status = $"Native input {scriptedInput.CurrentDemand?.Identity}";
             return nativeInput;
         }
+        RetainTempleReturnDestination();
         Ff7AutoPlayObservation observation = ObservePlanner();
         ordinaryObservation = observation;
         if (!observation.CanAcceptInput)
@@ -304,6 +305,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
                 return default;
             }
+            RetainTempleReturnDestination();
             if (State.NativeRevalidation is { } pendingTask && (State.DestinationField is not null || !observation.Events.Any(target => target.Id == pendingTask.EventId && target.ConditionFingerprint == pendingTask.Condition && target.AnalysisComplete) || !HasSourceRevalidationRefusal(State, pendingTask.NavigationKey, pendingTask.EventId, pendingTask.Condition)))
             {
                 State.NativeRevalidation = null;
@@ -328,6 +330,12 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
             {
                 AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
                 return ReadKnownFieldDepartureSource(State, observation, target) is not null || driver.HasNativeGeometricContact(target) && ordinaryAvailability(currentNavigation, native)?.Unavailable != true;
+            }
+            if (State.DestinationField is not null && nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
+            {
+                State.Status = "Waiting for existing native setup before resolving the destination";
+                Publish();
+                return default;
             }
             string? destinationReason = ResolveFieldDestinationGoal(State, observation, session.ReadAutoPlayFieldConnections, CanSelectDestination, CanUnblockDestinationGateway, session.ReadAutoPlayWorldConnections, target => ReadKnownFieldDepartureSource(State, observation, target));
             Ff7NativeSourceRevalidation[] revalidations = State.DestinationField is null ? ReadPendingSourceRevalidations(State, observation) : [];

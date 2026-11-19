@@ -12,9 +12,42 @@ public sealed partial class Ff7AutoPlayPolicy
     private long keymanPlanTick = -1;
     private string? keymanPreferredEvent;
 
+    private void RetainTempleReturnDestination()
+    {
+        if (session.World is not null || State.DestinationField is not null || State.Active is { Accepted: true } || State.NativeRoute is not null || State.Choice is not null || State.PendingRestore is not null)
+        {
+            return;
+        }
+        ushort? destination = ReadTempleReturnDestination(session.MapId, Story(), session.Machine.ProgramIdentity);
+        if (destination is not null)
+        {
+            SetDestinationField(destination);
+        }
+    }
+
+    internal static ushort? ReadTempleReturnDestination(int field, int story, string programIdentity)
+    {
+        if (story != 627)
+        {
+            return null;
+        }
+        if (field == 610 && programIdentity == NativeKeymanProgram)
+        {
+            return 607;
+        }
+        return field == 607 && programIdentity == "990BE7C79174E0B781F19BECE4C986E452CD15247A975847624305ECC7FD7669" ? (ushort)616 : null;
+    }
+
     private bool IsKeymanPreferredEntry(AutoPlayVisit visit, AutoPlayEvent target)
     {
-        if (session.World is not null || session.MapId != 610 || session.Machine.ProgramIdentity != NativeKeymanProgram || ordinaryObservation is not { } observation || observation.VisitId != visit.Key || observation.ProgramIdentity != NativeKeymanProgram || State.DestinationField is not (null or 611 or 612))
+        if (session.World is not null || session.MapId != 610 || session.Machine.ProgramIdentity != NativeKeymanProgram || ordinaryObservation is not { } observation || observation.VisitId != visit.Key || observation.ProgramIdentity != NativeKeymanProgram)
+        {
+            return false;
+        }
+        int story = Story();
+        bool returning = story >= 627;
+        bool allowedDestination = returning ? State.DestinationField is null or 607 or 616 : State.DestinationField is null or 611 or 612;
+        if (!allowedDestination)
         {
             return false;
         }
@@ -44,16 +77,22 @@ public sealed partial class Ff7AutoPlayPolicy
                         }
                     }
                 }
+                if (returning)
+                {
+                    progressionAvailable = Ff7AutoplayDriver.HasGatewayTopologyPath(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player, session.Field.Triggers.Gateways[0], out _);
+                }
                 int[] plan = caught ? ReadKeymanExitPlan(available, progressionAvailable) : ReadKeymanDoorPlan(npc, available);
                 if (plan.Length > 0)
                 {
                     int entry = plan[0];
-                    keymanPreferredEvent = $"line:{entry}:entity:{entry + 6}:script:{(entry == 9 ? 2 : 5)}";
+                    keymanPreferredEvent = entry == 9 ? ReadKeymanProgressionEvent(story) : $"line:{entry}:entity:{entry + 6}:script:5";
                 }
             }
         }
         return target.Id == keymanPreferredEvent;
     }
+
+    internal static string ReadKeymanProgressionEvent(int story) => story >= 627 ? "gateway:0" : "line:9:entity:15:script:2";
 
     internal static int[] ReadKeymanExitPlan(int availableEntries, bool progressionAvailable)
     {

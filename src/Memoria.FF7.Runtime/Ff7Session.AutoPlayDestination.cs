@@ -102,7 +102,15 @@ public sealed partial class Ff7Session
             return [];
         }
         PcFieldFile file = PcFieldFile.ReadCompressed(fields.ReadEntry(fields.Find(mapList[field]).Single()));
-        PcFieldScripts scripts = PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span);
+        PcFieldScripts scripts;
+        try
+        {
+            scripts = PcFieldScripts.Read(file.GetSection(PcFieldSectionKind.ScriptAndText).Span);
+        }
+        catch (InvalidDataException error)
+        {
+            throw new InvalidDataException($"Native field connectivity for {field}/{mapList[field]} cannot read its script section.", error);
+        }
         PcFieldTriggers triggers = PcFieldTriggers.Read(file.GetSection(PcFieldSectionKind.TriggersAndGateways).Span);
         HashSet<int> destinations = triggers.Gateways.Select(gateway => (int)gateway.DestinationField).Where(destination => destination > 0 && destination < mapList.Count).ToHashSet();
         FieldProgram program = FieldProgram.FromPcScripts(scripts);

@@ -7,6 +7,11 @@ internal static class NativeKeymanRouteTests
 {
     internal static void Run()
     {
+        Check(Ff7AutoPlayPolicy.ReadKeymanProgressionEvent(618) == "line:9:entity:15:script:2" && Ff7AutoPlayPolicy.ReadKeymanProgressionEvent(626) == "line:9:entity:15:script:2", "The key route lost its pre-mural native door.");
+        Check(Ff7AutoPlayPolicy.ReadKeymanProgressionEvent(627) == "gateway:0", "The completed mural phase must return through the clock gateway instead of entering the mural again.");
+        Check(Ff7AutoPlayPolicy.ReadTempleReturnDestination(610, 627, "E81D4EC5D4FE755D7E214DCDD225C4D86061A7DDDEC5A0827E7DCB2C48968945") == 607, "The mural return must retain its clock destination even when that gateway was consumed on the earlier visit.");
+        Check(Ff7AutoPlayPolicy.ReadTempleReturnDestination(607, 627, "990BE7C79174E0B781F19BECE4C986E452CD15247A975847624305ECC7FD7669") == 616, "The initialized return bridge must lead to XII.");
+        Check(Ff7AutoPlayPolicy.ReadTempleReturnDestination(610, 618, "E81D4EC5D4FE755D7E214DCDD225C4D86061A7DDDEC5A0827E7DCB2C48968945") is null && Ff7AutoPlayPolicy.ReadTempleReturnDestination(610, 627, "unknown") is null, "The return profile must not claim an earlier phase or an unrecognized native program.");
         int[] logicalDoors = [4, 5, 3, 0, 2, 7, 1, 6, 8];
         int[] physicalExits = [3, 6, 8, 1, 5, 2, 7, 4, 0];
         int[] floors = [1, 0x1E, 0x1E0];
@@ -99,6 +104,7 @@ internal static class NativeKeymanRouteTests
         Ff7SessionSave source = CombinedSessionCodec.Read(input).Ff7!;
         using Ff7Session session = Ff7Session.Restore(Ff7Installation.Discover(game), source);
         bool alreadyCaught = (session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xE9) & 8) != 0;
+        bool returning = session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0) >= 627;
         using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("The required interception must not explore optional choices."));
         policy.State.FrontierProgressKey = null;
         policy.State.FrontierIdleSteps = 0;
@@ -113,6 +119,7 @@ internal static class NativeKeymanRouteTests
         Ff7AutoPlayController controller = new(session, policy.ChooseInput, chooseDialogueSelection: policy.ChooseDialogueSelection, readPlanningProgress: () => policy.WorkProgress);
         controller.Start();
         Stopwatch timer = Stopwatch.StartNew();
+        ushort tracedField = session.MapId;
         while ((session.Machine.Variables.ReadByte(FieldBank.Persistent1Byte, 0xE9) & 8) == 0 && controller.Running && session.Battle is null && timer.Elapsed < TimeSpan.FromSeconds(60))
         {
             controller.Advance(1);
@@ -121,9 +128,14 @@ internal static class NativeKeymanRouteTests
         Check(entries.SequenceEqual(alreadyCaught ? Array.Empty<int>() : new[] { 5, 2 }), $"The actual route did not use the minimum two native transports: {string.Join(',', entries)}.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "Interception changed its authoritative source file.");
         Console.WriteLine($"PASS original two-transport native interception [{string.Join(',', entries)}], key flag and unchanged source; steps={controller.Steps}; elapsed={timer.Elapsed.TotalSeconds:F3}s");
-        while (session.MapId == 610 && controller.Running && session.Battle is null && policy.State.PendingRestore is null && timer.Elapsed < TimeSpan.FromSeconds(60))
+        while ((session.MapId == 610 || returning && session.MapId == 607) && controller.Running && session.Battle is null && policy.State.PendingRestore is null && timer.Elapsed < TimeSpan.FromSeconds(60))
         {
             controller.Advance(1);
+            if (tracedField != session.MapId)
+            {
+                Console.WriteLine($"Native phase route {tracedField}->{session.MapId}; story={session.Machine.Variables.ReadWord(FieldBank.Persistent0Word, 0)}; goal={policy.State.NavigationGoal?.EventId}; destination={policy.State.DestinationField}");
+                tracedField = session.MapId;
+            }
         }
         var finalVm = session.Machine.Capture();
         string menuState = System.Text.Json.JsonSerializer.Serialize(session.Host.Process.Menu);
@@ -135,10 +147,12 @@ internal static class NativeKeymanRouteTests
             Console.WriteLine($"PASS native save cancellation and original MENU continuation; retained choice restore required; callbacks={controller.Steps}; source unchanged");
             return;
         }
-        Check(session.MapId == 611 && controller.Error is null, $"The unlocked keyman route did not reach its required native exit: {controller.Error}; field={session.MapId}; status={policy.Status}; entries={string.Join(',', entries)}; pc27={finalVm.Entities[27].ProgramCounter:X4}; pendingTick={session.HasPendingTick}; restore={policy.State.PendingRestore}; menu={menuState}.");
-        Check(entries.SequenceEqual(alreadyCaught ? new[] { 1, 8 } : new[] { 5, 2, 1, 8 }), $"The actual catch and departure did not use the minimum native transports: {string.Join(',', entries)}.");
+        int expectedField = returning ? 616 : 611;
+        string pc27 = finalVm.Entities.Length > 27 ? finalVm.Entities[27].ProgramCounter.ToString("X4") : "absent";
+        Check(session.MapId == expectedField && controller.Error is null, $"The unlocked keyman route did not reach its required native exit: {controller.Error}; field={session.MapId}; status={policy.Status}; entries={string.Join(',', entries)}; pc27={pc27}; pendingTick={session.HasPendingTick}; restore={policy.State.PendingRestore}; menu={menuState}.");
+        Check(entries.SequenceEqual(returning ? new[] { 8 } : alreadyCaught ? new[] { 1, 8 } : new[] { 5, 2, 1, 8 }), $"The actual catch and departure did not use the minimum native transports: {string.Join(',', entries)}.");
         Check(bytes.AsSpan().SequenceEqual(File.ReadAllBytes(path)), "The keyman departure changed its authoritative source file.");
-        Console.WriteLine($"PASS original catch plus ordinary progression to field611; entries=[{string.Join(',', entries)}]; steps={controller.Steps}; elapsed={timer.Elapsed.TotalSeconds:F3}s");
+        Console.WriteLine($"PASS original catch plus ordinary progression to field{expectedField}; entries=[{string.Join(',', entries)}]; steps={controller.Steps}; elapsed={timer.Elapsed.TotalSeconds:F3}s");
     }
 
     private static void Check(bool condition, string message)
