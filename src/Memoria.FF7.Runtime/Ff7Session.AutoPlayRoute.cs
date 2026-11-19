@@ -30,7 +30,9 @@ public sealed partial class Ff7AutoplayDriver
     internal int PeakNativeRouteCandidates { get; private set; }
     internal long DetachedPhysicalPlanningWork { get; private set; }
     internal long DetachedNativeCallbacks { get; private set; }
-    internal Ff7AutoPlayPlanningProgress PlanningProgress => new(PlanningPending, PhysicalPlanningWork + DetachedPhysicalPlanningWork, DetachedNativeCallbacks, ActiveNativeRouteCandidates);
+    private readonly Ff7NativeCandidateSummaries nativeCandidateSummaries = new();
+    private long nativeCandidateId;
+    internal Ff7AutoPlayPlanningProgress PlanningProgress => new(PlanningPending, PhysicalPlanningWork + DetachedPhysicalPlanningWork, DetachedNativeCallbacks, ActiveNativeRouteCandidates) { NativeGroups = nativeCandidateSummaries.Read(), NativePoseKey = nativeCandidateSummaries.ReadPoseKey() };
 
     internal Ff7AutoPlayNativeRoute? ProveNativeRoute(Ff7AutoPlayTarget target, IReadOnlyList<Ff7AutoPlayTarget> targets, bool requireIntermediate = true, Func<Ff7Session, Ff7AutoPlayObservation, bool>? sourceRelease = null)
     {
@@ -136,6 +138,7 @@ public sealed partial class Ff7AutoplayDriver
         }
         using Ff7Session branch = session.ForkAutoPlayNavigation();
         ActiveNativeRouteCandidates++;
+        long candidateId = ++nativeCandidateId;
         PeakNativeRouteCandidates = Math.Max(PeakNativeRouteCandidates, ActiveNativeRouteCandidates);
         try
         {
@@ -143,6 +146,13 @@ public sealed partial class Ff7AutoplayDriver
             Ff7AutoPlayDiscovery branchDiscovery = new(branch);
             driver.ConfigureSpatialBoundaries(targets, target);
             List<Ff7AutoPlayRouteStep> steps = [];
+            void UpdateSummary(bool physicalPending)
+            {
+                Ff7Actor pose = branch.Host.Process.Actors.FirstOrDefault(actor => actor.PlayerControlled) ?? player;
+                float distance = System.Numerics.Vector3.Distance(new(pose.X4096 / 4096f, pose.Y4096 / 4096f, pose.Z4096 / 4096f), target.Position);
+                nativeCandidateSummaries.Set(candidateId, new(pendingWait, requireIntermediate, target.Id, steps.Count, branch.Host.Process.Tick, new(pose.X4096, pose.Y4096, pose.Z4096, pose.Triangle, pose.Direction), pose.X4096 != player.X4096 || pose.Y4096 != player.Y4096 || pose.Z4096 != player.Z4096 || pose.Triangle != player.Triangle, physicalPending, distance));
+            }
+            UpdateSummary(false);
             bool accepted = false;
             bool ladderObserved = false;
             Dictionary<(int Entity, int Priority), Ff7AutoPlayTarget> recoveryOwners = [];
@@ -186,6 +196,7 @@ public sealed partial class Ff7AutoplayDriver
             bool AdvanceCallback(long callback)
             {
                 long physicalBefore = driver.PhysicalPlanningWork;
+                bool physicalPendingBeforeTime = false;
                 try
                 {
                     driver.BeginPlanningStep();
@@ -242,7 +253,8 @@ public sealed partial class Ff7AutoplayDriver
                             input = driver.ApproachNativeRouteTarget(target, false);
                         }
                     }
-                    Ff7AutoplayInput? resolved = ReadNativePlanningWaitInput(pendingWait, driver.PlanningPending, input);
+                    physicalPendingBeforeTime = driver.PlanningPending;
+                    Ff7AutoplayInput? resolved = ReadNativePlanningWaitInput(pendingWait, physicalPendingBeforeTime, input);
                     if (resolved is null)
                     {
                         return true;
@@ -311,6 +323,7 @@ public sealed partial class Ff7AutoplayDriver
                 finally
                 {
                     DetachedPhysicalPlanningWork += driver.PhysicalPlanningWork - physicalBefore;
+                    UpdateSummary(physicalPendingBeforeTime);
                 }
             }
             for (long callback = 0;;)
@@ -337,6 +350,7 @@ public sealed partial class Ff7AutoplayDriver
         finally
         {
             ActiveNativeRouteCandidates--;
+            nativeCandidateSummaries.Remove(candidateId);
         }
     }
 
