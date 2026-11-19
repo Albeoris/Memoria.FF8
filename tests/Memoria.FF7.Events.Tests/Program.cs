@@ -1,6 +1,12 @@
 ﻿using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--saturated-byte-increment-only", StringComparer.Ordinal))
+{
+    SaturatedByteAddTests.RunIncrement();
+    return 0;
+}
+
 if (args.Contains("--native-trigonometry-only", StringComparer.Ordinal))
 {
     NativeTrigonometryOpcodeTests.Run();
@@ -290,6 +296,7 @@ var tests = new (string Name, Action Run)[]
     ("external triggers and unsigned move speed", ExtendedTests.ExternalTriggersAndSpeed),
     ("canonical party bank and host projection", ExtendedTests.CanonicalParty),
     ("native word talk radius operands and cold continuation", NativeWordTalkRadiusTests.Run),
+    ("native saturated byte increment", SaturatedByteAddTests.RunIncrement),
     ("native SIN/COS operands and cold continuation", NativeTrigonometryOpcodeTests.Run),
     ("native party direction query and cold continuation", NativePartyDirectionQueryTests.Run),
     ("native background layer depth operands and cold continuation", NativeBackgroundDepthTests.Run),

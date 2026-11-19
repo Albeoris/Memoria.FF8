@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF7.Events;
 
 internal static class SaturatedByteAddTests
@@ -6,6 +6,56 @@ internal static class SaturatedByteAddTests
     public static void Run()
     {
         RunCases(0x76, [(0, 0, 0), (127, 1, 128), (254, 1, 255), (250, 20, 255), (255, 255, 255)], 2);
+    }
+
+    public static void RunIncrement()
+    {
+        foreach (byte initial in new byte[] { 0, 127, 254, 255 })
+        {
+            foreach (FieldBank bank in new[] { FieldBank.MapByte, FieldBank.MapWord, FieldBank.Persistent0Byte, FieldBank.Persistent0Word })
+            {
+                FieldProgram program = Program([0, 0x7A, (byte)(0xF0 | (byte)bank), 4, 0x80, 0x50, 9, 87, 0x5F, 0x12, 0]);
+                FieldMachine machine = new(program);
+                machine.Initialize();
+                machine.Variables.WriteByte(bank, 4, initial);
+                machine.Variables.WriteByte(bank, 5, 0xAB);
+                FieldVmSnapshot saved = machine.Capture();
+                FieldMachine cold = FieldMachine.Restore(program, JsonSerializer.Deserialize<FieldVmSnapshot>(JsonSerializer.Serialize(saved))!);
+                List<(FieldVariableRead Access, bool Write)> accesses = [];
+                machine.InstructionVariableAccessed += (access, write) => accesses.Add((access, write));
+                machine.AdvanceTick();
+                cold.AdvanceTick();
+                Equal((byte)Math.Min(255, initial + 1), machine.Variables.ReadByte(bank, 4));
+                Equal((byte)0xAB, machine.Variables.ReadByte(bank, 5));
+                Equal((byte)87, machine.Variables.ReadByte(FieldBank.MapByte, 9));
+                Equal(9, machine.Capture().Entities[0].ProgramCounter);
+                Equal(true, accesses.Contains((new(bank, 4, false), false)) && accesses.Contains((new(bank, 4, false), true)));
+                Equal(JsonSerializer.Serialize(machine.Capture()), JsonSerializer.Serialize(cold.Capture()));
+            }
+        }
+        ushort[] entries = new ushort[32];
+        entries[1] = 1;
+        FieldMachine analyzed = new(new([0, 0x7A, 0xF1, 0, 0], [entries]));
+        analyzed.Initialize();
+        string before = JsonSerializer.Serialize(analyzed.Capture());
+        FieldScriptAnalysis analysis = analyzed.AnalyzeScript(0, 1);
+        if (!analysis.Complete || !analysis.ChangesStory || !analysis.ProgramCounters.Contains(4))
+        {
+            throw new Exception("Saturated increment analysis lost its three-byte successor or actual story-byte write.");
+        }
+        Equal(before, JsonSerializer.Serialize(analyzed.Capture()));
+        List<byte> body = [0];
+        for (int index = 0; index < 9; index++)
+        {
+            body.AddRange([0x7A, 0x05, 4]);
+        }
+        body.AddRange([0x12, 0]);
+        FieldMachine budget = new(Program(body.ToArray()));
+        budget.Initialize();
+        budget.AdvanceTick();
+        Equal((byte)8, budget.Variables.ReadByte(FieldBank.MapByte, 4));
+        Equal(25, budget.Capture().Entities[0].ProgramCounter);
+        Console.WriteLine("PASS native saturated byte increment: low selector, byte aliases, ceiling, same-pass timing, analysis and cold ownership");
     }
 
     public static void RunSubtract()
