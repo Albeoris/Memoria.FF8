@@ -6,6 +6,7 @@ public sealed record TextureBrowserRow(string Id, string Name, string Group, str
 {
     public bool GroupNode { get; init; }
     public int Depth { get; init; }
+    public bool Expandable { get; init; }
 }
 
 /// <summary>Shared texture hierarchy, independent of decoded images, with bounded displayed rows.</summary>
@@ -41,6 +42,9 @@ public sealed class TextureBrowserController
     public bool Filtering => pendingMatches is not null;
     private TextureBrowserRow[] catalog = [];
     private TextureBrowserRow[] visible = [];
+    private readonly Dictionary<int, bool> sourceModes = [];
+    private int scope;
+    private bool resolved = true;
 
     public TextureBrowserController(Action close, Action<int> command)
     {
@@ -57,8 +61,40 @@ public sealed class TextureBrowserController
     public TextureBrowserRow? Selected => visible.ElementAtOrDefault(Index);
     public int Index { get; private set; }
     public int Page => Index / RowsPerPage;
-    public int Scope { get; set; }
-    public bool Resolved { get; set; }
+    public int Scope
+    {
+        get => scope;
+        set
+        {
+            if (value is < 0 or > 2)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+            scope = value;
+            resolved = sourceModes.GetValueOrDefault(scope, scope == 0);
+        }
+    }
+    public bool Resolved
+    {
+        get => resolved;
+        set
+        {
+            resolved = value;
+            sourceModes[scope] = value;
+        }
+    }
+    public IReadOnlyDictionary<int, bool> SourceModes => sourceModes;
+    public string ScopeDescription { get; set; } = "";
+
+    public void RestoreSourceModes(IReadOnlyDictionary<int, bool> choices)
+    {
+        sourceModes.Clear();
+        foreach ((int mode, bool source) in choices.Where(pair => pair.Key is >= 0 and <= 2))
+        {
+            sourceModes[mode] = source;
+        }
+        resolved = sourceModes.GetValueOrDefault(scope, scope == 0);
+    }
     public bool Busy { get; set; }
     public bool Matching { get; set; }
     public bool PreviewAvailable { get; set; }
@@ -66,6 +102,7 @@ public sealed class TextureBrowserController
     public Action<string>? Unmatched { get; set; }
     public Action? CancelWork { get; set; }
     public Action? ManageMods { get; set; }
+    public Action<string>? ExpandSourceRequested { get; set; }
     public string Message { get; set; } = "";
     public string Search { get; private set; } = "";
     public bool SearchFocused { get; private set; }
@@ -243,6 +280,10 @@ public sealed class TextureBrowserController
             collapsed.Add(row.Id);
         }
         Filter(row.Id);
+        if (expanded && groups[row.Id].Leaves.FirstOrDefault(leaf => leaf.Expandable) is { } source)
+        {
+            ExpandSourceRequested?.Invoke(source.Id);
+        }
     }
 
     public void ToggleExpansion()
@@ -250,6 +291,26 @@ public sealed class TextureBrowserController
         if (Selected is { GroupNode: true } row)
         {
             SetExpanded(collapsed.Contains(row.Id));
+        }
+    }
+
+    public void SelectAll()
+    {
+        if (Busy || Matching)
+        {
+            return;
+        }
+        foreach (TextureBrowserRow row in catalog.Where(row => row.Supported))
+        {
+            Selection.Add(row.Id);
+        }
+    }
+
+    public void ClearSelection()
+    {
+        if (!Busy && !Matching)
+        {
+            Selection.Clear();
         }
     }
 
@@ -432,12 +493,15 @@ public sealed class TextureBrowserController
 
 internal sealed class TextureBrowserElement(TextureBrowserController controller) : UiElement
 {
+    private float fontScale = 1;
     private static UiRect CommandBounds(int index) => new(18 + index % 5 * 184, 76 + index / 5 * 40, 176, 34);
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
+        fontScale = theme.FontSize / 16;
         theme.Panel(canvas, new(10, 10, 940, 652));
-        Label(canvas, controller.Text("textures.title", "TEXTURES"), new(24, 22, 200, 30), theme.Foreground, 22);
+        Label(canvas, controller.Text("textures.title", "FFVIII � Textures"), new(24, 22, 200, 30), theme.Foreground, 22);
         Button(canvas, theme, new(250, 20, 680, 34), controller.Search.Length == 0 ? controller.Text("textures.search", "Search names, categories and targets (Tab)") : controller.Search, controller.SearchFocused);
+        Label(canvas, controller.ScopeDescription, new(24, 54, 906, 18), theme.Muted, 11);
         string[] commands = [controller.Text("textures.scope.scene", "Current scene"), controller.Text("textures.scope.all", "All textures"), controller.Text("textures.scope.selected", "Selected"), controller.Resolved ? controller.Text("textures.source.resolved", "Resolved") : controller.Text("textures.source.original", "Original"), controller.Text("textures.export", "Export folder"), controller.Text("textures.import", "Import folder"), controller.Text("textures.refresh", "Reimport"), controller.Text("textures.open.folder", "Open working folder"), controller.Text("textures.import.files", "Import files"), controller.Text("textures.open.mod", "Open mod folder")];
         for (int index = 0; index < commands.Length; index++)
         {
@@ -453,12 +517,14 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
         {
             canvas.Image(new(UiImageKind.HostArtwork, TextureBrowserController.PreviewImageId), new(748, 180, 180, 180));
         }
-        Button(canvas, theme, new(748, 376, 180, 32), controller.Text("textures.select.filtered", "Select filtered leaves"));
+        Button(canvas, theme, new(748, 376, 56, 32), controller.Text("textures.select.all", "All"));
+        Button(canvas, theme, new(810, 376, 56, 32), controller.Text("textures.select.clear", "Clear"));
+        Button(canvas, theme, new(872, 376, 56, 32), controller.Text("textures.select.filtered", "Filter"));
         Label(canvas, $"{controller.Leaves.Count} targets / {controller.Selection.Count} checked\nPage {controller.Page + 1} / {Math.Max(1, (controller.Rows.Count + TextureBrowserController.RowsPerPage - 1) / TextureBrowserController.RowsPerPage)}", new(748, 420, 180, 48), theme.Muted, 12);
         Button(canvas, theme, new(830, 566, 100, 32), controller.Text("textures.mods", "Mods"));
         Label(canvas, controller.Selected?.Detail ?? "", new(24, 474, 906, 44), theme.Muted, 13);
         Label(canvas, controller.Filtering ? controller.Text("textures.filtering", "Filtering catalog�") : controller.Message, new(24, 522, 790, 70), theme.Foreground, 14);
-        Label(canvas, controller.Text("textures.hints", "Up / Down: navigate · Space / Confirm: select · Left / Right: commands · Tab: search\nSelection survives search · Exact target affects all its consumers · Back: close / cancel work"), new(24, 606, 780, 44), theme.Muted, 12);
+        Label(canvas, controller.Text("textures.hints", "Arrows: rows / branches | Space: checkbox | Confirm: expand / select\nShoulders: commands | Tab: search | Detail: Mods | Back: cancel"), new(24, 606, 780, 44), theme.Muted, 12);
         Button(canvas, theme, new(830, 610, 100, 32), controller.Busy ? controller.Text("textures.cancel", "Cancel") : controller.Text("common.back", "Back"));
     }
     public override void Pointer(float x, float y)
@@ -492,7 +558,15 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
                 }
             }
         }
-        if (new UiRect(748, 376, 180, 32).Contains(x, y))
+        if (new UiRect(748, 376, 56, 32).Contains(x, y))
+        {
+            controller.SelectAll();
+        }
+        if (new UiRect(810, 376, 56, 32).Contains(x, y))
+        {
+            controller.ClearSelection();
+        }
+        if (new UiRect(872, 376, 56, 32).Contains(x, y))
         {
             controller.SelectFiltered();
         }
@@ -505,19 +579,19 @@ internal sealed class TextureBrowserElement(TextureBrowserController controller)
             controller.Cancel();
         }
     }
-    private static void Label(IUiCanvas canvas, string text, UiRect bounds, UiColor color, float size)
+    private void Label(IUiCanvas canvas, string text, UiRect bounds, UiColor color, float size)
     {
         canvas.PushClip(bounds);
         try
         {
-            canvas.Text(text, size, bounds, color);
+            canvas.Text(text, size * fontScale, bounds, color);
         }
         finally
         {
             canvas.PopClip();
         }
     }
-    private static void Button(IUiCanvas canvas, UiTheme theme, UiRect bounds, string text, bool selected = false)
+    private void Button(IUiCanvas canvas, UiTheme theme, UiRect bounds, string text, bool selected = false)
     {
         canvas.Fill(bounds, selected ? theme.Highlight : new UiColor(50, 50, 54));
         Label(canvas, text, new(bounds.X + 6, bounds.Y + 6, bounds.Width - 12, bounds.Height - 6), theme.Foreground, 13);

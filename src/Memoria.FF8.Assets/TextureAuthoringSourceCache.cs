@@ -1,7 +1,23 @@
 using Memoria.FF8.Resources;
+using Albeoris.Games.FF8.FlArchives.Abstractions;
 
 namespace Memoria.FF8.Assets
 {
+    internal static class TextureAuthoringSnapshots
+    {
+        public static MemoryStream Read(IFlArchiveEntry entry)
+        {
+            if (entry.Size < 0 || entry.Size > 256L * 1024 * 1024)
+            {
+                throw new InvalidDataException("The authoring source snapshot exceeds its 256 MiB unit limit.");
+            }
+            byte[] snapshot = new byte[checked((int)entry.Size)];
+            using Stream input = entry.OpenForRead();
+            input.ReadExactly(snapshot);
+            return new(snapshot, 0, snapshot.Length, false, true);
+        }
+    }
+
     public sealed partial class ClassicGameDataSource : ITextureAuthoringResourceSource
     {
         private readonly Queue<string> textureAuthoringArchives = [];

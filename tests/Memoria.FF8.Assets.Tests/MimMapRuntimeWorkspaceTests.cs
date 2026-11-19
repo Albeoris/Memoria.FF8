@@ -50,6 +50,7 @@ public sealed class MimMapRuntimeWorkspaceTests
     [InlineData("move")]
     [InlineData("opacity")]
     [InlineData("scale")]
+    [InlineData("unknown")]
     public void StructuralEditsCannotSilentlyRewriteNativeComposition(string change)
     {
         WithWorkspace((path, source) =>
@@ -76,10 +77,38 @@ public sealed class MimMapRuntimeWorkspaceTests
                     case "scale":
                         stack.Root!.SetAttributeValue("w", 17);
                         break;
+                    case "unknown":
+                        XElement extra = new(layer);
+                        extra.SetAttributeValue("name", "New painted layer without native ownership");
+                        layer.AddAfterSelf(extra);
+                        break;
                 }
                 WriteXml(zip, stack);
             }
             Assert.ThrowsAny<Exception>(() => MimMapRuntimeWorkspace.Import(new(new(path, WorkspaceContainerFormat.OpenRaster)), source, TestContext.Current.CancellationToken));
+        });
+    }
+
+    [Fact]
+    public void TransparentRepaintSurvivesAnEditorTrimmingEmptyLayerImages()
+    {
+        WithWorkspace((path, source) =>
+        {
+            MimMapRuntimeWorkspace.Export(source, new(new(path, WorkspaceContainerFormat.OpenRaster)));
+            using (ZipArchive zip = ZipFile.Open(path, ZipArchiveMode.Update))
+            {
+                XDocument stack = ReadXml(zip);
+                foreach (XElement layer in stack.Descendants("layer").Where(layer => ((string?)layer.Attribute("name"))?.StartsWith("Pupu ", StringComparison.Ordinal) == true))
+                {
+                    string name = (string)layer.Attribute("src")!;
+                    zip.GetEntry(name)!.Delete();
+                    using Stream output = zip.CreateEntry(name).Open();
+                    output.Write(LocalizationArtworkExporter.EncodePng(new PixelImage(1, 1)));
+                }
+            }
+            var tiles = MimMapRuntimeWorkspace.Import(new(new(path, WorkspaceContainerFormat.OpenRaster)), source, TestContext.Current.CancellationToken);
+            Assert.Equal(2, tiles.Count);
+            Assert.All(tiles, tile => Assert.All(tile.Image.Pixels, pixel => Assert.Equal((byte)0, pixel.A)));
         });
     }
 

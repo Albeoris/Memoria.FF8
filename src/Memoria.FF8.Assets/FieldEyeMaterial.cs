@@ -9,6 +9,82 @@ public static class FieldEyeMaterial
 {
     private static readonly ConditionalWeakTable<NativeFieldEyeDefinition, ConditionalWeakTable<PixelImage, EyeImages>> images = new();
 
+    public static bool HasNativeVariants(FieldModel model)
+    {
+        return model.Textures.Count > 0 && HasNativeVariants(model.NativeEyes, model.Textures[0].Width, model.Textures[0].Height);
+    }
+
+    internal static bool HasNativeVariants(NativeFieldEyeDefinition? eyes, int width, int height)
+    {
+        if (eyes is not { Bank.Length: >= 16, Texture: { Depth: 1 } texture } || width != texture.WidthWords * 2 || height != texture.Height)
+        {
+            return false;
+        }
+        try
+        {
+            NativeEyeCopy? open = eyes.Copy(false);
+            NativeEyeCopy? closed = eyes.Copy(true);
+            return open is not null && closed is not null && !open.Words.AsSpan().SequenceEqual(closed.Words);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    public static IReadOnlyDictionary<string, PixelImage> NativeVariants(FieldModel model)
+    {
+        if (!HasNativeVariants(model))
+        {
+            throw new NotSupportedException("The selected material has no proved complete native eye-copy variants.");
+        }
+        return new Dictionary<string, PixelImage> { ["eyes-open"] = Resolve(model, false), ["eyes-closed"] = Resolve(model, true) };
+    }
+
+    /// <summary>Projects the existing native bank copy onto an edited complete image without advancing the eye process.</summary>
+    public static PixelImage Project(NativeFieldEyeDefinition eyes, PixelImage source, string variant)
+    {
+        if (variant is not ("eyes-open" or "eyes-closed") || eyes.Texture is not { Depth: 1 } texture)
+        {
+            throw new NotSupportedException("The requested eye variant has no proved complete 8bpp source copy.");
+        }
+        NativeEyeCopy copy = eyes.Copy(variant == "eyes-closed") ?? throw new NotSupportedException("The requested eye bank is absent.");
+        int logicalWidth = texture.WidthWords * 2;
+        int logicalHeight = texture.Height;
+        if ((long)source.Width * logicalHeight != (long)source.Height * logicalWidth)
+        {
+            throw new InvalidDataException("An edited native eye image must retain its complete source aspect ratio.");
+        }
+        int X(int value)
+        {
+            if ((long)value * source.Width % logicalWidth != 0)
+            {
+                throw new InvalidDataException("The edited image splits a native eye-copy texel boundary. Use a compatible uniform scale.");
+            }
+            return checked((int)((long)value * source.Width / logicalWidth));
+        }
+        int Y(int value)
+        {
+            if ((long)value * source.Height % logicalHeight != 0)
+            {
+                throw new InvalidDataException("The edited image splits a native eye-copy row boundary. Use a compatible uniform scale.");
+            }
+            return checked((int)((long)value * source.Height / logicalHeight));
+        }
+        int sourceX = X(copy.SourceXWords * 2);
+        int sourceY = Y(copy.SourceY);
+        int destinationX = X(copy.DestinationXWords * 2);
+        int destinationY = Y(copy.DestinationY);
+        int width = X(copy.WidthWords * 2);
+        int height = Y(copy.Height);
+        Rgba32[] pixels = source.Pixels.ToArray();
+        for (int row = 0; row < height; row++)
+        {
+            source.Pixels.AsSpan((sourceY + row) * source.Width + sourceX, width).CopyTo(pixels.AsSpan((destinationY + row) * source.Width + destinationX, width));
+        }
+        return new(source.Width, source.Height, pixels);
+    }
+
     public static PixelImage Resolve(FieldModel model, bool closed)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -27,7 +103,7 @@ public static class FieldEyeMaterial
                 {
                     throw new InvalidDataException("A field eye material variant must retain the selected texture's canvas.");
                 }
-                return closed ? variant : source;
+                return closed ? variant : value.Variants.TryGetValue("eyes-open", out PixelImage? open) ? open : source;
             }
             if (value.IsReplacement)
             {

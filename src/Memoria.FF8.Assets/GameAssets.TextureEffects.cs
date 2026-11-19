@@ -19,9 +19,9 @@ public sealed partial class GameAssets
             {
                 contexts = ReadCatalogCommonEffectPages(page);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new("battle/a8def.tim", "Discovering common effect pages", exception.Message));
+                diagnostic?.Invoke(new("battle/a8def.tim", "Discovering common effect pages", exception.Message, TextureCatalogOutcome(exception)));
                 continue;
             }
             foreach (TextureBuildContext context in contexts)
@@ -37,9 +37,9 @@ public sealed partial class GameAssets
             {
                 archive = OpenArchive(archiveName);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new(archiveName, "Discovering effect sources", exception.Message));
+                diagnostic?.Invoke(new(archiveName, "Discovering effect sources", exception.Message, TextureCatalogOutcome(exception)));
             }
             using (archive)
             {
@@ -60,9 +60,9 @@ public sealed partial class GameAssets
                     {
                         contexts = ReadCatalogStandaloneTim(owner);
                     }
-                    catch (Exception exception) when (CatalogError(exception))
+                    catch (Exception exception) when (TextureCatalogError(exception))
                     {
-                        diagnostic?.Invoke(new(owner.Path, "Discovering TIM effect source", exception.Message));
+                        diagnostic?.Invoke(new(owner.Path, "Discovering TIM effect source", exception.Message, TextureCatalogOutcome(exception)));
                         continue;
                     }
                     foreach (TextureBuildContext context in contexts)
@@ -78,9 +78,9 @@ public sealed partial class GameAssets
         {
             executable = ReadNativeExecutable();
         }
-        catch (Exception exception) when (CatalogError(exception))
+        catch (Exception exception) when (TextureCatalogError(exception))
         {
-            diagnostic?.Invoke(new("magic", "Discovering cinematic texture profiles", exception.Message));
+            diagnostic?.Invoke(new("magic", "Discovering cinematic texture profiles", exception.Message, TextureCatalogOutcome(exception)));
         }
         if (executable is null)
         {
@@ -96,11 +96,11 @@ public sealed partial class GameAssets
             IReadOnlyList<TextureBuildContext> contexts;
             try
             {
-                contexts = ReadCatalogCinematicTextures(effect, executable);
+                contexts = ReadCatalogCinematicTextures(effect, executable, diagnostic);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new($"magic/effect/{effect}", "Discovering cinematic material directory", exception.Message));
+                diagnostic?.Invoke(new($"magic/effect/{effect}", "Discovering cinematic material directory", exception.Message, TextureCatalogOutcome(exception)));
                 continue;
             }
             foreach (TextureBuildContext context in contexts)
@@ -117,7 +117,14 @@ public sealed partial class GameAssets
         TextureBuildContext context = snapshot.Context;
         if (context.Layout != "native-effect-texture")
         {
-            return [context];
+            TextureBuildContext normalized = NormalizeAuthoringSheetContext(context, snapshot.InstalledOriginal, snapshot.Resolved);
+            List<TextureBuildContext> companions = [normalized];
+            IEnumerable<string> names = snapshot.InstalledOriginal?.Variants?.Keys ?? CatalogVariantNames(context);
+            foreach (string variant in names.Where(variant => variant != (context.RequestedVariant ?? "")).Distinct(StringComparer.Ordinal))
+            {
+                companions.Add(CloneTextureVariant(normalized, variant));
+            }
+            return companions;
         }
         TextureSourceAddress alias = context.NativeAlias ?? throw new NotSupportedException("The native texture crop has no persisted source identity.");
         IReadOnlyList<TextureBuildContext> sources;
@@ -145,7 +152,7 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogCommonEffectPages(int page)
     {
         ResourceKey encodedOwner = new("battle/a8def.tim");
-        TimImage tim = WorldAssetReader.ReadTim(resources.Read(encodedOwner), 0).Image;
+        TimImage tim = WorldAssetReader.ReadTim(ReadTextureSource(encodedOwner), 0).Image;
         if (tim.PixelWidth != 768 || tim.Height != 256 || page is < 0 or > 2)
         {
             throw new InvalidDataException("The common battle texture requires its three native 256x256 pages.");
@@ -166,7 +173,7 @@ public sealed partial class GameAssets
 
     private IReadOnlyList<TextureBuildContext> ReadCatalogStandaloneTim(ResourceKey owner)
     {
-        byte[] bytes = resources.Read(owner);
+        byte[] bytes = ReadTextureSource(owner);
         if (bytes.Length < 8 || BinaryPrimitives.ReadUInt32LittleEndian(bytes) != 16)
         {
             return [];
@@ -188,19 +195,19 @@ public sealed partial class GameAssets
         return result;
     }
 
-    private IReadOnlyList<TextureBuildContext> ReadCatalogCinematicTextures(int effect, byte[]? executable = null)
+    private IReadOnlyList<TextureBuildContext> ReadCatalogCinematicTextures(int effect, byte[]? executable = null, Action<TextureCatalogDiagnostic>? diagnostic = null)
     {
         INativeBattleScriptedTextureProfile textureProfile;
         if (effect == 222)
         {
-            ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles = Enumerable.Range(0, 2).Select(index => new NativeBattleEffectHeapAllocation($"mag221_b.{index:00}", resources.Read(new($"magic/mag221_b.{index:00}")).ToImmutableArray())).ToImmutableArray();
+            ImmutableArray<NativeBattleEffectHeapAllocation> currentFiles = Enumerable.Range(0, 2).Select(index => new NativeBattleEffectHeapAllocation($"mag221_b.{index:00}", ReadTextureSource(new($"magic/mag221_b.{index:00}")).ToImmutableArray())).ToImmutableArray();
             textureProfile = NativeBattleWater222ResourcesReader.Read(executable ?? ReadNativeExecutable(), currentFiles).Profile;
         }
         else
         {
             NativeBattleCinematicProfile profile = NativeBattleCinematicProfile.ForEffect(effect);
             ResourceKey initialOwner = new("magic/" + profile.InitialFile);
-            byte[] initial = resources.Read(initialOwner);
+            byte[] initial = ReadTextureSource(initialOwner);
             textureProfile = NativeBattleCinematicResourcesReader.Read(executable ?? ReadNativeExecutable(), initial.ToImmutableArray(), profile);
         }
         Dictionary<int, byte[]> files = [];
@@ -209,7 +216,7 @@ public sealed partial class GameAssets
             if (!files.TryGetValue(index, out byte[]? bytes))
             {
                 int identity = NativeBattleEffectIdentity.IndexFromBindingEffect(effect);
-                bytes = resources.Read(new($"magic/mag{identity:000}_b.{index:00}"));
+                bytes = ReadTextureSource(new($"magic/mag{identity:000}_b.{index:00}"));
                 files.Add(index, bytes);
             }
             return bytes;
@@ -217,46 +224,57 @@ public sealed partial class GameAssets
         List<TextureBuildContext> result = [];
         for (int member = 0; member < textureProfile.TextureCount; member++)
         {
-            NativeBattleEffectTextureRectangle pixels = textureProfile.Rectangle(member, false);
-            NativeBattleEffectTextureRectangle palette = textureProfile.Rectangle(member, true);
-            if (pixels.Width <= 0 || pixels.Height <= 0)
+            try
             {
-                continue;
-            }
-            int pixelSource = textureProfile.Source(member, false);
-            int paletteSource = textureProfile.Source(member, true);
-            int bits = textureProfile.BitsPerPixel(member);
-            byte[] words = ReadCinematicMember(Source(pixelSource), member, false, checked(pixels.Width * pixels.Height * 2));
-            TimClut? clut = null;
-            if (bits is 4 or 8)
-            {
-                byte[] colors = ReadCinematicMember(Source(paletteSource), member, true, checked(palette.Width * palette.Height * 2));
-                ushort[] values = new ushort[colors.Length / 2];
-                for (int index = 0; index < values.Length; index++)
+                NativeBattleEffectTextureRectangle pixels = textureProfile.Rectangle(member, false);
+                NativeBattleEffectTextureRectangle palette = textureProfile.Rectangle(member, true);
+                if (pixels.Width <= 0 || pixels.Height <= 0)
                 {
-                    values[index] = BinaryPrimitives.ReadUInt16LittleEndian(colors.AsSpan(index * 2));
+                    continue;
                 }
-                clut = new(palette.X, palette.Y, palette.Width, palette.Height, values);
-            }
-            byte[] decodedWords;
-            if (bits == 4)
-            {
-                decodedWords = new byte[words.Length * 2];
-                for (int index = 0; index < words.Length; index++)
+                int pixelSource = textureProfile.Source(member, false);
+                int paletteSource = textureProfile.Source(member, true);
+                if (pixelSource == 127 || paletteSource is 127 or 255)
                 {
-                    decodedWords[index * 2] = (byte)(words[index] & 15);
-                    decodedWords[index * 2 + 1] = (byte)(words[index] >> 4);
+                    throw new NotSupportedException($"Cinematic material {member} has an unresolved source selector ({pixelSource}, {paletteSource}); authoring requires its actual scripted file-owner binding.");
                 }
+                int bits = textureProfile.BitsPerPixel(member);
+                byte[] words = ReadCinematicMember(Source(pixelSource), member, false, checked(pixels.Width * pixels.Height * 2));
+                TimClut? clut = null;
+                if (bits is 4 or 8)
+                {
+                    byte[] colors = ReadCinematicMember(Source(paletteSource), member, true, checked(palette.Width * palette.Height * 2));
+                    ushort[] values = new ushort[colors.Length / 2];
+                    for (int index = 0; index < values.Length; index++)
+                    {
+                        values[index] = BinaryPrimitives.ReadUInt16LittleEndian(colors.AsSpan(index * 2));
+                    }
+                    clut = new(palette.X, palette.Y, palette.Width, palette.Height, values);
+                }
+                byte[] decodedWords;
+                if (bits == 4)
+                {
+                    decodedWords = new byte[words.Length * 2];
+                    for (int index = 0; index < words.Length; index++)
+                    {
+                        decodedWords[index * 2] = (byte)(words[index] & 15);
+                        decodedWords[index * 2 + 1] = (byte)(words[index] >> 4);
+                    }
+                }
+                else
+                {
+                    decodedWords = words;
+                }
+                TimPixelMode mode = bits == 4 ? TimPixelMode.Indexed4 : bits == 8 ? TimPixelMode.Indexed8 : bits == 16 ? TimPixelMode.Direct16 : throw new NotSupportedException("The cinematic source uses an unsupported pixel depth.");
+                TimImage tim = new(mode, pixels.X, pixels.Y, pixels.Width, pixels.Height, decodedWords, clut);
+                int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(effect);
+                ResourceKey owner = new($"magic/mag{effectIndex:000}_b.{pixelSource:00}");
+                result.AddRange(EffectTimContexts(owner, $"texture/{member}", tim));
             }
-            else
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                decodedWords = words;
+                diagnostic?.Invoke(new($"magic/effect/{effect}/texture/{member}", "Discovering cinematic material", exception.Message, TextureCatalogOutcome(exception)));
             }
-            TimPixelMode mode = bits == 4 ? TimPixelMode.Indexed4 : bits == 8 ? TimPixelMode.Indexed8 : bits == 16 ? TimPixelMode.Direct16 : throw new NotSupportedException("The cinematic source uses an unsupported pixel depth.");
-            TimImage tim = new(mode, pixels.X, pixels.Y, pixels.Width, pixels.Height, decodedWords, clut);
-            int effectIndex = NativeBattleEffectIdentity.IndexFromBindingEffect(effect);
-            ResourceKey owner = new($"magic/mag{effectIndex:000}_b.{pixelSource:00}");
-            result.AddRange(EffectTimContexts(owner, $"texture/{member}", tim));
         }
         return result;
     }

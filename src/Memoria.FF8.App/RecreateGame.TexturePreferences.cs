@@ -4,7 +4,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private sealed record TextureToolPreferences(int Scope, bool Resolved, string? ExportDirectory, string? ImportDirectory, string? Destination, string[]? ImportFiles);
+    private sealed record TextureToolPreferences(int Scope, bool Resolved, string? ExportDirectory, string? ImportDirectory, string? Destination, string[]? ImportFiles, Dictionary<int, bool>? SourceModes = null);
     private string TextureToolPreferencesPath => Path.Combine(globalSettings.DirectoryPath, "texture-tools.json");
 
     private TextureToolPreferences ReadTextureToolPreferences()
@@ -24,7 +24,7 @@ internal sealed partial class RecreateGame
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
         }
-        return new(0, false, null, null, null, null);
+        return new(0, true, null, null, null, null);
     }
 
     private void SaveTextureToolPreferences()
@@ -38,7 +38,7 @@ internal sealed partial class RecreateGame
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            TextureToolPreferences preferences = new(browser.Scope, browser.Resolved, textureExportDirectory, textureImportDirectory, textureDestination, textureImportFiles?.ToArray());
+            TextureToolPreferences preferences = new(browser.Scope, browser.Resolved, textureExportDirectory, textureImportDirectory, textureDestination, textureImportFiles?.ToArray(), browser.SourceModes.ToDictionary(pair => pair.Key, pair => pair.Value));
             File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(preferences));
             File.Move(temporary, path, true);
         }

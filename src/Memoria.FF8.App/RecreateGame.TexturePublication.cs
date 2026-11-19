@@ -5,13 +5,18 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private TexturePublication PrepareTexturePublication(IReadOnlyDictionary<TextureKey, TextureValue> changed)
+    private TexturePublication PrepareTexturePublication(ResourceService.PreparedResources candidate)
     {
+        IReadOnlyDictionary<TextureKey, TextureValue> changed = candidate.TextureValues;
         List<TexturePublication> prepared = [];
         var background = world?.PrepareTexturePublication(changed, resourceHost!.Resources.Generation + 1);
         var previous = resourceHost!.Resources.CaptureTextureValues(changed.Keys);
         try
         {
+            if (uiCanvas?.PrepareTexturePublication(candidate, changed, resourceHost.Resources.Generation + 1) is { } interfaceTextures)
+            {
+                prepared.Add(interfaceTextures);
+            }
             if (nativeTextFont?.PrepareTexturePublication(changed) is { } font)
             {
                 prepared.Add(font);

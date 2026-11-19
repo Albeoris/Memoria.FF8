@@ -168,6 +168,10 @@ public sealed partial class ClassicGameDataSource : IResourceSource, IGameArchiv
         lock (archiveGate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
+            if (IsTextureAuthoringSource)
+            {
+                return TextureAuthoringSnapshots.Read(entry);
+            }
             return new MemoryStream(ReadEntry(entry), false);
         }
     }

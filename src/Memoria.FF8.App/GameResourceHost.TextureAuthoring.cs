@@ -6,6 +6,10 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameResourceHost
 {
+    public string TextureAuthoringScopeDescription => source is SelectedModelResourceSource selected
+        ? $"FFVIII / {source.Descriptor.Edition} resources / {selected.ModelSourceDescriptor.Edition} models / {Resources.ResourceLanguage}"
+        : $"FFVIII / {source.Descriptor.Edition} / {Resources.ResourceLanguage}";
+
     /// <summary>Capture on the owner thread, invoke on a worker. The worker gets independent archive readers and resolver caches.</summary>
     public Func<TextureAuthoringSession> CaptureTextureAuthoringFactory(bool resolved)
     {

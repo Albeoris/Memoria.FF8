@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Ui;
+using Bitmap = SkiaSharp.SKBitmap;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -20,7 +22,7 @@ public sealed class TextureBrowserTests
         {
             browser.TextInput(character);
         }
-        Assert.Equal("field/1", Assert.Single(browser.Rows.Where(row => !row.GroupNode)).Id);
+        Assert.Equal("field/1", Assert.Single(browser.Rows, row => !row.GroupNode).Id);
         Assert.Contains("weapon/1", browser.Selection);
         browser.SetRows([new("weapon/1", "Revolver", "Squall / Weapons", "Shared"), new("field/1", "Library", "Fields", "Background")]);
         Assert.Contains("weapon/1", browser.Selection);
@@ -156,14 +158,81 @@ public sealed class TextureBrowserTests
         {
             browser.AdvanceFiltering(128);
         }
-        Assert.Equal("4999", Assert.Single(browser.Rows.Where(row => !row.GroupNode)).Id);
+        Assert.Equal("4999", Assert.Single(browser.Rows, row => !row.GroupNode).Id);
         Assert.Empty(browser.Selection);
+    }
+
+    [Fact]
+    public void Scope_defaults_and_saved_choices_are_independent()
+    {
+        TextureBrowserController browser = new(() => { }, _ => { });
+        Assert.Equal(0, browser.Scope);
+        Assert.True(browser.Resolved);
+        browser.Scope = 1;
+        Assert.False(browser.Resolved);
+        browser.Resolved = true;
+        browser.Scope = 2;
+        Assert.False(browser.Resolved);
+        browser.Scope = 0;
+        Assert.True(browser.Resolved);
+        browser.Resolved = false;
+        browser.Scope = 1;
+        Assert.True(browser.Resolved);
+        TextureBrowserController restored = new(() => { }, _ => { });
+        restored.RestoreSourceModes(browser.SourceModes);
+        Assert.False(restored.Resolved);
+        restored.Scope = 1;
+        Assert.True(restored.Resolved);
+        restored.Scope = 2;
+        Assert.False(restored.Resolved);
+    }
+
+    [Fact]
+    public void Select_all_and_clear_ignore_search_without_changing_it()
+    {
+        TextureBrowserController browser = new(() => { }, _ => { });
+        browser.SetRows([new("a", "Revolver", "Characters/Squall", ""), new("b", "Gloves", "Characters/Zell", "")]);
+        browser.FocusSearch();
+        browser.TextInput('R');
+        browser.SelectAll();
+        Assert.Equal(2, browser.Selection.Count);
+        Assert.Equal("R", browser.Search);
+        browser.ClearSelection();
+        Assert.Empty(browser.Selection);
+        Assert.Equal("R", browser.Search);
+    }
+
+    [Theory]
+    [InlineData(640, 448, 16)]
+    [InlineData(1280, 896, 20)]
+    public void Hierarchy_and_review_render_in_scaled_viewports(int width, int height, float fontSize)
+    {
+        TextureBrowserController browser = new(() => { }, _ => { }) { ScopeDescription = "FFVIII / Classic game / Remastered models / en" };
+        browser.SetRows(Enumerable.Range(0, 24).Select(index => new TextureBrowserRow("weapon/" + index, "Synthetic weapon texture " + index, "Characters/Squall/Weapons", "Shared target / original PNG / affects every consumer")));
+        ExpandAll(browser);
+        SelectLeaf(browser, "weapon/0");
+        browser.Toggle();
+        browser.Message = "Reading / Validating complete. One edited texture is selected. Unselected resources and mod settings are retained.";
+        using Bitmap bitmap = new(width, height, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Unpremul);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            var view = browser.BuildView();
+            view.Resize(width, height);
+            view.Draw(canvas, new UiTheme { FontSize = fontSize });
+        }
+        Assert.NotEqual(SkiaSharp.SKColors.Transparent, bitmap.GetPixel(width / 2, height / 2));
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEXTURE_BROWSER_UI_OUTPUT");
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            Directory.CreateDirectory(output);
+            bitmap.SavePng(Path.Combine(output, $"texture-hierarchy-{width}.png"));
+        }
     }
 
     [Fact]
     public void Native_multiple_file_callback_preserves_every_selected_unicode_path()
     {
-        nint first = Marshal.StringToCoTaskMemUTF8("C:/art/雪.png");
+        nint first = Marshal.StringToCoTaskMemUTF8("C:/art/\u96EA.png");
         nint second = Marshal.StringToCoTaskMemUTF8("C:/art/field.ora");
         nint paths = Marshal.AllocHGlobal(IntPtr.Size * 3);
         try
@@ -172,8 +241,8 @@ public sealed class TextureBrowserTests
             Marshal.WriteIntPtr(paths, IntPtr.Size, second);
             Marshal.WriteIntPtr(paths, IntPtr.Size * 2, 0);
             var result = SdlDesktopDialogs.ReadResult(paths, () => "", multiple: true);
-            Assert.Equal("C:/art/雪.png", result.Path);
-            Assert.Equal(new[] { "C:/art/雪.png", "C:/art/field.ora" }, result.Paths);
+            Assert.Equal("C:/art/\u96EA.png", result.Path);
+            Assert.Equal(new[] { "C:/art/\u96EA.png", "C:/art/field.ora" }, result.Paths);
         }
         finally
         {

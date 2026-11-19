@@ -114,6 +114,18 @@ public static class MimMapRuntimeWorkspace
         MimMapLayout layout = MimMapLayout.Read(verifiedSource.Mim, verifiedSource.Map.Write());
         XDocument stack = ReadStack(input.Read("stack.xml"));
         XElement root = stack.Root ?? throw new InvalidDataException("OpenRaster stack has no image root.");
+        foreach (XElement layer in stack.Descendants("layer"))
+        {
+            String name = (String?)layer.Attribute("name") ?? "";
+            if (name.StartsWith("Pupu ", StringComparison.Ordinal) && (name.Length < 13 || !UInt32.TryParse(name.AsSpan(5, 8), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out _)))
+            {
+                throw new InvalidDataException($"Invalid Pupu layer identity '{name}'. Restore the original eight-digit exported token.");
+            }
+            if (!name.StartsWith("Pupu ", StringComparison.Ordinal) && name is not (OpenRasterStack.PaletteLayerName or OpenRasterStack.SourceMimLayerName or OpenRasterStack.SourceMapLayerName))
+            {
+                throw new InvalidDataException($"Unknown field layer '{name}'. Paint inside an exported Pupu layer; additional composition layers have no native texture ownership.");
+            }
+        }
         Int32 width = ReadInteger(root, "w");
         Int32 height = ReadInteger(root, "h");
         if (width <= 0 || height <= 0 || width % layout.Width != 0 || height % layout.Height != 0 || width / layout.Width != height / layout.Height || width < layout.Width || width > PixelImage.MaximumDimension || height > PixelImage.MaximumDimension || (Int64)width * height > PixelImage.MaximumPixelCount)
@@ -163,10 +175,6 @@ public static class MimMapRuntimeWorkspace
             {
                 Int32 startX = checked((tile.X + layout.OffsetX) * scale);
                 Int32 startY = checked((tile.Y + layout.OffsetY) * scale);
-                if (startX < reference.X || startY < reference.Y || startX + 16 * scale > reference.X + layer.Width || startY + 16 * scale > reference.Y + layer.Height)
-                {
-                    throw new InvalidDataException($"Pupu {group.PupuId:X8} crops required tile {tile.Index}. Restore its full exported layer extent.");
-                }
                 PixelImage image = new(16 * scale, 16 * scale);
                 for (Int32 y = 0; y < image.Height; y++)
                 {
@@ -174,7 +182,9 @@ public static class MimMapRuntimeWorkspace
                     {
                         Rgba32 native = atlas.ReadNativePixel(tile, x / scale, y / scale);
                         Int32 owner = original.Owners[(startY / scale + y / scale) * layout.Width + startX / scale + x / scale];
-                        Rgba32 pixel = owner == tile.Index ? layer[startX + x - reference.X, startY + y - reference.Y] : native;
+                        Int32 editedX = startX + x - reference.X;
+                        Int32 editedY = startY + y - reference.Y;
+                        Rgba32 pixel = owner != tile.Index ? native : (UInt32)editedX < layer.Width && (UInt32)editedY < layer.Height ? layer[editedX, editedY] : default;
                         if (pixel.A == 255 && native.A == 128)
                         {
                             pixel = new(pixel.R, pixel.G, pixel.B, 128);
@@ -203,13 +213,25 @@ public static class MimMapRuntimeWorkspace
     {
         Double expectedOpacity = tile.BlendMode switch { MapBlendMode.Average => 0.5, MapBlendMode.QuarterAdd => 0.25, _ => 1.0 };
         String expectedBlend = tile.BlendMode is MapBlendMode.Add or MapBlendMode.Average or MapBlendMode.QuarterAdd ? "svg:plus" : "svg:src-over";
-        Double opacity = (String?)layer.Attribute("opacity") is String value && Double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out Double parsed) ? parsed : 1;
+        Double opacity = ReadOpacity(layer);
         String blend = (String?)layer.Attribute("composite-op") ?? "svg:src-over";
-        if (opacity != expectedOpacity || blend != expectedBlend || layer.Ancestors("stack").Any(stack => stack.Attribute("x") is not null || stack.Attribute("y") is not null || stack.Attribute("opacity") is XAttribute attribute && attribute.Value != "1"))
+        if (opacity != expectedOpacity || blend != expectedBlend || layer.Ancestors("stack").Any(stack => ReadOptionalCoordinate(stack, "x") != 0 || ReadOptionalCoordinate(stack, "y") != 0 || ReadOpacity(stack) != 1 || stack.Attribute("composite-op") is XAttribute operation && operation.Value != "svg:src-over"))
         {
             throw new InvalidDataException($"Pupu layer {tile.Index} changes native opacity, blend or group transforms. Restore exported composition; texture import changes artwork only.");
         }
     }
+
+    private static Double ReadOpacity(XElement element)
+    {
+        String? value = (String?)element.Attribute("opacity");
+        if (value is null)
+        {
+            return 1;
+        }
+        return Double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out Double opacity) && Double.IsFinite(opacity) ? opacity : throw new InvalidDataException("OpenRaster opacity must be a finite number.");
+    }
+
+    private static Int32 ReadOptionalCoordinate(XElement element, String name) => element.Attribute(name) is null ? 0 : ReadInteger(element, name);
 
     private static Int32 ReadInteger(XElement element, String name) => Int32.TryParse((String?)element.Attribute(name), NumberStyles.Integer, CultureInfo.InvariantCulture, out Int32 value) ? value : throw new InvalidDataException($"OpenRaster has invalid {name}.");
 

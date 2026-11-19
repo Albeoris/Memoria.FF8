@@ -29,6 +29,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void BeginFrame(TimeSpan time)
     {
+        DrainUiPublicationTextures();
         presentedTextureImages.Clear();
         textOverflow.BeginFrame(time);
         PumpModPreview();
@@ -162,6 +163,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     private Texture2D GetImage(UiImageSource source)
     {
+        RefreshItemImageVersion(source);
         if (artworkGeneration != artwork.Generation)
         {
             foreach (UiImageSource key in images.Keys.Where(MenuArtworkProvider.IsResourceImage).ToArray())
@@ -189,6 +191,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             try
             {
                 texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+                ImageUploadCount++;
                 images.Add(source, texture);
                 imageSources[source] = image;
             }
@@ -242,6 +245,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             pointerSource = image;
             menuPointer = new Texture2D(device, image.Width, image.Height);
             menuPointer.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+            ImageUploadCount++;
         }
         if (pointerSource is not null)
         {
@@ -476,6 +480,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void Dispose()
     {
+        DrainUiPublicationTextures();
         DisposeModPreviews();
         paper?.Dispose();
         menuPointer?.Dispose();
@@ -489,5 +494,8 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             texture.Dispose();
         }
         images.Clear();
+        imageSources.Clear();
+        itemImageVersions.Clear();
+        presentedTextureImages.Clear();
     }
 }

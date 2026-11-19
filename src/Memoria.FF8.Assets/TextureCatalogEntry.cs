@@ -5,12 +5,14 @@ namespace Memoria.FF8.Assets;
 /// <summary>Searchable source metadata. Entries never retain decoded pixels or GPU resources.</summary>
 public sealed record TextureCatalogEntry(TextureTarget Target, string Name, string Category, string Layout, int LogicalWidth, int LogicalHeight)
 {
-    public string SearchText => $"{Name} {Category} {Target.Owner} {Target.Subresource} palette {Target.Palette}";
+    public string SearchText => $"{Name} {Category} {Target.Owner} {Target.Subresource} palette {Target.Palette} {string.Join(' ', UsedBy)}";
     public string? LoadError { get; init; }
     public string ResourcePath => Target.Owner;
+    public IReadOnlyList<string> UsedBy { get; init; } = [];
     public string SourceUnit => Reader switch
     {
         "model" => "model:" + Model?.Id,
+        "field-registered" => Target.CanonicalPath(),
         "cinematic" => $"cinematic:{Section}",
         "world-section" => $"world-section:{Section}",
         _ => $"{Reader}:{ResourcePath}"
@@ -23,4 +25,4 @@ public sealed record TextureCatalogEntry(TextureTarget Target, string Name, stri
     public bool Matches(string? query) => string.IsNullOrWhiteSpace(query) || query.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(word => SearchText.Contains(word, StringComparison.OrdinalIgnoreCase));
 }
 
-public sealed record TextureCatalogDiagnostic(string ResourcePath, string Operation, string Message);
+public sealed record TextureCatalogDiagnostic(string ResourcePath, string Operation, string Message, string Outcome = "failed");

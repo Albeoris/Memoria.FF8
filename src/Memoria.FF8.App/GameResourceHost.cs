@@ -55,7 +55,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
 
     public bool NativeGameplayModsSupported => ModCompatibility.IsCompatible(source.Descriptor.Edition, ModFormat.Memoria);
     public ResourceService Resources { get; }
-    public Func<IReadOnlyDictionary<TextureKey, TextureValue>, TexturePublication>? PrepareTexturePublication { get; set; }
+    public Func<ResourceService.PreparedResources, TexturePublication>? PrepareTexturePublication { get; set; }
     public ItemOverrideMods ItemOverrides { get; private set; } = ItemOverrideMods.Empty;
     public ModRuntime Mods { get; }
     public GuardianForceAbilityMods GuardianForceMods { get; private set; } = GuardianForceAbilityMods.Empty;
@@ -424,7 +424,7 @@ internal sealed partial class GameResourceHost : IDisposable, IModelOverrideSour
         {
             return new ModPreparationResult(false, Diagnostics: statusMods.Names.Select(name => new ModDiagnostic("Memoria.InvalidStatusNameReference", exception.Message, name.Source.PackageId, name.Source.RelativePath)).ToArray());
         }
-        TexturePublication? texturePublication = PrepareTexturePublication?.Invoke(prepared.TextureValues);
+        TexturePublication? texturePublication = PrepareTexturePublication?.Invoke(prepared);
         return new ModPreparationResult(true, usable, diagnostics, () =>
         {
             System.Diagnostics.Stopwatch publicationClock = System.Diagnostics.Stopwatch.StartNew();

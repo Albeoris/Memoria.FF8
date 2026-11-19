@@ -7,6 +7,34 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class TextureExchangeTests
 {
     [Fact]
+    public void OriginalExportKeepsInstalledProviderHdPixelsAndOrdinaryAlpha()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-installed-original-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            PixelImage installed = new(3, 3, Enumerable.Repeat(new Rgba32(70, 80, 90, 128), 9).ToArray());
+            using InstalledImageSource source = new(installed);
+            ResourceService resources = new(source);
+            TextureKey key = new(new("field/example/chara.one"), "model/0/texture/0");
+            resources.GetTexture(new(key, source.Descriptor, 1, "classic-field-model", 1, 1, () => new(1, 1, [new(1, 2, 3, 128)]), new(BitsPerPixel: 4)));
+            TextureSourceSnapshot snapshot = Assert.Single(resources.CaptureTextureSources([key]));
+            Assert.Same(installed, snapshot.Original);
+            string path = Assert.Single(TextureExchange.Export([snapshot], root, cancellationToken: TestContext.Current.CancellationToken).Files);
+            PixelImage png = TextureImageDecoder.Decode(File.ReadAllBytes(path), path).Image;
+            Assert.Equal(3, png.Width);
+            Assert.All(png.Pixels, pixel => Assert.Equal((byte)128, pixel.A));
+            Assert.Null(TextureExchange.ReadMetadata(path)!.NativeFlagsBase64);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Fact]
     public void EffectSourceExportUsesNativePcPaletteColorsWithEditorCoverage()
     {
         ushort[] colors = new ushort[16];
@@ -98,5 +126,15 @@ public sealed class TextureExchangeTests
         TextureBuildContext source = assets.LoadCatalogTexture(entries[0]);
         Assert.Equal(entries[0].Target, TextureTarget.FromContext(source));
         Assert.Equal(residency, assets.Resources.ResidentTextureCount);
+    }
+
+    private sealed class InstalledImageSource(PixelImage image) : IResourceSource, ITextureReplacementResolver
+    {
+        public ResourceSourceDescriptor Descriptor { get; } = new("synthetic-hd", GameDataEdition.Remastered, []);
+        public ResourceContent? Find(ResourceKey key) => null;
+        public TextureReplacement? Resolve(TextureBuildContext context) => new(image, "synthetic-installed-image", context.LogicalWidth, context.LogicalHeight);
+        public void Dispose()
+        {
+        }
     }
 }

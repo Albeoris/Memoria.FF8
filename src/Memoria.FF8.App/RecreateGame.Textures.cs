@@ -12,9 +12,14 @@ internal sealed partial class RecreateGame
 {
     private TextureBrowserController? textureBrowser;
     private IReadOnlyList<TextureSourceSnapshot> textureScene = [];
+    private Func<TextureAuthoringSession>? textureSceneOriginalFactory;
+    private Func<TextureAuthoringSession>? textureSceneResolvedFactory;
+    private bool textureSceneSelectionInitialized;
     private TextureCatalogEntry[] textureCatalog = [];
     private TextureCatalogDiagnostic[] textureDiagnostics = [];
+    private readonly HashSet<TextureTarget> expandedTextureFields = [];
     private readonly ConcurrentQueue<Action> textureCompletions = new();
+    private readonly ConcurrentDictionary<IDisposable, byte> texturePendingResults = new();
     private CancellationTokenSource? textureCancellation;
     private Task? textureWork;
     private bool previousTextureMouse;
@@ -32,6 +37,8 @@ internal sealed partial class RecreateGame
         {
             return;
         }
+        textureSceneOriginalFactory = resourceHost.CaptureTextureAuthoringFactory(false);
+        textureSceneResolvedFactory = resourceHost.CaptureTextureAuthoringFactory(true);
         HashSet<TextureKey> keys = [];
         GpuTriangleRenderer? activeGpu = ActiveBattle is not null ? battleGpu : fieldGpu;
         IEnumerable<Albeoris.Games.FF8.Imaging.PixelImage> presented = activeGpu?.PresentedTextureImages ?? [];
@@ -43,7 +50,8 @@ internal sealed partial class RecreateGame
         {
             presented = presented.Concat(nativeTextFont.PresentedTextureImages);
         }
-        keys.UnionWith(resourceHost.Resources.CaptureTextureSourcesForImages(presented).Select(snapshot => snapshot.Context.Key));
+        IReadOnlyList<TextureSourceSnapshot> sampled = resourceHost.Resources.CaptureTextureSourcesForImages(presented);
+        keys.UnionWith(sampled.Select(snapshot => snapshot.Context.Key));
         if (session.State.Scene == SceneKind.Field && ActiveBattle is null && field is not null)
         {
             // Layered authoring retains the field's palette and animation companions as one workspace.
@@ -59,7 +67,7 @@ internal sealed partial class RecreateGame
                 }
             }
         }
-        textureScene = resourceHost.Resources.CaptureTextureSources(keys);
+        textureScene = sampled.Concat(resourceHost.Resources.CaptureTextureSources(keys)).GroupBy(snapshot => snapshot.Target).Select(group => group.First()).ToArray();
     }
 
     private void OpenTextureBrowser()
@@ -69,12 +77,14 @@ internal sealed partial class RecreateGame
             return;
         }
         gameMenus?.Close();
+        textureSceneSelectionInitialized = false;
         TextureToolPreferences preferences = ReadTextureToolPreferences();
         textureExportDirectory = preferences.ExportDirectory;
         textureImportDirectory = preferences.ImportDirectory;
         textureDestination = preferences.Destination;
         textureImportFiles = preferences.ImportFiles?.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        textureBrowser = new(CloseTextureBrowser, ExecuteTextureCommand) { LocalizeText = LocalizeUiText, Resolved = preferences.Resolved, ManageMods = OpenTextureMods };
+        textureBrowser = new(CloseTextureBrowser, ExecuteTextureCommand) { LocalizeText = LocalizeUiText, ScopeDescription = resourceHost.TextureAuthoringScopeDescription, ManageMods = OpenTextureMods, ExpandSourceRequested = ExpandTextureSource };
+        textureBrowser.RestoreSourceModes(preferences.SourceModes ?? new Dictionary<int, bool> { [preferences.Scope] = preferences.Resolved });
         previousTextureMouse = physicalInput.ReadMouse().LeftButton == ButtonState.Pressed;
         previousTextureWheel = physicalInput.ReadMouse().ScrollWheelValue;
         textureDialogDrain = true;
@@ -132,7 +142,12 @@ internal sealed partial class RecreateGame
         textureReview = null;
         if (scope == 0)
         {
-            browser.SetRows(textureScene.Select(snapshot => new TextureBrowserRow(TextureId(snapshot.Target), snapshot.Target.Subresource + " / palette " + snapshot.Target.Palette, snapshot.Target.Owner, snapshot.Target.CanonicalPath() + " · " + snapshot.Context.Layout + " · " + snapshot.Resolved.Provenance)));
+            if (!textureSceneSelectionInitialized)
+            {
+                browser.Selection.UnionWith(textureScene.Select(snapshot => TextureId(snapshot.Target)));
+                textureSceneSelectionInitialized = true;
+            }
+            browser.SetRows(textureScene.Select(snapshot => new TextureBrowserRow(TextureId(snapshot.Target), snapshot.Target.Subresource + " / palette " + snapshot.Target.Palette, snapshot.Target.Owner, snapshot.Target.CanonicalPath() + " / " + snapshot.Context.Layout + " / " + snapshot.Resolved.Provenance)));
             browser.Message = FormatAuthored("textures.scene.count", "{0} source textures captured before opening Debug Room. Shared and animation companions affect all consumers.", textureScene.Count);
         }
         else if (textureCatalog.Length != 0)
@@ -147,7 +162,28 @@ internal sealed partial class RecreateGame
 
     private void ShowTextureCatalog()
     {
-        textureBrowser!.SetRows(textureCatalog.Select(entry => new TextureBrowserRow(TextureId(entry.Target), entry.Name, entry.Category + "/" + entry.Target.Owner, entry.SearchText + " · " + entry.Layout + (entry.LoadError is null ? "" : " · " + entry.LoadError), entry.LoadError is null)));
+        textureBrowser!.SetRows(textureCatalog.Select(entry => new TextureBrowserRow(TextureId(entry.Target), entry.Name, entry.Category + "/" + entry.Target.Owner, entry.SearchText + " / " + entry.Layout + (entry.LoadError is null ? "" : " / " + entry.LoadError), entry.LoadError is null) { Expandable = entry.Layout == "field-workspace" && !expandedTextureFields.Contains(entry.Target) }));
+    }
+
+    private void ExpandTextureSource(string id)
+    {
+        TextureCatalogEntry? fieldEntry = textureCatalog.FirstOrDefault(entry => TextureId(entry.Target) == id && entry.Layout == "field-workspace");
+        if (fieldEntry is null || expandedTextureFields.Contains(fieldEntry.Target) || textureBrowser?.Busy != false)
+        {
+            return;
+        }
+        var createSession = resourceHost!.CaptureTextureAuthoringFactory(false);
+        StartTextureJob(token =>
+        {
+            using var authoring = createSession();
+            return authoring.Assets.ExpandFieldTextureCatalog(fieldEntry, token).ToArray();
+        }, tiles =>
+        {
+            expandedTextureFields.Add(fieldEntry.Target);
+            textureCatalog = textureCatalog.Concat(tiles).GroupBy(entry => entry.Target).Select(group => group.First()).ToArray();
+            ShowTextureCatalog();
+            textureBrowser!.Message = LocalizeAuthored("textures.field.expanded", "Field source expanded into palette and tile targets. A layered export includes the required field companions.");
+        }, LocalizeAuthored("textures.field.expanding", "Reading selected field texture hierarchy�"));
     }
 
     private void DiscoverTextureCatalog()
@@ -166,7 +202,7 @@ internal sealed partial class RecreateGame
             textureDiagnostics = result.diagnostics.ToArray();
             ShowTextureCatalog();
             textureBrowser!.Message = FormatAuthored("textures.catalog.count", "{0} texture targets discovered; {1} source diagnostics. Search includes category, owner, member and palette.", result.entries.Length, result.diagnostics.Count);
-        }, LocalizeAuthored("textures.discovering", "Discovering texture sources…"));
+        }, LocalizeAuthored("textures.discovering", "Discovering texture sources..."));
     }
 
     private void ExecuteTextureCommand(int command)
@@ -237,18 +273,35 @@ internal sealed partial class RecreateGame
             try
             {
                 T result = operation(token);
+                if (result is IDisposable owned)
+                {
+                    texturePendingResults.TryAdd(owned, 0);
+                }
                 textureCompletions.Enqueue(() =>
                 {
                     browser.Busy = false;
-                    if (ReferenceEquals(textureBrowser, browser))
+                    try
                     {
-                        try
+                        if (token.IsCancellationRequested)
+                        {
+                            browser.Message = LocalizeAuthored("textures.cancelled", "Cancelled before publication. The previous mod generation was retained.");
+                            return;
+                        }
+                        if (ReferenceEquals(textureBrowser, browser))
                         {
                             complete(result);
                         }
-                        catch (Exception exception) when (IsModelBrowserError(exception))
+                    }
+                    catch (Exception exception) when (IsModelBrowserError(exception))
+                    {
+                        browser.Message = exception.Message;
+                    }
+                    finally
+                    {
+                        if (result is IDisposable disposable)
                         {
-                            browser.Message = exception.Message;
+                            texturePendingResults.TryRemove(disposable, out _);
+                            disposable.Dispose();
                         }
                     }
                 });
@@ -277,14 +330,15 @@ internal sealed partial class RecreateGame
             textureExportDirectory = destination;
             SaveTextureToolPreferences();
             bool resolved = browser.Resolved;
-            TextureSourceSnapshot[] scene = textureScene.ToArray();
+            TextureSourceSnapshot[] capturedScene = textureScene.ToArray();
+            TextureSourceSnapshot[] scene = capturedScene.Where(snapshot => browser.Selection.Contains(TextureId(snapshot.Target))).ToArray();
             TextureCatalogEntry[] entries = textureCatalog.Where(entry => browser.Scope == 1 || browser.Selection.Contains(TextureId(entry.Target))).ToArray();
             int scope = browser.Scope;
-            if (scope != 0 && entries.Length == 0)
+            if (scope == 0 && scene.Length == 0 || scope != 0 && entries.Length == 0)
             {
                 throw new InvalidDataException(LocalizeAuthored("textures.selection.required", "Select at least one catalog target before exporting."));
             }
-            var createSession = resourceHost!.CaptureTextureAuthoringFactory(resolved);
+            var createSession = scope == 0 ? (resolved ? textureSceneResolvedFactory : textureSceneOriginalFactory) ?? throw new InvalidOperationException("Recapture the gameplay scene before exporting.") : resourceHost!.CaptureTextureAuthoringFactory(resolved);
             TextureProgress progress = new(item => textureCompletions.Enqueue(() =>
             {
                 if (ReferenceEquals(textureBrowser, browser) && browser.Busy)
@@ -303,16 +357,16 @@ internal sealed partial class RecreateGame
                 }
                 try
                 {
-                    string[] fields = (scope == 0 ? scene.Where(item => item.Context.Layout == "classic-field-tile").Select(item => item.Target.Owner) : entries.Where(item => item.Layout == "classic-field-tile").Select(item => item.Target.Owner)).Select(owner => owner.Split('/')[1]).Distinct(StringComparer.Ordinal).ToArray();
+                    string[] fields = (scope == 0 ? scene.Where(item => item.Context.Layout is "classic-field-tile" or "field-workspace").Select(item => item.Target.Owner) : entries.Where(item => item.Layout is "classic-field-tile" or "field-workspace").Select(item => item.Target.Owner)).Select(owner => owner.Split('/')[1]).Distinct(StringComparer.Ordinal).ToArray();
                     TextureExportResult result = scope == 0
-                        ? TextureExchange.Export(assets, scene.Where(item => item.Context.Layout != "classic-field-tile"), destination, resolved, token, progress, journal)
-                        : TextureExchange.Export(assets, entries.Where(item => item.Layout != "classic-field-tile"), destination, resolved, token, progress, journal);
+                        ? TextureExchange.Export(assets, scene.Where(item => item.Context.Layout is not ("classic-field-tile" or "field-workspace")), destination, resolved, token, progress, journal)
+                        : TextureExchange.Export(assets, entries.Where(item => item.Layout is not ("classic-field-tile" or "field-workspace")), destination, resolved, token, progress, journal);
                     foreach (string fieldName in fields)
                     {
                         token.ThrowIfCancellationRequested();
                         progress.Report(new("Preparing layered workspace", result.Written, result.BytesWritten, fieldName));
                         string workspace = Path.Combine(destination, "fields", fieldName + ".ora");
-                        assets.ExportFieldTextureWorkspace(fieldName, workspace, token, resolved: resolved);
+                        assets.ExportFieldTextureWorkspace(fieldName, workspace, token, resolved: resolved, capturedSources: scope == 0 ? capturedScene.ToDictionary(snapshot => snapshot.Target) : null);
                         journal.AddWorkspace(workspace);
                         result = result with { BytesWritten = result.BytesWritten + new FileInfo(workspace).Length };
                     }
@@ -324,7 +378,7 @@ internal sealed partial class RecreateGame
                     journal.AddDiagnostic(new("", "Exporting", exception.Message));
                     throw;
                 }
-            }, result => browser.Message = FormatAuthored("textures.export.complete", "Exported {0} editable images / layered field workspaces. Keep their .texture.json companions beside them.", result.Written), LocalizeAuthored("textures.writing", "Preparing / Writing texture files…"));
+            }, result => browser.Message = FormatAuthored("textures.export.complete", "Exported {0} editable images / layered field workspaces. Keep their .texture.json companions beside them.", result.Written), LocalizeAuthored("textures.writing", "Preparing / Writing texture files..."));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
@@ -424,6 +478,11 @@ internal sealed partial class RecreateGame
         Task.WhenAll(new[] { textureWork, texturePreviewWork }.OfType<Task>()).GetAwaiter().GetResult();
         textureCancellation?.Dispose();
         texturePreviewCancellation?.Dispose();
+        foreach (IDisposable result in texturePendingResults.Keys)
+        {
+            result.Dispose();
+        }
+        texturePendingResults.Clear();
         textureScene = [];
         textureCatalog = [];
         textureReview = null;

@@ -60,7 +60,12 @@ internal static class OpenRasterStack
                 continue;
             ReadOnlySpan<Char> id = name.AsSpan(TextureLayerPrefix.Length, 8);
             if (UInt32.TryParse(id, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out UInt32 pupuId))
-                textures.Add(pupuId, CreateReference(layer, source));
+            {
+                if (!textures.TryAdd(pupuId, CreateReference(layer, source)))
+                {
+                    throw new InvalidDataException($"Duplicate Pupu {pupuId:X8} layer. Keep exactly one exported identity for each editable layer.");
+                }
+            }
         }
         return new OpenRasterLayerSet(palette, sourceMim, sourceMap, textures);
     }

@@ -598,6 +598,7 @@ public sealed partial class BattleRenderer
                     texture = nativeEffectTextureSource.ApplyDecoded(texture, decodedNative, textures!, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels, alternateShift, capabilities?.DirectTextureFormat, primitiveSample);
                     effectTextureGeneration = nativeEffectTextureSource.Generation;
                 }
+                nativeEffectTextureSource?.ObservePresented(texture, textureState, page, clut, window.X, window.Y, decodeWidth, decodeHeight, retainedPixels);
             }
             else
             {

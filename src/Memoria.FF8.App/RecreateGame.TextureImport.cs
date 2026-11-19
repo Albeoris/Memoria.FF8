@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
@@ -13,9 +12,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private const string TextureWorkingStateFile = ".memoria-texture-authoring.json";
-    private sealed record TextureWorkingEntry(TextureTarget Target, string? ImportedPixels = null, string? DestinationBytes = null, bool ExplicitMapping = false);
-    private sealed record TextureImportRow(string RelativePath, TextureTarget? Target, TextureTargetContract? Contract, string InputBytes, string? Pixels, string? DestinationBytes, bool Changed, string Status, TextureExchangeMetadata? Metadata = null, string? Workspace = null, int WorkspaceTile = -1, bool ExplicitMapping = false, string? MetadataFingerprint = null);
+    private sealed record TextureImportRow(string RelativePath, TextureTarget? Target, TextureTargetContract? Contract, string InputBytes, string? Pixels, string? DestinationBytes, bool Changed, string Status, TextureExchangeMetadata? Metadata = null, string? Workspace = null, int WorkspaceTile = -1, bool ExplicitMapping = false, string? MetadataFingerprint = null, int? CoverageWidth = null, int? CoverageHeight = null);
     private sealed record TextureImportReview(string Source, string Destination, TextureImportRow[] Rows, Dictionary<string, TextureWorkingEntry> Working, IReadOnlyDictionary<string, string?> ExpectedOutputs);
     private TextureImportReview? textureReview;
     private Dictionary<string, TextureTarget> textureManualMappings = new(StringComparer.Ordinal);
@@ -108,7 +105,7 @@ internal sealed partial class RecreateGame
                 textureCatalog = result.entries;
                 textureDiagnostics = result.diagnostics.ToArray();
                 ShowTextureReview(result.review);
-            }, LocalizeAuthored("textures.import.reading", "Reading / Validating texture folder…"));
+            }, LocalizeAuthored("textures.import.reading", "Reading / Validating texture folder..."));
         }
         else
         {
@@ -119,7 +116,7 @@ internal sealed partial class RecreateGame
                 using var authoring = createSession();
                 GameAssets assets = authoring.Assets;
                 return InspectTextureFolder(assets, entries, source, destination, mappings, token, onlyFiles);
-            }, ShowTextureReview, LocalizeAuthored("textures.import.reading", "Reading / Validating texture folder…"));
+            }, ShowTextureReview, LocalizeAuthored("textures.import.reading", "Reading / Validating texture folder..."));
         }
     }
 
@@ -134,12 +131,12 @@ internal sealed partial class RecreateGame
         browser.Match = null;
         browser.Unmatched = BeginTextureManualMatch;
         browser.Selection.Clear();
-        browser.SetRows(review.Rows.Select(row => new TextureBrowserRow(row.RelativePath, Path.GetFileName(row.RelativePath), row.Target?.Owner ?? LocalizeAuthored("textures.unmatched", "Needs matching"), row.Status + " · " + row.Target?.CanonicalPath(), row.Target is not null && row.Contract is not null && row.Pixels is not null)));
+        browser.SetRows(review.Rows.Select(row => new TextureBrowserRow(row.RelativePath, Path.GetFileName(row.RelativePath), row.Target?.Owner ?? LocalizeAuthored("textures.unmatched", "Needs matching"), row.Status + " / " + row.Target?.CanonicalPath(), row.Target is not null && row.Contract is not null && row.Pixels is not null)));
         foreach (TextureImportRow row in review.Rows.Where(row => row.Changed && row.Target is not null && row.Contract is not null && row.Pixels is not null))
         {
             browser.Selection.Add(row.RelativePath);
         }
-        browser.Message = FormatAuthored("textures.review", "{0} files · {1} changed selected · {2} need matching or correction. Choose an unmatched row to assign its catalog target. Import folder again installs the checked files into {3}. Missing files leave the mod unchanged.", review.Rows.Length, browser.Selection.Count, review.Rows.Count(row => row.Target is null || row.Contract is null || row.Pixels is null), Path.GetFileName(review.Destination));
+        browser.Message = FormatAuthored("textures.review", "{0} files / {1} changed selected / {2} need matching or correction. Choose an unmatched row to assign its catalog target. Import folder again installs the checked files into {3}. Missing files leave the mod unchanged.", review.Rows.Length, browser.Selection.Count, review.Rows.Count(row => row.Target is null || row.Contract is null || row.Pixels is null), Path.GetFileName(review.Destination));
     }
 
     private void BeginTextureManualMatch(string input)
@@ -156,6 +153,18 @@ internal sealed partial class RecreateGame
         browser.Match = id =>
         {
             TextureCatalogEntry target = textureCatalog.Single(entry => TextureId(entry.Target) == id);
+            if (target.Layout == "field-workspace")
+            {
+                if (!expandedTextureFields.Contains(target.Target))
+                {
+                    ExpandTextureSource(id);
+                }
+                else
+                {
+                    browser.Message = LocalizeAuthored("textures.match.tile.required", "Choose an expanded native tile target. A complete field workspace is imported through its ORA document.");
+                }
+                return;
+            }
             textureManualMappings[input] = target.Target;
             ReadTextureImport(review.Source, review.Destination);
         };
@@ -167,8 +176,25 @@ internal sealed partial class RecreateGame
         destination = Path.GetFullPath(destination);
         RejectTextureReparsePath(source);
         RejectTextureReparsePath(destination);
-        Dictionary<string, TextureWorkingEntry> working = ReadTextureWorkingState(source);
+        Dictionary<string, TextureWorkingEntry> working = ReadTextureWorkingState(source, destination);
         Dictionary<TextureTarget, TextureCatalogEntry> targets = catalog.Where(entry => entry.LoadError is null).GroupBy(entry => entry.Target).ToDictionary(group => group.Key, group => group.First());
+        Dictionary<string, TextureCatalogEntry> fieldWorkspaces = catalog.Where(entry => entry.Layout == "field-workspace").GroupBy(entry => entry.Target.Owner).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        HashSet<string> expandedOwners = new(StringComparer.Ordinal);
+        TextureCatalogEntry? ResolveEntry(TextureTarget target)
+        {
+            if (targets.TryGetValue(target, out TextureCatalogEntry? entry))
+            {
+                return entry;
+            }
+            if (fieldWorkspaces.TryGetValue(target.Owner, out TextureCatalogEntry? fieldWorkspace) && expandedOwners.Add(target.Owner))
+            {
+                foreach (TextureCatalogEntry tile in assets.ExpandFieldTextureCatalog(fieldWorkspace, token))
+                {
+                    targets.TryAdd(tile.Target, tile);
+                }
+            }
+            return targets.GetValueOrDefault(target) ?? assets.FindCatalogTextureTarget(target);
+        }
         List<TextureImportRow> rows = [];
         Dictionary<TextureTarget, TextureBuildContext> sourceUnit = [];
         TextureBuildContext ReadOriginal(TextureCatalogEntry entry)
@@ -202,33 +228,38 @@ internal sealed partial class RecreateGame
                     byteHash = TextureWorkspaceInputHash(bytes, ReadStableTextureBytes(companion, token));
                     IReadOnlyList<TextureWorkspaceTile> tiles = assets.ImportFieldTextureWorkspace(file, token);
                     IReadOnlyDictionary<int, string> exportedBaselines = GameAssets.ReadFieldTextureWorkspaceBaselines(file);
+                    IReadOnlyDictionary<int, string> semanticBaselines = GameAssets.ReadFieldTextureWorkspaceSemanticBaselines(file);
                     for (int tileIndex = 0; tileIndex < tiles.Count; tileIndex++)
                     {
                         token.ThrowIfCancellationRequested();
                         TextureWorkspaceTile tile = tiles[tileIndex];
                         string rowId = relative + "::" + tileIndex;
                         PixelImage editable = TexturePixelExchange.ToEditable(tile.Image);
-                        string pixelHash = TextureExchange.PixelFingerprint(editable);
-                        if (!targets.TryGetValue(tile.Target, out TextureCatalogEntry? tileEntry))
-                        {
-                            throw new InvalidDataException("The field tile target is absent from the installed catalog.");
-                        }
+                        string imageHash = TextureExchange.PixelFingerprint(editable);
+                        TextureCatalogEntry tileEntry = ResolveEntry(tile.Target) ?? throw new InvalidDataException("The field tile target is absent from the installed catalog.");
                         TextureBuildContext native = ReadOriginal(tileEntry);
+                        TextureValue installedSource = assets.Resources.ResolveOriginalForExport(native);
+                        PixelImage installedOriginal = installedSource.Image;
                         tile.Contract.Validate(native, tile.Image);
-                        string originalHash = TextureExchange.PixelFingerprint(TexturePixelExchange.ToEditable(native.Original));
+                        TextureNativeCoverage coverage = new(tile.Image.Width, tile.Image.Height, TexturePixelExchange.CaptureNativeFlags(tile.Image));
+                        string pixelHash = TextureImportSemantics.Fingerprint(editable, tile.Target, tile.Contract, native, coverage, installedSource);
+                        string originalHash = TextureImportSemantics.Fingerprint(TexturePixelExchange.ToEditable(installedOriginal), tile.Target, TextureTargetContract.FromContext(native), native, installedOriginal: installedSource);
                         int nativeTile = int.Parse(tile.Target.Subresource.AsSpan("tile/".Length), System.Globalization.CultureInfo.InvariantCulture);
-                        if (exportedBaselines.TryGetValue(nativeTile, out string? exportedHash))
+                        if (semanticBaselines.TryGetValue(nativeTile, out string? semanticBaseline))
                         {
-                            originalHash = exportedHash;
+                            originalHash = semanticBaseline;
+                        }
+                        else if (exportedBaselines.TryGetValue(nativeTile, out string? exportedHash))
+                        {
+                            originalHash = string.Equals(imageHash, exportedHash, StringComparison.OrdinalIgnoreCase) ? pixelHash : "legacy-workspace-baseline:" + exportedHash;
                         }
                         string output = Path.Combine(destination, tile.Target.CanonicalPath().Replace('/', Path.DirectorySeparatorChar));
                         RejectTextureReparsePath(output);
-                        string? current = File.Exists(output) ? Convert.ToHexString(SHA256.HashData(ReadStableTextureBytes(output, token))) : null;
-                        TextureWorkingEntry? priorTile = working.GetValueOrDefault(rowId);
-                        bool edited = priorTile?.Target == tile.Target ? pixelHash != priorTile.ImportedPixels : !string.Equals(pixelHash, originalHash, StringComparison.OrdinalIgnoreCase);
-                        bool conflict = priorTile?.Target == tile.Target && current != priorTile.DestinationBytes && edited;
-                        string detail = conflict ? "Conflict: working tile and destination both changed; explicitly check to replace" : edited ? "Changed layered workspace tile" : "Unchanged workspace tile";
-                        rows.Add(new(rowId, tile.Target, tile.Contract, byteHash, pixelHash, current, edited && !conflict, detail, Workspace: relative, WorkspaceTile: tileIndex));
+                        byte[]? destinationContent = File.Exists(output) ? ReadStableTextureBytes(output, token) : null;
+                        string? current = destinationContent is null ? null : Convert.ToHexString(SHA256.HashData(destinationContent));
+                        string? destinationPixels = destinationContent is null ? null : ReadDestinationTextureSemantic(output, destinationContent, tile.Target, native, installedSource, token);
+                        TextureImportDecision decision = TextureWorkspaceState.Evaluate(tile.Target, pixelHash, originalHash, current, destinationPixels, working.GetValueOrDefault(rowId));
+                        rows.Add(new(rowId, tile.Target, tile.Contract, byteHash, pixelHash, current, decision.Selected, decision.Status, Workspace: relative, WorkspaceTile: tileIndex));
                     }
                 }
                 catch (Exception exception) when (IsModelBrowserError(exception))
@@ -243,6 +274,8 @@ internal sealed partial class RecreateGame
             string? pixels = null;
             string? destinationBytes = null;
             TextureExchangeMetadata? metadata = null;
+            int? coverageWidth = null;
+            int? coverageHeight = null;
             bool explicitMapping = manual.ContainsKey(relative) || working.GetValueOrDefault(relative)?.ExplicitMapping == true;
             bool changed = false;
             string status;
@@ -284,49 +317,50 @@ internal sealed partial class RecreateGame
                     }
                     target = metadata?.Target ?? pathTarget ?? working.GetValueOrDefault(relative)?.Target;
                 }
-                if (target is null || !targets.TryGetValue(target, out TextureCatalogEntry? entry))
+                TextureCatalogEntry? entry = target is null ? null : ResolveEntry(target);
+                if (entry is null)
                 {
                     target = null;
                     throw new InvalidDataException("Unknown target: choose this row and assign an installed catalog texture.");
                 }
+                target ??= entry.Target;
                 TextureBuildContext original = ReadOriginal(entry);
+                TextureValue installedSource = assets.Resources.ResolveOriginalForExport(original);
+                PixelImage installedOriginal = installedSource.Image;
                 contract = metadata?.Contract ?? TextureTargetContract.FromContext(original);
                 PixelImage image = TextureImageDecoder.Decode(bytes, file).Image;
                 contract.Validate(original, image);
-                pixels = TextureExchange.PixelFingerprint(image);
-                PixelImage baseline = TexturePixelExchange.UsesNativeFlags(original) ? TexturePixelExchange.ToEditable(original.Original) : original.Original;
-                string baselineHash = TextureExchange.PixelFingerprint(baseline);
-                if (metadata?.Target == target && metadata.Contract == TextureTargetContract.FromContext(original) && string.Equals(metadata.OriginalPixelSha256, baselineHash, StringComparison.OrdinalIgnoreCase) && metadata.ExportedPixelSha256 is { } exportedBaseline)
+                string imageHash = TextureExchange.PixelFingerprint(image);
+                TextureNativeCoverage? coverage = metadata?.NativeFlagsBase64 is { } alpha ? new(metadata.NativeWidth ?? installedOriginal.Width, metadata.NativeHeight ?? installedOriginal.Height, alpha) : null;
+                coverageWidth = coverage?.Width;
+                coverageHeight = coverage?.Height;
+                pixels = TextureImportSemantics.Fingerprint(image, target, contract, original, coverage, installedSource);
+                PixelImage baseline = TexturePixelExchange.UsesNativeFlags(original, installedSource) ? TexturePixelExchange.ToEditable(installedOriginal) : installedOriginal;
+                string originalImageHash = TextureExchange.PixelFingerprint(baseline);
+                string baselineHash = TextureImportSemantics.Fingerprint(baseline, target, TextureTargetContract.FromContext(original), original, installedOriginal: installedSource);
+                if (metadata?.Target == target && metadata.Contract == TextureTargetContract.FromContext(original))
                 {
-                    baselineHash = exportedBaseline;
+                    if (metadata.OriginalSemanticSha256 is { } originalSemantic && string.Equals(originalSemantic, baselineHash, StringComparison.OrdinalIgnoreCase) && metadata.ExportedSemanticSha256 is { } exportedSemantic)
+                    {
+                        baselineHash = exportedSemantic;
+                    }
+                    else if (metadata.ExportedSemanticSha256 is null && string.Equals(metadata.OriginalPixelSha256, originalImageHash, StringComparison.OrdinalIgnoreCase) && metadata.ExportedPixelSha256 is { } legacyBaseline)
+                    {
+                        baselineHash = string.Equals(imageHash, legacyBaseline, StringComparison.OrdinalIgnoreCase) ? pixels : "legacy-pixel-baseline:" + legacyBaseline;
+                    }
                 }
                 string destinationFile = Path.Combine(destination, target.CanonicalPath(Path.GetExtension(file).ToLowerInvariant()).Replace('/', Path.DirectorySeparatorChar));
-                bool matchesDestination = false;
+                string? destinationPixels = null;
                 if (File.Exists(destinationFile))
                 {
                     RejectTextureReparsePath(destinationFile);
                     byte[] currentBytes = ReadStableTextureBytes(destinationFile, token);
                     destinationBytes = Convert.ToHexString(SHA256.HashData(currentBytes));
-                    matchesDestination = string.Equals(pixels, TextureExchange.PixelFingerprint(TextureImageDecoder.Decode(currentBytes, destinationFile).Image), StringComparison.OrdinalIgnoreCase);
+                    destinationPixels = ReadDestinationTextureSemantic(destinationFile, currentBytes, target, original, installedSource, token);
                 }
-                TextureWorkingEntry? prior = working.GetValueOrDefault(relative);
-                if (matchesDestination)
-                {
-                    status = "Same decoded appearance as destination; omitted";
-                }
-                else if (prior?.Target == target && prior.ImportedPixels == pixels)
-                {
-                    status = destinationBytes != prior.DestinationBytes ? "Unchanged working image; destination edit retained" : "Unchanged since last import";
-                }
-                else if (prior?.Target == target && destinationBytes != prior.DestinationBytes)
-                {
-                    status = "Conflict: working image and destination both changed. Unchecked; check to explicitly replace the destination.";
-                }
-                else
-                {
-                    changed = prior?.Target == target || !string.Equals(pixels, baselineHash, StringComparison.OrdinalIgnoreCase);
-                    status = changed ? "Changed: ready to install · " + entry.Name : "Unchanged original appearance; omitted";
-                }
+                TextureImportDecision decision = TextureWorkspaceState.Evaluate(target, pixels, baselineHash, destinationBytes, destinationPixels, working.GetValueOrDefault(relative));
+                changed = decision.Selected;
+                status = decision.Status + " / " + entry.Name;
             }
             catch (Exception exception) when (IsModelBrowserError(exception))
             {
@@ -336,7 +370,7 @@ internal sealed partial class RecreateGame
             }
             string? metadataFingerprint = metadata is null ? null : Convert.ToHexString(SHA256.HashData(metadata.Serialize()));
             TextureExchangeMetadata? retainedMetadata = metadata is null ? null : metadata with { NativeFlagsBase64 = null };
-            rows.Add(new(relative, target, contract, byteHash, pixels, destinationBytes, changed, status, retainedMetadata, ExplicitMapping: explicitMapping, MetadataFingerprint: metadataFingerprint));
+            rows.Add(new(relative, target, contract, byteHash, pixels, destinationBytes, changed, status, retainedMetadata, ExplicitMapping: explicitMapping, MetadataFingerprint: metadataFingerprint, CoverageWidth: coverageWidth, CoverageHeight: coverageHeight));
         }
         foreach (IGrouping<TextureTarget?, TextureImportRow> duplicate in rows.Where(row => row.Target is not null).GroupBy(row => row.Target).Where(group => group.Count() > 1))
         {
@@ -381,13 +415,13 @@ internal sealed partial class RecreateGame
             }
             ModPackage package = existing ?? new(descriptor?.RuntimePackageId ?? "Memoria/" + slug, descriptor?.Name ?? Path.GetFileName(review.Destination), ModFormat.Memoria, null, true, ModEffectiveStatus.Active, review.Destination) { Descriptor = descriptor };
             string activation = package.RequestedEnabled ? "Import and apply through the current mod priority. A higher-priority mod may still own individual targets." : "This mod is disabled. Import saves files and preserves its disabled state; enable it in Mods to use them.";
-            string warning = string.Join("\n", selected.Take(80).Select(row => row.RelativePath + " → " + row.Target!.CanonicalPath())) + (selected.Length > 80 ? "\n…" : "") + "\n\n" + activation + "\nUnselected and unrelated mod files, enablement and priority are preserved.";
+            string warning = string.Join("\n", selected.Take(80).Select(row => row.RelativePath + " -> " + row.Target!.CanonicalPath())) + (selected.Length > 80 ? "\n..." : "") + "\n\n" + activation + "\nUnselected and unrelated mod files, enablement and priority are preserved.";
             if (!await ModelBrowserDialogs.ConfirmAsync(Window.Handle, warning, LocalizeAuthored("textures.import.review.title", "Review texture import"), LocalizeAuthored("textures.import.review.question", "Install these selected textures?"), LocalizeUiText))
             {
                 return;
             }
             var createSession = resourceHost!.CaptureTextureAuthoringFactory(false);
-            StartTextureJob(token => PrepareTextureImportPlan(review, selected, descriptor is null ? slug : null, package.Name, createSession, token), plan => ApplyTextureImportPlan(review, selected, package, plan), LocalizeAuthored("textures.installing", "Validating reviewed inputs / preparing installation…"));
+            StartTextureJob(token => PrepareTextureImport(review, selected, descriptor is null ? slug : null, package.Name, createSession, token), plan => ApplyTextureImportPlan(review, selected, package, plan), LocalizeAuthored("textures.installing", "Validating reviewed inputs / preparing installation..."));
         }
         catch (Exception exception) when (IsModelBrowserError(exception))
         {
@@ -397,6 +431,37 @@ internal sealed partial class RecreateGame
         {
             textureDialogDrain = true;
             keyboard.SuppressHeldNameInput();
+        }
+    }
+
+    private sealed class PreparedTextureImport(TextureModInstallPlan plan, TextureInputLeases inputs) : IDisposable
+    {
+        public TextureModInstallPlan Plan { get; } = plan;
+        public TextureInputLeases Inputs { get; } = inputs;
+        public void Dispose() => Inputs.Dispose();
+    }
+
+    private PreparedTextureImport PrepareTextureImport(TextureImportReview review, TextureImportRow[] selected, string? newId, string name, Func<TextureAuthoringSession> createSession, CancellationToken token)
+    {
+        string[] paths = selected.Select(row => row.Workspace ?? row.RelativePath).Distinct(StringComparer.Ordinal).SelectMany(relative =>
+        {
+            string image = Path.Combine(review.Source, relative.Replace('/', Path.DirectorySeparatorChar));
+            RejectTextureReparsePath(image);
+            RejectTextureReparsePath(image + ".texture.json");
+            return new[] { image, image + ".texture.json" };
+        }).ToArray();
+        TextureInputLeases inputs = new(paths, token);
+        try
+        {
+            TextureModInstallPlan plan = PrepareTextureImportPlan(review, selected, newId, name, createSession, token);
+            inputs.ValidateContents(token);
+            token.ThrowIfCancellationRequested();
+            return new(plan, inputs);
+        }
+        catch
+        {
+            inputs.Dispose();
+            throw;
         }
     }
 
@@ -454,7 +519,7 @@ internal sealed partial class RecreateGame
             }
             replacements.Add(new(row.Target, bytes, extension, row.Contract)
             {
-                NativeCoverage = metadata?.NativeFlagsBase64 is { } flags ? new(metadata.NativeWidth ?? row.Contract!.LogicalWidth, metadata.NativeHeight ?? row.Contract!.LogicalHeight, flags) : null
+                NativeCoverage = metadata?.NativeFlagsBase64 is { } flags ? new(row.CoverageWidth ?? metadata.NativeWidth ?? row.Contract!.LogicalWidth, row.CoverageHeight ?? metadata.NativeHeight ?? row.Contract!.LogicalHeight, flags) : null
             });
         }
         foreach (IGrouping<string?, TextureImportRow> workspace in selected.Where(row => row.Workspace is not null).GroupBy(row => row.Workspace))
@@ -503,11 +568,22 @@ internal sealed partial class RecreateGame
         };
     }
 
-    private void ApplyTextureImportPlan(TextureImportReview review, TextureImportRow[] selected, ModPackage package, TextureModInstallPlan plan)
+    private void ApplyTextureImportPlan(TextureImportReview review, TextureImportRow[] selected, ModPackage package, PreparedTextureImport prepared)
     {
+        using TextureInputLeases inputs = prepared.Inputs;
+        TextureModInstallPlan plan = prepared.Plan;
         try
         {
-            textureBrowser!.Message = LocalizeAuthored("textures.applying", "Installing / Applying validated texture generation…");
+            inputs.ValidateStamps();
+        }
+        catch (Exception exception) when (IsModelBrowserError(exception))
+        {
+            textureBrowser!.Message = exception.Message;
+            return;
+        }
+        try
+        {
+            textureBrowser!.Message = LocalizeAuthored("textures.applying", "Installing / Applying validated texture generation...");
             string root = Path.Combine(resourceHost!.Mods.PrimaryModsDirectory, "Memoria");
             using TextureModInstallTransaction transaction = TextureModInstaller.PrepareInstall(root, review.Destination, plan);
             if (!resourceHost.Mods.ApplyTextureImport(transaction, package))
@@ -518,14 +594,26 @@ internal sealed partial class RecreateGame
             foreach (TextureImportRow row in selected)
             {
                 TextureModOutput output = plan.Files.Single(file => file.RelativePath == row.Target!.CanonicalPath(row.Workspace is null ? Path.GetExtension(row.RelativePath).ToLowerInvariant() : ".png"));
-                state[row.RelativePath] = new(row.Target!, row.Pixels, Convert.ToHexString(SHA256.HashData(output.Content)), row.ExplicitMapping);
+                state[row.RelativePath] = new(row.Target!, row.Pixels, Convert.ToHexString(SHA256.HashData(output.Content)), row.ExplicitMapping, row.Pixels);
             }
-            WriteTextureWorkingState(review.Source, state);
+            string? bookkeepingWarning = null;
+            try
+            {
+                WriteTextureWorkingState(review.Source, review.Destination, state);
+            }
+            catch (Exception exception) when (IsModelBrowserError(exception))
+            {
+                bookkeepingWarning = "Installed successfully, but the working folder could not remember this import: " + exception.Message;
+            }
             IReadOnlyList<TextureSourceSnapshot> resident = resourceHost.Resources.CaptureTextureSources(selected.Select(row => row.Target!.Key));
             int owned = resident.Count(snapshot => snapshot.Resolved.Provenance.StartsWith(package.Id + "/", StringComparison.Ordinal));
             textureBrowser.Message = package.RequestedEnabled
                 ? FormatAuthored("textures.import.applied", "Installed {0} texture edits; {1} resident targets use this mod. Other targets are nonresident or overridden by priority. Refresh / reimport repeats this working folder.", selected.Length, owned)
                 : FormatAuthored("textures.import.disabled", "Saved {0} texture edits. The mod remains disabled; enable it in Mods to use them.", selected.Length);
+            if (bookkeepingWarning is not null)
+            {
+                textureBrowser.Message += " " + bookkeepingWarning;
+            }
             textureReview = null;
             textureBrowser.Selection.Clear();
             textureBrowser.Unmatched = null;
@@ -590,6 +678,27 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private static string ReadDestinationTextureSemantic(string path, byte[] bytes, TextureTarget target, TextureBuildContext source, TextureValue installedSource, CancellationToken token)
+    {
+        string companion = path + TextureModMapping.Extension;
+        RejectTextureReparsePath(companion);
+        TextureModMapping? mapping = File.Exists(companion) ? TextureModMapping.Parse(ReadStableTextureBytes(companion, token)) : null;
+        TextureExchangeMetadata? embedded = TextureExchange.TryReadEmbeddedMetadata(bytes);
+        if (mapping is not null && mapping.Target != target || embedded is not null && embedded.Target != target)
+        {
+            throw new InvalidDataException("The destination image has conflicting target metadata. Correct it in the mod before importing.");
+        }
+        TextureTargetContract contract = mapping?.Contract ?? embedded?.Contract ?? TextureTargetContract.FromContext(source);
+        PixelImage image = TextureImageDecoder.Decode(bytes, path).Image;
+        contract.Validate(source, image);
+        TextureNativeCoverage? coverage = mapping?.NativeCoverage;
+        if (coverage is null && embedded?.NativeFlagsBase64 is { } flags)
+        {
+            coverage = new(embedded.NativeWidth ?? installedSource.Image.Width, embedded.NativeHeight ?? installedSource.Image.Height, flags);
+        }
+        return TextureImportSemantics.Fingerprint(image, target, contract, source, coverage, installedSource);
+    }
+
     private static string TextureWorkspaceInputHash(byte[] image, byte[] companion)
     {
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -630,34 +739,15 @@ internal sealed partial class RecreateGame
         throw new IOException($"{Path.GetFileName(path)} is still being saved. Refresh after the editor finishes.");
     }
 
-    private static Dictionary<string, TextureWorkingEntry> ReadTextureWorkingState(string source)
+    private static Dictionary<string, TextureWorkingEntry> ReadTextureWorkingState(string source, string destination)
     {
-        string path = Path.Combine(source, TextureWorkingStateFile);
-        if (!File.Exists(path))
-        {
-            return new(StringComparer.Ordinal);
-        }
-        RejectTextureReparsePath(path);
-        if (new FileInfo(path).Length > 16 * 1024 * 1024)
-        {
-            throw new InvalidDataException("The texture authoring state exceeds its limit.");
-        }
-        return JsonSerializer.Deserialize<Dictionary<string, TextureWorkingEntry>>(File.ReadAllBytes(path)) ?? new(StringComparer.Ordinal);
+        RejectTextureReparsePath(Path.Combine(source, TextureWorkspaceState.FileName));
+        return TextureWorkspaceState.Read(source, destination);
     }
 
-    private static void WriteTextureWorkingState(string source, Dictionary<string, TextureWorkingEntry> state)
+    private static void WriteTextureWorkingState(string source, string destination, Dictionary<string, TextureWorkingEntry> state)
     {
-        string path = Path.Combine(source, TextureWorkingStateFile);
-        RejectTextureReparsePath(path);
-        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(state, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(temporary, path, true);
-        }
-        finally
-        {
-            File.Delete(temporary);
-        }
+        RejectTextureReparsePath(Path.Combine(source, TextureWorkspaceState.FileName));
+        TextureWorkspaceState.Write(source, destination, state);
     }
 }

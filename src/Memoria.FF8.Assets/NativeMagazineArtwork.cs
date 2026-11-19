@@ -12,13 +12,15 @@ namespace Memoria.FF8.Assets;
 /// <summary>Original magazine illustrations composed from mngrp section7 sprite parts and PC mag00..09 TEX atlases.</summary>
 public sealed class NativeMagazineArtwork
 {
+    private readonly ResourceService? resources;
     private readonly PixelImage[] atlases;
     private readonly byte[] index;
     private readonly NativeMenuArtwork menu;
     private readonly Dictionary<int, PixelImage> images = [];
 
-    private NativeMagazineArtwork(PixelImage[] atlases, byte[] index, NativeMenuArtwork menu)
+    private NativeMagazineArtwork(PixelImage[] atlases, byte[] index, NativeMenuArtwork menu, ResourceService? resources)
     {
+        this.resources = resources;
         this.atlases = atlases;
         this.index = index;
         this.menu = menu;
@@ -57,7 +59,7 @@ public sealed class NativeMagazineArtwork
         {
             atlases[atlas] = NativeArtworkTexture.Resolve(provider, new ResourceKey($"menu/mag{atlas:00}.tex"), atlases[atlas], resources: resources);
         }
-        return new NativeMagazineArtwork(atlases, content.AsSpan(offset, length).ToArray(), NativeMenuArtwork.Load(gameDirectory, resources));
+        return new NativeMagazineArtwork(atlases, content.AsSpan(offset, length).ToArray(), NativeMenuArtwork.Load(gameDirectory, resources), resources);
     }
 
     public PixelImage GetButtonImage(int buttonBit) => menu.GetOriginalButtonIcon(buttonBit);
@@ -104,6 +106,7 @@ public sealed class NativeMagazineArtwork
                     }
                 }
             }
+            resources?.RegisterTextureImageDependencies(image, [atlas]);
             images.Add(imageId, image);
         }
         return image;

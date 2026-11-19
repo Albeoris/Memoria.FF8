@@ -12,6 +12,10 @@ public interface INativeBattleEffectTextureSource
     long Generation { get; }
     PixelImage Apply(PixelImage original, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null);
 
+    void ObservePresented(PixelImage image, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null)
+    {
+    }
+
     /// <summary>Zero declares sample-neutral output; equal nonzero keys identify equivalent primitive variants.</summary>
     int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
     {
@@ -39,6 +43,7 @@ public interface INativeBattleEffectTextureSource
 
 public sealed class NativeBattleEffectTextureSource(ResourceService resources) : INativeBattleEffectTextureSource, IDisposable
 {
+    private sealed record PresentedSource(TextureSourceAddress Alias, TextureSourceRegion Region, int X, int Y, int Width, int Height);
     private const int MaximumResidentContexts = 256;
     private static long nextRevision;
     private static long nextScope;
@@ -59,6 +64,73 @@ public sealed class NativeBattleEffectTextureSource(ResourceService resources) :
     }
 
     public long Generation => resources.CatalogGeneration;
+
+    /// <summary>Attach source-only descriptors once when a material is built. F2 alone evaluates its cropped previews.</summary>
+    public void ObservePresented(PixelImage image, NativeBattleEffectTextureState state, ushort page, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? retainedPixels = null)
+    {
+        ImmutableArray<NativeBattleTextureSourceRegion>? live = retainedPixels is null ? state.LiveTextureSources : retainedPixels.LiveTextureSources;
+        int depth = page >> 7 & 3;
+        if (live is null || depth == 3 || width <= 0 || height <= 0)
+        {
+            return;
+        }
+        int pixelsPerWord = 4 >> depth;
+        int queryX = (page & 15) * 64 * pixelsPerWord + u;
+        int queryY = (page & 16) * 16 + v;
+        int paletteX = (clut & 63) * 16;
+        int paletteY = (clut & 0x7FFF) >> 6;
+        List<PresentedSource> descriptions = [];
+        foreach (NativeBattleTextureSourceRegion source in live.Value)
+        {
+            if (source.Origin.Role != NativeBattleTextureRole.Pixels || source.Origin.BitsPerPixel != 4 << depth)
+            {
+                continue;
+            }
+            int left = Math.Max(queryX, source.X * pixelsPerWord);
+            int top = Math.Max(queryY, source.Y);
+            int right = Math.Min(queryX + width, (source.X + source.WidthWords) * pixelsPerWord);
+            int bottom = Math.Min(queryY + height, source.Y + source.Height);
+            if (left >= right || top >= bottom)
+            {
+                continue;
+            }
+            string domain = source.Origin.Domain == NativeBattleTextureDomain.Magic ? "magic" : "battle";
+            TextureSourceAddress alias = new(new($"{domain}/{source.Origin.Owner}"), source.Origin.Kind == NativeBattleTextureSourceKind.Image ? "image" : $"texture/{source.Origin.Member}", PaletteRow(source, paletteX, paletteY), source.SourceXWords * pixelsPerWord + left - source.X * pixelsPerWord, source.SourceY + top - source.Y, right - left, bottom - top, source.Origin.WidthWords * pixelsPerWord, source.Origin.Height);
+            descriptions.Add(new(alias, new(source.X, source.Y, source.Origin.BitsPerPixel, alias.CanvasWidth, alias.CanvasHeight, paletteX, paletteY), left - queryX, top - queryY, right - left, bottom - top));
+        }
+        if (descriptions.Count == 0)
+        {
+            return;
+        }
+        PresentedSource[] sources = descriptions.ToArray();
+        ResourceSourceDescriptor descriptor = resources.Source;
+        long generation = resources.Generation;
+        resources.RegisterTextureImageSourceFactory(image, () => sources.Select(source =>
+        {
+            TextureSourceAddress alias = source.Alias;
+            PixelImage preview = PresentedCrop(image, width, height, source);
+            TextureBuildContext context = new(new(alias.Owner, alias.Subresource, alias.Palette), descriptor, generation, "native-effect-texture", alias.CanvasWidth, alias.CanvasHeight, () => preview, source.Region) { NativeAlias = alias };
+            return new TextureSourceSnapshot(context, new(preview, alias.CanvasWidth, alias.CanvasHeight, "captured-native-material"), generation);
+        }).ToArray());
+    }
+
+    private static PixelImage PresentedCrop(PixelImage image, int width, int height, PresentedSource source)
+    {
+        int left = checked((int)((long)source.X * image.Width / width));
+        int top = checked((int)((long)source.Y * image.Height / height));
+        int right = checked((int)((long)(source.X + source.Width) * image.Width / width));
+        int bottom = checked((int)((long)(source.Y + source.Height) * image.Height / height));
+        if (left == 0 && top == 0 && right == image.Width && bottom == image.Height)
+        {
+            return image;
+        }
+        PixelImage crop = new(Math.Max(1, right - left), Math.Max(1, bottom - top));
+        for (int row = 0; row < crop.Height; row++)
+        {
+            image.Pixels.AsSpan((top + row) * image.Width + left, crop.Width).CopyTo(crop.Pixels.AsSpan(row * crop.Width, crop.Width));
+        }
+        return crop;
+    }
 
     public int GetPrimitiveSampleKey(TexturePrimitiveSample sample)
     {

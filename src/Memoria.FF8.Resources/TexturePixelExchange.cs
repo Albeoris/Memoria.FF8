@@ -12,7 +12,11 @@ namespace Memoria.FF8.Resources;
 public static class TexturePixelExchange
 {
     /// <summary>Only source contracts retaining PSX coverage bits use alpha as STP. Desktop artwork uses straight alpha.</summary>
-    public static bool UsesNativeFlags(TextureBuildContext context) => context.Layout is "classic-field-tile" or "native-battle-stage-page" or "classic-world-texl" or "classic-world-section" or "classic-world-sprite" or "classic-world-water-region" or "classic-world-vram-copy" or "native-battle-effect-upload" or "native-battle-effect-atlas" || context.Layout is "classic-battle" or "classic-field-model" && context.Source.Edition == GameDataEdition.Classic;
+    public static bool UsesNativeFlags(TextureBuildContext context) => context.ReadInstalledOriginal is { } read ? UsesNativeFlags(context, read()) : UsesNativeFlagsCore(context);
+
+    public static bool UsesNativeFlags(TextureBuildContext context, TextureValue installedOriginal) => context.Layout == "native-field-model-sheet" ? !installedOriginal.IsReplacement : UsesNativeFlagsCore(context) || !installedOriginal.IsReplacement && (context.Layout == "classic-model" || context.Layout is "classic-battle" or "classic-field-model" && context.Region.BitsPerPixel is 4 or 8 or 16);
+
+    private static bool UsesNativeFlagsCore(TextureBuildContext context) => context.Layout is "classic-field-tile" or "native-battle-stage-page" or "classic-world-texl" or "classic-world-section" or "classic-world-sprite" or "classic-world-water-region" or "classic-world-vram-copy" or "native-battle-effect-upload" or "native-battle-effect-atlas" || context.Layout is "classic-battle" or "classic-field-model" && context.Source.Edition == GameDataEdition.Classic;
     public static PixelImage ToEditable(PixelImage native)
     {
         Rgba32[] pixels = native.Pixels.Select(pixel => pixel.A == 128 ? new Rgba32(pixel.R, pixel.G, pixel.B, 255) : pixel).ToArray();
@@ -68,12 +72,34 @@ public static class TexturePixelExchange
         hash.AppendData(MemoryMarshal.AsBytes(image.Pixels.AsSpan()));
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
+
+    public static string SemanticFingerprint(PixelImage image, TextureTarget target, TextureTargetContract contract, string? coverageAlpha = null, int? coverageWidth = null, int? coverageHeight = null)
+    {
+        target.Validate();
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(JsonSerializer.SerializeToUtf8Bytes(new { target.Game, target.Owner, target.Subresource, target.Palette, target.Variant, contract.Layout, contract.LogicalWidth, contract.LogicalHeight, Width = coverageAlpha is null ? (int?)null : coverageWidth ?? contract.LogicalWidth, Height = coverageAlpha is null ? (int?)null : coverageHeight ?? contract.LogicalHeight }));
+        hash.AppendData(Encoding.ASCII.GetBytes(Fingerprint(image)));
+        if (coverageAlpha is not null)
+        {
+            try
+            {
+                hash.AppendData(Convert.FromBase64String(coverageAlpha));
+            }
+            catch (FormatException exception)
+            {
+                throw new InvalidDataException("Native coverage flags are not valid base64.", exception);
+            }
+        }
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
 }
 
 public sealed record TextureExchangeMetadata(int SchemaVersion, TextureTarget Target, TextureTargetContract Contract, string? SourceSha256 = null, string? OriginalPixelSha256 = null, string? ExportedPixelSha256 = null, string? Provenance = null, string? NativeFlagsBase64 = null)
 {
     public int? NativeWidth { get; init; }
     public int? NativeHeight { get; init; }
+    public string? OriginalSemanticSha256 { get; init; }
+    public string? ExportedSemanticSha256 { get; init; }
     public const int MaximumBytes = 96 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 16 };
     public byte[] Serialize() => ToBytes();

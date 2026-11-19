@@ -19,19 +19,20 @@ public static class TextureExchange
 
     public static TextureExportResult Export(IEnumerable<TextureSourceSnapshot> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        return ExportSources(textures.Select(snapshot => (snapshot.Context, resolved ? snapshot.Resolved : null)), destination, cancellationToken, progress, journal);
+        return ExportSources(textures.Select(snapshot => (snapshot.Context, snapshot.InstalledOriginal, resolved ? snapshot.Resolved : null)), destination, cancellationToken, progress, journal);
     }
 
     public static TextureExportResult Export(GameAssets assets, IEnumerable<TextureSourceSnapshot> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        IEnumerable<(TextureBuildContext, TextureValue?)> Read()
+        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?)> Read()
         {
             foreach (TextureSourceSnapshot snapshot in textures)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 foreach (TextureBuildContext context in assets.LoadAuthoringTextures(snapshot))
                 {
-                    yield return (context, resolved ? ReferenceEquals(context, snapshot.Context) ? snapshot.Resolved : assets.Resources.ResolveForExport(context) : null);
+                    TextureValue original = ReferenceEquals(context, snapshot.Context) && snapshot.InstalledOriginal is { } captured ? captured : assets.Resources.ResolveOriginalForExport(context);
+                    yield return (context, original, resolved ? ReferenceEquals(context, snapshot.Context) ? snapshot.Resolved : assets.Resources.ResolveForExport(context) : null);
                 }
             }
         }
@@ -40,7 +41,7 @@ public static class TextureExchange
 
     public static TextureExportResult Export(GameAssets assets, IEnumerable<TextureCatalogEntry> textures, string destination, bool resolved = false, CancellationToken cancellationToken = default, IProgress<TextureExportProgress>? progress = null, TextureExportJournal? journal = null)
     {
-        IEnumerable<(TextureBuildContext, TextureValue?)> Read()
+        IEnumerable<(TextureBuildContext, TextureValue?, TextureValue?)> Read()
         {
             string? previousUnit = null;
             IReadOnlyList<TextureBuildContext> unit = [];
@@ -55,13 +56,13 @@ public static class TextureExchange
                     previousUnit = locator;
                 }
                 TextureBuildContext context = unit.Single(context => TextureTarget.FromContext(context) == entry.Target);
-                yield return (context, resolved ? assets.Resources.ResolveForExport(context) : null);
+                yield return (context, assets.Resources.ResolveOriginalForExport(context), resolved ? assets.Resources.ResolveForExport(context) : null);
             }
         }
         return ExportSources(Read(), destination, cancellationToken, progress, journal);
     }
 
-    private static TextureExportResult ExportSources(IEnumerable<(TextureBuildContext Context, TextureValue? Resolved)> sources, string destination, CancellationToken cancellationToken, IProgress<TextureExportProgress>? progress, TextureExportJournal? journal)
+    private static TextureExportResult ExportSources(IEnumerable<(TextureBuildContext Context, TextureValue? Original, TextureValue? Resolved)> sources, string destination, CancellationToken cancellationToken, IProgress<TextureExportProgress>? progress, TextureExportJournal? journal)
     {
         string root = Path.GetFullPath(destination);
         Directory.CreateDirectory(root);
@@ -69,7 +70,7 @@ public static class TextureExchange
         HashSet<TextureTarget> seen = [];
         Dictionary<(ResourceKey, long), string> sourceHashes = [];
         long bytesWritten = 0;
-        foreach ((TextureBuildContext context, TextureValue? resolved) in sources)
+        foreach ((TextureBuildContext context, TextureValue? installedOriginal, TextureValue? resolved) in sources)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (context.Layout is "native-effect-texture" or "native-pc-texture-upload" or "native-battle-gf-atlas")
@@ -82,9 +83,9 @@ public static class TextureExchange
                 journal?.AddAlias();
                 continue;
             }
-            PixelImage original = context.Original;
+            PixelImage original = installedOriginal?.Image ?? context.Original;
             PixelImage selected = resolved?.Image ?? original;
-            bool nativeFlags = TexturePixelExchange.UsesNativeFlags(context);
+            bool nativeFlags = installedOriginal is null ? TexturePixelExchange.UsesNativeFlags(context) : TexturePixelExchange.UsesNativeFlags(context, installedOriginal);
             PixelImage editable = nativeFlags ? TexturePixelExchange.ToEditable(selected) : selected;
             string? sourceHash = null;
             if (context.EncodedSource is { } encoded)
@@ -96,7 +97,17 @@ public static class TextureExchange
                     sourceHashes.Add((encoded.Key, encoded.Revision), sourceHash);
                 }
             }
-            TextureExchangeMetadata metadata = new(1, target, TextureTargetContract.FromContext(context), sourceHash, PixelFingerprint(nativeFlags ? TexturePixelExchange.ToEditable(original) : original), PixelFingerprint(editable), resolved?.Provenance ?? context.Source.Id, nativeFlags ? TexturePixelExchange.CaptureNativeFlags(selected) : null) { NativeWidth = nativeFlags ? selected.Width : null, NativeHeight = nativeFlags ? selected.Height : null };
+            TextureTargetContract contract = TextureTargetContract.FromContext(context);
+            PixelImage originalEditable = ReferenceEquals(original, selected) ? editable : nativeFlags ? TexturePixelExchange.ToEditable(original) : original;
+            string? originalFlags = nativeFlags ? TexturePixelExchange.CaptureNativeFlags(original) : null;
+            string? selectedFlags = nativeFlags ? TexturePixelExchange.CaptureNativeFlags(selected) : null;
+            TextureExchangeMetadata metadata = new(1, target, contract, sourceHash, PixelFingerprint(originalEditable), PixelFingerprint(editable), resolved?.Provenance ?? context.Source.Id, selectedFlags)
+            {
+                NativeWidth = nativeFlags ? selected.Width : null,
+                NativeHeight = nativeFlags ? selected.Height : null,
+                OriginalSemanticSha256 = TexturePixelExchange.SemanticFingerprint(originalEditable, target, contract, originalFlags, original.Width, original.Height),
+                ExportedSemanticSha256 = TexturePixelExchange.SemanticFingerprint(editable, target, contract, selectedFlags, selected.Width, selected.Height)
+            };
             byte[] serialized = metadata.ToBytes();
             byte[] png = EmbedMetadata(LocalizationArtworkExporter.EncodePng(editable), serialized);
             string path = SafeOutput(root, target.CanonicalPath());
@@ -164,6 +175,7 @@ public static class TextureExchange
         }
         TextureExchangeMetadata? result = null;
         Span<byte> header = stackalloc byte[8];
+        Span<byte> checksum = stackalloc byte[4];
         while (input.Position < input.Length)
         {
             input.ReadExactly(header);
@@ -176,8 +188,13 @@ public static class TextureExchange
             {
                 byte[] data = new byte[length];
                 input.ReadExactly(data);
+                input.ReadExactly(checksum);
                 if (data.AsSpan().StartsWith(MetadataKeyword))
                 {
+                    if (BinaryPrimitives.ReadUInt32BigEndian(checksum) != MetadataCrc(header[4..], data))
+                    {
+                        throw new InvalidDataException("The PNG texture identity has an invalid checksum. Re-export or explicitly repair the mapping.");
+                    }
                     int start = MetadataKeyword.Length;
                     if (data.Length < start + 4 || !data.AsSpan(start, 4).SequenceEqual(new byte[4]))
                     {
@@ -191,17 +208,52 @@ public static class TextureExchange
                     result = parsed;
                 }
             }
+            else if (header[4..].SequenceEqual("iTXt"u8))
+            {
+                byte[] keyword = new byte[MetadataKeyword.Length];
+                input.ReadExactly(keyword);
+                if (keyword.AsSpan().SequenceEqual(MetadataKeyword))
+                {
+                    throw new InvalidDataException("The PNG texture identity exceeds its metadata size limit. Re-export or explicitly repair the mapping.");
+                }
+                input.Seek(length - keyword.Length, SeekOrigin.Current);
+                input.ReadExactly(checksum);
+            }
             else
             {
                 input.Seek(length, SeekOrigin.Current);
+                input.ReadExactly(checksum);
             }
-            input.Seek(4, SeekOrigin.Current);
             if (header[4..].SequenceEqual("IEND"u8))
             {
                 break;
             }
         }
         return result;
+    }
+
+    private static uint MetadataCrc(ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    {
+        uint crc = uint.MaxValue;
+        foreach (byte value in type)
+        {
+            crc = CrcByte(crc, value);
+        }
+        foreach (byte value in data)
+        {
+            crc = CrcByte(crc, value);
+        }
+        return ~crc;
+    }
+
+    private static uint CrcByte(uint crc, byte value)
+    {
+        crc ^= value;
+        for (int bit = 0; bit < 8; bit++)
+        {
+            crc = crc >> 1 ^ ((crc & 1) == 0 ? 0 : 0xedb88320u);
+        }
+        return crc;
     }
 
     private static byte[] EmbedMetadata(byte[] png, byte[] metadata)
@@ -220,16 +272,7 @@ public static class TextureExchange
         BinaryPrimitives.WriteInt32BigEndian(integer, chunk.Length - 4);
         output.Write(integer);
         output.Write(chunk);
-        uint crc = uint.MaxValue;
-        foreach (byte value in chunk)
-        {
-            crc ^= value;
-            for (int bit = 0; bit < 8; bit++)
-            {
-                crc = crc >> 1 ^ ((crc & 1) == 0 ? 0 : 0xedb88320u);
-            }
-        }
-        BinaryPrimitives.WriteUInt32BigEndian(integer, ~crc);
+        BinaryPrimitives.WriteUInt32BigEndian(integer, MetadataCrc(chunk.AsSpan(0, 4), chunk.AsSpan(4)));
         output.Write(integer);
         output.Write(png.AsSpan(33));
         return output.ToArray();

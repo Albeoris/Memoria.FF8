@@ -11,16 +11,21 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class GameAssets
 {
+    private (ResourceKey Key, long Revision, byte[] Bytes)? textureCatalogFieldBytes;
+    private (ResourceKey Key, long Revision, byte[] Bytes)? textureCatalogLibraryBytes;
+    private static bool TextureCatalogError(Exception exception) => CatalogError(exception) || exception is NotImplementedException;
+    private static string TextureCatalogOutcome(Exception exception) => exception is FileNotFoundException or DirectoryNotFoundException ? "skipped" : exception is NotSupportedException or NotImplementedException ? "unsupported" : "failed";
     /// <summary>Discovers source textures without loading scenes or registering resident textures. The caller owns the source and must serialize its use.</summary>
-    public IEnumerable<TextureCatalogEntry> EnumerateTextureCatalog(CancellationToken cancellationToken = default, Action<TextureCatalogDiagnostic>? diagnostic = null)
+    public IEnumerable<TextureCatalogEntry> EnumerateTextureCatalog(CancellationToken cancellationToken = default, Action<TextureCatalogDiagnostic>? diagnostic = null, bool includeFieldTiles = false)
     {
         HashSet<TextureTarget> seen = [];
+        Dictionary<TextureTarget, List<string>> usageAliases = [];
         foreach (ModelCatalogEntry model in EnumerateModelCatalog())
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (model.LoadError is not null)
             {
-                diagnostic?.Invoke(new(model.ResourcePath, "Discovering models", model.LoadError));
+                diagnostic?.Invoke(new(model.ResourcePath, "Discovering models", model.LoadError, "skipped"));
                 continue;
             }
             if (model.Category == "World static")
@@ -31,11 +36,16 @@ public sealed partial class GameAssets
             IReadOnlyList<TextureBuildContext> contexts;
             try
             {
-                contexts = ReadCatalogModelTextures(model);
+                contexts = ReadAuthoringModelTextures(model);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new(model.ResourcePath, "Discovering model textures", exception.Message));
+                string outcome = TextureCatalogOutcome(exception);
+                if (outcome == "failed" && model.Category == "Battle model" && !TryPartyAddress(model.ResourcePath, out _, out _))
+                {
+                    outcome = "unsupported";
+                }
+                diagnostic?.Invoke(new(model.ResourcePath, "Discovering model textures", exception.Message, outcome));
                 continue;
             }
             for (int index = 0; index < contexts.Count; index++)
@@ -43,23 +53,56 @@ public sealed partial class GameAssets
                 cancellationToken.ThrowIfCancellationRequested();
                 TextureBuildContext context = contexts[index];
                 TextureTarget target = TextureTarget.FromContext(context);
+                string usage = model.ResourcePath + "#model/" + model.ModelIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 if (seen.Add(target))
                 {
-                    yield return Entry(context, $"{model.Name} · texture {index}", model.Category) with { Reader = "model", Model = model, Index = index };
+                    List<string> aliases = [usage];
+                    usageAliases[target] = aliases;
+                    string name = context.Layout == "native-field-model-sheet" ? $"{Path.GetFileName(target.Owner)} · {target.Subresource}{(target.Variant.Length == 0 ? "" : " · " + target.Variant)}" : $"{model.Name} · texture {index}{(target.Variant.Length == 0 ? "" : " · " + target.Variant)}";
+                    yield return Entry(context, name, model.Category) with { Reader = "model", Model = model, Index = index, UsedBy = aliases.AsReadOnly() };
+                }
+                else if (usageAliases.TryGetValue(target, out List<string>? aliases) && !aliases.Contains(usage, StringComparer.Ordinal))
+                {
+                    aliases.Add(usage);
                 }
             }
         }
         foreach (string field in fieldNames.Where(name => !string.IsNullOrWhiteSpace(name)))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!includeFieldTiles)
+            {
+                TextureCatalogEntry? workspace = null;
+                try
+                {
+                    ResourceKey owner = new($"field/{field}/{field}.mim");
+                    _ = resources.Get(owner);
+                    MapFile map = MapFile.Read(ReadTextureSource(new($"field/{field}/{field}.map")));
+                    if (map.Tiles.Count > 0)
+                    {
+                        int width = Math.Abs(map.Tiles.Min(tile => (int)tile.X)) + Math.Abs(map.Tiles.Max(tile => (int)tile.X)) + 16;
+                        int height = Math.Abs(map.Tiles.Min(tile => (int)tile.Y)) + Math.Abs(map.Tiles.Max(tile => (int)tile.Y)) + 16;
+                        workspace = new(TextureTarget.FromKey(new(owner, "workspace")), field + " · layered background", "Field background", "field-workspace", width, height) { Reader = "field-workspace" };
+                    }
+                }
+                catch (Exception exception) when (TextureCatalogError(exception))
+                {
+                    diagnostic?.Invoke(new($"field/{field}/{field}.mim", "Discovering field workspace", exception.Message, TextureCatalogOutcome(exception)));
+                }
+                if (workspace is not null)
+                {
+                    yield return workspace;
+                }
+                continue;
+            }
             IReadOnlyList<TextureBuildContext> contexts;
             try
             {
                 contexts = ReadCatalogBackground(field);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new($"field/{field}/{field}.mim", "Discovering field background", exception.Message));
+                diagnostic?.Invoke(new($"field/{field}/{field}.mim", "Discovering field background", exception.Message, TextureCatalogOutcome(exception)));
                 continue;
             }
             for (int index = 0; index < contexts.Count; index++)
@@ -75,9 +118,9 @@ public sealed partial class GameAssets
             {
                 archive = OpenArchive(archiveName);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new(archiveName, "Discovering artwork", exception.Message));
+                diagnostic?.Invoke(new(archiveName, "Discovering artwork", exception.Message, TextureCatalogOutcome(exception)));
             }
             using (archive)
             {
@@ -94,9 +137,9 @@ public sealed partial class GameAssets
                     {
                         contexts = ReadCatalogTex(owner);
                     }
-                    catch (Exception exception) when (CatalogError(exception))
+                    catch (Exception exception) when (TextureCatalogError(exception))
                     {
-                        diagnostic?.Invoke(new(owner.Path, "Discovering TEX palettes", exception.Message));
+                        diagnostic?.Invoke(new(owner.Path, "Discovering TEX palettes", exception.Message, TextureCatalogOutcome(exception)));
                         continue;
                     }
                     foreach (TextureBuildContext context in contexts)
@@ -114,9 +157,9 @@ public sealed partial class GameAssets
                 cancellationToken.ThrowIfCancellationRequested();
                 contexts = ReadCatalogWorldSection(section);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new(NativeResourceNames.WorldSettings(resources.ResourceLanguage).Path, $"Discovering world section {section}", exception.Message));
+                diagnostic?.Invoke(new(NativeResourceNames.WorldSettings(resources.ResourceLanguage).Path, $"Discovering world section {section}", exception.Message, TextureCatalogOutcome(exception)));
                 continue;
             }
             foreach (TextureBuildContext context in contexts)
@@ -134,9 +177,9 @@ public sealed partial class GameAssets
         {
             menuSlots = ReadCatalogMenuSlots();
         }
-        catch (Exception exception) when (CatalogError(exception))
+        catch (Exception exception) when (TextureCatalogError(exception))
         {
-            diagnostic?.Invoke(new("menu/mngrp.bin", "Discovering tutorial artwork", exception.Message));
+            diagnostic?.Invoke(new("menu/mngrp.bin", "Discovering tutorial artwork", exception.Message, TextureCatalogOutcome(exception)));
             menuSlots = [];
         }
         foreach (TextureBuildContext context in menuSlots)
@@ -152,9 +195,9 @@ public sealed partial class GameAssets
             {
                 contexts = ReadCatalogTexl(page);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new("world/texl.obj", $"Discovering terrain page {page}", exception.Message));
+                diagnostic?.Invoke(new("world/texl.obj", $"Discovering terrain page {page}", exception.Message, TextureCatalogOutcome(exception)));
                 continue;
             }
             foreach (TextureBuildContext context in contexts)
@@ -170,11 +213,11 @@ public sealed partial class GameAssets
             try
             {
                 ResourceContent content = resources.Get(owner);
-                context = new(new(owner, "atlas"), resources.Source, content.Revision, "native-artwork", NativeStartupArtwork.Width, NativeStartupArtwork.Height, () => NativeStartupArtwork.Decode(resources.Read(owner)), encodedSource: content);
+                context = new(new(owner, "atlas"), resources.Source, content.Revision, "native-artwork", NativeStartupArtwork.Width, NativeStartupArtwork.Height, () => NativeStartupArtwork.Decode(ReadTextureSource(owner)), encodedSource: content);
             }
-            catch (Exception exception) when (CatalogError(exception))
+            catch (Exception exception) when (TextureCatalogError(exception))
             {
-                diagnostic?.Invoke(new(owner.Path, "Discovering startup artwork", exception.Message));
+                diagnostic?.Invoke(new(owner.Path, "Discovering startup artwork", exception.Message, TextureCatalogOutcome(exception)));
             }
             if (context is not null)
             {
@@ -193,9 +236,9 @@ public sealed partial class GameAssets
         {
             cards = ReadCatalogCardArtwork();
         }
-        catch (Exception exception) when (CatalogError(exception))
+        catch (Exception exception) when (TextureCatalogError(exception))
         {
-            diagnostic?.Invoke(new("cards/cards", "Discovering native card artwork", exception.Message));
+            diagnostic?.Invoke(new("cards/cards", "Discovering native card artwork", exception.Message, TextureCatalogOutcome(exception)));
             cards = [];
         }
         foreach (TextureBuildContext context in cards)
@@ -208,7 +251,49 @@ public sealed partial class GameAssets
     /// <summary>Reopens one catalog unit; no registration, gameplay initialization, or GPU readback occurs.</summary>
     public TextureBuildContext LoadCatalogTexture(TextureCatalogEntry entry)
     {
+        if (entry.Layout == "field-workspace")
+        {
+            throw new NotSupportedException("A layered field is a compound workspace. Export it as ORA or expand its native tile targets.");
+        }
         return LoadCatalogTextureUnit(entry).Single(context => TextureTarget.FromContext(context) == entry.Target);
+    }
+
+    public IEnumerable<TextureCatalogEntry> ExpandFieldTextureCatalog(TextureCatalogEntry field, CancellationToken cancellationToken = default)
+    {
+        string[] parts = field.Target.Owner.Split('/');
+        if (parts.Length != 3 || parts[0] != "field" || !fieldNames.Contains(parts[1], StringComparer.Ordinal) || parts[2] != parts[1] + ".mim")
+        {
+            throw new ArgumentException("Select a field background from the installed catalog.", nameof(field));
+        }
+        foreach (TextureBuildContext context in ReadCatalogBackground(parts[1]))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int index = int.Parse(context.Key.Subresource.AsSpan(5), System.Globalization.CultureInfo.InvariantCulture);
+            yield return Entry(context, $"{parts[1]} · tile {index}", "Field background") with { Reader = "field", Index = index };
+        }
+    }
+
+    public TextureCatalogEntry? FindCatalogTextureTarget(TextureTarget target, CancellationToken cancellationToken = default)
+    {
+        string[] parts = target.Owner.Split('/');
+        if (target.Game == "ff8" && parts.Length == 4 && parts[0] == "field" && parts[1] == "model")
+        {
+            return FindGlobalFieldSheetTarget(target, cancellationToken);
+        }
+        if (target.Game != "ff8" || parts.Length != 3 || parts[0] != "field" || !fieldNames.Contains(parts[1], StringComparer.Ordinal))
+        {
+            return null;
+        }
+        if (parts[2] == "chara.one" && target.Subresource.StartsWith("model/", StringComparison.Ordinal))
+        {
+            return FindRegisteredFieldTextureTarget(target, parts[1]);
+        }
+        if (target.Variant.Length != 0 || parts[2] != parts[1] + ".mim" || !target.Subresource.StartsWith("tile/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+        TextureCatalogEntry field = new(TextureTarget.FromKey(new(new(target.Owner), "workspace")), parts[1], "Field background", "field-workspace", 0, 0);
+        return ExpandFieldTextureCatalog(field).FirstOrDefault(entry => entry.Target == target);
     }
 
     public IReadOnlyList<TextureBuildContext> LoadCatalogTextureUnit(TextureCatalogEntry entry)
@@ -216,8 +301,10 @@ public sealed partial class GameAssets
         ResourceKey owner = new(entry.Target.Owner);
         return entry.Reader switch
         {
-            "model" => ReadCatalogModelTextures(entry.Model ?? throw new InvalidDataException("The model catalog locator is missing.")),
-            "field" => ReadCatalogBackground(owner.Path.Split('/')[1]),
+            "model" => ReadAuthoringModelTextures(entry.Model ?? throw new InvalidDataException("The model catalog locator is missing.")),
+            "field-registered" => [ReadRegisteredFieldTexture(entry)],
+            "main-sheet" => ReadMainCharacterAuthoringSheets(Path.GetFileName(entry.Target.Owner), entry.Target.Subresource.EndsWith("/alpha", StringComparison.Ordinal)),
+            "field" or "field-workspace" => ReadCatalogBackground(owner.Path.Split('/')[1]),
             "tex" => ReadCatalogTex(owner),
             "world-section" => ReadCatalogWorldSection(entry.Section),
             "texl" => ReadCatalogTexl(entry.Index),
@@ -226,14 +313,50 @@ public sealed partial class GameAssets
             "cinematic" => ReadCatalogCinematicTextures(entry.Section),
             "common-page" => ReadCatalogCommonEffectPages(entry.Index),
             "cards" => ReadCatalogCardArtwork(),
-            "startup" => [Context(new(owner, "atlas"), NativeStartupArtwork.Decode(resources.Read(owner)), "native-artwork")],
+            "startup" => [Context(new(owner, "atlas"), NativeStartupArtwork.Decode(ReadTextureSource(owner)), "native-artwork")],
             _ => throw new NotSupportedException($"Texture {entry.Name} has no source reader.")
         };
     }
 
     private static TextureCatalogEntry Entry(TextureBuildContext context, string name, string category) => new(TextureTarget.FromContext(context), name, category, context.Layout, context.LogicalWidth, context.LogicalHeight);
 
-    private TextureBuildContext Context(TextureKey key, PixelImage image, string layout, ResourceSourceDescriptor? source = null, TextureSourceRegion? region = null, TextureSourceAddress? nativeSheet = null, TextureSourceAddress? nativeAlias = null) => new(key, source ?? resources.Source, resources.Get(key.Owner).Revision, layout, image.Width, image.Height, () => image, region, encodedSource: resources.Get(key.Owner)) { NativeSheet = nativeSheet, NativeAlias = nativeAlias };
+    private byte[] ReadTextureSource(ResourceKey key)
+    {
+        if (resources.GetSource<ITextureAuthoringResourceSource>() is not { IsTextureAuthoringSource: true })
+        {
+            return resources.Read(key);
+        }
+        ResourceContent content = resources.Get(key);
+        bool field = key.Path.EndsWith("/chara.one", StringComparison.Ordinal);
+        bool library = key.Path.StartsWith("field/main_chr/", StringComparison.Ordinal);
+        var cached = field ? textureCatalogFieldBytes : library ? textureCatalogLibraryBytes : null;
+        if (cached is { } previous && previous.Key == key && previous.Revision == content.Revision)
+        {
+            return previous.Bytes;
+        }
+        byte[] Retain(byte[] bytes)
+        {
+            if (field)
+            {
+                textureCatalogFieldBytes = (key, content.Revision, bytes);
+            }
+            else if (library)
+            {
+                textureCatalogLibraryBytes = (key, content.Revision, bytes);
+            }
+            return bytes;
+        }
+        using Stream input = content.OpenRead();
+        if (input is MemoryStream memory && memory.TryGetBuffer(out ArraySegment<byte> buffer) && buffer.Offset == 0 && buffer.Count == buffer.Array!.Length)
+        {
+            return Retain(buffer.Array!);
+        }
+        using MemoryStream output = new();
+        input.CopyTo(output);
+        return Retain(output.ToArray());
+    }
+
+    private TextureBuildContext Context(TextureKey key, PixelImage image, string layout, ResourceSourceDescriptor? source = null, TextureSourceRegion? region = null, TextureSourceAddress? nativeSheet = null, TextureSourceAddress? nativeAlias = null, Func<IReadOnlyDictionary<string, PixelImage>>? nativeVariants = null, Func<PixelImage, string, PixelImage>? projectNativeVariant = null) => new(key, source ?? resources.Source, resources.Get(key.Owner).Revision, layout, image.Width, image.Height, () => image, region, encodedSource: resources.Get(key.Owner)) { NativeSheet = nativeSheet, NativeAlias = nativeAlias, NativeVariants = nativeVariants, ProjectNativeVariant = projectNativeVariant };
 
     private IReadOnlyList<TextureBuildContext> ReadCatalogModelTextures(ModelCatalogEntry entry)
     {
@@ -244,14 +367,51 @@ public sealed partial class GameAssets
             {
                 return ReadClassicCatalogFieldTextures(entry);
             }
-            FieldModel model = ReadFieldModelCatalogSource(entry);
+            FieldModel model = resources.GetSource<IFieldModelSource>()!.ReadModel(owner, ReadTextureSource(owner), name => ReadTextureSource(new($"field/main_chr/{name}.mch")), entry.ModelIndex);
             string prefix = model.TextureResourceName is { } name ? $"model/{entry.ModelIndex}/{(model.MainCharacterTextures ? "main" : "second")}/{name}/texture" : $"model/{entry.ModelIndex}/texture";
             string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
-            return model.Textures.Select((image, index) => Context(new(owner, $"{prefix}/{index}"), image, layout, model.TextureSourceDescriptor, nativeSheet: NativeFieldModelTextureSheets.Address(model, index))).ToArray();
+            bool nativeVariants = FieldEyeMaterial.HasNativeVariants(model);
+            return model.Textures.Select((image, index) => Context(new(owner, $"{prefix}/{index}"), image, layout, model.TextureSourceDescriptor, nativeSheet: NativeFieldModelTextureSheets.Address(model, index), nativeVariants: index == 0 && nativeVariants ? () => FieldEyeMaterial.NativeVariants(model) : null, projectNativeVariant: index == 0 && nativeVariants ? (pixels, variant) => FieldEyeMaterial.Project(model.NativeEyes!, pixels, variant) : null)).ToArray();
         }
         if (entry.Category is "Battle model" or "Battle enemy" or "Battle weapon" && resources.GetSource<IBattleModelSource>() is null)
         {
             return ReadClassicCatalogBattleTextures(entry);
+        }
+        if (entry.Category is "Battle model" or "Battle enemy" or "Battle weapon")
+        {
+            IBattleModelSource source = resources.GetSource<IBattleModelSource>()!;
+            BattleModel model;
+            if (entry.Category == "Battle weapon")
+            {
+                if (!TryPartyAddress(entry.ResourcePath, out int character, out bool linked) || !linked)
+                {
+                    throw new NotSupportedException("The weapon has no native character material owner binding.");
+                }
+                string bodyName = Path.GetFileName(ModelAssetDiscoveryBindings.ResolvePartyFile(ReadNativeMemory(), character, false, 0));
+                ResourceKey bodyOwner = new("battle/" + bodyName);
+                BattleModel body = source.ReadModel(bodyOwner, ReadTextureSource(bodyOwner));
+                model = source.ReadWeapon(owner, ReadTextureSource(owner), body);
+            }
+            else
+            {
+                model = source.ReadModel(owner, ReadTextureSource(owner));
+            }
+            return model.Textures.Select((image, index) =>
+            {
+                TextureSourceRegion? region = index < model.TextureRegions.Count ? model.TextureRegions[index] : null;
+                return Context(new(owner, $"texture/{index}"), image, "classic-battle", model.TextureSourceDescriptor, region, region is null ? null : BattleAssets.BattleModelSheetAddress(owner, region, model.Textures.Count), index < model.TextureSourceAddresses.Count ? model.TextureSourceAddresses[index] : null);
+            }).ToArray();
+        }
+        if (entry.Category == "Battle stage")
+        {
+            int stageId = int.Parse(Path.GetFileName(entry.ResourcePath).AsSpan(5, 3), System.Globalization.CultureInfo.InvariantCulture);
+            BattleStage stage = BattleResourceReader.ReadStage(stageId, ReadTextureSource(owner));
+            return stage.Textures.Select((image, index) => Context(new(owner, $"texture/{index}"), image, "classic-battle", region: index < stage.TextureRegions.Count ? stage.TextureRegions[index] : null, nativeAlias: index < stage.TextureSourceAddresses.Count ? stage.TextureSourceAddresses[index] : null)).ToArray();
+        }
+        if (entry.Category == "World character")
+        {
+            FieldModel model = WorldAssetReader.ReadWorldCharacter(ReadTextureSource(owner), entry.ModelIndex);
+            return model.Textures.Select((image, index) => Context(new(owner, $"model/{entry.ModelIndex}/texture/{index}"), image, "classic-model")).ToArray();
         }
         EditableModel decoded = LoadCatalogModel(entry);
         string texturePrefix = entry.Category == "World character" ? $"model/{entry.ModelIndex}/texture" : entry.Category == "World static" ? $"section/42/texture/{entry.ModelIndex - 64}" : "texture";
@@ -262,15 +422,15 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogBackground(string field)
     {
         ResourceKey owner = new($"field/{field}/{field}.mim");
-        MimFile mim = MimFile.Read(resources.Read(owner));
-        MapFile map = MapFile.Read(resources.Read(new($"field/{field}/{field}.map")));
+        MimFile mim = MimFile.Read(ReadTextureSource(owner));
+        MapFile map = MapFile.Read(ReadTextureSource(new($"field/{field}/{field}.map")));
         IReadOnlyList<TextureSourceAddress> atlas = FieldBackgroundTileDecoder.AtlasAddresses(owner, map.Tiles);
         return map.Tiles.Select((tile, index) => new TextureBuildContext(new(owner, $"tile/{index}", tile.PaletteId), resources.Source, resources.Get(owner).Revision, "classic-field-tile", MimFile.TileSize, MimFile.TileSize, () => FieldBackgroundTileDecoder.Decode(mim, tile), new(tile.TextureId * 64, 256, tile.Uses8BitIndices ? 8 : 4), encodedSource: resources.Get(owner)) { NativeAlias = FieldBackgroundTileDecoder.Address(owner, tile), NativeSheet = atlas[index] }).ToArray();
     }
 
     private IReadOnlyList<TextureBuildContext> ReadCatalogTex(ResourceKey owner)
     {
-        TexFile tex = TexFile.Read(resources.Read(owner));
+        TexFile tex = TexFile.Read(ReadTextureSource(owner));
         return Enumerable.Range(0, Math.Max(1, tex.Palettes.Count)).Select(palette => new TextureBuildContext(new(owner, "atlas", palette), resources.Source, resources.Get(owner).Revision, "native-artwork", tex.Header.Width, tex.Header.Height, () => tex.Decode(palette), paletteImage: tex.Decode, paletteCount: Math.Max(1, tex.Palettes.Count), encodedSource: resources.Get(owner))).ToArray();
     }
 
@@ -299,7 +459,7 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogWorldSection(int section)
     {
         ResourceKey owner = NativeResourceNames.WorldSettings(resources.ResourceLanguage);
-        byte[] bytes = resources.Read(owner);
+        byte[] bytes = ReadTextureSource(owner);
         int[] sections = WorldAssetReader.ReadSections(bytes);
         int start = sections[section - 1];
         int[] pointers = WorldAssetReader.InnerPointers(bytes, start);
@@ -315,7 +475,7 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogTexl(int page)
     {
         ResourceKey owner = new("world/texl.obj");
-        byte[] bytes = resources.Read(owner);
+        byte[] bytes = ReadTextureSource(owner);
         TimImage tim = WorldAssetReader.ReadTim(bytes, checked(page * 0x12800)).Image;
         return TimContexts(owner, $"texl/{page}", tim, "classic-world-texl");
     }
@@ -323,8 +483,8 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadCatalogMenuSlots()
     {
         ResourceKey owner = new("menu/mngrp.bin");
-        byte[] header = resources.Read(new("menu/mngrphd.bin"));
-        byte[] content = resources.Read(owner);
+        byte[] header = ReadTextureSource(new("menu/mngrphd.bin"));
+        byte[] content = ReadTextureSource(owner);
         if (header.Length % 8 != 0)
         {
             throw new InvalidDataException("Tutorial artwork directory requires complete offset/length records.");

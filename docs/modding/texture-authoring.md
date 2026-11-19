@@ -8,6 +8,8 @@ Use the search and category/owner/member/palette details to select an exact sour
 
 Export to a working folder. Ordinary textures are PNG files under `textures/`, accompanied by `.texture.json` metadata and redundant embedded identity. Keep the relative paths. PNG metadata may be stripped by an image editor without losing identity when the canonical path remains intact. Keep the companions for source fingerprints, baseline hashes and native coverage information. DDS is accepted on import; the export command currently writes PNG.
 
+Each export also writes `texture-export-index.json`, `texture-export-report.txt` and `EDITING.txt`. The index records the selected scope and completed relative outputs, while the report lists counts, duplicate aliases and discovery/processing diagnostics. An interrupted export is marked **INCOMPLETE**; its completed files remain editable and importable. These counts describe the scanned selection, not a promise that unsupported or unscanned archive contents were exported. Choose a fresh export folder: a folder with an existing export index is refused to preserve edited artwork and baselines.
+
 Fields export as layered `fields/<field>.ora` documents with source companions instead of duplicate loose tile images. Preserve all Pupu layer identities, animation/blend composition and the `.ora.texture.json` companion. The importer checks the original MIM and MAP fingerprints. Painting and uniform integer enlargement are supported; changing native composition, deleting required layers or flattening the document is rejected. Paint a layer transparently instead of deleting its identity. Runtime output is a coherent set of canonical tile images; the authoring ORA stays in the working folder.
 
 Native STP coverage is separate from editor opacity. For supported native layouts, export makes STP pixels visibly opaque and retains their native flags. Import restores those flags when an edited pixel is opaque, while retaining authored transparency. Ordinary desktop RGBA artwork keeps ordinary alpha. Full native effect sources are exported rather than transient VRAM sampling windows; the runtime crops the source-owned replacement and applies its existing effect alpha contract.
@@ -50,12 +52,14 @@ Exceptional mappings use a versioned `.texture.json` sidecar relative to its ima
 
 Resolution order is explicit localization artwork, native Memoria textures, the existing legacy resolver chain, then provider replacement/original fallback. Native packages retain existing identity, priority and enablement rules. Two definitions of an exact target inside one package are errors. Changing a target from PNG to DDS while leaving the previous canonical file or exceptional mapping may create such a duplicate; remove the obsolete definition deliberately before retrying.
 
+When two enabled native packages define the same target, the lower-precedence package receives a `Memoria.TextureOverridden` diagnostic naming the effective winning package and path. This notice does not reject the generation or change priority. Use the normal Mods diagnostics and priority/enablement controls to choose the owner.
+
 ## Limits and validation status
 
 The catalog includes supported field/model/menu/world/card resources and source-owned indexed effect resources. Coverage depends on the selected provider. Some procedural/direct-color effect sources cannot yet be exported, and some effect formats outside the known source profiles are not cataloged. A source edition label alone does not establish compatibility: the selected logical target, layout and canvas must agree.
 
+The compact installed scans returned 13,433 Classic nodes and 13,135 Remastered nodes, including 851 compound field-workspace parents in each. A parent can expand into many tile targets, so these are not full-game texture totals. The scans also report skipped, unsupported and failed resource reads; see the [coverage matrix and measured limits](../developers/texture-authoring.md#installed-catalog-coverage-and-measurements) before treating an export as complete coverage of an installation.
+
 Portable tests cover identity, metadata, source snapshots, selective dependency refresh, alpha preservation, native alias cropping, ORA structure, and disk/publication rollback. Actual GPU field round-trip and HD coordinate checks also passed against both Classic and Remastered resources. A complete interactive installed-game acceptance run and full-game export/frame-time benchmark remain required before claiming the entire specification is complete. See [developer details](../developers/texture-authoring.md).
 
 Run [Create-TextureExample.ps1](../../tools/Create-TextureExample.ps1) to create a redistributable procedural package fixture. Its identity is deliberately synthetic and does not replace any installed game texture.
-
-

@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Selects complete visual model bundles while preserving the primary gameplay resources and capabilities.</summary>
-public sealed class SelectedModelResourceSource : IResourceSource, IResourceSourceProvider, IResourcePrefixSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver, ITextureAuthoringResourceSource
+public sealed class SelectedModelResourceSource : IResourceSource, IResourceSourceProvider, IResourcePrefixSource, IFieldModelSource, IBattleModelSource, ITextureReplacementResolver, ITextureAuthoringResourceSource, ITextureVariantSource
 {
     private readonly IResourceSource primary;
     private readonly IResourceSource models;
@@ -165,6 +165,12 @@ public sealed class SelectedModelResourceSource : IResourceSource, IResourceSour
         }
         TextureBuildContext donorContext = new(context.Key, models.Descriptor, context.Revision, context.Layout, context.LogicalWidth, context.LogicalHeight, () => context.Original, context.Region, context.PaletteImage, context.PaletteCount, context.EncodedSource) { NativeAlias = context.NativeAlias, NativePage = context.NativePage, NativeSheet = context.NativeSheet, NativeUpload = context.NativeUpload, NativeAtlas = context.NativeAtlas, RequestedVariant = context.RequestedVariant };
         return (Capability(models, typeof(ITextureReplacementResolver)) as ITextureReplacementResolver)?.Resolve(donorContext);
+    }
+
+    public TextureVariantSourceInfo DescribeTextureVariants(TextureBuildContext context)
+    {
+        IResourceSource selected = context.Source.Id == ModelSourceDescriptor.Id ? models : primary;
+        return (Capability(selected, typeof(ITextureVariantSource)) as ITextureVariantSource)?.DescribeTextureVariants(context) ?? new(false, []);
     }
 
     public void Dispose()

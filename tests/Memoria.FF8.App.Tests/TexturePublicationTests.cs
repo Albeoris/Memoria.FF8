@@ -61,4 +61,24 @@ public sealed class TexturePublicationTests
         renderer.Draw(b, d, c, material);
         renderer.End();
     }
+
+    [Fact]
+    public void RepeatedPublicationsStayWithinTheGpuCacheBudget()
+    {
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer renderer = new(device.Device, 4, 16);
+        PixelImage current = new(1, 1, [new(255, 0, 0)]);
+        Frame(renderer, current);
+        for (int revision = 0; revision < 24; revision++)
+        {
+            PixelImage next = new(1, 1, [new((byte)revision, 255, 0)]);
+            using TexturePublication publication = renderer.PrepareTexturePublication([next], [current]);
+            publication.Commit();
+            Frame(renderer, next);
+            Assert.Equal(0, renderer.FrameTextureUploads);
+            current = next;
+        }
+        long bytes = (long)typeof(GpuTriangleRenderer).GetField("cachedTextureBytes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(renderer)!;
+        Assert.InRange(bytes, 1, 16);
+    }
 }

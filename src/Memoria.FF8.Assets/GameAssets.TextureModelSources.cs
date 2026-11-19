@@ -12,7 +12,7 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadClassicCatalogBattleTextures(ModelCatalogEntry entry)
     {
         ResourceKey owner = new(entry.ResourcePath);
-        byte[] bytes = resources.Read(owner);
+        byte[] bytes = ReadTextureSource(owner);
         int count = BinaryPrimitives.ReadInt32LittleEndian(bytes);
         if (entry.ResourcePath == "battle/c0m127.dat" && count == 2)
         {
@@ -47,10 +47,10 @@ public sealed partial class GameAssets
     private IReadOnlyList<TextureBuildContext> ReadClassicCatalogFieldTextures(ModelCatalogEntry entry)
     {
         ResourceKey owner = new(entry.ResourcePath);
-        byte[] one = resources.Read(owner);
+        byte[] one = ReadTextureSource(owner);
         IReadOnlyList<NativeFieldOneModelEntry> directory = FieldModelReader.ReadDirectory(one);
         HashSet<int> resolving = [];
-        (NativeFieldOneModelEntry Header, IReadOnlyList<TimImage> Images, bool Main) Resolve(int index)
+        (NativeFieldOneModelEntry Header, IReadOnlyList<TimImage> Images, bool Main, NativeFieldEyeDefinition? Eyes) Resolve(int index)
         {
             if ((uint)index >= directory.Count || !resolving.Add(index))
             {
@@ -66,7 +66,7 @@ public sealed partial class GameAssets
                     {
                         throw new InvalidDataException("Field texture alias references an empty material source.");
                     }
-                    return (shared.Header, [shared.Images[0]], shared.Main);
+                    return (shared.Header, [shared.Images[0]], shared.Main, shared.Eyes);
                 }
                 if (header.Flag >> 28 == 0xD)
                 {
@@ -74,7 +74,7 @@ public sealed partial class GameAssets
                     {
                         throw new InvalidDataException("Main-character material has no complete library name.");
                     }
-                    byte[] mch = ReadMainCharacter(header.Name[..4]);
+                    byte[] mch = ReadTextureSource(new($"field/main_chr/{header.Name[..4]}.mch"));
                     List<TimImage> images = [];
                     int position = 0;
                     while (true)
@@ -91,9 +91,11 @@ public sealed partial class GameAssets
                         }
                         images.Add(WorldAssetReader.ReadTim(mch, checked((int)(pointer & 0xFFFFFF))).Image);
                     }
-                    return (header, images, true);
+                    int modelOffset = BinaryPrimitives.ReadInt32LittleEndian(mch.AsSpan(position));
+                    return (header, images, true, images.Count == 0 ? null : ReadCatalogEyeDefinition(mch, modelOffset, images[0]));
                 }
-                return (header, header.Textures.Select(offset => WorldAssetReader.ReadTim(one, checked(header.Offset + offset)).Image).ToArray(), false);
+                TimImage[] textures = header.Textures.Select(offset => WorldAssetReader.ReadTim(one, checked(header.Offset + offset)).Image).ToArray();
+                return (header, textures, false, textures.Length == 0 ? null : ReadCatalogEyeDefinition(one, checked(header.Offset + header.ModelOffset), textures[0]));
             }
             finally
             {
@@ -104,7 +106,32 @@ public sealed partial class GameAssets
         string name = source.Header.Name[..Math.Min(4, source.Header.Name.Length)];
         string prefix = $"model/{entry.ModelIndex}/{(source.Main ? "main" : "second")}/{name}/texture";
         string? variant = NativeFieldModelTextureSheets.Variant(name, entry.FieldId ?? -1);
-        return source.Images.Select((tim, index) => CatalogTimContext(owner, $"{prefix}/{index}", tim, "classic-field-model", nativeSheet: NativeFieldModelTextureSheets.Address(name, source.Main, variant, index, CatalogTimRegion(tim), tim.PixelWidth, tim.Height))).ToArray();
+        bool nativeVariants = source.Images.Count > 0 && FieldEyeMaterial.HasNativeVariants(source.Eyes, source.Images[0].PixelWidth, source.Images[0].Height);
+        IReadOnlyDictionary<string, Albeoris.Games.FF8.Imaging.PixelImage> Variants()
+        {
+            FieldModel model = new(source.Header.Name, [], [], [], source.Images.Select(tim => tim.Decode()).ToArray(), []) { NativeEyes = source.Eyes };
+            return FieldEyeMaterial.NativeVariants(model);
+        }
+        return source.Images.Select((tim, index) => CatalogTimContext(owner, $"{prefix}/{index}", tim, "classic-field-model", nativeSheet: NativeFieldModelTextureSheets.Address(name, source.Main, variant, index, CatalogTimRegion(tim), tim.PixelWidth, tim.Height), nativeVariants: index == 0 && nativeVariants ? Variants : null, projectNativeVariant: index == 0 && nativeVariants ? (pixels, selected) => FieldEyeMaterial.Project(source.Eyes!, pixels, selected) : null)).ToArray();
+    }
+
+    private static NativeFieldEyeDefinition? ReadCatalogEyeDefinition(byte[] content, int modelOffset, TimImage texture)
+    {
+        if (texture.PixelMode != TimPixelMode.Indexed8 || modelOffset < 0 || modelOffset > content.Length - 64)
+        {
+            return null;
+        }
+        int count = BinaryPrimitives.ReadInt32LittleEndian(content.AsSpan(modelOffset + 8));
+        int offset = checked(modelOffset + BinaryPrimitives.ReadInt32LittleEndian(content.AsSpan(modelOffset + 40)));
+        if (count == 0)
+        {
+            return null;
+        }
+        if (count is < 0 or > 10000 || offset < 0 || offset > content.Length - count)
+        {
+            throw new InvalidDataException("The field eye-bank directory leaves its original model resource.");
+        }
+        return new(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, offset, content.AsSpan(offset, count).ToArray(), new(1, texture.WidthInWords, texture.Height, texture.Pixels));
     }
 
     private static TextureSourceRegion CatalogTimRegion(TimImage tim)
@@ -113,5 +140,5 @@ public sealed partial class GameAssets
         return new(tim.X, tim.Y, bits, tim.PixelWidth, tim.Height, tim.Clut?.X, tim.Clut?.Y);
     }
 
-    private TextureBuildContext CatalogTimContext(ResourceKey owner, string member, TimImage tim, string layout, TextureSourceAddress? nativeSheet = null, TextureSourceAddress? nativeAlias = null) => new(new(owner, member), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(), CatalogTimRegion(tim), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner)) { NativeSheet = nativeSheet, NativeAlias = nativeAlias };
+    private TextureBuildContext CatalogTimContext(ResourceKey owner, string member, TimImage tim, string layout, TextureSourceAddress? nativeSheet = null, TextureSourceAddress? nativeAlias = null, Func<IReadOnlyDictionary<string, Albeoris.Games.FF8.Imaging.PixelImage>>? nativeVariants = null, Func<Albeoris.Games.FF8.Imaging.PixelImage, string, Albeoris.Games.FF8.Imaging.PixelImage>? projectNativeVariant = null) => new(new(owner, member), resources.Source, resources.Get(owner).Revision, layout, tim.PixelWidth, tim.Height, () => tim.Decode(), CatalogTimRegion(tim), tim.Decode, Math.Max(1, tim.Palettes.Count), resources.Get(owner)) { NativeSheet = nativeSheet, NativeAlias = nativeAlias, NativeVariants = nativeVariants, ProjectNativeVariant = projectNativeVariant };
 }

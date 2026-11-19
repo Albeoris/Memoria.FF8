@@ -137,10 +137,12 @@ public sealed partial class GameAssets
                     variants[ordinal] = firstHalf is { } half && planes.IsClosed(page, half) ? "eyes-closed" : null;
                 }
             }
-            else if (model.TextureSourceDescriptor?.Edition == GameDataEdition.Remastered && resource.Textures.Length > 0)
+            else if (resource.Textures.Length > 0 && FieldEyeMaterial.HasNativeVariants(model))
             {
                 variants = new string?[resource.Textures.Length];
-                variants[0] = ReadClassicFieldModelVariant(model, resource, textures);
+                TextureBuildContext probe = new(new(new ResourceKey($"field/{field.Name}/chara.one"), "model/" + resource.ModelId + "/texture/0"), model.TextureSourceDescriptor ?? resources.Source, revision, "classic-field-model", model.Textures[0].Width, model.Textures[0].Height, () => model.Textures[0]) { NativeSheet = NativeFieldModelTextureSheets.Address(model, 0) };
+                bool installedPlane = resources.GetSource<ITextureVariantSource>()?.DescribeTextureVariants(probe).HasInstalledImage == true;
+                variants[0] = ReadClassicFieldModelVariant(model, resource, textures, distinguishOpen: !installedPlane);
             }
             models[resource.ModelId] = RegisterFieldModelTextures(field.Name, resource.ModelId, model, revision, pages, variants);
         }
@@ -183,7 +185,7 @@ public sealed partial class GameAssets
     }
 
     /// <summary>Projects an unambiguous original Classic eye-copy result onto a selected visual material plane.</summary>
-    public static string? ReadClassicFieldModelVariant(FieldModel model, NativeFieldRegisteredResource resource, NativeBattleEffectTextureState textures)
+    public static string? ReadClassicFieldModelVariant(FieldModel model, NativeFieldRegisteredResource resource, NativeBattleEffectTextureState textures, bool distinguishOpen = false)
     {
         if (model.NativeEyes is not { Bank.Length: > 0 } eyes)
         {
@@ -238,7 +240,7 @@ public sealed partial class GameAssets
         {
             throw new NotSupportedException($"Classic eye material {model.TextureResourceName} does not uniquely match an original complete base/open/closed texture (different WORDs: base {originalDifferences}, open {openDifferences}, closed {closedDifferences}).");
         }
-        return matchesClosed ? "eyes-closed" : null;
+        return matchesClosed ? "eyes-closed" : distinguishOpen ? "eyes-open" : null;
     }
 
     private FieldModel RegisterFieldModelTextures(string fieldName, int index, FieldModel model, long? revision = null, IReadOnlyList<TextureSourcePageAddress>? pages = null, IReadOnlyList<string?>? requestedVariants = null)
@@ -248,7 +250,8 @@ public sealed partial class GameAssets
         string prefix = model.TextureResourceName is { } name ? $"model/{index}/{(model.MainCharacterTextures ? "main" : "second")}/{name}{registration}/texture" : $"model/{index}{registration}/texture";
         string layout = model.TextureResourceName is null ? "classic-model" : "classic-field-model";
         ResourceKey owner = new($"field/{fieldName}/chara.one");
-        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor)!).ToArray();
+        bool nativeVariants = FieldEyeMaterial.HasNativeVariants(model);
+        AssetHandle<TextureValue>[] handles = model.Textures.Select((image, ordinal) => textureScope.Register(new TextureKey(owner, $"{prefix}/{ordinal}"), image, layout, revision: revision, nativeAlias: revision.HasValue ? new(owner, $"{prefix.Replace("/registered", "", StringComparison.Ordinal)}/{ordinal}", 0, 0, 0, image.Width, image.Height, image.Width, image.Height) : null, nativePage: pages?[ordinal], nativeSheet: NativeFieldModelTextureSheets.Address(model, ordinal), requestedVariant: requestedVariants?[ordinal], sourceDescriptor: model.TextureSourceDescriptor, nativeVariants: ordinal == 0 && nativeVariants ? () => FieldEyeMaterial.NativeVariants(model) : null, projectNativeVariant: ordinal == 0 && nativeVariants ? (pixels, variant) => FieldEyeMaterial.Project(model.NativeEyes!, pixels, variant) : null)!).ToArray();
         return model with { Textures = new ResourceTextureList(handles) };
     }
 

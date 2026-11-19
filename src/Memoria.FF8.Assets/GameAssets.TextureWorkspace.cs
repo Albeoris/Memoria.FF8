@@ -14,13 +14,14 @@ public sealed record TextureWorkspaceTile(TextureTarget Target, TextureTargetCon
 public sealed record FieldTextureWorkspaceMetadata(int SchemaVersion, string Field, string MimSha256, string MapSha256)
 {
     public IReadOnlyDictionary<int, string> ExportedPixelSha256 { get; init; } = new Dictionary<int, string>();
+    public IReadOnlyDictionary<int, string> ExportedSemanticSha256 { get; init; } = new Dictionary<int, string>();
 }
 
 public sealed partial class GameAssets
 {
     private static readonly JsonSerializerOptions TextureWorkspaceJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 8 };
 
-    public void ExportFieldTextureWorkspace(string fieldName, string destination, CancellationToken cancellationToken = default, bool resolved = false)
+    public void ExportFieldTextureWorkspace(string fieldName, string destination, CancellationToken cancellationToken = default, bool resolved = false, IReadOnlyDictionary<TextureTarget, TextureSourceSnapshot>? capturedSources = null)
     {
         ValidateTextureWorkspaceField(fieldName);
         cancellationToken.ThrowIfCancellationRequested();
@@ -36,17 +37,31 @@ public sealed partial class GameAssets
         {
             IReadOnlyList<TextureBuildContext> tiles = ReadCatalogBackground(fieldName);
             Dictionary<int, string> baselines = [];
+            Dictionary<int, string> semanticBaselines = [];
             MimMapRuntimeWorkspace.Export(MimMapFile.Read(mim, map), new(new(temporary, WorkspaceContainerFormat.OpenRaster)), index =>
             {
-                PixelImage image = resolved ? resources.ResolveForExport(tiles[index]).Image : tiles[index].Original;
+                if (capturedSources is not null)
+                {
+                    TextureTarget target = TextureTarget.FromContext(tiles[index]);
+                    if (!capturedSources.TryGetValue(target, out TextureSourceSnapshot? snapshot) || snapshot.Context.Region != tiles[index].Region)
+                    {
+                        throw new InvalidDataException($"Captured field tile {target.Subresource} is missing or differs from its source layout. Capture the current scene again.");
+                    }
+                    PixelImage captured = resolved ? snapshot.Resolved.Image : snapshot.Original;
+                    TextureTargetContract.FromContext(tiles[index]).Validate(snapshot.Context, captured);
+                    return captured;
+                }
+                PixelImage image = resolved ? resources.ResolveForExport(tiles[index]).Image : resources.ResolveOriginalForExport(tiles[index]).Image;
                 return image;
             }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             foreach (MimMapRuntimeTile tile in MimMapRuntimeWorkspace.Import(new(new(temporary, WorkspaceContainerFormat.OpenRaster)), MimMapFile.Read(mim, map), cancellationToken))
             {
                 baselines[tile.Index] = TextureExchange.PixelFingerprint(TexturePixelExchange.ToEditable(tile.Image));
+                TextureTarget target = TextureTarget.FromKey(new(new($"field/{fieldName}/{fieldName}.mim"), $"tile/{tile.Index}", tile.Palette));
+                semanticBaselines[tile.Index] = TexturePixelExchange.SemanticFingerprint(TexturePixelExchange.ToEditable(tile.Image), target, new("classic-field-tile", 16, 16), TexturePixelExchange.CaptureNativeFlags(tile.Image), tile.Image.Width, tile.Image.Height);
             }
-            FieldTextureWorkspaceMetadata metadata = new(1, fieldName, Convert.ToHexString(SHA256.HashData(mim)), Convert.ToHexString(SHA256.HashData(map))) { ExportedPixelSha256 = baselines };
+            FieldTextureWorkspaceMetadata metadata = new(1, fieldName, Convert.ToHexString(SHA256.HashData(mim)), Convert.ToHexString(SHA256.HashData(map))) { ExportedPixelSha256 = baselines, ExportedSemanticSha256 = semanticBaselines };
             byte[] companion = JsonSerializer.SerializeToUtf8Bytes(metadata, TextureWorkspaceJson);
             TextureExchange.WriteAtomic(path + ".texture.json", companion, cancellationToken);
             File.Move(temporary, path, true);
@@ -115,7 +130,26 @@ public sealed partial class GameAssets
         return metadata.ExportedPixelSha256;
     }
 
-    private (byte[] Mim, byte[] Map) ReadTextureWorkspaceSource(string field) => (resources.Read(new($"field/{field}/{field}.mim")), resources.Read(new($"field/{field}/{field}.map")));
+    public static IReadOnlyDictionary<int, string> ReadFieldTextureWorkspaceSemanticBaselines(string path)
+    {
+        string companion = path + ".texture.json";
+        if (!File.Exists(companion))
+        {
+            return new Dictionary<int, string>();
+        }
+        if (new FileInfo(companion).Length > 4 * 1024 * 1024)
+        {
+            throw new InvalidDataException("Field workspace source metadata exceeds its size limit.");
+        }
+        FieldTextureWorkspaceMetadata metadata = JsonSerializer.Deserialize<FieldTextureWorkspaceMetadata>(File.ReadAllBytes(companion), TextureWorkspaceJson) ?? throw new InvalidDataException("The field workspace has no source metadata.");
+        if (metadata.SchemaVersion != 1 || metadata.ExportedSemanticSha256 is null || metadata.ExportedSemanticSha256.Count > 100000 || metadata.ExportedSemanticSha256.Any(entry => entry.Key < 0 || entry.Value is null || entry.Value.Length != 64 || !entry.Value.All(char.IsAsciiHexDigit)))
+        {
+            throw new InvalidDataException("Field workspace semantic baselines are malformed or unsupported.");
+        }
+        return metadata.ExportedSemanticSha256;
+    }
+
+    private (byte[] Mim, byte[] Map) ReadTextureWorkspaceSource(string field) => (ReadTextureSource(new($"field/{field}/{field}.mim")), ReadTextureSource(new($"field/{field}/{field}.map")));
 
     private void ValidateTextureWorkspaceField(string field)
     {

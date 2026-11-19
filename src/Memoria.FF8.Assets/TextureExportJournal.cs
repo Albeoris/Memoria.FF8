@@ -40,7 +40,7 @@ public sealed class TextureExportJournal : IDisposable
     public void AddImage(string path, TextureExchangeMetadata metadata, long writtenBytes)
     {
         string relative = Path.GetRelativePath(root, path).Replace('\\', '/');
-        entries.Add(new(relative, metadata.Target, metadata.Contract, relative + ".texture.json", metadata.SourceSha256, metadata.ExportedPixelSha256, "image"));
+        entries.Add(new(relative, metadata.Target, metadata.Contract, relative + ".texture.json", metadata.SourceSha256, metadata.ExportedSemanticSha256 ?? metadata.ExportedPixelSha256, "image"));
         bytes += writtenBytes;
     }
 
@@ -62,7 +62,9 @@ public sealed class TextureExportJournal : IDisposable
 
     private void Write()
     {
-        byte[] index = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, game = "ff8", scope, provider, language, resolved, complete, exported = entries.Count, deduplicatedAliases = aliases, bytesWritten = bytes, entries, diagnostics }, Json);
+        var outcomes = diagnostics.GroupBy(diagnostic => diagnostic.Outcome).ToDictionary(group => group.Key, group => group.Count());
+        bool catalogTotalKnown = !diagnostics.Any(diagnostic => diagnostic.Outcome == "failed" && diagnostic.Operation.StartsWith("Discovering", StringComparison.Ordinal));
+        byte[] index = JsonSerializer.SerializeToUtf8Bytes(new { schemaVersion = 1, game = "ff8", scope, provider, language, resolved, complete, catalogTotalKnown, exported = entries.Count, deduplicatedAliases = aliases, bytesWritten = bytes, outcomes, entries, diagnostics }, Json);
         TextureExchange.WriteAtomic(TextureExchange.SafeOutput(root, "texture-export-index.json"), index, CancellationToken.None);
         string status = complete ? "Completed selected export scope." : "INCOMPLETE: export was cancelled, failed, or is still running. Completed files remain editable and importable.";
         string report = $"FFVIII texture export\n{status}\nScope: {scope}\nProvider: {provider}\nLanguage: {language}\nSource: {(resolved ? "With enabled texture mods" : "Original game textures")}\nWritten resources: {entries.Count}\nDeduplicated aliases: {aliases}\nBytes written: {bytes}\nDiscovery/processing diagnostics: {diagnostics.Count}\n\nTotals describe this resolved selection. Failed or unscanned archive contents are not a known complete game total.\n" + string.Join("\n", diagnostics.Select(diagnostic => $"{diagnostic.Operation}: {diagnostic.ResourcePath}: {diagnostic.Message}"));

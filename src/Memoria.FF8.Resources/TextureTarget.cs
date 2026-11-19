@@ -131,7 +131,7 @@ public sealed record TextureTargetContract(string Layout, int LogicalWidth, int 
         }
         // Native tile and upload rectangles require exact source-texel boundaries. Other complete
         // images may use arbitrary physical resolution while retaining their logical UV canvas.
-        bool exactTexels = Layout.Contains("tile", StringComparison.Ordinal) || Layout.Contains("page", StringComparison.Ordinal) || Layout.Contains("vram", StringComparison.Ordinal) || Layout.Contains("atlas", StringComparison.Ordinal);
+        bool exactTexels = Layout is "native-artwork" or "native-field-model-sheet" || Layout.Contains("tile", StringComparison.Ordinal) || Layout.Contains("page", StringComparison.Ordinal) || Layout.Contains("vram", StringComparison.Ordinal) || Layout.Contains("atlas", StringComparison.Ordinal);
         if (exactTexels && (image.Width < LogicalWidth || image.Height < LogicalHeight || image.Width % LogicalWidth != 0 || image.Height % LogicalHeight != 0 || image.Width / LogicalWidth != image.Height / LogicalHeight))
         {
             throw new InvalidDataException($"{Layout} requires a uniform integer enlargement of {LogicalWidth} × {LogicalHeight}, with complete source texels.");
@@ -142,6 +142,7 @@ public sealed record TextureTargetContract(string Layout, int LogicalWidth, int 
 /// <summary>Capture references are CPU source data, never GPU handles or gameplay scene objects.</summary>
 public sealed record TextureSourceSnapshot(TextureBuildContext Context, TextureValue Resolved, long Generation)
 {
+    public TextureValue? InstalledOriginal { get; init; }
     public TextureTarget Target => TextureTarget.FromContext(Context, Context.Game);
-    public PixelImage Original => Context.Original;
+    public PixelImage Original => InstalledOriginal?.Image ?? Context.Original;
 }

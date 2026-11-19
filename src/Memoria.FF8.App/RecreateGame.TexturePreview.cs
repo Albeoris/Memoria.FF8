@@ -38,9 +38,9 @@ internal sealed partial class RecreateGame
         bool resolved = browser.Resolved;
         TextureImportReview? review = browser.Matching ? null : textureReview;
         TextureImportRow? import = review?.Rows.FirstOrDefault(row => row.RelativePath == selected.Id);
-        TextureSourceSnapshot? scene = textureScene.FirstOrDefault(snapshot => TextureId(snapshot.Target) == selected.Id);
+        TextureSourceSnapshot? scene = browser.Scope == 0 && review is null ? textureScene.FirstOrDefault(snapshot => TextureId(snapshot.Target) == selected.Id) : null;
         TextureCatalogEntry? entry = textureCatalog.FirstOrDefault(item => TextureId(item.Target) == selected.Id);
-        var createSession = resourceHost!.CaptureTextureAuthoringFactory(resolved);
+        var createSession = scene is not null ? (resolved ? textureSceneResolvedFactory : textureSceneOriginalFactory) ?? resourceHost!.CaptureTextureAuthoringFactory(resolved) : resourceHost!.CaptureTextureAuthoringFactory(resolved);
         texturePreviewPending = true;
         texturePreviewWork = Task.Run(() =>
         {
@@ -58,8 +58,21 @@ internal sealed partial class RecreateGame
                 }
                 else if (scene is not null)
                 {
-                    image = resolved ? scene.Resolved.Image : scene.Original;
-                    if (TexturePixelExchange.UsesNativeFlags(scene.Context))
+                    TextureBuildContext context = scene.Context;
+                    TextureValue? installedOriginal = scene.InstalledOriginal;
+                    if (scene.Context.Layout == "native-effect-texture")
+                    {
+                        using var authoring = createSession();
+                        IReadOnlyList<TextureBuildContext> sources = authoring.Assets.LoadAuthoringTextures(scene);
+                        context = sources.FirstOrDefault(candidate => TextureTarget.FromContext(candidate) == scene.Target) ?? sources.First();
+                        installedOriginal = authoring.Assets.Resources.ResolveOriginalForExport(context);
+                        image = resolved ? authoring.Assets.Resources.ResolveForExport(context).Image : installedOriginal.Image;
+                    }
+                    else
+                    {
+                        image = resolved ? scene.Resolved.Image : scene.Original;
+                    }
+                    if (installedOriginal is null ? TexturePixelExchange.UsesNativeFlags(context) : TexturePixelExchange.UsesNativeFlags(context, installedOriginal))
                     {
                         image = TexturePixelExchange.ToEditable(image);
                     }
@@ -68,8 +81,9 @@ internal sealed partial class RecreateGame
                 {
                     using var authoring = createSession();
                     TextureBuildContext context = authoring.Assets.LoadCatalogTexture(entry);
-                    image = resolved ? authoring.Assets.Resources.ResolveForExport(context).Image : context.Original;
-                    if (TexturePixelExchange.UsesNativeFlags(context))
+                    TextureValue installedOriginal = authoring.Assets.Resources.ResolveOriginalForExport(context);
+                    image = resolved ? authoring.Assets.Resources.ResolveForExport(context).Image : installedOriginal.Image;
+                    if (TexturePixelExchange.UsesNativeFlags(context, installedOriginal))
                     {
                         image = TexturePixelExchange.ToEditable(image);
                     }

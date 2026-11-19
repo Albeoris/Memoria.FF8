@@ -13,6 +13,7 @@ public sealed class NativeTutorialArtwork
 {
     public const int Width = 384;
     public const int Height = 256;
+    private readonly ResourceService? resources;
     private readonly NativeTutorialBrowserCatalog catalog;
     private readonly byte[] sprites;
     private readonly TimImage background;
@@ -20,8 +21,9 @@ public sealed class NativeTutorialArtwork
     private readonly Dictionary<int, PixelImage> pages = [];
     private readonly IReadOnlyDictionary<int, PixelImage> screenshots;
 
-    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes, IReadOnlyDictionary<int, PixelImage> screenshots, PixelImage localizedBackground)
+    private NativeTutorialArtwork(NativeTutorialBrowserCatalog catalog, byte[] sprites, byte[] backgroundBytes, IReadOnlyDictionary<int, PixelImage> screenshots, PixelImage localizedBackground, ResourceService? resources)
     {
+        this.resources = resources;
         this.screenshots = screenshots;
         this.catalog = catalog;
         this.sprites = sprites;
@@ -73,6 +75,7 @@ public sealed class NativeTutorialArtwork
                 DrawSprite(result, screenshot, screenshotPixels, placement[3], left + BinaryPrimitives.ReadUInt16LittleEndian(placement), top + placement[2], scale);
             }
         }
+        resources?.RegisterTextureImageDependencies(result, [backgroundPixels, screenshotPixels]);
         pages.Add(pageId, result);
         return result;
     }
@@ -197,12 +200,13 @@ public sealed class NativeTutorialArtwork
                 {
                     translated.Pixels.AsSpan(row * translated.Width, translated.Width).CopyTo(resolved.Pixels.AsSpan(row * resolved.Width, translated.Width));
                 }
+                resources?.RegisterTextureImageDependencies(resolved, [translated]);
             }
             screenshots.Add(page.ContentResource, resolved);
         }
         byte[] background = Resource(12);
         PixelImage backgroundPixels = WorldAssetReader.ReadTim(background, 0).Image.Decode();
         backgroundPixels = NativeArtworkTexture.Resolve(provider, new ResourceKey("menu/mngrp.bin"), backgroundPixels, subresource: "slot012", resources: resources);
-        return new NativeTutorialArtwork(catalog, Resource(7), background, screenshots, backgroundPixels);
+        return new NativeTutorialArtwork(catalog, Resource(7), background, screenshots, backgroundPixels, resources);
     }
 }

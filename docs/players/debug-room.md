@@ -31,6 +31,10 @@ The four Rare Item slot probabilities must total exactly 100%. Selection retains
 
 Approved executable-mod behavior may lock individual fields. The editor names the controlling package; change its mod option to release the field. Personal values are retained separately and return when the override is removed. Unknown HEXT bytes require individual review; rejected executable options cannot be activated. Ordinary cosmetic file replacements use the normal resource loader.
 
+## Textures
+
+Choose **Textures** for current-scene, installation-wide or selected texture export. The captured scene uses the presentation before Debug Room opened. Search the shared asset tree, export ordinary PNGs or layered field ORA workspaces, and use **Import files** or **Import folder** to review edits and create or update a native Memoria mod. **Import and apply** publishes texture changes without advancing gameplay. Installed mod textures use normal watcher refresh; external working folders have one-action reimport. See [Texture authoring](../modding/texture-authoring.md) for image identity, field-layer rules and supported source contracts.
+
 ## Edit names
 
 The Session name list edits characters, Guardian Forces and other supported named subjects. Select a name, enter a draft using the keyboard or character grid, then Save. Cancel discards the draft; it does not revert earlier saved changes. Names support 1–20 Unicode text elements, with blank names, invalid Unicode and control characters rejected.

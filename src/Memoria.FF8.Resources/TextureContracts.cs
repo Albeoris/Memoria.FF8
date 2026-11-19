@@ -67,6 +67,11 @@ public sealed class TextureBuildContext
 
     public TextureKey Key { get; }
     public string Game { get; init; } = "ff8";
+    public Func<TextureValue>? ReadInstalledOriginal { get; internal set; }
+    public Func<IReadOnlyDictionary<string, PixelImage>>? NativeVariants { get; init; }
+    public Func<TextureValue>? OriginalForAuthoring { get; init; }
+    public Func<TextureValue>? ResolvedForAuthoring { get; init; }
+    public Func<PixelImage, string, PixelImage>? ProjectNativeVariant { get; init; }
     public ResourceSourceDescriptor Source { get; }
     public long Revision { get; }
     public string Layout { get; }

@@ -210,6 +210,10 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     {
         lock (archiveGate)
         {
+            if (IsTextureAuthoringSource)
+            {
+                return TextureAuthoringSnapshots.Read(entry);
+            }
             ObjectDisposedException.ThrowIf(disposed, this);
             return new MemoryStream(Read(entry), false);
         }

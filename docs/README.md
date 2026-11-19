@@ -24,6 +24,7 @@ Start with [installation and first launch](players/getting-started.md), then use
 | Guide | What you will find |
 | --- | --- |
 | [Texture mods](modding/texture-mods.md) | Package discovery, manifests, adapters and supported replacements. |
+| [Texture authoring](modding/texture-authoring.md) | F2 catalog, PNG/ORA export, native texture import and repeated editing. |
 | [Model browser and Blender](modding/model-mods.md) | F2 catalog, GLB exchange, skeleton warnings and model replacements. |
 | [File replacements](modding/file-replacements.md) | Junction packages and the movie AVI/CAM replacement boundary. |
 | [Status mods and Memoria settings](modding/behaviors.md) | Native status definitions, editable percentages and mod priority. |

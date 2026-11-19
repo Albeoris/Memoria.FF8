@@ -19,6 +19,9 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     private readonly object encodedGate = new();
     private readonly HashSet<ResourceKey> consumedResources = [];
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Albeoris.Games.FF8.Imaging.PixelImage, Albeoris.Games.FF8.Imaging.PixelImage[]> imageDependencies = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Albeoris.Games.FF8.Imaging.PixelImage, TextureSourceSnapshot[]> imageSourceSnapshots = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Albeoris.Games.FF8.Imaging.PixelImage, Func<IReadOnlyList<TextureSourceSnapshot>>> imageSourceFactories = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TextureBuildContext, TextureValue> installedOriginals = new();
     private Publication published = new(0, ImmutableDictionary<TextureKey, TextureValue>.Empty, ImmutableDictionary<ResourceKey, StaticTextResource>.Empty, ImmutableDictionary<ResourceKey, EncodedResource>.Empty, [], LocalizationCatalog.Empty, ImmutableDictionary<string, LocalizedTextAlias>.Empty);
     private ITextureReplacementResolver? resolver;
     private bool notifying;
@@ -116,11 +119,34 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         {
             Include(key);
         }
-        return sources.OrderBy(key => key.Owner.Path, StringComparer.Ordinal).ThenBy(key => key.Subresource, StringComparer.Ordinal).ThenBy(key => key.Palette).Select(key => new TextureSourceSnapshot(contexts[key], current.Values[key], current.Generation)).ToArray();
+        return sources.OrderBy(key => key.Owner.Path, StringComparer.Ordinal).ThenBy(key => key.Subresource, StringComparer.Ordinal).ThenBy(key => key.Palette).Select(key => new TextureSourceSnapshot(contexts[key], current.Values[key], current.Generation) { InstalledOriginal = ResolveOriginalForExport(contexts[key]) }).ToArray();
     }
 
     /// <summary>Resolve a catalog source without making it resident. Call on its owning resource thread.</summary>
-    public TextureValue ResolveForExport(TextureBuildContext context) => Resolve(context, resolver);
+    public TextureValue ResolveForExport(TextureBuildContext context) => context.ResolvedForAuthoring?.Invoke() ?? Resolve(context, resolver);
+
+    /// <summary>The selected installed provider may supply HD images over native fallback bytes. User/localization mods do not participate.</summary>
+    public TextureValue ResolveOriginalForExport(TextureBuildContext context)
+    {
+        return installedOriginals.GetValue(context, ResolveOriginalCore);
+    }
+
+    private TextureValue ResolveOriginalCore(TextureBuildContext context)
+    {
+        if (context.OriginalForAuthoring is { } read)
+        {
+            TextureValue sourceValue = read();
+            return context.RequestedVariant is { } requestedVariant && sourceValue.Variants?.TryGetValue(requestedVariant, out var variantImage) == true ? sourceValue with { Image = variantImage } : sourceValue;
+        }
+        TextureReplacement? replacement = (source as ITextureReplacementResolver)?.Resolve(context);
+        if (replacement is null)
+        {
+            TextureValue original = new(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id, Variants: context.NativeVariants?.Invoke());
+            return context.RequestedVariant is { } requested && original.Variants?.TryGetValue(requested, out var selected) == true ? original with { Image = selected } : original;
+        }
+        TextureValue value = new(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels, replacement.Variants) { IsReplacement = true, Animation = replacement.Animation };
+        return context.RequestedVariant is { } variant && value.Variants?.TryGetValue(variant, out var image) == true ? value with { Image = image, MipLevels = null, Animation = null } : value;
+    }
 
     public IReadOnlyList<EncodedResource> CaptureEncodedResources() => Volatile.Read(ref published).Encoded.Values.ToArray();
 
@@ -150,7 +176,19 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
         }
         Publication current = Volatile.Read(ref published);
         IEnumerable<TextureKey> used = current.Values.Where(pair => presented.Contains(pair.Value.Image) || pair.Value.MipLevels?.Any(presented.Contains) == true || pair.Value.Variants?.Values.Any(presented.Contains) == true || pair.Value.Animation?.Frames.Any(presented.Contains) == true).Select(pair => pair.Key);
-        return CaptureTextureSources(used);
+        List<TextureSourceSnapshot> captured = [.. CaptureTextureSources(used)];
+        foreach (var image in presented)
+        {
+            if (imageSourceSnapshots.TryGetValue(image, out var snapshots))
+            {
+                captured.AddRange(snapshots);
+            }
+            if (imageSourceFactories.TryGetValue(image, out var capture))
+            {
+                captured.AddRange(capture());
+            }
+        }
+        return captured.GroupBy(snapshot => snapshot.Target).Select(group => group.First()).ToArray();
     }
 
     /// <summary>Attach authored-source provenance to a cropped/composed CPU image without retaining the image itself.</summary>
@@ -163,6 +201,31 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
             imageDependencies.Add(image, dependencies);
         }
         return image;
+    }
+
+    /// <summary>Source-proved authored descriptors for material images which intentionally never became resident replacement contexts.</summary>
+    public void RegisterTextureImageSources(Albeoris.Games.FF8.Imaging.PixelImage image, IEnumerable<TextureSourceSnapshot> sources)
+    {
+        TextureSourceSnapshot[] snapshots = sources.GroupBy(snapshot => snapshot.Target).Select(group => group.First()).Take(1025).ToArray();
+        if (snapshots.Length > 1024)
+        {
+            throw new InvalidDataException("One presented material exceeds the supported authored-source dependency bound.");
+        }
+        lock (imageSourceSnapshots)
+        {
+            imageSourceSnapshots.Remove(image);
+            imageSourceSnapshots.Add(image, snapshots);
+        }
+    }
+
+    public void RegisterTextureImageSourceFactory(Albeoris.Games.FF8.Imaging.PixelImage image, Func<IReadOnlyList<TextureSourceSnapshot>> capture)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        lock (imageSourceFactories)
+        {
+            imageSourceFactories.Remove(image);
+            imageSourceFactories.Add(image, capture);
+        }
     }
 
     public StaticTextResource? FindText(ResourceKey key) => Volatile.Read(ref published).Texts.GetValueOrDefault(key);
@@ -544,6 +607,7 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
 
     private TextureValue? ResolveReplacement(TextureBuildContext context, ITextureReplacementResolver? replacementResolver, LocalizationCatalog? localization = null)
     {
+        context.ReadInstalledOriginal ??= () => ResolveOriginalForExport(context);
         TextureReplacement? replacement = (localization ?? published.Localization).ResolveArtwork(context) ?? replacementResolver?.Resolve(context) ?? (source as ITextureReplacementResolver)?.Resolve(context);
         if (replacement is null)
         {
@@ -594,6 +658,15 @@ public sealed class ResourceService : IResourceChangeFeed, IResourceLanguageSour
     public sealed class PreparedResources
     {
         public IReadOnlyDictionary<TextureKey, TextureValue> TextureValues => values;
+
+        /// <summary>A non-owning CPU inspection service over the immutable candidate, before live publication.</summary>
+        public ResourceService CreateInspectionService()
+        {
+            Validate();
+            ResourceService inspection = new(owner.source, owner.ResourceLanguage);
+            inspection.Prepare(resolver, texts.Values, encoded.Values, localization, textAliases).Commit();
+            return inspection;
+        }
         private readonly ResourceService owner;
         private readonly long expectedVersion;
         private readonly ITextureReplacementResolver? resolver;
