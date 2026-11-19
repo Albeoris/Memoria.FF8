@@ -95,8 +95,9 @@ public sealed class NativeBattlePoseRetargeter
     private readonly NativeBattleTwoHandContactCalibration? hands;
     private readonly string? primaryContactJoint;
     private readonly NativeBattleRootTranslationMode translationMode;
+    private readonly NativeBattleAuxiliaryContactSolver.Prepared? auxiliaryContact;
 
-    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale, NativeBattleFootContactCalibration? footContact = null, NativeBattleTwoHandContactCalibration? twoHandContact = null, string? primaryContactJoint = "hand-a", NativeBattleRootTranslationMode translationMode = NativeBattleRootTranslationMode.RecipientNeutral, float? horizontalMotionScale = null)
+    public NativeBattlePoseRetargeter(NativeBattlePoseSource sourceNeutral, NativeBattlePoseSource recipientNeutral, IReadOnlyList<NativeBattleSemanticBonePair> pairs, float rootMotionScale, NativeBattleFootContactCalibration? footContact = null, NativeBattleTwoHandContactCalibration? twoHandContact = null, string? primaryContactJoint = "hand-a", NativeBattleRootTranslationMode translationMode = NativeBattleRootTranslationMode.RecipientNeutral, float? horizontalMotionScale = null, NativeBattleAuxiliaryContactCalibration? auxiliaryContact = null)
     {
         sourceNeutral.Validate();
         recipientNeutral.Validate();
@@ -145,6 +146,7 @@ public sealed class NativeBattlePoseRetargeter
             sourceFloor = FootFloor(source, sourcePose, feet.Source);
             recipientFloor = FootFloor(recipient, recipientRest, feet.Recipient);
         }
+        this.auxiliaryContact = auxiliaryContact is null ? null : new(recipient, auxiliaryContact);
         hands = twoHandContact;
         if (hands is not null && ((uint)hands.SourcePrimary >= source.BoneCount || (uint)hands.SourceSecondary >= source.BoneCount || (uint)hands.RecipientPrimary >= recipient.BoneCount || (uint)hands.RecipientUpperArm >= recipient.BoneCount || (uint)hands.RecipientForearm >= recipient.BoneCount || (uint)hands.RecipientSecondary >= recipient.BoneCount || Parent(recipient, hands.RecipientForearm) != hands.RecipientUpperArm || Parent(recipient, hands.RecipientSecondary) != hands.RecipientForearm || !float.IsFinite(hands.MaximumNativeError) || hands.MaximumNativeError <= 0))
         {
@@ -254,10 +256,10 @@ public sealed class NativeBattlePoseRetargeter
             short correctedY = checked((short)(result.Translation.Y + MathF.Round((desiredFloor - currentFloor) * 256 / targetScale)));
             result = result with { Translation = result.Translation with { Y = correctedY } };
         }
-        return result;
+        return auxiliaryContact is null ? result : auxiliaryContact.Solve(result);
     }
 
-    private static Matrix4x4[] GlobalRotations(NativeBattlePoseSource rig, NativeBattleDecodedPose pose)
+    internal static Matrix4x4[] GlobalRotations(NativeBattlePoseSource rig, NativeBattleDecodedPose pose)
     {
         Matrix4x4[] result = new Matrix4x4[rig.BoneCount];
         for (int bone = 0; bone < result.Length; bone++)
@@ -268,13 +270,13 @@ public sealed class NativeBattlePoseRetargeter
         return result;
     }
 
-    private static Matrix4x4 LocalRotation(NativeBattleVector angles)
+    internal static Matrix4x4 LocalRotation(NativeBattleVector angles)
     {
         const float radians = MathF.Tau / 4096;
         return Matrix4x4.CreateRotationZ(angles.Z * radians) * Matrix4x4.CreateRotationX(angles.X * radians) * Matrix4x4.CreateRotationY(angles.Y * radians);
     }
 
-    private static NativeBattleVector Angles(Matrix4x4 row)
+    internal static NativeBattleVector Angles(Matrix4x4 row)
     {
         short Angle(float value) => checked((short)MathF.Round(value * (4096 / MathF.Tau)));
         short x = Angle(MathF.Atan2(-row.M32, MathF.Sqrt(row.M31 * row.M31 + row.M33 * row.M33)));
@@ -285,7 +287,7 @@ public sealed class NativeBattlePoseRetargeter
         return new(x, Angle(y), Angle(z));
     }
 
-    private static int Parent(NativeBattlePoseSource rig, int bone) => BinaryPrimitives.ReadInt16LittleEndian(rig.Skeleton.AsSpan().Slice(16 + bone * 48, 2));
+    internal static int Parent(NativeBattlePoseSource rig, int bone) => BinaryPrimitives.ReadInt16LittleEndian(rig.Skeleton.AsSpan().Slice(16 + bone * 48, 2));
 
     private static void ValidateAxes(Matrix4x4 axes)
     {

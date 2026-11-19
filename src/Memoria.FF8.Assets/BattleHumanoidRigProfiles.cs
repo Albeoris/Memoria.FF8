@@ -72,7 +72,7 @@ public static class BattleHumanoidRigProfiles
         }
         //508C90 scales translation by skeleton WORD2; limb lengths do not change authored world X/Z displacement.
         float horizontalUnits = source.NativePoseSource!.ReadModelScale5027D0() / (float)recipient.NativePoseSource!.ReadModelScale5027D0();
-        return new(source.NativePoseSource, recipient.NativePoseSource, pairs, recipientLeg / sourceLeg, new(sourceVertices, recipientVertices), hands, PrimaryEquipmentContacts[sourceCharacter], horizontalMotionScale: horizontalUnits);
+        return new(source.NativePoseSource, recipient.NativePoseSource, pairs, recipientLeg / sourceLeg, new(sourceVertices, recipientVertices), hands, PrimaryEquipmentContacts[sourceCharacter], horizontalMotionScale: horizontalUnits, auxiliaryContact: BattleAuxiliaryContactCalibrations.Create(recipientCharacter, recipient));
     }
 
     private static void Validate(int character, BattleModel model)
