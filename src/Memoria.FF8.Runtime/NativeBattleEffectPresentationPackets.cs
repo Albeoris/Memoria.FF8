@@ -16,11 +16,34 @@ internal static class NativeBattleEffectPresentationPackets
     {
         foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
         {
-            if (attempt.Primitive is not null)
+            if (AcceptedReference(bank, buffer, start, attempt) is { } reference)
             {
-                packets = packets.Add(new(bank, buffer, checked(start + attempt.ByteOffsetRelative)));
+                packets = packets.Add(reference);
             }
         }
         return packets;
+    }
+
+    internal sealed class Collector
+    {
+        private readonly List<NativeBattlePrimitiveReference> packets = [];
+
+        internal void Record(string bank, byte buffer, int start, NativeBattleGfGeometryBatch batch)
+        {
+            foreach (NativeBattleGfGeometryAttempt attempt in batch.Attempts)
+            {
+                if (AcceptedReference(bank, buffer, start, attempt) is { } reference)
+                {
+                    packets.Add(reference);
+                }
+            }
+        }
+
+        internal ImmutableArray<NativeBattlePrimitiveReference> Capture() => packets.ToImmutableArray();
+    }
+
+    private static NativeBattlePrimitiveReference? AcceptedReference(string bank, byte buffer, int start, NativeBattleGfGeometryAttempt attempt)
+    {
+        return attempt.Primitive is null ? null : new(bank, buffer, checked(start + attempt.ByteOffsetRelative));
     }
 }

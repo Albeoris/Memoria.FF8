@@ -16,8 +16,10 @@ public sealed partial class BattlePresentationProcess
         NativeBattleEffect314Frame frame = new(memory, effect, nativeCrtRandom ?? throw new NotSupportedException("Effect314 requires its current CRT stream."), memory.Effect314 ?? throw new NotSupportedException("Effect314 requires its retained state.")) { Staging = NativeFileStaging ?? throw new NotSupportedException("Effect314 requires its current addressed memory."), CapturePresentation = true };
         Dictionary<BattleModelOwner, long> presentationResources = [];
         NativeBattleEffect314GeometryReadScope geometryReads = new();
+        NativeBattleEffectPresentationPackets.Collector presentationPackets = new();
         NativeBattleEffect314Inputs inputs = new(this.resources.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Effect314 requires its arithmetic constants."), _ => nativeActionPackets, (_, address) => graphics.ActorModels.Get(address), _ => Camera().CapturePackedView1D97778(), _ => Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), _ => Camera().Roll, ReadArena, GeometryAddress, BoneAddress, Allocate, Release, Execute, (_, owner) => ResolveNativeEffectCompanion(graphics, owner), ReadModelField) { ReadGeometrySource = GeometrySource, ReadBoneMatrix = (current, address, bone) => ReadNativeEffect314BoneMatrix(graphics, current, address, bone), WriteBoneMatrix = (current, address, bone, packed) => WriteNativeEffect314BoneMatrix(ref graphics, current, address, bone, packed), WriteGeometry = (current, address, offset, bytes) => WriteNativeEffect314Geometry(graphics, current, address, offset, bytes, geometryReads), PresentationResourceGeneration = pointer => presentationResources.TryGetValue(pointer, out long generation) ? generation : null, ReadBoneCount = (_, pointer) => Pose(pointer).BoneCount, ReadBody = ReadBody, PollIo = PollIo };
         frame = initialize ? NativeBattleEffect314Controller.Initialize(frame, resources, inputs) : NativeBattleEffect314Controller.Advance(frame, resources, inputs);
+        frame = frame with { Effect = frame.Effect with { PresentationPackets = presentationPackets.Capture() } };
         PublishNativeEffect314Frame(frame);
         return graphics with { OriginalEffect = frame.Effect };
 
@@ -195,7 +197,7 @@ public sealed partial class BattlePresentationProcess
                     var shadowSource = this.resources.NativeGraphics?.Rules.ShadowSource ?? throw new NotSupportedException("Effect314 requires its original shadow template.");
                     NativeBattleShadowDrawStep drawn = NativeBattleShadowDrawing.Prepare5088A0(current.Staging!, new(current.Memory.GeometryRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current geometry registers."), current.Memory.ScriptedColorRegisters ?? throw new NotSupportedException("Effect314 shadow requires its current arithmetic registers.")), graphics.ActorModels.Get(shadowActor), Camera().Projection ?? throw new NotSupportedException("Effect314 requires its current projection."), current.Memory.ScriptedGraphics ?? throw new NotSupportedException("Effect314 shadow requires its current depth controls."), shadowSource, this.resources.NativeGraphics?.PrimitiveCapabilities?.GouraudAlpha ?? throw new NotSupportedException("Effect314 requires its primitive capabilities."), shadow.OrderingBucket, checked((byte)shadow.Count), current.PilotIdentity is { } owner ? owner with { ModelOwner = shadowActor, ResourceGeneration = NativeBattlePilotVisualLifetimes.EpochFor(shadowSource), Primitive = unchecked(owner.Primitive * 397 + 0x5088) } : null);
                     current = current with { Memory = current.Memory with { GeometryRegisters = drawn.Registers.Geometry, ScriptedColorRegisters = drawn.Registers.Colors }, Staging = NativeBattleTemporaryMemory.PublishView(drawn.Staging, drawn.TemporaryAddress, drawn.Temporary78, 0x78) };
-                    current = DeliverNativeEffect314Batch(ref graphics, current, drawn.Batch, 0x1D8E054);
+                    current = DeliverNativeEffect314Batch(ref graphics, current, drawn.Batch, 0x1D8E054, presentationPackets);
                     return Release(current, 0x78);
                 case NativeBattleEffect314Blend56CC00 blend:
                     byte[] first = ReadArena(current, blend.Source1Address, 3).Read(0, 3);
@@ -231,7 +233,7 @@ public sealed partial class BattlePresentationProcess
                     PublishNativeModuleSound(new(BinaryPrimitives.ReadUInt32LittleEndian(resources.ReadStatic(sound.SourceAddress, 4)), sound.Flags, null) { Pan = sound.Pan });
                     return ImportNativeEffect314Frame(current);
                 case NativeBattleEffect314DrawBatch draw:
-                    return DeliverNativeEffect314Batch(ref graphics, current, draw.Batch, draw.CursorGlobal, draw.Flags);
+                    return DeliverNativeEffect314Batch(ref graphics, current, draw.Batch, draw.CursorGlobal, presentationPackets, draw.Flags);
                 case NativeBattleEffect314Prepare662C00 pose:
                     BattleModelOwner poseActor = pose.Model;
                     NativeBattlePoseSource poseSource = Pose(poseActor);

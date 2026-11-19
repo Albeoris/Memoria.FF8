@@ -111,7 +111,7 @@ public sealed partial class BattlePresentationProcess
         return NativeBattleEffect314Controller.WriteBytes(frame, address, data, length);
     }
 
-    private NativeBattleEffect314Frame DeliverNativeEffect314Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, NativeBattleGfGeometryBatch batch, uint cursorGlobal, ushort flags = 0)
+    private NativeBattleEffect314Frame DeliverNativeEffect314Batch(ref NativeBattleGraphicsState graphics, NativeBattleEffect314Frame frame, NativeBattleGfGeometryBatch batch, uint cursorGlobal, NativeBattleEffectPresentationPackets.Collector presentationPackets, ushort flags = 0)
     {
         batch = NativeBattleEffect32Presentation.Depths(batch);
         NativeBattlePrimitiveFrame primitive = graphics.PrimitiveFrame ?? throw new NotSupportedException("Effect314 requires its current ordering table.");
@@ -124,7 +124,7 @@ public sealed partial class BattlePresentationProcess
                 (byte[] bytes, bool[] known) = process.ReadCommonPacketSnapshot(index, 1);
                 return (bytes[0], known[0]);
             });
-            frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, process.PacketBank ?? throw new NotSupportedException("Native common packet receipts require their allocated physical bank."), process.PacketBuffer, cursor, resolved) } };
+            presentationPackets.Record(process.PacketBank ?? throw new NotSupportedException("Native common packet receipts require their allocated physical bank."), process.PacketBuffer, cursor, resolved);
             NativeBattleCommonPacketWrite delivered = NativeBattleCommonPacketArena.Append(process, primitive.Pending, resolved);
             graphics = graphics with { PrimitiveFrame = primitive with { Pending = delivered.Ordering } };
             return frame with { Memory = frame.Memory with { PrimitiveProcess = delivered.Process } };
@@ -140,7 +140,7 @@ public sealed partial class BattlePresentationProcess
             (byte[] bytes, bool[] known) = arena.ReadSnapshot(index, 1);
             return (bytes[0], known[0]);
         });
-        frame = frame with { Effect = frame.Effect with { PresentationPackets = NativeBattleEffectPresentationPackets.Record(frame.Effect.PresentationPackets, "20DFAB8", 0, privateCursor, privateBatch) } };
+        presentationPackets.Record("20DFAB8", 0, privateCursor, privateBatch);
         NativeBattleEffectPacketWrite written = NativeBattleEffectPacketArena.Append(frame.Memory, privateCursor, primitive.Pending, privateBatch, flags);
         graphics = graphics with { PrimitiveFrame = primitive with { Pending = written.Ordering } };
         return frame with { Memory = written.Memory, State = frame.State.WriteDword(CursorGlobal, checked(NativeBattleEffectNodeMemory.ArenaAddress + (uint)written.Cursor)), Effect = frame.Effect with { DrawArenaOffset = written.Cursor } };
