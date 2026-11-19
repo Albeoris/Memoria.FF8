@@ -49,8 +49,8 @@ public sealed class BattleLoadoutSemanticMatrixTests
                         {
                             for (int axis = 0; axis < 3; axis++)
                             {
-                                Vector3 sourceAxis = Axis(expected[joint.Pair.Source], axis);
-                                Vector3 recipientAxis = Axis(actual[joint.Pair.Recipient], axis);
+                                Vector3 sourceAxis = Axis(expected[joint.Pair.Source], axis, joint.Pair.SourceBindAxes);
+                                Vector3 recipientAxis = Axis(actual[joint.Pair.Recipient], axis, joint.Pair.RecipientBindAxes);
                                 // Bound WORD-product rounding and angle-WORD quantization along both actual ancestor chains.
                                 float bound = joint.Depth * (4 / sourceAxis.Length() + 4 / recipientAxis.Length() + 3 * MathF.Tau / 4096);
                                 float difference = Vector3.Distance(Vector3.Normalize(sourceAxis), Vector3.Normalize(recipientAxis));
@@ -70,9 +70,11 @@ public sealed class BattleLoadoutSemanticMatrixTests
         Assert.True(framesChecked > 0);
     }
 
-    private static Vector3 Axis(NativeBattleActionMatrix matrix, int axis)
+    private static Vector3 Axis(NativeBattleActionMatrix matrix, int axis, Matrix4x4 anatomicalAxes)
     {
-        return new(matrix.Rotation[axis], matrix.Rotation[3 + axis], matrix.Rotation[6 + axis]);
+        Vector3 canonical = axis == 0 ? Vector3.UnitX : axis == 1 ? Vector3.UnitY : Vector3.UnitZ;
+        Vector3 native = Vector3.TransformNormal(canonical, Matrix4x4.Transpose(anatomicalAxes));
+        return new(matrix.Rotation[0] * native.X + matrix.Rotation[1] * native.Y + matrix.Rotation[2] * native.Z, matrix.Rotation[3] * native.X + matrix.Rotation[4] * native.Y + matrix.Rotation[5] * native.Z, matrix.Rotation[6] * native.X + matrix.Rotation[7] * native.Y + matrix.Rotation[8] * native.Z);
     }
 
     private static int Depth(BattleModel model, int bone)

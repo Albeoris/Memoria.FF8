@@ -56,7 +56,7 @@ public sealed partial class BattleAssets
             if (!limitGunbladeBanks.TryGetValue(key, out NativeBattleAnimationBankOverride? replacement))
             {
                 NativeBattlePoseSource compiled = compiler.Compile(changed);
-                replacement = new(binding.Descriptor.Bank, binding.Descriptor.Address, true, fingerprint, compiled.Animations) { ActionBoneAliases = compiled.ActionBoneAliases, RetargetBinding = compiled.RetargetBinding };
+                replacement = new(binding.Descriptor.Bank, binding.Descriptor.Address, true, fingerprint, compiled.Animations) { ActionBoneAliases = compiled.ActionBoneAliases, ActionBoneFrames = compiled.ActionBoneFrames, RetargetBinding = compiled.RetargetBinding };
                 limitGunbladeBanks.Add(key, replacement);
             }
             banks.Add(replacement);

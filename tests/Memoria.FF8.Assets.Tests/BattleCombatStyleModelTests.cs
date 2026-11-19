@@ -104,8 +104,9 @@ public sealed class BattleCombatStyleModelTests
             int targetScale = compiled.NativePoseSource.ReadModelScale5027D0();
             for (int vertex = 0; vertex < sourceVertices.Length; vertex++)
             {
-                Assert.InRange(Math.Abs(sourceVertices[vertex].X * sourceScale - recipientVertices[vertex].X * targetScale), 0, targetScale / 2 + 1);
-                Assert.InRange(Math.Abs(sourceVertices[vertex].Y * sourceScale - recipientVertices[vertex].Y * targetScale), 0, targetScale / 2 + 1);
+                double sourceRadius = Math.Sqrt((double)sourceVertices[vertex].X * sourceVertices[vertex].X + (double)sourceVertices[vertex].Y * sourceVertices[vertex].Y);
+                double recipientRadius = Math.Sqrt((double)recipientVertices[vertex].X * recipientVertices[vertex].X + (double)recipientVertices[vertex].Y * recipientVertices[vertex].Y);
+                Assert.InRange(Math.Abs(sourceRadius * sourceScale - recipientRadius * targetScale), 0, Math.Sqrt(2) * targetScale / 2 + 1);
                 Assert.InRange(Math.Abs(sourceVertices[vertex].Z * sourceScale - recipientVertices[vertex].Z * targetScale), 0, targetScale / 2 + 1);
             }
         }

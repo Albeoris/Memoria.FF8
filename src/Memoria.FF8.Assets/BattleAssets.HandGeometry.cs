@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Numerics;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -67,19 +68,21 @@ public sealed partial class BattleAssets
         {
             BattleModel launcherBody = LoadPlayer(4);
             BattleMesh mount = SelectRinoaLauncherMount(launcherBody.Meshes[0], launcherBody, true);
-            Dictionary<int, int> joints = BattleHumanoidRigProfiles.SemanticPairs(4, launcherBody, actor.ModelId, body).ToDictionary(pair => pair.Source, pair => pair.Recipient);
-            float units = launcherBody.NativePoseSource!.ReadModelScale5027D0() / body.NativePoseSource!.ReadModelScale5027D0();
+            Dictionary<int, NativeBattleSemanticBonePair> joints = BattleHumanoidRigProfiles.SemanticPairs(4, launcherBody, actor.ModelId, body).ToDictionary(pair => pair.Source);
+            float units = launcherBody.NativePoseSource!.ReadModelScale5027D0() / (float)body.NativePoseSource!.ReadModelScale5027D0();
             int[] selectedVertices = mount.Faces.SelectMany(face => face.Vertices).Distinct().Order().ToArray();
             Dictionary<int, int> indices = selectedVertices.Select((source, target) => (source, target)).ToDictionary(pair => pair.source, pair => pair.target);
             BattleVertex[] vertices = selectedVertices.Select(index => mount.Vertices[index]).Select(vertex =>
             {
-                if (!joints.TryGetValue(vertex.Bone, out int bone))
+                if (!joints.TryGetValue(vertex.Bone, out NativeBattleSemanticBonePair? joint))
                 {
                     throw new NotSupportedException("The launcher mount reaches a bone outside its semantic attachment profile.");
                 }
                 NativeBattleVector position = vertex.NativePosition ?? throw new InvalidDataException("The launcher mount requires its native local coordinates.");
-                NativeBattleVector mapped = new(checked((short)MathF.Round(position.X * units)), checked((short)MathF.Round(position.Y * units)), checked((short)MathF.Round(position.Z * units)));
-                return vertex with { Bone = bone, NativePosition = mapped, Position = new System.Numerics.Vector3(-mapped.X, -mapped.Y, mapped.Z) / 2048f };
+                Matrix4x4 sourceToRecipient = joint.SourceBindAxes * Matrix4x4.Transpose(joint.RecipientBindAxes);
+                Vector3 local = Vector3.TransformNormal(new(position.X, position.Y, position.Z), sourceToRecipient) * units;
+                NativeBattleVector mapped = new(checked((short)MathF.Round(local.X)), checked((short)MathF.Round(local.Y)), checked((short)MathF.Round(local.Z)));
+                return vertex with { Bone = joint.Recipient, NativePosition = mapped, Position = new Vector3(-mapped.X, -mapped.Y, mapped.Z) / 2048f };
             }).ToArray();
             BattleFace[] faces = mount.Faces.Select(face =>
             {

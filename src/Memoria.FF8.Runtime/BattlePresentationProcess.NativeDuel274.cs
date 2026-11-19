@@ -144,7 +144,7 @@ public sealed partial class BattlePresentationProcess
         NativeBattleActionMatrix ReadBoneMatrix(BattleModelOwner index, int bone)
         {
             NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native Duel bone matrix requires the current skeleton.");
-            return NativeBattleDuel274Body.ReadBoneMatrix68A790(NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(index), source), checked((short)bone), ReadCinematicActionBoneAliases(graphics, index, source));
+            return NativeBattleDuel274Body.ReadBoneMatrix68A790(NativeBattleBodyBoneMatrices.Require(graphics.ActorModels.Get(index), source), checked((short)bone), ReadCinematicActionBoneAliases(graphics, index, source), source.ActionBoneFrames);
         }
         BattleContactCursor FirstContact(int sequence)
         {

@@ -96,8 +96,7 @@ public sealed partial class BattleAssets
         {
             throw new NotSupportedException("The shared equipment override requires an explicit semantic attachment profile.");
         }
-        Dictionary<int, int> joints = BattleHumanoidRigProfiles.SemanticPairs(sourceCharacter, sourceBody, recipientCharacter, recipient).ToDictionary(pair => pair.Source, pair => pair.Recipient);
-        int Bone(int sourceBone) => joints.TryGetValue(sourceBone, out int targetBone) ? targetBone : throw new NotSupportedException("The shared weapon reaches a bone outside the admitted semantic equipment joints.");
+        Dictionary<int, NativeBattleSemanticBonePair> joints = BattleHumanoidRigProfiles.SemanticPairs(sourceCharacter, sourceBody, recipientCharacter, recipient).ToDictionary(pair => pair.Source);
         float sourceScale = sourceBody.NativePoseSource!.ReadModelScale5027D0();
         float recipientScale = recipient.NativePoseSource!.ReadModelScale5027D0();
         if (sourceScale <= 0 || recipientScale <= 0)
@@ -122,15 +121,17 @@ public sealed partial class BattleAssets
             {
                 int sourceBone = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(cursor));
                 int vertices = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(cursor + 2));
-                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor), checked((ushort)Bone(sourceBone)));
+                NativeBattleSemanticBonePair joint = joints.TryGetValue(sourceBone, out NativeBattleSemanticBonePair? pair) ? pair : throw new NotSupportedException("The shared weapon reaches a bone outside the admitted semantic equipment joints.");
+                Matrix4x4 sourceToRecipient = joint.SourceBindAxes * Matrix4x4.Transpose(joint.RecipientBindAxes);
+                BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(cursor), checked((ushort)joint.Recipient));
                 for (int vertex = 0; vertex < vertices; vertex++)
                 {
-                    for (int lane = 0; lane < 3; lane++)
-                    {
-                        int offset = cursor + 4 + vertex * 6 + lane * 2;
-                        short coordinate = BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset));
-                        BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), checked((short)MathF.Round(coordinate * units)));
-                    }
+                    int offset = cursor + 4 + vertex * 6;
+                    Vector3 originalPosition = new(BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset + 2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(offset + 4)));
+                    Vector3 position = Vector3.TransformNormal(originalPosition, sourceToRecipient) * units;
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset), checked((short)MathF.Round(position.X)));
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 2), checked((short)MathF.Round(position.Y)));
+                    BinaryPrimitives.WriteInt16LittleEndian(bytes.AsSpan(offset + 4), checked((short)MathF.Round(position.Z)));
                 }
                 cursor = checked(cursor + 4 + vertices * 6);
             }

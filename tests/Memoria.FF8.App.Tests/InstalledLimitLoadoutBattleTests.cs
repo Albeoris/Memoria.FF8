@@ -128,6 +128,7 @@ public sealed class InstalledLimitLoadoutBattleTests
         bool observedFreeHands = false;
         bool observedZeroMaskRenzokuken = false;
         bool observedDuelContinuation = false;
+        bool observedDesperadoContinuation = false;
         bool expectsFreeHands = family == BattleLimitFamily.Duel || required == BattleWeaponCapabilities.None && BattleLimitFamilyRules.SourceCharacter(family) != battle.GetCombatantDefinition(actor.Id).WeaponProfile?.ResourceOwner;
         battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: actor.Id);
         TickUntil(() => battle.NativeEntryReady, "entry");
@@ -215,6 +216,10 @@ public sealed class InstalledLimitLoadoutBattleTests
             int casts = battle.Events.Count(entry => entry.ActorId == actor.Id && entry.Kind == "ActionComplete");
             actor.Atb = BattleSession.AtbMaximum;
             TickUntil(() => battle.Events.Count(entry => entry.ActorId == actor.Id && entry.Kind == "ActionComplete") > casts, "Angel Wing automatic cast");
+        }
+        if (family == BattleLimitFamily.Desperado && recipient == 0)
+        {
+            Assert.True(observedDesperadoContinuation);
         }
         if (battle.Outcome == BattleOutcome.Active && !battle.CanReturnToField)
         {
@@ -332,11 +337,17 @@ public sealed class InstalledLimitLoadoutBattleTests
             object before = Context();
             NativeBattlePreparedPresentation? previousPrepared = battle.PreparedPresentation;
             BattleSession? duelContinuation = family == BattleLimitFamily.Duel && recipient == 0 && !observedDuelContinuation && battle.GetNativeDuel(actor.Id) is { Phase: BattleNativeDuelPhase.AwaitingEffect } ? battle.ForkForContinuation() : null;
+            BattleSession? desperadoContinuation = family == BattleLimitFamily.Desperado && recipient == 0 && !observedDesperadoContinuation && PresentationModel() is { ActiveAnimationDirectory: 0x187C20C, SequenceState.DecodedPose.HandAContact: { Animation: 0, Frame: 83 } } ? InstalledDesperadoContinuationAssertions.RestorePrivateJsonContinuation(battle, actor.Id) : null;
             try
             {
                 world.ApplyBattleInput(new(BattleInputKind.Tick));
                 InstalledDesperadoAttachmentProbe.CaptureIfRequested(world, actor.Id, recipient, family);
                 InstalledLoadoutMotionTrace.CaptureIfRequested(world, actor.Id, recipient, family);
+                if (desperadoContinuation is not null)
+                {
+                    InstalledDesperadoContinuationAssertions.AssertNextCallback(battle, desperadoContinuation, assets.LoadPlayer(recipient, battle.GetCombatantDefinition(actor.Id).Costume), actor.Id);
+                    observedDesperadoContinuation = true;
+                }
                 if (duelContinuation is not null)
                 {
                     duelContinuation.Tick();

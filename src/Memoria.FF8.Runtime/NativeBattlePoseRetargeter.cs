@@ -183,9 +183,13 @@ public sealed class NativeBattlePoseRetargeter
             }
         }).ToImmutableArray()).ToArray();
         byte[] aliases = Enumerable.Repeat(byte.MaxValue, source.BoneCount).ToArray();
+        NativeBattleActionMatrix[] actionFrames = Enumerable.Repeat(new NativeBattleActionMatrix([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], 0, 0, 0, 4096), source.BoneCount).ToArray();
         foreach (NativeBattleSemanticBonePair pair in bindings.Values)
         {
             aliases[pair.Source] = checked((byte)pair.Recipient);
+            Matrix4x4 frame = pair.SourceBindAxes * Matrix4x4.Transpose(pair.RecipientBindAxes);
+            short Word(float value) => checked((short)MathF.Round(value * 4096));
+            actionFrames[pair.Source] = new([Word(frame.M11), Word(frame.M21), Word(frame.M31), Word(frame.M12), Word(frame.M22), Word(frame.M32), Word(frame.M13), Word(frame.M23), Word(frame.M33)], 0, 0, 0, 4096);
         }
         NativeBattleSemanticBonePair? primary = bindings.Values.SingleOrDefault(pair => pair.Joint == primaryContactJoint);
         NativeBattleSemanticBonePair? handA = bindings.Values.SingleOrDefault(pair => pair.Joint == "hand-a");
@@ -204,7 +208,7 @@ public sealed class NativeBattlePoseRetargeter
                 return new NativeBattleVector(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
             }).ToImmutableArray()).ToImmutableArray()
         };
-        return recipient with { Animations = NativeBattleAnimationEncoder.Encode(converted), ActionBoneAliases = aliases.ToImmutableArray(), RetargetBinding = contact, SecondaryHandContactFrames = secondaryContactFrames.IsDefault ? [] : secondaryContactFrames };
+        return recipient with { Animations = NativeBattleAnimationEncoder.Encode(converted), ActionBoneAliases = aliases.ToImmutableArray(), ActionBoneFrames = actionFrames.ToImmutableArray(), RetargetBinding = contact, SecondaryHandContactFrames = secondaryContactFrames.IsDefault ? [] : secondaryContactFrames };
     }
 
     public NativeBattleDecodedPose Transfer(NativeBattleDecodedPose pose, bool secondaryContact = true)

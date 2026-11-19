@@ -7,6 +7,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleAnimationBankOverride(string Bank, uint? SourceDirectory, bool Linked, string SourceFingerprint, ImmutableArray<byte> Animations)
 {
     public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
+    public ImmutableArray<NativeBattleActionMatrix> ActionBoneFrames { get; init; } = [];
     public NativeBattlePoseRetargetBinding? RetargetBinding { get; init; }
 }
 
@@ -37,11 +38,13 @@ public sealed partial record NativeBattleGraphicsResource
             {
                 if (source.Animations.AsSpan().SequenceEqual(replacement.Animations.AsSpan()))
                 {
-                    return source with { ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
+                    NativeBattlePoseSource existing = source with { ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, ActionBoneFrames = replacement.ActionBoneFrames.IsDefaultOrEmpty ? source.ActionBoneFrames : replacement.ActionBoneFrames, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
+                    existing.Validate();
+                    return existing;
                 }
                 throw new InvalidDataException("An animation bank override no longer matches its bound source revision.");
             }
-            NativeBattlePoseSource result = source with { Animations = replacement.Animations, ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
+            NativeBattlePoseSource result = source with { Animations = replacement.Animations, ActionBoneAliases = replacement.ActionBoneAliases.IsDefaultOrEmpty ? source.ActionBoneAliases : replacement.ActionBoneAliases, ActionBoneFrames = replacement.ActionBoneFrames.IsDefaultOrEmpty ? source.ActionBoneFrames : replacement.ActionBoneFrames, RetargetBinding = replacement.RetargetBinding ?? source.RetargetBinding };
             result.Validate();
             return result;
         }

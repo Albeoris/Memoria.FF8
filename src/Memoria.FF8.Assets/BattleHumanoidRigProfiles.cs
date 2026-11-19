@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Numerics;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -24,6 +25,22 @@ public static class BattleHumanoidRigProfiles
         [0, 1, 2, 9, 3, 8, 15, 25, 5, 10, 16, 26, 6, 11, 17, 27, 7, 13, 21, 28]
     ];
     private static readonly int[] BoneCounts = [23, 23, 34, 27, 32, 25, 41, 35, 29, 35, 31];
+    // Native meshes have joint-local anatomical frames; the bone's longitudinal axis remains Z.
+    // Entries are exact quarter turns from native vertex coordinates into the shared anatomical frame.
+    private static readonly int[][] AnatomicalQuarterTurns =
+    [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, -1, 0, 1, 0, 0, 0, -1, 0, 0, 0, 1, 1, -1, 0, 1, 1, -1, 0, 0, -1],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, -1, -1, -1, 0, 0, -1, -1, 0, 0, 1, 1, 0, -1, -1, -1, 0, -1, -1, -1, 1, -1, -1],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ];
 
     public static IReadOnlyList<NativeBattleSemanticBonePair> SemanticPairs(int sourceCharacter, BattleModel source, int recipientCharacter, BattleModel recipient)
     {
@@ -31,7 +48,11 @@ public static class BattleHumanoidRigProfiles
         Validate(recipientCharacter, recipient);
         int[] sourceBones = [.. Bones[sourceCharacter], .. Hands[sourceCharacter], source.Bones[Bones[sourceCharacter][3]].Parent];
         int[] recipientBones = [.. Bones[recipientCharacter], .. Hands[recipientCharacter], recipient.Bones[Bones[recipientCharacter][3]].Parent];
-        return Joints.Select((joint, index) => new NativeBattleSemanticBonePair(joint, sourceBones[index], recipientBones[index])).ToArray();
+        return Joints.Select((joint, index) => new NativeBattleSemanticBonePair(joint, sourceBones[index], recipientBones[index])
+        {
+            SourceBindAxes = Matrix4x4.CreateRotationZ(AnatomicalQuarterTurns[sourceCharacter][index] * MathF.PI / 2),
+            RecipientBindAxes = Matrix4x4.CreateRotationZ(AnatomicalQuarterTurns[recipientCharacter][index] * MathF.PI / 2)
+        }).ToArray();
     }
 
     public static NativeBattlePoseRetargeter CreateRetargeter(int sourceCharacter, BattleModel source, int recipientCharacter, BattleModel recipient)

@@ -24,6 +24,7 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
     public ImmutableArray<bool> SkeletonKnownBytes { get; init; } = [];
     public ImmutableArray<byte> Model8FBoneAliases { get; init; } = [];
     public ImmutableArray<byte> ActionBoneAliases { get; init; } = [];
+    public ImmutableArray<NativeBattleActionMatrix> ActionBoneFrames { get; init; } = [];
     public NativeBattlePoseRetargetBinding? RetargetBinding { get; init; }
     public ImmutableArray<ImmutableArray<bool>> SecondaryHandContactFrames { get; init; } = [];
 
@@ -40,6 +41,25 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
         if (!ActionBoneAliases.IsDefaultOrEmpty && (ActionBoneAliases.Length > 128 || ActionBoneAliases.Any(bone => bone != byte.MaxValue && bone >= BoneCount)))
         {
             throw new InvalidDataException("Transferred action bone aliases require valid recipient joints or an explicit unsupported marker.");
+        }
+        if (!ActionBoneFrames.IsDefaultOrEmpty)
+        {
+            if (ActionBoneFrames.Length != ActionBoneAliases.Length)
+            {
+                throw new InvalidDataException("Source action bone frames must cover the complete source selector directory.");
+            }
+            foreach (NativeBattleActionMatrix frame in ActionBoneFrames)
+            {
+                if (frame is null)
+                {
+                    throw new InvalidDataException("Source action bone frames cannot contain a missing native matrix.");
+                }
+                frame.Validate();
+                if (frame.X != 0 || frame.Y != 0 || frame.Z != 0 || frame.Scale != 4096)
+                {
+                    throw new InvalidDataException("Source action bone frames require rotation-only native unit matrices.");
+                }
+            }
         }
         if (Skeleton.IsDefaultOrEmpty || BoneCount is < 1 or > 128 || Skeleton.Length < 16 + 48 * BoneCount || Animations.IsDefaultOrEmpty)
         {

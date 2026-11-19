@@ -244,7 +244,7 @@ public sealed partial class BattlePresentationProcess
                 {
                     NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native6FD2D0 requires its actor skeleton.");
                     ImmutableArray<NativeBattleActionMatrix> bones = NativeBattleBodyBoneMatrices.Require(model, source);
-                    matrix = NativeBattleRinoa89BodyDrawing.ReadActorBoneMatrix6FD2D0(reference, bones, model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FD2D0 requires its actor world matrix."), ReadCinematicActionBoneAliases(graphics, index, source));
+                    matrix = NativeBattleRinoa89BodyDrawing.ReadActorBoneMatrix6FD2D0(reference, bones, model.GeometryWorldMatrix ?? throw new NotSupportedException("Native6FD2D0 requires its actor world matrix."), ReadCinematicActionBoneAliases(graphics, index, source), source.ActionBoneFrames);
                 }
                 point = NativeBattleGfMatrices.Transform460840(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(reference), BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(reference.AsSpan(4))));
             }

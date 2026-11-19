@@ -119,7 +119,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
                     File.WriteAllText(Path.ChangeExtension(preparedPath, ".json"), System.Text.Json.JsonSerializer.Serialize(new { SourceResource = "weapon-limit-field-source", SourceSha256 = Convert.ToHexString(sourceHash), StandalonePath = Path.GetFullPath(preparedPath), Formation, Recipient = recipient, Donor = donor, WeaponId = weapon, NativeBaseline = !assignOverride, Field = session.State.FieldId, FieldFrame = world.Events.Frame, Boundary = "Standalone prepared field with one pending ordinary native encounter; StartEncounter is the next control command.", Resume = $"Memoria.FF8.exe --state \"{Path.GetFullPath(preparedPath)}\" --game-dir \"{directory}\"" }));
                 }
             }
-            bool traceMotion = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_TRACE"));
+            bool traceMotion = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_MOTION_TRACE")) || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MEMORIA_FF8_LOADOUT_SURFACE_PROBE"));
             world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased, NativeSeed: traceMotion ? (byte)0 : (byte)4));
             BattleSession battle = Assert.IsType<BattleSession>(world.Battle);
             BattleCombatant actor = Assert.Single(battle.Combatants, candidate => candidate.IsPlayer);
@@ -142,6 +142,7 @@ public sealed class InstalledWeaponLoadoutBattleTests
                 if (encounter == 0)
                 {
                     InstalledLoadoutMotionTrace.CaptureIfRequested(world, actor.Id, recipient, null);
+                    InstalledGarmentSurfaceProbe.CaptureIfRequested(world, actor.Id, recipient, donor);
                 }
             }
             battle.ConfigureDiagnosticScheduling(holdEnemyCommands: true, readinessActorId: actor.Id);

@@ -49,6 +49,22 @@ public sealed class NativeBattleRinoa89ActorAnchorsTests
         Assert.Throws<NotSupportedException>(() => NativeBattleRinoa89BodyDrawing.ReadActorBoneMatrix6FD2D0(Reference(24), bones, world, Enumerable.Repeat(byte.MaxValue, 32).ToImmutableArray()));
     }
 
+    [Fact]
+    public void Authored_XY_reference_keeps_its_source_frame_and_physical_origin()
+    {
+        NativeBattleActionMatrix physical = new([0, -4096, 0, 4096, 0, 0, 0, 0, 4096], 71, 82, 93, 4096);
+        NativeBattleActionMatrix inverse = new([0, 4096, 0, -4096, 0, 0, 0, 0, 4096], 0, 0, 0, 4096);
+        ImmutableArray<byte> aliases = Enumerable.Repeat(byte.MaxValue, 32).ToImmutableArray().SetItem(24, 0);
+        ImmutableArray<NativeBattleActionMatrix> frames = Enumerable.Repeat(inverse, 32).ToImmutableArray();
+        NativeBattleActionMatrix world = Matrix(100, 200, 300);
+
+        NativeBattleActionMatrix matrix = NativeBattleRinoa89BodyDrawing.ReadActorBoneMatrix6FD2D0(Reference(24), [physical], world, aliases, frames);
+
+        Assert.Equal(new NativeBattleVector(-3013, 568, -1146), NativeBattleGfMatrices.Transform460840(matrix, new(-3184, 286, -1539)));
+        NativeBattleActionMatrix unscoped = NativeBattleRinoa89BodyDrawing.ReadActorBoneMatrix6FD2D0(Reference(0), [physical], world, actionBoneFrames: frames);
+        EqualMatrix(NativeBattleGfMatrices.Compose56C2F0(world, physical), unscoped);
+    }
+
     private static NativeBattleActionMatrix Matrix(int x, int y, int z) => new([4096, 0, 0, 0, 4096, 0, 0, 0, 4096], x, y, z, 4096);
 
     private static void EqualMatrix(NativeBattleActionMatrix expected, NativeBattleActionMatrix actual)

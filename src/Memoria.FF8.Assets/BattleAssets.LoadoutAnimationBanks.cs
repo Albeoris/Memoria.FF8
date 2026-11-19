@@ -111,7 +111,7 @@ public sealed partial class BattleAssets
         {
             var contacts = contactWeapon is null ? default : BattleWeaponContactFrames.Read(sourceCharacter, source, contactWeapon, motion, linkedMotion);
             NativeBattlePoseSource pose = compiler.Compile(motion, contacts);
-            compiled = new(bank, directory, false, revision, pose.Animations) { ActionBoneAliases = pose.ActionBoneAliases, RetargetBinding = pose.RetargetBinding };
+            compiled = new(bank, directory, false, revision, pose.Animations) { ActionBoneAliases = pose.ActionBoneAliases, ActionBoneFrames = pose.ActionBoneFrames, RetargetBinding = pose.RetargetBinding };
             loadoutAnimationBanks.Add(key, compiled);
         }
         return compiled;
