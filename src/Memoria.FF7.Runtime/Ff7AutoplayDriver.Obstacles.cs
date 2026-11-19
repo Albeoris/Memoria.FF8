@@ -21,11 +21,11 @@ public sealed partial class Ff7AutoplayDriver
     private int obstacleSpeed;
     private PhysicalSearchCursor? obstacleSearch;
     private string? obstacleSearchContext;
-    private Vector3? obstacleSearchAlternative;
     internal long PhysicalPlanningWork { get; private set; }
 
     private sealed record EscapeStep(Ff7AutoplayInput Input, int X4096, int Y4096, int Z4096, int Triangle);
     private sealed record SearchNode(Ff7Actor Actor, SearchNode? Parent, Ff7AutoplayInput Input, float Cost);
+    internal sealed record PhysicalSearchGuide(PhysicalSearchCursor Cursor, Vector3 Waypoint, int NextTriangle, (int From, int To)[] AdviceExclusions);
 
     private (Vector3 Point, int Triangle) ChooseFloorContact(IReadOnlyList<(Vector3 Point, int Triangle)> contacts, Ff7Actor player)
     {
@@ -75,7 +75,6 @@ public sealed partial class Ff7AutoplayDriver
     {
         obstacleSearch = null;
         obstacleSearchContext = null;
-        obstacleSearchAlternative = null;
     }
 
     private bool TryObstacleEscape(Ff7Actor player, Vector3 target, Vector3 waypoint, int destination, int nextTriangle, int[] routeDistance, bool blockedForward, IReadOnlyList<int> blockingEntities, Ff7NativeMovement movement, out Ff7AutoplayInput input)
@@ -123,37 +122,45 @@ public sealed partial class Ff7AutoplayDriver
             var direction = Directions.Single(value => value.X == action.Horizontal && value.Y == action.Vertical);
             return movement.StepDirection(actor, unchecked((byte)(direction.Direction + session.Field.Triggers.ControlDirection)), session.Host.Process.Actors, session.Host.Process.BlockedTriangles, false, session.Host.Process.LineBlocked);
         }
-        obstacleSearch ??= new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
+        if (obstacleSearch is null)
+        {
+            obstacleSearch = new(player, waypoint, triangle => routeDistance[triangle], Preview, AllowsPlannedMove);
+            List<PhysicalSearchGuide> guides = [new(obstacleSearch, waypoint, nextTriangle, [])];
+            if (nextTriangle >= 0 && nextTriangle != player.Triangle)
+            {
+                HashSet<(int From, int To)> alternatives = ReadNavigationOwnedPortals(session.Field.Walkmesh);
+                alternatives.UnionWith(approachAdviceExclusions);
+                List<(int From, int To)> selectedExclusions = [];
+                int selected = nextTriangle;
+                while (alternatives.Add((player.Triangle, selected)))
+                {
+                    selectedExclusions.Add((player.Triangle, selected));
+                    var (previous, distance) = ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, alternatives);
+                    selected = previous[player.Triangle];
+                    if (selected < 0 || selected == player.Triangle)
+                    {
+                        break;
+                    }
+                    var triangle = session.Field.Walkmesh[selected];
+                    Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
+                    PhysicalSearchCursor cursor = new(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove);
+                    guides.Add(new(cursor, alternativeWaypoint, selected, selectedExclusions.ToArray()));
+                }
+            }
+            obstacleSearch.ConfigureGuides(guides);
+        }
         obstacleSearchContext = context;
         Ff7NativePlanningQuantum quantum = new();
         Ff7AutoPlayPhysicalRoute route = ResumePhysicalSearch(obstacleSearch, quantum);
-        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Exhausted && obstacleSearchAlternative is null && blockedForward && nextTriangle != player.Triangle && !approachAdviceExclusions.Contains((player.Triangle, nextTriangle)))
-        {
-            // Try alternate advice only after exhausting the original represented search graph.
-            // A failed physical prefix rejects this advice, not the native portal itself.
-            HashSet<(int From, int To)> alternatives = ReadNavigationOwnedPortals(session.Field.Walkmesh);
-            alternatives.UnionWith(approachAdviceExclusions);
-            alternatives.Add((player.Triangle, nextTriangle));
-            var (previous, distance) = ReadApproachRoutes(session.Field.Walkmesh, session.Host.Process.BlockedTriangles, player.Triangle, destination, spatialBoundaryGeneration == session.FieldGeneration ? spatialBoundaryTriangles : null, admittedSpatialTriangle, alternatives);
-            int alternative = previous[player.Triangle];
-            if (alternative >= 0 && alternative != nextTriangle)
-            {
-                var triangle = session.Field.Walkmesh[alternative];
-                Vector3 alternativeWaypoint = (triangle.A + triangle.B + triangle.C) / 3;
-                obstacleSearchAlternative = alternativeWaypoint;
-                obstacleSearch = new(player, alternativeWaypoint, triangle => distance[triangle], Preview, AllowsPlannedMove);
-                route = ResumePhysicalSearch(obstacleSearch, quantum);
-            }
-        }
         if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending)
         {
             DeferPlanning();
             return true;
         }
-        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && obstacleSearchAlternative is Vector3 acceptedWaypoint)
+        if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && obstacleSearch.WinningGuide is { } winner && winner.NextTriangle != nextTriangle)
         {
-            approachAdviceExclusions.Add((player.Triangle, nextTriangle));
-            committedWaypoint = acceptedWaypoint;
+            approachAdviceExclusions.UnionWith(winner.AdviceExclusions);
+            committedWaypoint = winner.Waypoint;
             waypointSourceTriangle = player.Triangle;
         }
         CancelObstacleSearch();
@@ -228,7 +235,67 @@ public sealed partial class Ff7AutoplayDriver
         private readonly PriorityQueue<SearchNode, (float Score, int Remaining)> pending = new();
         private int expanded;
         private Ff7AutoPlayPhysicalRoute? completed;
-        internal int Expanded => expanded;
+        private GuideWorkset? guideWorkset;
+        internal int Expanded => guideWorkset?.Expanded ?? expanded;
+        internal PhysicalSearchGuide? WinningGuide => guideWorkset?.Winner;
+
+        private sealed class GuideWorkset(PhysicalSearchGuide[] guides)
+        {
+            private readonly Queue<PhysicalSearchGuide> pending = new(guides);
+            private Ff7AutoPlayPhysicalRoute? completed;
+            internal PhysicalSearchGuide? Winner { get; private set; }
+            internal int Expanded
+            {
+                get
+                {
+                    int total = 0;
+                    foreach (PhysicalSearchGuide guide in guides)
+                    {
+                        total = unchecked(total + guide.Cursor.expanded);
+                    }
+                    return total;
+                }
+            }
+
+            internal Ff7AutoPlayPhysicalRoute Resume(Ff7NativePlanningQuantum quantum)
+            {
+                if (completed is not null)
+                {
+                    return completed;
+                }
+                while (pending.TryPeek(out PhysicalSearchGuide? guide))
+                {
+                    int before = quantum.Operations;
+                    Ff7AutoPlayPhysicalRoute route = guide.Cursor.ResumeGraph(quantum, oneOperation: true);
+                    if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending && quantum.Operations == before)
+                    {
+                        return new(Ff7AutoPlayPhysicalSearchStatus.Pending, [], Expanded);
+                    }
+                    pending.Dequeue();
+                    if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress)
+                    {
+                        Winner = guide;
+                        completed = route with { Expanded = Expanded };
+                        return completed;
+                    }
+                    if (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending)
+                    {
+                        pending.Enqueue(guide);
+                    }
+                }
+                completed = new(Ff7AutoPlayPhysicalSearchStatus.Exhausted, [], Expanded);
+                return completed;
+            }
+        }
+
+        internal void ConfigureGuides(IReadOnlyList<PhysicalSearchGuide> guides)
+        {
+            if (guides.Count == 0 || !ReferenceEquals(guides[0].Cursor, this))
+            {
+                throw new ArgumentException("A physical guide workset must begin with its original cursor.", nameof(guides));
+            }
+            guideWorkset = new(guides.ToArray());
+        }
 
         internal PhysicalSearchCursor(Ff7Actor source, Vector3 waypoint, Func<int, int> remaining, Func<Ff7Actor, Ff7AutoplayInput, Ff7NativeMoveResult> preview, Func<Ff7Actor, Ff7NativeMoveResult, bool> allows)
         {
@@ -249,16 +316,23 @@ public sealed partial class Ff7AutoplayDriver
 
         internal Ff7AutoPlayPhysicalRoute Resume(Ff7NativePlanningQuantum quantum)
         {
+            return guideWorkset?.Resume(quantum) ?? ResumeGraph(quantum, oneOperation: false);
+        }
+
+        private Ff7AutoPlayPhysicalRoute ResumeGraph(Ff7NativePlanningQuantum quantum, bool oneOperation)
+        {
             if (completed is not null)
             {
                 return completed;
             }
+            bool operated = false;
             while (pending.Count > 0)
             {
-                if (!quantum.TryBeginOperation())
+                if (operated && oneOperation || !quantum.TryBeginOperation())
                 {
                     return new(Ff7AutoPlayPhysicalSearchStatus.Pending, [], expanded);
                 }
+                operated = true;
                 SearchNode current = pending.Dequeue();
                 if (costs[Key(current.Actor)] < current.Cost)
                 {

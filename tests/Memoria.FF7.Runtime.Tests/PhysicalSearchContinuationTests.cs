@@ -10,6 +10,7 @@ internal static class PhysicalSearchContinuationTests
     {
         CheckLongReachableGraph();
         CheckHigherHopDetour();
+        CheckFairGuideAlternatives();
         CheckExhaustedGraph();
         CheckModeSnapshotAndCancellation();
         CheckWorkAccounting();
@@ -110,6 +111,54 @@ internal static class PhysicalSearchContinuationTests
         Check(route is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Expanded: 66, Inputs.Length: 0 }, "Best-first guidance bypassed native admission or truncated the finite search frontier.");
     }
 
+    private static void CheckFairGuideAlternatives()
+    {
+        Ff7AutoplayDriver.PhysicalSearchCursor Unresolved()
+        {
+            Ff7NativeMoveResult Preview(Ff7Actor actor, Ff7AutoplayInput input)
+            {
+                return input == new Ff7AutoplayInput(0, 1) ? new(actor with { Y4096 = actor.Y4096 + 8 }, false, true, []) : new(actor, false, false, []);
+            }
+            return new(Source, Vector3.UnitY, _ => 1, Preview, (_, _) => true);
+        }
+        Ff7AutoplayDriver driver = new(null!);
+        Ff7AutoplayDriver.PhysicalSearchCursor original = Unresolved();
+        Ff7AutoplayDriver.PhysicalSearchCursor shortGuide = CreateChain(2, true);
+        Ff7AutoplayDriver.PhysicalSearchCursor laterGuide = Unresolved();
+        original.ConfigureGuides([new(original, Vector3.Zero, 1, []), new(shortGuide, Vector3.UnitY, 2, [(0, 1)]), new(laterGuide, Vector3.UnitX, 3, [(0, 1), (0, 2)])]);
+        Ff7AutoPlayPhysicalRoute route = driver.ResumePhysicalSearch(original, new(1, TimeSpan.MaxValue));
+        Check(route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending && original.Expanded == 1 && shortGuide.Expanded == 0 && laterGuide.Expanded == 0, "The first guide exceeded its shared one-expansion scheduling turn.");
+        Field("obstacleSearch").SetValue(driver, original);
+        Field("obstacleSearchContext").SetValue(driver, "finite-guides");
+        Field("navigationRunMode").SetValue(driver, false);
+        object snapshot = Method("CaptureNavigationMode").Invoke(driver, null)!;
+        Method("CancelObstacleSearch").Invoke(driver, null);
+        Method("RestoreNavigationMode").Invoke(driver, [snapshot]);
+        route = driver.ResumePhysicalSearch(original, new(1, TimeSpan.MaxValue));
+        Check(route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending && shortGuide.Expanded == 1 && laterGuide.Expanded == 0, "Mode restoration lost the retained next-guide turn.");
+        for (int turn = 0; turn < 3; turn++)
+        {
+            route = driver.ResumePhysicalSearch(original, new(1, TimeSpan.MaxValue));
+        }
+        Check(route.Status == Ff7AutoPlayPhysicalSearchStatus.Progress && route.Expanded == 5 && driver.PhysicalPlanningWork == 5 && original.WinningGuide is { NextTriangle: 2 } winner && winner.AdviceExclusions.SequenceEqual(new[] { (0, 1) }) && route.Inputs.SequenceEqual(new[] { new Ff7AutoplayInput(0, 1), new Ff7AutoplayInput(0, 1) }), "A pending original starved the short alternative, mixed its input prefix or committed unrelated tested-guide exclusions.");
+        Method("CancelObstacleSearch").Invoke(driver, null);
+        Check(Field("obstacleSearch").GetValue(driver) is null, "Guide cancellation retained the workset in the driver.");
+        original = Unresolved();
+        Ff7AutoplayDriver.PhysicalSearchCursor denied = new(Source, Vector3.UnitY, _ => 1, (actor, _) => new(actor with { Triangle = 1 }, false, true, []), (_, _) => false);
+        original.ConfigureGuides([new(original, Vector3.Zero, 1, []), new(denied, Vector3.UnitY, 2, [(0, 1)])]);
+        route = original.Resume(new(8, TimeSpan.MaxValue));
+        Check(route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending && denied.Expanded == 1 && original.WinningGuide is null, "One denied guide became a negative receipt while another guide remained pending.");
+        original = CreateChain(3, false);
+        Ff7AutoplayDriver.PhysicalSearchCursor finite = CreateChain(2, false);
+        original.ConfigureGuides([new(original, Vector3.Zero, 1, []), new(finite, Vector3.UnitY, 2, [(0, 1)])]);
+        do
+        {
+            route = original.Resume(new(2, TimeSpan.MaxValue));
+        }
+        while (route.Status == Ff7AutoPlayPhysicalSearchStatus.Pending);
+        Check(route is { Status: Ff7AutoPlayPhysicalSearchStatus.Exhausted, Expanded: 7, Inputs.Length: 0 } && original.WinningGuide is null, "A finite guide workset did not exhaust every admitted graph exactly once.");
+    }
+
     private static void CheckModeSnapshotAndCancellation()
     {
         Ff7AutoplayDriver driver = new(null!);
@@ -117,17 +166,16 @@ internal static class PhysicalSearchContinuationTests
         Check(cursor.Resume(new(3, TimeSpan.MaxValue)).Expanded == 3, "The snapshot fixture did not retain pending work.");
         Field("obstacleSearch").SetValue(driver, cursor);
         Field("obstacleSearchContext").SetValue(driver, "walk-context");
-        Field("obstacleSearchAlternative").SetValue(driver, Vector3.UnitY);
         Field("navigationRunMode").SetValue(driver, false);
         object snapshot = Method("CaptureNavigationMode").Invoke(driver, null)!;
         Method("CancelObstacleSearch").Invoke(driver, null);
         Field("navigationRunMode").SetValue(driver, true);
         Check(Field("obstacleSearch").GetValue(driver) is null, "Cancelling a physical query retained its cursor.");
         Method("RestoreNavigationMode").Invoke(driver, [snapshot]);
-        Check(ReferenceEquals(Field("obstacleSearch").GetValue(driver), cursor) && Equals(Field("obstacleSearchContext").GetValue(driver), "walk-context") && Equals(Field("obstacleSearchAlternative").GetValue(driver), Vector3.UnitY) && Equals(Field("navigationRunMode").GetValue(driver), false), "Speculative run-mode restoration lost the walk search or its alternate guide.");
+        Check(ReferenceEquals(Field("obstacleSearch").GetValue(driver), cursor) && Equals(Field("obstacleSearchContext").GetValue(driver), "walk-context") && Equals(Field("navigationRunMode").GetValue(driver), false), "Speculative run-mode restoration lost the walk search or its alternate guide.");
         Check(cursor.Resume(new(2, TimeSpan.MaxValue)).Expanded == 5, "Restoring a mode restarted the retained physical search.");
         Method("CancelObstacleSearch").Invoke(driver, null);
-        Check(Field("obstacleSearch").GetValue(driver) is null && Field("obstacleSearchContext").GetValue(driver) is null && Field("obstacleSearchAlternative").GetValue(driver) is null, "Cancelling a changed source retained physical query state.");
+        Check(Field("obstacleSearch").GetValue(driver) is null && Field("obstacleSearchContext").GetValue(driver) is null, "Cancelling a changed source retained physical query state.");
         Check(CreateChain(1537, true).Resume(new(1, TimeSpan.MaxValue)).Expanded == 1, "A replacement query inherited expansion state from a cancelled source.");
     }
 
