@@ -16,6 +16,45 @@ internal sealed record CrossoverGuestCrtSettlement(NativeCrtRandomState? Origin,
 /// <summary>Stages an FFVII field continuation and FFVIII character update together from immutable source snapshots.</summary>
 internal static class CrossoverBattleVitalsSettlement
 {
+    internal static void CommitNativeResult(Ff7Session live, Ff7BattleSession battle, Ff7SessionSave before, Ff7SessionSave expected)
+    {
+        ArgumentNullException.ThrowIfNull(live);
+        ArgumentNullException.ThrowIfNull(battle);
+        if (!ReferenceEquals(live.Battle, battle) || !battle.ResultReady || battle.Outcome == Ff7BattleOutcome.Fighting || expected.Battle is not null || before.Battle is null || before.Battle.RequestId != battle.RequestId || before.Battle.FormationId != battle.Formation.FormationId)
+        {
+            throw new InvalidOperationException("The staged guest result does not own the live terminal native encounter.");
+        }
+        RequireSameNativeState(before, live.Capture(), "The live native encounter changed while its guest result was prepared.");
+        Ff7BattleGuestVitalsBinding[] bindings = before.Battle.GetGuestSlotStates().Select(slot => slot.Binding).ToArray();
+        if (!battle.GuestVitalsBindings.SequenceEqual(bindings))
+        {
+            throw new InvalidOperationException("The staged guest result has different live native guest owners.");
+        }
+        bool confirmed = battle.Outcome switch
+        {
+            Ff7BattleOutcome.Victory => live.ConfirmGuestBattleVictory(bindings),
+            Ff7BattleOutcome.Escaped => live.ConfirmGuestBattleEscape(bindings),
+            Ff7BattleOutcome.Defeat when battle.ReturnsAfterDefeat => live.ConfirmGuestBattleDefeat(bindings),
+            _ => false
+        };
+        if (!confirmed)
+        {
+            throw new InvalidOperationException("The live guest result has not reached its native settlement boundary.");
+        }
+        RequireSameNativeState(expected, live.Capture(), "The live native settlement differs from its validated staged result.");
+    }
+
+    private static void RequireSameNativeState(Ff7SessionSave expected, Ff7SessionSave actual, string message)
+    {
+        // The App owns playback resume positions; they are not part of native settlement.
+        byte[] expectedBytes = JsonSerializer.SerializeToUtf8Bytes(expected with { AudioPresentation = null });
+        byte[] actualBytes = JsonSerializer.SerializeToUtf8Bytes(actual with { AudioPresentation = null });
+        if (!expectedBytes.AsSpan().SequenceEqual(actualBytes))
+        {
+            throw new InvalidOperationException(message);
+        }
+    }
+
     internal static GameplaySaveComponentDocument ApplyLimitLearning(GameplaySaveComponentDocument original, GameplaySaveComponentDocument updated, CrossoverGuestLimitLearningSettlement limits, Guid encounter, IReadOnlyCollection<int> characters)
     {
         if (!limits.HasChanges)

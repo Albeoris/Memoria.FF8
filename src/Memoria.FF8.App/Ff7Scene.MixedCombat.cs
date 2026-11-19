@@ -167,11 +167,21 @@ internal sealed partial class Ff7Scene
         }
         DeliverGuestBattleSounds();
         bool gameOver = battle.Outcome == Ff7BattleOutcome.Defeat && !battle.ReturnsAfterDefeat;
-        CrossoverBattleVitalsSettlementResult staged = mixed.Settle(CaptureNativeSession(), installation);
+        Ff7Session live = Session ?? throw new InvalidOperationException("Mixed settlement requires its live FFVII session.");
+        if (!ReferenceEquals(live.Battle, battle) || !ReferenceEquals(mixed.Host, battle))
+        {
+            throw new InvalidOperationException("Mixed settlement requires its exact live native battle owner.");
+        }
+        CombinedSessionSave source = CaptureNativeSession();
+        CrossoverBattleVitalsSettlementResult staged = mixed.Settle(source, installation);
+        if (!gameOver)
+        {
+            CrossoverBattleVitalsSettlement.CommitNativeResult(live, battle, source.Ff7!, staged.Save.Ff7!);
+        }
         envelope = staged.Save;
-        MixedCombatSettled?.Invoke(staged.Save);
         if (gameOver)
         {
+            MixedCombatSettled?.Invoke(staged.Save);
             ResetMixedCombat();
             StopAudio();
             autoPlay = null;
@@ -182,7 +192,9 @@ internal sealed partial class Ff7Scene
         }
         else
         {
-            Continue(staged.Save);
+            ResetMixedCombat();
+            AttachMixedFieldVitals();
+            MixedCombatSettled?.Invoke(staged.Save);
         }
         return true;
     }
