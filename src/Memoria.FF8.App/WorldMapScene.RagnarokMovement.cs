@@ -9,6 +9,7 @@ internal sealed partial class WorldMapScene
     {
         NativeRagnarokWorldRuntimeState runtime = before.NativeRagnarokRuntime!;
         runtime.RequireSceneState();
+        NativeRagnarokWorldObject drawBody = runtime.Objects[runtime.Allocation.RagnarokIndex];
         byte scriptMode = runtime.Transfer is null ? salary.EventUi?.ScriptMode ?? 0 : runtime.Transfer.Kind == NativeRagnarokTransferKind.Landing ? (byte)5 : (byte)6;
         int cooldown = NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0);
         NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 ? 0 : motorButtons ?? buttons);
@@ -45,9 +46,12 @@ internal sealed partial class WorldMapScene
         {
             // The preceding callback records the same pre-terrain height in both owners.
             int previousHeight = runtime.PreviousParticleNativeHeight ?? oldCamera.NativeHeight;
-            NativeRagnarokWorldObject body = runtime.Objects[runtime.Allocation.RagnarokIndex] with { Position = new(before.X, before.NativeHeight, -before.Z), Pitch = motor.State.BodyPitch, Yaw = checked((short)motor.State.BodyYaw), Roll = motor.State.BodyRoll };
-            NativeWorldPathPosition follow = new(motor.MotionX, before.NativeHeight - previousHeight, motor.MotionGraphicsZ);
-            forest = forest.AdvanceRagnarok(before.GroundType ?? throw new InvalidDataException("Ragnarok particle update lost its current native ground type."), body, runtime.CurrentGroundHeight!.Value, priorGraphicsSpeed, follow, scriptMode, assets.ForestTables.RagnarokThrustOffsets, assets.ForestTables.Random, assets.ForestTables.Effects);
+            // Both drawing and emission precede dense-body publication. Particle follow
+            // consumes the preceding accepted request, not this callback's new motor input.
+            NativeWorldPathPosition previousMotion = runtime.PreviousParticleMotion ?? new(0, 0, 0);
+            NativeWorldPathPosition follow = new(previousMotion.X, before.NativeHeight - previousHeight, previousMotion.Z);
+            forest = forest.AdvanceRagnarok(before.GroundType ?? throw new InvalidDataException("Ragnarok particle update lost its current native ground type."), drawBody, runtime.CurrentGroundHeight!.Value, priorGraphicsSpeed, follow, scriptMode, assets.ForestTables.RagnarokThrustOffsets, assets.ForestTables.Random, assets.ForestTables.Effects);
+            runtime = runtime with { DrawBody = drawBody };
         }
         forest = forest with { CameraPitch = motor.State.CameraPitch };
         runtime = runtime with { Motor = motor.State, Forest = forest, PreviousParticleNativeHeight = before.NativeHeight, PreviousButtons = buttons, ProjectionCurveThreshold = runtime.TransferCamera?.CurveThreshold ?? 6144, ProjectionCamera = new(before.X, before.Z, before.NativeHeight, targetX, targetZ, targetHeight, motor.State.CameraYaw, motor.State.CameraPitch, oldCamera.OffsetY, runtime.TransferCamera?.OffsetZ ?? oldCamera.OffsetZ) };
@@ -79,6 +83,7 @@ internal sealed partial class WorldMapScene
         }
         int? group = scriptMode != 0 ? null : (buttons & 0x8000) != 0 ? 0 : (buttons & 0x2000) != 0 ? 1 : null;
         WorldNativeRagnarokGroundResult ground = assets.ResolveNativeRagnarokGround(before.X, before.Z, checked((short)motor.MotionX), checked((short)motor.MotionGraphicsZ), unchecked((short)before.NativeHeight), motor.State.FlightHeight, group, runtime.GroundCache!, replacements, (probes, padding) => RagnarokContact(cameraState, probes, padding), scriptMode);
+        runtime = runtime with { PreviousParticleMotion = ground.GroundCommitted ? new(motor.MotionX, 0, motor.MotionGraphicsZ) : new(0, 0, 0) };
         WorldNativeTerrainOcclusionResult occlusion = assets.CertifyNativeTerrainCameraOcclusion(runtime.ProjectionCamera!, ground.GroundCommitted ? ground.GroundHeight : runtime.CurrentGroundHeight!.Value, replacements, 50, runtime.ProjectionCurveThreshold);
         runtime = runtime with { GroundCache = ground.Cache, GroundYaw = checked((short)ground.GroundYaw), CurrentGroundHeight = ground.GroundCommitted ? ground.GroundHeight : runtime.CurrentGroundHeight, PrimaryContact = ground.PrimaryContact, BroadContact = ground.BroadContact, PriorTerrainOcclusion = occlusion.Occluded ?? throw new NotSupportedException(occlusion.Reason), Motor = motor.State with { FlightHeight = ground.FlightHeight, Speed = ground.ResetSpeed ? 0 : motor.State.Speed } };
         WorldState after = cameraState with { Frame = before.Frame + 1, X = WrapCoordinate(ground.X, 262144), Z = WrapCoordinate(ground.Z, 196608), NativeHeight = ground.BodyHeight, GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType, NativeRagnarokRuntime = runtime };

@@ -6,6 +6,15 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class WorldModelPoseTests
 {
     [Fact]
+    public void BodyPitchYawAndRawRollUseNativeOrderBeforeRenderAxisConversion()
+    {
+        FieldModel model = new("body axes", [new ModelBone(-1, 0)], [new ModelVertex(new Vector3(1, 2, 3), 0)], [], [], [new ModelAnimation([new AnimationFrame(Vector3.Zero, [Vector3.Zero])])]);
+        Vector3 point = Assert.Single(WorldModelPose.Pose(model, 0, 0, 3 * MathF.PI / 2, MathF.PI / 2, MathF.PI / 2));
+        Assert.InRange(Vector3.Distance(new Vector3(3, 1, 2), point), 0, 0.0001f);
+        Assert.Equal(point, Assert.Single(WorldModelPose.PoseInterpolated(model, 0, 0, 0, 0.5f, 3 * MathF.PI / 2, MathF.PI / 2, MathF.PI / 2)));
+    }
+
+    [Fact]
     public void SelectedOriginalWorldSquallIdleKeepsFeetNearGroundAndBodyUpright()
     {
         using WorldAssets assets = new(TestResources.GameDirectory);

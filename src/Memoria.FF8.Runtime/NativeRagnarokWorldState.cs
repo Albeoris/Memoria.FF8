@@ -134,6 +134,10 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? PreviousParticleNativeHeight { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeRagnarokWorldObject? DrawBody { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldPathPosition? PreviousParticleMotion { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? GroundYaw { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? PriorTerrainOcclusion { get; init; }
@@ -188,6 +192,10 @@ public sealed record NativeRagnarokWorldRuntimeState([property: JsonRequired] Na
         Allocation.Validate();
         Motor.Validate();
         BackgroundRails?.Validate();
+        if (DrawBody is { } drawBody && (drawBody.ShapeId != 1 || drawBody.Flags != Allocation.Objects[Allocation.RagnarokIndex].Flags || drawBody.Position.X is < -131072 or >= 131072 || drawBody.Position.Z is < -98304 or >= 98304) || PreviousParticleMotion is { } motion && (motion.X is < short.MinValue or > short.MaxValue || motion.Y != 0 || motion.Z is < short.MinValue or > short.MaxValue))
+        {
+            throw new InvalidDataException("Ragnarok presentation requires its original body identity and signed movement words.");
+        }
         if (CactuarDrawPhase is < 0 or > 4 || CactuarDrawPhase is not null && Cactuar is null)
         {
             throw new InvalidDataException("Ragnarok Cactuar draw phase requires its original process owner and phase range.");

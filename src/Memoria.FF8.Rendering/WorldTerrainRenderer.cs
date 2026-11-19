@@ -90,6 +90,8 @@ public readonly record struct NativeWorldAnimatedModelDraw(FieldModel Model, Vec
 {
     public WorldRenderObjectId? ObjectId { get; init; }
     public WorldAnimationBlend? AnimationBlend { get; init; }
+    public float NativePitch { get; init; }
+    public float NativeRoll { get; init; }
 }
 
 /// <summary>Perspective renderer for WMX terrain and world models, with optional retained GPU geometry.</summary>
@@ -225,7 +227,7 @@ public sealed partial class WorldTerrainRenderer
         {
             foreach (NativeWorldAnimatedModelDraw draw in animatedModels)
             {
-                DrawAvatar(draw.Model, draw.Position, draw.Heading, draw.AnimationId, draw.AnimationFrame, draw.AnimationBlend);
+                DrawAvatar(draw.Model, draw.Position, draw.Heading, draw.AnimationId, draw.AnimationFrame, draw.AnimationBlend, draw.NativePitch, draw.NativeRoll);
             }
         }
         if (staticModels is not null)
@@ -306,9 +308,9 @@ public sealed partial class WorldTerrainRenderer
         Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle, terrainReplacementMask, textureAnimation), transparent);
     }
 
-    private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend)
+    private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame, WorldAnimationBlend? animationBlend, float nativePitch = 0, float nativeRoll = 0)
     {
-        Vector3[] pose = animationBlend is WorldAnimationBlend blend ? WorldModelPose.PoseInterpolated(model, animationId, blend.PreviousFrameIndex, blend.CurrentFrameIndex, blend.Blend, heading) : WorldModelPose.Pose(model, animationId, (int)frame, heading);
+        Vector3[] pose = animationBlend is WorldAnimationBlend blend ? WorldModelPose.PoseInterpolated(model, animationId, blend.PreviousFrameIndex, blend.CurrentFrameIndex, blend.Blend, heading, nativePitch, nativeRoll) : WorldModelPose.Pose(model, animationId, (int)frame, heading, nativePitch, nativeRoll);
         Vector3[] vertices = pose.Select(point => point / 16 + position / 16).ToArray();
         foreach (ModelFace face in model.Faces)
         {

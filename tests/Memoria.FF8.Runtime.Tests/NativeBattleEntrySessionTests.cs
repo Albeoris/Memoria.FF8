@@ -79,6 +79,72 @@ public sealed class NativeBattleEntrySessionTests
         Assert.Throws<ArgumentException>(() => new BattleSession(definition, BattleAtbMode.Normal));
     }
 
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(6871, 6871)]
+    public void NaturalVictoryRestoresItsSavedProgressBeforeCheckingTheNativeEntryGuard(long frame, long callbacks)
+    {
+        BattleDefinition definition = Definition(0);
+        BattleCombatantDefinition enemy = definition.Combatants.Single(actor => !actor.IsPlayer);
+        definition = definition with
+        {
+            UsesOriginalEnemySlots = true,
+            Combatants = [definition.Combatants[0], enemy with { CurrentHp = 0, NativeStatus0 = 1 }, enemy with { Id = "reserve", SceneSlot = 1, InitialActive = false }]
+        };
+        BattleSession completed = new(definition, BattleAtbMode.Normal);
+        Assert.Equal(BattleOutcome.Victory, completed.Outcome);
+        BattleSnapshot snapshot = completed.Capture() with { Definition = definition with { EncounterId = 712 }, Frame = frame, NativeHostCallbacks = callbacks };
+
+        BattleSession restored = BattleSession.Restore(snapshot);
+
+        Assert.Equal(BattleOutcome.Victory, restored.Outcome);
+        Assert.Equal(frame, restored.Frame);
+        Assert.Equal(callbacks, restored.NativeHostCallbacks);
+        Assert.True(restored.Combatants.Single(actor => actor.Id == "reserve").CurrentHp > 0);
+        Assert.False(restored.Combatants.Single(actor => actor.Id == "reserve").IsActive);
+        Assert.Equal(snapshot.Random, restored.Capture().Random);
+        Assert.Null(restored.Capture().DebugOutcome);
+        GameSession session = new(new GameState { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0), Battle = snapshot, CharacterVitals = MagicSystemFixture.Create(), AppliedBattleResultIds = ["completed"] });
+        session.EnqueueEntityNames([new(GameNames.GuardianForceSubject(13), GameNames.DefaultName(GameNames.GuardianForceSubject(13)), "battle:completed")]);
+        Assert.Equal(BattleOutcome.Victory, session.State.Battle!.Outcome);
+        Assert.Single(session.State.PendingEntityNames!);
+    }
+
+    [Fact]
+    public void NaturalDefeatRestoresAfterTheNativeEntryBoundary()
+    {
+        BattleDefinition definition = Definition(0);
+        definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor with { CurrentHp = 0, NativeStatus0 = 1 } : actor).ToArray() };
+        BattleSnapshot completed = new BattleSession(definition, BattleAtbMode.Normal).Capture();
+        Assert.Equal(BattleOutcome.Defeat, completed.Outcome);
+        BattleSnapshot snapshot = completed with { Definition = completed.Definition with { EncounterId = 712 }, Frame = 1, NativeHostCallbacks = 1 };
+
+        BattleSession restored = BattleSession.Restore(snapshot);
+
+        Assert.Equal(BattleOutcome.Defeat, restored.Outcome);
+        Assert.Equal(1, restored.Frame);
+        Assert.Equal(1, restored.NativeHostCallbacks);
+        Assert.Equal(snapshot.Random, restored.Capture().Random);
+        Assert.Null(restored.Capture().DebugOutcome);
+    }
+
+    [Fact]
+    public void NativeEntryGuardStillRequiresBothSavedCountersToBeZero()
+    {
+        BattleDefinition definition = Definition(0);
+        definition = definition with { EncounterId = 712, Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { CurrentHp = 0, NativeStatus0 = 1 }).ToArray() };
+        BattleSnapshot startup = new BattleSession(definition, BattleAtbMode.Normal).Capture();
+
+        Assert.Equal(BattleOutcome.Active, BattleSession.Restore(startup).Outcome);
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(startup with { Frame = 1 }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(startup with { NativeHostCallbacks = 1 }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(startup with { NativeHostCallbacks = -1 }));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(startup with { Frame = -1 }));
+        BattleSnapshot living = new BattleSession(Definition(0) with { EncounterId = 712 }, BattleAtbMode.Normal).Capture();
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(living with { Frame = 1, Outcome = BattleOutcome.Victory }));
+    }
+
     private static BattleDefinition Definition(byte randomIndex)
     {
         NativeBattleEnemyLevel level = new(100, 20, 5, 20, 5, 100, Enumerable.Repeat(800, 8).ToArray(), [], [], 0);

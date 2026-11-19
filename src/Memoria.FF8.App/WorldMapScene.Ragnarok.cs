@@ -124,12 +124,16 @@ internal sealed partial class WorldMapScene
         for (int index = 0; index < runtime.Objects.Length; index++)
         {
             NativeRagnarokWorldObject item = runtime.Objects[index];
+            if (item.ShapeId == 1 && foot is null)
+            {
+                item = runtime.DrawBody ?? item;
+            }
             // Native 5472C0 hides dormant chocobo slots and only draws Cactuar phases 2/3.
             if (item.ShapeId == 94 && !runtime.CactuarVisibleForDraw)
             {
                 continue;
             }
-            if (item.ShapeId is 0 or 2 or 3 || item.ShapeId == 1 && foot is null || !projection.IsNear(item.Position))
+            if (item.ShapeId is 0 or 2 or 3 || !projection.IsNear(item.Position))
             {
                 continue;
             }
@@ -138,7 +142,8 @@ internal sealed partial class WorldMapScene
                 NativeWorldPathNodeProjection ship = projection.ProjectNode(item.Position) ?? throw new NotSupportedException(projection.UnsupportedReason);
                 if (ship.Visible)
                 {
-                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = new(WorldRenderObjectKind.Allocation, index) });
+                    // Native type50 lowers the projected model root by 146 before applying all body angles.
+                    animated.Add(new(assets.GetRagnarokModel(), projection.CanonicalModelAnchor(ship) + new Vector3(0, 146, 0), item.Yaw * MathF.Tau / 4096, 0, 0) { ObjectId = new(WorldRenderObjectKind.Allocation, index), NativePitch = item.Pitch * MathF.Tau / 4096, NativeRoll = item.Roll * MathF.Tau / 4096 });
                 }
                 continue;
             }
@@ -157,7 +162,7 @@ internal sealed partial class WorldMapScene
         WorldCamera camera = foot is not null ? FootCamera(state) : WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = runtime.Motor.CameraPitch, NativeOffsetY = words.OffsetY, NativeOffsetZ = words.OffsetZ };
         camera = camera with { ParticleProjection = projection };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        bool avatarVisible = foot is null || state.GroundType is null or > 5;
+        bool avatarVisible = foot is not null && (state.GroundType is null or > 5);
         return new WorldRenderFrame(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, foot is null ? 0 : state.AnimationId, foot is null ? 0 : state.AnimationCounter >> 4, camera, sky, avatarVisible, AvatarModel: foot is null ? assets.GetRagnarokModel() : assets.GetFootModel(foot.EntityType), StaticModels: models, Forest: foot?.Forest ?? runtime.Forest, AnimatedModels: animated);
     }
 }

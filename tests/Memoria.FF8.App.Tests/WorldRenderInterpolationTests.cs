@@ -11,6 +11,21 @@ public sealed class WorldRenderInterpolationTests
     private static readonly WorldSky DefaultSky = new(Vector3.Zero, new Rgba32(0, 0, 0, 255), new Rgba32(40, 40, 40, 255), new Rgba32(80, 80, 80, 255));
 
     [Fact]
+    public void AnimatedBodyPitchAndRollKeepTheirShortestArcAndExactEndpoints()
+    {
+        FieldModel model = AnimatedModel("body attitude");
+        NativeWorldAnimatedModelDraw first = new(model, new Vector3(0, 146, 0), 0, 0, 0) { ObjectId = new(WorldRenderObjectKind.Allocation, 1), NativePitch = MathF.Tau - 0.2f, NativeRoll = -0.4f };
+        NativeWorldAnimatedModelDraw second = first with { NativePitch = 0.2f, NativeRoll = 0.2f };
+        WorldRenderFrame previous = Frame(Vector3.Zero, 0, 0) with { AnimatedModels = [first] };
+        WorldRenderFrame current = previous with { AnimatedModels = [second] };
+        NativeWorldAnimatedModelDraw midpoint = Assert.Single(WorldRenderInterpolation.Interpolate(previous, current, 0.5f).AnimatedModels!);
+        Assert.Equal(MathF.Tau, midpoint.NativePitch, 5);
+        Assert.Equal(-0.1f, midpoint.NativeRoll, 5);
+        Assert.Equal(first, Assert.Single(WorldRenderInterpolation.Interpolate(previous, current, 0).AnimatedModels!));
+        Assert.Equal(second, Assert.Single(WorldRenderInterpolation.Interpolate(previous, current, 1).AnimatedModels!));
+    }
+
+    [Fact]
     public void Avatar_wraps_both_world_axes_and_takes_shortest_heading()
     {
         WorldRenderFrame previous = Frame(new Vector3(131060, 20, 98290), MathF.Tau - 0.2f, 3);

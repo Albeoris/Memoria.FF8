@@ -200,6 +200,8 @@ public static class WorldRenderInterpolation
             {
                 Position = alpha == 0 ? before.Position : Near(Position(before.Position, draw.Position, alpha), position),
                 Heading = Angle(before.Heading, draw.Heading, alpha),
+                NativePitch = Angle(before.NativePitch, draw.NativePitch, alpha),
+                NativeRoll = Angle(before.NativeRoll, draw.NativeRoll, alpha),
                 AnimationBlend = sameAnimation && alpha > 0 ? new WorldAnimationBlend((int)before.AnimationFrame, (int)draw.AnimationFrame, alpha) : null
             };
         }

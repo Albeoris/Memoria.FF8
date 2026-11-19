@@ -1222,6 +1222,13 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Invalid battle snapshot envelope.");
         }
+        if (snapshot.NativeHostCallbacks < 0)
+        {
+            throw new InvalidDataException("Native host callback ledger cannot be negative.");
+        }
+        // Outcome validation must distinguish the saved callback from a fresh native entry.
+        Frame = snapshot.Frame;
+        NativeHostCallbacks = snapshot.NativeHostCallbacks;
 
         nativeScriptState = snapshot.NativeScriptState?.DeepCopy() ?? throw new InvalidDataException("Native battle script state is missing.");
         nativePartyStatusMirrors = snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native party prior-status mirrors are missing; explicitly migrate the standalone snapshot.");
@@ -1386,17 +1393,11 @@ public sealed partial class BattleSession
         {
             byId[id].IsBusy = true;
         }
-        Frame = snapshot.Frame;
-        NativeHostCallbacks = snapshot.NativeHostCallbacks;
         NativeExamTimer = snapshot.NativeExamTimer;
         NativeExamTimer?.Validate();
         if (NativeExamTimer is not null && (definition.NativeExamTimerAtEntry is null || NativeHostCallbacks is null))
         {
             throw new InvalidDataException("Native timer snapshot lacks its declared graphical entry and executed host-callback owners.");
-        }
-        if (NativeHostCallbacks < 0)
-        {
-            throw new InvalidDataException("Native host callback ledger cannot be negative.");
         }
         SetDifficulty(snapshot.Difficulty);
         SetGunbladeMode(snapshot.GunbladeMode);

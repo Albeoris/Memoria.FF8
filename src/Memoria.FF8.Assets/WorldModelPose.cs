@@ -5,14 +5,14 @@ namespace Memoria.FF8.Assets;
 /// <summary>World character hierarchy from native 0x6528D0, 0x653DA0 and 0x654060; independent of field control bones.</summary>
 public static class WorldModelPose
 {
-    public static Vector3[] Pose(FieldModel model, int animationId, int frameIndex, float nativeHeading)
+    public static Vector3[] Pose(FieldModel model, int animationId, int frameIndex, float nativeHeading, float nativePitch = 0, float nativeRoll = 0)
     {
         AnimationFrame frame = ReadFrame(model, animationId, frameIndex, nameof(frameIndex));
-        return Pose(model, frame, frame, 0, nativeHeading);
+        return Pose(model, frame, frame, 0, nativeHeading, nativePitch, nativeRoll);
     }
 
     /// <summary>Samples between two committed native animation frames without advancing animation state.</summary>
-    public static Vector3[] PoseInterpolated(FieldModel model, int animationId, int previousFrameIndex, int currentFrameIndex, float blend, float nativeHeading)
+    public static Vector3[] PoseInterpolated(FieldModel model, int animationId, int previousFrameIndex, int currentFrameIndex, float blend, float nativeHeading, float nativePitch = 0, float nativeRoll = 0)
     {
         if (!float.IsFinite(blend) || blend < 0 || blend > 1)
         {
@@ -22,13 +22,13 @@ public static class WorldModelPose
         AnimationFrame currentFrame = ReadFrame(model, animationId, currentFrameIndex, nameof(currentFrameIndex));
         if (blend == 1)
         {
-            return Pose(model, currentFrame, currentFrame, 0, nativeHeading);
+            return Pose(model, currentFrame, currentFrame, 0, nativeHeading, nativePitch, nativeRoll);
         }
         if (previousFrameIndex == currentFrameIndex)
         {
             blend = 0;
         }
-        return Pose(model, previousFrame, currentFrame, blend, nativeHeading);
+        return Pose(model, previousFrame, currentFrame, blend, nativeHeading, nativePitch, nativeRoll);
     }
 
     private static AnimationFrame ReadFrame(FieldModel model, int animationId, int frameIndex, string frameParameter)
@@ -45,12 +45,13 @@ public static class WorldModelPose
         return animation.Frames[frameIndex];
     }
 
-    private static Vector3[] Pose(FieldModel model, AnimationFrame previousFrame, AnimationFrame currentFrame, float blend, float nativeHeading)
+    private static Vector3[] Pose(FieldModel model, AnimationFrame previousFrame, AnimationFrame currentFrame, float blend, float nativeHeading, float nativePitch, float nativeRoll)
     {
         Vector3 translation = blend == 0 ? previousFrame.Translation : Vector3.Lerp(previousFrame.Translation, currentFrame.Translation, blend);
         Matrix4x4[] transforms = new Matrix4x4[model.Bones.Count];
         Matrix4x4 virtualRoot = Matrix4x4.CreateRotationZ(MathF.PI / 2);
-        Matrix4x4 body = Matrix4x4.CreateRotationY(nativeHeading - MathF.PI);
+        // Native body rotation precedes the animation hierarchy and the render-axis conversion.
+        Matrix4x4 body = Matrix4x4.CreateRotationZ(nativeRoll) * Matrix4x4.CreateRotationY(nativeHeading - MathF.PI) * Matrix4x4.CreateRotationX(nativePitch);
         for (int bone = 0; bone < transforms.Length; bone++)
         {
             Matrix4x4 local = LocalRotation(previousFrame.Rotations[bone]);

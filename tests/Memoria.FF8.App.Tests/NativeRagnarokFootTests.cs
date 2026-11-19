@@ -109,8 +109,11 @@ public sealed class NativeRagnarokFootTests
         Assert.Equal((byte)1, scene.State.NativeRagnarokRuntime.MapDisplayMode);
         Assert.Equal((byte)0, scene.State.NativeRagnarokRuntime.Allocation.MapDisplayMode);
         scene.Apply(new(PlayerActionKind.Wait));
+        NativeRagnarokWorldRuntimeState parked = scene.State.NativeRagnarokRuntime;
+        NativeRagnarokWorldObject boarded = parked.Objects[parked.Allocation.RagnarokIndex];
         scene.Apply(new(PlayerActionKind.Confirm));
         Assert.Null(scene.State.NativeFootRuntime);
+        Assert.Equal(boarded, scene.State.NativeRagnarokRuntime!.DrawBody);
         Assert.Equal((byte)1, scene.State.NativeRagnarokRuntime!.MapDisplayMode);
         Assert.Equal(NativeRagnarokTransferKind.Takeoff, scene.State.NativeRagnarokRuntime!.Transfer!.Kind);
         Assert.Equal(1, scene.State.NativeRagnarokRuntime.Transfer.Counter);
