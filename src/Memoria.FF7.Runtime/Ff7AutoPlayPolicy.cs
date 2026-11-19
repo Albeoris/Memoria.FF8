@@ -331,6 +331,7 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 AutoPlayEvent native = currentNavigation.Events.Single(item => item.Id == target.Id);
                 return ReadKnownFieldDepartureSource(State, observation, target) is not null || driver.HasNativeGeometricContact(target) && ordinaryAvailability(currentNavigation, native)?.Unavailable != true;
             }
+            // Player control can return before synchronous setup finishes changing the walkmesh.
             if (State.DestinationField is not null && nativeReadiness.ShouldWait(session.FieldGeneration, observation.NavigationKey, session.Machine.Capture(), session.Host.Process, session.Field.Scripts.Data.Span, session.Machine.ReadCurrentInputDemands()))
             {
                 State.Status = "Waiting for existing native setup before resolving the destination";
