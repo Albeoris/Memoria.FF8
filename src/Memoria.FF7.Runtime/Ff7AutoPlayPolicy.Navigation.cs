@@ -130,10 +130,10 @@ public sealed partial class Ff7AutoPlayPolicy
         return aggregate.Events.SelectMany(item => item.UnavailableAttempts).Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).GroupBy(attempt => attempt.GuardKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => state.NavigationGuards[group.Key].ObservedFingerprint ?? group.Last().GuardFingerprint, StringComparer.Ordinal);
     }
 
-    internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts)
+    internal static AutoPlayEventAvailability ReadComponentAvailability(Ff7AutoPlayState state, AutoPlayNavigationVisit navigation, AutoPlayEvent observed, IReadOnlyDictionary<string, string> facts, Func<string, Ff7AutoPlayNavigationGuard, bool?>? readSourceInside = null)
     {
         var aggregate = state.Coverage.Visits.Single(visit => visit.Visit.Key == navigation.VisitKey).Events.Single(item => item.Event.Id == observed.Id);
-        AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key).ToList() };
+        AutoPlayEventCoverage<Ff7AutoPlayDeferral> scoped = new() { Event = observed, UnavailableAttempts = aggregate.UnavailableAttempts.Where(attempt => state.NavigationGuards.TryGetValue(attempt.GuardKey, out var guard) && guard.NavigationKey == navigation.Key && (guard.MovementFailure is null || (readSourceInside is null ? guard.MovementSourceInside : readSourceInside(attempt.GuardKey, guard)) != false)).ToList() };
         return ReadGatewayTopologyAvailability(state, navigation, observed, AutoPlayPlanner<Ff7AutoPlayDeferral>.ReadAvailability(scoped, facts))!;
     }
 

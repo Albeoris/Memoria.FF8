@@ -19,7 +19,7 @@ internal static class AutoPlayNavigationRefreshTests
         CheckOriginalCurrentFieldRefresh();
         CheckOriginalForeignRefresh();
         CheckOriginalRetainedGuardObservation();
-        CheckFailedAdmissionReceipts();
+        CheckCachedDeferralKeepsSourceEvidence();
         CheckOriginalFailedAdmission();
         CheckScopedPhysicalTravel();
         CheckRetainedWorldFrontier();
@@ -712,7 +712,7 @@ internal static class AutoPlayNavigationRefreshTests
         Console.WriteLine($"PASS original latest guard observation survives foreign travel and reaches a new native choice after {controller.Steps} callbacks; source unchanged.");
     }
 
-    private static void CheckFailedAdmissionReceipts()
+    private static void CheckCachedDeferralKeepsSourceEvidence()
     {
         Ff7AutoPlayState state = new();
         AutoPlayPlanner<Ff7AutoPlayDeferral> planner = new(state.Coverage);
@@ -726,17 +726,10 @@ internal static class AutoPlayNavigationRefreshTests
         planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "blocked" });
         Ff7AutoPlayObservation observation = new("visit", "program", 1, [new("actor", 1, 1, Ff7AutoPlayTargetKind.ActorTalk, "entry", false, default)], true, true);
         Check(Ff7AutoPlayPolicy.DeferUnavailableActiveNavigation(state, observation), "The known native failure did not end the unaccepted approach.");
-        Dictionary<string, string> current = new() { ["guard"] = "blocked" };
-        Ff7AutoPlayPolicy.RecordFailedAdmission(state, planner, active, current);
         var item = state.Coverage.Visits.Single().Events.Single();
-        Check(item.UnavailableAttempts.Count == 2 && !item.Completed && item.Conditions?.HasExecutedEntry("entry") != true, "A failed admission was lost or credited as native execution.");
+        Check(item.UnavailableAttempts.Count == 1 && !item.Completed && item.Conditions?.HasExecutedEntry("entry") != true, "A failed admission was lost or credited as native execution.");
         planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "admitted" });
-        Check(planner.Plan("visit") is null, "The identical failed admission was offered again.");
-        foreach (var rejected in new[] { active with { Accepted = true }, active with { Returned = true }, active with { TransitionOwned = true }, active with { CompletionRecorded = true }, active with { EntryGuardFingerprints = null }, active with { NavigationKey = "other" }, active with { ConditionFingerprint = "other-entry" } })
-        {
-            Ff7AutoPlayPolicy.RecordFailedAdmission(state, planner, rejected, current);
-        }
-        Check(item.UnavailableAttempts.Count == 2, "Unowned, legacy or accepted execution fabricated failure evidence.");
+        Check(planner.Plan("visit")?.Event.Id == "actor", "A cached refusal fabricated a new failure at the previously admitted source.");
         planner.RefreshUnavailable("visit", new Dictionary<string, string> { ["guard"] = "genuinely-changed" });
         Check(planner.Plan("visit")?.Event.Id == "actor", "A genuine new source contract lost its next attempt.");
     }

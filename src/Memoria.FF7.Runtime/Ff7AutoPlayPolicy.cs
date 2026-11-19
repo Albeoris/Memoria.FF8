@@ -218,10 +218,8 @@ public sealed partial class Ff7AutoPlayPolicy : IDisposable
                 Publish();
             }
         }
-        Ff7AutoPlayActiveEvent? admitted = State.Active;
         if (DeferUnavailableActiveNavigation(State, observation))
         {
-            RecordFailedAdmission(State, planner, admitted!, physicalGuards);
             Publish();
         }
         if (State.Active is null)

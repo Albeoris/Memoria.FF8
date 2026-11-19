@@ -7,26 +7,6 @@ namespace Memoria.FF7.Runtime;
 
 public sealed partial class Ff7AutoPlayPolicy
 {
-    internal static void RecordFailedAdmission(Ff7AutoPlayState state, AutoPlayPlanner<Ff7AutoPlayDeferral> planner, Ff7AutoPlayActiveEvent active, IReadOnlyDictionary<string, string> currentFacts)
-    {
-        var coverage = state.Coverage.Visits.Single(visit => visit.Visit.Key == active.VisitId).Events.Single(item => item.Event.Id == active.EventId);
-        if (active.Accepted || active.Returned || active.TransitionOwned || active.CompletionRecorded || active.EntryGuardFingerprints is null || coverage.Event.ConditionSignature != active.ConditionFingerprint)
-        {
-            return;
-        }
-        foreach (var entry in active.EntryGuardFingerprints)
-        {
-            if (!state.NavigationGuards.TryGetValue(entry.Key, out var guard) || guard.VisitId != active.VisitId || guard.NavigationKey != active.NavigationKey || guard.EventId != active.EventId || !currentFacts.TryGetValue(entry.Key, out string? current))
-            {
-                continue;
-            }
-            if (coverage.UnavailableAttempts.Any(attempt => attempt.GuardKey == entry.Key && attempt.GuardFingerprint == current && attempt.SourceConditionSignature == active.ConditionFingerprint && (attempt.TargetId ?? active.EventId) == active.EventId))
-            {
-                planner.MarkUnavailable(active.VisitId, active.EventId, new(active.ConditionFingerprint, active.VisitId, entry.Key, entry.Value, active.EventId));
-            }
-        }
-    }
-
     internal static bool DeferUnavailableActiveNavigation(Ff7AutoPlayState state, Ff7AutoPlayObservation observation)
     {
         if (state.Active is not { Accepted: false } active || active.VisitId != observation.VisitId || active.Generation != observation.Generation)

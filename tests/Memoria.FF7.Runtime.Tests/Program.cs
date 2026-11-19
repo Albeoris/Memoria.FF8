@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--bounded-movement-availability-only", StringComparer.Ordinal))
+{
+    BoundedMovementAvailabilityTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-gateway-route-only", StringComparer.Ordinal))
 {
     NativeGatewayRouteTests.Run();
