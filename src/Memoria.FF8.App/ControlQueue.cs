@@ -27,7 +27,7 @@ internal sealed class ControlQueue
 
     public void Poll(Func<ControlRequest, bool>? allowDispatch = null)
     {
-        string? path = Directory.EnumerateFiles(Path.Combine(root, "requests"), "*.json").Order(StringComparer.Ordinal).FirstOrDefault();
+        string? path = Directory.EnumerateFiles(Path.Combine(root, "requests"), "*.json").OrderBy(File.GetLastWriteTimeUtc).ThenBy(path => path, StringComparer.Ordinal).FirstOrDefault();
         if (path is null)
         {
             return;

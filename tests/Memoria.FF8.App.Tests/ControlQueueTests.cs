@@ -5,6 +5,39 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ControlQueueTests
 {
     [Fact]
+    public void Older_pause_request_precedes_newer_steps_with_smaller_identifiers()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-queue-order-" + Guid.NewGuid().ToString("N"));
+        List<string> dispatched = [];
+        ControlQueue queue = new(root, request =>
+        {
+            dispatched.Add(request.Command);
+            return new { request.Id };
+        });
+        try
+        {
+            DateTime published = DateTime.UtcNow.AddMinutes(-1);
+            string pause = Path.Combine(root, "requests", "ffff.json");
+            File.WriteAllText(pause, JsonSerializer.Serialize(new ControlRequest("ffff", "pause")));
+            File.SetLastWriteTimeUtc(pause, published);
+            for (int index = 0; index < 8; index++)
+            {
+                string step = Path.Combine(root, "requests", $"{index:D4}.json");
+                File.WriteAllText(step, JsonSerializer.Serialize(new ControlRequest(index.ToString(), "step")));
+                File.SetLastWriteTimeUtc(step, published.AddSeconds(index + 1));
+            }
+            queue.Poll();
+            Assert.Equal(["pause"], dispatched);
+            queue.Poll();
+            Assert.Equal(["pause", "step"], dispatched);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void Producer_withdrawal_during_dispatch_does_not_crash_response_publication()
     {
         string root = Path.Combine(Path.GetTempPath(), "memoria-queue-withdrawal-" + Guid.NewGuid().ToString("N"));
