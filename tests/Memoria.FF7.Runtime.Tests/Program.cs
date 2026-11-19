@@ -3,6 +3,18 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-custom-lighting-only", StringComparer.Ordinal))
+{
+    NativeCustomLightingTests.Run();
+    return 0;
+}
+
+if (args.Contains("--native-custom-lighting-original-only", StringComparer.Ordinal))
+{
+    NativeCustomLightingTests.RunOriginal();
+    return 0;
+}
+
 if (args.Contains("--native-route-fork-resources-original-only", StringComparer.Ordinal))
 {
     NativeRouteForkResourceTests.RunOriginal();

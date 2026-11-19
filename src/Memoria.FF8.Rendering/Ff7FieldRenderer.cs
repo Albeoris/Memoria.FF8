@@ -26,6 +26,7 @@ public sealed record Ff7ActorVisual(int EntityId, int ModelIndex, int X4096, int
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
     public byte NativeEyeRight { get; init; }
+    public bool RequiresNativeCustomLighting { get; init; }
     public Ff7ModelRenderOverrides? ModelEffects { get; init; }
 }
 public sealed record Ff7ModelRenderOverrides(Func<int, bool> PartVisible, Func<Vector3, Vector3, uint, uint>? VertexColor, bool SuppressNativeLighting, bool RequiresOriginalTopology = true)
@@ -238,6 +239,21 @@ public sealed partial class Ff7FieldRenderer
         paletteVersion = frame.PaletteVersion;
     }
 
+    internal static void RequireCustomLightingSupport(Ff7ActorVisual actor, IEnumerable<PcPolygonModel?> visibleParts)
+    {
+        if (!actor.Visible || !actor.RequiresNativeCustomLighting)
+        {
+            return;
+        }
+        foreach (PcPolygonModel? model in visibleParts)
+        {
+            if (model is not null && model.Groups.Any(group => Ff7FieldLighting.BindNormals(model, group).Any(normal => normal >= 0)))
+            {
+                throw new NotSupportedException("Native custom model lighting requires its original combined lighting matrix before shading normal-bound geometry.");
+            }
+        }
+    }
+
     private static bool IsVisible(PcFieldTile tile, Ff7FieldRenderFrame frame)
     {
         return tile.Layer == 0 || tile.State == 0 || (frame.BackgroundParameters[tile.Parameter] & tile.State) != 0;
@@ -289,6 +305,7 @@ public sealed partial class Ff7FieldRenderer
             throw new NotSupportedException($"FF7 entity {actor.EntityId} has no decoded model descriptor {actor.ModelIndex}.");
         }
         PcFieldModelDescriptor descriptor = field.Models.Models[actor.ModelIndex];
+        RequireCustomLightingSupport(actor, resources.Geometry.Select((part, index) => actor.ModelEffects?.PartVisible(index) == false ? null : part.Polygon));
         Ff7FieldLighting lighting = new(descriptor);
         if ((uint)actor.AnimationIndex >= descriptor.Animations.Count || actor.AnimationFrame16 < 0)
         {

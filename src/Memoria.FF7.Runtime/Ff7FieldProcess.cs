@@ -31,6 +31,8 @@ public sealed record Ff7Actor
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7NativeTransparencyState? NativeTransparency { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Ff7NativeCustomLightingState? NativeCustomLighting { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Ff7NativeModelCompletionState? NativeModelCompletion { get; init; }
     public bool AutomaticBlinkDisabled { get; init; }
     public byte NativeEyeLeft { get; init; }
@@ -338,6 +340,11 @@ public sealed record Ff7FieldProcess
             actor.NativeColorOffset?.Validate();
             actor.NativeWaterEffect?.Validate();
             actor.NativeTransparency?.Validate();
+            actor.NativeCustomLighting?.Validate();
+            if (actor.NativeCustomLighting is { } customLighting && customLighting.ModelSlot != actor.Slot)
+            {
+                throw new InvalidDataException("Native custom lighting belongs to another physical actor slot.");
+            }
             actor.NativeModelCompletion?.Validate();
             if (actor.NativeWaterEffect is { } waterEffect && waterEffect.ModelSlot != actor.Slot)
             {

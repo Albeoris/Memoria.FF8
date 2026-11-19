@@ -509,6 +509,7 @@ internal sealed partial class Ff7Scene : IDisposable
             AutomaticBlinkDisabled = actor.AutomaticBlinkDisabled,
             NativeEyeLeft = actor.NativeEyeLeft,
             NativeEyeRight = actor.NativeEyeRight,
+            RequiresNativeCustomLighting = actor.NativeCustomLighting?.Displayed is not null,
             FirstAnimationFrame = actor.FirstAnimationFrame,
             LastAnimationFrame = actor.LastAnimationFrame,
             AnimationLoop = actor.AnimationLoop && !actor.HoldAnimation && !actor.AnimationStopped,

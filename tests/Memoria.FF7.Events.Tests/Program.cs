@@ -1,6 +1,12 @@
 using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--native-custom-lighting-only", StringComparer.Ordinal))
+{
+    NativeCustomLightingOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--instruction-variable-access-only", StringComparer.Ordinal))
 {
     InstructionVariableAccessTests.Run();

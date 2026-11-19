@@ -18,6 +18,10 @@ public sealed partial class Ff7FieldHost
         {
             SetActor(entity, current => current with { NativeWaterEffect = current.NativeWaterEffect! with { Active = false } });
         }
+        if (!command.Wait && command.Operation != 7 && reply.Completed && GetActor(entity).NativeCustomLighting is { Pending: true } lighting)
+        {
+            SetActor(entity, current => current with { NativeCustomLighting = lighting with { Pending = false } });
+        }
         if (!command.Wait && command.Operation != 1 && reply.Completed && GetActor(entity).NativeTransparency is { Pending: true } transparency)
         {
             SetActor(entity, current => current with { NativeTransparency = transparency with { Request = null } });
@@ -30,7 +34,7 @@ public sealed partial class Ff7FieldHost
         Ff7Actor actor = GetActor(entity);
         if (command.Wait)
         {
-            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true && actor.NativeColorTransition?.Pending != true && actor.NativeWaterEffect?.Active != true && actor.NativeTransparency?.Pending != true && actor.NativeModelCompletion?.Pending != true;
+            bool completed = (actor.ModelEffect?.Completed ?? true) && (actor.PartVisibility?.Completed ?? true) && !actor.NativeEyeControlPending && actor.NativeColorOffset?.Pending != true && actor.NativeColorTransition?.Pending != true && actor.NativeWaterEffect?.Active != true && actor.NativeTransparency?.Pending != true && actor.NativeModelCompletion?.Pending != true && actor.NativeCustomLighting?.Pending != true;
             if (completed)
             {
                 SetActor(entity, current => current with { ModelEffect = null });
@@ -79,6 +83,28 @@ public sealed partial class Ff7FieldHost
                 NativeColorOffset = current.NativeColorOffset is null ? null : current.NativeColorOffset with { Pending = false },
                 NativeColorTransition = current.NativeColorTransition is null ? null : current.NativeColorTransition with { Request = null },
                 NativeEyeControlPending = false
+            });
+            return new(true);
+        }
+        if (command.Operation == 7)
+        {
+            byte[] payload = command.Payload ?? throw new InvalidDataException("Native custom lighting requires its complete original payload.");
+            if (payload.Length == 0 || command.Mode != payload[0])
+            {
+                throw new InvalidDataException("Native custom lighting differs from its decoded mode.");
+            }
+            if (actor.ModelEffect is { Initialized: true, Restored: false } || actor.PartVisibility is { Completed: false })
+            {
+                throw new NotSupportedException("Custom lighting replacing a pending topology effect requires its native material restoration contract.");
+            }
+            Ff7NativeCustomLightingState lighting = Ff7NativeCustomLighting.Request(actor.NativeCustomLighting, payload, actor.Slot);
+            SetActor(entity, current => current with
+            {
+                NativeCustomLighting = lighting,
+                NativeEyeControlPending = false,
+                NativeColorOffset = current.NativeColorOffset is null ? null : current.NativeColorOffset with { Pending = false },
+                NativeColorTransition = current.NativeColorTransition is null ? null : current.NativeColorTransition with { Request = null },
+                ModelEffect = null
             });
             return new(true);
         }
@@ -220,7 +246,7 @@ public sealed partial class Ff7FieldHost
     private void AdvanceModelEffects()
     {
         Process = Process with { NativeWaterSplashes = [] };
-        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true } || actor.NativeWaterEffect is { Active: true } || actor.NativeTransparency is { Pending: true } || actor.NativeModelCompletion is { Pending: true }))
+        if (!Process.Actors.Any(actor => actor.ModelEffect is not null || actor.PartVisibility is { Completed: false } || actor.NativeEyeControlPending || actor.NativeColorOffset is { Pending: true } || actor.NativeColorTransition is { Pending: true } || actor.NativeWaterEffect is { Active: true } || actor.NativeTransparency is { Pending: true } || actor.NativeModelCompletion is { Pending: true } || actor.NativeCustomLighting is { Pending: true }))
         {
             return;
         }
@@ -238,10 +264,16 @@ public sealed partial class Ff7FieldHost
             bool proceduralColorWritten = eligible && modelEffect is not null && (modelEffect.Applied || modelEffect.Restored && actor.ModelEffect?.Restored != true);
             bool transparencyWritten = eligible && original.NativeTransparency is { Pending: true };
             bool colorWritten = eligible && (transparencyWritten || original.NativeColorOffset is { Pending: true } || !ReferenceEquals(actor.NativeColorOffset, original.NativeColorOffset) || proceduralColorWritten);
+            Ff7NativeCustomLightingState? customLighting = actor.NativeCustomLighting is null ? null : Ff7NativeCustomLighting.Advance(actor.NativeCustomLighting, eligible);
+            bool customLightingWritten = eligible && customLighting?.Displayed is not null && !ReferenceEquals(customLighting.Displayed, actor.NativeCustomLighting?.Displayed);
+            if (customLighting is not null && colorWritten)
+            {
+                customLighting = customLighting with { Displayed = null };
+            }
             Ff7NativeWaterEffectState? water = actor.NativeWaterEffect;
             if (water is not null)
             {
-                if (colorWritten)
+                if (colorWritten || customLightingWritten)
                 {
                     water = water with { OwnsColors = false };
                 }
@@ -276,6 +308,10 @@ public sealed partial class Ff7FieldHost
                     }
                 }
                 water = Ff7NativeWaterEffect.Advance(water, eligible, sample);
+                if (sample is not null && customLighting is not null)
+                {
+                    customLighting = customLighting with { Displayed = null };
+                }
             }
             actors.Add(actor.Slot, actor with
             {
@@ -285,6 +321,7 @@ public sealed partial class Ff7FieldHost
                 PartVisibility = eligible && actor.NativeModelCompletion is { Operation: 255, Pending: true } && actor.PartVisibility is not null ? actor.PartVisibility with { Visibility = Enumerable.Repeat((byte)1, actor.PartVisibility.Visibility.Length).ToArray(), PendingPayload = null } : actor.PartVisibility is null ? null : Ff7NativePartVisibility.Advance(actor.PartVisibility, eligible, fieldId ?? throw new NotSupportedException("Native part visibility requires its original field identity.")),
                 NativeColorOffset = transparencyWritten || actor.NativeColorOffset is null ? null : Ff7NativeColorOffset.Advance(actor.NativeColorOffset, eligible),
                 NativeWaterEffect = water,
+                NativeCustomLighting = customLighting,
                 NativeEyeControlPending = actor.NativeEyeControlPending && !eligible
             });
         }
