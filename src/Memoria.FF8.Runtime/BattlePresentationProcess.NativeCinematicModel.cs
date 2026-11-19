@@ -35,6 +35,7 @@ public sealed partial class BattlePresentationProcess
             return (frame, graphics);
         }
         uint model = BinaryPrimitives.ReadUInt32LittleEndian(ReadSlot(frame, 0xBC, 4));
+        frame = TransportPairedCinematicProp(frame, model, graphics, projection);
         uint color = BinaryPrimitives.ReadUInt32LittleEndian(frame.Arena.Read(ArenaOffset(unchecked(model + 0x5C), 4), 4));
         NativeBattleModelRendererRegisters renderer = (common.ModelRendererRegisters ?? new(null, null, null, null, null)).PublishModelColor(color);
         NativeBattleSummonColors colors = this.resources.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native cinematic model requires its original color arithmetic tables.");

@@ -2,6 +2,16 @@ namespace Memoria.FF8.Runtime;
 
 public static class NativeBattleDuel274Body
 {
+    public static NativeBattleActionMatrix ReadBoneMatrix68A790(System.Collections.Immutable.ImmutableArray<NativeBattleActionMatrix> bones, short sourceBone, System.Collections.Immutable.ImmutableArray<byte> actionBoneAliases = default)
+    {
+        short bone = NativeBattleActionBoneAliases.Resolve(actionBoneAliases, sourceBone);
+        if ((uint)bone >= (uint)bones.Length)
+        {
+            throw new InvalidDataException("Native Duel matrix selector exceeds its current physical actor skeleton.");
+        }
+        return bones[bone];
+    }
+
     public static NativeBattleActionMatrix Matrix68D1D0(NativeBattleActionMatrix world, NativeBattleActionMatrix view, NativeBattleVector angles, NativeBattleVector pivot, NativeBattleVector scale)
     {
         NativeBattleActionMatrix local = NativeBattleGfMatrices.Euler56CE30(angles) with { X = pivot.X, Y = pivot.Y, Z = pivot.Z };

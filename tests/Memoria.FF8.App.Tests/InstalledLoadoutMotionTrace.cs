@@ -16,6 +16,8 @@ internal static class InstalledLoadoutMotionTrace
     private static readonly MethodInfo PoseResource = typeof(BattlePresentationProcess).GetMethod("NativeGraphicsPoseResource", BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static readonly MethodInfo ActiveFamily = typeof(BattleSession).GetMethod("ReadActivePresentationLimitFamily", BindingFlags.Instance | BindingFlags.NonPublic)!;
     private static readonly PropertyInfo Invocation = typeof(BattleSession).GetProperty("CurrentExpandedHostedInvocation", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo NativeBone = typeof(BattlePresentationProcess).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic).Single(method => method.Name == "ReadNativeGraphicsBone" && method.GetParameters().Length == 4);
+    private static readonly MethodInfo ScopedAliases = typeof(BattlePresentationProcess).GetMethod("ReadCinematicActionBoneAliases", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
     internal static void CaptureIfRequested(GameWorld world, string actorId, int recipient, BattleLimitFamily? family)
     {
@@ -55,6 +57,21 @@ internal static class InstalledLoadoutMotionTrace
         NativeBattleGraphicsModel model = process.Graphics.ActorModels.Get(owner);
         NativeBattleGraphicsResource resource = (NativeBattleGraphicsResource)PoseResource.Invoke(process, [process.Graphics, owner])!;
         NativeBattlePoseSource source = resource.PoseSource!;
+        BattleLimitFamily? actualFamily = (BattleLimitFamily?)ActiveFamily.Invoke(battle, [owner]);
+        object? handProof = null;
+        if (actualFamily == BattleLimitFamily.Duel && process.Graphics.OriginalEffect is { Binding.Effect: 274 })
+        {
+            var aliases = (System.Collections.Immutable.ImmutableArray<byte>)ScopedAliases.Invoke(process, [process.Graphics, owner, source])!;
+            short first = NativeBattleActionBoneAliases.Resolve(aliases, 21);
+            short second = NativeBattleActionBoneAliases.Resolve(aliases, 22);
+            Assert.Equal(checked((short)trace.Joints.Single(joint => joint.Joint == "hand-a").Recipient), first);
+            Assert.Equal(checked((short)trace.Joints.Single(joint => joint.Joint == "hand-b").Recipient), second);
+            NativeBattleVector firstPoint = (NativeBattleVector)NativeBone.Invoke(process, [process.Graphics, owner, (byte)21, (short)0])!;
+            NativeBattleVector secondPoint = (NativeBattleVector)NativeBone.Invoke(process, [process.Graphics, owner, (byte)22, (short)0])!;
+            Assert.Equal(NativeBattlePoseMatrices.ReadBone(model, source, checked((byte)first), 0), firstPoint);
+            Assert.Equal(NativeBattlePoseMatrices.ReadBone(model, source, checked((byte)second), 0), secondPoint);
+            handProof = new { Physical21 = first, Physical22 = second, Source21 = firstPoint, Source22 = secondPoint, RawRecipient21 = NativeBattlePoseMatrices.ReadBone(model, source, 21, 0), RawRecipient22 = NativeBattlePoseMatrices.ReadBone(model, source, 22, 0) };
+        }
         NativeBattleBodyBoneMatrices? published = model.CurrentBodyBoneMatrices;
         var independentlyStaged = model.SequenceState?.DecodedPose is { } decoded ? NativeBattlePoseMatrices.StageBoneMatrices(source, decoded) : default;
         BattleSession.ExpandedHostedInvocation? invocation = (BattleSession.ExpandedHostedInvocation?)Invocation.GetValue(battle);
@@ -73,9 +90,27 @@ internal static class InstalledLoadoutMotionTrace
             Callback = process.Graphics.Callback,
             Prepared = prepared.Callback,
             Selected = battle.Combatants.Single(actor => actor.Id == actorId).ActiveNativeLimitFamily?.ToString(),
-            ActualFamily = ActiveFamily.Invoke(battle, [owner])?.ToString(),
+            ActualFamily = actualFamily?.ToString(),
             Invocation = invocation is null ? null : new { invocation.Command.ActorId, invocation.Command.NativeQueuedCommand, Action = invocation.Command.NativeAction?.ActionId, Reaction = invocation.Command.NativePlayerReaction?.ToString() },
             Effect = process.Graphics.OriginalEffect?.Binding.Effect,
+            Duel274Program = process.Graphics.OriginalEffect is { Binding.Effect: 274 } duelEffect && duelEffect.Pools.Length > 1 ? duelEffect.Pools[1].Slots.Where(task => (task.Flags & 1) != 0 && task.Callback == 0x689AC0).Select(task =>
+            {
+                BattleModelOwner target = NativeBattleDuel274Controller.ReadTarget(task);
+                NativeBattleGraphicsModel targetModel = process.Graphics.ActorModels.Get(target);
+                return new
+                {
+                    Counter12 = unchecked((short)task.ReadWord(12)),
+                    Selector15 = task.ReadByte(15),
+                    Phase18 = task.ReadByte(18),
+                    SavedActor = new[] { unchecked((short)task.ReadWord(24)), unchecked((short)task.ReadWord(26)), unchecked((short)task.ReadWord(28)), unchecked((short)task.ReadWord(30)) },
+                    SavedTarget = new[] { unchecked((short)task.ReadWord(40)), unchecked((short)task.ReadWord(42)), unchecked((short)task.ReadWord(44)), unchecked((short)task.ReadWord(46)) },
+                    Target = target.ToString(),
+                    targetModel.ModelId4,
+                    targetModel.Transform,
+                    targetModel.GeometryWorldMatrix,
+                    SourceHands = handProof
+                };
+            }).ToArray() : null,
             Duel = battle.GetNativeDuel(actorId)?.Phase.ToString(),
             model.ModelId4,
             model.Flags0,

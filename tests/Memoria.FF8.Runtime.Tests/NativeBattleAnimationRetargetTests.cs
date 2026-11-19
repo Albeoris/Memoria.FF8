@@ -6,6 +6,27 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleAnimationRetargetTests
 {
     [Fact]
+    public void Semantic_hand_a_contact_preserves_its_decoded_source_frame_independently_of_primary_hand_b()
+    {
+        NativeBattlePoseSource source = Source([Pose(0, 0), Pose(20, 150)], 512);
+        NativeBattlePoseSource recipient = Source([Pose(0, 0), Pose(20, 150)], 1024);
+        NativeBattlePoseSource compiled = new NativeBattlePoseRetargeter(source, recipient, [new("hand-a", 0, 0), new("hand-b", 1, 1)], 1, primaryContactJoint: "hand-b").Compile(source);
+        NativeBattleDecodedPose first = compiled.Sample(0, 1, 0);
+        NativeBattleDecodedPose second = compiled.Sample(0, 2, 0);
+        Assert.Equal((byte)1, first.HandAContact!.Frame);
+        Assert.Equal((byte)2, second.HandAContact!.Frame);
+        Assert.Equal((byte)2, first.HandAContact.Frames);
+        Assert.Equal(0, first.HandAContact.RecipientBone);
+        Assert.Equal(1, first.HandContact!.RecipientHand);
+        Assert.NotEqual(first.HandContact.SourcePosition, first.HandAContact.SourcePosition);
+        Assert.Equal(compiled.RetargetBinding!.SourceHandAFrames[0][0], first.HandAContact.SourcePosition);
+        NativeBattleDecodedPose restored = System.Text.Json.JsonSerializer.Deserialize<NativeBattleDecodedPose>(System.Text.Json.JsonSerializer.Serialize(first))!;
+        Assert.Equal(first.HandAContact, restored.HandAContact);
+        NativeBattleSequenceState carried = new() { PoseFrame114 = 2, DecodedPose = restored };
+        Assert.Equal((byte)1, carried.DecodedPose.HandAContact!.Frame);
+    }
+
+    [Fact]
     public void Encoded_motion_preserves_frame_counts_and_incremental_native_decoding()
     {
         ImmutableArray<NativeBattleDecodedPose> frames = [Pose(0, 2000), Pose(7, -2000), Pose(-11, 300)];

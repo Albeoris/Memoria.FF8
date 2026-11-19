@@ -8,10 +8,13 @@ namespace Memoria.FF8.Runtime;
 public readonly record struct NativeBattleVector(short X, short Y, short Z);
 public readonly record struct NativeBattleBonePose(NativeBattleVector Rotation, NativeBattleVector Scale);
 public sealed record NativeBattleDecodedHandContact(NativeBattleVector SourcePosition, int RecipientHand);
+public sealed record NativeBattleDecodedSemanticContact(NativeBattleVector SourcePosition, int RecipientBone, byte Animation, byte Frame, byte Frames, byte Flags);
 public sealed record NativeBattleDecodedPose(NativeBattleVector Translation, ImmutableArray<NativeBattleBonePose> Bones, bool HasScale)
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleDecodedHandContact? HandContact { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleDecodedSemanticContact? HandAContact { get; init; }
 }
 public sealed record NativeBattlePoseFirstFrame(NativeBattleDecodedPose Pose, ushort ByteOffset, ushort BitOffset);
 
@@ -86,7 +89,7 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
             string fingerprint = Convert.ToHexString(SHA256.HashData(Animations.AsSpan()));
             throw new InvalidDataException($"Native pose decode failed: bones {BoneCount}, animation {animation}, counter {counter}, flags {poseFlags}, bank bytes {Animations.Length}, SHA256 {fingerprint}, contact frames {handFrames}. {exception.Message}", exception);
         }
-        return RetargetBinding is { } contact ? pose with { HandContact = new(contact.ReadSourceHand(animation, counter, poseFlags), contact.RecipientHand) } : pose;
+        return RetargetBinding is { } contact ? pose with { HandContact = new(contact.ReadSourceHand(animation, counter, poseFlags), contact.RecipientHand), HandAContact = contact.ReadHandA(animation, counter, poseFlags) } : pose;
     }
 }
 

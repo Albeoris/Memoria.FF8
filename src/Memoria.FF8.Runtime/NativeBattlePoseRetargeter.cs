@@ -13,6 +13,36 @@ public sealed record NativeBattleSemanticBonePair(string Joint, int Source, int 
 public sealed record NativeBattlePoseRetargetBinding(NativeBattlePoseSource SourceMotion, int SourceHand, int RecipientHand)
 {
     public ImmutableArray<ImmutableArray<NativeBattleVector>> SourceHandFrames { get; init; } = [];
+    public int? SourceHandA { get; init; }
+    public int? RecipientHandA { get; init; }
+    public ImmutableArray<ImmutableArray<NativeBattleVector>> SourceHandAFrames { get; init; } = [];
+
+    public NativeBattleDecodedSemanticContact? ReadHandA(byte animation, byte counter, byte flags)
+    {
+        if (SourceHandA is not int sourceHand || RecipientHandA is not int recipientHand)
+        {
+            return null;
+        }
+        NativeBattleVector position;
+        int frames;
+        if ((flags & 1) == 0 && !SourceHandAFrames.IsDefaultOrEmpty)
+        {
+            if (animation >= SourceHandAFrames.Length || counter == 0 || counter > SourceHandAFrames[animation].Length)
+            {
+                throw new InvalidDataException("A semantic contact leaves its original decoded animation.");
+            }
+            frames = SourceHandAFrames[animation].Length;
+            position = SourceHandAFrames[animation][counter - 1];
+        }
+        else
+        {
+            NativeBattleDecodedPose pose = SourceMotion.Sample(animation, counter, flags);
+            NativeBattleActionMatrix hand = NativeBattlePoseMatrices.StageBoneMatrices(SourceMotion, pose)[sourceHand];
+            position = new(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
+            frames = NativeBattlePoseDecoder.ReadFrameCounts(SourceMotion.Animations.AsSpan())[animation];
+        }
+        return new(position, recipientHand, animation, counter, checked((byte)frames), flags);
+    }
 
     public NativeBattleVector ReadSourceHand(byte animation, byte counter, byte flags)
     {
@@ -158,11 +188,19 @@ public sealed class NativeBattlePoseRetargeter
             aliases[pair.Source] = checked((byte)pair.Recipient);
         }
         NativeBattleSemanticBonePair? primary = bindings.Values.SingleOrDefault(pair => pair.Joint == primaryContactJoint);
+        NativeBattleSemanticBonePair? handA = bindings.Values.SingleOrDefault(pair => pair.Joint == "hand-a");
         NativeBattlePoseRetargetBinding? contact = primary is null ? null : new(motion, primary.Source, primary.Recipient)
         {
             SourceHandFrames = decoded.Select(animation => animation.Select(pose =>
             {
                 NativeBattleActionMatrix hand = NativeBattlePoseMatrices.StageBoneMatrices(motion, pose)[primary.Source];
+                return new NativeBattleVector(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
+            }).ToImmutableArray()).ToImmutableArray(),
+            SourceHandA = handA?.Source,
+            RecipientHandA = handA?.Recipient,
+            SourceHandAFrames = handA is null ? [] : decoded.Select(animation => animation.Select(pose =>
+            {
+                NativeBattleActionMatrix hand = NativeBattlePoseMatrices.StageBoneMatrices(motion, pose)[handA.Source];
                 return new NativeBattleVector(unchecked((short)hand.X), unchecked((short)hand.Y), unchecked((short)hand.Z));
             }).ToImmutableArray()).ToImmutableArray()
         };
