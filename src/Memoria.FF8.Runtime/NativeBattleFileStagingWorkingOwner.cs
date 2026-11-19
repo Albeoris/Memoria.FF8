@@ -319,8 +319,13 @@ internal sealed partial class NativeBattleFileStagingWorkingOwner
         ForgetLoaderZero(address, length);
         InvalidatePointers(address, length);
         ulong end = (ulong)address + (uint)length;
-        foreach (uint pageAddress in pages.Keys.ToArray())
+        uint firstPage = address & ~(uint)(PageLength - 1);
+        bool singlePage = end <= (ulong)firstPage + PageLength;
+        uint[]? pageAddresses = singlePage ? null : pages.Keys.ToArray();
+        int pageCount = singlePage ? (pages.ContainsKey(firstPage) ? 1 : 0) : pageAddresses!.Length;
+        for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
         {
+            uint pageAddress = singlePage ? firstPage : pageAddresses![pageIndex];
             ulong first = Math.Max(address, pageAddress);
             ulong last = Math.Min(end, (ulong)pageAddress + (uint)pages[pageAddress].StoredLength);
             if (last <= first)
