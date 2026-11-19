@@ -1,6 +1,12 @@
 ﻿using System.Text.Json;
 using Memoria.FF7.Events;
 
+if (args.Contains("--party-approach-only", StringComparer.Ordinal))
+{
+    NativePartyApproachOpcodeTests.Run();
+    return 0;
+}
+
 if (args.Contains("--saturated-byte-increment-only", StringComparer.Ordinal))
 {
     SaturatedByteAddTests.RunIncrement();

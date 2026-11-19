@@ -3,6 +3,12 @@ using Memoria.FF7.Events;
 using Memoria.FF7.Resources;
 using Memoria.FF7.Runtime;
 
+if (args.Contains("--native-actor-approach-only", StringComparer.Ordinal))
+{
+    NativeActorApproachTests.Run();
+    return 0;
+}
+
 if (args.Contains("--native-pending-music-only", StringComparer.Ordinal))
 {
     NativePendingMusicTransitionTests.Run();

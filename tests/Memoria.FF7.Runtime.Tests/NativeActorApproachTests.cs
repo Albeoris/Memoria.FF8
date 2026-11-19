@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Numerics;
 using System.Text.Json;
 using Memoria.FF7.Events;
@@ -44,6 +44,7 @@ internal static class NativeActorApproachTests
 
     public static void Run()
     {
+        CheckPartyAliasApproach();
         Ff7FieldHost fixture = Build(new() { Actors = [Actor(7, 0, 10), Actor(1, 1, 300)] });
         Ff7NativeMovement movement = fixture.Movement!;
         Ff7Actor actor = Actor(7, 0, 10) with { X4096 = 0, Y4096 = 0 };
@@ -93,6 +94,31 @@ internal static class NativeActorApproachTests
     private static Ff7FieldHost MoveTarget(Ff7FieldHost host, int y)
     {
         return Build(host.Capture() with { Actors = host.Process.Actors.Select(actor => actor.Entity == 1 ? actor with { Y4096 = y * 4096 } : actor).ToArray() });
+    }
+
+    private static void CheckPartyAliasApproach()
+    {
+        Ff7Actor caller = Actor(7, 0, 10);
+        Ff7Actor first = Actor(1, 1, 300) with { PartyCharacter = 3 };
+        Ff7Actor second = Actor(2, 2, 500) with { PartyCharacter = 1 };
+        int[] party = [0, 3, 1];
+        Ff7FieldHost host = Build(new() { Actors = [caller, first, second] });
+        host.ReadScriptParty = () => party;
+        FieldHostRequest request = new(1702, 7, 6, 0xCC5, new FieldActorMove(0, 0, TargetEntity: 1) { TargetPartySlot = 1 });
+        Equal(false, host.Execute(request).Completed);
+        Equal(1, host.Process.Motions.Single().EntityTarget!.Entity);
+        party[1] = 1;
+        Equal(false, host.Execute(request).Completed);
+        Equal(2, host.Process.Motions.Single().EntityTarget!.Entity);
+        Equal(second.Y4096, host.Process.Motions.Single().EntityTarget!.Y4096);
+        Ff7FieldHost cold = Build(JsonSerializer.Deserialize<Ff7FieldProcess>(JsonSerializer.Serialize(host.Capture()))!);
+        cold.ReadScriptParty = () => party;
+        Equal(false, cold.Execute(request).Completed);
+        Equal(JsonSerializer.Serialize(host.Capture()), JsonSerializer.Serialize(cold.Capture()));
+        party[1] = 255;
+        Equal(true, host.Execute(request).Completed);
+        Equal(0, host.Process.Motions.Length);
+        Equal(0, (new FieldActorMove(0, 0, TargetEntity: 1)).TargetPartySlot is null ? 0 : 1);
     }
 
     private static Ff7FieldHost Build(Ff7FieldProcess process)

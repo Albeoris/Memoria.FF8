@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -6,38 +6,48 @@ public sealed partial class Ff7FieldHost
 {
     private FieldHostReply FacePartyActor(int entity, FieldActorFaceParty command)
     {
-        int character;
-        if (ReadScriptPartyByte is { } readByte && command.PartySlot <= byte.MaxValue - 9)
+        Ff7Actor? target = ResolveScriptPartyActor(command.PartySlot);
+        if (target is null)
         {
-            character = readByte(command.PartySlot);
+            return new(true);
+        }
+        FieldHostReply reply = FaceActor(entity, new(target.Entity, command.Steps, command.DirectionPolicy, command.Immediate));
+        return command.Immediate ? reply with { Value = 1 } : reply;
+    }
+
+    private Ff7Actor? ResolveScriptPartyActor(byte partySlot)
+    {
+        int character;
+        if (ReadScriptPartyByte is { } readByte && partySlot <= byte.MaxValue - 9)
+        {
+            character = readByte(partySlot);
         }
         else
         {
-            if (command.PartySlot >= 3)
+            if (partySlot >= 3)
             {
-                throw new NotSupportedException("Native party facing reads beyond its script-party bank.");
+                throw new NotSupportedException("Native party actor lookup reads beyond its script-party bank.");
             }
-            int[] party = ReadScriptParty?.Invoke() ?? throw new NotSupportedException("Native party facing requires the script-party owner.");
+            int[] party = ReadScriptParty?.Invoke() ?? throw new NotSupportedException("Native party actor lookup requires the script-party owner.");
             if (party.Length != 3 || party.Any(member => member is < 0 or > 255))
             {
                 throw new InvalidDataException("The native script-party byte identities are invalid.");
             }
-            character = party[command.PartySlot];
+            character = party[partySlot];
         }
         if (character == 255)
         {
-            return new(true);
+            return null;
         }
         Ff7Actor[] targets = Process.Actors.Where(actor => actor.EntityBound && actor.PartyCharacter == character).ToArray();
         if (targets.Length == 0)
         {
-            return new(true);
+            return null;
         }
         if (targets.Length != 1)
         {
-            throw new NotSupportedException("Native party facing with duplicate character bindings requires the current character-to-entity mapping owner.");
+            throw new NotSupportedException("Native party actor lookup with duplicate character bindings requires the current character-to-entity mapping owner.");
         }
-        FieldHostReply reply = FaceActor(entity, new(targets[0].Entity, command.Steps, command.DirectionPolicy, command.Immediate));
-        return command.Immediate ? reply with { Value = 1 } : reply;
+        return targets[0];
     }
 }

@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Memoria.FF7.Events;
 
@@ -81,7 +81,11 @@ public enum FieldMovieOperation
 public sealed record FieldMovieCommand(FieldMovieOperation Operation, int MovieId = 0) : FieldCommand;
 public sealed record FieldActorBind(int ModelIndex) : FieldCommand;
 public sealed record FieldActorPlacement(short X, short Y, short? Z, short? Triangle) : FieldCommand;
-public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true, int? TargetEntity = null) : FieldCommand;
+public sealed record FieldActorMove(short X, short Y, bool Turn = true, bool Animated = true, int? TargetEntity = null) : FieldCommand
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? TargetPartySlot { get; init; }
+}
 public sealed record FieldTimerCommand(uint Seconds) : FieldCommand;
 public sealed record FieldPartyRecovery(bool AllCharacters = false) : FieldCommand;
 public sealed record FieldGilCommand(uint Amount, bool Subtract = false) : FieldCommand;

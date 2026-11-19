@@ -289,8 +289,25 @@ public sealed partial class FieldMachine
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4)), 6, firstCallYields: true);
             case 0xA9:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4), Turn: false, Animated: false), 6, firstCallYields: true);
+            case 0x2A:
             case 0xAA:
+                byte? movementPartySlot = opcode == 0x2A ? B(id, 1) : null;
                 int movementEntity = B(id, 1);
+                if (movementPartySlot is byte partyApproachSlot)
+                {
+                    if (partyApproachSlot > byte.MaxValue - 9)
+                    {
+                        throw new NotSupportedException("Native party approach reads beyond its script-party bank.");
+                    }
+                    int movementCharacter = Variables.ReadByte(FieldBank.Persistent1Byte, (byte)(9 + partyApproachSlot));
+                    movementEntity = movementCharacter == 255 ? -1 : Array.FindIndex(entities, actor => actor.PartyCharacter == movementCharacter);
+                    if (movementEntity < 0)
+                    {
+                        CancelPreemptedMovement(id);
+                        Advance(id, 2);
+                        return false;
+                    }
+                }
                 if (movementEntity >= entities.Length)
                 {
                     throw new InvalidDataException("FFVII MOVA references an absent target entity.");
@@ -301,7 +318,7 @@ public sealed partial class FieldMachine
                     Advance(id, 2);
                     return false;
                 }
-                return Host(id, new FieldActorMove(0, 0, TargetEntity: movementEntity), 2, firstCallYields: true);
+                return Host(id, new FieldActorMove(0, 0, TargetEntity: movementEntity) { TargetPartySlot = movementPartySlot }, 2, firstCallYields: true);
             case 0xAD:
                 return Actor(id, new FieldActorMove(R16(id, 1, 2), R16(id, 2, 4), Animated: false), 6, firstCallYields: true);
             case 0xAB:

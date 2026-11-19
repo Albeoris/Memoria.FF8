@@ -1,4 +1,4 @@
-using Memoria.FF7.Events;
+﻿using Memoria.FF7.Events;
 
 namespace Memoria.FF7.Runtime;
 
@@ -11,6 +11,16 @@ public sealed partial class Ff7FieldHost
 
     private FieldHostReply MoveActor(FieldHostRequest request, FieldActorMove movement)
     {
+        if (movement.TargetPartySlot is byte partySlot)
+        {
+            Ff7Actor? target = ResolveScriptPartyActor(partySlot);
+            if (target is null)
+            {
+                Cancel(request);
+                return new(true);
+            }
+            return MoveToActor(request, movement, target.Entity);
+        }
         if (movement.TargetEntity is int targetEntity)
         {
             return MoveToActor(request, movement, targetEntity);
