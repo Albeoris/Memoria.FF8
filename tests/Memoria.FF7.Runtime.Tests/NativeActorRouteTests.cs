@@ -17,6 +17,45 @@ internal static class NativeActorRouteTests
         Console.WriteLine("PASS native actor facing/selection, exact admission ownership, dialogue/menu terminal fences and cold authentication.");
     }
 
+    internal static void RunSourceRelease()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF7_ACTOR_SOURCE_RELEASE_SAVE");
+        string? root = Environment.GetEnvironmentVariable("MEMORIA_FF7_GAME_DIR");
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+        {
+            Console.WriteLine("SKIP native actor source release: configure original resources and an arrived actor revalidation fixture.");
+            return;
+        }
+        byte[] bytes = File.ReadAllBytes(path);
+        using MemoryStream stream = new(bytes);
+        Ff7SessionSave saved = CombinedSessionCodec.Read(stream).Ff7!;
+        Ff7AutoPlaySourceRevalidationTask task = saved.AutoPlay?.NativeRevalidation is { ArrivalAcknowledged: true } arrived ? arrived : throw new InvalidDataException("The actor release fixture requires an acknowledged source task.");
+        var installation = Memoria.FF7.Resources.Ff7Installation.Discover(root);
+        using Ff7Session source = Ff7Session.Restore(installation, saved);
+        string before = JsonSerializer.Serialize(source.Capture());
+        using Ff7Session session = Ff7Session.Restore(installation, saved);
+        Ff7AutoPlayTarget target = new Ff7AutoPlayDiscovery(session).Observe().Events.Single(item => item.Kind == Ff7AutoPlayTargetKind.ActorTalk && item.Id == task.EventId && item.ConditionFingerprint == task.Condition);
+        using Ff7AutoPlayPolicy policy = new(session, (_, _) => throw new InvalidOperationException("No checkpoint may be written."));
+        policy.State.FrontierProgressKey = null;
+        policy.State.FrontierIdleSteps = 0;
+        bool accepted = false;
+        bool released = false;
+        session.NativeActorTalkRequested += admission => accepted |= Ff7AutoplayDriver.IsSelectedNativeActorAdmission(target, admission);
+        Ff7AutoPlayController controller = new(session, policy.ChooseInput, readPlanningProgress: () => policy.WorkProgress);
+        controller.Start();
+        long first = session.Host.Process.Tick;
+        var wall = System.Diagnostics.Stopwatch.StartNew();
+        while (wall.Elapsed < TimeSpan.FromSeconds(15) && controller.Running && session.Battle is null && session.FieldGeneration == saved.FieldGeneration && session.Host.Process.Tick - first < 96 && !accepted)
+        {
+            controller.Advance(1);
+            released |= policy.State.NativeRoute is { SourceReleased: true } proof && proof.EventId == target.Id;
+        }
+        Check(controller.Error is null, "Public actor source-release continuation failed: " + controller.Error);
+        Check(released && accepted && policy.State.Active is { Accepted: true } active && active.EventId == target.Id && active.Entity == target.Entity && active.Script == target.Script && policy.State.NativeRevalidation is null, "Actor source-release proof did not preserve its exact owner through actual native admission and source-task completion.");
+        Check(before == JsonSerializer.Serialize(source.Capture()) && bytes.SequenceEqual(File.ReadAllBytes(path)), "Actor source-release regression changed the retained source session/file.");
+        Console.WriteLine("PASS public native actor source release, exact typed actor admission/task completion and source immutability.");
+    }
+
     private static void CheckFacingSelection()
     {
         short[] vectors = new short[512];

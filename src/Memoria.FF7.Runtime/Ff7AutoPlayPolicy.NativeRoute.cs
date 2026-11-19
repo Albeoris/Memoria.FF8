@@ -474,7 +474,13 @@ public sealed partial class Ff7AutoPlayPolicy
         driver.ConfigureSpatialBoundaries(actual.Events, target);
         try
         {
-            Ff7AutoplayInput next = driver.ChooseTargetInput(target, actual.Events, run => target.Kind == Ff7AutoPlayTargetKind.Gateway ? driver.GatewayAt(target.GatewayIndex!.Value, run) : driver.ApproachLine(target.Entity, target.Kind, run));
+            Ff7AutoplayInput next = driver.ChooseTargetInput(target, actual.Events, run => target.Kind switch
+            {
+                Ff7AutoPlayTargetKind.ActorTalk => driver.TalkTo(target.Entity, run),
+                Ff7AutoPlayTargetKind.Gateway => driver.GatewayAt(target.GatewayIndex!.Value, run),
+                >= Ff7AutoPlayTargetKind.LineTalk and <= Ff7AutoPlayTargetKind.LineLeave => driver.ApproachLine(target.Entity, target.Kind, run),
+                _ => throw new NotSupportedException("This target has no native source-release movement contract.")
+            });
             return !driver.PlanningPending && driver.PlannedActionAdvances == true && (next.Horizontal != 0 || next.Vertical != 0);
         }
         catch (Ff7AutoPlayNavigationUnavailableException)
